@@ -1,0 +1,17 @@
+[project]
+name = "market-data-service"
+version = "0.1.0"
+description = "Market data API for the Financial Analysis Platform"
+requires-python = ">=3.13"
+
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+
+[tool.ruff.lint]
+select = ["B", "E", "F", "I", "UP"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "lf"

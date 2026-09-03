@@ -6,3 +6,8 @@
 - Credit Codex as a collaborator by adding `Co-authored-by: Codex <codex@openai.com>` to every commit message.
 - Follow [Conventional Commits 1.0.0](https://www.conventionalcommits.org/en/v1.0.0/) for every commit message.
 
+## Change workflow
+
+- Add one Markdown change record under `changelog/` for every material change.
+- Follow the naming and content convention in `changelog/README.md`.
+- Run `npm run check` from the repository root before committing.

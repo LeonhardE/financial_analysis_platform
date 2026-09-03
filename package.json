@@ -1,0 +1,31 @@
+{
+  "name": "financial-analysis-platform",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": [
+    "apps/web"
+  ],
+  "scripts": {
+    "prepare": "simple-git-hooks",
+    "dev:web": "npm run dev --workspace @financial-analysis/web",
+    "build:web": "npm run build --workspace @financial-analysis/web",
+    "start:web": "npm run start --workspace @financial-analysis/web",
+    "typecheck:web": "npm run typecheck --workspace @financial-analysis/web",
+    "lint:api": "services/market-data-service/.venv/bin/ruff check services/market-data-service",
+    "format:web": "prettier --write .",
+    "format:api": "services/market-data-service/.venv/bin/ruff format services/market-data-service",
+    "format:check:web": "prettier --check .",
+    "format:check:api": "services/market-data-service/.venv/bin/ruff format --check services/market-data-service",
+    "lint": "npm run typecheck:web && npm run lint:api",
+    "format": "npm run format:web && npm run format:api",
+    "format:check": "npm run format:check:web && npm run format:check:api",
+    "check": "npm run lint && npm run format:check"
+  },
+  "simple-git-hooks": {
+    "pre-commit": "npm run check"
+  },
+  "devDependencies": {
+    "prettier": "^3.9.6",
+    "simple-git-hooks": "^2.14.0"
+  }
+}
