@@ -1,2 +1,4 @@
 .DS_Store
 
+# Local-only documentation
+local-docs/
