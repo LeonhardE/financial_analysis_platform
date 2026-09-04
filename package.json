@@ -1,5 +1,6 @@
 {
   "name": "financial-analysis-platform",
+  "author": "Xianxin Zeng",
   "version": "0.1.0",
   "private": true,
   "workspaces": [
