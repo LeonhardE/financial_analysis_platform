@@ -1,6 +1,8 @@
 # Change records
 
 This directory keeps a small, reviewable record for each material project change.
+Changes confined to `local-docs/` are exempt. For a mixed change, record only the material changes
+outside `local-docs/`.
 
 ## Convention
 

@@ -1,0 +1,22 @@
+# _API_BASE_URL is public and baked into the browser bundle; it must be the deployed API origin.
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - --file=apps/web/Dockerfile
+      - --build-arg=NEXT_PUBLIC_API_BASE_URL=${_API_BASE_URL}
+      - --tag=${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPOSITORY}/market-web:$BUILD_ID
+      - .
+
+images:
+  - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPOSITORY}/market-web:$BUILD_ID
+
+substitutions:
+  _REGION: northamerica-northeast1
+  _REPOSITORY: financial-analysis
+  _API_BASE_URL: ""
+
+options:
+  logging: CLOUD_LOGGING_ONLY
+
+timeout: 1200s

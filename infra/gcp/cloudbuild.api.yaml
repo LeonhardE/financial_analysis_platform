@@ -1,0 +1,20 @@
+# Build from the repository root. Deploy the resulting image through Cloud Run Console.
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - --file=services/market-data-service/Dockerfile
+      - --tag=${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPOSITORY}/market-api:$BUILD_ID
+      - .
+
+images:
+  - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPOSITORY}/market-api:$BUILD_ID
+
+substitutions:
+  _REGION: northamerica-northeast1
+  _REPOSITORY: financial-analysis
+
+options:
+  logging: CLOUD_LOGGING_ONLY
+
+timeout: 1200s
