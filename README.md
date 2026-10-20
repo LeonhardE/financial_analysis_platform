@@ -78,7 +78,7 @@ through the Cloud Run console. These configurations build and push images only; 
 services or run the full repository quality checks.
 
 1. Create a regional Docker Artifact Registry repository named `financial-analysis`. The default
-   region in the build configurations is `northamerica-northeast1`.
+   region in the build configurations is `northamerica-northeast2` (Toronto).
 2. Create a Cloud Build trigger for `infra/gcp/cloudbuild.api.yaml` and run it. Deploy its `market-api`
    image with port 8080 and public access; copy the HTTPS service origin.
 3. Create a trigger for `infra/gcp/cloudbuild.web.yaml`. Set its `_API_BASE_URL` substitution to that

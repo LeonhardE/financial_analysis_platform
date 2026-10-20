@@ -11,7 +11,7 @@ images:
   - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPOSITORY}/market-api:$BUILD_ID
 
 substitutions:
-  _REGION: northamerica-northeast1
+  _REGION: northamerica-northeast2
   _REPOSITORY: financial-analysis
 
 options:
