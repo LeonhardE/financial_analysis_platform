@@ -513,3 +513,330 @@ button {
     display: none;
   }
 }
+
+.data-badge {
+  background: rgba(45, 212, 168, 0.07);
+  border: 1px solid rgba(45, 212, 168, 0.2);
+  border-radius: 999px;
+  color: #97d9c7;
+  flex-shrink: 0;
+  font-size: 11px;
+  padding: 9px 13px;
+}
+.data-badge.mock-badge {
+  background: rgba(112, 129, 255, 0.08);
+  border-color: rgba(112, 129, 255, 0.24);
+  color: #a8b1ff;
+}
+.market-state.mock-state span {
+  background: var(--accent);
+  box-shadow: none;
+}
+.discovery,
+.index-section {
+  margin: 0 auto;
+  max-width: 1440px;
+  padding: 0 clamp(20px, 4vw, 64px);
+}
+.discovery {
+  margin-bottom: 22px;
+  position: relative;
+  z-index: 2;
+}
+.search-heading,
+.overview-heading {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 11px;
+}
+.search-heading label {
+  color: #c3cdda;
+  font-size: 12px;
+  font-weight: 600;
+}
+.search-heading span {
+  color: var(--muted);
+  font-size: 11px;
+}
+.search-field {
+  align-items: center;
+  background: rgba(16, 23, 34, 0.88);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  display: flex;
+  gap: 12px;
+  padding: 0 16px;
+}
+.search-field:focus-within {
+  border-color: #7081ff;
+  box-shadow: 0 0 0 3px rgba(112, 129, 255, 0.1);
+}
+.search-field svg {
+  flex-shrink: 0;
+  height: 19px;
+  stroke: #748299;
+  stroke-width: 1.6;
+  width: 19px;
+}
+.search-field input {
+  background: transparent;
+  border: 0;
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  min-height: 48px;
+  min-width: 0;
+  outline: none;
+  width: 100%;
+}
+.search-field input::placeholder {
+  color: #6f7d91;
+}
+.search-status {
+  color: #a5afbf;
+  font-size: 12px;
+  line-height: 1.6;
+  margin-top: 7px;
+}
+.search-status:empty {
+  margin: 0;
+}
+.search-results {
+  background: #141d2a;
+  border: 1px solid #2d3a51;
+  border-radius: 9px;
+  box-shadow: 0 15px 35px rgba(0, 0, 0, 0.4);
+  list-style: none;
+  margin: 9px 0 0;
+  padding: 5px;
+}
+.search-results button {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  border-radius: 5px;
+  color: var(--text);
+  cursor: pointer;
+  display: flex;
+  gap: 16px;
+  padding: 11px 12px;
+  text-align: left;
+  width: 100%;
+}
+.search-results button:hover,
+.search-results button:focus-visible {
+  background: rgba(112, 129, 255, 0.14);
+}
+.search-results strong {
+  flex: 0 0 62px;
+  font-size: 12px;
+}
+.search-results span {
+  color: #a5b1c3;
+  font-size: 12px;
+}
+.search-results small {
+  color: var(--muted);
+  font-size: 10px;
+  margin-left: auto;
+}
+.index-section {
+  margin-bottom: 22px;
+}
+.overview-heading h2 {
+  color: #8e9cb1;
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.08em;
+  margin: 0;
+  text-transform: uppercase;
+}
+.text-button {
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  color: #a8b1ff;
+  cursor: pointer;
+  font-size: 11px;
+  padding: 4px;
+}
+.text-button:hover {
+  color: #d8ddff;
+}
+.text-button:disabled {
+  color: var(--muted);
+  cursor: default;
+}
+.text-button:focus-visible,
+.index-card:focus-visible,
+.search-results button:focus-visible {
+  outline: 2px solid #a8b1ff;
+  outline-offset: 3px;
+}
+.index-grid {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.index-card {
+  align-items: center;
+  background: linear-gradient(130deg, rgba(21, 31, 45, 0.95), rgba(16, 23, 34, 0.88));
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  color: var(--text);
+  cursor: pointer;
+  display: flex;
+  gap: 8px;
+  justify-content: space-between;
+  padding: 19px 18px;
+  text-align: left;
+}
+.index-card:hover,
+.index-card.active {
+  border-color: rgba(112, 129, 255, 0.5);
+}
+.index-card.active {
+  background: linear-gradient(120deg, rgba(112, 129, 255, 0.15), rgba(16, 23, 34, 0.88));
+}
+.index-card .symbol-block {
+  min-width: 0;
+}
+.index-card .symbol-block small {
+  line-height: 1.5;
+}
+.index-card .quote-block {
+  flex-shrink: 0;
+}
+.index-card .quote-block strong {
+  font-size: 17px;
+}
+.quote-block .quote-date {
+  color: #69798f;
+  font-size: 9px;
+}
+.quote-stale {
+  color: #d8b875;
+}
+.overview-notice {
+  color: #d8b875;
+  font-size: 12px;
+  line-height: 1.6;
+  margin: 10px 0 0;
+}
+.overview-notice.error {
+  color: #ffb1bc;
+}
+.overview-footnote {
+  border-top: 1px solid var(--border);
+  color: #738298;
+  font-size: 10px;
+  line-height: 1.6;
+  margin: 0;
+  padding: 13px 20px;
+}
+.chart-header > div:first-child {
+  min-width: 0;
+}
+.instrument-title {
+  flex-wrap: wrap;
+}
+.state-message {
+  flex-direction: column;
+  gap: 8px;
+  line-height: 1.7;
+  padding: 22px;
+  text-align: center;
+}
+.state-message p {
+  margin: 0;
+  max-width: 440px;
+}
+.data-notes {
+  align-items: center;
+  border-top: 1px solid var(--border);
+  color: #8291a7;
+  display: flex;
+  flex-wrap: wrap;
+  font-size: 10px;
+  gap: 8px 15px;
+  line-height: 1.6;
+  padding: 12px 28px;
+}
+.data-notes .mock-note {
+  color: #a8b1ff;
+}
+.data-notes .cached-note,
+.data-notes .partial-note,
+.data-notes .market-warning {
+  color: #d8b875;
+}
+.chart-footer {
+  flex-wrap: wrap;
+  gap: 8px 15px;
+  line-height: 1.5;
+  text-transform: none;
+}
+
+@media (max-width: 1080px) {
+  .hero {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 16px;
+  }
+  .index-card {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .index-card .quote-block {
+    text-align: left;
+  }
+}
+
+@media (max-width: 800px) {
+  .index-card {
+    padding: 16px;
+  }
+  .index-card .quote-block strong {
+    font-size: 16px;
+  }
+  .data-notes {
+    padding: 12px 18px;
+  }
+}
+
+@media (max-width: 520px) {
+  .data-badge.mock-badge {
+    display: inline-block;
+  }
+  .index-grid {
+    gap: 8px;
+  }
+  .index-card {
+    padding: 13px 9px;
+  }
+  .index-card .quote-block strong {
+    font-size: 14px;
+  }
+  .index-card .symbol-block small {
+    font-size: 9px;
+    min-height: 42px;
+  }
+  .index-card .symbol-block strong {
+    font-size: 12px;
+  }
+  .search-field {
+    gap: 8px;
+    padding: 0 12px;
+  }
+  .search-field input {
+    font-size: 12px;
+  }
+  .search-results button {
+    gap: 8px;
+  }
+  .search-results strong {
+    flex-basis: 46px;
+  }
+}

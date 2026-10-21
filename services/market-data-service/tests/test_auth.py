@@ -30,7 +30,11 @@ CLAIMS = {
 
 class AuthenticationTests(unittest.TestCase):
     def setUp(self):
-        self.environment = patch.dict(os.environ, {"FIREBASE_PROJECT_ID": PROJECT_ID}, clear=True)
+        self.environment = patch.dict(
+            os.environ,
+            {"FIREBASE_PROJECT_ID": PROJECT_ID, "MARKET_DATA_SOURCE": "mock"},
+            clear=True,
+        )
         self.environment.start()
         self.addCleanup(self.environment.stop)
         self.firebase_app = SimpleNamespace(project_id=PROJECT_ID)

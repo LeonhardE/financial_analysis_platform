@@ -46,8 +46,18 @@ export function CandlestickChart({ data }: { data: Candle[] }) {
         vertLine: { color: "rgba(128, 145, 170, 0.45)", labelBackgroundColor: "#243044" },
         horzLine: { color: "rgba(128, 145, 170, 0.45)", labelBackgroundColor: "#243044" },
       },
-      handleScroll: false,
-      handleScale: false,
+      handleScroll: {
+        mouseWheel: true,
+        pressedMouseMove: true,
+        horzTouchDrag: true,
+        vertTouchDrag: false,
+      },
+      handleScale: {
+        axisPressedMouseMove: true,
+        axisDoubleClickReset: true,
+        mouseWheel: true,
+        pinch: true,
+      },
     });
 
     const series = chart.addSeries(CandlestickSeries, {

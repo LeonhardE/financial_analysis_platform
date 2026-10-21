@@ -1,92 +1,82 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useRef, useState } from "react";
 import { CandlestickChart } from "@/components/CandlestickChart";
 import { AccountControls } from "@/components/AccountControls";
+import { useMarketResource } from "@/components/useMarketResource";
+import {
+  DEFAULT_INSTRUMENTS,
+  formatChange,
+  formatFetchedAt,
+  formatPrice,
+  type CandleResponse,
+  type Instrument,
+  type MarketOverview,
+  type SearchResponse,
+  type StockSummary,
+} from "@/lib/market-data";
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
-
-type StockSummary = {
-  symbol: string;
-  name: string;
-  latestClose: number;
-  changePercent: number;
-};
-
-type Candle = {
-  time: string;
-  open: number;
-  high: number;
-  low: number;
-  close: number;
-  volume: number;
-};
-
-type CandleResponse = {
-  symbol: string;
-  name: string;
-  currency: string;
-  range: string;
-  isMock: boolean;
-  candles: Candle[];
-};
-
-const money = new Intl.NumberFormat("en-US", {
-  style: "currency",
-  currency: "USD",
-  minimumFractionDigits: 2,
-});
+function changeClass(value: number | null | undefined) {
+  return value == null || !Number.isFinite(value) ? "" : value >= 0 ? "positive" : "negative";
+}
 
 export default function Dashboard() {
-  const [stocks, setStocks] = useState<StockSummary[]>([]);
-  const [selectedSymbol, setSelectedSymbol] = useState("AAPL");
-  const [marketData, setMarketData] = useState<CandleResponse | null>(null);
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    async function loadStocks() {
-      try {
-        const response = await fetch(`${API_BASE_URL}/api/stocks`);
-        if (!response.ok) throw new Error("Could not load the market overview");
-        const data = (await response.json()) as { stocks: StockSummary[] };
-        setStocks(data.stocks);
-      } catch (requestError) {
-        setError(requestError instanceof Error ? requestError.message : "Unexpected error");
-      }
-    }
-
-    void loadStocks();
-  }, []);
-
-  useEffect(() => {
-    async function loadCandles() {
-      setLoading(true);
-      setError("");
-      try {
-        const response = await fetch(`${API_BASE_URL}/api/stocks/${selectedSymbol}/candles`);
-        if (!response.ok) throw new Error(`Could not load ${selectedSymbol} market data`);
-        setMarketData((await response.json()) as CandleResponse);
-      } catch (requestError) {
-        setError(requestError instanceof Error ? requestError.message : "Unexpected error");
-      } finally {
-        setLoading(false);
-      }
-    }
-
-    void loadCandles();
-  }, [selectedSymbol]);
-
-  const selectedStock = useMemo(
-    () => stocks.find((stock) => stock.symbol === selectedSymbol),
-    [selectedSymbol, stocks],
+  const [selected, setSelected] = useState<Instrument>(DEFAULT_INSTRUMENTS[3]);
+  const [query, setQuery] = useState("");
+  const [overviewReload, setOverviewReload] = useState(0);
+  const [chartReload, setChartReload] = useState(0);
+  const searchInput = useRef<HTMLInputElement>(null);
+  const overview = useMarketResource<MarketOverview>("/api/stocks", overviewReload);
+  // The first overview request warms the shared default-instrument cache before chart loading.
+  // A settled failure also opens the chart, and later overview refreshes leave it independent.
+  const chart = useMarketResource<CandleResponse>(
+    overview.hasSettled ? `/api/stocks/${encodeURIComponent(selected.symbol)}/candles` : null,
+    chartReload,
   );
-
+  const chartLoading = !overview.hasSettled || chart.loading;
+  const searchQuery = query.trim();
+  const search = useMarketResource<SearchResponse>(
+    searchQuery.length >= 2 ? `/api/stocks/search?q=${encodeURIComponent(searchQuery)}` : null,
+    0,
+    400,
+  );
+  const marketData = chart.data?.symbol === selected.symbol ? chart.data : null;
+  const stocks = DEFAULT_INSTRUMENTS.map((instrument) => {
+    const quote = overview.data?.stocks.find((stock) => stock.symbol === instrument.symbol);
+    return { ...instrument, ...quote };
+  });
   const latestCandle = marketData?.candles.at(-1);
   const previousCandle = marketData?.candles.at(-2);
   const dailyChange =
-    latestCandle && previousCandle ? latestCandle.close - previousCandle.close : 0;
-  const dailyChangePercent = previousCandle ? (dailyChange / previousCandle.close) * 100 : 0;
+    latestCandle && previousCandle ? latestCandle.close - previousCandle.close : null;
+  const dailyChangePercent =
+    dailyChange != null && previousCandle && previousCandle.close > 0
+      ? (dailyChange / previousCandle.close) * 100
+      : null;
+
+  function selectInstrument(instrument: Instrument) {
+    setSelected(instrument);
+    setQuery("");
+  }
+
+  function renderQuote(stock: Instrument & Partial<StockSummary>) {
+    return (
+      <>
+        <span className="symbol-block">
+          <strong>{stock.symbol}</strong>
+          <small>{stock.name}</small>
+        </span>
+        <span className="quote-block">
+          <strong>{formatPrice(stock.latestClose, stock)}</strong>
+          <small className={changeClass(stock.changePercent)}>
+            {formatChange(stock.changePercent)}
+            {stock.isStale && <span className="quote-stale"> · Cached</span>}
+          </small>
+          {stock.dataDate && <small className="quote-date">{stock.dataDate}</small>}
+        </span>
+      </>
+    );
+  }
 
   return (
     <main className="app-shell">
@@ -101,8 +91,8 @@ export default function Dashboard() {
           </div>
         </div>
         <div className="topbar-actions">
-          <div className="market-state">
-            <span /> US market · mock session
+          <div className={`market-state ${overview.data?.isMock ? "mock-state" : ""}`}>
+            <span /> {overview.data?.isMock ? "Mock data" : "Daily market data"}
           </div>
           <AccountControls />
         </div>
@@ -110,67 +100,163 @@ export default function Dashboard() {
 
       <section className="hero">
         <div>
-          <p className="eyebrow">MARKET OVERVIEW / US EQUITIES</p>
-          <h1>Magnificent Seven</h1>
-          <p>One month of fixed local data for the first product prototype.</p>
+          <p className="eyebrow">MARKET OVERVIEW / UNITED STATES</p>
+          <h1>The market, at a glance.</h1>
+          <p>Three major indices. The Magnificent Seven. Daily charts, open to everyone.</p>
         </div>
-        <div className="mock-badge">Mock data · Not investment advice</div>
+        <div className={`data-badge ${overview.data?.isMock ? "mock-badge" : ""}`}>
+          {overview.data?.isMock
+            ? "Mock data · Simulated prices"
+            : overview.data
+              ? "Yahoo Finance · Daily data"
+              : "Daily prices · Latest available"}
+        </div>
+      </section>
+
+      <section className="discovery" aria-label="Public stock search">
+        <div className="search-heading">
+          <label htmlFor="stock-search">Find a US stock</label>
+          <span>No sign-in needed</span>
+        </div>
+        <div className="search-field">
+          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <circle cx="10.5" cy="10.5" r="6.5" />
+            <path d="m16 16 5 5" />
+          </svg>
+          <input
+            id="stock-search"
+            type="search"
+            autoComplete="off"
+            spellCheck={false}
+            maxLength={50}
+            placeholder="Search a symbol or company, e.g. NFLX or Netflix"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Escape") setQuery("");
+            }}
+            aria-describedby="search-status"
+            ref={searchInput}
+          />
+        </div>
+        <div id="search-status" className="search-status" role="status" aria-live="polite">
+          {searchQuery.length === 1 && "Enter at least 2 characters to search."}
+          {searchQuery.length >= 2 && search.loading && "Searching stocks…"}
+          {searchQuery.length >= 2 && search.error && search.error}
+          {searchQuery.length >= 2 && search.data && !search.data.stocks.length && (
+            <span>No matching US stocks. Try a symbol such as AAPL or NFLX.</span>
+          )}
+          {search.data?.warning}
+        </div>
+        {searchQuery.length >= 2 && Boolean(search.data?.stocks.length) && (
+          <ul className="search-results" aria-label="Stock search results">
+            {search.data?.stocks.slice(0, 10).map((instrument) => (
+              <li key={instrument.symbol}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    selectInstrument(instrument);
+                    searchInput.current?.focus();
+                  }}
+                >
+                  <strong>{instrument.symbol}</strong>
+                  <span>{instrument.name}</span>
+                  <small>
+                    {instrument.instrumentType === "index" ? "Index" : instrument.currency}
+                  </small>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      <section className="index-section" aria-labelledby="indices-title">
+        <div className="overview-heading">
+          <h2 id="indices-title">US market indices</h2>
+          <button
+            className="text-button"
+            type="button"
+            disabled={overview.loading}
+            onClick={() => setOverviewReload((value) => value + 1)}
+          >
+            {overview.loading ? "Updating…" : "Refresh overview"}
+          </button>
+        </div>
+        <div className="index-grid">
+          {stocks
+            .filter((stock) => stock.instrumentType === "index")
+            .map((stock) => (
+              <button
+                className={`index-card ${stock.symbol === selected.symbol ? "active" : ""}`}
+                key={stock.symbol}
+                onClick={() => selectInstrument(stock)}
+                type="button"
+                aria-pressed={stock.symbol === selected.symbol}
+              >
+                {renderQuote(stock)}
+              </button>
+            ))}
+        </div>
+        {overview.error && (
+          <p className="overview-notice error" role="status">
+            {overview.error}
+          </p>
+        )}
+        {overview.data?.warning && (
+          <p className="overview-notice" role="status">
+            {overview.data.warning}
+          </p>
+        )}
       </section>
 
       <section className="workspace">
-        <aside className="watchlist" aria-label="Public market overview">
+        <aside className="watchlist" aria-label="Public Magnificent Seven market overview">
           <div className="panel-heading">
-            <h2>Market overview</h2>
-            <span>{stocks.length || 7} assets</span>
+            <h2>Magnificent Seven</h2>
+            <span>7 stocks</span>
           </div>
           <div className="stock-list">
-            {stocks.map((stock) => (
-              <button
-                className={`stock-row ${stock.symbol === selectedSymbol ? "active" : ""}`}
-                key={stock.symbol}
-                onClick={() => setSelectedSymbol(stock.symbol)}
-                type="button"
-              >
-                <span className="symbol-block">
-                  <strong>{stock.symbol}</strong>
-                  <small>{stock.name}</small>
-                </span>
-                <span className="quote-block">
-                  <strong>{money.format(stock.latestClose)}</strong>
-                  <small className={stock.changePercent >= 0 ? "positive" : "negative"}>
-                    {stock.changePercent >= 0 ? "+" : ""}
-                    {stock.changePercent.toFixed(2)}%
-                  </small>
-                </span>
-              </button>
-            ))}
+            {stocks
+              .filter((stock) => stock.instrumentType === "stock")
+              .map((stock) => (
+                <button
+                  className={`stock-row ${stock.symbol === selected.symbol ? "active" : ""}`}
+                  key={stock.symbol}
+                  onClick={() => selectInstrument(stock)}
+                  type="button"
+                  aria-pressed={stock.symbol === selected.symbol}
+                >
+                  {renderQuote(stock)}
+                </button>
+              ))}
           </div>
+          <p className="overview-footnote">Daily prices · Dates shown per instrument</p>
         </aside>
 
-        <article className="chart-panel">
+        <article className="chart-panel" aria-label={`${selected.symbol} stock details`}>
           <div className="chart-header">
             <div>
               <div className="instrument-title">
-                <span className="ticker">{selectedSymbol}</span>
-                <span>{marketData?.name ?? selectedStock?.name ?? "Loading"}</span>
+                <span className="ticker">{selected.symbol}</span>
+                <span>{marketData?.name ?? selected.name}</span>
               </div>
-              <div className="price-line">
-                <strong>{latestCandle ? money.format(latestCandle.close) : "—"}</strong>
-                {latestCandle && (
-                  <span className={dailyChange >= 0 ? "positive" : "negative"}>
+              <div className="price-line" aria-live="polite">
+                <strong>{formatPrice(latestCandle?.close, selected)}</strong>
+                {dailyChange != null && (
+                  <span className={changeClass(dailyChange)}>
                     {dailyChange >= 0 ? "+" : ""}
-                    {dailyChange.toFixed(2)} ({dailyChangePercent >= 0 ? "+" : ""}
-                    {dailyChangePercent.toFixed(2)}%)
+                    {dailyChange.toFixed(2)} ({formatChange(dailyChangePercent)})
                   </span>
                 )}
               </div>
             </div>
-            <div className="range-switch" aria-label="Selected time range">
+            <div className="range-switch" aria-label="Selected time range: one month">
               <span>1M</span>
             </div>
           </div>
 
-          <div className="ohlc-strip">
+          <div className="ohlc-strip" aria-label="Latest daily candle">
             <span>
               O <b>{latestCandle?.open.toFixed(2) ?? "—"}</b>
             </span>
@@ -185,17 +271,62 @@ export default function Dashboard() {
             </span>
           </div>
 
-          <div className="chart-stage">
-            {loading && <div className="state-message">Loading local market data…</div>}
-            {!loading && error && (
-              <div className="state-message error">{error}. Please try again shortly.</div>
+          <div className="chart-stage" aria-busy={chartLoading}>
+            {chartLoading && (
+              <div className="state-message" role="status">
+                Loading daily market data…
+              </div>
             )}
-            {!loading && !error && marketData && <CandlestickChart data={marketData.candles} />}
+            {!chartLoading && chart.error && (
+              <div className="state-message error" role="status">
+                <p>{chart.error}</p>
+                <button
+                  className="text-button"
+                  type="button"
+                  onClick={() => setChartReload((value) => value + 1)}
+                >
+                  Try again
+                </button>
+              </div>
+            )}
+            {!chartLoading &&
+              !chart.error &&
+              marketData &&
+              (marketData.candles.length ? (
+                <CandlestickChart data={marketData.candles} />
+              ) : (
+                <div className="state-message" role="status">
+                  No daily candles are available for this symbol.
+                </div>
+              ))}
           </div>
 
+          {marketData && (
+            <div className="data-notes" role="status">
+              <span className={marketData.isMock ? "mock-note" : ""}>
+                {marketData.isMock
+                  ? "Simulated prices · Mock data"
+                  : "Yahoo Finance · Daily candles"}
+              </span>
+              {marketData.isStale && (
+                <span className="cached-note">Cached data · Update unavailable</span>
+              )}
+              {marketData.isPartial && (
+                <span className="partial-note">Latest daily candle is still in progress</span>
+              )}
+              {marketData.adjustment === "split_and_dividend_adjusted" && (
+                <span>Adjusted for splits and dividends</span>
+              )}
+              {marketData.warning && <span className="market-warning">{marketData.warning}</span>}
+            </div>
+          )}
           <footer className="chart-footer">
-            <span>USD · Daily candles</span>
-            <span>Last mock date: {latestCandle?.time ?? "—"}</span>
+            <span>
+              {selected.instrumentType === "index" ? "Index points" : selected.currency} · Daily
+              candles
+            </span>
+            <span>Data date: {marketData?.dataDate ?? "—"}</span>
+            <span>Fetched: {formatFetchedAt(marketData?.fetchedAt)}</span>
           </footer>
         </article>
       </section>
