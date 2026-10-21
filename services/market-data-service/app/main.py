@@ -1,10 +1,12 @@
 """FastAPI entrypoint for the local MVP."""
 
 import os
+from typing import Annotated
 
-from fastapi import FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException, Response
 from fastapi.middleware.cors import CORSMiddleware
 
+from .auth import CurrentUser, require_google_user
 from .mock_data import MOCK_CANDLES, STOCKS
 
 app = FastAPI(
@@ -31,6 +33,14 @@ app.add_middleware(
 @app.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok", "data_source": "mock"}
+
+
+@app.get("/api/v1/me", response_model=CurrentUser)
+def current_user(
+    user: Annotated[CurrentUser, Depends(require_google_user)], response: Response
+) -> CurrentUser:
+    response.headers["Cache-Control"] = "no-store"
+    return user
 
 
 @app.get("/api/stocks")

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { CandlestickChart } from "@/components/CandlestickChart";
+import { AccountControls } from "@/components/AccountControls";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
 
@@ -47,7 +48,7 @@ export default function Dashboard() {
     async function loadStocks() {
       try {
         const response = await fetch(`${API_BASE_URL}/api/stocks`);
-        if (!response.ok) throw new Error("Could not load the watchlist");
+        if (!response.ok) throw new Error("Could not load the market overview");
         const data = (await response.json()) as { stocks: StockSummary[] };
         setStocks(data.stocks);
       } catch (requestError) {
@@ -99,14 +100,17 @@ export default function Dashboard() {
             <span>Market watch</span>
           </div>
         </div>
-        <div className="market-state">
-          <span /> US market · mock session
+        <div className="topbar-actions">
+          <div className="market-state">
+            <span /> US market · mock session
+          </div>
+          <AccountControls />
         </div>
       </header>
 
       <section className="hero">
         <div>
-          <p className="eyebrow">WATCHLIST / US EQUITIES</p>
+          <p className="eyebrow">MARKET OVERVIEW / US EQUITIES</p>
           <h1>Magnificent Seven</h1>
           <p>One month of fixed local data for the first product prototype.</p>
         </div>
@@ -114,9 +118,9 @@ export default function Dashboard() {
       </section>
 
       <section className="workspace">
-        <aside className="watchlist" aria-label="Stock watchlist">
+        <aside className="watchlist" aria-label="Public market overview">
           <div className="panel-heading">
-            <h2>Watchlist</h2>
+            <h2>Market overview</h2>
             <span>{stocks.length || 7} assets</span>
           </div>
           <div className="stock-list">
@@ -184,7 +188,7 @@ export default function Dashboard() {
           <div className="chart-stage">
             {loading && <div className="state-message">Loading local market data…</div>}
             {!loading && error && (
-              <div className="state-message error">{error}. Is the API running on port 8000?</div>
+              <div className="state-message error">{error}. Please try again shortly.</div>
             )}
             {!loading && !error && marketData && <CandlestickChart data={marketData.candles} />}
           </div>

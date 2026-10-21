@@ -13,6 +13,8 @@ apps/web/.env*
 *.tsbuildinfo
 
 # Python services
+services/market-data-service/.env*
+!services/market-data-service/.env.example
 services/market-data-service/.venv/
 services/market-data-service/**/__pycache__/
 services/market-data-service/.pytest_cache/
