@@ -8,6 +8,8 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from .auth import CurrentUser, require_google_user
 from .market_data import MarketService, get_market_service
+from .watchlist import PrivateWatchlistHeaders
+from .watchlist import router as watchlist_router
 
 app = FastAPI(
     title="Financial Analysis Platform API",
@@ -25,9 +27,12 @@ app.add_middleware(
         if origin.strip()
     ],
     allow_credentials=False,
-    allow_methods=["GET"],
+    allow_methods=["GET", "PUT", "DELETE"],
     allow_headers=["*"],
 )
+
+app.add_middleware(PrivateWatchlistHeaders)
+app.include_router(watchlist_router)
 
 
 @app.get("/health")

@@ -195,3 +195,129 @@ test("failed sign-out keeps identity hidden and retries the SDK's current accoun
   assert.equal(refreshed, true);
   assert.equal(harness.state().profile.uid, "b");
 });
+
+test("private requests use a fresh SDK token, fixed API route, and no credential storage", async () => {
+  let tokens = 0;
+  const account = { uid: "a", getIdToken: async () => `fresh-token-${++tokens}` };
+  const harness = mountProvider();
+  harness.emitUser(account);
+  await settle();
+  await harness.actions.requestPrivate("/api/v1/watchlist/NFLX", "a:1", { method: "PUT" });
+  assert.equal(tokens, 2);
+  const [url, options] = harness.requests[1];
+  assert.match(url, /\/api\/v1\/watchlist\/NFLX$/);
+  assert.equal(options.headers.Authorization, "Bearer fresh-token-2");
+  assert.equal(options.method, "PUT");
+  assert.equal(options.credentials, "omit");
+  assert.equal(options.cache, "no-store");
+  await assert.rejects(
+    harness.actions.requestPrivate("https://example.com/api/v1/watchlist", "a:1"),
+    /Invalid private API path/,
+  );
+  assert.equal(harness.requests.length, 2);
+});
+
+test("switching account while a private token is pending cannot send the previous token", async () => {
+  const token = deferred();
+  let attempts = 0;
+  const harness = mountProvider({
+    fetchProfile: async (_url, options) =>
+      profileResponse(options.headers.Authorization.endsWith("-b") ? "b" : "a"),
+  });
+  harness.emitUser({
+    uid: "a",
+    getIdToken: () => (++attempts === 1 ? Promise.resolve("test-token-a") : token.promise),
+  });
+  await settle();
+  const pending = harness.actions.requestPrivate("/api/v1/watchlist/NFLX", "a:1", {
+    method: "PUT",
+  });
+  const rejected = assert.rejects(pending, /account session changed/);
+  harness.emitUser(user("b"));
+  await settle();
+  token.resolve("late-test-token-a");
+  await rejected;
+  assert.equal(harness.state().profile.uid, "b");
+  assert.equal(harness.requests.length, 2);
+  assert.ok(harness.requests.every(([url]) => url.endsWith("/api/v1/me")));
+});
+
+test("a private 401 hides verified identity without repeated token refreshes", async () => {
+  let attempts = 0;
+  const harness = mountProvider({
+    fetchProfile: async (url) =>
+      url.endsWith("/api/v1/me") ? profileResponse("a") : { ok: false, status: 401 },
+  });
+  harness.emitUser({ uid: "a", getIdToken: async () => `test-token-${++attempts}` });
+  await settle();
+  await assert.rejects(
+    harness.actions.requestPrivate("/api/v1/watchlist", "a:1"),
+    /account session changed/,
+  );
+  assert.equal(harness.state().status, "error");
+  assert.equal(harness.state().profile, null);
+  await assert.rejects(harness.actions.requestPrivate("/api/v1/watchlist", "a:1"));
+  assert.equal(attempts, 2);
+  assert.equal(harness.requests.length, 2);
+});
+
+test("a late rejected private response from A cannot invalidate verified account B", async () => {
+  const privateResponse = deferred();
+  const harness = mountProvider({
+    fetchProfile: async (url, options) =>
+      url.endsWith("/api/v1/me")
+        ? profileResponse(options.headers.Authorization.endsWith("-b") ? "b" : "a")
+        : privateResponse.promise,
+  });
+  harness.emitUser(user("a"));
+  await settle();
+  const pending = harness.actions.requestPrivate("/api/v1/watchlist", "a:1");
+  const rejected = assert.rejects(pending, /account session changed/);
+  await settle();
+  harness.emitUser(user("b"));
+  await settle();
+  privateResponse.resolve({ status: 401, ok: false });
+  await rejected;
+  assert.equal(harness.state().profile.uid, "b");
+  assert.equal(harness.state().status, "authenticated");
+});
+
+test("failed private token acquisition hides identity and never transmits an invalid token", async () => {
+  let attempts = 0;
+  const harness = mountProvider();
+  harness.emitUser({
+    uid: "a",
+    getIdToken: async () => {
+      if (++attempts > 1) throw new Error("Expired SDK credential");
+      return "test-token-a";
+    },
+  });
+  await settle();
+  await assert.rejects(
+    harness.actions.requestPrivate("/api/v1/watchlist", "a:1"),
+    /account session changed/,
+  );
+  assert.equal(harness.state().profile, null);
+  assert.equal(harness.state().status, "error");
+  assert.equal(harness.requests.length, 1);
+});
+
+test("logging out while a private token is pending prevents the private fetch", async () => {
+  const token = deferred();
+  let attempts = 0;
+  const harness = mountProvider();
+  harness.emitUser({
+    uid: "a",
+    getIdToken: () => (++attempts === 1 ? Promise.resolve("test-token-a") : token.promise),
+  });
+  await settle();
+  const pending = harness.actions.requestPrivate("/api/v1/watchlist/NFLX", "a:1", {
+    method: "PUT",
+  });
+  const rejected = assert.rejects(pending, /account session changed/);
+  await harness.actions.signOut();
+  token.resolve("late-test-token-a");
+  await rejected;
+  assert.equal(harness.state().profile, null);
+  assert.equal(harness.requests.length, 1);
+});

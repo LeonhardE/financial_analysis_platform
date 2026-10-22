@@ -252,6 +252,13 @@ function renderDashboard({ overview, chart, selectedSymbol = "AAPL", requests = 
     "@/components/AccountControls": {
       AccountControls: () => jsxRuntime.jsx("button", { children: "Sign in with Google" }),
     },
+    "@/components/useWatchlist": {
+      useWatchlist: () => ({ authenticated: false, items: [] }),
+    },
+    "@/components/PersonalWatchlist": {
+      PersonalWatchlist: () => jsxRuntime.jsx("aside", { children: "My watchlist" }),
+      WatchlistAction: () => jsxRuntime.jsx("button", { children: "Sign in to save" }),
+    },
     "@/components/CandlestickChart": {
       CandlestickChart: () => jsxRuntime.jsx("div", { "data-chart": "rendered" }),
     },

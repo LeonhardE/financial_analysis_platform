@@ -5,8 +5,8 @@ A monorepo for a US-stock watchlist and portfolio risk tracking product.
 The MVP shows daily market data through yfinance in Lightweight Charts. Anonymous visitors can
 browse the S&P 500, Nasdaq Composite, Dow Jones Industrial Average and Magnificent Seven, or search
 for other US stocks. Optional Google sign-in uses Firebase Authentication, with the API independently
-verifying identity before returning a profile. Personal watchlists and YouTube summaries are planned
-follow-up work.
+verifying identity before returning a profile. Signed-in users can save a personal watchlist that
+survives refreshes and sign-in on another device. YouTube summaries remain planned follow-up work.
 
 ## Repository structure
 
@@ -15,7 +15,8 @@ apps/
   web/                         Next.js web client
 services/
   market-data-service/         FastAPI market data and identity API
-infra/gcp/                     Build-and-push Cloud Build configurations
+infra/gcp/                     Cloud Build deployment configurations and release guard
+.github/workflows/             Pull request quality checks
 changelog/                     One Markdown record per material tracked change
 ```
 
@@ -140,6 +141,36 @@ For local QA, the official Firebase Authentication emulator can be selected usin
 project IDs. Use a `demo-` project and synthetic accounts. Never set emulator configuration in
 production: the frontend rejects it in production and the API rejects it on Cloud Run.
 
+## Personal watchlist
+
+The separate **My watchlist** section saves up to 50 validated US stocks or default indices. Open an
+instrument and choose **Add to watchlist**, or remove it from the chart or saved list. Public indices,
+the Magnificent Seven and search stay available without signing in. Saved rows contain metadata;
+opening a row uses the existing cached market endpoint rather than fetching prices for every saved
+instrument.
+
+Private routes require a Firebase token and derive ownership exclusively from its verified UID:
+
+| Method | Route                        | Result                                                 |
+| ------ | ---------------------------- | ------------------------------------------------------ |
+| GET    | `/api/v1/watchlist`          | Read this account's saved instruments.                 |
+| PUT    | `/api/v1/watchlist/{symbol}` | Add once; repeated additions do not create duplicates. |
+| DELETE | `/api/v1/watchlist/{symbol}` | Remove if present.                                     |
+
+The API stores one bounded document per account in the existing Firestore `user_watchlists`
+collection, using a hash of the UID as its key. The cap is checked inside an atomic transaction.
+Existing API runtime database permissions and `MARKET_*` database settings are reused; no new
+production key, database or browser Firestore permission is required. Local SQLite storage uses
+`WATCHLIST_DB_PATH`, defaulting to `/tmp/financial-analysis/watchlists.sqlite3`, and is refused on
+Cloud Run.
+
+Private responses, including errors, use `Cache-Control: no-store`. The page clears private data on
+logout or account changes, obtains tokens from the Firebase SDK for each request, and rejects late
+responses from a previous session. Lists load on verified session changes or explicit retry, with no
+polling or persistent listeners. Removing or reading saved items does not depend on Yahoo being
+available. A failed write requires reloading the list before editing again, because the server may
+have completed a request whose response was lost.
+
 ## Quality checks
 
 Run every check from the repository root:
@@ -150,37 +181,63 @@ npm run build:web
 ```
 
 `check` includes frontend types, formatting and request/session race tests, backend Ruff checks, and
-API tests for authentication, market data validation, caching and refresh limits. Unit tests mock
-external providers; live Yahoo access, Firestore IAM and the Google popup require deployment smoke
-tests as well.
+API tests for authentication, private watchlist isolation, market validation, caching and refresh
+limits. Infrastructure tests exercise deployment ordering, conflicts and runtime-setting
+preservation. Unit tests mock external providers; live Yahoo access, Firestore IAM and the Google
+popup require deployment smoke tests as well.
 
 Format TypeScript/CSS/Markdown and Python code with `npm run format`. The local pre-commit hook runs
 `npm run check`.
 
 ## Cloud Run deployment
 
-Both public Cloud Run services use port 8080. Build Dockerfiles from the repository root, then deploy
-images through the Cloud Run Console. Cloud Build configurations build and push images only; they do
-not deploy services or run the full repository quality checks.
+Both public Cloud Run services use port 8080 and a regional Artifact Registry repository named
+`financial-analysis`. The configuration defaults to `northamerica-northeast2` (Toronto). The two
+services must already exist; deployment updates their images while preserving runtime settings.
 
-1. Create a regional Docker Artifact Registry repository named `financial-analysis`. The build
-   configurations default to `northamerica-northeast2` (Toronto).
-2. Run a Cloud Build trigger using `infra/gcp/cloudbuild.api.yaml`. Deploy its `market-api` image;
-   copy the HTTPS service origin. For sign-in, set the API runtime's `FIREBASE_PROJECT_ID` and attach
+GitHub Actions runs **Quality checks** for pull requests and pushes to `main`: repository checks plus
+a production frontend build. It receives no Google Cloud credentials. Protect `main` with required
+pull requests and this status check so a `main` push represents an approved merge. The workflow runs
+for documentation-only PRs as well, keeping required checks from remaining pending.
+
+The existing Cloud Build triggers use `infra/gcp/cloudbuild.api.yaml` and
+`infra/gcp/cloudbuild.web.yaml`. Configure them for pushes matching `^main$`, with the included-file
+filters and scoped IAM grants in the [Console setup guide](infra/gcp/README.md). Each builds and
+explicitly pushes an image tagged by Build ID, then updates its existing service and directs traffic
+to the new ready revision. A creation-time ordering guard and Cloud Run etag checks prevent a
+late-finishing, earlier-created build from replacing a newer accepted deployment. This orders build
+creation times rather than Git ancestry.
+
+For the existing project, finish these one-time Console settings before merging the first release:
+
+1. Keep the existing Artifact Registry repository, services and dedicated runtime identities.
+2. Set the API runtime's `FIREBASE_PROJECT_ID` and attach
    the runtime identity with the Firebase Authentication Viewer role described above. Before
    switching to real data, create the Firestore database and grant Cloud Datastore User as described
    in the caching section. Set `MARKET_DATA_SOURCE=yfinance` and `MARKET_CACHE_BACKEND=firestore`.
-3. Create a trigger for `infra/gcp/cloudbuild.web.yaml`. Set `_API_BASE_URL` to that API origin,
+3. In the web trigger, set `_API_BASE_URL` to the existing API origin,
    without a path or trailing slash. For sign-in, also set `_FIREBASE_API_KEY`, `_FIREBASE_AUTH_DOMAIN`,
    `_FIREBASE_PROJECT_ID` and `_FIREBASE_APP_ID` from the Firebase Web app. All four may remain empty
-   for an anonymous-only deployment. Build and deploy the resulting `market-web` image.
+   for an anonymous-only deployment.
 4. Set the API's `CORS_ORIGINS` runtime variable to the exact frontend origin, without a trailing
-   slash, then redeploy the API. Multiple explicit origins are comma-separated. Add the frontend
+   slash. Multiple explicit origins are comma-separated. Add the frontend
    hostname, without protocol or path, to Firebase Authentication's authorized domains.
-5. Test all three indices, an additional stock found through search, daily data dates, cache reuse,
+5. Give the build identity **Cloud Run Developer** on each service and **Service Account User** on
+   the matching runtime identities, retaining its existing build/artifact permissions. Update the
+   two triggers to the main-branch events and included-file filters in the setup guide.
+6. Merge the checked PR and follow both Cloud Build runs. The services release independently;
+   keep API changes backward compatible with the previously deployed frontend.
+7. Test all three indices, an additional stock found through search, daily data dates, cache reuse,
    Google sign-in, refresh, sign-out and unauthenticated rejection of `/api/v1/me`. Verify both
    services serve the new revisions. The health endpoint reports the configured source without
-   contacting Yahoo; a healthy process alone does not prove that market refreshes succeed.
+   contacting Yahoo; a healthy process alone does not prove that market refreshes succeed. Test
+   watchlist add/remove, refresh/relogin restoration and isolation using two real accounts.
+
+Use Cloud Run **Revision History → Manage traffic** to return traffic to a retained revision when
+needed. A future successful main-branch build deploys forward again. The deployment helper uses the
+existing build identity; no downloaded key or new always-running service is introduced. GitHub
+Actions checks are free on standard hosted runners for public repositories; Cloud Build, image
+storage and runtime usage still follow their quotas and billing.
 
 Frontend `NEXT_PUBLIC_*` values are compiled into the browser bundle. Changing Cloud Run runtime
 variables does not update them: rebuild and redeploy the frontend image. Firebase Web configuration

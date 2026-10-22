@@ -29,7 +29,7 @@ export type AccountProfile = {
   photoURL: string | null;
 };
 
-type AuthStatus =
+export type AuthStatus =
   | "loading"
   | "unavailable"
   | "anonymous"
@@ -47,6 +47,12 @@ type AuthState = {
 };
 
 type AuthContextValue = AuthState & {
+  sessionKey: string | null;
+  requestPrivate: (
+    path: string,
+    sessionKey: string,
+    options?: { method?: "GET" | "PUT" | "DELETE"; signal?: AbortSignal },
+  ) => Promise<Response>;
   signIn: () => Promise<void>;
   signOut: () => Promise<void>;
   retry: () => Promise<void>;
@@ -93,11 +99,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signingOutRef = useRef(false);
   const generationRef = useRef(0);
   const requestRef = useRef<AbortController | null>(null);
+  const verifiedSessionRef = useRef<{ key: string; user: User } | null>(null);
 
   const verifyUser = useCallback(async (user: User | null, forceRefresh = false) => {
     // A refresh notification for the old user can arrive while sign-out is pending.
     if (user && signingOutRef.current) return;
     const generation = ++generationRef.current;
+    verifiedSessionRef.current = null;
     requestRef.current?.abort();
     const controller = new AbortController();
     requestRef.current = controller;
@@ -140,6 +148,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!response.ok) throw new Error("Account verification failed");
       const profile = readProfile(await response.json(), user.uid);
       if (generation !== generationRef.current || controller.signal.aborted) return;
+      verifiedSessionRef.current = { key: `${user.uid}:${generation}`, user };
       setState({ status: "authenticated", profile, error: null, hasFirebaseUser: true });
     } catch {
       if (generation !== generationRef.current || (controller.signal.aborted && !timedOut)) return;
@@ -163,6 +172,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           () => {
             if (signingOutRef.current) return;
             ++generationRef.current;
+            verifiedSessionRef.current = null;
             requestRef.current?.abort();
             firebaseUserRef.current = auth.currentUser;
             setState({
@@ -179,6 +189,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     return () => {
       ++generationRef.current;
+      verifiedSessionRef.current = null;
       requestRef.current?.abort();
       unsubscribe?.();
       authRef.current = null;
@@ -189,6 +200,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const auth = authRef.current;
     if (!auth || signingOutRef.current) return;
     const generation = ++generationRef.current;
+    verifiedSessionRef.current = null;
     requestRef.current?.abort();
     setState({ ...anonymousState, status: "signing-in" });
     const provider = new GoogleAuthProvider();
@@ -212,6 +224,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!auth || signingOutRef.current) return;
     signingOutRef.current = true;
     const generation = ++generationRef.current;
+    verifiedSessionRef.current = null;
     requestRef.current?.abort();
     // Clear verified identity immediately, before the asynchronous SDK operation.
     setState({ status: "signing-out", profile: null, error: null, hasFirebaseUser: true });
@@ -240,9 +253,79 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     else await signIn();
   }, [signIn, verifyUser]);
 
+  const requestPrivate = useCallback(
+    async (
+      path: string,
+      sessionKey: string,
+      options: { method?: "GET" | "PUT" | "DELETE"; signal?: AbortSignal } = {},
+    ): Promise<Response> => {
+      // Only fixed, same-API private routes may receive a Firebase token.
+      if (!/^\/api\/v1\/watchlist(?:\/[A-Z][A-Z0-9]{0,9}(?:[.-][A-Z0-9]{1,3})?)?$/.test(path)) {
+        throw new Error("Invalid private API path");
+      }
+      const session = verifiedSessionRef.current;
+      const ownsSession = () =>
+        session !== null &&
+        session.key === sessionKey &&
+        verifiedSessionRef.current === session &&
+        firebaseUserRef.current === session.user &&
+        authRef.current?.currentUser?.uid === session.user.uid &&
+        !signingOutRef.current &&
+        !options.signal?.aborted;
+      const sessionChanged = () => {
+        const error = new Error("Your account session changed. Please try again.");
+        error.name = "SessionChangedError";
+        return error;
+      };
+      if (!ownsSession() || !session) throw sessionChanged();
+      const invalidateSession = () => {
+        ++generationRef.current;
+        verifiedSessionRef.current = null;
+        requestRef.current?.abort();
+        setState({
+          status: "error",
+          profile: null,
+          error: "Your session could not be verified. Sign out and sign in again.",
+          hasFirebaseUser: true,
+        });
+      };
+      // Ask the SDK for a current token for each request; never persist a second copy.
+      let token: string;
+      try {
+        token = await session.user.getIdToken();
+      } catch {
+        if (ownsSession()) invalidateSession();
+        throw sessionChanged();
+      }
+      if (!ownsSession()) throw sessionChanged();
+      const response = await fetch(`${API_BASE_URL}${path}`, {
+        method: options.method ?? "GET",
+        headers: { Authorization: `Bearer ${token}` },
+        cache: "no-store",
+        credentials: "omit",
+        signal: options.signal,
+      });
+      if (!ownsSession()) throw sessionChanged();
+      if (response.status === 401) {
+        invalidateSession();
+        throw sessionChanged();
+      }
+      return response;
+    },
+    [],
+  );
+
   const value = useMemo(
-    () => ({ ...state, signIn, signOut, retry }),
-    [state, signIn, signOut, retry],
+    () => ({
+      ...state,
+      sessionKey:
+        state.status === "authenticated" ? (verifiedSessionRef.current?.key ?? null) : null,
+      requestPrivate,
+      signIn,
+      signOut,
+      retry,
+    }),
+    [state, requestPrivate, signIn, signOut, retry],
   );
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
