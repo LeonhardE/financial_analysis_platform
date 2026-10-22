@@ -4,6 +4,8 @@ import { useRef, useState } from "react";
 import { CandlestickChart } from "@/components/CandlestickChart";
 import { AccountControls } from "@/components/AccountControls";
 import { useMarketResource } from "@/components/useMarketResource";
+import { PersonalWatchlist, WatchlistAction } from "@/components/PersonalWatchlist";
+import { useWatchlist } from "@/components/useWatchlist";
 import {
   DEFAULT_INSTRUMENTS,
   formatChange,
@@ -26,6 +28,7 @@ export default function Dashboard() {
   const [overviewReload, setOverviewReload] = useState(0);
   const [chartReload, setChartReload] = useState(0);
   const searchInput = useRef<HTMLInputElement>(null);
+  const watchlist = useWatchlist();
   const overview = useMarketResource<MarketOverview>("/api/stocks", overviewReload);
   // The first overview request warms the shared default-instrument cache before chart loading.
   // A settled failure also opens the chart, and later overview refreshes leave it independent.
@@ -211,28 +214,35 @@ export default function Dashboard() {
       </section>
 
       <section className="workspace">
-        <aside className="watchlist" aria-label="Public Magnificent Seven market overview">
-          <div className="panel-heading">
-            <h2>Magnificent Seven</h2>
-            <span>7 stocks</span>
-          </div>
-          <div className="stock-list">
-            {stocks
-              .filter((stock) => stock.instrumentType === "stock")
-              .map((stock) => (
-                <button
-                  className={`stock-row ${stock.symbol === selected.symbol ? "active" : ""}`}
-                  key={stock.symbol}
-                  onClick={() => selectInstrument(stock)}
-                  type="button"
-                  aria-pressed={stock.symbol === selected.symbol}
-                >
-                  {renderQuote(stock)}
-                </button>
-              ))}
-          </div>
-          <p className="overview-footnote">Daily prices · Dates shown per instrument</p>
-        </aside>
+        <div className="market-sidebar">
+          <PersonalWatchlist
+            watchlist={watchlist}
+            selectedSymbol={selected.symbol}
+            onSelect={selectInstrument}
+          />
+          <aside className="watchlist" aria-label="Public Magnificent Seven market overview">
+            <div className="panel-heading">
+              <h2>Magnificent Seven</h2>
+              <span>7 stocks</span>
+            </div>
+            <div className="stock-list">
+              {stocks
+                .filter((stock) => stock.instrumentType === "stock")
+                .map((stock) => (
+                  <button
+                    className={`stock-row ${stock.symbol === selected.symbol ? "active" : ""}`}
+                    key={stock.symbol}
+                    onClick={() => selectInstrument(stock)}
+                    type="button"
+                    aria-pressed={stock.symbol === selected.symbol}
+                  >
+                    {renderQuote(stock)}
+                  </button>
+                ))}
+            </div>
+            <p className="overview-footnote">Daily prices · Dates shown per instrument</p>
+          </aside>
+        </div>
 
         <article className="chart-panel" aria-label={`${selected.symbol} stock details`}>
           <div className="chart-header">
@@ -251,8 +261,11 @@ export default function Dashboard() {
                 )}
               </div>
             </div>
-            <div className="range-switch" aria-label="Selected time range: one month">
-              <span>1M</span>
+            <div className="chart-actions">
+              <WatchlistAction watchlist={watchlist} instrument={selected} />
+              <div className="range-switch" aria-label="Selected time range: one month">
+                <span>1M</span>
+              </div>
             </div>
           </div>
 

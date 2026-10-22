@@ -16,16 +16,20 @@
     "start:web": "npm run start --workspace @financial-analysis/web",
     "typecheck:web": "npm run typecheck --workspace @financial-analysis/web",
     "lint:api": "services/market-data-service/.venv/bin/ruff check services/market-data-service",
+    "lint:infra": "services/market-data-service/.venv/bin/ruff check --config services/market-data-service/pyproject.toml infra/gcp",
     "test:api": "cd services/market-data-service && .venv/bin/python -m unittest discover -s tests -v",
+    "test:infra": "services/market-data-service/.venv/bin/python -m unittest discover -s infra/gcp/tests -v",
     "test:web": "node --test apps/web/tests/*.test.cjs",
     "format:web": "prettier --write .",
     "format:api": "services/market-data-service/.venv/bin/ruff format services/market-data-service",
+    "format:infra": "services/market-data-service/.venv/bin/ruff format --config services/market-data-service/pyproject.toml infra/gcp",
     "format:check:web": "prettier --check .",
     "format:check:api": "services/market-data-service/.venv/bin/ruff format --check services/market-data-service",
-    "lint": "npm run typecheck:web && npm run lint:api",
-    "format": "npm run format:web && npm run format:api",
-    "format:check": "npm run format:check:web && npm run format:check:api",
-    "check": "npm run lint && npm run test:web && npm run test:api && npm run format:check"
+    "format:check:infra": "services/market-data-service/.venv/bin/ruff format --check --config services/market-data-service/pyproject.toml infra/gcp",
+    "lint": "npm run typecheck:web && npm run lint:api && npm run lint:infra",
+    "format": "npm run format:web && npm run format:api && npm run format:infra",
+    "format:check": "npm run format:check:web && npm run format:check:api && npm run format:check:infra",
+    "check": "npm run lint && npm run test:web && npm run test:api && npm run test:infra && npm run format:check"
   },
   "simple-git-hooks": {
     "pre-commit": "npm run check"

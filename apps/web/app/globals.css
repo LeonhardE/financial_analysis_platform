@@ -128,6 +128,7 @@ button {
 }
 
 .workspace {
+  align-items: start;
   display: grid;
   gap: 18px;
   grid-template-columns: 270px minmax(0, 1fr);
@@ -142,6 +143,96 @@ button {
   border-radius: 14px;
   box-shadow: 0 24px 70px rgba(0, 0, 0, 0.2);
   overflow: hidden;
+}
+.market-sidebar {
+  align-content: start;
+  display: grid;
+  gap: 18px;
+  min-width: 0;
+}
+.watchlist-intro,
+.watchlist-feedback {
+  color: #a5b1c3;
+  font-size: 12px;
+  line-height: 1.6;
+  padding: 16px 20px;
+}
+.watchlist-intro p,
+.watchlist-feedback p {
+  margin: 0 0 12px;
+}
+.watchlist-feedback:empty {
+  display: none;
+}
+.watchlist-feedback p:last-child {
+  margin-bottom: 0;
+}
+.saved-stock-list {
+  list-style: none;
+  margin: 0;
+  max-height: 340px;
+  overflow-y: auto;
+  padding: 8px;
+}
+.saved-stock-list li {
+  align-items: center;
+  border-radius: 9px;
+  display: flex;
+}
+.saved-stock-list li.active {
+  background: rgba(112, 129, 255, 0.12);
+}
+.saved-stock-select {
+  background: transparent;
+  border: 0;
+  border-radius: 8px;
+  color: var(--text);
+  cursor: pointer;
+  flex: 1;
+  min-width: 0;
+  padding: 13px 12px;
+  text-align: left;
+}
+.saved-stock-select small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.saved-stock-remove {
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  color: #9aa6b8;
+  cursor: pointer;
+  flex-shrink: 0;
+  font-size: 22px;
+  height: 36px;
+  margin-right: 6px;
+  width: 36px;
+}
+.saved-stock-select:hover,
+.saved-stock-remove:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+.saved-stock-remove:disabled {
+  cursor: default;
+  opacity: 0.4;
+}
+.saved-stock-select:focus-visible,
+.saved-stock-remove:focus-visible {
+  outline: 2px solid #a8b1ff;
+  outline-offset: -2px;
+}
+.chart-actions {
+  align-items: center;
+  display: flex;
+  flex-shrink: 0;
+  gap: 12px;
+  margin-left: 12px;
+}
+.save-button.saved {
+  border-color: rgba(45, 212, 168, 0.25);
+  color: #97d9c7;
 }
 .panel-heading {
   align-items: center;
@@ -337,7 +428,13 @@ button {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
   .chart-header {
+    align-items: flex-start;
+    flex-wrap: wrap;
+    gap: 16px;
     padding: 22px 18px 14px;
+  }
+  .chart-actions {
+    margin-left: 0;
   }
   .ohlc-strip {
     gap: 11px;
