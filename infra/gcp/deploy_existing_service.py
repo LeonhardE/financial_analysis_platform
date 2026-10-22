@@ -81,6 +81,9 @@ def deployment_body(service, image, build_id, created, commit):
 
 def deploy(api, resource, image, build_id, created, commit, wait_seconds=600):
     deadline = time.monotonic() + wait_seconds
+    revision = f"{resource.rsplit('/', 1)[-1]}-cd-{build_id}"
+    revision_names = {revision, f"{resource}/revisions/{revision}"}
+    submitted = False
     while time.monotonic() < deadline:
         service = api.request("GET", resource)
         annotations = service.get("annotations", {})
@@ -92,10 +95,55 @@ def deploy(api, resource, image, build_id, created, commit, wait_seconds=600):
             time.sleep(3)
             continue
         if annotations.get(BUILD_ANNOTATION) == build_id:
-            if service.get("terminalCondition", {}).get("state") != "CONDITION_SUCCEEDED":
-                raise RuntimeError("This build's Cloud Run revision failed to become ready.")
-            print("This build is already deployed and ready.")
-            return "deployed"
+            template = service.get("template", {})
+            containers = template.get("containers", [])
+            if (
+                template.get("revision") not in revision_names
+                or len(containers) != 1
+                or containers[0].get("image") != image
+            ):
+                raise RuntimeError(
+                    "The service template changed outside this build; refusing to overwrite it."
+                )
+            condition = service.get("terminalCondition", {})
+            # Failed reconciliation leaves observedGeneration and ready revision
+            # pointing at the old serving state. Report failure before comparing them.
+            if condition.get("state") == "CONDITION_FAILED":
+                detail = (
+                    condition.get("message") or condition.get("reason") or "See Cloud Run logs."
+                )
+                raise RuntimeError(
+                    f"This build's Cloud Run revision failed to become ready: {detail}"
+                )
+            traffic = service.get("trafficStatuses", [])
+            desired_traffic = service.get("traffic", [])
+            if (
+                condition.get("state") == "CONDITION_SUCCEEDED"
+                and service.get("generation")
+                and service.get("observedGeneration") == service["generation"]
+                and service.get("latestCreatedRevision") in revision_names
+                and service.get("latestReadyRevision") in revision_names
+                and sum(target.get("percent", 0) for target in desired_traffic) == 100
+                and all(
+                    target.get("percent", 0) == 0
+                    or target.get("type") == "TRAFFIC_TARGET_ALLOCATION_TYPE_LATEST"
+                    for target in desired_traffic
+                )
+                and sum(target.get("percent", 0) for target in traffic) == 100
+                and all(
+                    target.get("percent", 0) == 0 or target.get("revision") in revision_names
+                    for target in traffic
+                )
+            ):
+                print("This build is deployed and ready, receiving 100% of traffic.")
+                return "deployed"
+            time.sleep(3)
+            continue
+        if submitted:
+            # A stale read after PATCH must not submit the update again. Keep
+            # observing the service until this build, or a newer build, appears.
+            time.sleep(3)
+            continue
         body = deployment_body(service, image, build_id, created, commit)
         try:
             operation = api.request(
@@ -108,15 +156,16 @@ def deploy(api, resource, image, build_id, created, commit, wait_seconds=600):
                 time.sleep(3)
                 continue
             raise
-        while not operation.get("done"):
-            if time.monotonic() >= deadline:
-                raise TimeoutError("Cloud Run deployment did not finish within the time limit.")
-            time.sleep(3)
-            operation = api.request("GET", operation["name"])
         if operation.get("error"):
             raise RuntimeError(f"Cloud Run deployment failed: {operation['error']}")
-        print(f"Cloud Run accepted build {build_id}; checking readiness.")
-    raise TimeoutError("Cloud Run stayed busy beyond the deployment time limit.")
+        submitted = True
+        # Operations are separate regional resources. Poll the service we can
+        # already read with service-scoped IAM instead of requiring broader access.
+        print(f"Cloud Run accepted build {build_id}; waiting for service readiness.", flush=True)
+        time.sleep(3)
+    raise TimeoutError(
+        "Cloud Run deployment did not become ready with 100% traffic within the time limit."
+    )
 
 
 def main():

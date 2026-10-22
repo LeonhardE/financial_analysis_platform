@@ -57,9 +57,20 @@ should use current `main`. A newer documentation-only commit does not invalidate
 the latest application build. Rollback remains an explicit Cloud Run Console
 action; later successful builds can deploy forward again.
 
-The deployment waits for readiness and reports startup failures. Existing traffic
-keeps serving while a new revision starts. The API and web deploy independently,
-so API changes should remain compatible with the currently deployed frontend.
+The deployment polls the service resource for readiness, using the existing
+service-scoped permissions without querying separate regional operation resources.
+Success requires the expected revision and image, completed reconciliation, matching
+observed and desired generations, and 100% effective traffic on that revision.
+Startup failures are reported even when the previous revision remains healthy;
+pending or inconsistent status times out rather than reporting success. An accepted
+update is not submitted again when a subsequent service read is stale.
+
+Existing traffic keeps serving while a new revision starts. The API and web deploy
+independently, so API changes should remain compatible with the currently deployed
+frontend. If an older build failed while polling an operation after its update was
+accepted, inspect Cloud Run revision history: the revision may already be serving.
+Merge the polling fix before starting a new build; retrying the old commit uses the
+old deployment script.
 
 ## Validation
 
