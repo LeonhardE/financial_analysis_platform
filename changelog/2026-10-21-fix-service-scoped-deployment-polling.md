@@ -14,6 +14,7 @@ the documented service-scoped build-account permissions remain sufficient for st
   Keep immediate operation errors, service permission errors, and startup failures visible.
 - Require the expected build, revision and image, completed reconciliation, matching generations,
   and 100% observed traffic before reporting success. Pending or inconsistent state times out.
+  Accept short and full revision names, including canonical project-number references in status.
 - Report a failed new revision even when the previous revision is still serving. Preserve etag
   and newer-build guards, and avoid a duplicate update after a stale read of an accepted deployment.
 - Make the deployment test double reject operation requests and model real asynchronous service

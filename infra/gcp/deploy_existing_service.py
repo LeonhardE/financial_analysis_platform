@@ -79,10 +79,15 @@ def deployment_body(service, image, build_id, created, commit):
     }
 
 
+def same_revision(name, revision):
+    # Status references may use a full resource name with a canonical project
+    # number, whereas our request path uses the project's human-readable ID.
+    return isinstance(name, str) and name.rsplit("/", 1)[-1] == revision
+
+
 def deploy(api, resource, image, build_id, created, commit, wait_seconds=600):
     deadline = time.monotonic() + wait_seconds
     revision = f"{resource.rsplit('/', 1)[-1]}-cd-{build_id}"
-    revision_names = {revision, f"{resource}/revisions/{revision}"}
     submitted = False
     while time.monotonic() < deadline:
         service = api.request("GET", resource)
@@ -98,7 +103,7 @@ def deploy(api, resource, image, build_id, created, commit, wait_seconds=600):
             template = service.get("template", {})
             containers = template.get("containers", [])
             if (
-                template.get("revision") not in revision_names
+                not same_revision(template.get("revision"), revision)
                 or len(containers) != 1
                 or containers[0].get("image") != image
             ):
@@ -121,8 +126,8 @@ def deploy(api, resource, image, build_id, created, commit, wait_seconds=600):
                 condition.get("state") == "CONDITION_SUCCEEDED"
                 and service.get("generation")
                 and service.get("observedGeneration") == service["generation"]
-                and service.get("latestCreatedRevision") in revision_names
-                and service.get("latestReadyRevision") in revision_names
+                and same_revision(service.get("latestCreatedRevision"), revision)
+                and same_revision(service.get("latestReadyRevision"), revision)
                 and sum(target.get("percent", 0) for target in desired_traffic) == 100
                 and all(
                     target.get("percent", 0) == 0
@@ -131,7 +136,7 @@ def deploy(api, resource, image, build_id, created, commit, wait_seconds=600):
                 )
                 and sum(target.get("percent", 0) for target in traffic) == 100
                 and all(
-                    target.get("percent", 0) == 0 or target.get("revision") in revision_names
+                    target.get("percent", 0) == 0 or same_revision(target.get("revision"), revision)
                     for target in traffic
                 )
             ):

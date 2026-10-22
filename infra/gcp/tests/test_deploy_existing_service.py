@@ -175,17 +175,23 @@ class DeploymentTests(unittest.TestCase):
     def test_ready_revision_names_allow_full_resource_and_zero_percent_tagged_traffic(
         self,
     ):
-        api = FakeAPI()
+        for service_name in (RESOURCE, RESOURCE.replace("test-project", "123456789")):
+            with self.subTest(service_name=service_name):
+                api = FakeAPI()
 
-        def completed(current):
-            ready(current.service, full_names=True)
-            current.service["trafficStatuses"].append(
-                {"revision": "market-api-previous", "percent": 0, "tag": "old-preview"}
-            )
+                def completed(current, service_name=service_name):
+                    ready(current.service, full_names=True)
+                    canonical_revision = f"{service_name}/revisions/{REVISION}"
+                    current.service["latestCreatedRevision"] = canonical_revision
+                    current.service["latestReadyRevision"] = canonical_revision
+                    current.service["trafficStatuses"][0]["revision"] = canonical_revision
+                    current.service["trafficStatuses"].append(
+                        {"revision": "market-api-previous", "percent": 0, "tag": "old-preview"}
+                    )
 
-        api.on_patch = completed
-        self.assertEqual(self.deploy(api), "deployed")
-        self.assertEqual(len(api.updates), 1)
+                api.on_patch = completed
+                self.assertEqual(self.deploy(api), "deployed")
+                self.assertEqual(len(api.updates), 1)
 
     def test_stale_success_from_previous_generation_or_revision_cannot_confirm_this_build(
         self,
