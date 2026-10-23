@@ -84,15 +84,18 @@ export const DEFAULT_INSTRUMENTS: Instrument[] = [
   { symbol: "TSLA", name: "Tesla", instrumentType: "stock", currency: "USD" },
 ];
 
-const decimal = new Intl.NumberFormat("en-US", {
-  minimumFractionDigits: 2,
-  maximumFractionDigits: 2,
-});
-
-export function formatPrice(value: number | null | undefined, instrument: Instrument) {
+export function formatPrice(
+  value: number | null | undefined,
+  instrument: Instrument,
+  locale = "en",
+) {
   if (value == null || !Number.isFinite(value)) return "—";
-  if (instrument.instrumentType === "index") return decimal.format(value);
-  return new Intl.NumberFormat("en-US", {
+  if (instrument.instrumentType === "index")
+    return new Intl.NumberFormat(locale, {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(value);
+  return new Intl.NumberFormat(locale, {
     style: "currency",
     currency: instrument.currency,
     minimumFractionDigits: 2,
@@ -100,16 +103,21 @@ export function formatPrice(value: number | null | undefined, instrument: Instru
   }).format(value);
 }
 
-export function formatChange(value: number | null | undefined) {
+export function formatChange(value: number | null | undefined, locale = "en") {
   if (value == null || !Number.isFinite(value)) return "—";
-  return `${value >= 0 ? "+" : ""}${value.toFixed(2)}%`;
+  return new Intl.NumberFormat(locale, {
+    style: "percent",
+    signDisplay: "always",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(value / 100);
 }
 
-export function formatFetchedAt(value: string | null | undefined) {
+export function formatFetchedAt(value: string | null | undefined, locale = "en") {
   if (!value) return "—";
   const date = new Date(value);
   if (!Number.isFinite(date.getTime())) return "—";
-  return `${new Intl.DateTimeFormat("en-GB", {
+  return `${new Intl.DateTimeFormat(locale === "en" ? "en-GB" : locale, {
     month: "short",
     day: "numeric",
     hour: "2-digit",

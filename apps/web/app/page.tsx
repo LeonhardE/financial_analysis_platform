@@ -1,6 +1,10 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useLocale, useTranslations } from "next-intl";
+import { usePreferences } from "@/components/PreferencesProvider";
+import SettingsPanel from "@/components/SettingsPanel";
+import { localizeMessage } from "@/lib/ui-messages";
 import { CandlestickChart } from "@/components/CandlestickChart";
 import { AccountControls } from "@/components/AccountControls";
 import { useMarketResource } from "@/components/useMarketResource";
@@ -8,9 +12,7 @@ import { PersonalWatchlist, WatchlistAction } from "@/components/PersonalWatchli
 import { useWatchlist } from "@/components/useWatchlist";
 import {
   CHART_RANGES,
-  RANGE_LABELS,
   DEFAULT_INSTRUMENTS,
-  candleIntervalLabel,
   formatChange,
   formatFetchedAt,
   formatPrice,
@@ -36,12 +38,21 @@ function SearchIcon() {
 }
 
 export default function Dashboard() {
+  const t = useTranslations();
+  const locale = useLocale();
+  const { preferences, resolvedTheme } = usePreferences();
   const [selected, setSelected] = useState<Instrument>(DEFAULT_INSTRUMENTS[3]);
   const [range, setRange] = useState<ChartRange>("1m");
   const [query, setQuery] = useState("");
   const [pickerTab, setPickerTab] = useState<"markets" | "watchlist">("markets");
   const [overviewReload, setOverviewReload] = useState(0);
   const [chartReload, setChartReload] = useState(0);
+  const [activeView, setActiveView] = useState<"markets" | "settings">("markets");
+  const rangeTouched = useRef(false);
+  useEffect(() => {
+    if (!rangeTouched.current) setRange(preferences.defaultChartRange);
+  }, [preferences.defaultChartRange]);
+  const message = (value: string | null | undefined) => localizeMessage(value, t, locale);
   const pickerDialog = useRef<HTMLDialogElement>(null);
   const chartHeading = useRef<HTMLHeadingElement>(null);
   const watchlist = useWatchlist();
@@ -90,10 +101,10 @@ export default function Dashboard() {
           <small>{stock.name}</small>
         </span>
         <span className="quote-block">
-          <strong>{formatPrice(stock.latestClose, stock)}</strong>
+          <strong>{formatPrice(stock.latestClose, stock, locale)}</strong>
           <small className={changeClass(stock.changePercent)}>
-            {formatChange(stock.changePercent)}
-            {stock.isStale && <span className="quote-stale"> · Cached</span>}
+            {formatChange(stock.changePercent, locale)}
+            {stock.isStale && <span className="quote-stale"> · {t("market.cached")}</span>}
           </small>
         </span>
       </>
@@ -105,14 +116,14 @@ export default function Dashboard() {
       <>
         <div className="picker-heading">
           <div>
-            <p className="eyebrow">YOUR MARKET RADAR</p>
-            <h2>Symbols</h2>
+            <p className="eyebrow">{t("market.radar")}</p>
+            <h2>{t("market.symbols")}</h2>
           </div>
           <span className="small-tag">US</span>
         </div>
         <div className="discovery">
           <label className="sr-only" htmlFor={`${id}-search`}>
-            Find a US stock
+            {t("market.find")}
           </label>
           <div className="search-field">
             <SearchIcon />
@@ -122,7 +133,7 @@ export default function Dashboard() {
               autoComplete="off"
               spellCheck={false}
               maxLength={50}
-              placeholder="Symbol or company"
+              placeholder={t("market.placeholder")}
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               onKeyDown={(event) => {
@@ -141,18 +152,18 @@ export default function Dashboard() {
             role="status"
             aria-live="polite"
           >
-            {searchQuery.length === 1 && "Enter at least 2 characters."}
-            {searchQuery.length >= 2 && search.loading && "Searching stocks…"}
-            {searchQuery.length >= 2 && search.error && search.error}
+            {searchQuery.length === 1 && t("market.minimum")}
+            {searchQuery.length >= 2 && search.loading && t("market.searching")}
+            {searchQuery.length >= 2 && search.error && message(search.error)}
             {searchQuery.length >= 2 &&
               search.data &&
               !search.data.stocks.length &&
-              "No matching US stocks. Try another symbol."}
-            {searchQuery.length >= 2 && search.data?.warning}
+              t("market.emptySearch")}
+            {searchQuery.length >= 2 && message(search.data?.warning)}
           </div>
         </div>
         {searchQuery.length >= 2 ? (
-          <ul className="search-results" aria-label="Stock search results">
+          <ul className="search-results" aria-label={t("market.searchResults")}>
             {search.data?.stocks.slice(0, 10).map((instrument) => (
               <li key={instrument.symbol}>
                 <button type="button" onClick={() => selectInstrument(instrument)}>
@@ -169,32 +180,32 @@ export default function Dashboard() {
           </ul>
         ) : (
           <>
-            <div className="picker-tabs" aria-label="Symbol lists">
+            <div className="picker-tabs" aria-label={t("market.lists")}>
               <button
                 type="button"
                 aria-pressed={pickerTab === "markets"}
                 onClick={() => setPickerTab("markets")}
               >
-                Markets
+                {t("market.markets")}
               </button>
               <button
                 type="button"
                 aria-pressed={pickerTab === "watchlist"}
                 onClick={() => setPickerTab("watchlist")}
               >
-                My watchlist
+                {t("market.watchlist")}
                 {watchlist.authenticated && (
                   <span className="tab-count">{watchlist.items.length}</span>
                 )}
               </button>
             </div>
             {pickerTab === "markets" ? (
-              <section className="market-list" aria-label="Public market overview">
+              <section className="market-list" aria-label={t("market.overview")}>
                 <div className="list-caption">
-                  <span>Symbol / Name</span>
-                  <span>Last / Day %</span>
+                  <span>{t("market.symbolName")}</span>
+                  <span>{t("market.lastDay")}</span>
                 </div>
-                <h3>MAJOR INDICES</h3>
+                <h3>{t("market.major")}</h3>
                 {stocks
                   .filter((stock) => stock.instrumentType === "index")
                   .map((stock) => (
@@ -208,7 +219,7 @@ export default function Dashboard() {
                       {renderQuote(stock)}
                     </button>
                   ))}
-                <h3>MAGNIFICENT SEVEN</h3>
+                <h3>{t("market.seven")}</h3>
                 {stocks
                   .filter((stock) => stock.instrumentType === "stock")
                   .map((stock) => (
@@ -234,24 +245,24 @@ export default function Dashboard() {
           </>
         )}
         <div className="picker-footer">
-          <span>No sign-in needed to explore</span>
+          <span>{t("market.guest")}</span>
           <button
             className="text-button"
             type="button"
             disabled={overview.loading}
             onClick={() => setOverviewReload((value) => value + 1)}
           >
-            {overview.loading ? "Updating…" : "Refresh"}
+            {overview.loading ? t("market.updating") : t("market.refresh")}
           </button>
         </div>
         {overview.error && (
           <p className="overview-notice error" role="status">
-            {overview.error}
+            {message(overview.error)}
           </p>
         )}
         {overview.data?.warning && (
           <p className="overview-notice" role="status">
-            {overview.data.warning}
+            {message(overview.data.warning)}
           </p>
         )}
       </>
@@ -260,11 +271,13 @@ export default function Dashboard() {
 
   return (
     <main className="app-shell">
-      <a className="skip-link" href="#instrument-heading">
-        Skip to chart
-      </a>
+      {activeView === "markets" && (
+        <a className="skip-link" href="#instrument-heading">
+          {t("nav.skip")}
+        </a>
+      )}
       <header className="topbar">
-        <a className="brand" href="/" aria-label="FolioView home">
+        <a className="brand" href="/" aria-label={t("nav.home")}>
           <span className="brand-mark" aria-hidden="true">
             <svg viewBox="0 0 32 32" fill="none">
               <path d="M7 24V8h18M7 16h13" stroke="currentColor" strokeWidth="3" />
@@ -275,248 +288,290 @@ export default function Dashboard() {
             Folio<span>View</span>
           </strong>
         </a>
-        <div className="workspace-label">
-          <span className="workspace-dot" />
-          Markets<span className="workspace-subtitle">Your investing workspace</span>
-        </div>
+        <nav className="workspace-nav" aria-label={t("nav.primary")}>
+          <button
+            type="button"
+            aria-pressed={activeView === "markets"}
+            onClick={() => setActiveView("markets")}
+          >
+            {t("nav.markets")}
+          </button>
+          <button
+            type="button"
+            aria-pressed={activeView === "settings"}
+            onClick={() => setActiveView("settings")}
+          >
+            {t("nav.settings")}
+          </button>
+          <span className="workspace-subtitle">{t("nav.workspace")}</span>
+        </nav>
         <AccountControls />
       </header>
-      <section className="index-strip" aria-label="US market indices">
-        {stocks
-          .filter((stock) => stock.instrumentType === "index")
-          .map((stock) => (
-            <button
-              className={`index-card ${stock.symbol === selected.symbol ? "active" : ""}`}
-              key={stock.symbol}
-              onClick={() => selectInstrument(stock)}
-              type="button"
-              aria-pressed={stock.symbol === selected.symbol}
-            >
-              <span className="index-name">
-                {stock.symbol === "SPX"
-                  ? "S&P 500"
-                  : stock.symbol === "IXIC"
-                    ? "Nasdaq"
-                    : "Dow Jones"}
-              </span>
-              <strong>{formatPrice(stock.latestClose, stock)}</strong>
-              <span className={changeClass(stock.changePercent)}>
-                {formatChange(stock.changePercent)}
-              </span>
-              {stock.isStale && <small>Cached</small>}
-            </button>
-          ))}
-      </section>
-      <section className="workspace">
-        <article className="chart-panel" aria-label={`${selected.symbol} stock details`}>
-          <div className="chart-topline">
-            <span className="breadcrumb">
-              Markets <span>/</span> United States <span>/</span> <b>{selected.symbol}</b>
-            </span>
-            <span className={`data-badge ${overview.data?.isMock ? "mock-badge" : ""}`}>
-              {overview.data?.isMock ? "SIMULATED DATA" : "MARKET SNAPSHOT"}
-            </span>
-          </div>
-          <div className="chart-header">
-            <div className="instrument-identity">
-              <span className="instrument-avatar" aria-hidden="true">
-                {selected.symbol.slice(0, 1)}
-              </span>
-              <div>
-                <h1 id="instrument-heading" ref={chartHeading} tabIndex={-1}>
-                  {selected.symbol}
-                  <span className="instrument-kind">
-                    {selected.instrumentType === "index" ? "INDEX" : "STOCK"}
-                  </span>
-                </h1>
-                <p>{marketData?.name ?? selected.name}</p>
-              </div>
-            </div>
-            <div className="chart-actions">
-              <WatchlistAction watchlist={watchlist} instrument={selected} />
+      {activeView === "settings" && <SettingsPanel />}
+      <div className="market-view" hidden={activeView !== "markets"}>
+        <section className="index-strip" aria-label={t("market.indices")}>
+          {stocks
+            .filter((stock) => stock.instrumentType === "index")
+            .map((stock) => (
               <button
+                className={`index-card ${stock.symbol === selected.symbol ? "active" : ""}`}
+                key={stock.symbol}
+                onClick={() => selectInstrument(stock)}
                 type="button"
-                className="symbol-picker-button"
-                onClick={() => pickerDialog.current?.showModal()}
-                aria-haspopup="dialog"
+                aria-pressed={stock.symbol === selected.symbol}
               >
-                <SearchIcon />
-                <span>Symbols</span>
-              </button>
-            </div>
-          </div>
-          {watchlist.authenticated && (watchlist.error || watchlist.message) && (
-            <div className="chart-watchlist-feedback" role="status" aria-live="polite">
-              <span className={watchlist.error ? "account-error" : ""}>
-                {watchlist.error || watchlist.message}
-              </span>
-              {watchlist.error && (
-                <button
-                  className="text-button"
-                  type="button"
-                  disabled={watchlist.busy}
-                  onClick={() => void watchlist.reload()}
-                >
-                  Reload watchlist
-                </button>
-              )}
-            </div>
-          )}
-          <div className="price-summary" aria-live="polite">
-            <div className="price-line">
-              <strong>{formatPrice(latestCandle?.close, selected)}</strong>
-              <span className={changeClass(marketData?.changePercent)}>
-                {formatChange(marketData?.changePercent)}
-              </span>
-            </div>
-            <span className="price-caption">
-              {marketData
-                ? `${marketData.dataDate} · ${selected.instrumentType === "index" ? "Index points" : selected.currency}`
-                : "Latest available price"}
-              <span>Change vs. previous close</span>
-            </span>
-          </div>
-          <div className="chart-toolbar">
-            <div className="range-switch" aria-label="Chart time range">
-              {CHART_RANGES.map((value) => (
-                <button
-                  key={value}
-                  type="button"
-                  aria-pressed={range === value}
-                  title={RANGE_LABELS[value]}
-                  onClick={() => setRange(value)}
-                >
-                  {value.toUpperCase()}
-                </button>
-              ))}
-            </div>
-            <span className="interval-label">{candleIntervalLabel(interval)}</span>
-          </div>
-          <div className="chart-stage" aria-busy={chartLoading}>
-            {chartLoading && (
-              <div className="state-message" role="status">
-                <span className="loading-bars" aria-hidden="true">
-                  <i />
-                  <i />
-                  <i />
-                  <i />
-                  <i />
+                <span className="index-name">
+                  {stock.symbol === "SPX"
+                    ? t("market.spx")
+                    : stock.symbol === "IXIC"
+                      ? t("market.ixic")
+                      : t("market.dji")}
                 </span>
-                <p>Loading market data…</p>
-                <small>
-                  {selected.symbol} · {RANGE_LABELS[range]}
-                </small>
-              </div>
-            )}
-            {!chartLoading && chart.error && (
-              <div className="state-message error" role="status">
-                <p>{chart.error}</p>
-                <button
-                  className="account-button secondary"
-                  type="button"
-                  onClick={() => setChartReload((value) => value + 1)}
-                >
-                  Try again
-                </button>
-              </div>
-            )}
-            {!chartLoading && !chart.error && chart.data && !marketData && (
-              <div className="state-message" role="status">
-                <p>This time range is not available yet. Please try again shortly.</p>
-                <button
-                  className="text-button"
-                  type="button"
-                  onClick={() => setChartReload((value) => value + 1)}
-                >
-                  Try again
-                </button>
-              </div>
-            )}
-            {!chartLoading &&
-              !chart.error &&
-              marketData &&
-              (marketData.candles.length ? (
-                <CandlestickChart data={marketData.candles} range={range} interval={interval} />
-              ) : (
-                <div className="state-message" role="status">
-                  No candles are available for this time range.
-                </div>
-              ))}
-          </div>
-          <div className="ohlc-strip" aria-label="Latest candle">
-            <span>
-              OPEN<b>{latestCandle?.open.toFixed(2) ?? "—"}</b>
-            </span>
-            <span>
-              HIGH<b>{latestCandle?.high.toFixed(2) ?? "—"}</b>
-            </span>
-            <span>
-              LOW<b>{latestCandle?.low.toFixed(2) ?? "—"}</b>
-            </span>
-            <span>
-              CLOSE<b>{latestCandle?.close.toFixed(2) ?? "—"}</b>
-            </span>
-          </div>
-          <div className="data-status" role="status">
-            <span className="status-dot" />
-            <span>
-              {marketData?.isMock
-                ? "Simulated prices · Mock data"
-                : "Yahoo Finance · Delayed snapshot"}
-            </span>
-            {marketData?.isStale && (
-              <span className="cached-note">Cached data · Update unavailable</span>
-            )}
-            {marketData?.isPartial && (
-              <span className="partial-note">Latest candle was incomplete when fetched</span>
-            )}
-          </div>
-          <details className="data-details">
-            <summary>
-              About this data<span>Source & timing</span>
-            </summary>
-            <div>
-              <p>
-                {RANGE_LABELS[range]} · {candleIntervalLabel(interval)}
-                {interval !== "1d" && " · Regular session · Times in New York"}
-              </p>
-              <p>
-                Snapshots are typically refreshed hourly. Prices may be delayed; this is not a live
-                trading feed.
-              </p>
-              <p>
-                Fetched: {formatFetchedAt(marketData?.fetchedAt)} · Data date:{" "}
-                {marketData?.dataDate ?? "—"}
-              </p>
-              {marketData?.adjustment === "split_and_dividend_adjusted" && (
-                <p>Adjusted for splits and dividends</p>
-              )}
-              {marketData?.warning && <p className="market-warning">{marketData.warning}</p>}
+                <strong>{formatPrice(stock.latestClose, stock, locale)}</strong>
+                <span className={changeClass(stock.changePercent)}>
+                  {formatChange(stock.changePercent, locale)}
+                </span>
+                {stock.isStale && <small>{t("market.cached")}</small>}
+              </button>
+            ))}
+        </section>
+        <section className="workspace">
+          <article
+            className="chart-panel"
+            aria-label={t("chart.details", { symbol: selected.symbol })}
+          >
+            <div className="chart-topline">
+              <span className="breadcrumb">
+                {t("nav.markets")} <span>/</span> {t("chart.unitedStates")} <span>/</span>{" "}
+                <b>{selected.symbol}</b>
+              </span>
+              <span className={`data-badge ${overview.data?.isMock ? "mock-badge" : ""}`}>
+                {overview.data?.isMock ? t("chart.simulatedBadge") : t("chart.snapshotBadge")}
+              </span>
             </div>
-          </details>
-        </article>
-        <aside className="market-sidebar" aria-label="Choose an instrument">
-          {renderPicker("desktop")}
-        </aside>
-      </section>
+            <div className="chart-header">
+              <div className="instrument-identity">
+                <span className="instrument-avatar" aria-hidden="true">
+                  {selected.symbol.slice(0, 1)}
+                </span>
+                <div>
+                  <h1 id="instrument-heading" ref={chartHeading} tabIndex={-1}>
+                    {selected.symbol}
+                    <span className="instrument-kind">
+                      {selected.instrumentType === "index" ? t("chart.index") : t("chart.stock")}
+                    </span>
+                  </h1>
+                  <p>{marketData?.name ?? selected.name}</p>
+                </div>
+              </div>
+              <div className="chart-actions">
+                <WatchlistAction watchlist={watchlist} instrument={selected} />
+                <button
+                  type="button"
+                  className="symbol-picker-button"
+                  onClick={() => pickerDialog.current?.showModal()}
+                  aria-haspopup="dialog"
+                >
+                  <SearchIcon />
+                  <span>{t("market.symbols")}</span>
+                </button>
+              </div>
+            </div>
+            {watchlist.authenticated && (watchlist.error || watchlist.message) && (
+              <div className="chart-watchlist-feedback" role="status" aria-live="polite">
+                <span className={watchlist.error ? "account-error" : ""}>
+                  {message(watchlist.error || watchlist.message)}
+                </span>
+                {watchlist.error && (
+                  <button
+                    className="text-button"
+                    type="button"
+                    disabled={watchlist.busy}
+                    onClick={() => void watchlist.reload()}
+                  >
+                    {t("watchlist.reload")}
+                  </button>
+                )}
+              </div>
+            )}
+            <div className="price-summary" aria-live="polite">
+              <div className="price-line">
+                <strong>{formatPrice(latestCandle?.close, selected, locale)}</strong>
+                <span className={changeClass(marketData?.changePercent)}>
+                  {formatChange(marketData?.changePercent, locale)}
+                </span>
+              </div>
+              <span className="price-caption">
+                {marketData
+                  ? `${marketData.dataDate} · ${selected.instrumentType === "index" ? t("chart.indexPoints") : selected.currency}`
+                  : t("chart.latest")}
+                <span>{t("chart.previousClose")}</span>
+              </span>
+            </div>
+            <div className="chart-toolbar">
+              <div className="range-switch" aria-label={t("chart.timeRange")}>
+                {CHART_RANGES.map((value) => (
+                  <button
+                    key={value}
+                    type="button"
+                    aria-pressed={range === value}
+                    title={t(`ranges.${value}`)}
+                    onClick={() => {
+                      rangeTouched.current = true;
+                      setRange(value);
+                    }}
+                  >
+                    {value.toUpperCase()}
+                  </button>
+                ))}
+              </div>
+              <span className="interval-label">
+                {t(
+                  interval === "5m"
+                    ? "chart.fiveMinute"
+                    : interval === "30m"
+                      ? "chart.thirtyMinute"
+                      : "chart.daily",
+                )}
+              </span>
+            </div>
+            <div className="chart-stage" aria-busy={chartLoading}>
+              {chartLoading && (
+                <div className="state-message" role="status">
+                  <span className="loading-bars" aria-hidden="true">
+                    <i />
+                    <i />
+                    <i />
+                    <i />
+                    <i />
+                  </span>
+                  <p>{t("chart.loading")}</p>
+                  <small>
+                    {selected.symbol} · {t(`ranges.${range}`)}
+                  </small>
+                </div>
+              )}
+              {!chartLoading && chart.error && (
+                <div className="state-message error" role="status">
+                  <p>{message(chart.error)}</p>
+                  <button
+                    className="account-button secondary"
+                    type="button"
+                    onClick={() => setChartReload((value) => value + 1)}
+                  >
+                    {t("chart.retry")}
+                  </button>
+                </div>
+              )}
+              {!chartLoading && !chart.error && chart.data && !marketData && (
+                <div className="state-message" role="status">
+                  <p>{t("chart.rangeUnavailable")}</p>
+                  <button
+                    className="text-button"
+                    type="button"
+                    onClick={() => setChartReload((value) => value + 1)}
+                  >
+                    {t("chart.retry")}
+                  </button>
+                </div>
+              )}
+              {!chartLoading &&
+                !chart.error &&
+                marketData &&
+                (marketData.candles.length ? (
+                  <CandlestickChart
+                    data={marketData.candles}
+                    range={range}
+                    interval={interval}
+                    theme={resolvedTheme}
+                    locale={locale}
+                  />
+                ) : (
+                  <div className="state-message" role="status">
+                    {t("chart.empty")}
+                  </div>
+                ))}
+            </div>
+            <div className="ohlc-strip" aria-label={t("chart.latestCandle")}>
+              <span>
+                {t("chart.open")}
+                <b>{latestCandle?.open.toFixed(2) ?? "—"}</b>
+              </span>
+              <span>
+                {t("chart.high")}
+                <b>{latestCandle?.high.toFixed(2) ?? "—"}</b>
+              </span>
+              <span>
+                {t("chart.low")}
+                <b>{latestCandle?.low.toFixed(2) ?? "—"}</b>
+              </span>
+              <span>
+                {t("chart.close")}
+                <b>{latestCandle?.close.toFixed(2) ?? "—"}</b>
+              </span>
+            </div>
+            <div className="data-status" role="status">
+              <span className="status-dot" />
+              <span>{marketData?.isMock ? t("chart.simulated") : t("chart.source")}</span>
+              {marketData?.isStale && <span className="cached-note">{t("chart.cached")}</span>}
+              {marketData?.isPartial && <span className="partial-note">{t("chart.partial")}</span>}
+            </div>
+            <details className="data-details">
+              <summary>
+                {t("chart.about")}
+                <span>{t("chart.sourceTiming")}</span>
+              </summary>
+              <div>
+                <p>
+                  {t(`ranges.${range}`)} ·{" "}
+                  {t(
+                    interval === "5m"
+                      ? "chart.fiveMinute"
+                      : interval === "30m"
+                        ? "chart.thirtyMinute"
+                        : "chart.daily",
+                  )}
+                  {interval !== "1d" && ` · ${t("chart.regularSession")}`}
+                </p>
+                <p>{t("chart.snapshotPolicy")}</p>
+                <p>
+                  {t("chart.fetched", {
+                    time: formatFetchedAt(marketData?.fetchedAt, locale),
+                    date: marketData?.dataDate ?? "—",
+                  })}
+                </p>
+                {marketData?.adjustment === "split_and_dividend_adjusted" && (
+                  <p>{t("chart.adjusted")}</p>
+                )}
+                {marketData?.warning && (
+                  <p className="market-warning">{message(marketData.warning)}</p>
+                )}
+              </div>
+            </details>
+          </article>
+          <aside className="market-sidebar" aria-label={t("market.choose")}>
+            {renderPicker("desktop")}
+          </aside>
+        </section>
+      </div>
       <footer className="workspace-footer">
         <span>
-          <strong>FolioView</strong> A clearer view of your investments.
+          <strong>FolioView</strong> {t("nav.tagline")}
         </span>
-        <span>US markets · Public browsing, personal watchlists</span>
+        <span>{t("nav.footer")}</span>
       </footer>
       <dialog
         ref={pickerDialog}
         className="symbol-dialog"
-        aria-label="Choose a symbol"
+        aria-label={t("market.chooseSymbol")}
         onClose={() => setQuery("")}
       >
         <div className="dialog-topline">
-          <span>Explore the market</span>
+          <span>{t("market.explore")}</span>
           <button
             type="button"
             className="dialog-close"
-            aria-label="Close symbol picker"
+            aria-label={t("market.closePicker")}
             onClick={() => pickerDialog.current?.close()}
           >
             ×

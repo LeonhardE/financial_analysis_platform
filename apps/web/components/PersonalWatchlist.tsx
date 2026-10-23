@@ -1,10 +1,13 @@
 "use client";
 
+import { useTranslations, useLocale } from "next-intl";
+import { localizeMessage } from "@/lib/ui-messages";
 import { useAuth } from "@/components/AuthProvider";
 import type { WatchlistModel } from "@/components/useWatchlist";
 import type { Instrument } from "@/lib/market-data";
 
 function SignInToSave() {
+  const t = useTranslations();
   const { status, hasFirebaseUser, signIn, retry } = useAuth();
   const pending = ["loading", "signing-in", "verifying", "signing-out"].includes(status);
   return (
@@ -15,10 +18,10 @@ function SignInToSave() {
       onClick={() => void (hasFirebaseUser ? retry() : signIn())}
     >
       {pending
-        ? "Checking account…"
+        ? t("watchlist.checking")
         : hasFirebaseUser
-          ? "Verify account to save"
-          : "Sign in to save"}
+          ? t("watchlist.verify")
+          : t("watchlist.signIn")}
     </button>
   );
 }
@@ -30,6 +33,7 @@ export function WatchlistAction({
   watchlist: WatchlistModel;
   instrument: Instrument;
 }) {
+  const t = useTranslations();
   if (!watchlist.authenticated) return <SignInToSave />;
   const saved = watchlist.items.some((item) => item.symbol === instrument.symbol);
   const full = !saved && watchlist.items.length >= watchlist.limit;
@@ -44,14 +48,14 @@ export function WatchlistAction({
       }
     >
       {watchlist.pendingSymbol === instrument.symbol
-        ? "Saving…"
+        ? t("watchlist.saving")
         : watchlist.loading
-          ? "Loading watchlist…"
+          ? t("watchlist.loading")
           : saved
-            ? "Remove from watchlist"
+            ? t("watchlist.remove")
             : full
-              ? "Watchlist full"
-              : "Add to watchlist"}
+              ? t("watchlist.full")
+              : t("watchlist.add")}
     </button>
   );
 }
@@ -67,10 +71,12 @@ export function PersonalWatchlist({
   onSelect: (instrument: Instrument) => void;
   headingId?: string;
 }) {
+  const t = useTranslations();
+  const locale = useLocale();
   return (
     <section className="watchlist personal-watchlist" aria-labelledby={headingId}>
       <div className="panel-heading">
-        <h2 id={headingId}>My watchlist</h2>
+        <h2 id={headingId}>{t("watchlist.title")}</h2>
         {watchlist.authenticated && (
           <span>
             {watchlist.items.length} / {watchlist.limit}
@@ -79,13 +85,13 @@ export function PersonalWatchlist({
       </div>
       {!watchlist.authenticated ? (
         <div className="watchlist-intro">
-          <p>Keep your favorite stocks in one place, across devices.</p>
+          <p>{t("watchlist.intro")}</p>
           <SignInToSave />
         </div>
       ) : (
         <>
           {watchlist.items.length > 0 && (
-            <ul className="saved-stock-list" aria-label="Your saved instruments">
+            <ul className="saved-stock-list" aria-label={t("watchlist.saved")}>
               {watchlist.items.map((item) => (
                 <li key={item.symbol} className={item.symbol === selectedSymbol ? "active" : ""}>
                   <button
@@ -102,7 +108,7 @@ export function PersonalWatchlist({
                   <button
                     className="saved-stock-remove"
                     type="button"
-                    aria-label={`Remove ${item.symbol} from watchlist`}
+                    aria-label={t("watchlist.removeSymbol", { symbol: item.symbol })}
                     disabled={watchlist.busy || !watchlist.loaded}
                     onClick={() => void watchlist.remove(item.symbol)}
                   >
@@ -113,26 +119,26 @@ export function PersonalWatchlist({
             </ul>
           )}
           <div className="watchlist-feedback" role="status" aria-live="polite" aria-atomic="true">
-            {watchlist.loading && <p>Loading your watchlist…</p>}
+            {watchlist.loading && <p>{t("watchlist.loadingPersonal")}</p>}
             {!watchlist.loading && watchlist.loaded && !watchlist.items.length && (
-              <p>Your watchlist is empty. Open a stock and choose “Add to watchlist”.</p>
+              <p>{t("watchlist.empty")}</p>
             )}
             {watchlist.error && (
               <>
-                <p className="account-error">{watchlist.error}</p>
+                <p className="account-error">{localizeMessage(watchlist.error, t, locale)}</p>
                 <button
                   className="text-button"
                   type="button"
                   disabled={watchlist.busy}
                   onClick={() => void watchlist.reload()}
                 >
-                  Reload watchlist
+                  {t("watchlist.reload")}
                 </button>
               </>
             )}
-            {watchlist.message && <p>{watchlist.message}</p>}
+            {watchlist.message && <p>{localizeMessage(watchlist.message, t, locale)}</p>}
           </div>
-          <p className="overview-footnote">Only visible to your signed-in account</p>
+          <p className="overview-footnote">{t("watchlist.private")}</p>
         </>
       )}
     </section>

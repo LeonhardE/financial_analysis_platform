@@ -265,6 +265,8 @@ def response(items: list[dict]) -> dict:
 
 
 class PrivateWatchlistRoute(APIRoute):
+    unavailable_message = UNAVAILABLE
+
     def get_route_handler(self):
         handler = super().get_route_handler()
 
@@ -276,7 +278,7 @@ class PrivateWatchlistRoute(APIRoute):
             except Exception as error:
                 # Keep unexpected SDK/serialization details out of private API
                 # responses, and let the no-store middleware cover this error.
-                raise HTTPException(503, UNAVAILABLE) from error
+                raise HTTPException(503, self.unavailable_message) from error
 
         return private_handler
 
@@ -347,7 +349,10 @@ class PrivateWatchlistHeaders:
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send):
         path = scope.get("path", "")
-        private = path == "/api/v1/watchlist" or path.startswith("/api/v1/watchlist/")
+        private = any(
+            path == prefix or path.startswith(f"{prefix}/")
+            for prefix in ("/api/v1/watchlist", "/api/v1/preferences")
+        )
         if scope["type"] != "http" or not private:
             await self.app(scope, receive, send)
             return

@@ -6,6 +6,12 @@ const vm = require("node:vm");
 const { transformSync } = require("next/dist/build/swc");
 const { renderToStaticMarkup } = require("react-dom/server");
 const jsxRuntime = require("react/jsx-runtime");
+const { createTranslator } = require("next-intl");
+const english = require("../messages/en.json");
+const intl = {
+  useLocale: () => "en",
+  useTranslations: (namespace) => createTranslator({ locale: "en", messages: english, namespace }),
+};
 
 function compile(file, imports, globals = {}) {
   const { code } = transformSync(readFileSync(path.join(__dirname, file), "utf8"), {
@@ -242,6 +248,7 @@ function renderDashboard({
   let stateIndex = 0;
   const { default: Dashboard } = compile("../app/page.tsx", {
     react: {
+      useEffect: () => {},
       useState: (initial) => [
         stateIndex++ === 0 ? selected : stateIndex === 2 ? range : initial,
         () => {},
@@ -250,6 +257,15 @@ function renderDashboard({
     },
     "react/jsx-runtime": jsxRuntime,
     "@/lib/market-data": market,
+    "next-intl": intl,
+    "@/lib/ui-messages": compile("../lib/ui-messages.ts", {}),
+    "@/components/PreferencesProvider": {
+      usePreferences: () => ({
+        preferences: { theme: "dark", language: "en", defaultChartRange: "1m" },
+        resolvedTheme: "dark",
+      }),
+    },
+    "@/components/SettingsPanel": { default: () => null },
     "@/components/useMarketResource": {
       useMarketResource: (resourcePath) => {
         requests.push(resourcePath);
