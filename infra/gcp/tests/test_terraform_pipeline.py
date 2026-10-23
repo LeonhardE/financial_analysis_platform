@@ -30,6 +30,7 @@ REPOSITORY = (
     f"projects/{PROJECT}/locations/northamerica-northeast2/"
     "connections/financial-analysis-github/repositories/financial-analysis"
 )
+REPOSITORY_URL = "https://github.com/LeonhardE/financial_analysis_platform.git"
 POLICY = {
     "schema_version": 1,
     "project_id": "financial-analysis-512202",
@@ -39,6 +40,7 @@ POLICY = {
     "state_bucket": "financial-analysis-512202-tfstate",
     "plan_bucket": "financial-analysis-512202-tfplans",
     "max_plan_age_seconds": 21600,
+    "repository_url": REPOSITORY_URL,
     "targets": {
         "repo": {
             "directory": "infra/gcp/terraform/envs/prod/repo",
@@ -360,6 +362,110 @@ class PipelineTests(unittest.TestCase):
         self.assertNotIn("filename", trigger)
         self.assertEqual(trigger["gitFileSource"]["path"], pipeline.CONFIG_FILES["apply"])
         self.run_pipeline("apply")
+
+    def git_source(self, identifier, revision=COMMIT):
+        source = {"url": REPOSITORY_URL, "revision": revision}
+        build = self.api.builds[identifier]
+        build["source"] = {"gitSource": copy.deepcopy(source)}
+        build["sourceProvenance"] = {"resolvedGitSource": source}
+
+    def test_captured_github_trigger_payload_can_publish_a_plan(self):
+        # Shape and revision from the first real terraform-plan-repo build.
+        revision = "d2184e68fedccfafeace891f869c75ca6499f767"
+        self.git_source(PLAN, revision)
+        self.api.builds[PLAN]["substitutions"]["COMMIT_SHA"] = revision
+        self.run_pipeline(commit=revision)
+        self.assertIn(f"plans/repo/{PLAN}/manifest.json", self.api.uploads)
+        self.assertEqual(self.api.reads, [("build", PLAN), ("trigger", PLAN_TRIGGER)])
+
+    def test_plan_producer_and_apply_accept_independent_supported_provenance_formats(self):
+        for git_plan, git_apply in ((True, True), (True, False), (False, True)):
+            with self.subTest(git_plan=git_plan, git_apply=git_apply):
+                self.api = FakeAPI()
+                self.calls.clear()
+                if git_plan:
+                    self.git_source(PLAN)
+                if git_apply:
+                    self.git_source(APPLY)
+                self.saved_plan()
+                self.run_pipeline("apply")
+                self.assertEqual(self.calls[-1][0][1], "apply")
+
+    def test_git_provenance_requires_exact_trusted_url_commit_and_root_directory(self):
+        self.git_source(PLAN)
+        valid = copy.deepcopy(self.api.builds[PLAN]["sourceProvenance"]["resolvedGitSource"])
+        invalid = [
+            {},
+            {"revision": COMMIT},
+            {"url": REPOSITORY_URL},
+            {**valid, "revision": "b" * 40},
+            {**valid, "revision": "refs/heads/main"},
+            {**valid, "dir": "another-directory"},
+            {**valid, "url": None},
+        ]
+        invalid.extend(
+            {**valid, "url": url}
+            for url in (
+                REPOSITORY_URL + "-other",
+                REPOSITORY_URL.replace("github.com", "github.example"),
+                REPOSITORY_URL.replace("https://", "http://"),
+                REPOSITORY_URL.replace("https://", "https://token@"),
+                REPOSITORY_URL + "?override=1",
+                REPOSITORY_URL + "#main",
+            )
+        )
+        for source in invalid:
+            self.api.builds[PLAN]["sourceProvenance"] = {"resolvedGitSource": source}
+            with self.subTest(source=source), self.assertRaisesRegex(RuntimeError, "provenance"):
+                self.run_pipeline()
+        self.assertEqual(self.api.uploads, [])
+        self.assertTrue(all(call[0][1] == "version" for call in self.calls))
+
+    def test_request_source_cannot_replace_missing_malformed_or_mixed_output_provenance(self):
+        self.git_source(PLAN)
+        git_source = copy.deepcopy(self.api.builds[PLAN]["sourceProvenance"])
+        connected = {"resolvedConnectedRepository": {"repository": REPOSITORY, "revision": COMMIT}}
+        invalid = (
+            {},
+            None,
+            [],
+            {"resolvedGitSource": "not-an-object"},
+            {"resolvedGitSource": None},
+            {"resolvedRepoSource": {"repoName": REPOSITORY_URL, "commitSha": COMMIT}},
+            {**git_source, **connected},
+            {**git_source, "resolvedStorageSource": {"bucket": "untrusted"}},
+            {**connected, "resolvedRepoSource": {"commitSha": COMMIT}},
+        )
+        for provenance in invalid:
+            self.api.builds[PLAN]["sourceProvenance"] = provenance
+            with (
+                self.subTest(provenance=provenance),
+                self.assertRaisesRegex(RuntimeError, "provenance"),
+            ):
+                self.run_pipeline()
+        self.assertEqual(self.api.uploads, [])
+        self.assertTrue(all(call[0][1] == "version" for call in self.calls))
+
+    def test_git_provenance_without_a_committed_trusted_url_is_rejected(self):
+        self.git_source(PLAN)
+        policy = copy.deepcopy(POLICY)
+        del policy["repository_url"]
+        self.write(pipeline.POLICY, json.dumps(policy))
+        with self.assertRaisesRegex(RuntimeError, "provenance"):
+            self.run_pipeline()
+        self.assertEqual(self.api.uploads, [])
+
+    def test_apply_reverifies_git_provenance_of_the_successful_plan_producer(self):
+        self.git_source(PLAN)
+        self.saved_plan()
+        original = copy.deepcopy(self.api.builds[PLAN]["sourceProvenance"])
+        for field, value in (("url", REPOSITORY_URL + "-other"), ("revision", "b" * 40)):
+            self.api.builds[PLAN]["sourceProvenance"] = copy.deepcopy(original)
+            self.api.builds[PLAN]["sourceProvenance"]["resolvedGitSource"][field] = value
+            with self.subTest(field=field), self.assertRaisesRegex(RuntimeError, "provenance"):
+                self.run_pipeline("apply")
+        self.assertEqual(self.api.downloads, [])
+        self.assertFalse(any(call[0][1] == "apply" for call in self.calls))
 
     def test_caller_supplied_labels_cannot_substitute_for_output_only_source_provenance(self):
         original = copy.deepcopy(self.api.builds[PLAN]["sourceProvenance"])

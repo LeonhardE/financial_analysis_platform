@@ -42,8 +42,12 @@ merging does **not** automatically apply infrastructure.
 
 The manual apply trigger reads `main`. If `main` advances before apply, generate a fresh plan for the
 current commit, even when the newer commit only changed an application. Both builds must report the
-same resolved SHA. Inspect the actual build metadata during first activation; this protocol expects
-Cloud Build v2 `sourceProvenance.resolvedConnectedRepository` and fails closed when it is absent.
+same resolved SHA. Cloud Build can report output-only provenance as either
+`sourceProvenance.resolvedConnectedRepository` (checked against the trigger's repository resource)
+or `sourceProvenance.resolvedGitSource` (checked against the exact `repository_url` pinned in
+`pipeline.json`). Both require the exact commit and repository root. Missing, mixed or other resolved
+sources fail closed; request source fields and overridable substitutions cannot replace provenance.
+The policy URL is an explicit reviewed trust anchor and does not require additional GCP permissions.
 
 These checks detect wrong or stale invocations; protected source and restricted cloud IAM remain the
 trust boundary. Manual run/admin operators are trusted. A user allowed to submit arbitrary builds and
