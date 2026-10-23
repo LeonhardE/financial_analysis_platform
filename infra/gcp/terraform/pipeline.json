@@ -2,6 +2,7 @@
   "schema_version": 1,
   "project_id": "financial-analysis-512202",
   "region": "northamerica-northeast2",
+  "repository_url": "https://github.com/LeonhardE/financial_analysis_platform.git",
   "terraform_version": "1.16.7",
   "state_bucket": "financial-analysis-512202-tfstate",
   "plan_bucket": "financial-analysis-512202-tfplans",

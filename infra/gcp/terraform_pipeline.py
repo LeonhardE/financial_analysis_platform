@@ -257,18 +257,35 @@ def verify_build(
         )
     expected_repository = repository_identity(repository)
     provenance = build.get("sourceProvenance", {})
-    resolved = provenance.get("resolvedConnectedRepository", {})
+    require(isinstance(provenance, dict), "Cloud Build returned invalid source provenance.")
+    resolved_sources = {
+        key: value for key, value in provenance.items() if key.startswith("resolved") and value
+    }
     require(
-        bool(resolved.get("repository"))
-        and repository_identity(resolved.get("repository")) == expected_repository
-        and resolved.get("revision") == commit
-        and not resolved.get("dir")
-        and not any(
-            value
-            for key, value in provenance.items()
-            if key.startswith("resolved") and key != "resolvedConnectedRepository"
-        ),
-        "Output-only source provenance does not match the requested repository and commit.",
+        len(resolved_sources) == 1
+        and next(iter(resolved_sources)) in ("resolvedConnectedRepository", "resolvedGitSource"),
+        "Cloud Build must return exactly one supported output-only source provenance.",
+    )
+    kind, resolved = next(iter(resolved_sources.items()))
+    require(isinstance(resolved, dict), "Cloud Build returned invalid source provenance.")
+    if kind == "resolvedConnectedRepository":
+        matches_repository = (
+            bool(resolved.get("repository"))
+            and repository_identity(resolved["repository"]) == expected_repository
+        )
+    else:
+        # GitHub triggers can return a resolved Git URL rather than a connected
+        # repository ID. Pin its identity in reviewed policy, never substitutions
+        # or the caller-supplied build.source object. Do not normalize URL aliases.
+        expected_url = policy.get("repository_url")
+        matches_repository = (
+            isinstance(expected_url, str)
+            and expected_url.startswith("https://github.com/")
+            and resolved.get("url") == expected_url
+        )
+    require(
+        matches_repository and resolved.get("revision") == commit and not resolved.get("dir"),
+        "Output-only source provenance does not match the registered repository and commit.",
     )
     if mode == "apply":
         require(
