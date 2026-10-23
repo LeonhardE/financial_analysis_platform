@@ -382,7 +382,6 @@ export default function Dashboard() {
                   <span>{t("chart.previousClose")}</span>
                 </span>
               </div>
-              <InstrumentMetrics instrument={selected} candleData={marketData} />
               <div className="chart-toolbar">
                 <div className="range-switch" aria-label={t("chart.timeRange")}>
                   {CHART_RANGES.map((value) => (
@@ -467,24 +466,7 @@ export default function Dashboard() {
                     </div>
                   ))}
               </div>
-              <div className="ohlc-strip" aria-label={t("chart.latestCandle")}>
-                <span>
-                  {t("chart.open")}
-                  <b>{latestCandle?.open.toFixed(2) ?? "—"}</b>
-                </span>
-                <span>
-                  {t("chart.high")}
-                  <b>{latestCandle?.high.toFixed(2) ?? "—"}</b>
-                </span>
-                <span>
-                  {t("chart.low")}
-                  <b>{latestCandle?.low.toFixed(2) ?? "—"}</b>
-                </span>
-                <span>
-                  {t("chart.close")}
-                  <b>{latestCandle?.close.toFixed(2) ?? "—"}</b>
-                </span>
-              </div>
+              <InstrumentMetrics instrument={selected} candleData={marketData} />
               <div className="data-status" role="status">
                 <span className="status-dot" />
                 <span>{marketData?.isMock ? t("chart.simulated") : t("chart.source")}</span>
@@ -548,12 +530,14 @@ export default function Dashboard() {
             </aside>
           </section>
         </div>
-        <footer className="workspace-footer">
-          <span>
-            <strong>FolioView</strong> {t("nav.tagline")}
-          </span>
-          <span>{t("nav.footer")}</span>
-        </footer>
+        {activeView === "markets" && (
+          <footer className="workspace-footer">
+            <span>
+              <strong>FolioView</strong> {t("nav.tagline")}
+            </span>
+            <span>{t("nav.footer")}</span>
+          </footer>
+        )}
       </main>
       <dialog
         ref={pickerDialog}

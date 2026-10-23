@@ -34,6 +34,11 @@ export function InstrumentMetrics({
       : null;
   const resource = useCachedMarketResource<unknown>(path, reload);
   const metrics = readInstrumentMetrics(resource.data, instrument.symbol);
+  const latestCandle = chartReady ? candleData.candles.at(-1) : null;
+  const candlePrice = new Intl.NumberFormat(locale, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
   const volume = latestSessionVolume(instrument, candleData);
   const failed = Boolean(resource.error || resource.refreshError || (resource.data && !metrics));
   const warning = metrics?.warning ? localizeMessage(metrics.warning, t, locale) : "";
@@ -41,6 +46,15 @@ export function InstrumentMetrics({
   return (
     <section className={styles.panel} aria-label={t("metrics.title")}>
       <dl className={styles.values}>
+        {(["open", "high", "low", "close"] as const).map((field) => {
+          const value = latestCandle?.[field];
+          return (
+            <div key={field} title={t("chart.latestCandle")}>
+              <dt>{t(`chart.${field}`)}</dt>
+              <dd>{value != null && Number.isFinite(value) ? candlePrice.format(value) : "—"}</dd>
+            </div>
+          );
+        })}
         <div>
           <dt>{t("metrics.pe")}</dt>
           <dd>{formatMetricNumber(metrics?.trailingPE ?? null, locale)}</dd>

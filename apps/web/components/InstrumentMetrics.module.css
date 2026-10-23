@@ -1,11 +1,11 @@
 .panel {
   border-top: 1px solid var(--border);
-  padding: 15px 24px 11px;
+  padding: 14px 24px 12px;
 }
 .values {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 16px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px 20px;
   margin: 0;
 }
 .values dt {
@@ -14,9 +14,9 @@
   line-height: 1.4;
 }
 .values dd {
-  font-size: 16px;
+  font-size: 14px;
   font-variant-numeric: tabular-nums;
-  font-weight: 600;
+  font-weight: 500;
   line-height: 1.5;
   margin: 3px 0 0;
   overflow-wrap: anywhere;
@@ -51,17 +51,26 @@
   font-size: inherit;
   margin-left: 8px;
 }
+@media (min-width: 1500px) {
+  .values {
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+  }
+}
 @media (max-width: 899px) {
   .panel {
     padding: 13px 16px 10px;
   }
   .values {
-    gap: 12px;
+    gap: 12px 16px;
   }
-  .values dt {
-    font-size: 10px;
+}
+@media (max-width: 600px) {
+  .values {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
-  .values dd {
-    font-size: 14px;
+}
+@media (max-width: 420px) {
+  .values {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
