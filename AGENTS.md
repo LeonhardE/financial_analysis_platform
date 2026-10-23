@@ -14,3 +14,16 @@
   changelog entry. For a mixed change, record only the material changes outside `local-docs/`.
 - Follow the naming and content convention in `changelog/README.md`.
 - Run `npm run check` from the repository root before committing.
+
+## Pull request scope
+
+- Each new implementation PR must target exactly one backend service or the frontend
+  (`apps/web`). Do not combine multiple services or backend and frontend changes in one PR.
+- Include the selected target's tests, dependency files, Docker configuration, service-specific
+  deployment configuration, documentation, and required changelog in that PR as needed.
+- Changes to shared libraries or contracts, repository-wide infrastructure, or workflow rules
+  belong in separate foundation-only PRs. Do not bundle changes to their consuming services or
+  frontend into those PRs.
+- Deliver cross-service work through ordered, backward-compatible PRs: introduce shared
+  prerequisites or producer APIs first, then update each consumer in its own PR. Each PR must
+  be independently verifiable and safe to merge and deploy.
