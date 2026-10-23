@@ -6,9 +6,9 @@ Complete the [ordered migration](#market-user-and-config-service-migration) befo
 enabling deployment. In particular, the new Market image no longer serves private
 identity, watchlist, or preference routes.
 
-Pull requests, including stacked feature-branch PRs, run the GitHub Actions **Quality checks** job. It
-checks every service and the frontend, builds the frontend, and smoke-tests all three backend images without cloud credentials. Make
-this check required, require pull requests, and block direct pushes to `main` in
+Pull requests, including stacked feature-branch PRs, run the GitHub Actions **Quality checks**
+aggregate. It requires successful checks for every affected application target and the repository
+checks described below. Make this check required, require pull requests, and block direct pushes to `main` in
 GitHub branch protection before enabling automatic production deployment.
 
 After migration, the regional Cloud Build triggers deploy production when relevant
@@ -16,6 +16,47 @@ changes reach `main`. Each configuration builds and explicitly pushes a unique
 `BUILD_ID` image before updating its existing Cloud Run service. They also remain
 usable through **Run trigger**, with the `main` branch selected. During migration,
 the backend configurations stop after publishing that image.
+
+## CI target selection
+
+The CI workflow runs on every PR and push to `main`. It does not use workflow-level path filters:
+the required **Quality checks** result must also complete for documentation-only changes.
+
+| Changed paths                                                                     | Application checks                  |
+| --------------------------------------------------------------------------------- | ----------------------------------- |
+| `apps/web/**`, root `package-lock.json`                                           | Web                                 |
+| `services/market-data-service/**`                                                 | Market                              |
+| `services/user-service/**`                                                        | User                                |
+| `services/config-service/**`                                                      | Config                              |
+| `services/common/**`, `services/requirements-dev.txt`, `scripts/test_services.py` | All backend services                |
+| `infra/gcp/cloudbuild.api.yaml`, `.user.yaml`, `.config.yaml`, `.web.yaml`        | The corresponding service or client |
+| Root `package.json`, `.dockerignore`, `.github/**`, `scripts/ci/**`               | All targets                         |
+| Documentation, changelogs, formatter configuration                                | No application build                |
+
+Every selected backend installs its own dependencies, checks its own code plus `services/common`,
+runs the common and selected service suites in separate processes, then builds and starts that
+service's Docker image. Web checks do not install service dependencies or build backend images.
+
+**Repository checks** always verifies formatting with root-only Node tooling and tests the CI
+selector and result aggregation. Changes to infrastructure, CI tooling, the shared test runner or
+root quality commands also check Python tooling and the deployment guard tests. Market's
+`pyproject.toml` is an exception to service-local selection: the root quality commands currently use
+its Ruff configuration for all Python code, so it selects all backends and repository Python checks.
+Service jobs enforce both those root rules and their own Ruff configuration.
+
+PR selection compares the actual base and head with a three-dot diff, so stacked PRs work without
+comparing against unrelated `main` changes. Push selection uses the previous and new commit. Renames
+include both old and new paths; deletions retain the former target. Missing comparison history,
+initial pushes and unrecognized code paths conservatively select all targets. Register new services,
+clients and shared contracts in `scripts/ci/checks.py` and its tests when adding them.
+
+The aggregate runs even when dependencies fail or skip. It rejects missing or invalid selection
+outputs, failed repository checks and any selected target that fails, is cancelled or unexpectedly
+skips. Expected skips, including all application jobs on documentation-only PRs, are accepted. Keep
+only **Quality checks** required; target job names and matrix membership vary with each PR.
+
+These rules affect GitHub validation only. Console-managed Cloud Build trigger filters and Cloud Run
+deployment settings remain separate and unchanged.
 
 ## Console configuration
 

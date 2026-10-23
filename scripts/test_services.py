@@ -1,5 +1,6 @@
-"""Run every service suite in its own process so app packages cannot mask each other."""
+"""Run selected service suites in separate processes so app packages cannot mask each other."""
 
+import argparse
 import os
 import subprocess
 import sys
@@ -10,8 +11,16 @@ SERVICES = ("common", "market-data-service", "user-service", "config-service")
 
 
 def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--service",
+        action="append",
+        choices=SERVICES,
+        help="Run only this suite; repeat to select more. Defaults to every suite.",
+    )
+    selected = parser.parse_args().service or SERVICES
     failed = False
-    for service in SERVICES:
+    for service in dict.fromkeys(selected):
         directory = ROOT / "services" / service
         environment = {
             **os.environ,
