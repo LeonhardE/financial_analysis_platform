@@ -11,10 +11,12 @@ bootstrap once after review; subsequent registered execution roots use Cloud Bui
 | ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `bootstrap/`                    | Three private GCS buckets, two execution identities, narrowly scoped IAM and two repo-only Cloud Build triggers. Administrator-managed, outside normal apply. |
 | `envs/prod/repo/`               | One built-in `terraform_data` execution contract, to exercise remote state and the saved-plan workflow without creating a business service.                   |
+| `modules/`                      | Unused reusable Cloud Run, service identity and service build-trigger modules; contracts and mocked tests only, with no production instances.                 |
 | `pipeline.json`                 | Explicit target registry, state prefix, expected identities/triggers and six-hour plan validity. Only `repo` is registered.                                   |
 | `toolchain.json`, provider lock | Terraform 1.16.7 archive checksums and Google provider 7.28.0 dependency lock.                                                                                |
 
-Shared modules and individual service/client roots follow in separate PRs. Neither normal execution
+See the [shared module contracts and adoption gates](modules/README.md). Individual service/client
+roots and release-ownership compatibility follow in separate PRs. Neither normal execution
 identity can access administrative bootstrap state, change its own IAM/trigger, create another build,
 approve a build, or modify an existing business service. `fa-build` keeps its existing permissions.
 
@@ -163,8 +165,9 @@ of their seven-day storage lifecycle; remove unused builds/artifacts through rev
 
 ## Adding the next target
 
-First land `infra(shared)` modules and the Terraform/Cloud Build release-ownership compatibility
-checks. Then use one `infra(<service/client>)` PR at a time to add its root, dependency lock, state/IAM
+The shared modules now have offline contract tests. First complete the separate Terraform/Cloud
+Build release-ownership compatibility work described in the [module adoption gates](modules/README.md).
+Then use one `infra(<service/client>)` PR at a time to add its root, dependency lock, state/IAM
 boundary and trigger. The current execution-bucket grants cover only this repo foundation's trust
 boundary; introduce per-target isolation and appropriate resource permissions rather than casually
 reusing broad access for business state. Never let normal apply manage its own bootstrap/IAM/trigger.
