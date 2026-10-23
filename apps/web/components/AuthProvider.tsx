@@ -51,7 +51,7 @@ type AuthContextValue = AuthState & {
   requestPrivate: (
     path: string,
     sessionKey: string,
-    options?: { method?: "GET" | "PUT" | "DELETE"; signal?: AbortSignal },
+    options?: { method?: "GET" | "PUT" | "DELETE"; signal?: AbortSignal; json?: unknown },
   ) => Promise<Response>;
   signIn: () => Promise<void>;
   signOut: () => Promise<void>;
@@ -257,12 +257,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     async (
       path: string,
       sessionKey: string,
-      options: { method?: "GET" | "PUT" | "DELETE"; signal?: AbortSignal } = {},
+      options: { method?: "GET" | "PUT" | "DELETE"; signal?: AbortSignal; json?: unknown } = {},
     ): Promise<Response> => {
       // Only fixed, same-API private routes may receive a Firebase token.
-      if (!/^\/api\/v1\/watchlist(?:\/[A-Z][A-Z0-9]{0,9}(?:[.-][A-Z0-9]{1,3})?)?$/.test(path)) {
+      const preferencesPath = path === "/api/v1/preferences";
+      if (
+        !preferencesPath &&
+        !/^\/api\/v1\/watchlist(?:\/[A-Z][A-Z0-9]{0,9}(?:[.-][A-Z0-9]{1,3})?)?$/.test(path)
+      ) {
         throw new Error("Invalid private API path");
       }
+      const method = options.method ?? "GET";
+      if (
+        (options.json !== undefined && (!preferencesPath || method !== "PUT")) ||
+        (preferencesPath &&
+          (method === "DELETE" || (method === "PUT" && options.json === undefined)))
+      ) {
+        throw new Error("Invalid private API request");
+      }
+      const body = options.json === undefined ? undefined : JSON.stringify(options.json);
       const session = verifiedSessionRef.current;
       const ownsSession = () =>
         session !== null &&
@@ -299,8 +312,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       if (!ownsSession()) throw sessionChanged();
       const response = await fetch(`${API_BASE_URL}${path}`, {
-        method: options.method ?? "GET",
-        headers: { Authorization: `Bearer ${token}` },
+        method,
+        headers: {
+          Authorization: `Bearer ${token}`,
+          ...(body === undefined ? {} : { "Content-Type": "application/json" }),
+        },
+        ...(body === undefined ? {} : { body }),
         cache: "no-store",
         credentials: "omit",
         signal: options.signal,

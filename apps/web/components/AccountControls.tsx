@@ -1,5 +1,7 @@
 "use client";
 
+import { useTranslations, useLocale } from "next-intl";
+import { localizeMessage } from "@/lib/ui-messages";
 import { useAuth } from "@/components/AuthProvider";
 
 function GoogleMark() {
@@ -26,18 +28,20 @@ function GoogleMark() {
 }
 
 export function AccountControls() {
+  const t = useTranslations();
+  const locale = useLocale();
   const { status, profile, error, hasFirebaseUser, signIn, signOut, retry } = useAuth();
   const pending = ["loading", "signing-in", "verifying", "signing-out"].includes(status);
-  const accountName = profile?.displayName || profile?.email || "Google account";
+  const accountName = profile?.displayName || profile?.email || t("account.googleAccount");
   const statusText =
     status === "loading"
-      ? "Checking session…"
+      ? t("account.checking")
       : status === "signing-in"
-        ? "Opening Google…"
+        ? t("account.opening")
         : status === "verifying"
-          ? "Verifying account…"
+          ? t("account.verifying")
           : status === "signing-out"
-            ? "Signing out…"
+            ? t("account.signingOut")
             : null;
 
   return (
@@ -53,14 +57,16 @@ export function AccountControls() {
         )}
         {hasFirebaseUser ? (
           <>
-            {status === "verifying" && <span className="account-pending">Verifying account…</span>}
+            {status === "verifying" && (
+              <span className="account-pending">{t("account.verifying")}</span>
+            )}
             {status === "error" && (
               <button
                 className="account-button secondary"
                 onClick={() => void retry()}
                 type="button"
               >
-                Retry
+                {t("account.retry")}
               </button>
             )}
             <button
@@ -69,7 +75,7 @@ export function AccountControls() {
               onClick={() => void signOut()}
               type="button"
             >
-              {status === "signing-out" ? "Signing out…" : "Sign out"}
+              {status === "signing-out" ? t("account.signingOut") : t("account.signOut")}
             </button>
           </>
         ) : (
@@ -80,13 +86,13 @@ export function AccountControls() {
             type="button"
           >
             <GoogleMark />
-            {statusText ?? "Sign in with Google"}
+            {statusText ?? t("account.signIn")}
           </button>
         )}
       </div>
       <div className="account-message" aria-live="polite" aria-atomic="true">
-        {error && <span className="account-error">{error}</span>}
-        {status === "unavailable" && <span>Sign-in will be available soon. Browse freely.</span>}
+        {error && <span className="account-error">{localizeMessage(error, t, locale)}</span>}
+        {status === "unavailable" && <span>{t("account.unavailable")}</span>}
       </div>
     </div>
   );

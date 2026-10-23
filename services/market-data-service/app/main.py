@@ -8,6 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from .auth import CurrentUser, require_google_user
 from .market_data import MarketService, get_market_service
+from .preferences import router as preferences_router
 from .watchlist import PrivateWatchlistHeaders
 from .watchlist import router as watchlist_router
 
@@ -33,6 +34,7 @@ app.add_middleware(
 
 app.add_middleware(PrivateWatchlistHeaders)
 app.include_router(watchlist_router)
+app.include_router(preferences_router)
 
 
 @app.get("/health")

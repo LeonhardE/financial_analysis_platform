@@ -321,3 +321,71 @@ test("logging out while a private token is pending prevents the private fetch", 
   assert.equal(harness.state().profile, null);
   assert.equal(harness.requests.length, 1);
 });
+
+test("preferences JSON stays on its exact private endpoint with authenticated no-store requests", async () => {
+  const harness = mountProvider();
+  harness.emitUser(user("a"));
+  await settle();
+  const preferences = {
+    theme: "system",
+    language: "zh",
+    defaultChartRange: "1y",
+    expectedVersion: 2,
+  };
+  await harness.actions.requestPrivate("/api/v1/preferences", "a:1", {
+    method: "PUT",
+    json: preferences,
+  });
+  const [url, options] = harness.requests[1];
+  assert.match(url, /\/api\/v1\/preferences$/);
+  assert.equal(options.headers["Content-Type"], "application/json");
+  assert.equal(options.headers.Authorization, "Bearer test-token-a");
+  assert.deepEqual(JSON.parse(options.body), preferences);
+  assert.equal(options.cache, "no-store");
+  assert.equal(options.credentials, "omit");
+  for (const path of [
+    "/api/v1/preferences/other",
+    "/api/v1/preferences?uid=b",
+    "https://example.com/api/v1/preferences",
+  ]) {
+    await assert.rejects(
+      harness.actions.requestPrivate(path, "a:1", { method: "PUT", json: preferences }),
+      /Invalid private API path/,
+    );
+  }
+  for (const [path, options] of [
+    ["/api/v1/watchlist/AAPL", { method: "PUT", json: preferences }],
+    ["/api/v1/preferences", { method: "GET", json: preferences }],
+    ["/api/v1/preferences", { method: "DELETE" }],
+    ["/api/v1/preferences", { method: "PUT" }],
+  ]) {
+    await assert.rejects(
+      harness.actions.requestPrivate(path, "a:1", options),
+      /Invalid private API request/,
+    );
+  }
+  assert.equal(harness.requests.length, 2);
+});
+
+test("aborting a pending settings token prevents its JSON write after the deadline", async () => {
+  const token = deferred();
+  let attempts = 0;
+  const harness = mountProvider();
+  harness.emitUser({
+    uid: "a",
+    getIdToken: () => (++attempts === 1 ? Promise.resolve("test-token-a") : token.promise),
+  });
+  await settle();
+  const controller = new AbortController();
+  const pending = harness.actions.requestPrivate("/api/v1/preferences", "a:1", {
+    method: "PUT",
+    signal: controller.signal,
+    json: { theme: "light", language: "en", defaultChartRange: "1m", expectedVersion: 0 },
+  });
+  const rejected = assert.rejects(pending, /account session changed/);
+  controller.abort();
+  token.resolve("late-test-token-a");
+  await rejected;
+  assert.equal(harness.requests.length, 1);
+  assert.equal(harness.state().profile.uid, "a");
+});

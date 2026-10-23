@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { useTranslations } from "next-intl";
 import {
   CandlestickSeries,
   ColorType,
@@ -9,17 +10,22 @@ import {
   type CandlestickData,
   type Time,
 } from "lightweight-charts";
-import { RANGE_LABELS, type Candle, type ChartRange, type CandleResponse } from "@/lib/market-data";
+import { type Candle, type ChartRange, type CandleResponse } from "@/lib/market-data";
 
 export function CandlestickChart({
   data,
   range,
   interval,
+  theme,
+  locale,
 }: {
   data: Candle[];
   range: ChartRange;
   interval: CandleResponse["interval"];
+  theme: "dark" | "light";
+  locale: string;
 }) {
+  const t = useTranslations();
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -30,13 +36,13 @@ export function CandlestickChart({
       autoSize: true,
       layout: {
         background: { type: ColorType.Solid, color: "transparent" },
-        textColor: "#8c99ae",
+        textColor: theme === "light" ? "#59687c" : "#8c99ae",
         fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif",
         fontSize: 10,
       },
       grid: {
-        vertLines: { color: "rgba(121, 139, 165, 0.07)" },
-        horzLines: { color: "rgba(121, 139, 165, 0.1)" },
+        vertLines: { color: theme === "light" ? "#e8edf3" : "rgba(121, 139, 165, 0.07)" },
+        horzLines: { color: theme === "light" ? "#e1e7ef" : "rgba(121, 139, 165, 0.1)" },
       },
       rightPriceScale: { borderColor: "rgba(121, 139, 165, 0.16)" },
       timeScale: {
@@ -46,7 +52,7 @@ export function CandlestickChart({
         rightOffset: 2,
         tickMarkFormatter: (time: Time, type: TickMarkType) => {
           if (typeof time !== "number") return null;
-          return new Intl.DateTimeFormat("en-US", {
+          return new Intl.DateTimeFormat(locale, {
             timeZone: "America/New_York",
             ...(type === TickMarkType.Time || type === TickMarkType.TimeWithSeconds
               ? { hour: "2-digit", minute: "2-digit", hour12: false }
@@ -55,12 +61,12 @@ export function CandlestickChart({
         },
       },
       localization: {
-        locale: "en-US",
+        locale,
         ...(interval !== "1d"
           ? {
               timeFormatter: (time: Time) =>
                 typeof time === "number"
-                  ? new Intl.DateTimeFormat("en-US", {
+                  ? new Intl.DateTimeFormat(locale, {
                       timeZone: "America/New_York",
                       month: "short",
                       day: "numeric",
@@ -122,14 +128,18 @@ export function CandlestickChart({
       cancelAnimationFrame(resizeFrame);
       chart.remove();
     };
-  }, [data, interval]);
+  }, [data, interval, theme, locale]);
 
   return (
     <div
       className="chart-container"
       ref={containerRef}
       role="img"
-      aria-label={`${RANGE_LABELS[range]} candlestick chart. ${data.length} candles. Latest close ${data.at(-1)?.close.toFixed(2) ?? "unavailable"}.`}
+      aria-label={t("chart.description", {
+        range: t(`ranges.${range}`),
+        count: data.length,
+        close: data.at(-1)?.close.toFixed(2) ?? t("chart.unavailable"),
+      })}
     />
   );
 }

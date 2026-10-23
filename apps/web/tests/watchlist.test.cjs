@@ -6,6 +6,12 @@ const vm = require("node:vm");
 const { transformSync } = require("next/dist/build/swc");
 const { renderToStaticMarkup } = require("react-dom/server");
 const jsxRuntime = require("react/jsx-runtime");
+const { createTranslator } = require("next-intl");
+const english = require("../messages/en.json");
+const intl = {
+  useLocale: () => "en",
+  useTranslations: (namespace) => createTranslator({ locale: "en", messages: english, namespace }),
+};
 
 function compile(file, imports, globals = {}) {
   const { code } = transformSync(readFileSync(path.join(__dirname, file), "utf8"), {
@@ -305,6 +311,8 @@ test("malformed private responses cannot add duplicate, invalid, or excessive sa
 
 function renderWatchlist(authenticated, items = []) {
   const { PersonalWatchlist, WatchlistAction } = compile("../components/PersonalWatchlist.tsx", {
+    "next-intl": intl,
+    "@/lib/ui-messages": compile("../lib/ui-messages.ts", {}),
     "react/jsx-runtime": jsxRuntime,
     "@/components/AuthProvider": {
       useAuth: () => ({ status: authenticated ? "authenticated" : "anonymous" }),
