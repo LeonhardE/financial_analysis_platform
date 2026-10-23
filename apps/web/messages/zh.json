@@ -7,7 +7,10 @@
     "settings": "设置",
     "workspace": "你的投资工作台",
     "tagline": "让投资全貌更清晰。",
-    "footer": "美股行情 · 自由浏览，私人自选"
+    "footer": "美股行情 · 自由浏览，私人自选",
+    "expandSidebar": "展开侧边栏",
+    "collapseSidebar": "收起侧边栏",
+    "closeSidebar": "关闭导航"
   },
   "market": {
     "indices": "美国三大股指",
@@ -30,7 +33,6 @@
     "lastDay": "最新价 / 日涨跌",
     "major": "美国三大股指",
     "seven": "美股七姐妹",
-    "guest": "无需登录即可浏览",
     "updating": "更新中…",
     "refresh": "刷新",
     "choose": "选择标的",
@@ -91,7 +93,9 @@
     "signOut": "退出登录",
     "signIn": "通过 Google 登录",
     "retry": "重试",
-    "unavailable": "登录暂不可用，你仍可自由浏览。"
+    "unavailable": "登录暂不可用，你仍可自由浏览。",
+    "guest": "访客",
+    "notice": "账户状态"
   },
   "watchlist": {
     "checking": "正在检查账户…",
@@ -109,7 +113,6 @@
     "loadingPersonal": "正在加载你的自选…",
     "empty": "自选列表还没有股票。打开一个标的，选择“加入自选”。",
     "reload": "重新加载自选",
-    "private": "仅当前登录账户可见",
     "added": "已将 {symbol} 加入自选。",
     "removed": "已将 {symbol} 移出自选。"
   },
@@ -180,5 +183,26 @@
       "loadTimeout": "恢复偏好超时，请重试。",
       "saveTimeout": "保存超时，修改仍在此页面生效，请重试保存。"
     }
+  },
+  "metrics": {
+    "title": "证券指标",
+    "pe": "市盈率（TTM）",
+    "sessionVolume": "最近交易日成交量",
+    "marketCap": "总市值",
+    "loading": "正在加载基本面…",
+    "updating": "正在更新基本面…",
+    "unavailable": "基本面暂不可用",
+    "retry": "重试",
+    "about": "指标说明",
+    "peHelp": "市盈率基于最近可用的过去十二个月收益；缺失或非正数时显示为 —。",
+    "volumeHelp": "成交量对应图表中最近的交易日，而非所选图表区间的累计总量。",
+    "volumeTiming": "成交量交易日：{date} · 行情获取时间：{time}",
+    "partial": "获取时最新一根 K 线尚未结束，成交量为不完整快照。",
+    "metricsTiming": "基本面获取时间：{time}。其时间可能与行情不同。",
+    "currency": "市值以 {currency} 计价。",
+    "stale": "基本面使用缓存数据",
+    "mock": "图表为模拟数据，企业基本面不可用。",
+    "source": "基本面来源：Yahoo Finance",
+    "index": "指数不适用企业估值与股票成交量指标。"
   }
 }

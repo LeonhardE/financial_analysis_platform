@@ -7,7 +7,10 @@
     "settings": "Settings",
     "workspace": "Your investing workspace",
     "tagline": "A clearer view of your investments.",
-    "footer": "US markets · Public browsing, personal watchlists"
+    "footer": "US markets · Public browsing, personal watchlists",
+    "expandSidebar": "Expand sidebar",
+    "collapseSidebar": "Collapse sidebar",
+    "closeSidebar": "Close navigation"
   },
   "market": {
     "indices": "US market indices",
@@ -30,7 +33,6 @@
     "lastDay": "Last / Day %",
     "major": "MAJOR INDICES",
     "seven": "MAGNIFICENT SEVEN",
-    "guest": "No sign-in needed to explore",
     "updating": "Updating…",
     "refresh": "Refresh",
     "choose": "Choose an instrument",
@@ -91,7 +93,9 @@
     "signOut": "Sign out",
     "signIn": "Sign in with Google",
     "retry": "Retry",
-    "unavailable": "Sign-in will be available soon. Browse freely."
+    "unavailable": "Sign-in will be available soon. Browse freely.",
+    "guest": "Guest",
+    "notice": "Account status"
   },
   "watchlist": {
     "checking": "Checking account…",
@@ -109,7 +113,6 @@
     "loadingPersonal": "Loading your watchlist…",
     "empty": "Your watchlist is empty. Open a stock and choose “Add to watchlist”.",
     "reload": "Reload watchlist",
-    "private": "Only visible to your signed-in account",
     "added": "{symbol} added to your watchlist.",
     "removed": "{symbol} removed from your watchlist."
   },
@@ -180,5 +183,26 @@
       "loadTimeout": "Restoring your preferences took too long. Try again.",
       "saveTimeout": "Saving took too long. Your changes still apply here; try again to save them."
     }
+  },
+  "metrics": {
+    "title": "Instrument metrics",
+    "pe": "P/E (TTM)",
+    "sessionVolume": "Trading-session volume",
+    "marketCap": "Market cap",
+    "loading": "Loading fundamentals…",
+    "updating": "Updating fundamentals…",
+    "unavailable": "Fundamentals unavailable",
+    "retry": "Retry",
+    "about": "About these metrics",
+    "peHelp": "Trailing P/E uses the latest available trailing twelve-month earnings. Unavailable or non-positive values are shown as —.",
+    "volumeHelp": "Volume covers the latest trading session represented in the chart, rather than the total for the selected chart range.",
+    "volumeTiming": "Volume session: {date} · Chart fetched: {time}",
+    "partial": "The latest candle was incomplete when fetched; volume is a partial snapshot.",
+    "metricsTiming": "Fundamentals fetched: {time}. Their timing may differ from the chart.",
+    "currency": "Market cap is reported in {currency}.",
+    "stale": "Cached fundamentals",
+    "mock": "Simulated chart data; company fundamentals are unavailable.",
+    "source": "Fundamentals: Yahoo Finance",
+    "index": "Company valuation and share volume do not apply to this index."
   }
 }

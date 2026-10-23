@@ -1,0 +1,171 @@
+.controls {
+  position: relative;
+  min-width: 0;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+
+.profile {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+  min-height: 46px;
+  min-width: 0;
+  padding: 6px 10px;
+}
+
+.avatar {
+  align-items: center;
+  background: var(--raised);
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  color: var(--accent);
+  display: inline-flex;
+  flex: 0 0 30px;
+  font-size: 12px;
+  font-weight: 600;
+  height: 30px;
+  justify-content: center;
+  overflow: hidden;
+  width: 30px;
+}
+
+.avatar img {
+  height: 100%;
+  object-fit: cover;
+  width: 100%;
+}
+
+.name {
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.actions {
+  display: grid;
+  gap: 4px;
+}
+
+.button {
+  align-items: center;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  color: var(--muted);
+  display: flex;
+  font-size: 12px;
+  gap: 10px;
+  justify-content: flex-start;
+  line-height: 1.35;
+  min-height: 44px;
+  padding: 8px 14px;
+  text-align: left;
+  width: 100%;
+}
+
+.button svg {
+  flex: 0 0 20px;
+}
+
+.button:hover:not(:disabled) {
+  background: var(--raised);
+  color: var(--text);
+}
+
+.button:focus-visible,
+.notice summary:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.pending {
+  color: var(--muted);
+  display: block;
+  font-size: 11px;
+  line-height: 1.45;
+  padding: 0 10px 6px;
+}
+
+.pending:empty {
+  display: none;
+}
+
+.message {
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.5;
+  margin: 2px 10px 6px;
+  overflow-wrap: anywhere;
+}
+
+.message[role="alert"] {
+  color: var(--negative);
+}
+
+.collapsed .profile {
+  justify-content: center;
+  padding: 6px 0;
+}
+
+.collapsed .button {
+  justify-content: center;
+  padding: 10px 0;
+}
+
+.notice {
+  position: relative;
+}
+
+.notice summary {
+  align-items: center;
+  border-radius: 7px;
+  color: var(--muted);
+  cursor: pointer;
+  display: flex;
+  justify-content: center;
+  list-style: none;
+  min-height: 44px;
+}
+
+.notice summary::-webkit-details-marker {
+  display: none;
+}
+
+.notice summary:hover {
+  background: var(--raised);
+  color: var(--text);
+}
+
+.notice p {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  bottom: 128px;
+  box-shadow: 0 8px 32px #0003;
+  color: var(--text);
+  font-size: 12px;
+  left: calc(var(--rail-width, 72px) + 8px);
+  line-height: 1.5;
+  margin: 0;
+  max-height: calc(100dvh - 160px);
+  overflow-y: auto;
+  overflow-wrap: anywhere;
+  padding: 12px;
+  position: fixed;
+  width: min(260px, calc(100vw - 92px));
+  z-index: 40;
+}
+
+.visuallyHidden {
+  border: 0;
+  clip: rect(0, 0, 0, 0);
+  clip-path: inset(50%);
+  height: 1px;
+  overflow: hidden;
+  padding: 0;
+  position: absolute;
+  white-space: nowrap;
+  width: 1px;
+}
