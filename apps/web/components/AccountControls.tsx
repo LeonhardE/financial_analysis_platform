@@ -1,8 +1,10 @@
 "use client";
 
+import { useState } from "react";
 import { useTranslations, useLocale } from "next-intl";
 import { localizeMessage } from "@/lib/ui-messages";
 import { useAuth } from "@/components/AuthProvider";
+import styles from "./AccountControls.module.css";
 
 function GoogleMark() {
   return (
@@ -27,12 +29,85 @@ function GoogleMark() {
   );
 }
 
-export function AccountControls() {
+function AccountIcon({ kind }: { kind: "user" | "sign-out" | "retry" | "notice" }) {
+  return (
+    <svg
+      aria-hidden="true"
+      width="20"
+      height="20"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.7"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      {kind === "user" ? (
+        <>
+          <circle cx="12" cy="8" r="3.5" />
+          <path d="M5 21v-2a7 7 0 0 1 14 0v2" />
+        </>
+      ) : kind === "sign-out" ? (
+        <>
+          <path d="M9 4H5a1 1 0 0 0-1 1v14a1 1 0 0 0 1 1h4M13 7l5 5-5 5M8 12h10" />
+        </>
+      ) : kind === "retry" ? (
+        <>
+          <path d="M20 7v5h-5M4 17v-5h5" />
+          <path d="M6.1 7a7 7 0 0 1 11.7-1L20 9M4 15l2.2 3A7 7 0 0 0 18 17" />
+        </>
+      ) : (
+        <>
+          <circle cx="12" cy="12" r="9" />
+          <path d="M12 7v6M12 17h.01" />
+        </>
+      )}
+    </svg>
+  );
+}
+
+function AccountAvatar({
+  name,
+  photoURL,
+  guest,
+}: {
+  name: string;
+  photoURL: string | null;
+  guest: boolean;
+}) {
+  const [failedPhoto, setFailedPhoto] = useState<string | null>(null);
+  return (
+    <span className={styles.avatar} aria-hidden="true">
+      {photoURL && photoURL !== failedPhoto ? (
+        <img
+          src={photoURL}
+          alt=""
+          width="30"
+          height="30"
+          referrerPolicy="no-referrer"
+          onError={() => setFailedPhoto(photoURL)}
+        />
+      ) : guest ? (
+        <AccountIcon kind="user" />
+      ) : (
+        name.slice(0, 1).toUpperCase()
+      )}
+    </span>
+  );
+}
+
+export function AccountControls({ collapsed = false }: { collapsed?: boolean }) {
   const t = useTranslations();
   const locale = useLocale();
   const { status, profile, error, hasFirebaseUser, signIn, signOut, retry } = useAuth();
   const pending = ["loading", "signing-in", "verifying", "signing-out"].includes(status);
   const accountName = profile?.displayName || profile?.email || t("account.googleAccount");
+  const profileName = hasFirebaseUser ? accountName : t("account.guest");
+  const notice = error
+    ? localizeMessage(error, t, locale)
+    : status === "unavailable"
+      ? t("account.unavailable")
+      : null;
   const statusText =
     status === "loading"
       ? t("account.checking")
@@ -45,54 +120,75 @@ export function AccountControls() {
             : null;
 
   return (
-    <div className="account-controls">
-      <div className="account-actions">
-        {profile && (
-          <div className="account-profile" title={profile.email ?? accountName}>
-            <span className="account-avatar" aria-hidden="true">
-              {accountName.slice(0, 1).toUpperCase()}
-            </span>
-            <span className="account-name">{accountName}</span>
-          </div>
-        )}
+    <div className={`${styles.controls} ${collapsed ? styles.collapsed : ""}`}>
+      {notice &&
+        (collapsed ? (
+          <details className={styles.notice}>
+            <summary title={notice} aria-label={`${t("account.notice")}: ${notice}`}>
+              <AccountIcon kind="notice" />
+            </summary>
+            <p role={error ? "alert" : "status"}>{notice}</p>
+          </details>
+        ) : (
+          <p className={styles.message} role={error ? "alert" : "status"}>
+            {notice}
+          </p>
+        ))}
+      <div className={styles.profile} title={profile?.email ?? profileName}>
+        <AccountAvatar
+          name={profileName}
+          photoURL={profile?.photoURL ?? null}
+          guest={!hasFirebaseUser}
+        />
+        <span className={collapsed ? styles.visuallyHidden : styles.name}>{profileName}</span>
+      </div>
+      <span className={collapsed ? styles.visuallyHidden : styles.pending} role="status">
+        {hasFirebaseUser ? statusText : null}
+      </span>
+      <div className={styles.actions}>
         {hasFirebaseUser ? (
           <>
-            {status === "verifying" && (
-              <span className="account-pending">{t("account.verifying")}</span>
-            )}
             {status === "error" && (
               <button
-                className="account-button secondary"
+                className={styles.button}
                 onClick={() => void retry()}
                 type="button"
+                title={t("account.retry")}
+                aria-label={t("account.retry")}
               >
-                {t("account.retry")}
+                <AccountIcon kind="retry" />
+                {!collapsed && <span>{t("account.retry")}</span>}
               </button>
             )}
             <button
-              className="account-button secondary"
+              className={styles.button}
               disabled={status === "signing-out"}
               onClick={() => void signOut()}
               type="button"
+              title={status === "signing-out" ? t("account.signingOut") : t("account.signOut")}
+              aria-label={status === "signing-out" ? t("account.signingOut") : t("account.signOut")}
             >
-              {status === "signing-out" ? t("account.signingOut") : t("account.signOut")}
+              <AccountIcon kind="sign-out" />
+              {!collapsed && (
+                <span>
+                  {status === "signing-out" ? t("account.signingOut") : t("account.signOut")}
+                </span>
+              )}
             </button>
           </>
         ) : (
           <button
-            className="account-button google-sign-in"
+            className={styles.button}
             disabled={pending || status === "unavailable"}
             onClick={() => void signIn()}
             type="button"
+            title={statusText ?? t("account.signIn")}
+            aria-label={statusText ?? t("account.signIn")}
           >
             <GoogleMark />
-            {statusText ?? t("account.signIn")}
+            {!collapsed && <span>{statusText ?? t("account.signIn")}</span>}
           </button>
         )}
-      </div>
-      <div className="account-message" aria-live="polite" aria-atomic="true">
-        {error && <span className="account-error">{localizeMessage(error, t, locale)}</span>}
-        {status === "unavailable" && <span>{t("account.unavailable")}</span>}
       </div>
     </div>
   );

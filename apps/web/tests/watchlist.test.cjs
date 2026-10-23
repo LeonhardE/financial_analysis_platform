@@ -348,5 +348,5 @@ test("guest save CTA and private saved instruments remain separate from public q
   assert.match(signedIn, /Remove NFLX from watchlist/);
   assert.match(signedIn, /Remove from watchlist/);
   assert.match(signedIn, /aria-pressed="true"/);
-  assert.doesNotMatch(signedIn, /\$|Daily prices/);
+  assert.doesNotMatch(signedIn, /\$|Daily prices|Only visible to your signed-in account/);
 });

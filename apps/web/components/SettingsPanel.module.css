@@ -1,0 +1,239 @@
+.panel {
+  margin: 0 auto;
+  max-width: 920px;
+  min-width: 0;
+  padding: 12px 0 32px;
+  width: 100%;
+}
+
+.heading {
+  margin-bottom: 24px;
+}
+
+.heading h1 {
+  font-size: 26px;
+  font-weight: 600;
+  letter-spacing: -0.65px;
+  line-height: 1.25;
+  margin: 0 0 8px;
+}
+
+.heading p {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
+  margin: 0;
+}
+
+.preferences {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.row {
+  align-items: center;
+  border: 0;
+  display: grid;
+  gap: 24px;
+  grid-template-columns: minmax(0, 1fr) minmax(240px, 300px);
+  margin: 0;
+  min-width: 0;
+  padding: 22px 24px;
+}
+
+.row + .row {
+  border-top: 1px solid var(--border);
+}
+
+.row:disabled {
+  opacity: 0.6;
+}
+
+.rowCopy {
+  min-width: 0;
+}
+
+.rowCopy h2 {
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.4;
+  margin: 0 0 5px;
+}
+
+.rowCopy p {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+  margin: 0;
+  max-width: 390px;
+}
+
+.choices {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  display: grid;
+  gap: 3px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  min-width: 0;
+  padding: 3px;
+}
+
+.choice {
+  align-items: center;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  color: var(--muted);
+  cursor: pointer;
+  display: flex;
+  font-size: 12px;
+  justify-content: center;
+  min-height: 34px;
+  padding: 5px 7px;
+  position: relative;
+}
+
+.choice input {
+  height: 1px;
+  opacity: 0;
+  position: absolute;
+  width: 1px;
+}
+
+.choice:has(input:checked) {
+  background: var(--raised);
+  border-color: var(--border);
+  color: var(--text);
+  font-weight: 600;
+}
+
+.choice:has(input:focus-visible) {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.choice:has(input:disabled) {
+  cursor: default;
+}
+
+.select {
+  min-width: 0;
+  position: relative;
+}
+
+.select select {
+  appearance: none;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.4;
+  min-height: 42px;
+  padding: 9px 42px 9px 12px;
+  width: 100%;
+}
+
+.select select:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.select select:disabled {
+  cursor: default;
+}
+
+.select svg {
+  color: var(--muted);
+  height: 16px;
+  pointer-events: none;
+  position: absolute;
+  right: 14px;
+  top: calc(50% - 8px);
+  width: 16px;
+}
+
+.accountNote,
+.saveState {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+  margin: 16px 2px 0;
+}
+
+.saveState {
+  margin-top: 8px;
+}
+
+.saveState p {
+  margin: 0;
+}
+
+.error {
+  align-items: center;
+  color: var(--negative);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.retry {
+  background: var(--raised);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  flex-shrink: 0;
+  font-size: 12px;
+  min-height: 36px;
+  padding: 7px 12px;
+}
+
+@media (max-width: 800px) {
+  .row {
+    align-items: stretch;
+    gap: 14px;
+    grid-template-columns: minmax(0, 1fr);
+    padding: 20px;
+  }
+
+  .choices,
+  .select {
+    max-width: 340px;
+    width: 100%;
+  }
+
+  .choice {
+    min-height: 38px;
+  }
+
+  .select select {
+    min-height: 44px;
+  }
+}
+
+@media (max-width: 480px) {
+  .panel {
+    padding-top: 4px;
+  }
+
+  .heading {
+    margin-bottom: 20px;
+  }
+
+  .heading h1 {
+    font-size: 24px;
+  }
+
+  .row {
+    padding: 18px 16px;
+  }
+}
+
+@media (max-width: 480px) {
+  .select select {
+    font-size: 16px;
+  }
+}

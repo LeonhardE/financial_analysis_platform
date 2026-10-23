@@ -267,6 +267,7 @@ function renderDashboard({
       }),
     },
     "@/components/SettingsPanel": { default: () => null },
+    "@/components/InstrumentMetrics": { InstrumentMetrics: () => null },
     "@/components/useMarketResource": {
       useMarketResource: (resourcePath) => {
         requests.push(resourcePath);
@@ -281,8 +282,8 @@ function renderDashboard({
         return chart;
       },
     },
-    "@/components/AccountControls": {
-      AccountControls: () => jsxRuntime.jsx("button", { children: "Sign in with Google" }),
+    "@/components/WorkspaceSidebar": {
+      WorkspaceSidebar: () => jsxRuntime.jsx("nav", { children: "Workspace navigation" }),
     },
     "@/components/useWatchlist": {
       useWatchlist: () => ({ authenticated: false, items: [] }),
@@ -319,7 +320,8 @@ test("an overview outage retains all ten public instruments without inventing mo
   }
   assert.match(html, /Overview unavailable/);
   assert.match(html, /Daily data unavailable/);
-  assert.match(html, /No sign-in needed/);
+  assert.match(html, />Refresh<\/button>/);
+  assert.doesNotMatch(html, /No sign-in needed/);
   assert.doesNotMatch(html, /Mock data|Simulated prices|\$0\.00|NaN/);
 });
 

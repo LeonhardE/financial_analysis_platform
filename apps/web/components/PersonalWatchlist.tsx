@@ -138,7 +138,6 @@ export function PersonalWatchlist({
             )}
             {watchlist.message && <p>{localizeMessage(watchlist.message, t, locale)}</p>}
           </div>
-          <p className="overview-footnote">{t("watchlist.private")}</p>
         </>
       )}
     </section>
