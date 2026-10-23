@@ -1,0 +1,7 @@
+# Copy to ignored backend.tf only AFTER the first administrative bootstrap apply,
+# then run terraform init -migrate-state with bucket
+# financial-analysis-512202-tf-bootstrap and prefix bootstrap. Do not use this
+# administrative bucket from the ordinary plan/apply pipeline.
+terraform {
+  backend "gcs" {}
+}

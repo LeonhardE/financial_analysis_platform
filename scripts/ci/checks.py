@@ -32,6 +32,7 @@ class Plan:
     web: bool = False
     services: tuple[str, ...] = ()
     infra: bool = False
+    terraform: bool = False
 
     def outputs(self) -> dict[str, str]:
         return {
@@ -39,15 +40,16 @@ class Plan:
             "backend": str(bool(self.services)).lower(),
             "services": json.dumps(self.services, separators=(",", ":")),
             "infra": str(self.infra).lower(),
+            "terraform": str(self.terraform).lower(),
         }
 
 
-FULL = Plan(web=True, services=SERVICES, infra=True)
+FULL = Plan(web=True, services=SERVICES, infra=True, terraform=True)
 
 
 def select(paths: list[str]) -> Plan:
     """Known leaf targets stay isolated; unknown executable paths fail conservatively."""
-    web = infra = False
+    web = infra = terraform = False
     services = set()
     for path in paths:
         if path.startswith("local-docs/"):
@@ -79,6 +81,18 @@ def select(paths: list[str]) -> Plan:
             else:
                 services.add(target)
             infra = True
+        elif (
+            path.startswith("infra/gcp/terraform/")
+            or path
+            in (
+                "infra/gcp/terraform_tools.py",
+                "infra/gcp/terraform_pipeline.py",
+                "infra/gcp/cloudbuild.terraform-plan.yaml",
+                "infra/gcp/cloudbuild.terraform-apply.yaml",
+            )
+            or (path.startswith("infra/gcp/tests/test_terraform") and path.endswith(".py"))
+        ):
+            infra = terraform = True
         elif path.startswith("infra/gcp/"):
             infra = True
         elif path.startswith(("apps/", "services/", "scripts/")):
@@ -87,7 +101,12 @@ def select(paths: list[str]) -> Plan:
             continue
         else:
             return FULL
-    return Plan(web=web, services=tuple(item for item in SERVICES if item in services), infra=infra)
+    return Plan(
+        web=web,
+        services=tuple(item for item in SERVICES if item in services),
+        infra=infra,
+        terraform=terraform,
+    )
 
 
 def changed_paths(event_name: str, event: dict) -> list[str]:
@@ -137,16 +156,32 @@ def detect(event_name: str, event_path: str) -> Plan:
 
 def validate_gate(needs: dict) -> None:
     """Reject missing output or an unexpectedly skipped, failed, or cancelled check."""
-    if not isinstance(needs, dict) or set(needs) != {"changes", "repository", "web", "backend"}:
+    if not isinstance(needs, dict) or set(needs) != {
+        "changes",
+        "repository",
+        "web",
+        "backend",
+        "terraform",
+    }:
         raise ValueError("Missing or unexpected aggregate dependency")
     for job in ("changes", "repository"):
         if not isinstance(needs[job], dict) or needs[job].get("result") != "success":
             raise ValueError(f"{job} did not succeed")
     outputs = needs["changes"].get("outputs")
-    if not isinstance(outputs, dict) or set(outputs) != {"web", "backend", "services", "infra"}:
+    if not isinstance(outputs, dict) or set(outputs) != {
+        "web",
+        "backend",
+        "services",
+        "infra",
+        "terraform",
+    }:
         raise ValueError("Missing or unexpected selection output")
-    if any(outputs[key] not in ("true", "false") for key in ("web", "backend", "infra")):
+    if any(
+        outputs[key] not in ("true", "false") for key in ("web", "backend", "infra", "terraform")
+    ):
         raise ValueError("Invalid selection flag")
+    if outputs["terraform"] == "true" and outputs["infra"] != "true":
+        raise ValueError("Terraform checks require repository infrastructure checks")
     try:
         services = json.loads(outputs["services"])
     except (TypeError, ValueError) as error:
@@ -158,7 +193,7 @@ def validate_gate(needs: dict) -> None:
         or (outputs["backend"] == "true") != bool(services)
     ):
         raise ValueError("Inconsistent service selection")
-    for job in ("web", "backend"):
+    for job in ("web", "backend", "terraform"):
         expected = "success" if outputs[job] == "true" else "skipped"
         if not isinstance(needs[job], dict) or needs[job].get("result") != expected:
             raise ValueError(f"{job} must be {expected}")

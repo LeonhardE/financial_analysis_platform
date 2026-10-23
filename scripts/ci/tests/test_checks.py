@@ -82,6 +82,28 @@ class SelectionTests(unittest.TestCase):
     def test_deployment_tooling_does_not_retest_unmodified_applications(self):
         self.assertEqual(select(["infra/gcp/deploy_existing_service.py"]), Plan(infra=True))
 
+    def test_terraform_changes_select_offline_infrastructure_checks_without_applications(self):
+        for path in (
+            "infra/gcp/terraform/bootstrap/main.tf",
+            "infra/gcp/terraform/bootstrap/.terraform.lock.hcl",
+            "infra/gcp/terraform/envs/prod/foundation/backend.tf",
+            "infra/gcp/terraform/bootstrap/tests/security.tftest.hcl",
+            "infra/gcp/terraform_tools.py",
+            "infra/gcp/terraform_pipeline.py",
+            "infra/gcp/tests/test_terraform_tools.py",
+            "infra/gcp/tests/test_terraform_pipeline.py",
+            "infra/gcp/cloudbuild.terraform-plan.yaml",
+            "infra/gcp/cloudbuild.terraform-apply.yaml",
+        ):
+            with self.subTest(path=path):
+                self.assertEqual(select([path]), Plan(infra=True, terraform=True))
+
+    def test_terraform_and_application_changes_are_combined_without_other_services(self):
+        self.assertEqual(
+            select(["infra/gcp/terraform/bootstrap/main.tf", "services/user-service/app/main.py"]),
+            Plan(services=("user-service",), infra=True, terraform=True),
+        )
+
     def test_documentation_and_format_configuration_need_only_repository_checks(self):
         for path in (
             "README.md",
@@ -92,6 +114,7 @@ class SelectionTests(unittest.TestCase):
             "services/common/README.md",
             "services/future/docs/plan.md",
             "infra/gcp/README.md",
+            "infra/gcp/terraform/README.md",
             ".prettierrc.json",
             ".gitignore",
         ):
@@ -252,7 +275,7 @@ class GitComparisonTests(unittest.TestCase):
         self.assertIn("Compared 1 changed paths", result.stdout)
         self.assertEqual(
             output.read_text(),
-            "existing=value\nweb=true\nbackend=false\nservices=[]\ninfra=false\n",
+            "existing=value\nweb=true\nbackend=false\nservices=[]\ninfra=false\nterraform=false\n",
         )
 
 
@@ -264,15 +287,22 @@ class GateTests(unittest.TestCase):
             "repository": {"result": "success"},
             "web": {"result": "success" if plan.web else "skipped"},
             "backend": {"result": "success" if plan.services else "skipped"},
+            "terraform": {"result": "success" if plan.terraform else "skipped"},
         }
 
     def test_documentation_web_backend_and_full_success_are_accepted(self):
-        for plan in (Plan(), Plan(web=True), Plan(services=("user-service",)), FULL):
+        for plan in (
+            Plan(),
+            Plan(web=True),
+            Plan(services=("user-service",)),
+            Plan(infra=True, terraform=True),
+            FULL,
+        ):
             with self.subTest(plan=plan):
                 validate_gate(self.needs(plan))
 
     def test_selected_jobs_cannot_fail_cancel_or_skip(self):
-        for job in ("changes", "repository", "web", "backend"):
+        for job in ("changes", "repository", "web", "backend", "terraform"):
             for result in ("failure", "cancelled", "skipped", None):
                 with self.subTest(job=job, result=result):
                     needs = self.needs(FULL)
@@ -281,7 +311,7 @@ class GateTests(unittest.TestCase):
                         validate_gate(needs)
 
     def test_unselected_job_cannot_hide_failure_or_unexpected_execution(self):
-        for job in ("web", "backend"):
+        for job in ("web", "backend", "terraform"):
             for result in ("failure", "cancelled", "success"):
                 with self.subTest(job=job, result=result):
                     needs = self.needs()
@@ -291,11 +321,11 @@ class GateTests(unittest.TestCase):
 
     def test_missing_jobs_and_missing_or_invalid_outputs_fail_closed(self):
         cases = [None, [], {}]
-        for job in ("changes", "repository", "web", "backend"):
+        for job in ("changes", "repository", "web", "backend", "terraform"):
             needs = self.needs()
             del needs[job]
             cases.append(needs)
-        for field in ("web", "backend", "services", "infra"):
+        for field in ("web", "backend", "services", "infra", "terraform"):
             needs = self.needs()
             del needs["changes"]["outputs"][field]
             cases.append(needs)
@@ -303,7 +333,7 @@ class GateTests(unittest.TestCase):
             needs = self.needs()
             needs["changes"]["outputs"]["services"] = json.dumps(value)
             cases.append(needs)
-        for field in ("web", "backend", "infra"):
+        for field in ("web", "backend", "infra", "terraform"):
             needs = self.needs()
             needs["changes"]["outputs"][field] = "maybe"
             cases.append(needs)
@@ -318,6 +348,12 @@ class GateTests(unittest.TestCase):
             outputs["backend"] = "false" if plan.services else "true"
             with self.assertRaises(ValueError):
                 validate_gate(needs)
+
+    def test_terraform_flag_requires_repository_infrastructure_validation(self):
+        needs = self.needs(Plan(infra=True, terraform=True))
+        needs["changes"]["outputs"]["infra"] = "false"
+        with self.assertRaises(ValueError):
+            validate_gate(needs)
 
     def test_gate_command_returns_failure_for_invalid_dependency_json(self):
         import checks

@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "project_id": "financial-analysis-512202",
+  "region": "northamerica-northeast2",
+  "terraform_version": "1.16.7",
+  "state_bucket": "financial-analysis-512202-tfstate",
+  "plan_bucket": "financial-analysis-512202-tfplans",
+  "max_plan_age_seconds": 21600,
+  "targets": {
+    "repo": {
+      "directory": "infra/gcp/terraform/envs/prod/repo",
+      "state_prefix": "prod/repo",
+      "plan_trigger": "terraform-plan-repo",
+      "apply_trigger": "terraform-apply-repo",
+      "plan_service_account": "fa-infra-plan@financial-analysis-512202.iam.gserviceaccount.com",
+      "apply_service_account": "fa-infra-apply@financial-analysis-512202.iam.gserviceaccount.com"
+    }
+  },
+  "project_number": "630815932903"
+}

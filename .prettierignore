@@ -4,3 +4,7 @@ apps/web/out/
 services/market-data-service/.venv/
 local-docs/
 package-lock.json
+**/.terraform/
+**/.terraform-tools/
+**/*.tfstate*
+**/*.tfplan

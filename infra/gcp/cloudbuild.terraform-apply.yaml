@@ -1,0 +1,28 @@
+# Manual trigger with approval_required=true. Apply exactly the reviewed saved plan.
+steps:
+  - name: gcr.io/google.com/cloudsdktool/google-cloud-cli:slim
+    entrypoint: python3
+    args:
+      - infra/gcp/terraform_tools.py
+      - install
+      - --directory=/workspace/.terraform-tools
+  - name: gcr.io/google.com/cloudsdktool/google-cloud-cli:slim
+    entrypoint: python3
+    args:
+      - infra/gcp/terraform_pipeline.py
+      - apply
+      - --target=${_TARGET}
+      - --build-id=$BUILD_ID
+      - --commit=$COMMIT_SHA
+      - --branch=$BRANCH_NAME
+      - --plan-build-id=${_PLAN_BUILD_ID}
+      - --terraform=/workspace/.terraform-tools/terraform
+
+substitutions:
+  _TARGET: repo
+  _PLAN_BUILD_ID: ""
+
+options:
+  logging: CLOUD_LOGGING_ONLY
+
+timeout: 1800s
