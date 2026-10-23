@@ -21,6 +21,11 @@ import {
 import { getBrowserAuth } from "@/lib/firebase-client";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
+// An unset service origin keeps the current deployment usable during migration.
+const USER_API_BASE_URL = process.env.NEXT_PUBLIC_USER_API_BASE_URL || API_BASE_URL;
+const CONFIG_API_BASE_URL = process.env.NEXT_PUBLIC_CONFIG_API_BASE_URL || API_BASE_URL;
+
+type PrivateService = "user" | "config";
 
 export type AccountProfile = {
   uid: string;
@@ -49,6 +54,7 @@ type AuthState = {
 type AuthContextValue = AuthState & {
   sessionKey: string | null;
   requestPrivate: (
+    service: PrivateService,
     path: string,
     sessionKey: string,
     options?: { method?: "GET" | "PUT" | "DELETE"; signal?: AbortSignal; json?: unknown },
@@ -134,7 +140,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const token = await user.getIdToken(forceRefresh);
       if (generation !== generationRef.current || controller.signal.aborted) return;
-      const response = await fetch(`${API_BASE_URL}/api/v1/me`, {
+      const response = await fetch(`${USER_API_BASE_URL}/api/v1/me`, {
         headers: { Authorization: `Bearer ${token}` },
         cache: "no-store",
         credentials: "omit",
@@ -255,15 +261,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const requestPrivate = useCallback(
     async (
+      service: PrivateService,
       path: string,
       sessionKey: string,
       options: { method?: "GET" | "PUT" | "DELETE"; signal?: AbortSignal; json?: unknown } = {},
     ): Promise<Response> => {
-      // Only fixed, same-API private routes may receive a Firebase token.
+      // Only a fixed route on its owning service may receive a Firebase token.
       const preferencesPath = path === "/api/v1/preferences";
+      const watchlistPath =
+        /^\/api\/v1\/watchlist(?:\/[A-Z][A-Z0-9]{0,9}(?:[.-][A-Z0-9]{1,3})?)?$/.test(path);
       if (
-        !preferencesPath &&
-        !/^\/api\/v1\/watchlist(?:\/[A-Z][A-Z0-9]{0,9}(?:[.-][A-Z0-9]{1,3})?)?$/.test(path)
+        (service !== "user" && service !== "config") ||
+        (service === "user" && !watchlistPath) ||
+        (service === "config" && !preferencesPath)
       ) {
         throw new Error("Invalid private API path");
       }
@@ -311,7 +321,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         throw sessionChanged();
       }
       if (!ownsSession()) throw sessionChanged();
-      const response = await fetch(`${API_BASE_URL}${path}`, {
+      const origin = service === "user" ? USER_API_BASE_URL : CONFIG_API_BASE_URL;
+      const response = await fetch(`${origin}${path}`, {
         method,
         headers: {
           Authorization: `Bearer ${token}`,

@@ -1,4 +1,5 @@
-# A trusted main-branch trigger builds, pushes, and updates the existing service.
+# Keep the deployed combined API serving while user/config services are bootstrapped.
+# Set _DEPLOY_SERVICE=true only after the frontend has switched to their new URLs.
 steps:
   - name: gcr.io/cloud-builders/docker
     args:
@@ -24,6 +25,7 @@ steps:
       - --build-id=$BUILD_ID
       - --commit=$COMMIT_SHA
       - --branch=$BRANCH_NAME
+      - --deploy-enabled=${_DEPLOY_SERVICE}
 
 images:
   - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPOSITORY}/market-api:$BUILD_ID
@@ -31,6 +33,7 @@ images:
 substitutions:
   _REGION: northamerica-northeast2
   _REPOSITORY: financial-analysis
+  _DEPLOY_SERVICE: "false"
 
 options:
   logging: CLOUD_LOGGING_ONLY

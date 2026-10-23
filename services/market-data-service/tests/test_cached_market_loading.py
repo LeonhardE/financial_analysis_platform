@@ -179,8 +179,8 @@ class CachedLoadingTests(unittest.TestCase):
             self.assertEqual(cached.status_code, 200)
             self.assertFalse(cached.json()["refreshRequired"])
             self.assertEqual(cached.headers["Cache-Control"], "no-store")
-            self.assertEqual(client.get("/api/v1/me?cached=true").status_code, 401)
-            self.assertEqual(client.get("/api/v1/watchlist?cached=true").status_code, 401)
+            self.assertEqual(client.get("/api/v1/me?cached=true").status_code, 404)
+            self.assertEqual(client.get("/api/v1/watchlist?cached=true").status_code, 404)
 
     def test_mock_mode_remains_explicit_and_never_requests_refresh(self):
         service = MarketService(None, source="mock")

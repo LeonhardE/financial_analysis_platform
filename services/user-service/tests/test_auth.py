@@ -11,8 +11,8 @@ from firebase_admin import auth, exceptions
 from google.auth.exceptions import DefaultCredentialsError, TransportError
 from requests.exceptions import ConnectionError
 
-from app import auth as app_auth
 from app.main import app
+from folioview_shared import auth as app_auth
 
 PROJECT_ID = "test-financial-analysis"
 TOKEN = "test-id-token"
@@ -163,17 +163,17 @@ class AuthenticationTests(unittest.TestCase):
                 self.assertEqual(response.json(), {"detail": "Sign-in is temporarily unavailable"})
                 self.assert_no_store(response)
 
-    def test_missing_project_fails_closed_but_public_routes_still_work(self):
+    def test_missing_project_fails_closed_but_service_health_still_works(self):
         os.environ.pop("FIREBASE_PROJECT_ID")
         response = self.get_me()
         self.assertEqual(response.status_code, 503)
         self.assert_no_store(response)
         self.get_app_mock.assert_not_called()
         self.verify_mock.assert_not_called()
-        for path in ("/health", "/api/stocks", "/api/stocks/AAPL/candles"):
+        self.assertEqual(self.client.get("/health").json(), {"status": "ok", "service": "user"})
+        for path in ("/api/stocks", "/api/stocks/AAPL/candles", "/api/v1/preferences"):
             with self.subTest(path=path):
-                response = self.client.get(path)
-                self.assertEqual(response.status_code, 200)
+                self.assertEqual(self.client.get(path).status_code, 404)
         self.get_app_mock.assert_not_called()
 
     def test_initialized_app_must_use_explicit_configured_project(self):

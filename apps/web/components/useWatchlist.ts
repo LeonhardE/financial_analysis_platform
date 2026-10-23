@@ -64,7 +64,10 @@ export function useWatchlist() {
       }, 20_000);
       try {
         const path = `/api/v1/watchlist${method === "GET" ? "" : `/${encodeURIComponent(symbol!)}`}`;
-        const response = await requestPrivate(path, owner, { method, signal: controller.signal });
+        const response = await requestPrivate("user", path, owner, {
+          method,
+          signal: controller.signal,
+        });
         if (!response.ok) throw new Error(watchlistError(response.status));
         const result = readWatchlist(await response.json());
         if (!ownsRequest() || controller.signal.aborted) return;

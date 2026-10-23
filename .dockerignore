@@ -17,3 +17,7 @@ changelog
 **/.env
 **/.env.*
 **/.DS_Store
+
+# Ignore local Python package build artifacts.
+**/build
+**/*.egg-info

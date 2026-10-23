@@ -16,7 +16,6 @@ from unittest.mock import MagicMock, patch
 from fastapi.testclient import TestClient
 from firebase_admin import auth
 
-from app import auth as app_auth
 from app.main import app
 from app.preferences import (
     MAX_BODY_BYTES,
@@ -30,7 +29,8 @@ from app.preferences import (
     create_preferences_store,
     get_preferences_store,
 )
-from app.watchlist import owner_key
+from folioview_shared import auth as app_auth
+from folioview_shared.identity import owner_key
 
 USER = "preferences-owner"
 TOKEN = "verified-id-token"
@@ -49,6 +49,36 @@ def document(preferences, version):
 
 def update(preferences, version=0):
     return {**preferences, "expectedVersion": version}
+
+
+class ServiceConfigurationTests(unittest.TestCase):
+    def test_config_specific_store_and_database_override_legacy_market_values(self):
+        with (
+            patch.dict(
+                os.environ,
+                {
+                    "K_SERVICE": "config-api",
+                    "CONFIG_STORE_BACKEND": "firestore",
+                    "FIRESTORE_DATABASE": "private-database",
+                    "MARKET_CACHE_BACKEND": "sqlite",
+                    "MARKET_FIRESTORE_DATABASE": "legacy-database",
+                    "FIREBASE_PROJECT_ID": "verified-project",
+                },
+                clear=True,
+            ),
+            patch("app.preferences.FirestorePreferencesStore") as constructor,
+        ):
+            create_preferences_store()
+            constructor.assert_called_once_with("verified-project", "private-database")
+
+    def test_config_cloud_run_refuses_its_own_sqlite_backend(self):
+        with patch.dict(
+            os.environ,
+            {"K_SERVICE": "config-api", "CONFIG_STORE_BACKEND": "sqlite"},
+            clear=True,
+        ):
+            with self.assertRaises(PreferencesUnavailable):
+                create_preferences_store()
 
 
 class SQLitePreferencesTests(unittest.TestCase):

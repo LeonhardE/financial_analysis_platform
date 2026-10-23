@@ -1,55 +1,29 @@
-"""FastAPI entrypoint for the local MVP."""
+"""Public market data API; no identity or user-configuration handlers."""
 
 import os
 from typing import Annotated, Literal
 
-from fastapi import Depends, FastAPI, Query, Response
-from fastapi.middleware.cors import CORSMiddleware
+from fastapi import Depends, Query, Response
 
-from .auth import CurrentUser, require_google_user
+from folioview_shared.http import create_app
+
 from .market_data import MarketService, get_market_service
-from .preferences import router as preferences_router
 from .stock_metrics import router as stock_metrics_router
-from .watchlist import PrivateWatchlistHeaders
-from .watchlist import router as watchlist_router
 
-app = FastAPI(
-    title="Financial Analysis Platform API",
-    version="0.1.0",
-    description="Anonymous cached market snapshots and verified Google identity.",
+app = create_app(
+    "FolioView Market API",
+    description="Anonymous cached US market snapshots, instruments, and chart data.",
 )
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=[
-        origin.strip()
-        for origin in os.getenv(
-            "CORS_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000"
-        ).split(",")
-        if origin.strip()
-    ],
-    allow_credentials=False,
-    allow_methods=["GET", "PUT", "DELETE"],
-    allow_headers=["*"],
-)
-
-app.add_middleware(PrivateWatchlistHeaders)
-app.include_router(watchlist_router)
-app.include_router(preferences_router)
 app.include_router(stock_metrics_router)
 
 
 @app.get("/health")
 def health() -> dict[str, str]:
-    return {"status": "ok", "data_source": os.getenv("MARKET_DATA_SOURCE", "yfinance")}
-
-
-@app.get("/api/v1/me", response_model=CurrentUser)
-def current_user(
-    user: Annotated[CurrentUser, Depends(require_google_user)], response: Response
-) -> CurrentUser:
-    response.headers["Cache-Control"] = "no-store"
-    return user
+    return {
+        "status": "ok",
+        "service": "market",
+        "data_source": os.getenv("MARKET_DATA_SOURCE", "yfinance"),
+    }
 
 
 @app.get("/api/stocks", response_model=None)

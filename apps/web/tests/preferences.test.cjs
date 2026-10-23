@@ -69,9 +69,9 @@ function mountPreferences(initialOwner = null) {
   let nextTimer = 0;
   const changed = (before, after) =>
     !before || after.some((value, position) => value !== before[position]);
-  const requestPrivate = (url, sessionKey, options) => {
+  const requestPrivate = (service, url, sessionKey, options) => {
     const result = deferred();
-    requests.push({ url, sessionKey, options, result });
+    requests.push({ service, url, sessionKey, options, result });
     return result.promise;
   };
   const react = {
@@ -213,6 +213,7 @@ test("saved preferences restore before editing, then rapid edits produce one con
   app.render();
   app.render().updatePreferences({ language: "zh" });
   assert.equal(app.render().preferences.language, "en");
+  assert.equal(app.requests[0].service, "config");
   assert.equal(app.requests[0].options.method, "GET");
   app.requests[0].result.resolve(response(prefs({ theme: "light", language: "zh" })));
   await settle();
@@ -227,6 +228,7 @@ test("saved preferences restore before editing, then rapid edits produce one con
   app.timers(400);
   assert.equal(app.requests.length, 2);
   const save = app.requests[1];
+  assert.equal(save.service, "config");
   assert.equal(save.url, "/api/v1/preferences");
   assert.equal(save.sessionKey, "a:1");
   assert.equal(save.options.method, "PUT");

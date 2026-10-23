@@ -71,9 +71,9 @@ function mountWatchlist() {
   let index = 0;
   const changed = (before, after) =>
     !before || after.some((value, position) => value !== before[position]);
-  const requestPrivate = (url, sessionKey, options) => {
+  const requestPrivate = (service, url, sessionKey, options) => {
     const result = deferred();
-    requests.push({ url, sessionKey, options, result });
+    requests.push({ service, url, sessionKey, options, result });
     return result.promise;
   };
   const { useWatchlist } = compile(
@@ -154,6 +154,7 @@ test("watchlist CRUD uses one private request at a time and retains server resul
   const hook = mountWatchlist();
   hook.render();
   assert.equal(hook.requests.length, 1);
+  assert.equal(hook.requests[0].service, "user");
   assert.equal(hook.requests[0].options.method, "GET");
   hook.requests[0].result.resolve(response(body()));
   await settle();
@@ -163,6 +164,7 @@ test("watchlist CRUD uses one private request at a time and retains server resul
   void view.add("NFLX");
   assert.equal(hook.requests.length, 2);
   assert.equal(hook.requests[1].url, "/api/v1/watchlist/NFLX");
+  assert.equal(hook.requests[1].service, "user");
   assert.equal(hook.requests[1].sessionKey, "a:1");
   assert.equal(hook.requests[1].options.method, "PUT");
   assert.equal(hook.render().pendingSymbol, "NFLX");

@@ -178,11 +178,19 @@ def main():
     parser.add_argument("--project", required=True)
     parser.add_argument("--region", required=True)
     parser.add_argument("--build-region", required=True)
-    parser.add_argument("--service", choices=("market-api", "market-web"), required=True)
+    parser.add_argument(
+        "--service", choices=("market-api", "user-api", "config-api", "market-web"), required=True
+    )
     parser.add_argument("--image", required=True)
     parser.add_argument("--build-id", required=True)
     parser.add_argument("--commit", required=True)
     parser.add_argument("--branch", required=True)
+    parser.add_argument(
+        "--deploy-enabled",
+        choices=("true", "false"),
+        default="true",
+        help="Use false to build the first image before the Console creates a service.",
+    )
     args = parser.parse_args()
     if args.branch != "main" or not re.fullmatch(r"[a-f0-9]{40}", args.commit):
         raise RuntimeError("Deployments require a main-branch trigger with a full commit SHA.")
@@ -190,6 +198,9 @@ def main():
         raise RuntimeError("The Cloud Build ID is invalid.")
     if not args.image.endswith(f"/{args.service}:{args.build_id}"):
         raise RuntimeError("The image must use this service and the unique Cloud Build ID tag.")
+    if args.deploy_enabled == "false":
+        print("Build-only mode: image published; create or configure this service in the Console.")
+        return
     build = json.loads(
         gcloud(
             "builds",

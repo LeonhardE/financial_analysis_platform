@@ -13,9 +13,10 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from google.cloud import firestore
 from pydantic import BaseModel, ConfigDict, Field
 
-from .auth import CurrentUser, require_google_user
-from .market_cache import BoundedTransaction
-from .watchlist import PrivateWatchlistRoute, owner_key
+from folioview_shared.auth import CurrentUser, require_google_user
+from folioview_shared.firestore import BoundedTransaction
+from folioview_shared.http import PrivateRoute
+from folioview_shared.identity import owner_key
 
 UNAVAILABLE = "Your preferences are temporarily unavailable. Please try again later."
 MAX_BODY_BYTES = 1024
@@ -186,7 +187,10 @@ class FirestorePreferencesStore(PreferencesStore):
 
 def create_preferences_store() -> PreferencesStore:
     on_cloud_run = "K_SERVICE" in os.environ
-    backend = os.getenv("MARKET_CACHE_BACKEND", "firestore" if on_cloud_run else "sqlite")
+    backend = os.getenv(
+        "CONFIG_STORE_BACKEND",
+        os.getenv("MARKET_CACHE_BACKEND", "firestore" if on_cloud_run else "sqlite"),
+    )
     if on_cloud_run and (
         backend != "firestore"
         or os.getenv("FIRESTORE_EMULATOR_HOST")
@@ -198,7 +202,8 @@ def create_preferences_store() -> PreferencesStore:
         if not project:
             raise PreferencesUnavailable
         return FirestorePreferencesStore(
-            project, os.getenv("MARKET_FIRESTORE_DATABASE", "(default)")
+            project,
+            os.getenv("FIRESTORE_DATABASE", os.getenv("MARKET_FIRESTORE_DATABASE", "(default)")),
         )
     if backend == "sqlite":
         return SQLitePreferencesStore(
@@ -217,6 +222,8 @@ def get_preferences_store() -> PreferencesStore:
     configuration = tuple(
         os.getenv(key, "")
         for key in (
+            "CONFIG_STORE_BACKEND",
+            "FIRESTORE_DATABASE",
             "MARKET_CACHE_BACKEND",
             "MARKET_FIRESTORE_DATABASE",
             "FIREBASE_PROJECT_ID",
@@ -233,7 +240,7 @@ def get_preferences_store() -> PreferencesStore:
         raise HTTPException(503, UNAVAILABLE) from error
 
 
-class PrivatePreferencesRoute(PrivateWatchlistRoute):
+class PrivatePreferencesRoute(PrivateRoute):
     unavailable_message = UNAVAILABLE
 
     def get_route_handler(self):

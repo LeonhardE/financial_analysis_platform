@@ -13,14 +13,18 @@ apps/web/.env*
 *.tsbuildinfo
 
 # Python services
-services/market-data-service/.env*
-!services/market-data-service/.env.example
-services/market-data-service/.venv/
-services/market-data-service/**/__pycache__/
-services/market-data-service/.pytest_cache/
-services/market-data-service/.ruff_cache/
+services/*/.env*
+!services/*/.env.example
+services/*/.venv/
+services/**/__pycache__/
+services/**/.pytest_cache/
+services/**/.ruff_cache/
 *.py[cod]
 
 # Local tooling
 .idea/
 .vscode/
+
+# Local Python package builds
+services/**/build/
+services/**/*.egg-info/

@@ -8,6 +8,7 @@ measure browser rendering, Firestore latency, or Cloud Run cold starts.
 
 import argparse
 import json
+import os
 import statistics
 import subprocess
 import sys
@@ -17,6 +18,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 SERVICE_DIRECTORY = Path(__file__).resolve().parents[2] / "services" / "market-data-service"
+COMMON_DIRECTORY = SERVICE_DIRECTORY.parent / "common"
 SEED_TIME = datetime(2026, 10, 20, 15, 0, tzinfo=UTC).timestamp()
 
 
@@ -45,6 +47,7 @@ def import_samples(samples):
             result = subprocess.run(
                 [sys.executable, "-c", code],
                 cwd=SERVICE_DIRECTORY,
+                env={**os.environ, "PYTHONPATH": str(COMMON_DIRECTORY)},
                 check=True,
                 capture_output=True,
                 text=True,
@@ -97,8 +100,9 @@ class SyntheticDelayedProvider:
 
 
 def loading_samples(delay_seconds):
-    # Import after adding the service path, without creating an ADC-backed store.
-    sys.path.insert(0, str(SERVICE_DIRECTORY))
+    # Import the service and its shared package without requiring an installed
+    # wheel, and without creating an ADC-backed store.
+    sys.path[:0] = [str(SERVICE_DIRECTORY), str(COMMON_DIRECTORY)]
     from app.market_cache import SQLiteMarketCache
     from app.market_data import MarketService
 

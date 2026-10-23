@@ -1,6 +1,5 @@
 """Private bounded watchlists, isolated by verified identity and durable across restarts."""
 
-import hashlib
 import json
 import os
 import sqlite3
@@ -12,22 +11,22 @@ from pathlib import Path as FilePath
 from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Path
-from fastapi.exceptions import RequestValidationError
-from fastapi.routing import APIRoute
 from google.cloud import firestore
 from pydantic import BaseModel, ConfigDict, Field
-from starlette.types import ASGIApp, Message, Receive, Scope, Send
+from starlette.concurrency import run_in_threadpool
 
-from .auth import CurrentUser, require_google_user
-from .market_cache import BoundedTransaction, CacheUnavailable
-from .market_data import MarketService, get_market_service
-from .yahoo_provider import (
+from folioview_shared.auth import CurrentUser, require_google_user
+from folioview_shared.firestore import BoundedTransaction
+from folioview_shared.http import PrivateRoute
+from folioview_shared.identity import owner_key
+from folioview_shared.instruments import (
     DEFAULT_BY_SYMBOL,
     SYMBOL_PATTERN,
-    UpstreamError,
     canonical_symbol,
     iso_time,
 )
+
+from .market_client import MarketResolver, get_market_resolver
 
 LIMIT = 50
 UNAVAILABLE = "Your watchlist is temporarily unavailable. Please try again later."
@@ -54,11 +53,6 @@ class WatchlistItem(BaseModel):
 class WatchlistResponse(BaseModel):
     items: list[WatchlistItem]
     limit: Literal[50] = LIMIT
-
-
-def owner_key(uid: str) -> str:
-    # A Firebase UID is an opaque identifier, never a path supplied by a caller.
-    return hashlib.sha256(uid.encode()).hexdigest()
 
 
 def checked_items(value: object) -> list[dict]:
@@ -208,7 +202,9 @@ class FirestoreWatchlistStore(WatchlistStore):
 
 def create_watchlist_store() -> WatchlistStore:
     on_cloud_run = "K_SERVICE" in os.environ
-    backend = os.getenv("MARKET_CACHE_BACKEND", "firestore" if on_cloud_run else "sqlite")
+    backend = os.getenv("USER_STORE_BACKEND") or os.getenv(
+        "MARKET_CACHE_BACKEND", "firestore" if on_cloud_run else "sqlite"
+    )
     if on_cloud_run and (
         backend != "firestore"
         or os.getenv("FIRESTORE_EMULATOR_HOST")
@@ -219,7 +215,10 @@ def create_watchlist_store() -> WatchlistStore:
         project = os.getenv("FIREBASE_PROJECT_ID") or os.getenv("GOOGLE_CLOUD_PROJECT")
         if not project:
             raise WatchlistUnavailable
-        return FirestoreWatchlistStore(project, os.getenv("MARKET_FIRESTORE_DATABASE", "(default)"))
+        database = os.getenv("FIRESTORE_DATABASE") or os.getenv(
+            "MARKET_FIRESTORE_DATABASE", "(default)"
+        )
+        return FirestoreWatchlistStore(project, database)
     if backend == "sqlite":
         return SQLiteWatchlistStore(
             os.getenv("WATCHLIST_DB_PATH", "/tmp/financial-analysis/watchlists.sqlite3")
@@ -237,6 +236,8 @@ def get_watchlist_store() -> WatchlistStore:
     configuration = tuple(
         os.getenv(key, "")
         for key in (
+            "USER_STORE_BACKEND",
+            "FIRESTORE_DATABASE",
             "MARKET_CACHE_BACKEND",
             "MARKET_FIRESTORE_DATABASE",
             "FIREBASE_PROJECT_ID",
@@ -264,23 +265,8 @@ def response(items: list[dict]) -> dict:
     return {"items": items, "limit": LIMIT}
 
 
-class PrivateWatchlistRoute(APIRoute):
+class PrivateWatchlistRoute(PrivateRoute):
     unavailable_message = UNAVAILABLE
-
-    def get_route_handler(self):
-        handler = super().get_route_handler()
-
-        async def private_handler(request):
-            try:
-                return await handler(request)
-            except (HTTPException, RequestValidationError):
-                raise
-            except Exception as error:
-                # Keep unexpected SDK/serialization details out of private API
-                # responses, and let the no-store middleware cover this error.
-                raise HTTPException(503, self.unavailable_message) from error
-
-        return private_handler
 
 
 router = APIRouter(
@@ -300,30 +286,28 @@ def list_watchlist(user: User, store: Store) -> dict:
 
 
 @router.put("/{symbol}", response_model=WatchlistResponse)
-def add_watchlist_item(
+async def add_watchlist_item(
     symbol: Symbol,
     user: User,
     store: Store,
-    market: Annotated[MarketService, Depends(get_market_service)],
+    market: Annotated[MarketResolver, Depends(get_market_resolver)],
 ) -> dict:
     symbol = validated_symbol(symbol)
     try:
-        current = store.get(user.uid)
+        current = await run_in_threadpool(store.get, user.uid)
         # No upstream lookup, timestamp change, or database write on duplicate add.
         if any(item["symbol"] == symbol for item in current):
             return response(current)
         if len(current) >= LIMIT:
             raise WatchlistFull
-        if market.source == "mock" and symbol not in DEFAULT_BY_SYMBOL:
-            raise HTTPException(404, "US stock symbol not found")
-        instrument = market.resolve_instrument(symbol, market.clock())
+        instrument = await market.resolve(symbol)
         item = {**instrument.public(), "addedAt": iso_time(time.time())}
         if item["symbol"] != symbol:
             raise WatchlistUnavailable
-        return response(store.change(user.uid, symbol, item))
+        return response(await run_in_threadpool(store.change, user.uid, symbol, item))
     except WatchlistFull as error:
         raise HTTPException(409, f"Your watchlist can contain up to {LIMIT} instruments") from error
-    except (WatchlistUnavailable, CacheUnavailable, UpstreamError) as error:
+    except WatchlistUnavailable as error:
         raise HTTPException(503, UNAVAILABLE) from error
     except HTTPException as error:
         if error.status_code in (429, 503):
@@ -339,30 +323,3 @@ def remove_watchlist_item(symbol: Symbol, user: User, store: Store) -> dict:
         return response(store.change(user.uid, symbol, None))
     except WatchlistUnavailable as error:
         raise HTTPException(503, UNAVAILABLE) from error
-
-
-class PrivateWatchlistHeaders:
-    """Apply no-store to successful, authentication, validation, and CORS responses."""
-
-    def __init__(self, app: ASGIApp):
-        self.app = app
-
-    async def __call__(self, scope: Scope, receive: Receive, send: Send):
-        path = scope.get("path", "")
-        private = any(
-            path == prefix or path.startswith(f"{prefix}/")
-            for prefix in ("/api/v1/watchlist", "/api/v1/preferences")
-        )
-        if scope["type"] != "http" or not private:
-            await self.app(scope, receive, send)
-            return
-
-        async def private_send(message: Message):
-            if message["type"] == "http.response.start":
-                headers = [
-                    pair for pair in message.get("headers", []) if pair[0] != b"cache-control"
-                ]
-                message = {**message, "headers": [*headers, (b"cache-control", b"no-store")]}
-            await send(message)
-
-        await self.app(scope, receive, private_send)

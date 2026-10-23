@@ -1,5 +1,6 @@
 """Watchlist privacy, persistence, bounded operations, and upstream independence."""
 
+import json
 import os
 import sqlite3
 import tempfile
@@ -9,15 +10,15 @@ from contextlib import closing
 from copy import deepcopy
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
+import httpx
+from fastapi import HTTPException
 from fastapi.testclient import TestClient
 from firebase_admin import auth
 
-from app import auth as app_auth
 from app.main import app
-from app.market_cache import CacheUnavailable, SQLiteMarketCache
-from app.market_data import MarketService, get_market_service
+from app.market_client import MarketResolver, get_market_resolver
 from app.watchlist import (
     LIMIT,
     FirestoreWatchlistStore,
@@ -30,9 +31,9 @@ from app.watchlist import (
     get_watchlist_store,
     owner_key,
 )
-from app.yahoo_provider import Instrument, UpstreamError
+from folioview_shared import auth as app_auth
+from folioview_shared.instruments import DEFAULT_BY_SYMBOL, Instrument
 
-NOW = 1792500000.0
 TOKEN = "verified-id-token"
 USER = "verified-owner"
 CLAIMS = {"uid": USER, "firebase": {"sign_in_provider": "google.com"}}
@@ -230,6 +231,25 @@ class FirestoreWatchlistTests(unittest.TestCase):
             create_watchlist_store()
         constructor.assert_called_once_with("test-project", "(default)")
 
+    def test_user_configuration_takes_precedence_and_preserves_existing_collection(self):
+        with (
+            patch.dict(
+                os.environ,
+                {
+                    "K_SERVICE": "user-api",
+                    "USER_STORE_BACKEND": "firestore",
+                    "MARKET_CACHE_BACKEND": "sqlite",
+                    "FIRESTORE_DATABASE": "existing-database",
+                    "MARKET_FIRESTORE_DATABASE": "legacy-database",
+                    "GOOGLE_CLOUD_PROJECT": "same-project",
+                },
+                clear=True,
+            ),
+            patch("app.watchlist.FirestoreWatchlistStore") as constructor,
+        ):
+            create_watchlist_store()
+        constructor.assert_called_once_with("same-project", "existing-database")
+
 
 class WatchlistRouteTests(unittest.TestCase):
     def setUp(self):
@@ -239,12 +259,10 @@ class WatchlistRouteTests(unittest.TestCase):
         self.directory = tempfile.TemporaryDirectory()
         self.addCleanup(self.directory.cleanup)
         self.store = SQLiteWatchlistStore(str(Path(self.directory.name) / "watchlists.sqlite3"))
-        cache = SQLiteMarketCache(str(Path(self.directory.name) / "market.sqlite3"))
-        self.provider = MagicMock()
-        self.provider.search.return_value = []
-        self.market = MarketService(cache, self.provider, clock=lambda: NOW)
+        self.resolver = MagicMock(spec=MarketResolver)
+        self.resolver.resolve = AsyncMock(side_effect=self.resolve)
         app.dependency_overrides[get_watchlist_store] = lambda: self.store
-        app.dependency_overrides[get_market_service] = lambda: self.market
+        app.dependency_overrides[get_market_resolver] = lambda: self.resolver
         self.addCleanup(app.dependency_overrides.clear)
         app_patch = patch.object(
             app_auth.firebase_admin,
@@ -258,6 +276,14 @@ class WatchlistRouteTests(unittest.TestCase):
         self.addCleanup(verifier.stop)
         self.client = TestClient(app)
         self.addCleanup(self.client.close)
+
+    @staticmethod
+    def resolve(symbol):
+        if symbol in DEFAULT_BY_SYMBOL:
+            return DEFAULT_BY_SYMBOL[symbol]
+        if symbol == "NFLX":
+            return Instrument("NFLX", "Netflix")
+        raise HTTPException(404, "US stock symbol not found")
 
     def request(self, method="GET", path="", **kwargs):
         return self.client.request(
@@ -304,7 +330,7 @@ class WatchlistRouteTests(unittest.TestCase):
         unexpected = self.request()
         self.assert_private(unexpected, 503)
         self.assertNotIn("private", unexpected.text)
-        self.provider.search.assert_not_called()
+        self.resolver.resolve.assert_not_awaited()
 
     def test_crud_alias_normalization_and_persistence_with_no_price_requests(self):
         self.assert_private(self.request(), 200)
@@ -317,36 +343,53 @@ class WatchlistRouteTests(unittest.TestCase):
         self.assertIn("SPX", [row["symbol"] for row in alias.json()["items"]])
         self.assertEqual(self.request().json(), alias.json())
         self.assertEqual(len(SQLiteWatchlistStore(self.store.path).get(USER)), 2)
-        self.provider.history.assert_not_called()
-        self.provider.search.assert_not_called()
         self.assert_private(self.request("DELETE", "/aapl"), 200)
         self.assert_private(self.request("DELETE", "/aapl"), 200)
 
-    def test_search_result_add_uses_validated_metadata_without_yahoo_or_history(self):
-        self.market.cache.put("instrument:NFLX", Instrument("NFLX", "Netflix").stored(), NOW)
+    def test_new_add_uses_only_metadata_from_market_service(self):
         result = self.request("PUT", "/NFLX")
         self.assert_private(result, 200)
         self.assertEqual(result.json()["items"][0]["name"], "Netflix")
-        self.provider.search.assert_not_called()
-        self.provider.history.assert_not_called()
+        self.resolver.resolve.assert_awaited_once_with("NFLX")
+
+    def test_authenticated_add_crosses_http_boundary_without_forwarding_private_identity(self):
+        requests = []
+
+        class JSONBody(httpx.AsyncByteStream):
+            async def __aiter__(self):
+                yield json.dumps({"stocks": [Instrument("NFLX", "Netflix").public()]}).encode()
+
+        def handle(request):
+            requests.append(request)
+            return httpx.Response(200, stream=JSONBody())
+
+        resolver = MarketResolver("https://market.example", transport=httpx.MockTransport(handle))
+        app.dependency_overrides[get_market_resolver] = lambda: resolver
+        added = self.request("PUT", "/NFLX?uid=attacker", json={"uid": "attacker"})
+        self.assert_private(added, 200)
+        self.assertEqual(self.store.get(USER)[0]["name"], "Netflix")
+        self.assertEqual(self.store.get("attacker"), [])
+        self.assertEqual(len(requests), 1)
+        self.assertEqual(str(requests[0].url), "https://market.example/api/stocks/search?q=NFLX")
+        self.assertNotIn("authorization", requests[0].headers)
+        self.assertNotIn("cookie", requests[0].headers)
+        self.assertNotIn(TOKEN, str(requests[0].headers))
 
     def test_unknown_symbol_and_upstream_validation_failure_do_not_write(self):
         unknown = self.request("PUT", "/NOTFOUND")
         self.assert_private(unknown, 404)
-        self.provider.search.side_effect = UpstreamError(rate_limited=True)
+        self.resolver.resolve.side_effect = HTTPException(429, "Upstream quota exhausted")
         self.assert_private(self.request("PUT", "/OTHER"), 503)
         self.assertEqual(self.store.get(USER), [])
-        self.provider.history.assert_not_called()
 
-    def test_list_delete_and_duplicate_add_survive_unavailable_yahoo_and_market_cache(self):
+    def test_list_delete_and_duplicate_add_survive_unavailable_market_service(self):
         self.request("PUT", "/AAPL")
-        self.provider.search.side_effect = UpstreamError()
-        self.market.cache.get = MagicMock(side_effect=CacheUnavailable)
+        self.resolver.resolve.reset_mock()
+        self.resolver.resolve.side_effect = HTTPException(503, "Market unavailable")
         self.assert_private(self.request(), 200)
         self.assert_private(self.request("PUT", "/AAPL"), 200)
         self.assert_private(self.request("DELETE", "/AAPL"), 200)
-        self.provider.search.assert_not_called()
-        self.provider.history.assert_not_called()
+        self.resolver.resolve.assert_not_awaited()
 
     def test_full_watchlist_returns_409_but_duplicates_and_delete_still_succeed(self):
         for index in range(LIMIT):
@@ -356,7 +399,7 @@ class WatchlistRouteTests(unittest.TestCase):
         self.assert_private(self.request("PUT", "/S0"), 200)
         self.assert_private(self.request("DELETE", "/S0"), 200)
         self.assert_private(self.request("PUT", "/MSFT"), 200)
-        self.provider.search.assert_not_called()
+        self.resolver.resolve.assert_awaited_once_with("MSFT")
 
     def test_all_private_validation_and_method_errors_have_no_store(self):
         for method, path, status in (
@@ -368,7 +411,7 @@ class WatchlistRouteTests(unittest.TestCase):
         ):
             with self.subTest(method=method, path=path):
                 self.assert_private(self.request(method, path), status)
-        self.provider.search.assert_not_called()
+        self.resolver.resolve.assert_not_awaited()
         self.assertEqual(self.store.get(USER), [])
 
     def test_cors_allows_only_configured_origin_and_watchlist_methods_with_bearer(self):
@@ -393,14 +436,15 @@ class WatchlistRouteTests(unittest.TestCase):
         self.assert_private(rejected, 400)
         self.assertNotIn("access-control-allow-origin", rejected.headers)
 
-    def test_missing_storage_configuration_is_no_store_503_and_public_routes_are_unchanged(self):
+    def test_missing_storage_configuration_is_no_store_503_and_health_remains_available(self):
         app.dependency_overrides.pop(get_watchlist_store)
         configured_store.cache_clear()
         self.addCleanup(configured_store.cache_clear)
         with patch.dict(os.environ, {"MARKET_CACHE_BACKEND": "invalid"}):
             self.assert_private(self.request(), 503)
         self.assertEqual(self.client.get("/health").status_code, 200)
-        self.assertEqual(self.client.get("/api/stocks/search?q=AAPL").status_code, 200)
+        self.assertEqual(self.client.get("/api/stocks/search?q=AAPL").status_code, 404)
+        self.assertEqual(self.client.get("/api/v1/preferences").status_code, 404)
 
 
 if __name__ == "__main__":
