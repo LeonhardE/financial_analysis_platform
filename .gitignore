@@ -28,3 +28,18 @@ services/**/.ruff_cache/
 # Local Python package builds
 services/**/build/
 services/**/*.egg-info/
+
+# Terraform state, credentials and local execution artifacts
+**/.terraform/
+**/.terraform-tools/
+**/*.tfstate*
+**/*.tfplan
+**/tfplan
+**/plan.json
+**/plan.txt
+**/crash.log
+**/crash.*.log
+**/*.tfvars
+**/*.tfvars.json
+!**/*.tfvars.example
+infra/gcp/terraform/bootstrap/backend.tf

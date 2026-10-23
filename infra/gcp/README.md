@@ -1,5 +1,9 @@
 # Continuous delivery
 
+Repository Terraform state/bootstrap and the reviewed saved-plan workflow are documented in
+[the Terraform foundation guide](terraform/README.md). That foundation is activated once by an
+administrator after review; existing services are adopted separately in later single-target PRs.
+
 **Service-split migration:** all three backend build configurations now default to
 `_DEPLOY_SERVICE=false`. They publish images without replacing the running API.
 Complete the [ordered migration](#market-user-and-config-service-migration) before

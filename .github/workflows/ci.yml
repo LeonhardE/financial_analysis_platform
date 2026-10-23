@@ -24,6 +24,7 @@ jobs:
       backend: ${{ steps.plan.outputs.backend }}
       services: ${{ steps.plan.outputs.services }}
       infra: ${{ steps.plan.outputs.infra }}
+      terraform: ${{ steps.plan.outputs.terraform }}
     steps:
       - name: Check out source and comparison history
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -164,11 +165,31 @@ jobs:
         if: always()
         run: docker rm --force service-smoke || true
 
+  terraform:
+    name: Terraform checks
+    runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.terraform == 'true'
+    timeout-minutes: 15
+    steps:
+      - name: Check out source
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.13"
+      - name: Install verified Terraform tooling
+        run: python infra/gcp/terraform_tools.py install --directory "$RUNNER_TEMP/terraform-tools"
+      - name: Validate Terraform without cloud credentials
+        run: python infra/gcp/terraform_tools.py check --terraform "$RUNNER_TEMP/terraform-tools/terraform"
+
   quality:
     # Keep this exact name: existing branch protection requires it.
     name: Quality checks
     runs-on: ubuntu-latest
-    needs: [changes, repository, web, backend]
+    needs: [changes, repository, web, backend, terraform]
     if: ${{ always() }}
     timeout-minutes: 5
     steps:

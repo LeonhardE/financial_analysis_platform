@@ -1,0 +1,9 @@
+{
+  "terraform_version": "1.16.7",
+  "archives": {
+    "darwin_amd64": "d17d1053bcbde650a8a919b7218ef2886eac76c474306e9ecd8bd64427408741",
+    "darwin_arm64": "81e98d9186e0cd1bc88caeb2403453fdd4bdeedd574ca4dbe8fb6a2880c9c51a",
+    "linux_amd64": "5454efcf7fc87f0c2113111b9a5c7182f0ca1c6f0f23a1e110a50770a8fe473b",
+    "linux_arm64": "2d6a3f1098de94f1672aaa4e6873ef91ade9eac38851d3a403e2009193208de4"
+  }
+}

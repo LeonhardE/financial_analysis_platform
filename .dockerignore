@@ -21,3 +21,14 @@ changelog
 # Ignore local Python package build artifacts.
 **/build
 **/*.egg-info
+
+# Infrastructure execution artifacts never belong in application build contexts.
+**/.terraform
+**/.terraform-tools
+**/*.tfstate*
+**/*.tfplan
+**/*.tfvars
+**/*.tfvars.json
+**/tfplan
+**/plan.json
+**/plan.txt

@@ -237,6 +237,11 @@ results, including documentation-only PRs. See the
 
 ## Cloud Run deployment and migration
 
+The [Terraform repository foundation](infra/gcp/terraform/README.md) defines private remote state and
+separate plan/apply identities and execution. It requires one-time administrator bootstrap and does
+not yet manage existing services. Shared modules and each service/client's adoption follow through
+separate infrastructure PRs.
+
 **This refactor removes private routes from the new Market image. Follow the staged migration in
 [the Console deployment guide](infra/gcp/README.md#market-user-and-config-service-migration) before enabling
 Market image updates.** Existing production runs the retained combined revision until cutover; the

@@ -1,0 +1,26 @@
+# Trusted main only. This account cannot apply infrastructure or queue an apply build.
+steps:
+  - name: gcr.io/google.com/cloudsdktool/google-cloud-cli:slim
+    entrypoint: python3
+    args:
+      - infra/gcp/terraform_tools.py
+      - install
+      - --directory=/workspace/.terraform-tools
+  - name: gcr.io/google.com/cloudsdktool/google-cloud-cli:slim
+    entrypoint: python3
+    args:
+      - infra/gcp/terraform_pipeline.py
+      - plan
+      - --target=${_TARGET}
+      - --build-id=$BUILD_ID
+      - --commit=$COMMIT_SHA
+      - --branch=$BRANCH_NAME
+      - --terraform=/workspace/.terraform-tools/terraform
+
+substitutions:
+  _TARGET: repo
+
+options:
+  logging: CLOUD_LOGGING_ONLY
+
+timeout: 1800s

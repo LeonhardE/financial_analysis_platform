@@ -1,0 +1,3 @@
+# Copy to terraform.tfvars (Git-ignored) and paste the EXISTING repository resource
+# from Cloud Build > Repositories > 2nd gen. Do not create a new GitHub connection.
+repository_id = "projects/financial-analysis-512202/locations/northamerica-northeast2/connections/REPLACE_CONNECTION/repositories/REPLACE_REPOSITORY"
