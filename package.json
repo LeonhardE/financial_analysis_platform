@@ -19,6 +19,7 @@
     "lint:infra": "services/market-data-service/.venv/bin/ruff check --config services/market-data-service/pyproject.toml infra/gcp",
     "test:api": "services/market-data-service/.venv/bin/python scripts/test_services.py",
     "test:infra": "services/market-data-service/.venv/bin/python -m unittest discover -s infra/gcp/tests -v",
+    "test:ci": "services/market-data-service/.venv/bin/python -m unittest discover -s scripts/ci/tests -v",
     "test:web": "node --test apps/web/tests/*.test.cjs",
     "format:web": "prettier --write .",
     "format:api": "services/market-data-service/.venv/bin/ruff format --config services/market-data-service/pyproject.toml services scripts",
@@ -29,7 +30,7 @@
     "lint": "npm run typecheck:web && npm run lint:api && npm run lint:infra",
     "format": "npm run format:web && npm run format:api && npm run format:infra",
     "format:check": "npm run format:check:web && npm run format:check:api && npm run format:check:infra",
-    "check": "npm run lint && npm run test:web && npm run test:api && npm run test:infra && npm run format:check"
+    "check": "npm run lint && npm run test:web && npm run test:api && npm run test:infra && npm run test:ci && npm run format:check"
   },
   "simple-git-hooks": {
     "pre-commit": "npm run check"

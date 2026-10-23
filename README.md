@@ -221,11 +221,19 @@ npm run build:web
 `check` includes frontend types, formatting and request/session race tests, backend Ruff checks, and
 API tests for authentication, private watchlist isolation, market validation, caching and refresh
 limits. Infrastructure tests exercise deployment ordering, conflicts and runtime-setting
-preservation. Unit tests mock external providers; live Yahoo access, Firestore IAM and the Google
+preservation. CI selection tests cover changed-path routing and the required check's failure handling.
+Unit tests mock external providers; live Yahoo access, Firestore IAM and the Google
 popup require deployment smoke tests as well.
 
 Format TypeScript/CSS/Markdown and Python code with `npm run format`. The local pre-commit hook runs
 `npm run check`.
+
+GitHub Actions selects application checks by changed paths. Web changes run frontend types, tests
+and the production build; a service change runs only that service's lint, tests, Docker build and
+runtime smoke test. Shared Python code selects all backend consumers. Repository formatting and CI
+routing tests remain lightweight common checks; the required **Quality checks** job aggregates their
+results, including documentation-only PRs. See the
+[CI impact rules](infra/gcp/README.md#ci-target-selection) for shared tooling and infrastructure paths.
 
 ## Cloud Run deployment and migration
 
@@ -266,9 +274,8 @@ runtime identities, minimum instances zero and bounded maximums. No API gateway,
 VM, Redis or new database is introduced. Build/storage/logging/runtime charges remain subject to usage;
 scale-to-zero and application limits are not whole-project spending caps.
 
-GitHub Actions checks types, lint, format, isolated service tests, deployment guards and the frontend
-production build. It also builds and starts all three independent backend Docker images in a matrix,
-without Google Cloud credentials. Cloud Build main triggers publish/deploy their own domain only;
+GitHub Actions validates only the affected application targets, without Google Cloud credentials.
+Cloud Build main triggers publish/deploy their own domain only;
 shared-package changes must be included by every backend trigger. Configure included-file filters and
 service-scoped deployment IAM using the Console guide. Firebase ID tokens, service-account keys and
 other secrets must never be public build arguments. `NEXT_PUBLIC_*` origins and Firebase Web config
