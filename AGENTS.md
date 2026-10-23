@@ -5,6 +5,13 @@
 - Use `Xianxin <zxx9808181@gmail.com>` as the author for every commit.
 - Credit Codex as a collaborator by adding `Co-authored-by: Codex <codex@openai.com>` to every commit message.
 - Follow [Conventional Commits 1.0.0](https://www.conventionalcommits.org/en/v1.0.0/) for every commit message.
+- Every commit must include a scope identifying its service or client, such as
+  `feat(web): ...`, `fix(market): ...`, `feat(user): ...`, or `fix(config): ...`.
+- Use the target name for new services and independently deployed workers, such as `research`,
+  `research-worker`, or `notification`. Shared foundations use `shared`; repository-wide rules
+  and tooling use `repo`.
+- Infrastructure commits use the `infra` type and the affected target as their scope, such as
+  `infra(user): ...`, `infra(market): ...`, or `infra(web): ...`.
 
 ## Change workflow
 
@@ -27,3 +34,10 @@
 - Deliver cross-service work through ordered, backward-compatible PRs: introduce shared
   prerequisites or producer APIs first, then update each consumer in its own PR. Each PR must
   be independently verifiable and safe to merge and deploy.
+- Infrastructure provisioning follows the same single-target rule at both commit and PR
+  level. Put each service or client's cloud resource configuration in its own infrastructure
+  commit and PR; do not combine, for example, User and Market provisioning.
+- Shared infrastructure modules belong in a separate `infra(shared)` foundation PR;
+  repository-wide state/bootstrap and execution tooling use `infra(repo)`. Add or migrate each
+  consuming service in its own subsequent infrastructure PR. A shared scope must not be used
+  to bundle multiple services' resource instances.
