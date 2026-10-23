@@ -21,17 +21,10 @@
   width: var(--rail-width);
 }
 .brandArea {
-  align-items: center;
-  column-gap: 4px;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 36px;
-  padding: 0 2px;
+  padding: 0 6px;
   position: relative;
-  row-gap: 5px;
 }
 .brand {
-  grid-column: 1;
-  grid-row: 1;
   align-items: center;
   display: flex;
   gap: 10px;
@@ -57,27 +50,33 @@
   color: var(--muted);
   font-size: 11px;
   line-height: 1.5;
-  grid-column: 1 / -1;
-  grid-row: 2;
-  margin: 0 0 0 40px;
+  margin: 10px 0 0 40px;
 }
 .toggle {
   align-items: center;
-  background: none;
-  border: 0;
-  border-radius: 6px;
-  color: var(--muted);
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  box-shadow: 0 1px 6px #0002;
+  color: var(--text);
   display: flex;
   justify-content: center;
-  grid-column: 2;
-  grid-row: 1;
-  height: 36px;
-  width: 36px;
+  height: 28px;
+  left: calc(var(--rail-width) - 14px);
   margin: 0;
+  position: fixed;
+  top: 24px;
+  width: 28px;
+  z-index: 2;
+}
+.toggle::before {
+  content: "";
+  inset: -8px;
+  position: absolute;
 }
 .toggle svg {
-  width: 20px;
-  height: 20px;
+  height: 18px;
+  width: 18px;
 }
 .toggle:hover {
   background: var(--raised);
@@ -123,18 +122,32 @@
   display: none;
 }
 .slot[data-collapsed="true"] .brandArea {
-  grid-template-columns: 1fr;
+  align-items: center;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
   padding: 0;
-  row-gap: 14px;
 }
 .slot[data-collapsed="true"] .brand {
   justify-content: center;
   width: 100%;
 }
 .slot[data-collapsed="true"] .toggle {
-  grid-column: 1;
-  grid-row: 2;
+  background: none;
+  border: 0;
+  border-radius: 6px;
+  box-shadow: none;
+  height: 36px;
   margin: 0 auto;
+  position: static;
+  width: 36px;
+}
+.slot[data-collapsed="true"] .toggle::before {
+  display: none;
+}
+.slot[data-collapsed="true"] .toggle svg {
+  height: 20px;
+  width: 20px;
 }
 .slot[data-collapsed="true"] .navItem {
   justify-content: center;
@@ -178,10 +191,12 @@
     justify-content: center;
     padding: 10px;
   }
-  .toggle {
-    margin: 16px auto 0;
-    min-height: 44px;
+  .slot[data-collapsed="true"] .toggle {
+    height: 44px;
     width: 44px;
+  }
+  .slot[data-mobile-open="true"] {
+    --rail-width: 232px;
   }
   .slot[data-mobile-open="true"] .rail {
     width: 232px;
@@ -189,9 +204,6 @@
     padding-right: 12px;
     box-shadow: 12px 0 32px #0004;
     z-index: 1;
-  }
-  .slot[data-mobile-open="true"] .toggle {
-    margin-left: 0;
   }
   .backdrop {
     background: #0006;

@@ -146,14 +146,27 @@ test("collapsed verification errors remain visible, expandable and actionable", 
   assert.match(renderToStaticMarkup(tree), /aria-label="Sign out"/);
 });
 
-test("pending and unavailable sign-in stays disabled with localized names in a narrow rail", () => {
+test("pending and unavailable sign-in stays disabled without extra unavailable copy", () => {
   const pending = mountAccount({ status: "signing-in" });
   const pendingButton = find(pending.render(true), (node) => node.type === "button");
   assert.equal(pendingButton.props.disabled, true);
   assert.equal(pendingButton.props["aria-label"], "Opening Google…");
   const unavailable = mountAccount({ status: "unavailable" }, "zh");
-  const tree = unavailable.render(true);
-  assert.equal(find(tree, (node) => node.type === "button").props.disabled, true);
-  assert.ok(find(tree, (node) => node.type === "details"));
-  assert.match(renderToStaticMarkup(tree), /访客/);
+  for (const collapsed of [false, true]) {
+    const tree = unavailable.render(collapsed);
+    const button = find(tree, (node) => node.type === "button");
+    assert.equal(button.props.disabled, true);
+    assert.equal(button.props["aria-label"], "通过 Google 登录");
+    assert.equal(
+      find(tree, (node) => node.type === "details"),
+      null,
+    );
+    assert.equal(
+      find(tree, (node) => node.type === "p"),
+      null,
+    );
+    const html = renderToStaticMarkup(tree);
+    assert.match(html, /访客/);
+    assert.doesNotMatch(html, /登录暂不可用|自由浏览|Sign-in will be available soon/);
+  }
 });
