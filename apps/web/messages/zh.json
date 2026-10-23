@@ -114,7 +114,10 @@
     "empty": "自选列表还没有股票。打开一个标的，选择“加入自选”。",
     "reload": "重新加载自选",
     "added": "已将 {symbol} 加入自选。",
-    "removed": "已将 {symbol} 移出自选。"
+    "removed": "已将 {symbol} 移出自选。",
+    "actionsSymbol": "{symbol} 的操作",
+    "delete": "移除",
+    "dismissNotification": "关闭通知"
   },
   "errors": {
     "market": "行情暂不可用，请稍后重试。",

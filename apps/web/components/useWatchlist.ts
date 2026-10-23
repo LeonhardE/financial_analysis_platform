@@ -11,6 +11,7 @@ type WatchlistState = WatchlistResponse & {
   pendingSymbol: string | null;
   error: string;
   message: string;
+  messageId: number;
 };
 
 const emptyState: WatchlistState = {
@@ -22,6 +23,7 @@ const emptyState: WatchlistState = {
   pendingSymbol: null,
   error: "",
   message: "",
+  messageId: 0,
 };
 
 export function useWatchlist() {
@@ -84,6 +86,7 @@ export function useWatchlist() {
               : method === "DELETE"
                 ? `${symbol} removed from your watchlist.`
                 : "",
+          messageId: method === "GET" ? 0 : id,
         });
       } catch (error) {
         if (!ownsRequest() || controller.signal.aborted) return;
@@ -119,6 +122,20 @@ export function useWatchlist() {
   }, [owner, loadOrMutate]);
 
   const visible = owner && state.sessionKey === owner ? state : emptyState;
+  useEffect(() => {
+    if (!owner || !visible.message) return;
+    const messageId = visible.messageId;
+    const timeout = window.setTimeout(() => {
+      if (ownerRef.current !== owner) return;
+      setState((previous) =>
+        previous.sessionKey === owner && previous.messageId === messageId
+          ? { ...previous, message: "" }
+          : previous,
+      );
+    }, 3_000);
+    return () => window.clearTimeout(timeout);
+  }, [owner, visible.message, visible.messageId]);
+
   return {
     ...visible,
     loading: Boolean(owner) && (visible.loading || (!visible.loaded && !visible.error)),
@@ -127,6 +144,12 @@ export function useWatchlist() {
     reload: () => loadOrMutate("GET"),
     add: (symbol: string) => loadOrMutate("PUT", symbol),
     remove: (symbol: string) => loadOrMutate("DELETE", symbol),
+    dismissMessage: () => {
+      if (!owner || ownerRef.current !== owner) return;
+      setState((previous) =>
+        previous.sessionKey === owner ? { ...previous, message: "" } : previous,
+      );
+    },
   };
 }
 

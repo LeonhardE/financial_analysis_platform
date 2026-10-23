@@ -12,6 +12,8 @@ import { useCachedMarketResource } from "@/components/useCachedMarketResource";
 import { useMarketResource } from "@/components/useMarketResource";
 import { PersonalWatchlist, WatchlistAction } from "@/components/PersonalWatchlist";
 import { useWatchlist } from "@/components/useWatchlist";
+import { useWatchlistQuotes } from "@/components/useWatchlistQuotes";
+import { WatchlistNotification } from "@/components/WatchlistNotification";
 import {
   CHART_RANGES,
   DEFAULT_INSTRUMENTS,
@@ -50,6 +52,15 @@ export default function Dashboard() {
   const [overviewReload, setOverviewReload] = useState(0);
   const [chartReload, setChartReload] = useState(0);
   const [activeView, setActiveView] = useState<"markets" | "settings">("markets");
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [desktopPickerVisible, setDesktopPickerVisible] = useState(false);
+  useEffect(() => {
+    const media = window.matchMedia("(min-width: 1200px)");
+    const sync = () => setDesktopPickerVisible(media.matches);
+    sync();
+    media.addEventListener("change", sync);
+    return () => media.removeEventListener("change", sync);
+  }, []);
   const rangeTouched = useRef(false);
   useEffect(() => {
     if (!rangeTouched.current) setRange(preferences.defaultChartRange);
@@ -77,6 +88,19 @@ export default function Dashboard() {
   );
   const marketData =
     chart.data?.symbol === selected.symbol && chart.data.range === range ? chart.data : null;
+  const watchlistQuotes = useWatchlistQuotes({
+    items: watchlist.items,
+    overview: overview.data,
+    selectedQuote: marketData,
+    active:
+      activeView === "markets" &&
+      pickerTab === "watchlist" &&
+      !searchQuery &&
+      watchlist.authenticated &&
+      (desktopPickerVisible || pickerOpen),
+    owner: watchlist.authenticated ? watchlist.sessionKey : null,
+    refreshKey: overviewReload,
+  });
   const stocks = DEFAULT_INSTRUMENTS.map((instrument) => {
     const quote = overview.data?.stocks.find((stock) => stock.symbol === instrument.symbol);
     return { ...instrument, ...quote };
@@ -88,6 +112,7 @@ export default function Dashboard() {
     setSelected(instrument);
     setQuery("");
     pickerDialog.current?.close();
+    setPickerOpen(false);
     // Mobile selection returns to the detail itself, including picks from the index strip.
     if (window.matchMedia("(max-width: 1199px)").matches) {
       window.requestAnimationFrame(() => {
@@ -244,6 +269,9 @@ export default function Dashboard() {
                 selectedSymbol={selected.symbol}
                 onSelect={selectInstrument}
                 headingId={`${id}-watchlist-title`}
+                quotes={watchlistQuotes.quotes}
+                quotesLoading={watchlistQuotes.loading}
+                onQuoteVisible={watchlistQuotes.requestQuote}
               />
             )}
           </>
@@ -252,10 +280,18 @@ export default function Dashboard() {
           <button
             className="text-button"
             type="button"
-            disabled={overview.loading || overview.refreshing}
+            disabled={
+              overview.loading ||
+              overview.refreshing ||
+              (pickerTab === "watchlist" && watchlistQuotes.loading)
+            }
             onClick={() => setOverviewReload((value) => value + 1)}
           >
-            {overview.loading || overview.refreshing ? t("market.updating") : t("market.refresh")}
+            {overview.loading ||
+            overview.refreshing ||
+            (pickerTab === "watchlist" && watchlistQuotes.loading)
+              ? t("market.updating")
+              : t("market.refresh")}
           </button>
         </div>
         {overview.error && (
@@ -280,6 +316,7 @@ export default function Dashboard() {
         </a>
       )}
       <WorkspaceSidebar activeView={activeView} onNavigate={setActiveView} />
+      {!pickerOpen && activeView === "markets" && <WatchlistNotification watchlist={watchlist} />}
       <main className="workspace-content" id="workspace-content">
         {activeView === "settings" && <SettingsPanel />}
         <div className="market-view" hidden={activeView !== "markets"}>
@@ -343,7 +380,10 @@ export default function Dashboard() {
                   <button
                     type="button"
                     className="symbol-picker-button"
-                    onClick={() => pickerDialog.current?.showModal()}
+                    onClick={() => {
+                      pickerDialog.current?.showModal();
+                      setPickerOpen(true);
+                    }}
                     aria-haspopup="dialog"
                   >
                     <SearchIcon />
@@ -351,10 +391,10 @@ export default function Dashboard() {
                   </button>
                 </div>
               </div>
-              {watchlist.authenticated && (watchlist.error || watchlist.message) && (
+              {watchlist.authenticated && watchlist.error && (
                 <div className="chart-watchlist-feedback" role="status" aria-live="polite">
                   <span className={watchlist.error ? "account-error" : ""}>
-                    {message(watchlist.error || watchlist.message)}
+                    {message(watchlist.error)}
                   </span>
                   {watchlist.error && (
                     <button
@@ -543,7 +583,10 @@ export default function Dashboard() {
         ref={pickerDialog}
         className="symbol-dialog"
         aria-label={t("market.chooseSymbol")}
-        onClose={() => setQuery("")}
+        onClose={() => {
+          setQuery("");
+          setPickerOpen(false);
+        }}
       >
         <div className="dialog-topline">
           <span>{t("market.explore")}</span>
@@ -557,6 +600,7 @@ export default function Dashboard() {
           </button>
         </div>
         {renderPicker("mobile")}
+        {pickerOpen && <WatchlistNotification watchlist={watchlist} />}
       </dialog>
     </div>
   );
