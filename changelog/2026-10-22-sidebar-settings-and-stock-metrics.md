@@ -10,7 +10,8 @@ with the chart and symbol panel. Stock detail pages also show optional valuation
 ## Changes
 
 - Move the brand/slogan to the top of a left sidebar, with Markets, Settings, account avatar, and
-  sign-in/out arranged at the bottom. Collapsed actions retain icons, names, and tooltips.
+  sign-in/out arranged at the bottom. The desktop collapse control aligns with the brand row;
+  collapsed actions retain icons, names, and tooltips.
 - Use a narrow rail on mobile and an expandable overlay with focus containment, Escape dismissal,
   and an inert background. Keep the symbol picker and chart focus behavior.
 - Remove the public-browsing/private-watchlist footnotes while retaining Refresh and useful status
