@@ -21,7 +21,7 @@ export type MarketOverview = {
 };
 
 export type Candle = {
-  time: string;
+  time: string | number;
   open: number;
   high: number;
   low: number;
@@ -29,8 +29,21 @@ export type Candle = {
   volume: number;
 };
 
+export const CHART_RANGES = ["1d", "1w", "1m", "3m", "1y"] as const;
+export type ChartRange = (typeof CHART_RANGES)[number];
+export const RANGE_LABELS: Record<ChartRange, string> = {
+  "1d": "Latest trading session",
+  "1w": "Five trading sessions",
+  "1m": "One month",
+  "3m": "Three months",
+  "1y": "One year",
+};
+
 export type CandleResponse = Instrument & {
-  range: "1m";
+  range: ChartRange;
+  interval: "5m" | "30m" | "1d";
+  latestClose: number | null;
+  changePercent: number | null;
   source: "yfinance" | "mock";
   isMock: boolean;
   candles: Candle[];
@@ -41,6 +54,14 @@ export type CandleResponse = Instrument & {
   adjustment: "split_and_dividend_adjusted" | "mock";
   warning: string | null;
 };
+
+export function candleIntervalLabel(interval: CandleResponse["interval"]) {
+  return interval === "5m"
+    ? "5-minute candles"
+    : interval === "30m"
+      ? "30-minute candles"
+      : "Daily candles";
+}
 
 export type SearchResponse = {
   stocks: Instrument[];

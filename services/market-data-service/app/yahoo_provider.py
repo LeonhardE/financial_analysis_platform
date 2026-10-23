@@ -1,9 +1,10 @@
-"""Yahoo daily data through yfinance. No account tokens or user profile data are sent."""
+"""Yahoo snapshots through yfinance. No account tokens or user profile data are sent."""
 
 import math
 import re
+from calendar import monthrange
 from dataclasses import asdict, dataclass
-from datetime import UTC, date, datetime, timedelta
+from datetime import UTC, date, datetime
 from threading import Lock
 from typing import Any
 from zoneinfo import ZoneInfo
@@ -14,6 +15,15 @@ NEW_YORK = ZoneInfo("America/New_York")
 SYMBOL_PATTERN = re.compile(r"^[A-Z][A-Z0-9]{0,9}(?:[.-][A-Z0-9]{1,3})?$")
 US_EXCHANGES = {"NMS", "NGM", "NCM", "NYQ", "NAS", "NYSE", "NASDAQ"}
 DOWNLOAD_LOCK = Lock()
+# The public range is intentionally bounded: no arbitrary provider parameters,
+# minute-by-minute polling, or intraday requests beyond Yahoo's retention window.
+HISTORY_RANGES = {
+    "1d": ("5d", "5m"),
+    "1w": ("5d", "30m"),
+    "1m": ("3mo", "1d"),
+    "3m": ("3mo", "1d"),
+    "1y": ("1y", "1d"),
+}
 
 
 @dataclass(frozen=True)
@@ -66,7 +76,7 @@ ALIASES = {
 
 class UpstreamError(Exception):
     def __init__(self, *, rate_limited: bool = False):
-        super().__init__("Yahoo daily market data is temporarily unavailable")
+        super().__init__("Yahoo market data is temporarily unavailable")
         self.rate_limited = rate_limited
 
 
@@ -91,13 +101,29 @@ def iso_time(now: float) -> str:
     return datetime.fromtimestamp(now, UTC).isoformat().replace("+00:00", "Z")
 
 
-def valid_candles(frame, now: float) -> list[dict[str, Any]]:
+def valid_candles(frame, now: float, interval="1d") -> list[dict[str, Any]]:
     """Drop malformed rows rather than emitting NaN/Infinity or inconsistent OHLC."""
     result = {}
     today = datetime.fromtimestamp(now, NEW_YORK).date()
     for index, row in frame.iterrows():
         try:
-            trading_date = date.fromisoformat(str(index.date()))
+            if interval == "1d":
+                trading_date = date.fromisoformat(str(index.date()))
+                candle_time = trading_date.isoformat()
+            else:
+                # Intraday timestamps must be timezone-aware. Guessing a zone
+                # would move bars by hours, especially across daylight saving.
+                if index.tzinfo is None:
+                    continue
+                instant = index.to_pydatetime().astimezone(NEW_YORK)
+                trading_date = instant.date()
+                candle_time = int(instant.timestamp())
+                if (
+                    candle_time > now
+                    or instant.weekday() >= 5
+                    or not (9, 30) <= (instant.hour, instant.minute) < (16, 0)
+                ):
+                    continue
             values = [float(row[field]) for field in ("Open", "High", "Low", "Close", "Volume")]
             opening, high, low, close, volume = values
             if (
@@ -109,8 +135,8 @@ def valid_candles(frame, now: float) -> list[dict[str, Any]]:
                 or low > min(opening, close, high)
             ):
                 continue
-            result[trading_date.isoformat()] = {
-                "time": trading_date.isoformat(),
+            result[candle_time] = {
+                "time": candle_time,
                 "open": round(opening, 6),
                 "high": round(high, 6),
                 "low": round(low, 6),
@@ -122,34 +148,60 @@ def valid_candles(frame, now: float) -> list[dict[str, Any]]:
     return [result[key] for key in sorted(result)]
 
 
-def candle_payload(instrument: Instrument, frame, now: float) -> dict[str, Any] | None:
-    candles = valid_candles(frame, now)
-    if len(candles) < 2:
+def calendar_start(last_date: date, months: int) -> date:
+    """Calendar range start, clamped for month ends and leap days."""
+    year, month = divmod(last_date.year * 12 + last_date.month - 1 - months, 12)
+    return date(year, month + 1, min(last_date.day, monthrange(year, month + 1)[1]))
+
+
+def candle_payload(
+    instrument: Instrument, frame, now: float, chart_range="1m"
+) -> dict[str, Any] | None:
+    _, interval = HISTORY_RANGES[chart_range]
+    intraday = interval != "1d"
+    candles = valid_candles(frame, now, interval)
+    if not candles or (not intraday and len(candles) < 2):
         return None
     local_now = datetime.fromtimestamp(now, NEW_YORK)
-    last_date = candles[-1]["time"]
+    last_date = (
+        datetime.fromtimestamp(candles[-1]["time"], NEW_YORK).date().isoformat()
+        if intraday
+        else candles[-1]["time"]
+    )
     if (local_now.date() - date.fromisoformat(last_date)).days > 7:
         return None
     # The date can appear before the session closes. 16:15 is deliberately
     # conservative, including the publication delay and early-close sessions.
-    partial = last_date == local_now.date().isoformat() and (local_now.hour, local_now.minute) < (
-        16,
-        15,
-    )
     latest = candles[-1]["close"]
-    previous = candles[-2]["close"]
+    if intraday:
+        sessions = {
+            candle["time"]: datetime.fromtimestamp(candle["time"], NEW_YORK).date().isoformat()
+            for candle in candles
+        }
+        prior_session = [candle for candle in candles if sessions[candle["time"]] < last_date]
+        previous = prior_session[-1]["close"] if prior_session else None
+        selected_dates = sorted(set(sessions.values()))[-(1 if chart_range == "1d" else 5) :]
+        selected = [candle for candle in candles if sessions[candle["time"]] in selected_dates]
+        partial = now < candles[-1]["time"] + (300 if interval == "5m" else 1800)
+    else:
+        previous = candles[-2]["close"]
+        start = calendar_start(
+            date.fromisoformat(last_date), {"1m": 1, "3m": 3, "1y": 12}[chart_range]
+        )
+        selected = [candle for candle in candles if candle["time"] >= start.isoformat()]
+        partial = last_date == local_now.date().isoformat() and (
+            local_now.hour,
+            local_now.minute,
+        ) < (16, 15)
     return {
         **instrument.public(),
-        "range": "1m",
+        "range": chart_range,
+        "interval": interval,
         "source": "yfinance",
         "isMock": False,
-        "candles": [
-            candle
-            for candle in candles
-            if candle["time"] >= (date.fromisoformat(last_date) - timedelta(days=31)).isoformat()
-        ],
+        "candles": selected,
         "latestClose": latest,
-        "changePercent": round((latest / previous - 1) * 100, 2),
+        "changePercent": round((latest / previous - 1) * 100, 2) if previous else None,
         "dataDate": last_date,
         "fetchedAt": iso_time(now),
         "isStale": False,
@@ -160,7 +212,10 @@ def candle_payload(instrument: Instrument, frame, now: float) -> dict[str, Any] 
 
 
 class YahooProvider:
-    def history(self, instruments: list[Instrument], now: float) -> dict[str, dict[str, Any]]:
+    def history(
+        self, instruments: list[Instrument], now: float, chart_range="1m"
+    ) -> dict[str, dict[str, Any]]:
+        period, interval = HISTORY_RANGES[chart_range]
         symbols = [item.yahoo_symbol for item in instruments]
         try:
             # One parallel batch keeps a cold ten-symbol overview bounded by the
@@ -170,8 +225,9 @@ class YahooProvider:
             with DOWNLOAD_LOCK:
                 frame = yf.download(
                     tickers=symbols,
-                    period="3mo",
-                    interval="1d",
+                    period=period,
+                    interval=interval,
+                    ignore_tz=interval == "1d",
                     auto_adjust=True,
                     actions=False,
                     prepost=False,
@@ -185,7 +241,7 @@ class YahooProvider:
             for instrument in instruments:
                 try:
                     item_frame = frame[instrument.yahoo_symbol]
-                    payload = candle_payload(instrument, item_frame, now)
+                    payload = candle_payload(instrument, item_frame, now, chart_range)
                     if payload:
                         output[instrument.symbol] = payload
                 except (KeyError, TypeError):

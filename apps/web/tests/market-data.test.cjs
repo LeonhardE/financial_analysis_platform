@@ -225,7 +225,13 @@ test("index points and missing prices never appear as dollars, zero, or NaN", ()
   assert.match(formatFetchedAt("2026-10-20T20:10:00Z"), /20:10 UTC$/);
 });
 
-function renderDashboard({ overview, chart, selectedSymbol = "AAPL", requests = [] }) {
+function renderDashboard({
+  overview,
+  chart,
+  selectedSymbol = "AAPL",
+  range = "1m",
+  requests = [],
+}) {
   const market = compile("../lib/market-data.ts", {});
   const selected = market.DEFAULT_INSTRUMENTS.find((item) => item.symbol === selectedSymbol) ?? {
     symbol: selectedSymbol,
@@ -236,7 +242,10 @@ function renderDashboard({ overview, chart, selectedSymbol = "AAPL", requests = 
   let stateIndex = 0;
   const { default: Dashboard } = compile("../app/page.tsx", {
     react: {
-      useState: (initial) => [stateIndex++ === 0 ? selected : initial, () => {}],
+      useState: (initial) => [
+        stateIndex++ === 0 ? selected : stateIndex === 2 ? range : initial,
+        () => {},
+      ],
       useRef: (current) => ({ current }),
     },
     "react/jsx-runtime": jsxRuntime,
@@ -245,7 +254,7 @@ function renderDashboard({ overview, chart, selectedSymbol = "AAPL", requests = 
       useMarketResource: (resourcePath) => {
         requests.push(resourcePath);
         if (resourcePath === "/api/stocks") return { hasSettled: !overview.loading, ...overview };
-        if (resourcePath?.endsWith("/candles")) return chart;
+        if (resourcePath?.includes("/candles?range=")) return chart;
         return { data: null, error: "", loading: false };
       },
     },
@@ -299,7 +308,7 @@ test("the first overview settles before chart loading, including overview failur
     requests: pendingRequests,
   });
   assert.deepEqual(pendingRequests, ["/api/stocks", null, null]);
-  assert.match(html, /Loading daily market data/);
+  assert.match(html, /Loading market data/);
   assert.doesNotMatch(html, /Unexpected chart request/);
 
   const failedRequests = [];
@@ -308,7 +317,7 @@ test("the first overview settles before chart loading, including overview failur
     chart: { data: null, error: "Daily data unavailable", loading: false },
     requests: failedRequests,
   });
-  assert.deepEqual(failedRequests, ["/api/stocks", "/api/stocks/AAPL/candles", null]);
+  assert.deepEqual(failedRequests, ["/api/stocks", "/api/stocks/AAPL/candles?range=1m", null]);
 });
 
 test("settled overview readiness survives its retry but belongs to its original path", async () => {
@@ -333,6 +342,9 @@ test("refreshing the overview leaves an already loaded chart visible", () => {
     chart: {
       data: {
         symbol: "AAPL",
+        range: "1m",
+        interval: "1d",
+        changePercent: 5,
         name: "Apple",
         source: "yfinance",
         isMock: false,
@@ -343,10 +355,10 @@ test("refreshing the overview leaves an already loaded chart visible", () => {
     },
     requests,
   });
-  assert.deepEqual(requests, ["/api/stocks", "/api/stocks/AAPL/candles", null]);
+  assert.deepEqual(requests, ["/api/stocks", "/api/stocks/AAPL/candles?range=1m", null]);
   assert.match(html, /\$105\.00/);
   assert.match(html, /data-chart="rendered"/);
-  assert.doesNotMatch(html, /Loading daily market data/);
+  assert.doesNotMatch(html, /Loading market data/);
 });
 
 test("a searched stock remains readable when the separate overview has failed", () => {
@@ -358,6 +370,9 @@ test("a searched stock remains readable when the separate overview has failed", 
       error: "",
       data: {
         symbol: "NFLX",
+        range: "1m",
+        interval: "1d",
+        changePercent: 5,
         name: "Netflix",
         instrumentType: "stock",
         currency: "USD",
@@ -381,10 +396,74 @@ test("a searched stock remains readable when the separate overview has failed", 
   assert.match(html, /\$105\.00/);
   assert.match(html, /\+5\.00%/);
   assert.match(html, /data-chart="rendered"/);
-  assert.match(html, /Yahoo Finance · Daily candles/);
-  assert.match(html, /Latest daily candle is still in progress/);
+  assert.match(html, /Yahoo Finance · Delayed snapshot/);
+  assert.match(html, /Latest candle was incomplete when fetched/);
   assert.match(html, /Cached data · Update unavailable/);
   assert.match(html, /Adjusted for splits and dividends/);
   assert.match(html, /2026-10-20/);
   assert.doesNotMatch(html, /Mock data|Simulated prices|NaN/);
+});
+
+test("all five time ranges request their own candles and retain an accurate interval label", () => {
+  for (const range of ["1d", "1w", "1m", "3m", "1y"]) {
+    const requests = [];
+    const html = renderDashboard({
+      range,
+      requests,
+      overview: { data: null, loading: false, error: "" },
+      chart: {
+        data: {
+          symbol: "AAPL",
+          range,
+          interval: range === "1d" ? "5m" : range === "1w" ? "30m" : "1d",
+          candles: [{ time: "2026-10-20", open: 100, high: 106, low: 99, close: 105 }],
+          changePercent: -1.23,
+        },
+        loading: false,
+        error: "",
+      },
+    });
+    assert.equal(requests[1], `/api/stocks/AAPL/candles?range=${range}`);
+    assert.match(html, /data-chart="rendered"/);
+    assert.match(html, /-1\.23%/);
+    assert.match(
+      html,
+      new RegExp(
+        range === "1d"
+          ? "5-minute candles"
+          : range === "1w"
+            ? "30-minute candles"
+            : "Daily candles",
+      ),
+    );
+  }
+});
+
+test("an old API response cannot masquerade as a different time range", () => {
+  const html = renderDashboard({
+    range: "1y",
+    overview: { data: null, loading: false, error: "" },
+    chart: {
+      data: { symbol: "AAPL", range: "1m", candles: [{ time: "2026-10-20", close: 999 }] },
+      loading: false,
+      error: "",
+    },
+  });
+  assert.doesNotMatch(html, /data-chart="rendered"|999/);
+  assert.match(html, /This time range is not available yet/);
+});
+
+test("a late time-range response cannot replace a newly selected range", async () => {
+  const resource = mountResource();
+  const month = "/api/stocks/AAPL/candles?range=1m";
+  const year = "/api/stocks/AAPL/candles?range=1y";
+  resource.render(month);
+  resource.runTimer(0);
+  resource.render(year);
+  resource.runTimer(0);
+  resource.requests[1].result.resolve(response({ symbol: "AAPL", range: "1y" }));
+  await settle();
+  resource.requests[0].result.resolve(response({ symbol: "AAPL", range: "1m" }));
+  await settle();
+  assert.equal(resource.render(year).data.range, "1y");
 });
