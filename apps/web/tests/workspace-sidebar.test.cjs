@@ -143,28 +143,37 @@ const button = (tree, label) => {
   return matches[0];
 };
 
-test("collapsing keeps both icon navigation actions named and preserves the selected workspace", () => {
+test("the sidebar starts collapsed and keeps named navigation actions when expanded and collapsed again", () => {
   const sidebar = mountSidebar();
   let tree = sidebar.render();
-  assert.equal(tree.props["data-collapsed"], false);
-  assert.equal(button(tree, "Markets").props["aria-pressed"], true);
-  button(tree, "Collapse sidebar").props.onClick();
-  tree = sidebar.render();
   assert.equal(tree.props["data-collapsed"], true);
   assert.equal(button(tree, "Expand sidebar").props["aria-expanded"], false);
+  assert.equal(button(tree, "Markets").props["aria-pressed"], true);
   assert.equal(button(tree, "Settings").props.title, "Settings");
   assert.match(renderToStaticMarkup(tree), /aria-hidden="true"/);
   assert.match(renderToStaticMarkup(tree), /data-account-collapsed="true"/);
+  button(tree, "Expand sidebar").props.onClick();
+  tree = sidebar.render();
+  assert.equal(tree.props["data-collapsed"], false);
+  assert.equal(button(tree, "Collapse sidebar").props["aria-expanded"], true);
+  assert.match(renderToStaticMarkup(tree), /data-account-collapsed="false"/);
   button(tree, "Settings").props.onClick();
   tree = sidebar.render();
   assert.deepEqual(sidebar.navigations, ["settings"]);
   assert.equal(button(tree, "Settings").props["aria-pressed"], true);
   assert.equal(button(tree, "Markets").props["aria-pressed"], false);
-  assert.equal(tree.props["data-collapsed"], true);
-  button(tree, "Expand sidebar").props.onClick();
-  tree = sidebar.render();
   assert.equal(tree.props["data-collapsed"], false);
+  button(tree, "Collapse sidebar").props.onClick();
+  tree = sidebar.render();
+  assert.equal(tree.props["data-collapsed"], true);
+  assert.equal(button(tree, "Expand sidebar").props["aria-expanded"], false);
   assert.equal(button(tree, "Settings").props["aria-pressed"], true);
+  assert.equal(button(tree, "Settings").props.title, "Settings");
+  button(tree, "Markets").props.onClick();
+  tree = sidebar.render();
+  assert.deepEqual(sidebar.navigations, ["settings", "markets"]);
+  assert.equal(button(tree, "Markets").props["aria-pressed"], true);
+  assert.equal(tree.props["data-collapsed"], true);
   sidebar.unmount();
 });
 

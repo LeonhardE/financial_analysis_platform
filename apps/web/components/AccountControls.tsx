@@ -103,11 +103,7 @@ export function AccountControls({ collapsed = false }: { collapsed?: boolean }) 
   const pending = ["loading", "signing-in", "verifying", "signing-out"].includes(status);
   const accountName = profile?.displayName || profile?.email || t("account.googleAccount");
   const profileName = hasFirebaseUser ? accountName : t("account.guest");
-  const notice = error
-    ? localizeMessage(error, t, locale)
-    : status === "unavailable"
-      ? t("account.unavailable")
-      : null;
+  const notice = error ? localizeMessage(error, t, locale) : null;
   const statusText =
     status === "loading"
       ? t("account.checking")
@@ -127,10 +123,10 @@ export function AccountControls({ collapsed = false }: { collapsed?: boolean }) 
             <summary title={notice} aria-label={`${t("account.notice")}: ${notice}`}>
               <AccountIcon kind="notice" />
             </summary>
-            <p role={error ? "alert" : "status"}>{notice}</p>
+            <p role="alert">{notice}</p>
           </details>
         ) : (
-          <p className={styles.message} role={error ? "alert" : "status"}>
+          <p className={styles.message} role="alert">
             {notice}
           </p>
         ))}

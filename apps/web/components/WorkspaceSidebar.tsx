@@ -41,7 +41,7 @@ export function WorkspaceSidebar({
   onNavigate: (view: WorkspaceView) => void;
 }) {
   const t = useTranslations();
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(true);
   const [compactScreen, setCompactScreen] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const toggle = useRef<HTMLButtonElement>(null);
@@ -148,15 +148,20 @@ export function WorkspaceSidebar({
             }
           >
             <svg
-              viewBox="0 0 24 24"
+              viewBox={compact ? "0 0 24 24" : "0 0 16 16"}
               fill="none"
               stroke="currentColor"
               strokeWidth="1.7"
               aria-hidden="true"
             >
-              <rect x="3" y="4" width="18" height="16" rx="3" />
-              <path d="M9 4v16" />
-              <path d={compact ? "m13 9 3 3-3 3" : "m16 9-3 3 3 3"} />
+              {compact ? (
+                <>
+                  <rect x="3" y="4" width="18" height="16" rx="3" />
+                  <path d="M9 4v16m4-11 3 3-3 3" />
+                </>
+              ) : (
+                <path d="m10 3-5 5 5 5" />
+              )}
             </svg>
           </button>
         </div>
