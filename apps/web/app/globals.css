@@ -264,9 +264,13 @@ a {
   gap: 8px;
 }
 .save-button.saved {
-  background: #1c3530;
-  border-color: #30584a;
-  color: #85dac1;
+  background: #3a222b;
+  border-color: #79404e;
+  color: var(--negative);
+}
+.account-button.secondary.save-button.saved:hover:not(:disabled) {
+  background: #4a2833;
+  border-color: var(--negative);
 }
 .symbol-picker-button {
   display: none;
@@ -1189,9 +1193,19 @@ html[data-theme="light"] .chart-watchlist-feedback {
   color: #385578;
 }
 html[data-theme="light"] .save-button.saved {
-  background: #e5f4ef;
-  color: #18735c;
-  border-color: #b6d7c9;
+  background: #fcecef;
+  color: var(--negative);
+  border-color: #e8b9c3;
+}
+html[data-theme="light"] .text-button {
+  color: var(--accent);
+}
+html[data-theme="light"] .text-button:hover:not(:disabled) {
+  color: #234fba;
+}
+html[data-theme="light"] .account-button.secondary.save-button.saved:hover:not(:disabled) {
+  background: #f8dfe5;
+  border-color: var(--negative);
 }
 html[data-theme="light"] .dialog-topline,
 html[data-theme="light"] .dialog-close {

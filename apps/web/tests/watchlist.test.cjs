@@ -115,9 +115,9 @@ function mountWatchlist() {
     {
       AbortController,
       window: {
-        setTimeout: (callback) => {
+        setTimeout: (callback, milliseconds) => {
           const id = ++nextTimer;
-          timers.set(id, callback);
+          timers.set(id, { callback, milliseconds });
           return id;
         },
         clearTimeout: (id) => timers.delete(id),
@@ -143,10 +143,19 @@ function mountWatchlist() {
       auth = { sessionKey, status };
     },
     timeout: () => {
-      const [id, callback] = timers.entries().next().value;
+      const [id, { callback }] = timers.entries().next().value;
       timers.delete(id);
       callback();
     },
+    expireMessages: () => {
+      for (const [id, { callback, milliseconds }] of [...timers]) {
+        if (milliseconds !== 3_000) continue;
+        timers.delete(id);
+        callback();
+      }
+    },
+    messageTimers: () => [...timers.values()].filter((timer) => timer.milliseconds === 3_000),
+    unmount: () => cells.forEach((cell) => cell.cleanup?.()),
   };
 }
 
@@ -295,6 +304,62 @@ test("ordinary rerenders and chart selections do not reload a private watchlist"
   assert.equal(hook.requests.length, 1);
 });
 
+test("mutation confirmations expire after three seconds and never replay on rerender", async () => {
+  const hook = mountWatchlist();
+  hook.render();
+  hook.requests[0].result.resolve(response(body("AAPL")));
+  await settle();
+  const removing = hook.render().remove("AAPL");
+  hook.requests[1].result.resolve(response(body()));
+  await removing;
+  assert.match(hook.render().message, /AAPL removed/);
+  assert.equal(hook.messageTimers().length, 1);
+  hook.expireMessages();
+  for (let index = 0; index < 5; index++) assert.equal(hook.render().message, "");
+  assert.equal(hook.messageTimers().length, 0);
+});
+
+test("repeated confirmations get fresh lifetimes and can be dismissed", async () => {
+  const hook = mountWatchlist();
+  hook.render();
+  hook.requests[0].result.resolve(response(body()));
+  await settle();
+  const adding = hook.render().add("AAPL");
+  hook.requests[1].result.resolve(response(body("AAPL")));
+  await adding;
+  const first = hook.render();
+  const oldTimer = hook.messageTimers()[0].callback;
+  const removing = first.remove("AAPL");
+  hook.requests[2].result.resolve(response(body()));
+  await removing;
+  const latest = hook.render();
+  assert.ok(latest.messageId > first.messageId);
+  oldTimer();
+  assert.match(hook.render().message, /AAPL removed/);
+  latest.dismissMessage();
+  assert.equal(hook.render().message, "");
+  assert.equal(hook.messageTimers().length, 0);
+});
+
+test("logout, account switches and unmount cancel confirmation lifetimes", async () => {
+  for (const nextOwner of [null, "b:2"]) {
+    const hook = mountWatchlist();
+    hook.render();
+    hook.requests[0].result.resolve(response(body()));
+    await settle();
+    const adding = hook.render().add("AAPL");
+    hook.requests[1].result.resolve(response(body("AAPL")));
+    await adding;
+    const oldView = hook.render();
+    hook.account(nextOwner);
+    assert.equal(hook.render().message, "");
+    oldView.dismissMessage();
+    assert.equal(hook.messageTimers().length, 0);
+    hook.unmount();
+    assert.equal(hook.messageTimers().length, 0);
+  }
+});
+
 test("malformed private responses cannot add duplicate, invalid, or excessive saved symbols", () => {
   const { readWatchlist } = compile("../lib/watchlist.ts", {});
   assert.equal(readWatchlist(body("NFLX")).items[0].symbol, "NFLX");
@@ -316,6 +381,9 @@ function renderWatchlist(authenticated, items = []) {
     "next-intl": intl,
     "@/lib/ui-messages": compile("../lib/ui-messages.ts", {}),
     "react/jsx-runtime": jsxRuntime,
+    react: require("react"),
+    "@/lib/market-data": compile("../lib/market-data.ts", {}),
+    "./PersonalWatchlist.module.css": { default: {} },
     "@/components/AuthProvider": {
       useAuth: () => ({ status: authenticated ? "authenticated" : "anonymous" }),
     },
@@ -333,14 +401,25 @@ function renderWatchlist(authenticated, items = []) {
   return renderToStaticMarkup(
     jsxRuntime.jsxs("div", {
       children: [
-        jsxRuntime.jsx(PersonalWatchlist, { watchlist, selectedSymbol: "NFLX" }),
+        jsxRuntime.jsx(PersonalWatchlist, {
+          watchlist,
+          selectedSymbol: "NFLX",
+          quotes: {
+            NFLX: {
+              ...instrument("NFLX"),
+              latestClose: 150.25,
+              changePercent: -1.2,
+              isStale: false,
+            },
+          },
+        }),
         jsxRuntime.jsx(WatchlistAction, { watchlist, instrument: instrument("NFLX") }),
       ],
     }),
   );
 }
 
-test("guest save CTA and private saved instruments remain separate from public quotes", () => {
+test("guest save CTA and signed-in quote rows preserve private watchlist controls", () => {
   const guest = renderWatchlist(false);
   assert.match(guest, /My watchlist/);
   assert.match(guest, /Sign in to save/);
@@ -350,5 +429,9 @@ test("guest save CTA and private saved instruments remain separate from public q
   assert.match(signedIn, /Remove NFLX from watchlist/);
   assert.match(signedIn, /Remove from watchlist/);
   assert.match(signedIn, /aria-pressed="true"/);
-  assert.doesNotMatch(signedIn, /\$|Daily prices|Only visible to your signed-in account/);
+  assert.match(signedIn, /\$150\.25/);
+  assert.match(signedIn, /-1\.20%/);
+  assert.match(signedIn, /Actions for NFLX/);
+  assert.match(signedIn, /aria-expanded="false"/);
+  assert.doesNotMatch(signedIn, /Daily prices|Only visible to your signed-in account/);
 });

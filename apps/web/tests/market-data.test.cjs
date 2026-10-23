@@ -288,6 +288,10 @@ function renderDashboard({
     "@/components/useWatchlist": {
       useWatchlist: () => ({ authenticated: false, items: [] }),
     },
+    "@/components/useWatchlistQuotes": {
+      useWatchlistQuotes: () => ({ quotes: {}, loading: false, requestQuote: () => {} }),
+    },
+    "@/components/WatchlistNotification": { WatchlistNotification: () => null },
     "@/components/PersonalWatchlist": {
       PersonalWatchlist: () => jsxRuntime.jsx("aside", { children: "My watchlist" }),
       WatchlistAction: () => jsxRuntime.jsx("button", { children: "Sign in to save" }),

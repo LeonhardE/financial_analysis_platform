@@ -114,7 +114,10 @@
     "empty": "Your watchlist is empty. Open a stock and choose “Add to watchlist”.",
     "reload": "Reload watchlist",
     "added": "{symbol} added to your watchlist.",
-    "removed": "{symbol} removed from your watchlist."
+    "removed": "{symbol} removed from your watchlist.",
+    "actionsSymbol": "Actions for {symbol}",
+    "delete": "Remove",
+    "dismissNotification": "Dismiss notification"
   },
   "errors": {
     "market": "Market data is unavailable. Please try again shortly.",
