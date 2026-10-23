@@ -100,7 +100,7 @@ class ProviderTests(unittest.TestCase):
 
     def test_batch_explicitly_adjusts_all_ohlc_and_uses_bounded_parallel_download(self):
         frame = pd.concat({"AAPL": history_frame(), "^GSPC": history_frame()}, axis=1)
-        with patch("app.yahoo_provider.yf.download", return_value=frame) as download:
+        with patch("yfinance.download", return_value=frame) as download:
             result = YahooProvider().history(
                 [DEFAULT_BY_SYMBOL["AAPL"], DEFAULT_BY_SYMBOL["SPX"]], NOW
             )
@@ -111,10 +111,10 @@ class ProviderTests(unittest.TestCase):
         self.assertEqual(download.call_args.kwargs["timeout"], 6)
 
     def test_empty_and_partial_downloads_are_not_replaced_by_mock(self):
-        with patch("app.yahoo_provider.yf.download", return_value=pd.DataFrame()):
+        with patch("yfinance.download", return_value=pd.DataFrame()):
             self.assertEqual(YahooProvider().history([DEFAULT_BY_SYMBOL["AAPL"]], NOW), {})
         partial = pd.concat({"AAPL": history_frame()}, axis=1)
-        with patch("app.yahoo_provider.yf.download", return_value=partial):
+        with patch("yfinance.download", return_value=partial):
             result = YahooProvider().history(
                 [DEFAULT_BY_SYMBOL["AAPL"], DEFAULT_BY_SYMBOL["SPX"]], NOW
             )
@@ -129,9 +129,7 @@ class ProviderTests(unittest.TestCase):
             {"symbol": "TEST", "quoteType": "EQUITY", "exchange": "NMS", "currency": "CAD"},
             {"symbol": "https://evil", "quoteType": "EQUITY", "exchange": "NYQ"},
         ]
-        with patch(
-            "app.yahoo_provider.yf.Search", return_value=SimpleNamespace(quotes=quotes)
-        ) as search:
+        with patch("yfinance.Search", return_value=SimpleNamespace(quotes=quotes)) as search:
             result = YahooProvider().search("Netflix")
         self.assertEqual([item.symbol for item in result], ["NFLX", "BRK-B"])
         self.assertEqual(search.call_args.kwargs["news_count"], 0)

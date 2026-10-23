@@ -7,6 +7,7 @@ import SettingsPanel from "@/components/SettingsPanel";
 import { localizeMessage } from "@/lib/ui-messages";
 import { CandlestickChart } from "@/components/CandlestickChart";
 import { AccountControls } from "@/components/AccountControls";
+import { useCachedMarketResource } from "@/components/useCachedMarketResource";
 import { useMarketResource } from "@/components/useMarketResource";
 import { PersonalWatchlist, WatchlistAction } from "@/components/PersonalWatchlist";
 import { useWatchlist } from "@/components/useWatchlist";
@@ -56,15 +57,17 @@ export default function Dashboard() {
   const pickerDialog = useRef<HTMLDialogElement>(null);
   const chartHeading = useRef<HTMLHeadingElement>(null);
   const watchlist = useWatchlist();
-  const overview = useMarketResource<MarketOverview>("/api/stocks", overviewReload);
-  // Keep the existing cache-warming sequence here; loading performance is a separate change.
-  const chart = useMarketResource<CandleResponse>(
-    overview.hasSettled
-      ? `/api/stocks/${encodeURIComponent(selected.symbol)}/candles?range=${range}`
-      : null,
+  const overview = useCachedMarketResource<MarketOverview>("/api/stocks", overviewReload);
+  const sharesOverviewRefresh =
+    range === "1m" &&
+    DEFAULT_INSTRUMENTS.some((instrument) => instrument.symbol === selected.symbol);
+  // Probe both caches immediately. Only the overlapping upstream download waits.
+  const chart = useCachedMarketResource<CandleResponse>(
+    `/api/stocks/${encodeURIComponent(selected.symbol)}/candles?range=${range}`,
     chartReload,
+    !sharesOverviewRefresh || overview.hasSettled,
   );
-  const chartLoading = !overview.hasSettled || chart.loading;
+  const chartLoading = chart.loading;
   const searchQuery = query.trim();
   const search = useMarketResource<SearchResponse>(
     searchQuery.length >= 2 ? `/api/stocks/search?q=${encodeURIComponent(searchQuery)}` : null,
@@ -249,10 +252,10 @@ export default function Dashboard() {
           <button
             className="text-button"
             type="button"
-            disabled={overview.loading}
+            disabled={overview.loading || overview.refreshing}
             onClick={() => setOverviewReload((value) => value + 1)}
           >
-            {overview.loading ? t("market.updating") : t("market.refresh")}
+            {overview.loading || overview.refreshing ? t("market.updating") : t("market.refresh")}
           </button>
         </div>
         {overview.error && (
@@ -260,9 +263,9 @@ export default function Dashboard() {
             {message(overview.error)}
           </p>
         )}
-        {overview.data?.warning && (
+        {(overview.refreshError || overview.data?.warning) && (
           <p className="overview-notice" role="status">
-            {message(overview.data.warning)}
+            {message(overview.refreshError || overview.data?.warning)}
           </p>
         )}
       </>
@@ -513,9 +516,26 @@ export default function Dashboard() {
             <div className="data-status" role="status">
               <span className="status-dot" />
               <span>{marketData?.isMock ? t("chart.simulated") : t("chart.source")}</span>
-              {marketData?.isStale && <span className="cached-note">{t("chart.cached")}</span>}
+              {chart.refreshing && <span>{t("market.updating")}</span>}
+              {marketData?.isStale && (
+                <span className="cached-note">
+                  {t(chart.refreshing ? "market.cached" : "chart.cached")}
+                </span>
+              )}
               {marketData?.isPartial && <span className="partial-note">{t("chart.partial")}</span>}
             </div>
+            {chart.refreshError && marketData && (
+              <p className="market-warning" role="status">
+                {message(chart.refreshError)}{" "}
+                <button
+                  className="text-button"
+                  type="button"
+                  onClick={() => setChartReload((value) => value + 1)}
+                >
+                  {t("chart.retry")}
+                </button>
+              </p>
+            )}
             <details className="data-details">
               <summary>
                 {t("chart.about")}
@@ -543,7 +563,7 @@ export default function Dashboard() {
                 {marketData?.adjustment === "split_and_dividend_adjusted" && (
                   <p>{t("chart.adjusted")}</p>
                 )}
-                {marketData?.warning && (
+                {!chart.refreshError && marketData?.warning && (
                   <p className="market-warning">{message(marketData.warning)}</p>
                 )}
               </div>

@@ -237,6 +237,7 @@ function renderDashboard({
   selectedSymbol = "AAPL",
   range = "1m",
   requests = [],
+  readiness = [],
 }) {
   const market = compile("../lib/market-data.ts", {});
   const selected = market.DEFAULT_INSTRUMENTS.find((item) => item.symbol === selectedSymbol) ?? {
@@ -269,9 +270,15 @@ function renderDashboard({
     "@/components/useMarketResource": {
       useMarketResource: (resourcePath) => {
         requests.push(resourcePath);
-        if (resourcePath === "/api/stocks") return { hasSettled: !overview.loading, ...overview };
-        if (resourcePath?.includes("/candles?range=")) return chart;
         return { data: null, error: "", loading: false };
+      },
+    },
+    "@/components/useCachedMarketResource": {
+      useCachedMarketResource: (resourcePath, reload, ready = true) => {
+        requests.push(resourcePath);
+        readiness.push(ready);
+        if (resourcePath === "/api/stocks") return { hasSettled: !overview.loading, ...overview };
+        return chart;
       },
     },
     "@/components/AccountControls": {
@@ -316,24 +323,68 @@ test("an overview outage retains all ten public instruments without inventing mo
   assert.doesNotMatch(html, /Mock data|Simulated prices|\$0\.00|NaN/);
 });
 
-test("the first overview settles before chart loading, including overview failures", () => {
+test("both cache probes begin immediately but overlapping full chart refresh waits for overview", () => {
   const pendingRequests = [];
+  const readiness = [];
   const html = renderDashboard({
     overview: { data: null, error: "", loading: true, hasSettled: false },
-    chart: { data: null, error: "Unexpected chart request", loading: false },
+    chart: { data: null, error: "", loading: true },
     requests: pendingRequests,
+    readiness,
   });
-  assert.deepEqual(pendingRequests, ["/api/stocks", null, null]);
+  assert.deepEqual(pendingRequests, ["/api/stocks", "/api/stocks/AAPL/candles?range=1m", null]);
+  assert.deepEqual(readiness, [true, false]);
   assert.match(html, /Loading market data/);
-  assert.doesNotMatch(html, /Unexpected chart request/);
-
-  const failedRequests = [];
+  const afterFailure = [];
   renderDashboard({
     overview: { data: null, error: "Overview unavailable", loading: false, hasSettled: true },
     chart: { data: null, error: "Daily data unavailable", loading: false },
-    requests: failedRequests,
+    readiness: afterFailure,
   });
-  assert.deepEqual(failedRequests, ["/api/stocks", "/api/stocks/AAPL/candles?range=1m", null]);
+  assert.deepEqual(afterFailure, [true, true]);
+});
+
+test("non-overlapping symbols and intraday charts do not wait for overview refresh", () => {
+  for (const selection of [{ selectedSymbol: "NFLX" }, { range: "1d" }]) {
+    const readiness = [];
+    renderDashboard({
+      ...selection,
+      overview: { data: null, error: "", loading: true, hasSettled: false },
+      chart: { data: null, error: "", loading: true },
+      readiness,
+    });
+    assert.deepEqual(readiness, [true, true]);
+  }
+});
+
+test("a cached chart remains useful during the first overview refresh and after a refresh error", () => {
+  for (const refreshError of ["", "Market refresh failed"]) {
+    const html = renderDashboard({
+      overview: { data: null, error: "", loading: true, hasSettled: false },
+      chart: {
+        data: {
+          symbol: "AAPL",
+          range: "1m",
+          interval: "1d",
+          latestClose: 105,
+          changePercent: 5,
+          warning: "Cached snapshot; checking for newer data.",
+          candles: [{ time: "2026-10-20", open: 100, high: 106, low: 99, close: 105 }],
+        },
+        loading: false,
+        refreshing: !refreshError,
+        error: "",
+        refreshError,
+      },
+    });
+    assert.match(html, /data-chart="rendered"/);
+    assert.match(html, /\$105\.00/);
+    assert.doesNotMatch(html, /Loading market data/);
+    if (refreshError) {
+      assert.match(html, /Market refresh failed/);
+      assert.doesNotMatch(html, /checking for newer data/);
+    }
+  }
 });
 
 test("settled overview readiness survives its retry but belongs to its original path", async () => {

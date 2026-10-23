@@ -116,6 +116,21 @@ export function CandlestickChart({
       })) as CandlestickData<Time>[],
     );
     chart.timeScale().fitContent();
+    // Opt-in local measurement includes navigation, hydration, data, and chart paint.
+    // No telemetry is sent, and normal production builds omit this debug branch.
+    let paintFrame = 0;
+    if (process.env.NEXT_PUBLIC_PERFORMANCE_DEBUG === "true") {
+      paintFrame = requestAnimationFrame(() => {
+        paintFrame = requestAnimationFrame(() => {
+          if (!performance.getEntriesByName("folioview:first-chart").length) {
+            performance.mark("folioview:first-chart");
+            console.info(
+              `[FolioView performance] first chart painted at ${Math.round(performance.now())} ms from navigation`,
+            );
+          }
+        });
+      });
+    }
     let resizeFrame = 0;
     const resizeObserver = new ResizeObserver(() => {
       cancelAnimationFrame(resizeFrame);
@@ -125,6 +140,7 @@ export function CandlestickChart({
 
     return () => {
       resizeObserver.disconnect();
+      cancelAnimationFrame(paintFrame);
       cancelAnimationFrame(resizeFrame);
       chart.remove();
     };

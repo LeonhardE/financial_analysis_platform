@@ -50,9 +50,20 @@ def current_user(
     return user
 
 
-@app.get("/api/stocks")
-def list_stocks(service: Annotated[MarketService, Depends(get_market_service)]) -> dict:
-    return service.overview()
+@app.get("/api/stocks", response_model=None)
+def list_stocks(
+    service: Annotated[MarketService, Depends(get_market_service)],
+    response: Response,
+    cached: Annotated[bool, Query()] = False,
+) -> dict | Response:
+    result = service.overview(cached_only=cached)
+    if cached:
+        response.headers["Cache-Control"] = "no-store"
+    return (
+        result
+        if result is not None
+        else Response(status_code=204, headers={"Cache-Control": "no-store"})
+    )
 
 
 @app.get("/api/stocks/search")
@@ -63,10 +74,19 @@ def search_stocks(
     return service.search(q)
 
 
-@app.get("/api/stocks/{symbol}/candles")
+@app.get("/api/stocks/{symbol}/candles", response_model=None)
 def stock_candles(
     symbol: str,
     service: Annotated[MarketService, Depends(get_market_service)],
+    response: Response,
     range: Annotated[Literal["1d", "1w", "1m", "3m", "1y"], Query()] = "1m",
-) -> dict:
-    return service.candles(symbol, range)
+    cached: Annotated[bool, Query()] = False,
+) -> dict | Response:
+    result = service.candles(symbol, range, cached_only=cached)
+    if cached:
+        response.headers["Cache-Control"] = "no-store"
+    return (
+        result
+        if result is not None
+        else Response(status_code=204, headers={"Cache-Control": "no-store"})
+    )

@@ -151,7 +151,7 @@ class ChartRangeProviderTests(unittest.TestCase):
             with self.subTest(chart_range=chart_range):
                 frame = intraday_frame() if interval != "1d" else daily_frame()
                 with patch(
-                    "app.yahoo_provider.yf.download",
+                    "yfinance.download",
                     return_value=pd.concat({"AAPL": frame}, axis=1),
                 ) as download:
                     result = YahooProvider().history([DEFAULT_BY_SYMBOL["AAPL"]], NOW, chart_range)

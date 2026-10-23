@@ -1,6 +1,6 @@
 # Continuous delivery
 
-Pull requests targeting `main` run the GitHub Actions **Quality checks** job. It
+Pull requests, including stacked feature-branch PRs, run the GitHub Actions **Quality checks** job. It
 checks both applications and builds the frontend without cloud credentials. Make
 this check required, require pull requests, and block direct pushes to `main` in
 GitHub branch protection before enabling automatic production deployment.
@@ -84,3 +84,35 @@ python3 -m unittest discover -s infra/gcp/tests -v
 References: [Cloud Run deployment permissions](https://cloud.google.com/run/docs/reference/iam/roles#deployment_permissions),
 [Cloud Run service etag and revision settings](https://cloud.google.com/run/docs/reference/rest/v2/projects.locations.services),
 [Cloud Build substitutions](https://cloud.google.com/build/docs/configuring-builds/substitute-variable-values).
+
+## Cached-first loading and cost
+
+Public overview/chart requests first probe `cached=true`. A usable dated snapshot
+can render immediately; a stale snapshot triggers an ordinary request while the
+browser keeps showing it. A missing snapshot returns bodyless 204. Search and
+private account data never use this cache path. The overlapping default 1M chart
+refresh waits for the overview refresh and then probes its newly populated cache.
+There is no periodic polling or background work after the API response, and
+existing upstream limits remain in force.
+
+The frontend image runs Next.js standalone output with traced dependencies; the
+API imports yfinance only for a download/search. Existing request-based billing
+and minimum-instance settings are retained. No new Console configuration is
+required. A completely empty cache still needs the upstream source, and Cloud Run
+scale-from-zero plus Firestore/network latency must be measured after deployment;
+the implementation does not promise a 1–2 second cold-start SLA.
+
+For a repeatable local mechanism benchmark (synthetic provider, temporary SQLite,
+no cloud credentials or external requests):
+
+```sh
+services/market-data-service/.venv/bin/python infra/gcp/benchmark_market_loading.py
+```
+
+For local browser timing, build with `NEXT_PUBLIC_PERFORMANCE_DEBUG=true` and open
+that production build. The browser console reports the first populated chart
+paint from navigation after two animation frames. This is opt-in local logging,
+not external telemetry. Use the same network/device conditions for comparison;
+measure empty cache, expired cache, warm cache, and a service idle long enough to
+scale to zero separately. Record the source timestamps and refresh status along
+with timings so skeletons or undated prices do not count as useful data.
