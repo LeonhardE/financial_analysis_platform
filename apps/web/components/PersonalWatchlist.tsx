@@ -60,15 +60,17 @@ export function PersonalWatchlist({
   watchlist,
   selectedSymbol,
   onSelect,
+  headingId = "personal-watchlist-title",
 }: {
   watchlist: WatchlistModel;
   selectedSymbol: string;
   onSelect: (instrument: Instrument) => void;
+  headingId?: string;
 }) {
   return (
-    <aside className="watchlist personal-watchlist" aria-labelledby="personal-watchlist-title">
+    <section className="watchlist personal-watchlist" aria-labelledby={headingId}>
       <div className="panel-heading">
-        <h2 id="personal-watchlist-title">My watchlist</h2>
+        <h2 id={headingId}>My watchlist</h2>
         {watchlist.authenticated && (
           <span>
             {watchlist.items.length} / {watchlist.limit}
@@ -133,6 +135,6 @@ export function PersonalWatchlist({
           <p className="overview-footnote">Only visible to your signed-in account</p>
         </>
       )}
-    </aside>
+    </section>
   );
 }

@@ -1,4 +1,4 @@
-"""Anonymous daily market browsing, cached independently of private Firebase identity."""
+"""Anonymous market snapshots, cached independently of private Firebase identity."""
 
 import os
 import re
@@ -9,11 +9,12 @@ from functools import lru_cache
 from fastapi import HTTPException
 
 from .market_cache import CacheUnavailable, MarketCache, bounded_int, create_cache
-from .mock_data import MOCK_CANDLES
+from .mock_data import mock_range_candles
 from .yahoo_provider import (
     ALIASES,
     DEFAULT_BY_SYMBOL,
     DEFAULT_INSTRUMENTS,
+    HISTORY_RANGES,
     NEW_YORK,
     SYMBOL_PATTERN,
     Instrument,
@@ -23,7 +24,7 @@ from .yahoo_provider import (
     static_search,
 )
 
-UNAVAILABLE = "Daily market data is temporarily unavailable. Please try again later."
+UNAVAILABLE = "Market data is temporarily unavailable. Please try again later."
 STALE = "Showing previously fetched Yahoo data while a refresh is unavailable."
 SHARED_CACHE_WARNING = "Market refreshes are paused because the shared cache is unavailable."
 QUERY_PATTERN = re.compile(r"^[\w .&^+\-]{1,50}$", re.UNICODE)
@@ -73,6 +74,8 @@ class MarketService:
 
     def with_status(self, payload, updated_at, now, warning=None):
         result = self.public_payload(payload)
+        # Existing production 1M cache entries predate interval metadata.
+        result.setdefault("interval", "1d")
         result["isStale"] = now >= payload.get("_refreshAfter", updated_at + self.fresh_seconds)
         if warning:
             result["warning"] = warning
@@ -293,7 +296,9 @@ class MarketService:
                 return Instrument(**cached.value)
         raise HTTPException(404, "US stock symbol not found")
 
-    def candles(self, raw_symbol):
+    def candles(self, raw_symbol, chart_range="1m"):
+        if chart_range not in HISTORY_RANGES:
+            raise HTTPException(400, "Choose one of these chart ranges: 1d, 1w, 1m, 3m, 1y")
         symbol = canonical_symbol(raw_symbol)
         if not SYMBOL_PATTERN.fullmatch(symbol):
             raise HTTPException(400, "Invalid stock symbol")
@@ -301,15 +306,17 @@ class MarketService:
             item = DEFAULT_BY_SYMBOL.get(symbol)
             if not item:
                 raise HTTPException(404, "Stock symbol not found")
-            return self.mock_candles(item)
+            return self.mock_candles(item, chart_range)
         now = self.clock()
-        key = f"candles:{symbol}"
+        # Preserve the shared overview/1M cache, while every other range has
+        # its own lease and payload. Intraday data cannot overwrite daily bars.
+        key = f"candles:{symbol}" if chart_range == "1m" else f"candles:{symbol}:{chart_range}"
         previous = None
         try:
             previous = self.cached(key, now)
             if self.fresh(previous, now):
                 return self.with_status(previous.value, previous.updated_at, now)
-            if symbol in DEFAULT_BY_SYMBOL:
+            if symbol in DEFAULT_BY_SYMBOL and chart_range == "1m":
                 # Default charts and the overview share one refresh lease.
                 # This prevents separate page requests downloading AAPL twice
                 # and a slower older response replacing a newer batch result.
@@ -330,7 +337,7 @@ class MarketService:
                 if previous:
                     return self.with_status(previous.value, previous.updated_at, now, reason)
                 raise HTTPException(429, reason, headers={"Retry-After": "60"})
-            values = self.provider.history([item], now)
+            values = self.provider.history([item], now, chart_range)
             payload = values.get(symbol)
             if not payload:
                 raise UpstreamError
@@ -353,21 +360,27 @@ class MarketService:
             raise HTTPException(503, SHARED_CACHE_WARNING) from error
 
     @staticmethod
-    def mock_candles(item):
+    def mock_candles(item, chart_range="1m"):
         # Index fixtures are intentionally derived fictional numbers and are
         # never substituted for failed Yahoo responses.
-        candles = MOCK_CANDLES.get(item.symbol, MOCK_CANDLES["AAPL"])
+        candles = mock_range_candles(item.symbol, chart_range)
+        interval = HISTORY_RANGES[chart_range][1]
         latest = candles[-1]["close"]
-        previous = candles[-2]["close"]
+        previous = mock_range_candles(item.symbol, "1m")[-2]["close"]
         return {
             **item.public(),
-            "range": "1m",
+            "range": chart_range,
+            "interval": interval,
             "source": "mock",
             "isMock": True,
             "candles": candles,
             "latestClose": latest,
             "changePercent": round((latest / previous - 1) * 100, 2),
-            "dataDate": candles[-1]["time"],
+            "dataDate": (
+                datetime.fromtimestamp(candles[-1]["time"], NEW_YORK).date().isoformat()
+                if interval != "1d"
+                else candles[-1]["time"]
+            ),
             "fetchedAt": None,
             "isStale": False,
             "isPartial": False,

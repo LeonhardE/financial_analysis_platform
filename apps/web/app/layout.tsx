@@ -3,8 +3,9 @@ import { AuthProvider } from "@/components/AuthProvider";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Market Watch | Financial Analysis Platform",
-  description: "A local MVP for tracking US equity price movements.",
+  title: "FolioView — Your investing workspace",
+  description:
+    "Follow the US market, explore stock charts, and keep your personal watchlist in one investing workspace.",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {

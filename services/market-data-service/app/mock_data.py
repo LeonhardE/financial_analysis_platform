@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+from datetime import date, datetime, time, timedelta
+from math import sin
 from typing import TypedDict
+from zoneinfo import ZoneInfo
 
 
 class StockDefinition(TypedDict):
@@ -250,7 +253,7 @@ def build_candles(symbol: str) -> list[dict[str, int | float | str]]:
     stock = STOCKS[symbol]
     candles: list[dict[str, int | float | str]] = []
 
-    for index, (date, close) in enumerate(zip(TRADING_DATES, stock["closes"], strict=True)):
+    for index, (trading_date, close) in enumerate(zip(TRADING_DATES, stock["closes"], strict=True)):
         reference = stock["closes"][index - 1] if index else close - 0.8
         open_price = round(reference + OPEN_OFFSETS[index % len(OPEN_OFFSETS)], 2)
         high = round(max(open_price, close) + HIGH_OFFSETS[index % len(HIGH_OFFSETS)], 2)
@@ -258,7 +261,7 @@ def build_candles(symbol: str) -> list[dict[str, int | float | str]]:
         volume = stock["base_volume"] + VOLUME_OFFSETS[index % len(VOLUME_OFFSETS)]
         candles.append(
             {
-                "time": date,
+                "time": trading_date,
                 "open": open_price,
                 "high": high,
                 "low": low,
@@ -271,3 +274,65 @@ def build_candles(symbol: str) -> list[dict[str, int | float | str]]:
 
 
 MOCK_CANDLES = {symbol: build_candles(symbol) for symbol in STOCKS}
+
+
+def mock_range_candles(symbol: str, chart_range: str) -> list[dict[str, int | float | str]]:
+    """Deterministic fictional range fixtures, never a production fallback."""
+    daily = MOCK_CANDLES.get(symbol, MOCK_CANDLES["AAPL"])
+    if chart_range == "1m":
+        return daily
+    if chart_range in {"3m", "1y"}:
+        last_day = date.fromisoformat(daily[-1]["time"])
+        first_fixture = date.fromisoformat(daily[0]["time"])
+        start = last_day - timedelta(days=92 if chart_range == "3m" else 365)
+        previous_close = daily[0]["open"]
+        earlier = []
+        day = first_fixture - timedelta(days=1)
+        while day >= start:
+            if day.weekday() < 5:
+                offset = (first_fixture - day).days
+                close = round(daily[0]["open"] * (1 - offset * 0.0004 + sin(offset / 9) * 0.025), 2)
+                opening = previous_close
+                earlier.append(
+                    {
+                        "time": day.isoformat(),
+                        "open": opening,
+                        "high": round(max(opening, close) * 1.004, 2),
+                        "low": round(min(opening, close) * 0.996, 2),
+                        "close": close,
+                        "volume": daily[0]["volume"],
+                    }
+                )
+                previous_close = close
+            day -= timedelta(days=1)
+        return [*reversed(earlier), *daily]
+
+    step = 5 if chart_range == "1d" else 30
+    sessions = daily[-(1 if chart_range == "1d" else 5) :]
+    intraday = []
+    count = 390 // step
+    for candle in sessions:
+        opening = datetime.combine(
+            date.fromisoformat(candle["time"]), time(9, 30), ZoneInfo("America/New_York")
+        )
+        previous_close = candle["open"]
+        for index in range(count):
+            progress = (index + 1) / count
+            close = round(
+                candle["open"]
+                + (candle["close"] - candle["open"]) * progress
+                + sin(progress * 12) * candle["close"] * 0.001 * (1 - progress),
+                2,
+            )
+            intraday.append(
+                {
+                    "time": int((opening + timedelta(minutes=index * step)).timestamp()),
+                    "open": previous_close,
+                    "high": round(max(previous_close, close) * 1.0005, 2),
+                    "low": round(min(previous_close, close) * 0.9995, 2),
+                    "close": close,
+                    "volume": int(candle["volume"] / count),
+                }
+            )
+            previous_close = close
+    return intraday

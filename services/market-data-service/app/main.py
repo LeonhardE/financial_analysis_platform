@@ -1,7 +1,7 @@
 """FastAPI entrypoint for the local MVP."""
 
 import os
-from typing import Annotated
+from typing import Annotated, Literal
 
 from fastapi import Depends, FastAPI, Query, Response
 from fastapi.middleware.cors import CORSMiddleware
@@ -14,7 +14,7 @@ from .watchlist import router as watchlist_router
 app = FastAPI(
     title="Financial Analysis Platform API",
     version="0.1.0",
-    description="Anonymous cached daily market data and verified Google identity.",
+    description="Anonymous cached market snapshots and verified Google identity.",
 )
 
 app.add_middleware(
@@ -63,6 +63,8 @@ def search_stocks(
 
 @app.get("/api/stocks/{symbol}/candles")
 def stock_candles(
-    symbol: str, service: Annotated[MarketService, Depends(get_market_service)]
+    symbol: str,
+    service: Annotated[MarketService, Depends(get_market_service)],
+    range: Annotated[Literal["1d", "1w", "1m", "3m", "1y"], Query()] = "1m",
 ) -> dict:
-    return service.candles(symbol)
+    return service.candles(symbol, range)
