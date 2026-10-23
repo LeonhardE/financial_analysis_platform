@@ -1,6 +1,7 @@
 "use client";
 
 import { useTranslations } from "next-intl";
+import { useEffect, useRef, useState } from "react";
 import { usePreferences } from "@/components/PreferencesProvider";
 import type { Preferences } from "@/lib/preferences";
 import styles from "./SettingsPanel.module.css";
@@ -18,6 +19,18 @@ export default function SettingsPanel() {
   const { preferences, authenticated, loading, saving, status, error, updatePreferences, retry } =
     usePreferences();
   const disabled = authenticated && (loading || error === "load" || error === "loadTimeout");
+  const wasSaving = useRef(false);
+  const [showSaved, setShowSaved] = useState(false);
+
+  useEffect(() => {
+    // Restoring settings and returning to this page must not replay an old save.
+    const saved = wasSaving.current && authenticated && !saving && status === "saved" && !error;
+    wasSaving.current = authenticated && saving;
+    setShowSaved(Boolean(saved));
+    if (!saved) return;
+    const timeout = window.setTimeout(() => setShowSaved(false), 3_000);
+    return () => window.clearTimeout(timeout);
+  }, [authenticated, saving, status, error]);
 
   return (
     <section className={styles.panel} aria-labelledby="settings-title">
@@ -124,22 +137,19 @@ export default function SettingsPanel() {
               {t("retry")}
             </button>
           </div>
-        ) : (
-          <p>
-            {t(
-              !authenticated
-                ? "guestStatus"
-                : loading
-                  ? "loading"
-                  : saving
-                    ? "saving"
-                    : status === "saved"
-                      ? "saved"
-                      : "ready",
-            )}
-          </p>
-        )}
+        ) : authenticated && (loading || saving) ? (
+          <p>{t(loading ? "loading" : "saving")}</p>
+        ) : null}
       </div>
+      {showSaved && authenticated && status === "saved" && !saving && !error && (
+        <div className={styles.toast} role="status" aria-live="polite" aria-atomic="true">
+          <svg viewBox="0 0 20 20" fill="none" aria-hidden="true" focusable="false">
+            <circle cx="10" cy="10" r="8" stroke="currentColor" strokeWidth="1.5" />
+            <path d="m6 10 2.5 2.5L14 7" stroke="currentColor" strokeWidth="1.5" />
+          </svg>
+          <span>{t("saved")}</span>
+        </div>
+      )}
     </section>
   );
 }

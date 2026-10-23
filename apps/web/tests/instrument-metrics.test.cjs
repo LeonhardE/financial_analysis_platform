@@ -202,6 +202,45 @@ function renderMetrics({
   return { html: render(), requests, render };
 }
 
+test("the unified statistics group preserves the latest chart prices and independent fundamentals", () => {
+  const latest = {
+    time: "2026-10-22",
+    open: 1234.5,
+    high: 1345.67,
+    low: 1200.01,
+    close: 1300.9,
+    volume: 125000,
+  };
+  const { html, requests } = renderMetrics({
+    candleData: candles([candle("2026-10-21", 500), latest]),
+    resource: { data: fundamentals() },
+  });
+  const entries = [...html.matchAll(/<dt>(.*?)<\/dt><dd>(.*?)<\/dd>/g)].map((match) => [
+    match[1],
+    match[2],
+  ]);
+  assert.equal((html.match(/<dl\b/g) ?? []).length, 1);
+  assert.deepEqual(entries, [
+    ["OPEN", "1,234.50"],
+    ["HIGH", "1,345.67"],
+    ["LOW", "1,200.01"],
+    ["CLOSE", "1,300.90"],
+    ["P/E (TTM)", "29.87"],
+    ["Trading-session volume", "125K"],
+    ["Market cap", "CA$1.23B"],
+  ]);
+  assert.deepEqual(requests, ["/api/stocks/AAPL/metrics"]);
+});
+
+test("the unified group never shows another instrument's candle prices", () => {
+  const { html } = renderMetrics({
+    candleData: candles([candle("2026-10-22", 125000)], { symbol: "MSFT" }),
+    resource: { data: fundamentals({ symbol: "MSFT" }) },
+  });
+  const values = [...html.matchAll(/<dd>(.*?)<\/dd>/g)].map((match) => match[1]);
+  assert.deepEqual(values, Array(7).fill("—"));
+});
+
 test("fundamentals wait for the selected chart and never start an index request", () => {
   const chart = candles([candle("2026-10-22", 100)]);
   for (const options of [
@@ -252,6 +291,10 @@ test("cached fundamentals retain their own timestamp and currency while Chinese 
     candleData: candles([candle("2026-10-22", 125000)], { isPartial: true }),
     resource: { data: fundamentals({ isStale: true }), refreshing: true },
   });
+  assert.match(html, /<dt>开盘<\/dt><dd>1\.00<\/dd>/);
+  assert.match(html, /<dt>最高<\/dt><dd>2\.00<\/dd>/);
+  assert.match(html, /<dt>最低<\/dt><dd>1\.00<\/dd>/);
+  assert.match(html, /<dt>收盘<\/dt><dd>2\.00<\/dd>/);
   assert.match(html, /市盈率（TTM）/);
   assert.match(html, /29\.87/);
   assert.match(html, /CAD/);
