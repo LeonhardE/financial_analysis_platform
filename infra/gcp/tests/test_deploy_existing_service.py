@@ -2,6 +2,7 @@
 
 import copy
 import importlib.util
+import json
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -487,6 +488,85 @@ class DeploymentTests(unittest.TestCase):
         ]
         with patch("sys.argv", args), patch.object(deploy_script, "gcloud") as cloud:
             with self.assertRaisesRegex(RuntimeError, "main-branch"):
+                deploy_script.main()
+            cloud.assert_not_called()
+
+
+class ServiceEntryPointTests(unittest.TestCase):
+    def args(self, service, *extra):
+        image = (
+            "northamerica-northeast2-docker.pkg.dev/test-project/financial-analysis/"
+            f"{service}:{BUILD}"
+        )
+        return [
+            "deploy",
+            "--project=test-project",
+            "--region=northamerica-northeast2",
+            "--build-region=northamerica-northeast2",
+            f"--service={service}",
+            f"--image={image}",
+            f"--build-id={BUILD}",
+            f"--commit={COMMIT}",
+            "--branch=main",
+            *extra,
+        ]
+
+    def test_each_domain_deploys_only_its_own_existing_service(self):
+        metadata = json.dumps(
+            {
+                "createTime": CREATED,
+                "substitutions": {"BRANCH_NAME": "main", "COMMIT_SHA": COMMIT},
+            }
+        )
+        for service in ("market-api", "user-api", "config-api", "market-web"):
+            with (
+                self.subTest(service=service),
+                patch("sys.argv", self.args(service)),
+                patch.object(deploy_script, "gcloud", return_value=metadata),
+                patch.object(deploy_script, "RunAPI") as api,
+                patch.object(deploy_script, "deploy") as deploy,
+            ):
+                deploy_script.main()
+                deploy.assert_called_once_with(
+                    api.return_value,
+                    f"projects/test-project/locations/northamerica-northeast2/services/{service}",
+                    (
+                        "northamerica-northeast2-docker.pkg.dev/test-project/"
+                        f"financial-analysis/{service}:{BUILD}"
+                    ),
+                    BUILD,
+                    CREATED,
+                    COMMIT,
+                )
+
+    def test_build_only_bootstrap_does_not_read_or_update_cloud_services(self):
+        for service in ("user-api", "config-api"):
+            with (
+                self.subTest(service=service),
+                patch("sys.argv", self.args(service, "--deploy-enabled=false")),
+                patch.object(deploy_script, "gcloud") as cloud,
+                patch.object(deploy_script, "RunAPI") as api,
+                patch.object(deploy_script, "deploy") as deploy,
+            ):
+                deploy_script.main()
+                cloud.assert_not_called()
+                api.assert_not_called()
+                deploy.assert_not_called()
+
+    def test_build_only_mode_still_rejects_a_cross_service_image(self):
+        args = self.args("user-api", "--deploy-enabled=false")
+        args = [arg.replace("/user-api:", "/market-api:") for arg in args]
+        with patch("sys.argv", args), patch.object(deploy_script, "gcloud") as cloud:
+            with self.assertRaisesRegex(RuntimeError, "image must use this service"):
+                deploy_script.main()
+            cloud.assert_not_called()
+
+    def test_false_like_deployment_flags_are_rejected_without_cloud_calls(self):
+        with (
+            patch("sys.argv", self.args("user-api", "--deploy-enabled=0")),
+            patch.object(deploy_script, "gcloud") as cloud,
+        ):
+            with self.assertRaises(SystemExit):
                 deploy_script.main()
             cloud.assert_not_called()
 

@@ -8,52 +8,88 @@ for other US stocks. Optional Google sign-in uses Firebase Authentication, with 
 verifying identity before returning a profile. Signed-in users can save a personal watchlist that
 survives refreshes and sign-in on another device. YouTube summaries remain planned follow-up work.
 
+## Service boundaries
+
+| Service               | Responsibility                                                   | Routes                             | Local port |
+| --------------------- | ---------------------------------------------------------------- | ---------------------------------- | ---------- |
+| Market (`market-api`) | Public US instruments, search, cached prices, charts and metrics | `/api/stocks*`                     | 8000       |
+| User (`user-api`)     | Verified Google profile and private stock-watchlist membership   | `/api/v1/me`, `/api/v1/watchlist*` | 8001       |
+| Config (`config-api`) | Private UI preferences and version-fenced saves                  | `/api/v1/preferences`              | 8002       |
+
+Each backend has its own app, image, requirements, health endpoint, runtime identity and deployment
+configuration. All private endpoints verify Firebase tokens independently; Config does not call User
+or load stock-watchlist code. User validates genuinely new watchlist instruments through the public
+Market HTTP contract, without forwarding user tokens. Listing, deletion and duplicate additions still
+work when Market is unavailable. Market cannot serve private routes.
+
+The shared Python package contains authentication, HTTP policy, stable document ownership, bounded
+Firestore transactions and public instrument contracts. It contains no provider clients, user data
+stores or business routers. Services do not import each other's Python apps. Existing Firestore
+collections, UID hashes, document schemas and preference versions are preserved; no data migration is
+required. Separate runtime identities sharing the same Firestore database are not collection-level IAM
+isolation; application ownership checks remain necessary.
+
+Future YouTube research will have its own Research API and private worker. Portfolio behavior will
+also have its own domain service when implemented. Market-related APIs remain in Market; domain-specific
+settings and user-owned research data need not become generic User/Config endpoints.
+
 ## Repository structure
 
 ```text
 apps/
   web/                         Next.js web client
 services/
-  market-data-service/         FastAPI market data and identity API
-infra/gcp/                     Cloud Build deployment configurations and release guard
-.github/workflows/             Pull request quality checks
+  market-data-service/         Public market API; retains its existing deployment path
+  user-service/                Verified identity and private stock watchlists
+  config-service/              Private account preferences
+  common/folioview_shared/     Shared infrastructure and wire contracts
+  requirements-dev.txt         Combined local/CI development dependencies
+scripts/test_services.py        Isolated test processes for each backend
+infra/gcp/                     Independent builds and guarded Cloud Run releases
+.github/workflows/             PR quality checks and backend-image smoke tests
 changelog/                     One Markdown record per material tracked change
 ```
 
 ## Local setup
 
-Use Node.js 24.12 or newer and Python 3.13. Install the web workspace and repository tooling:
+Use Node.js 24.12 or newer and Python 3.13. Install the web workspace and a single development
+Python environment from the repository root. Its established location is retained for existing tools;
+each production image installs only its own requirements.
 
 ```bash
 npm install
-```
-
-Create the Python environment and install the API dependencies:
-
-```bash
 python3 -m venv services/market-data-service/.venv
-services/market-data-service/.venv/bin/pip install \
-  -r services/market-data-service/requirements-dev.txt
+services/market-data-service/.venv/bin/pip install -r services/requirements-dev.txt
 ```
 
-Start the API:
+Copy each backend's `.env.example` into its own `.env` and set the desired configuration. Start each
+backend from the repository root in a separate terminal. Uvicorn explicitly loads that service's
+environment; the apps do not implicitly read files or borrow another service's configuration.
 
 ```bash
-cd services/market-data-service
-.venv/bin/uvicorn app.main:app --reload --port 8000
+PYTHONPATH=services/common services/market-data-service/.venv/bin/uvicorn app.main:app --app-dir services/market-data-service --env-file services/market-data-service/.env --reload --port 8000
 ```
 
-Start the web client from another terminal:
+```bash
+PYTHONPATH=services/common services/market-data-service/.venv/bin/uvicorn app.main:app --app-dir services/user-service --env-file services/user-service/.env --reload --port 8001
+```
+
+```bash
+PYTHONPATH=services/common services/market-data-service/.venv/bin/uvicorn app.main:app --app-dir services/config-service --env-file services/config-service/.env --reload --port 8002
+```
+
+Copy `apps/web/.env.example` into `apps/web/.env.local` so its three origins target those ports, then
+start the frontend:
 
 ```bash
 npm run dev:web
 ```
 
-The web client runs at `http://localhost:3000`; API documentation is at `http://localhost:8000/docs`.
-The default data source is yfinance, with a persistent local SQLite cache; Firebase configuration is
-optional for anonymous browsing. To work offline with fictional fixtures, explicitly set
-`MARKET_DATA_SOURCE=mock` in the API process. The page labels this mode as mock data. Real-data
-failures never fall back to fictional prices.
+The frontend runs at `http://localhost:3000`; each service exposes `/docs` and `/health` on its own
+port. Set the same `FIREBASE_PROJECT_ID` on User and Config for sign-in. User also needs
+`MARKET_API_BASE_URL=http://127.0.0.1:8000` for new watchlist entries. SQLite is local-only. No
+Google credentials are required for anonymous mock browsing; set `MARKET_DATA_SOURCE=mock` to use
+fictional fixtures explicitly. Real-data failures never silently become mock prices.
 
 ## Daily market data and caching
 
@@ -117,15 +153,16 @@ that Web app's configuration: `NEXT_PUBLIC_FIREBASE_API_KEY`, `NEXT_PUBLIC_FIREB
 Firebase provides it; it is separate from the frontend's authorized hostname. Leaving all four empty
 keeps anonymous browsing available with sign-in unavailable. Restart local Next.js after changes.
 
-Set `FIREBASE_PROJECT_ID` in the API process to the same Firebase project ID. The API uses Application
-Default Credentials (ADC); on Cloud Run, use its attached runtime service account. Grant that account
+Set `FIREBASE_PROJECT_ID` in both User and Config to the same Firebase project ID. Both use
+Application Default Credentials (ADC); on Cloud Run, attach each dedicated runtime service account.
+Grant each account
 **Firebase Authentication Viewer** (`roles/firebaseauth.viewer`) on the project so it can check whether
 users have been disabled, deleted, or their tokens revoked. Do not download a service-account JSON key.
 For local real-project testing, configure local ADC separately; the API does not automatically load
 `.env` files. For example, use Uvicorn's `--env-file .env` when starting inside the service directory.
 
 The browser signs in with Google's popup and sends a Firebase ID token in the Authorization header to
-`GET /api/v1/me`. Only the backend-verified profile is shown as signed in. Invalid identities return
+`GET /api/v1/me` on User. Only the backend-verified profile is shown as signed in. Invalid identities return
 401; missing configuration or upstream failures return 503. Identity responses are not cached. The
 existing health, stock list and candle endpoints remain public, even if Firebase is unavailable.
 The shared market cache contains public market data, not user profiles or watchlists. Sign-in
@@ -157,10 +194,11 @@ Private routes require a Firebase token and derive ownership exclusively from it
 | PUT    | `/api/v1/watchlist/{symbol}` | Add once; repeated additions do not create duplicates. |
 | DELETE | `/api/v1/watchlist/{symbol}` | Remove if present.                                     |
 
-The API stores one bounded document per account in the existing Firestore `user_watchlists`
+User stores one bounded document per account in the existing Firestore `user_watchlists`
 collection, using a hash of the UID as its key. The cap is checked inside an atomic transaction.
-Existing API runtime database permissions and `MARKET_*` database settings are reused; no new
-production key, database or browser Firestore permission is required. Local SQLite storage uses
+Set `USER_STORE_BACKEND=firestore` and `FIRESTORE_DATABASE` on User, with its own runtime database
+permissions. The old `MARKET_CACHE_BACKEND` / `MARKET_FIRESTORE_DATABASE` values remain fallback
+configuration during migration. No new database or browser Firestore permission is required. Local SQLite storage uses
 `WATCHLIST_DB_PATH`, defaulting to `/tmp/financial-analysis/watchlists.sqlite3`, and is refused on
 Cloud Run.
 
@@ -189,68 +227,54 @@ popup require deployment smoke tests as well.
 Format TypeScript/CSS/Markdown and Python code with `npm run format`. The local pre-commit hook runs
 `npm run check`.
 
-## Cloud Run deployment
+## Cloud Run deployment and migration
 
-Both public Cloud Run services use port 8080 and a regional Artifact Registry repository named
-`financial-analysis`. The configuration defaults to `northamerica-northeast2` (Toronto). The two
-services must already exist; deployment updates their images while preserving runtime settings.
+**This refactor removes private routes from the new Market image. Follow the staged migration in
+[the Console deployment guide](infra/gcp/README.md#market-user-and-config-service-migration) before enabling
+Market image updates.** Existing production runs the retained combined revision until cutover; the
+new code does not carry a second compatibility copy of the User/Config handlers.
 
-GitHub Actions runs **Quality checks** for pull requests and pushes to `main`: repository checks plus
-a production frontend build. It receives no Google Cloud credentials. Protect `main` with required
-pull requests and this status check so a `main` push represents an approved merge. The workflow runs
-for documentation-only PRs as well, keeping required checks from remaining pending.
+All three backend Cloud Build files default to `_DEPLOY_SERVICE=false`: they build/push uniquely
+tagged images without replacing a running service. This is the one-time migration gate, not a permanent
+replacement for CD. Web still deploys normally. The new frontend User/Config origins are optional only
+during migration: empty values target the existing combined API, while configured services never
+fall back to Market after a network or server failure.
 
-The existing Cloud Build triggers use `infra/gcp/cloudbuild.api.yaml` and
-`infra/gcp/cloudbuild.web.yaml`. Configure them for pushes matching `^main$`, with the included-file
-filters and scoped IAM grants in the [Console setup guide](infra/gcp/README.md). Each builds and
-explicitly pushes an image tagged by Build ID, then updates its existing service and directs traffic
-to the new ready revision. A creation-time ordering guard and Cloud Run etag checks prevent a
-late-finishing, earlier-created build from replacing a newer accepted deployment. This orders build
-creation times rather than Git ancestry.
+| Cloud Run service | Build configuration                | Frontend/runtime routing                               |
+| ----------------- | ---------------------------------- | ------------------------------------------------------ |
+| `market-api`      | `infra/gcp/cloudbuild.api.yaml`    | Web `_API_BASE_URL`; User `MARKET_API_BASE_URL`        |
+| `user-api`        | `infra/gcp/cloudbuild.user.yaml`   | Web `_USER_API_BASE_URL`                               |
+| `config-api`      | `infra/gcp/cloudbuild.config.yaml` | Web `_CONFIG_API_BASE_URL`                             |
+| `market-web`      | `infra/gcp/cloudbuild.web.yaml`    | All origins and Firebase values compiled at build time |
 
-For the existing project, finish these one-time Console settings before merging the first release:
+Console rollout: publish initial images; create/configure User and Config with their own runtime
+identities, Firebase project, original Firestore database and frontend CORS origin; verify both private
+APIs; rebuild Web with both new origins; verify real sign-in, two-account watchlist isolation and saved
+preferences; only then set Market `_DEPLOY_SERVICE=true` and deploy the Market-only image. Enable
+`_DEPLOY_SERVICE=true` separately on User and Config after their bootstrap configuration is complete.
+Check trigger-level overrides: a preexisting `true` overrides YAML defaults and must be cleared for
+this migration. The deployment helper updates existing services; it does not create resources or grant
+IAM permissions.
 
-1. Keep the existing Artifact Registry repository, services and dedicated runtime identities.
-2. Set the API runtime's `FIREBASE_PROJECT_ID` and attach
-   the runtime identity with the Firebase Authentication Viewer role described above. Before
-   switching to real data, create the Firestore database and grant Cloud Datastore User as described
-   in the caching section. Set `MARKET_DATA_SOURCE=yfinance` and `MARKET_CACHE_BACKEND=firestore`.
-3. In the web trigger, set `_API_BASE_URL` to the existing API origin,
-   without a path or trailing slash. For sign-in, also set `_FIREBASE_API_KEY`, `_FIREBASE_AUTH_DOMAIN`,
-   `_FIREBASE_PROJECT_ID` and `_FIREBASE_APP_ID` from the Firebase Web app. All four may remain empty
-   for an anonymous-only deployment.
-4. Set the API's `CORS_ORIGINS` runtime variable to the exact frontend origin, without a trailing
-   slash. Multiple explicit origins are comma-separated. Add the frontend
-   hostname, without protocol or path, to Firebase Authentication's authorized domains.
-5. Give the build identity **Cloud Run Developer** on each service and **Service Account User** on
-   the matching runtime identities, retaining its existing build/artifact permissions. Update the
-   two triggers to the main-branch events and included-file filters in the setup guide.
-6. Merge the checked PR and follow both Cloud Build runs. The services release independently;
-   keep API changes backward compatible with the previously deployed frontend.
-7. Test all three indices, an additional stock found through search, daily data dates, cache reuse,
-   Google sign-in, refresh, sign-out and unauthenticated rejection of `/api/v1/me`. Verify both
-   services serve the new revisions. The health endpoint reports the configured source without
-   contacting Yahoo; a healthy process alone does not prove that market refreshes succeed. Test
-   watchlist add/remove, refresh/relogin restoration and isolation using two real accounts.
+After Market cutover, an old frontend with empty User/Config URLs cannot use the Market-only service.
+Rollback must preserve explicit User/Config origins, or restore the retained combined Market revision
+before rolling Web back. Do not delete retained revisions until the migration is verified.
 
-Use Cloud Run **Revision History → Manage traffic** to return traffic to a retained revision when
-needed. A future successful main-branch build deploys forward again. The deployment helper uses the
-existing build identity; no downloaded key or new always-running service is introduced. GitHub
-Actions checks are free on standard hosted runners for public repositories; Cloud Build, image
-storage and runtime usage still follow their quotas and billing.
+Each release preserves Console-owned runtime configuration, uses a build creation-time ordering guard
+and etag checks, and waits for the expected ready revision receiving all traffic. Use dedicated
+runtime identities, minimum instances zero and bounded maximums. No API gateway, load balancer, GPU,
+VM, Redis or new database is introduced. Build/storage/logging/runtime charges remain subject to usage;
+scale-to-zero and application limits are not whole-project spending caps.
 
-Frontend `NEXT_PUBLIC_*` values are compiled into the browser bundle. Changing Cloud Run runtime
-variables does not update them: rebuild and redeploy the frontend image. Firebase Web configuration
-is public, but OAuth client secrets, service-account keys and ID tokens must never be build arguments.
+GitHub Actions checks types, lint, format, isolated service tests, deployment guards and the frontend
+production build. It also builds and starts all three independent backend Docker images in a matrix,
+without Google Cloud credentials. Cloud Build main triggers publish/deploy their own domain only;
+shared-package changes must be included by every backend trigger. Configure included-file filters and
+service-scoped deployment IAM using the Console guide. Firebase ID tokens, service-account keys and
+other secrets must never be public build arguments. `NEXT_PUBLIC_*` origins and Firebase Web config
+are public, compiled values: changing runtime variables alone does not update the browser bundle.
 
-Use dedicated build and runtime service accounts. Only the API runtime needs the Firebase read role;
-the web runtime needs no application resource role. Keep minimum instances at zero and a small maximum
-instance count. The existing alerts-only budget is not a spending cap. Cloud Run, build, storage and
-network charges remain separate from Authentication. Do not enable paid market data, SMS sign-in,
-Cloud SQL or Redis for this phase. Firestore has a free usage allowance for one database; it is not
-an unlimited free service. See [Firestore pricing](https://firebase.google.com/docs/firestore/pricing).
-
-The local bilingual deployment, authentication and real-data runbooks remain excluded from Git in
+The paired local-only Console runbook and future Research plan remain excluded from Git in
 `local-docs/`.
 
 ## Change records

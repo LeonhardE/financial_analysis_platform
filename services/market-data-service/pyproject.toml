@@ -11,6 +11,9 @@ target-version = "py313"
 [tool.ruff.lint]
 select = ["B", "E", "F", "I", "UP"]
 
+[tool.ruff.lint.isort]
+known-first-party = ["app", "folioview_shared"]
+
 [tool.ruff.format]
 quote-style = "double"
 indent-style = "space"

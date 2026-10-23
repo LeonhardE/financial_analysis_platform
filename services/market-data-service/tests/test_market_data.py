@@ -478,7 +478,7 @@ class MarketRouteTests(unittest.TestCase):
                 response = self.client.get(route)
                 self.assertEqual(response.status_code, 200)
                 self.assertTrue(response.json()["isMock"])
-        self.assertEqual(self.client.get("/api/v1/me").status_code, 401)
+        self.assertEqual(self.client.get("/api/v1/me").status_code, 404)
 
     def test_long_queries_rejected_and_symbols_case_normalized(self):
         self.assertEqual(

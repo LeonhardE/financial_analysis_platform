@@ -7,6 +7,8 @@ WORKDIR /app
 
 COPY services/market-data-service/requirements.txt ./requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
+COPY services/common ./common
+RUN pip install --no-cache-dir ./common
 RUN useradd --system --uid 10001 --create-home appuser
 
 COPY services/market-data-service/app ./app

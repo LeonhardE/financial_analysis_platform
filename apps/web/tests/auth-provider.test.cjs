@@ -47,6 +47,7 @@ async function settle() {
 function mountProvider({
   logout = async () => {},
   fetchProfile = async () => profileResponse("a"),
+  env = {},
 } = {}) {
   let state;
   let observer;
@@ -96,7 +97,7 @@ function mountProvider({
       if (!(name in imports)) throw new Error(`Unexpected test import ${name}`);
       return imports[name];
     },
-    process: { env: {} },
+    process: { env },
     AbortController,
     window: { setTimeout: () => 1, clearTimeout: () => {} },
     fetch: (...args) => {
@@ -202,7 +203,7 @@ test("private requests use a fresh SDK token, fixed API route, and no credential
   const harness = mountProvider();
   harness.emitUser(account);
   await settle();
-  await harness.actions.requestPrivate("/api/v1/watchlist/NFLX", "a:1", { method: "PUT" });
+  await harness.actions.requestPrivate("user", "/api/v1/watchlist/NFLX", "a:1", { method: "PUT" });
   assert.equal(tokens, 2);
   const [url, options] = harness.requests[1];
   assert.match(url, /\/api\/v1\/watchlist\/NFLX$/);
@@ -211,10 +212,143 @@ test("private requests use a fresh SDK token, fixed API route, and no credential
   assert.equal(options.credentials, "omit");
   assert.equal(options.cache, "no-store");
   await assert.rejects(
-    harness.actions.requestPrivate("https://example.com/api/v1/watchlist", "a:1"),
+    harness.actions.requestPrivate("user", "https://example.com/api/v1/watchlist", "a:1"),
     /Invalid private API path/,
   );
   assert.equal(harness.requests.length, 2);
+});
+
+test("profile, watchlist and preferences use only their configured service origins", async () => {
+  const harness = mountProvider({
+    env: {
+      NEXT_PUBLIC_API_BASE_URL: "https://market.example.com",
+      NEXT_PUBLIC_USER_API_BASE_URL: "https://user.example.com",
+      NEXT_PUBLIC_CONFIG_API_BASE_URL: "https://config.example.com",
+    },
+  });
+  harness.emitUser(user("a"));
+  await settle();
+  await harness.actions.requestPrivate("user", "/api/v1/watchlist", "a:1");
+  await harness.actions.requestPrivate("config", "/api/v1/preferences", "a:1");
+  assert.deepEqual(
+    harness.requests.map(([url]) => url),
+    [
+      "https://user.example.com/api/v1/me",
+      "https://user.example.com/api/v1/watchlist",
+      "https://config.example.com/api/v1/preferences",
+    ],
+  );
+  assert.ok(
+    harness.requests.every(
+      ([, options]) =>
+        options.cache === "no-store" &&
+        options.credentials === "omit" &&
+        options.headers.Authorization === "Bearer test-token-a",
+    ),
+  );
+});
+
+test("each omitted service origin independently retains the legacy API during migration", async () => {
+  for (const [env, userOrigin, configOrigin] of [
+    [{}, "http://localhost:8000", "http://localhost:8000"],
+    [
+      {
+        NEXT_PUBLIC_API_BASE_URL: "https://legacy.example.com",
+        NEXT_PUBLIC_USER_API_BASE_URL: "",
+        NEXT_PUBLIC_CONFIG_API_BASE_URL: "",
+      },
+      "https://legacy.example.com",
+      "https://legacy.example.com",
+    ],
+    [
+      {
+        NEXT_PUBLIC_API_BASE_URL: "https://legacy.example.com",
+        NEXT_PUBLIC_USER_API_BASE_URL: "https://user.example.com",
+      },
+      "https://user.example.com",
+      "https://legacy.example.com",
+    ],
+    [
+      {
+        NEXT_PUBLIC_API_BASE_URL: "https://legacy.example.com",
+        NEXT_PUBLIC_CONFIG_API_BASE_URL: "https://config.example.com",
+      },
+      "https://legacy.example.com",
+      "https://config.example.com",
+    ],
+  ]) {
+    const harness = mountProvider({ env });
+    harness.emitUser(user("a"));
+    await settle();
+    await harness.actions.requestPrivate("user", "/api/v1/watchlist", "a:1");
+    await harness.actions.requestPrivate("config", "/api/v1/preferences", "a:1");
+    assert.deepEqual(
+      harness.requests.map(([url]) => url),
+      [
+        `${userOrigin}/api/v1/me`,
+        `${userOrigin}/api/v1/watchlist`,
+        `${configOrigin}/api/v1/preferences`,
+      ],
+    );
+  }
+});
+
+test("a private route cannot send a token to another domain's service", async () => {
+  let tokens = 0;
+  const harness = mountProvider();
+  harness.emitUser({ uid: "a", getIdToken: async () => `token-${++tokens}` });
+  await settle();
+  for (const [service, path] of [
+    ["user", "/api/v1/preferences"],
+    ["config", "/api/v1/watchlist"],
+    ["config", "/api/v1/watchlist/AAPL"],
+    ["market", "/api/v1/watchlist"],
+    ["config", "/api/v1/me"],
+    ["user", "//other.example.com/api/v1/watchlist"],
+  ]) {
+    await assert.rejects(
+      harness.actions.requestPrivate(service, path, "a:1"),
+      /Invalid private API path/,
+    );
+  }
+  assert.equal(tokens, 1);
+  assert.equal(harness.requests.length, 1);
+});
+
+test("service failures never retry a token or write against the legacy API", async () => {
+  for (const failWith of [
+    () => ({ ok: false, status: 503 }),
+    () => {
+      throw new TypeError("Network unavailable");
+    },
+  ]) {
+    const harness = mountProvider({
+      env: {
+        NEXT_PUBLIC_API_BASE_URL: "https://legacy.example.com",
+        NEXT_PUBLIC_USER_API_BASE_URL: "https://user.example.com",
+        NEXT_PUBLIC_CONFIG_API_BASE_URL: "https://config.example.com",
+      },
+      fetchProfile: async (url) => (url.endsWith("/api/v1/me") ? profileResponse("a") : failWith()),
+    });
+    harness.emitUser(user("a"));
+    await settle();
+    const requests = [
+      harness.actions.requestPrivate("user", "/api/v1/watchlist/AAPL", "a:1", {
+        method: "PUT",
+      }),
+      harness.actions.requestPrivate("config", "/api/v1/preferences", "a:1", {
+        method: "PUT",
+        json: { theme: "light", language: "en", defaultChartRange: "1m", expectedVersion: 0 },
+      }),
+    ];
+    const results = await Promise.allSettled(requests);
+    assert.ok(
+      results.every((result) => result.status === "rejected" || result.value.status === 503),
+    );
+    assert.equal(harness.requests.length, 3);
+    assert.ok(harness.requests.every(([url]) => !url.startsWith("https://legacy.example.com")));
+    assert.equal(harness.state().profile.uid, "a");
+  }
 });
 
 test("switching account while a private token is pending cannot send the previous token", async () => {
@@ -229,7 +363,7 @@ test("switching account while a private token is pending cannot send the previou
     getIdToken: () => (++attempts === 1 ? Promise.resolve("test-token-a") : token.promise),
   });
   await settle();
-  const pending = harness.actions.requestPrivate("/api/v1/watchlist/NFLX", "a:1", {
+  const pending = harness.actions.requestPrivate("user", "/api/v1/watchlist/NFLX", "a:1", {
     method: "PUT",
   });
   const rejected = assert.rejects(pending, /account session changed/);
@@ -251,12 +385,12 @@ test("a private 401 hides verified identity without repeated token refreshes", a
   harness.emitUser({ uid: "a", getIdToken: async () => `test-token-${++attempts}` });
   await settle();
   await assert.rejects(
-    harness.actions.requestPrivate("/api/v1/watchlist", "a:1"),
+    harness.actions.requestPrivate("user", "/api/v1/watchlist", "a:1"),
     /account session changed/,
   );
   assert.equal(harness.state().status, "error");
   assert.equal(harness.state().profile, null);
-  await assert.rejects(harness.actions.requestPrivate("/api/v1/watchlist", "a:1"));
+  await assert.rejects(harness.actions.requestPrivate("user", "/api/v1/watchlist", "a:1"));
   assert.equal(attempts, 2);
   assert.equal(harness.requests.length, 2);
 });
@@ -271,7 +405,7 @@ test("a late rejected private response from A cannot invalidate verified account
   });
   harness.emitUser(user("a"));
   await settle();
-  const pending = harness.actions.requestPrivate("/api/v1/watchlist", "a:1");
+  const pending = harness.actions.requestPrivate("user", "/api/v1/watchlist", "a:1");
   const rejected = assert.rejects(pending, /account session changed/);
   await settle();
   harness.emitUser(user("b"));
@@ -294,7 +428,7 @@ test("failed private token acquisition hides identity and never transmits an inv
   });
   await settle();
   await assert.rejects(
-    harness.actions.requestPrivate("/api/v1/watchlist", "a:1"),
+    harness.actions.requestPrivate("user", "/api/v1/watchlist", "a:1"),
     /account session changed/,
   );
   assert.equal(harness.state().profile, null);
@@ -311,7 +445,7 @@ test("logging out while a private token is pending prevents the private fetch", 
     getIdToken: () => (++attempts === 1 ? Promise.resolve("test-token-a") : token.promise),
   });
   await settle();
-  const pending = harness.actions.requestPrivate("/api/v1/watchlist/NFLX", "a:1", {
+  const pending = harness.actions.requestPrivate("user", "/api/v1/watchlist/NFLX", "a:1", {
     method: "PUT",
   });
   const rejected = assert.rejects(pending, /account session changed/);
@@ -332,7 +466,7 @@ test("preferences JSON stays on its exact private endpoint with authenticated no
     defaultChartRange: "1y",
     expectedVersion: 2,
   };
-  await harness.actions.requestPrivate("/api/v1/preferences", "a:1", {
+  await harness.actions.requestPrivate("config", "/api/v1/preferences", "a:1", {
     method: "PUT",
     json: preferences,
   });
@@ -349,7 +483,7 @@ test("preferences JSON stays on its exact private endpoint with authenticated no
     "https://example.com/api/v1/preferences",
   ]) {
     await assert.rejects(
-      harness.actions.requestPrivate(path, "a:1", { method: "PUT", json: preferences }),
+      harness.actions.requestPrivate("config", path, "a:1", { method: "PUT", json: preferences }),
       /Invalid private API path/,
     );
   }
@@ -360,7 +494,12 @@ test("preferences JSON stays on its exact private endpoint with authenticated no
     ["/api/v1/preferences", { method: "PUT" }],
   ]) {
     await assert.rejects(
-      harness.actions.requestPrivate(path, "a:1", options),
+      harness.actions.requestPrivate(
+        path.startsWith("/api/v1/preferences") ? "config" : "user",
+        path,
+        "a:1",
+        options,
+      ),
       /Invalid private API request/,
     );
   }
@@ -377,7 +516,7 @@ test("aborting a pending settings token prevents its JSON write after the deadli
   });
   await settle();
   const controller = new AbortController();
-  const pending = harness.actions.requestPrivate("/api/v1/preferences", "a:1", {
+  const pending = harness.actions.requestPrivate("config", "/api/v1/preferences", "a:1", {
     method: "PUT",
     signal: controller.signal,
     json: { theme: "light", language: "en", defaultChartRange: "1m", expectedVersion: 0 },

@@ -109,7 +109,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
       }, 20_000);
       try {
         const readCurrent = async () => {
-          const response = await requestPrivate("/api/v1/preferences", owner, {
+          const response = await requestPrivate("config", "/api/v1/preferences", owner, {
             method: "GET",
             signal: controller.signal,
           });
@@ -146,7 +146,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
           const revision = beforeSave.revision;
           const expectedVersion = beforeSave.serverVersion;
           if (expectedVersion === null) throw new Error("Preferences version is unavailable");
-          const response = await requestPrivate("/api/v1/preferences", owner, {
+          const response = await requestPrivate("config", "/api/v1/preferences", owner, {
             method: "PUT",
             signal: controller.signal,
             json: { ...draft, expectedVersion },
