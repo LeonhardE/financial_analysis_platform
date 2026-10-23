@@ -22,13 +22,14 @@ FROM node:24-bookworm-slim AS runner
 
 ENV NODE_ENV=production
 ENV PORT=8080
+ENV HOSTNAME=0.0.0.0
 WORKDIR /app
 
-COPY --from=builder --chown=node:node /app/package.json /app/package-lock.json ./
-COPY --from=builder --chown=node:node /app/node_modules ./node_modules
-COPY --from=builder --chown=node:node /app/apps/web ./apps/web
+# Next.js traces just the dependencies needed to run the production server.
+COPY --from=builder --chown=node:node /app/apps/web/.next/standalone ./
+COPY --from=builder --chown=node:node /app/apps/web/.next/static ./apps/web/.next/static
 
 USER node
 EXPOSE 8080
 
-CMD ["sh", "-c", "exec node node_modules/next/dist/bin/next start apps/web --hostname 0.0.0.0 --port \"${PORT:-8080}\""]
+CMD ["node", "apps/web/server.js"]

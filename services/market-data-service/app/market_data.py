@@ -27,6 +27,7 @@ from .yahoo_provider import (
 UNAVAILABLE = "Market data is temporarily unavailable. Please try again later."
 STALE = "Showing previously fetched Yahoo data while a refresh is unavailable."
 SHARED_CACHE_WARNING = "Market refreshes are paused because the shared cache is unavailable."
+CACHED_SNAPSHOT = "Cached snapshot; checking for newer data."
 QUERY_PATTERN = re.compile(r"^[\w .&^+\-]{1,50}$", re.UNICODE)
 
 
@@ -126,18 +127,39 @@ class MarketService:
             "warning": warning,
         }
 
-    def overview(self):
+    def overview(self, *, cached_only=False):
         if self.source == "mock":
             return {
                 "stocks": [self.summary(self.mock_candles(item)) for item in DEFAULT_INSTRUMENTS],
                 "source": "mock",
                 "isMock": True,
                 "warning": "Fictional demonstration data; not real market prices.",
+                **({"refreshRequired": False} if cached_only else {}),
             }
         now = self.clock()
         previous = None
         try:
             previous = self.cached("overview:v1", now)
+            if cached_only:
+                if previous is None:
+                    return None
+                needs_refresh = not self.fresh(previous, now)
+                # The aggregate can be newer than an individual quote after a
+                # partial batch. Preserve each quote's own maximum usable age.
+                result = self.fallback_overview(
+                    now,
+                    previous,
+                    CACHED_SNAPSHOT if needs_refresh else previous.value.get("warning"),
+                )
+                if not any(item["latestClose"] is not None for item in result["stocks"]):
+                    return None
+                if not needs_refresh:
+                    for item, original in zip(
+                        result["stocks"], previous.value["stocks"], strict=True
+                    ):
+                        if item["latestClose"] is not None:
+                            item["isStale"] = original["isStale"]
+                return {**result, "refreshRequired": needs_refresh}
             if self.fresh(previous, now):
                 return self.public_payload(previous.value)
             existing = {
@@ -206,7 +228,9 @@ class MarketService:
             except CacheUnavailable:
                 pass
             return self.fallback_overview(now, previous)
-        except CacheUnavailable:
+        except CacheUnavailable as error:
+            if cached_only:
+                raise HTTPException(503, SHARED_CACHE_WARNING) from error
             return self.fallback_overview(now, previous, SHARED_CACHE_WARNING)
 
     @staticmethod
@@ -296,7 +320,7 @@ class MarketService:
                 return Instrument(**cached.value)
         raise HTTPException(404, "US stock symbol not found")
 
-    def candles(self, raw_symbol, chart_range="1m"):
+    def candles(self, raw_symbol, chart_range="1m", *, cached_only=False):
         if chart_range not in HISTORY_RANGES:
             raise HTTPException(400, "Choose one of these chart ranges: 1d, 1w, 1m, 3m, 1y")
         symbol = canonical_symbol(raw_symbol)
@@ -306,7 +330,8 @@ class MarketService:
             item = DEFAULT_BY_SYMBOL.get(symbol)
             if not item:
                 raise HTTPException(404, "Stock symbol not found")
-            return self.mock_candles(item, chart_range)
+            result = self.mock_candles(item, chart_range)
+            return {**result, "refreshRequired": False} if cached_only else result
         now = self.clock()
         # Preserve the shared overview/1M cache, while every other range has
         # its own lease and payload. Intraday data cannot overwrite daily bars.
@@ -314,6 +339,19 @@ class MarketService:
         previous = None
         try:
             previous = self.cached(key, now)
+            if cached_only:
+                if previous is None:
+                    return None
+                needs_refresh = not self.fresh(previous, now)
+                return {
+                    **self.with_status(
+                        previous.value,
+                        previous.updated_at,
+                        now,
+                        CACHED_SNAPSHOT if needs_refresh else None,
+                    ),
+                    "refreshRequired": needs_refresh,
+                }
             if self.fresh(previous, now):
                 return self.with_status(previous.value, previous.updated_at, now)
             if symbol in DEFAULT_BY_SYMBOL and chart_range == "1m":

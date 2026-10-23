@@ -9,8 +9,6 @@ from threading import Lock
 from typing import Any
 from zoneinfo import ZoneInfo
 
-import yfinance as yf
-
 NEW_YORK = ZoneInfo("America/New_York")
 SYMBOL_PATTERN = re.compile(r"^[A-Z][A-Z0-9]{0,9}(?:[.-][A-Z0-9]{1,3})?$")
 US_EXCHANGES = {"NMS", "NGM", "NCM", "NYQ", "NAS", "NYSE", "NASDAQ"}
@@ -218,6 +216,10 @@ class YahooProvider:
         period, interval = HISTORY_RANGES[chart_range]
         symbols = [item.yahoo_symbol for item in instruments]
         try:
+            # Cached market browsing does not need pandas/numpy or Yahoo's
+            # client. Defer their startup cost until a real refresh is needed.
+            import yfinance as yf
+
             # One parallel batch keeps a cold ten-symbol overview bounded by the
             # individual timeout rather than ten sequential network timeouts.
             # yfinance's downloader uses process-wide shared dictionaries.
@@ -252,6 +254,8 @@ class YahooProvider:
 
     def search(self, query: str) -> list[Instrument]:
         try:
+            import yfinance as yf
+
             quotes = yf.Search(
                 query,
                 max_results=10,

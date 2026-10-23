@@ -1,8 +1,8 @@
 name: CI
 
 on:
+  # Also validate stacked PRs whose base is another feature branch.
   pull_request:
-    branches: [main]
   push:
     branches: [main]
 
