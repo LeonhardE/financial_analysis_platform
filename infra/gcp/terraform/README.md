@@ -1,15 +1,18 @@
 # Terraform target execution
 
 The repository provides one reusable plan → review → native Cloud Build approval → exact saved-plan
-apply workflow per service/client. This foundation does not import or change Market, User, Config or
-Web resources. Merging code does not apply infrastructure automatically.
+apply workflow per service/client. Market now has a dedicated [adoption root](envs/prod/market/README.md); User, Config and Web remain
+disabled. Merging code does not apply infrastructure automatically.
 
-| Target                            | Execution status in this PR                                                    | State boundary                                                                                     |
-| --------------------------------- | ------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------- |
-| `repo`                            | Enabled; existing identities, triggers, bucket and resource addresses retained | `financial-analysis-512202-tfstate`, prefix `prod/repo`                                            |
-| `market`, `user`, `config`, `web` | Disabled catalog entries; no placeholder roots or new cloud resources          | One `${project_id}-tfstate-${target}` bucket and `prod/${target}` prefix after separate activation |
+| Target                  | Execution status in this PR                                                      | State boundary                                                                                     |
+| ----------------------- | -------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| `repo`                  | Enabled; existing identities, triggers, bucket and resource addresses retained   | `financial-analysis-512202-tfstate`, prefix `prod/repo`                                            |
+| `market`                | Enabled in source for reviewed adoption; run administrator bootstrap after merge | `financial-analysis-512202-tfstate-market`, prefix `prod/market`                                   |
+| `user`, `config`, `web` | Disabled catalog entries; no placeholder roots or new cloud resources            | One `${project_id}-tfstate-${target}` bucket and `prod/${target}` prefix after separate activation |
 
-`bootstrap/` is administrator-managed. It retains the existing three foundation buckets and repo
+`bootstrap/` is administrator-managed. Market-specific image-trigger and IAM adoption also lives in
+`bootstrap/market.tf`; the Market runtime identity and service live only in the Market root. It retains
+the existing three foundation buckets and repo
 execution resources; [target-execution](modules/target-execution/README.md) supplies per-target
 accounts, state buckets and triggers only when that target is explicitly activated. The normal
 runner cannot provision its own execution IAM, accounts, buckets or approval trigger.
@@ -25,7 +28,8 @@ python3 infra/gcp/terraform_pipeline.py check-registry
 ```
 
 It checks all active roots, locks, source fingerprints, symlinks and disallowed ad-hoc variable files.
-Current output must list only `repo`.
+Current output must list only `repo, market`. This is source activation; the Market accounts, bucket
+and execution triggers are created only by the separately reviewed administrator bootstrap apply.
 
 ## Target execution and approval
 
@@ -213,7 +217,16 @@ Do not initialize an empty local state against already-created foundation resour
 This PR itself performs no authenticated bootstrap apply, so new conditional grants/triggers are not
 claimed as live-verified. Offline mocked tests and protocol fixtures verify the supplied contracts.
 
-## Activate one service/client later
+## Market adoption and later service/client activation
+
+Follow the [Market rollout](envs/prod/market/README.md) for its exact imports, initial CPU
+normalization, scoped permissions, review gates and post-merge checks. The existing image trigger
+remains administrator-owned because Cloud Build trigger write access also allows submitting builds;
+normal Market execution receives neither that permission nor access to the shared build identity.
+The source enables only Market in addition to repo. Do not enable User, Config or Web as part of
+this rollout.
+
+## Activate another service/client later
 
 Use one `infra(<target>)` PR to add that target's actual root and provider lock, inventory/imports,
 owned-resource permissions and exact configuration-controller address, then enable its catalog entry.
