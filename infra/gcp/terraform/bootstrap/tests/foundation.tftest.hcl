@@ -74,6 +74,74 @@ override_resource {
   }
 }
 
+override_resource {
+  target = module.user_image_release.google_cloudbuild_trigger.this
+  values = {
+    id         = "projects/financial-analysis-512202/locations/northamerica-northeast2/triggers/4cdbbd0c-94ba-4a47-8fb3-a0c6a73c07e5"
+    trigger_id = "4cdbbd0c-94ba-4a47-8fb3-a0c6a73c07e5"
+  }
+}
+
+override_resource {
+  target = google_cloud_run_v2_service_iam_member.user_image_deployer
+  values = {}
+}
+
+override_resource {
+  target = google_service_account_iam_member.user_runtime_deployer["image"]
+  values = {}
+}
+
+override_resource {
+  target = google_project_iam_member.user_cache
+  values = {}
+}
+
+override_resource {
+  target          = google_project_iam_custom_role.user_service_read
+  override_during = plan
+  values = {
+    name = "projects/financial-analysis-512202/roles/folioviewUserServiceRead"
+  }
+}
+
+override_resource {
+  target          = google_project_iam_custom_role.user_service_configuration
+  override_during = plan
+  values = {
+    name = "projects/financial-analysis-512202/roles/folioviewUserServiceConfiguration"
+  }
+}
+
+override_resource {
+  target          = google_project_iam_custom_role.user_image_read
+  override_during = plan
+  values = {
+    name = "projects/financial-analysis-512202/roles/folioviewUserConfigurationImageRead"
+  }
+}
+
+override_resource {
+  target          = google_project_iam_custom_role.user_identity_read
+  override_during = plan
+  values = {
+    name = "projects/financial-analysis-512202/roles/folioviewUserIdentityRead"
+  }
+}
+
+override_resource {
+  target          = google_project_iam_custom_role.user_identity_metadata
+  override_during = plan
+  values = {
+    name = "projects/financial-analysis-512202/roles/folioviewUserIdentityMetadata"
+  }
+}
+
+override_resource {
+  target = google_project_iam_member.user_auth_metadata
+  values = {}
+}
+
 variables {
   repository_id = "projects/financial-analysis-512202/locations/northamerica-northeast2/connections/financial-analysis-github/repositories/financial-analysis"
 }
@@ -202,14 +270,16 @@ run "catalog_requires_separate_target_activation_and_scoped_repo_artifacts" {
 
   assert {
     condition = (
-      toset(keys(module.target_execution)) == toset(["market"]) &&
-      toset(keys(output.target_execution)) == toset(["market"]) &&
+      toset(keys(module.target_execution)) == toset(["market", "user"]) &&
+      toset(keys(output.target_execution)) == toset(["market", "user"]) &&
       local.execution_registry.targets.repo.enabled &&
       local.execution_registry.targets.market.enabled &&
+      local.execution_registry.targets.user.enabled &&
+      local.execution_registry.targets.user.configuration_controllers == ["module.user.terraform_data.configuration"] &&
       local.execution_registry.targets.market.configuration_controllers == ["module.market.terraform_data.configuration"] &&
-      alltrue([for name, target in local.execution_registry.targets : !target.enabled if !contains(["repo", "market"], name)])
+      alltrue([for name, target in local.execution_registry.targets : !target.enabled if !contains(["repo", "market", "user"], name)])
     )
-    error_message = "Only the separately reviewed Market adoption may activate service execution; User, Config, and Web must remain disabled."
+    error_message = "Only the separately reviewed Market and User adoptions may activate service execution; Config and Web remain disabled."
   }
 
   assert {
@@ -287,5 +357,82 @@ run "market_execution_business_roles_cannot_create_delete_or_administer_resource
       google_project_iam_member.market_cache.member == "serviceAccount:fa-api-runtime@${var.project_id}.iam.gserviceaccount.com"
     )
     error_message = "Preserve the existing image publisher and cache grant; Terraform apply may attach only the Market runtime and must not impersonate fa-build."
+  }
+}
+
+run "user_execution_business_roles_cannot_create_delete_or_administer_resources" {
+  command = plan
+
+  assert {
+    condition = (
+      toset(google_project_iam_custom_role.user_service_read.permissions) == toset(["run.services.get"]) &&
+      toset(google_project_iam_custom_role.user_service_configuration.permissions) == toset(["run.services.get", "run.services.update"]) &&
+      toset(google_project_iam_custom_role.user_image_read.permissions) == toset(["artifactregistry.repositories.downloadArtifacts"]) &&
+      toset(google_project_iam_custom_role.user_identity_read.permissions) == toset(["iam.serviceAccounts.get"]) &&
+      toset(google_project_iam_custom_role.user_identity_metadata.permissions) == toset(["iam.serviceAccounts.get", "iam.serviceAccounts.update", "iam.serviceAccounts.enable"])
+    )
+    error_message = "User execution must have only existing-service configuration and runtime metadata permissions, without creation, deletion, IAM administration, build launch, or approval rights."
+  }
+
+  assert {
+    condition = (
+      toset(keys(google_cloud_run_v2_service_iam_member.user_execution)) == toset(["plan", "apply"]) &&
+      alltrue([for phase, grant in google_cloud_run_v2_service_iam_member.user_execution : (
+        grant.project == var.project_id &&
+        grant.location == var.region &&
+        grant.name == "user-api" &&
+        grant.member == "serviceAccount:${module.target_execution["user"].service_accounts[phase]}"
+      )]) &&
+      google_cloud_run_v2_service_iam_member.user_execution["plan"].role == google_project_iam_custom_role.user_service_read.name &&
+      google_cloud_run_v2_service_iam_member.user_execution["apply"].role == google_project_iam_custom_role.user_service_configuration.name &&
+      toset(keys(google_service_account_iam_member.user_execution_metadata)) == toset(["plan", "apply"]) &&
+      alltrue([for phase, grant in google_service_account_iam_member.user_execution_metadata : (
+        grant.service_account_id == "projects/${var.project_id}/serviceAccounts/fa-user-runtime@${var.project_id}.iam.gserviceaccount.com" &&
+        grant.member == "serviceAccount:${module.target_execution["user"].service_accounts[phase]}"
+      )]) &&
+      google_service_account_iam_member.user_execution_metadata["plan"].role == google_project_iam_custom_role.user_identity_read.name &&
+      google_service_account_iam_member.user_execution_metadata["apply"].role == google_project_iam_custom_role.user_identity_metadata.name
+    )
+    error_message = "Custom-role definitions are project objects, but execution grants must bind only user-api and its existing runtime account."
+  }
+
+  assert {
+    condition = (
+      google_artifact_registry_repository_iam_member.user_configuration_image.project == var.project_id &&
+      google_artifact_registry_repository_iam_member.user_configuration_image.location == "northamerica-northeast2" &&
+      google_artifact_registry_repository_iam_member.user_configuration_image.repository == "financial-analysis" &&
+      google_artifact_registry_repository_iam_member.user_configuration_image.role == google_project_iam_custom_role.user_image_read.name &&
+      google_artifact_registry_repository_iam_member.user_configuration_image.member == "serviceAccount:${module.target_execution["user"].service_accounts["apply"]}"
+    )
+    error_message = "Only User apply may download existing images from the Toronto financial-analysis repository; do not grant project-wide artifact access, writes, or repository administration."
+  }
+
+  assert {
+    condition = (
+      toset(keys(google_service_account_iam_member.user_runtime_deployer)) == toset(["image", "terraform"]) &&
+      alltrue([for grant in google_service_account_iam_member.user_runtime_deployer : (
+        grant.service_account_id == "projects/${var.project_id}/serviceAccounts/fa-user-runtime@${var.project_id}.iam.gserviceaccount.com" &&
+        grant.role == "roles/iam.serviceAccountUser"
+      )]) &&
+      google_service_account_iam_member.user_runtime_deployer["image"].member == "serviceAccount:fa-build@${var.project_id}.iam.gserviceaccount.com" &&
+      google_service_account_iam_member.user_runtime_deployer["terraform"].member == "serviceAccount:${module.target_execution["user"].service_accounts["apply"]}" &&
+      google_cloud_run_v2_service_iam_member.user_image_deployer.name == "user-api" &&
+      google_cloud_run_v2_service_iam_member.user_image_deployer.role == "roles/run.developer" &&
+      google_cloud_run_v2_service_iam_member.user_image_deployer.member == "serviceAccount:fa-build@${var.project_id}.iam.gserviceaccount.com" &&
+      google_project_iam_member.user_cache.role == "roles/datastore.user" &&
+      google_project_iam_member.user_cache.member == "serviceAccount:fa-user-runtime@${var.project_id}.iam.gserviceaccount.com"
+    )
+    error_message = "Preserve the existing image publisher and cache grant; Terraform apply may attach only the User runtime and must not impersonate fa-build."
+  }
+}
+
+run "user_runtime_auth_metadata_stays_on_its_existing_runtime" {
+  command = plan
+  assert {
+    condition = (
+      google_project_iam_member.user_auth_metadata.role == "roles/firebaseauth.viewer" &&
+      google_project_iam_member.user_auth_metadata.member == "serviceAccount:fa-user-runtime@${var.project_id}.iam.gserviceaccount.com"
+    )
+    error_message = "Keep Firebase Auth Viewer on the existing User runtime only, never its Terraform execution identities."
   }
 }

@@ -31,7 +31,7 @@
       "configuration_controllers": ["module.market.terraform_data.configuration"]
     },
     "user": {
-      "enabled": false,
+      "enabled": true,
       "directory": "infra/gcp/terraform/envs/prod/user",
       "state_bucket": "financial-analysis-512202-tfstate-user",
       "state_prefix": "prod/user",
@@ -39,7 +39,7 @@
       "apply_trigger": "terraform-apply-user",
       "plan_service_account": "fa-infra-user-plan@financial-analysis-512202.iam.gserviceaccount.com",
       "apply_service_account": "fa-infra-user-apply@financial-analysis-512202.iam.gserviceaccount.com",
-      "configuration_controllers": []
+      "configuration_controllers": ["module.user.terraform_data.configuration"]
     },
     "config": {
       "enabled": false,
