@@ -24,11 +24,11 @@ from test_deploy_existing_service import RESOURCE  # noqa: E402
 
 
 class MarketExecutionBoundaryTests(unittest.TestCase):
-    def test_only_market_and_repo_are_active_with_separate_state_and_controller(self):
+    def test_reviewed_targets_are_active_with_market_state_and_controller_isolated(self):
         policy, selected, directory = pipeline.registry(ROOT, "market")
         self.assertEqual(
             {name for name, target in policy["targets"].items() if target["enabled"]},
-            {"repo", "market"},
+            {"repo", "market", "user"},
         )
         self.assertEqual(directory, ROOT / "infra/gcp/terraform/envs/prod/market")
         self.assertEqual(selected["state_bucket"], f"{policy['project_id']}-tfstate-market")
@@ -37,7 +37,7 @@ class MarketExecutionBoundaryTests(unittest.TestCase):
         self.assertEqual(
             selected["configuration_controllers"], ["module.market.terraform_data.configuration"]
         )
-        for name in ("user", "config", "web"):
+        for name in ("config", "web"):
             with self.subTest(target=name), self.assertRaises(RuntimeError):
                 pipeline.registry(ROOT, name)
 
