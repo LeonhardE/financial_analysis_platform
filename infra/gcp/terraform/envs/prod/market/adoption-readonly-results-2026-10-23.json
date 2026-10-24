@@ -1,0 +1,278 @@
+{
+  "after_sha256": {
+    "image_trigger": "f372cffe60becd5c337d4ff6e06cd0d0f08e3efdaacbb4dc6bd3e31e031d686b",
+    "other_services": "bb161849bc149cca70a4fd31863105119517383f9d75aef45ccead2c9e27a3a3",
+    "project_iam": "bb0e8515a703a125889d6fe4181f5238c80f32aebe52a522235de3d892d0482e",
+    "runtime": "9fc29073639ae6690345ed1d3abc9680d9e52d6b8082a8f469e7f289d3ef6e85",
+    "runtime_iam": "bad8b7779bef9ea21cc4a208272455be23a8ab2e1b636bd31a553ab355641dbb",
+    "service": "df654b5c24d651aaa3cbf70483ee9616884a170db294fd6f013416627a14fc61",
+    "service_iam": "bbfdbccf640b40c8bf444f6b1ea350e9854ed294f10e317c1ec02bebea8ebbda"
+  },
+  "before_sha256": {
+    "image_trigger": "f372cffe60becd5c337d4ff6e06cd0d0f08e3efdaacbb4dc6bd3e31e031d686b",
+    "other_services": "bb161849bc149cca70a4fd31863105119517383f9d75aef45ccead2c9e27a3a3",
+    "project_iam": "bb0e8515a703a125889d6fe4181f5238c80f32aebe52a522235de3d892d0482e",
+    "runtime": "9fc29073639ae6690345ed1d3abc9680d9e52d6b8082a8f469e7f289d3ef6e85",
+    "runtime_iam": "bad8b7779bef9ea21cc4a208272455be23a8ab2e1b636bd31a553ab355641dbb",
+    "service": "df654b5c24d651aaa3cbf70483ee9616884a170db294fd6f013416627a14fc61",
+    "service_iam": "bbfdbccf640b40c8bf444f6b1ea350e9854ed294f10e317c1ec02bebea8ebbda"
+  },
+  "bootstrap_actions": [
+    {
+      "actions": ["create"],
+      "address": "google_cloud_run_v2_service_iam_member.market_execution[\"apply\"]",
+      "import": false
+    },
+    {
+      "actions": ["create"],
+      "address": "google_cloud_run_v2_service_iam_member.market_execution[\"plan\"]",
+      "import": false
+    },
+    {
+      "actions": ["no-op"],
+      "address": "google_cloud_run_v2_service_iam_member.market_image_deployer",
+      "import": true
+    },
+    {
+      "actions": ["create"],
+      "address": "google_project_iam_custom_role.market_identity_metadata",
+      "import": false
+    },
+    {
+      "actions": ["create"],
+      "address": "google_project_iam_custom_role.market_identity_read",
+      "import": false
+    },
+    {
+      "actions": ["create"],
+      "address": "google_project_iam_custom_role.market_service_configuration",
+      "import": false
+    },
+    {
+      "actions": ["create"],
+      "address": "google_project_iam_custom_role.market_service_read",
+      "import": false
+    },
+    {
+      "actions": ["no-op"],
+      "address": "google_project_iam_member.market_cache",
+      "import": true
+    },
+    {
+      "actions": ["create"],
+      "address": "google_service_account_iam_member.market_execution_metadata[\"apply\"]",
+      "import": false
+    },
+    {
+      "actions": ["create"],
+      "address": "google_service_account_iam_member.market_execution_metadata[\"plan\"]",
+      "import": false
+    },
+    {
+      "actions": ["no-op"],
+      "address": "google_service_account_iam_member.market_runtime_deployer[\"image\"]",
+      "import": true
+    },
+    {
+      "actions": ["create"],
+      "address": "google_service_account_iam_member.market_runtime_deployer[\"terraform\"]",
+      "import": false
+    },
+    {
+      "actions": ["no-op"],
+      "address": "module.market_image_release.google_cloudbuild_trigger.this",
+      "import": true
+    },
+    {
+      "actions": ["create"],
+      "address": "module.target_execution[\"market\"].google_cloudbuild_trigger.apply",
+      "import": false
+    },
+    {
+      "actions": ["create"],
+      "address": "module.target_execution[\"market\"].google_cloudbuild_trigger.plan",
+      "import": false
+    },
+    {
+      "actions": ["create"],
+      "address": "module.target_execution[\"market\"].google_project_iam_member.build_metadata[\"apply\"]",
+      "import": false
+    },
+    {
+      "actions": ["create"],
+      "address": "module.target_execution[\"market\"].google_project_iam_member.build_metadata[\"plan\"]",
+      "import": false
+    },
+    {
+      "actions": ["create"],
+      "address": "module.target_execution[\"market\"].google_project_iam_member.logging[\"apply\"]",
+      "import": false
+    },
+    {
+      "actions": ["create"],
+      "address": "module.target_execution[\"market\"].google_project_iam_member.logging[\"plan\"]",
+      "import": false
+    },
+    {
+      "actions": ["create"],
+      "address": "module.target_execution[\"market\"].google_service_account.execution[\"apply\"]",
+      "import": false
+    },
+    {
+      "actions": ["create"],
+      "address": "module.target_execution[\"market\"].google_service_account.execution[\"plan\"]",
+      "import": false
+    },
+    {
+      "actions": ["create"],
+      "address": "module.target_execution[\"market\"].google_storage_bucket.state",
+      "import": false
+    },
+    {
+      "actions": ["create"],
+      "address": "module.target_execution[\"market\"].google_storage_bucket_iam_member.apply_recovery_write",
+      "import": false
+    },
+    {
+      "actions": ["create"],
+      "address": "module.target_execution[\"market\"].google_storage_bucket_iam_member.apply_state",
+      "import": false
+    },
+    {
+      "actions": ["create"],
+      "address": "module.target_execution[\"market\"].google_storage_bucket_iam_member.plan_artifact_read",
+      "import": false
+    },
+    {
+      "actions": ["create"],
+      "address": "module.target_execution[\"market\"].google_storage_bucket_iam_member.plan_artifact_write",
+      "import": false
+    },
+    {
+      "actions": ["create"],
+      "address": "module.target_execution[\"market\"].google_storage_bucket_iam_member.plan_state[\"roles/storage.objectCreator\"]",
+      "import": false
+    },
+    {
+      "actions": ["create"],
+      "address": "module.target_execution[\"market\"].google_storage_bucket_iam_member.plan_state[\"roles/storage.objectViewer\"]",
+      "import": false
+    },
+    {
+      "actions": ["create"],
+      "address": "module.target_execution[\"market\"].google_storage_bucket_iam_member.plan_unlock",
+      "import": false
+    }
+  ],
+  "bootstrap_state_generation": "1792805202138707",
+  "cloud_operations": "GET and fixed read-only getIamPolicy RPCs only",
+  "controller_analysis": {
+    "analysis_only": true,
+    "configuration_matches_existing": true,
+    "cpu_representation_normalization_required": true,
+    "first_apply_creates_configuration_revision": true,
+    "simulated_conditional_identity_and_release_annotations_preserved": true,
+    "simulated_image_preserved": true,
+    "simulated_traffic_and_invoker_mode_excluded": true
+  },
+  "image_trigger_id": "db77a22e-83bf-45cc-b114-50e32192a9c8",
+  "live_snapshots_unchanged": {
+    "image_trigger": true,
+    "other_services": true,
+    "project_iam": true,
+    "runtime": true,
+    "runtime_iam": true,
+    "service": true,
+    "service_iam": true
+  },
+  "market_actions": [
+    {
+      "actions": ["read"],
+      "address": "module.market.data.google_cloud_run_v2_service.configured",
+      "import": false
+    },
+    {
+      "actions": ["no-op"],
+      "address": "module.market.google_cloud_run_v2_service.service",
+      "import": true
+    },
+    {
+      "actions": ["create"],
+      "address": "module.market.terraform_data.configuration",
+      "import": false
+    },
+    {
+      "actions": ["no-op"],
+      "address": "module.runtime_identity.google_service_account.this",
+      "import": true
+    }
+  ],
+  "private_copy_adjustments": [
+    "Skip local bootstrap backend.tf, operator tfvars, state, plans and caches.",
+    "Remove only the empty Market GCS backend declaration; both verification roots use private local state."
+  ],
+  "production_apply_executed": false,
+  "project_id": "financial-analysis-512202",
+  "region": "northamerica-northeast2",
+  "release_or_rollback_executed": false,
+  "remote_state_written": false,
+  "schema_version": 1,
+  "service_resource": "projects/financial-analysis-512202/locations/northamerica-northeast2/services/market-api",
+  "service_uid": "9c834402-c8d5-4c71-82d9-1a705e335f02",
+  "source_evidence": {
+    "git_head": "2a8ecb3f686d8c021aad3ce03712e6ea6007a328",
+    "sha256": {
+      "cloudbuild.terraform-apply.yaml": "bbbea8f8fadb18c238f2e869716f8ebfbebdeb338a3a63ce303db4440cc367df",
+      "cloudbuild.terraform-plan.yaml": "e98b77cf7a6eacb13087b4b0eea289a1f5141d785865e87bf47cf380a013c793",
+      "configure_cloud_run_service.py": "a36110127a6f3f523c254d7adf5edc186d2c07012aafe39e37a870b892325d07",
+      "deploy_existing_service.py": "e6405892fea5483a0f53af996374adfa2946fc10468650ab516421ca14351b0c",
+      "terraform/bootstrap/.terraform.lock.hcl": "c576beca1e5a1a6f8da2e442de3a462c5adf39fd0ee625cc637769cf0c57404d",
+      "terraform/bootstrap/iam.tf": "78a4be0eaa6ae3b8c8147bccf8f25c31ee037700f9465d7b3ee603e150608d83",
+      "terraform/bootstrap/market.tf": "72e33bd0c6336b90c5a6905868a2dc3670b46ae1ff5d02793fba0c652c88e5f4",
+      "terraform/bootstrap/outputs.tf": "d03d70c33ad4aa6e4efa1e33482fbec4a96dfaf6f114a32f3c37c9276bc67799",
+      "terraform/bootstrap/storage.tf": "320321d00a2ca68d5210b4c72b74e6e898be6ff67039fd76eb79fd9ca512209c",
+      "terraform/bootstrap/targets.tf": "0c69d96f4021ccd8988875cc7546d8aca3e58e6d0e38b409742baf9480d2bd4f",
+      "terraform/bootstrap/triggers.tf": "b42ae329cdafdb20b304e936bf6728b80359eb659225d216f4508cfa0df8f1b9",
+      "terraform/bootstrap/variables.tf": "b07f0755e88863d5a1fbaa21d42765750af76ae007155007b441b65f898bd2ad",
+      "terraform/bootstrap/versions.tf": "2d58d204b9a681be98c79cd4bd6e8ecca47fb81d766c27af6c2384807a695a17",
+      "terraform/envs/prod/market/.terraform.lock.hcl": "c576beca1e5a1a6f8da2e442de3a462c5adf39fd0ee625cc637769cf0c57404d",
+      "terraform/envs/prod/market/imports.tf": "a093fd2c46f3fa8206bc9cd1984652e16de44b26eb01cf8dcb52d9cbeceadfd2",
+      "terraform/envs/prod/market/main.tf": "6e1c6f1fab5836a6947f97f2917d0d3b2009caaf20d09cdb05ccad6606707e19",
+      "terraform/envs/prod/market/outputs.tf": "25dd0a250b5ec6a5e4c1acb19f5b16c42d79976a90b824ef65687e35965a5169",
+      "terraform/envs/prod/market/versions.tf": "4194ae8ffa2e030a99e997f0da693851fd10fbd728d05fe64e1e1a0deb87ef95",
+      "terraform/modules/cloud-run-service/.terraform.lock.hcl": "c576beca1e5a1a6f8da2e442de3a462c5adf39fd0ee625cc637769cf0c57404d",
+      "terraform/modules/cloud-run-service/main.tf": "391d2d2b1cebcd78c773836f0910fecf8dcd6f4521688228c576b80e0dd2c56a",
+      "terraform/modules/cloud-run-service/outputs.tf": "72744d8d8f32639446afd65226d46cb61c033f1e7bc2faf3b32b24b1ce5b7950",
+      "terraform/modules/cloud-run-service/variables.tf": "8786cd038da69c612ec5148b415099c716c901f7585b25e13111377a6004ac86",
+      "terraform/modules/cloud-run-service/versions.tf": "bc1f7863499165709763b95170aafe91c70cdae64b126fff607a26ebf5e737e0",
+      "terraform/modules/service-build-trigger/.terraform.lock.hcl": "c576beca1e5a1a6f8da2e442de3a462c5adf39fd0ee625cc637769cf0c57404d",
+      "terraform/modules/service-build-trigger/main.tf": "41a22da714fa81c4c6627c30fc958f18bc294fdf51ba898fb84ce738f4d5c2fd",
+      "terraform/modules/service-build-trigger/outputs.tf": "265bc83d319ae094aa943d8af2376802e909f9e1eda28395ef630252da57b8f2",
+      "terraform/modules/service-build-trigger/variables.tf": "eb79663135ffc18482f13d75e9eae7cc6182c70ad744b25b7b9b9aadf48b4001",
+      "terraform/modules/service-build-trigger/versions.tf": "bc1f7863499165709763b95170aafe91c70cdae64b126fff607a26ebf5e737e0",
+      "terraform/modules/service-identity/.terraform.lock.hcl": "c576beca1e5a1a6f8da2e442de3a462c5adf39fd0ee625cc637769cf0c57404d",
+      "terraform/modules/service-identity/main.tf": "642ab97fe047857d86fa217211f8a20f6e53dc6437fb87de432d3796dd08e884",
+      "terraform/modules/service-identity/outputs.tf": "e99653abcb72cd718e154f22439f5b748809c29292a035bfaa3c685024fd9671",
+      "terraform/modules/service-identity/variables.tf": "861bfd7f9e85f35c302faf99747d306771b59b4b0973253bb68cbaf862c0706d",
+      "terraform/modules/service-identity/versions.tf": "bc1f7863499165709763b95170aafe91c70cdae64b126fff607a26ebf5e737e0",
+      "terraform/modules/target-execution/.terraform.lock.hcl": "c576beca1e5a1a6f8da2e442de3a462c5adf39fd0ee625cc637769cf0c57404d",
+      "terraform/modules/target-execution/main.tf": "26b5218b2f3b7fa5382cdf40ecf91bc0f15ab3e013ce3bdbe9ab213a236e1fa9",
+      "terraform/modules/target-execution/outputs.tf": "354a38e177f3e50379437d655fb665f30f54c576202b513879e2e14a082fdb60",
+      "terraform/modules/target-execution/variables.tf": "fcaf6b85657db879951bf42dc365a28b9bb902ae0153dea699e6d159fe663a91",
+      "terraform/modules/target-execution/versions.tf": "bc1f7863499165709763b95170aafe91c70cdae64b126fff607a26ebf5e737e0",
+      "terraform/pipeline.json": "711d9b084453ecc0407ffdc1b491ed7c36786539fe495eb6e6393b8ca9d50bc2",
+      "terraform/toolchain.json": "d17240ad5fbcf5853e8ba74c4c683d8b5c51e8e8baf7ee423245f9900495e11f",
+      "terraform_pipeline.py": "575db6808679354c666e5b208636e20131d7504348d151b318c82a905909ea9a",
+      "terraform_tools.py": "1244a841ab00186317affae68ac9a14d4e24a5ddeab677fbb18cc90453a7daf7",
+      "verify_market_adoption.py": "bb1703d217ceb4a79b2aa8047645da3dbade598cdb1d5e85ef05dc6e8974003a"
+    },
+    "working_tree_dirty": true
+  },
+  "source_hashes_unchanged": true,
+  "source_validity": "This report applies only to the recorded source hashes; local modifications are identified independently of Git HEAD.",
+  "status": "PASS",
+  "target": "market",
+  "terraform_version": "1.16.7",
+  "verification_limit": "Real provider import plans and in-memory controller analysis only; production apply, release and rollback still require approved acceptance.",
+  "verified_at": "2026-10-24T01:44:19.206393+00:00"
+}

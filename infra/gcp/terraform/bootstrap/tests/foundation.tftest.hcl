@@ -1,9 +1,68 @@
 mock_provider "google" {
+  override_during = plan
+
   mock_resource "google_service_account" {
     defaults = {
       id    = "projects/financial-analysis-512202/serviceAccounts/mock@financial-analysis-512202.iam.gserviceaccount.com"
       email = "mock@financial-analysis-512202.iam.gserviceaccount.com"
     }
+  }
+}
+
+# Terraform mocks cannot resolve declarative imports. Override only these
+# existing objects so the real bootstrap configuration can still be planned.
+override_resource {
+  target = module.market_image_release.google_cloudbuild_trigger.this
+  values = {
+    id         = "projects/financial-analysis-512202/locations/northamerica-northeast2/triggers/db77a22e-83bf-45cc-b114-50e32192a9c8"
+    trigger_id = "db77a22e-83bf-45cc-b114-50e32192a9c8"
+  }
+}
+
+override_resource {
+  target = google_cloud_run_v2_service_iam_member.market_image_deployer
+  values = {}
+}
+
+override_resource {
+  target = google_service_account_iam_member.market_runtime_deployer["image"]
+  values = {}
+}
+
+override_resource {
+  target = google_project_iam_member.market_cache
+  values = {}
+}
+
+override_resource {
+  target          = google_project_iam_custom_role.market_service_read
+  override_during = plan
+  values = {
+    name = "projects/financial-analysis-512202/roles/folioviewMarketServiceRead"
+  }
+}
+
+override_resource {
+  target          = google_project_iam_custom_role.market_service_configuration
+  override_during = plan
+  values = {
+    name = "projects/financial-analysis-512202/roles/folioviewMarketServiceConfiguration"
+  }
+}
+
+override_resource {
+  target          = google_project_iam_custom_role.market_identity_read
+  override_during = plan
+  values = {
+    name = "projects/financial-analysis-512202/roles/folioviewMarketIdentityRead"
+  }
+}
+
+override_resource {
+  target          = google_project_iam_custom_role.market_identity_metadata
+  override_during = plan
+  values = {
+    name = "projects/financial-analysis-512202/roles/folioviewMarketIdentityMetadata"
   }
 }
 
@@ -135,12 +194,14 @@ run "catalog_requires_separate_target_activation_and_scoped_repo_artifacts" {
 
   assert {
     condition = (
-      length(module.target_execution) == 0 &&
-      output.target_execution == {} &&
+      toset(keys(module.target_execution)) == toset(["market"]) &&
+      toset(keys(output.target_execution)) == toset(["market"]) &&
       local.execution_registry.targets.repo.enabled &&
-      alltrue([for name, target in local.execution_registry.targets : !target.enabled if name != "repo"])
+      local.execution_registry.targets.market.enabled &&
+      local.execution_registry.targets.market.configuration_controllers == ["module.market.terraform_data.configuration"] &&
+      alltrue([for name, target in local.execution_registry.targets : !target.enabled if !contains(["repo", "market"], name)])
     )
-    error_message = "Service/client execution infrastructure must remain absent until its separate target adoption PR enables it."
+    error_message = "Only the separately reviewed Market adoption may activate service execution; User, Config, and Web must remain disabled."
   }
 
   assert {
@@ -152,5 +213,59 @@ run "catalog_requires_separate_target_activation_and_scoped_repo_artifacts" {
       google_cloudbuild_trigger.plan.substitutions["_REPAIR_CONTROLLER"] == ""
     )
     error_message = "Repo must not read/write other targets' artifacts or plan unrelated target roots."
+  }
+}
+
+run "market_execution_business_roles_cannot_create_delete_or_administer_resources" {
+  command = plan
+
+  assert {
+    condition = (
+      toset(google_project_iam_custom_role.market_service_read.permissions) == toset(["run.services.get"]) &&
+      toset(google_project_iam_custom_role.market_service_configuration.permissions) == toset(["run.services.get", "run.services.update"]) &&
+      toset(google_project_iam_custom_role.market_identity_read.permissions) == toset(["iam.serviceAccounts.get"]) &&
+      toset(google_project_iam_custom_role.market_identity_metadata.permissions) == toset(["iam.serviceAccounts.get", "iam.serviceAccounts.update", "iam.serviceAccounts.enable"])
+    )
+    error_message = "Market execution must have only existing-service configuration and runtime metadata permissions, without creation, deletion, IAM administration, build launch, or approval rights."
+  }
+
+  assert {
+    condition = (
+      toset(keys(google_cloud_run_v2_service_iam_member.market_execution)) == toset(["plan", "apply"]) &&
+      alltrue([for phase, grant in google_cloud_run_v2_service_iam_member.market_execution : (
+        grant.project == var.project_id &&
+        grant.location == var.region &&
+        grant.name == "market-api" &&
+        grant.member == "serviceAccount:${module.target_execution["market"].service_accounts[phase]}"
+      )]) &&
+      google_cloud_run_v2_service_iam_member.market_execution["plan"].role == google_project_iam_custom_role.market_service_read.name &&
+      google_cloud_run_v2_service_iam_member.market_execution["apply"].role == google_project_iam_custom_role.market_service_configuration.name &&
+      toset(keys(google_service_account_iam_member.market_execution_metadata)) == toset(["plan", "apply"]) &&
+      alltrue([for phase, grant in google_service_account_iam_member.market_execution_metadata : (
+        grant.service_account_id == "projects/${var.project_id}/serviceAccounts/fa-api-runtime@${var.project_id}.iam.gserviceaccount.com" &&
+        grant.member == "serviceAccount:${module.target_execution["market"].service_accounts[phase]}"
+      )]) &&
+      google_service_account_iam_member.market_execution_metadata["plan"].role == google_project_iam_custom_role.market_identity_read.name &&
+      google_service_account_iam_member.market_execution_metadata["apply"].role == google_project_iam_custom_role.market_identity_metadata.name
+    )
+    error_message = "Custom-role definitions are project objects, but execution grants must bind only market-api and its existing runtime account."
+  }
+
+  assert {
+    condition = (
+      toset(keys(google_service_account_iam_member.market_runtime_deployer)) == toset(["image", "terraform"]) &&
+      alltrue([for grant in google_service_account_iam_member.market_runtime_deployer : (
+        grant.service_account_id == "projects/${var.project_id}/serviceAccounts/fa-api-runtime@${var.project_id}.iam.gserviceaccount.com" &&
+        grant.role == "roles/iam.serviceAccountUser"
+      )]) &&
+      google_service_account_iam_member.market_runtime_deployer["image"].member == "serviceAccount:fa-build@${var.project_id}.iam.gserviceaccount.com" &&
+      google_service_account_iam_member.market_runtime_deployer["terraform"].member == "serviceAccount:${module.target_execution["market"].service_accounts["apply"]}" &&
+      google_cloud_run_v2_service_iam_member.market_image_deployer.name == "market-api" &&
+      google_cloud_run_v2_service_iam_member.market_image_deployer.role == "roles/run.developer" &&
+      google_cloud_run_v2_service_iam_member.market_image_deployer.member == "serviceAccount:fa-build@${var.project_id}.iam.gserviceaccount.com" &&
+      google_project_iam_member.market_cache.role == "roles/datastore.user" &&
+      google_project_iam_member.market_cache.member == "serviceAccount:fa-api-runtime@${var.project_id}.iam.gserviceaccount.com"
+    )
+    error_message = "Preserve the existing image publisher and cache grant; Terraform apply may attach only the Market runtime and must not impersonate fa-build."
   }
 }
