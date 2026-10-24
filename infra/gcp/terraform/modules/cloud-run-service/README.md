@@ -10,6 +10,11 @@ traffic. It deliberately has no `ignore_changes` escape hatch. Do not use it wit
 separate shared release-compatibility PR proves revision, configuration, rollback and concurrency
 behavior. A mocked plan cannot prove those live behaviors. See the [module adoption gates](../README.md).
 
+The [provider-level compatibility checks](../../compatibility/README.md) reproduce concrete blockers
+with Google provider 7.28.0: stale full-template/traffic writes have no etag condition, while ignoring
+an explicit revision name makes configuration updates reuse that immutable revision. The adoption
+gate remains closed; passing these regression tests confirms the blockers, not release safety.
+
 ## Inputs and defaults
 
 | Input                                    | Contract                                                                               |

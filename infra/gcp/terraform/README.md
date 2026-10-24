@@ -167,6 +167,8 @@ of their seven-day storage lifecycle; remove unused builds/artifacts through rev
 
 The shared modules now have offline contract tests. First complete the separate Terraform/Cloud
 Build release-ownership compatibility work described in the [module adoption gates](modules/README.md).
+The [provider-level compatibility suite](compatibility/README.md) currently reproduces blocking
+revision and stale-write behavior; successful regression tests do not approve service adoption.
 Then use one `infra(<service/client>)` PR at a time to add its root, dependency lock, state/IAM
 boundary and trigger. The current execution-bucket grants cover only this repo foundation's trust
 boundary; introduce per-target isolation and appropriate resource permissions rather than casually

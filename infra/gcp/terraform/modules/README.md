@@ -42,6 +42,11 @@ Offline mocked tests in this PR verify input/resource contracts only. They canno
 IAM, provider refresh/revision behavior, rollback preservation, regional product availability or
 cross-pipeline serialization. No such live test has been performed by this PR.
 
+The subsequent [compatibility verification suite](../compatibility/README.md) now exercises the real
+pinned provider against a strict localhost wire fixture and offers a separate Cloud Shell live
+reproduction. It demonstrates unresolved full-template/traffic replay and immutable-revision
+blockers. It does not relax the gate or change the production module/release helper ownership.
+
 After that prerequisite, use a separate `infra(<target>)` PR for each consumer:
 
 - Add only that target's root, lockfile, state isolation, restricted execution permissions and
