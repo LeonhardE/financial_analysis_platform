@@ -33,15 +33,16 @@ are tested offline.
 After reviewing that evidence, use a separate `infra(<target>)` PR for each consumer:
 
 - Add only that target's root, lockfile, state isolation, restricted execution permissions and
-  Terraform plan/apply trigger registration. The current repo-only execution identities cannot
-  provision these modules, and their existing grants must not be widened casually.
+  Terraform plan/apply trigger registration. The generic target execution module creates isolated execution identities/triggers/state only
+  after activation; provide business-resource grants in that same target PR. The active repo
+  identity must not be reused for service state or business resources.
 - Inventory actual Cloud Run settings, identities, grants and release trigger IDs. Import existing
   resources at their exact module addresses. The initial saved plan should be a no-op or contain
   only explicitly reviewed non-destructive differences. Do not duplicate resources or authoritative
   IAM ownership; private module defaults do not remove pre-existing external public grants.
-- Define reviewed controller-replacement and permission-removal paths before adoption: the existing execution runner rejects
-  all delete/replacement actions, including deleting an IAM member. The new local configuration controller needs a narrow replacement allowlist; this must not allow
-  service replacement. Removing an entry from a module map describes revocation but cannot currently pass that runner's normal apply flow.
+- Register the exact shared configuration-controller address for the runner's source-qualified
+  replacement exception. Actual service replacement and IAM-member deletion remain blocked;
+  permission-removal workflows need their own reviewed administrative path.
 - For a genuinely new service, build a real reviewed digest first. Order required API enablement and
   resource IAM before service creation. Make the Cloud Run module depend on the complete identity
   module when it supplies secret-access grants, not just its email output.
@@ -78,3 +79,7 @@ References:
 - [Terraform provider mocking](https://developer.hashicorp.com/terraform/language/tests/mocking)
 - [Provider requirements for child modules](https://developer.hashicorp.com/terraform/language/modules/develop/providers)
 - [Cloud Run revisions](https://docs.cloud.google.com/run/docs/managing/revisions)
+
+The administrator-only [target execution module](target-execution/README.md) supplies independent
+plan/apply identities, state and approval triggers. Its catalog entries remain disabled until each
+consumer supplies a reviewed root, lockfile and resource permissions.

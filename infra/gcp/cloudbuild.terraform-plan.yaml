@@ -16,9 +16,11 @@ steps:
       - --commit=$COMMIT_SHA
       - --branch=$BRANCH_NAME
       - --terraform=/workspace/.terraform-tools/terraform
+      - --repair-controller=${_REPAIR_CONTROLLER}
 
 substitutions:
   _TARGET: repo
+  _REPAIR_CONTROLLER: ""
 
 options:
   logging: CLOUD_LOGGING_ONLY

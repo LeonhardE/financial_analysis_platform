@@ -129,3 +129,28 @@ run "reject_unfilled_repository_example" {
   }
   expect_failures = [var.repository_id]
 }
+
+run "catalog_requires_separate_target_activation_and_scoped_repo_artifacts" {
+  command = plan
+
+  assert {
+    condition = (
+      length(module.target_execution) == 0 &&
+      output.target_execution == {} &&
+      local.execution_registry.targets.repo.enabled &&
+      alltrue([for name, target in local.execution_registry.targets : !target.enabled if name != "repo"])
+    )
+    error_message = "Service/client execution infrastructure must remain absent until its separate target adoption PR enables it."
+  }
+
+  assert {
+    condition = (
+      google_storage_bucket_iam_member.plan_artifact_write.condition[0].expression == "resource.name.startsWith('projects/_/buckets/financial-analysis-512202-tfplans/objects/plans/repo/')" &&
+      google_storage_bucket_iam_member.plan_artifact_read.condition[0].expression == "resource.name.startsWith('projects/_/buckets/financial-analysis-512202-tfplans/objects/plans/repo/')" &&
+      !contains(google_cloudbuild_trigger.plan.included_files, "infra/gcp/terraform/**") &&
+      contains(google_cloudbuild_trigger.plan.included_files, "infra/gcp/terraform/envs/prod/repo/**") &&
+      google_cloudbuild_trigger.plan.substitutions["_REPAIR_CONTROLLER"] == ""
+    )
+    error_message = "Repo must not read/write other targets' artifacts or plan unrelated target roots."
+  }
+}

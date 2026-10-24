@@ -32,7 +32,7 @@ REPOSITORY = (
 )
 REPOSITORY_URL = "https://github.com/LeonhardE/financial_analysis_platform.git"
 POLICY = {
-    "schema_version": 1,
+    "schema_version": 2,
     "project_id": "financial-analysis-512202",
     "project_number": "630815932903",
     "region": "northamerica-northeast2",
@@ -43,6 +43,9 @@ POLICY = {
     "repository_url": REPOSITORY_URL,
     "targets": {
         "repo": {
+            "enabled": True,
+            "state_bucket": "financial-analysis-512202-tfstate",
+            "configuration_controllers": [],
             "directory": "infra/gcp/terraform/envs/prod/repo",
             "state_prefix": "prod/repo",
             "plan_trigger": "terraform-plan-repo",
@@ -94,6 +97,7 @@ class FakeAPI:
                 "serviceAccount": account(mode),
                 "filename": pipeline.CONFIG_FILES[mode],
                 "approvalConfig": {"approvalRequired": mode == "apply"},
+                "substitutions": {"_TARGET": "repo", "_REPAIR_CONTROLLER": ""},
                 "repositoryEventConfig": {
                     "repository": REPOSITORY,
                     "push": {"branch": "^main$"},
@@ -254,7 +258,7 @@ class PipelineTests(unittest.TestCase):
         self.saved_plan()
         self.run_pipeline("apply")
         operations = [call[0][1] for call in self.calls]
-        self.assertEqual(operations, ["version", "init", "validate", "apply"])
+        self.assertEqual(operations, ["version", "init", "validate", "show", "apply"])
         self.assertEqual(len(self.api.downloads), 3)
         apply = self.calls[-1][0]
         self.assertIn("-lock-timeout=60s", apply)
@@ -273,6 +277,29 @@ class PipelineTests(unittest.TestCase):
         ):
             with self.subTest(arguments=arguments), self.assertRaises(RuntimeError):
                 self.run_pipeline(**arguments)
+        self.assertEqual(self.api.reads, [])
+        self.assertEqual(self.calls, [])
+
+    def test_registry_preflight_needs_no_cloud_or_terraform(self):
+        with (
+            patch.object(pipeline, "ROOT", self.root),
+            patch("sys.argv", ["pipeline", "check-registry"]),
+            redirect_stdout(self.output),
+        ):
+            pipeline.main()
+        self.assertIn("enabled targets: repo", self.output.getvalue())
+        self.assertEqual(self.api.reads, [])
+        self.assertEqual(self.calls, [])
+
+    def test_plan_and_apply_cli_still_require_execution_metadata(self):
+        for mode in ("plan", "apply"):
+            with (
+                patch("sys.argv", ["pipeline", mode]),
+                patch("sys.stderr", io.StringIO()),
+                self.assertRaises(SystemExit) as stopped,
+            ):
+                pipeline.main()
+            self.assertEqual(stopped.exception.code, 2)
         self.assertEqual(self.api.reads, [])
         self.assertEqual(self.calls, [])
 
@@ -595,7 +622,7 @@ class PipelineTests(unittest.TestCase):
         key = f"plans/repo/{PLAN}/manifest.json"
         original = self.api.objects[key]
         for change in (
-            {"schema_version": 2},
+            {"schema_version": 1},
             {"project_id": "another-project"},
             {"target": "market"},
             {"commit": "b" * 40},

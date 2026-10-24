@@ -12,9 +12,9 @@ A read-after-apply data source verifies owned fields and detects external config
 
 The controller uses Python 3 and the executor's authenticated `gcloud` identity. Provider-only
 impersonation does not implicitly configure that CLI identity. Execute the module from the repository
-checkout so the reviewed sibling configuration/release helper files are available. Future target
-runners must permit the specific local controller replacement and supply service-scoped IAM;
-the current repo-only runner still rejects replacements and does not register service targets.
+checkout so the reviewed sibling configuration/release helper files are available. The target runner supports the specific controller replacement only after its exact address is
+registered. Target activation and service-scoped IAM still belong to each consumer PR; the active
+repo target has no controller exception.
 
 The [native-provider historical regressions](../../compatibility/native-ownership-findings.md)
 remain separate from the current integration/live protocol checks. Production adoption is a later,
