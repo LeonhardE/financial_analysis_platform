@@ -124,6 +124,7 @@ class FakeCloudRun(AbstractContextManager):
             terminalCondition={"type": "Ready", "state": "CONDITION_SUCCEEDED"},
             reconciling=False,
             etag=f"fixture-{generation}",
+            uid="fixture-service-uid",
             uri="https://fixture.example.invalid",
         )
         desired["trafficStatuses"] = [

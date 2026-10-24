@@ -1,0 +1,225 @@
+{
+  "schema_version": 1,
+  "verified_at": "2026-10-24T00:56:30.916348Z",
+  "status": "PASS",
+  "project": "financial-analysis-512202",
+  "region": "northamerica-northeast2",
+  "terraform_version": "1.16.7",
+  "google_provider_version": "7.28.0",
+  "images": [
+    "northamerica-northeast2-docker.pkg.dev/financial-analysis-512202/financial-analysis/market-api@sha256:64f69a526ebd232a91a402f538d415f93cbbc247a89274916c59d6301fb7c6ca",
+    "northamerica-northeast2-docker.pkg.dev/financial-analysis-512202/financial-analysis/market-api@sha256:2d61da1e28ba2c59ab2a8b700415c197ae034681f04c09bb13575c9883c66ed4",
+    "northamerica-northeast2-docker.pkg.dev/financial-analysis-512202/financial-analysis/market-api@sha256:82615b8c24c47852e0356002ccef60d96adfc9ad2abfa4834cd41ed0f1c24cf1"
+  ],
+  "service": "projects/financial-analysis-512202/locations/northamerica-northeast2/services/fv-compat-e289f01aa28a",
+  "source": {
+    "git_head": "18cfc10023197fab9c96b77a5f1a7c6d9fbf6a18",
+    "files_sha256": {
+      "infra/gcp/configure_cloud_run_service.py": "a36110127a6f3f523c254d7adf5edc186d2c07012aafe39e37a870b892325d07",
+      "infra/gcp/deploy_existing_service.py": "e6405892fea5483a0f53af996374adfa2946fc10468650ab516421ca14351b0c",
+      "infra/gcp/terraform/modules/cloud-run-service/main.tf": "391d2d2b1cebcd78c773836f0910fecf8dcd6f4521688228c576b80e0dd2c56a",
+      "infra/gcp/verify_release_ownership.py": "15548c6cd80e12f2c18d17946a7ad42a50aaf53202ba70750742f7d3d88dd0fd"
+    },
+    "note": "File hashes identify the tested code, including uncommitted changes."
+  },
+  "checks": {
+    "isolated_private_cost_contract": true,
+    "baseline_ready": true,
+    "baseline_noop": true,
+    "saved_plan_scoped": true,
+    "release_b_ready": true,
+    "fresh_plan_scoped": true,
+    "saved_apply_preserved_b_and_environment": true,
+    "saved_apply_preserved_release_markers": true,
+    "configuration_b_noop": true,
+    "release_c_ready": true,
+    "rollback_b_observed": true,
+    "rollback_plan_scoped": true,
+    "rollback_apply_preserved_c_and_environment": true,
+    "rollback_apply_preserved_b_traffic": true,
+    "rollback_apply_preserved_release_markers": true,
+    "rollback_configuration_noop": true,
+    "next_release_preserved_environment": true,
+    "next_release_latest_traffic": true,
+    "final_noop": true,
+    "service_deleted": true,
+    "account_deleted": true,
+    "production_unchanged": true
+  },
+  "evidence": {
+    "baseline": {
+      "image": "northamerica-northeast2-docker.pkg.dev/financial-analysis-512202/financial-analysis/market-api@sha256:64f69a526ebd232a91a402f538d415f93cbbc247a89274916c59d6301fb7c6ca",
+      "revision": null,
+      "latest_ready_revision": "projects/financial-analysis-512202/locations/northamerica-northeast2/services/fv-compat-e289f01aa28a/revisions/fv-compat-e289f01aa28a-00001-fvr",
+      "deployment_build": null,
+      "terminal_state": "CONDITION_SUCCEEDED",
+      "traffic": [
+        {
+          "type": "TRAFFIC_TARGET_ALLOCATION_TYPE_LATEST",
+          "percent": 100
+        }
+      ],
+      "observed_traffic": [
+        {
+          "type": "TRAFFIC_TARGET_ALLOCATION_TYPE_LATEST",
+          "revision": "fv-compat-e289f01aa28a-00001-fvr",
+          "percent": 100
+        }
+      ]
+    },
+    "configuration_after_rollback": {
+      "image": "northamerica-northeast2-docker.pkg.dev/financial-analysis-512202/financial-analysis/market-api@sha256:82615b8c24c47852e0356002ccef60d96adfc9ad2abfa4834cd41ed0f1c24cf1",
+      "revision": "fv-compat-e289f01aa28a-cfg-67882140",
+      "latest_ready_revision": "projects/financial-analysis-512202/locations/northamerica-northeast2/services/fv-compat-e289f01aa28a/revisions/fv-compat-e289f01aa28a-cd-711b486e-38a1-4c26-89b1-86924750928a",
+      "deployment_build": "711b486e-38a1-4c26-89b1-86924750928a",
+      "terminal_state": "CONDITION_SUCCEEDED",
+      "traffic": [
+        {
+          "type": "TRAFFIC_TARGET_ALLOCATION_TYPE_REVISION",
+          "revision": "fv-compat-e289f01aa28a-cd-eb1781fe-e50d-4bef-87d3-30ee049e1a8e",
+          "percent": 100
+        }
+      ],
+      "observed_traffic": [
+        {
+          "type": "TRAFFIC_TARGET_ALLOCATION_TYPE_REVISION",
+          "revision": "fv-compat-e289f01aa28a-cd-eb1781fe-e50d-4bef-87d3-30ee049e1a8e",
+          "percent": 100
+        }
+      ]
+    },
+    "next_release": {
+      "image": "northamerica-northeast2-docker.pkg.dev/financial-analysis-512202/financial-analysis/market-api@sha256:2d61da1e28ba2c59ab2a8b700415c197ae034681f04c09bb13575c9883c66ed4",
+      "revision": "fv-compat-e289f01aa28a-cd-404f0220-1312-40a8-bad9-8a58366f89d7",
+      "latest_ready_revision": "projects/financial-analysis-512202/locations/northamerica-northeast2/services/fv-compat-e289f01aa28a/revisions/fv-compat-e289f01aa28a-cd-404f0220-1312-40a8-bad9-8a58366f89d7",
+      "deployment_build": "404f0220-1312-40a8-bad9-8a58366f89d7",
+      "terminal_state": "CONDITION_SUCCEEDED",
+      "traffic": [
+        {
+          "type": "TRAFFIC_TARGET_ALLOCATION_TYPE_LATEST",
+          "percent": 100
+        }
+      ],
+      "observed_traffic": [
+        {
+          "type": "TRAFFIC_TARGET_ALLOCATION_TYPE_LATEST",
+          "revision": "fv-compat-e289f01aa28a-cd-404f0220-1312-40a8-bad9-8a58366f89d7",
+          "percent": 100
+        }
+      ]
+    },
+    "release_b": {
+      "image": "northamerica-northeast2-docker.pkg.dev/financial-analysis-512202/financial-analysis/market-api@sha256:2d61da1e28ba2c59ab2a8b700415c197ae034681f04c09bb13575c9883c66ed4",
+      "revision": "fv-compat-e289f01aa28a-cd-eb1781fe-e50d-4bef-87d3-30ee049e1a8e",
+      "latest_ready_revision": "projects/financial-analysis-512202/locations/northamerica-northeast2/services/fv-compat-e289f01aa28a/revisions/fv-compat-e289f01aa28a-cd-eb1781fe-e50d-4bef-87d3-30ee049e1a8e",
+      "deployment_build": "eb1781fe-e50d-4bef-87d3-30ee049e1a8e",
+      "terminal_state": "CONDITION_SUCCEEDED",
+      "traffic": [
+        {
+          "type": "TRAFFIC_TARGET_ALLOCATION_TYPE_LATEST",
+          "percent": 100
+        }
+      ],
+      "observed_traffic": [
+        {
+          "type": "TRAFFIC_TARGET_ALLOCATION_TYPE_LATEST",
+          "revision": "fv-compat-e289f01aa28a-cd-eb1781fe-e50d-4bef-87d3-30ee049e1a8e",
+          "percent": 100
+        }
+      ]
+    },
+    "release_c": {
+      "image": "northamerica-northeast2-docker.pkg.dev/financial-analysis-512202/financial-analysis/market-api@sha256:82615b8c24c47852e0356002ccef60d96adfc9ad2abfa4834cd41ed0f1c24cf1",
+      "revision": "fv-compat-e289f01aa28a-cd-711b486e-38a1-4c26-89b1-86924750928a",
+      "latest_ready_revision": "projects/financial-analysis-512202/locations/northamerica-northeast2/services/fv-compat-e289f01aa28a/revisions/fv-compat-e289f01aa28a-cd-711b486e-38a1-4c26-89b1-86924750928a",
+      "deployment_build": "711b486e-38a1-4c26-89b1-86924750928a",
+      "terminal_state": "CONDITION_SUCCEEDED",
+      "traffic": [
+        {
+          "type": "TRAFFIC_TARGET_ALLOCATION_TYPE_LATEST",
+          "percent": 100
+        }
+      ],
+      "observed_traffic": [
+        {
+          "type": "TRAFFIC_TARGET_ALLOCATION_TYPE_LATEST",
+          "revision": "fv-compat-e289f01aa28a-cd-711b486e-38a1-4c26-89b1-86924750928a",
+          "percent": 100
+        }
+      ]
+    },
+    "rollback_to_b": {
+      "image": "northamerica-northeast2-docker.pkg.dev/financial-analysis-512202/financial-analysis/market-api@sha256:82615b8c24c47852e0356002ccef60d96adfc9ad2abfa4834cd41ed0f1c24cf1",
+      "revision": "fv-compat-e289f01aa28a-cd-711b486e-38a1-4c26-89b1-86924750928a",
+      "latest_ready_revision": "projects/financial-analysis-512202/locations/northamerica-northeast2/services/fv-compat-e289f01aa28a/revisions/fv-compat-e289f01aa28a-cd-711b486e-38a1-4c26-89b1-86924750928a",
+      "deployment_build": "711b486e-38a1-4c26-89b1-86924750928a",
+      "terminal_state": "CONDITION_SUCCEEDED",
+      "traffic": [
+        {
+          "type": "TRAFFIC_TARGET_ALLOCATION_TYPE_REVISION",
+          "revision": "fv-compat-e289f01aa28a-cd-eb1781fe-e50d-4bef-87d3-30ee049e1a8e",
+          "percent": 100
+        }
+      ],
+      "observed_traffic": [
+        {
+          "type": "TRAFFIC_TARGET_ALLOCATION_TYPE_REVISION",
+          "revision": "fv-compat-e289f01aa28a-cd-eb1781fe-e50d-4bef-87d3-30ee049e1a8e",
+          "percent": 100
+        }
+      ]
+    },
+    "stale_plan_after_b": {
+      "image": "northamerica-northeast2-docker.pkg.dev/financial-analysis-512202/financial-analysis/market-api@sha256:2d61da1e28ba2c59ab2a8b700415c197ae034681f04c09bb13575c9883c66ed4",
+      "revision": "fv-compat-e289f01aa28a-cfg-aff308a2",
+      "latest_ready_revision": "projects/financial-analysis-512202/locations/northamerica-northeast2/services/fv-compat-e289f01aa28a/revisions/fv-compat-e289f01aa28a-cfg-aff308a2",
+      "deployment_build": "eb1781fe-e50d-4bef-87d3-30ee049e1a8e",
+      "terminal_state": "CONDITION_SUCCEEDED",
+      "traffic": [
+        {
+          "type": "TRAFFIC_TARGET_ALLOCATION_TYPE_LATEST",
+          "percent": 100
+        }
+      ],
+      "observed_traffic": [
+        {
+          "type": "TRAFFIC_TARGET_ALLOCATION_TYPE_LATEST",
+          "revision": "fv-compat-e289f01aa28a-cfg-aff308a2",
+          "percent": 100
+        }
+      ]
+    },
+    "fresh_plan_after_b": [
+      {
+        "address": "module.service.terraform_data.configuration",
+        "actions": ["delete", "create"],
+        "environment_changed": true,
+        "release_fields_captured": false
+      }
+    ],
+    "plan_before_b": [
+      {
+        "address": "module.service.terraform_data.configuration",
+        "actions": ["delete", "create"],
+        "environment_changed": true,
+        "release_fields_captured": false
+      }
+    ],
+    "plan_before_rollback": [
+      {
+        "address": "module.service.terraform_data.configuration",
+        "actions": ["delete", "create"],
+        "environment_changed": true,
+        "release_fields_captured": false
+      }
+    ]
+  },
+  "cleanup_error_count": 0,
+  "execution_error": false,
+  "limitations": [
+    "Uses synthetic verification build IDs and existing immutable images; does not test Cloud Build triggers.",
+    "Traffic rollback is exercised through the Cloud Run API, not the Console UI.",
+    "No production resource is adopted or modified, and no application URL is invoked.",
+    "Raw provider plans, state, environment values and diagnostics remain private."
+  ]
+}

@@ -1,142 +1,126 @@
-# Cloud Run release compatibility verification
+# Cloud Run configuration and release ownership
 
-This is a shared infrastructure verification fixture, not a production execution root. It does not
-adopt Market, User, Config or Web, change their triggers, or relax the Cloud Run module's adoption
-gate. The module and the existing image release helper still have incompatible ownership of the
-same service. A successful regression test means the known incompatibility was reproduced; it does
-**not** mean production adoption is safe.
+The shared module uses a conditional configuration writer so Terraform configuration changes can
+coexist with image releases and traffic rollback. No production root is adopted by this foundation
+PR. The earlier [native-provider failures](native-ownership-findings.md) remain frozen regression
+coverage; passing those reproductions alone is not compatibility approval.
 
-## What the checks establish
+## Protocol
 
-The offline check runs the repository-pinned Terraform CLI and real Google **7.28.0** provider
-against a localhost Cloud Run API emulator. It captures the provider's actual requests rather than
-using Terraform's mocked provider. The emulator is a deterministic protocol test; it does not prove
-Google's live IAM, reconciliation or revision behavior.
+| Owner                                                               | Responsibility                                                                                                                     |
+| ------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| Native `google_cloud_run_v2_service.service`                        | Create/import identity, initial digest and defaults, deletion protection. `ignore_changes = all` prevents any native update PATCH. |
+| `terraform_data.configuration` and `configure_cloud_run_service.py` | Desired runtime settings, environment/secret references, ingress; fresh live read and conditional etag update at apply time.       |
+| `deploy_existing_service.py`                                        | Image release, deterministic release revision, build ordering markers and deliberate 100% latest traffic.                          |
+| Explicit rollback                                                   | Pin traffic to a chosen immutable revision. Configuration apply never edits traffic.                                               |
 
-| Scenario                                                                 | Expected blocking evidence                                                                                          |
-| ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------- |
-| Create with image A, then release B using the existing helper            | A fresh Terraform plan restores image A, and the provider PATCH submits A.                                          |
-| Ignore image, traffic and revision, then change configuration            | A clean post-release plan hides the provider reusing an immutable revision name during the configuration update.    |
-| Save a configuration plan on B, then release C                           | Applying the saved plan submits stale B without an etag and overwrites C in the fixture.                            |
-| Release C, then roll traffic back to B before a fresh configuration plan | The desired template stays on C, while immutable serving revision B keeps the old configuration.                    |
-| Save a configuration plan, then roll traffic back to B                   | Applying the saved plan submits stale latest-revision traffic without an etag, undoing the rollback in the fixture. |
+The configuration controller contains no image, traffic, revision or etag captured during planning.
+At execution it verifies the service UID, waits for settled reconciliation, copies the latest
+single-container template, edits only its documented owned settings and assigns a fresh `-cfg-`
+revision name. It preserves the live image, unknown supported template/container fields and unrelated
+annotations. PATCH includes the live etag and excludes traffic. A 409/412 causes a fresh read/merge;
+there is no unconditional overwrite fallback. Failed permissions, failed revisions and timeout
+remain errors. Stale reads after an accepted write cannot cause duplicate PATCHes.
 
-The pinned provider serializes the full template and traffic on update, but does not attach the
-service etag. Ignoring a field affects Terraform planning; it does not make the resulting API write
-conditional. A freshness check immediately before apply still leaves a race before the PATCH, and
-Terraform's GCS state lock does not coordinate with releases or Console rollback.
+The image helper still uses conditional etag writes. A configuration update may land between an
+image PATCH and its readiness poll. Exact config-revision/base-build annotations attest that
+relationship; polling accepts it only with the same image, ready revision, observed generation and
+100% latest traffic. A new image release removes the old attestation. Arbitrary Console changes are
+not accepted as descendants. Existing short-service revision names remain unchanged; long names use
+a deterministic shortened build suffix to stay within Cloud Run's 63-character limit.
 
-## Run without cloud resources
+## Rollback and drift semantics
 
-From the repository root, install the checksum-verified CLI if needed, then run:
+When traffic is pinned to B while the desired template is C, config apply stages a newly named C
+configuration template and **keeps B serving**. Immutable B keeps its old runtime configuration. The staged cfg template is not claimed to be
+serving or independently ready while B is pinned. The helper reports
+that distinction. The next explicitly authorized image release carries the staged settings and
+chooses latest traffic. Configuration apply is never an implicit promotion or rollback cancellation.
 
-```bash
-python3 infra/gcp/terraform_tools.py install --directory /tmp/folioview-terraform-tools
-python3 infra/gcp/terraform_tools.py check --terraform /tmp/folioview-terraform-tools/terraform
-```
+An apply-ordered Google data source verifies the owned settings. When idle, external owned-setting
+drift fails the plan with a repair instruction. Image/revision/traffic changes alone remain no-op.
+To repair drift, review a plan with `-replace=module.<name>.terraform_data.configuration`; that
+replacement only reruns the local controller and never destroys the service. This bridge detects
+drift but does not automatically schedule repairs for out-of-band configuration changes. It has
+no timestamp or observed-state-hash trigger that would create perpetual plans.
 
-The check uses temporary local Terraform state and the committed provider lock. It needs no GCP
-credentials and must only send Cloud Run requests to its localhost emulator. An unexpected provider
-request, missing blocking evidence, or command failure is a test failure. Do not change expected
-results merely to make a provider upgrade pass: review the captured behavior and the ownership
-protocol again.
+The registered runner currently permits only the `repo` target and rejects all replacements. Before
+a service target is registered, its separate execution PR must narrowly allow this specific local
+controller replacement, preserve destructive-resource rejection, and grant only its required
+service-scoped permissions. This PR does not widen execution IAM, register targets, or import
+production resources. The saved-plan configuration fingerprint includes both executable helpers.
 
-The repository check initializes the pinned provider first and then runs the wire cases. To repeat
-only the wire cases after initialization, use `provider_check.py --terraform /path/to/terraform`
-from this directory. Its optional `--report /private/local/path.json` writes the sanitized result.
-The standalone script uses an existing provider filesystem mirror; it does not download a provider.
-All five expected blockers must be reproduced for exit code `0`. Its JSON then reports
-`verification_passed: true`, `compatible: false` and `compatibility_status: "blocked"`. Exit code `1`
-means a failed regression or incomplete check; neither outcome authorizes production adoption.
-
-## Optional live reproduction in Cloud Shell
-
-Live verification is separate and requires the explicit `--live` option. The local authenticated run
-below records actual GCP behavior; offline tests alone do not supply that evidence. To reproduce it,
-use the existing project administrator in Cloud Shell or a locally authenticated Google Cloud CLI,
-with the reviewed PR branch checked out and the pinned Terraform installed:
+## Offline validation
 
 ```bash
-python3 infra/gcp/verify_release_compatibility.py --live --project financial-analysis-512202
+python3 infra/gcp/terraform_tools.py check --terraform /path/to/pinned/terraform
 ```
 
-The default region is Toronto and the default executable is
-`~/folioview-terraform-tools/terraform`; use `--terraform /absolute/path/to/terraform` to override it.
-The wrapper trims surrounding pasted whitespace, resolves the executable and checks the pinned
-version before any cloud query. It prints flushed stage updates and private log locations while
-Terraform runs, so initialization and reconciliation do not look like a silent hang.
+The pinned Terraform 1.16.7 / Google 7.28.0 run includes native mocked module contracts, five frozen
+historical provider wire cases and five current ownership integration cases. Current cases execute
+the actual module, provider and configuration subprocess against a strict localhost HTTP fixture:
 
-The wrapper discovers three existing `market-api` image digests in the project's
-`financial-analysis` Artifact Registry repository. It does not build images or change production
-services. It creates one uniquely named temporary private Cloud Run service and one keyless runtime
-account with no granted roles. Tests release the existing digests and simulate rollback by selecting
-an older revision's traffic through the API; Console uses the same Cloud Run traffic model.
+- Release B followed by a clean plan.
+- Apply an A-era saved configuration plan after B; retain B, apply the intended settings, then no-op.
+- Fresh configuration plan after pinned-B rollback; stage C settings and preserve B traffic.
+- Saved configuration plan followed by rollback; apply without cancelling rollback.
+- Detect external owned drift, explicitly repair it, then no-op.
 
-The temporary service uses request billing and min 0/max 1 instances. There are no AI calls, database
-writes, scheduled jobs or paid warm instances. Cloud Run operations, image pulls and logging can
-still incur costs; the instance setting limits capacity rather than imposing a hard spending cap.
+Unit tests inject etag conflicts won by a newer release or rollback, accepted-PATCH stale reads,
+configuration-descendant release polling, failed readiness, UID replacement and authorization
+errors. Localhost subprocess transport disables proxies and refuses non-loopback endpoints. These
+are deterministic protocol tests, not real-cloud concurrency stress tests.
 
-Cleanup verifies resource identity before deletion and reports incomplete cleanup. If the process
-is interrupted, inspect its reported temporary names in Cloud Run and IAM before removing those
-resources. Never substitute a production service name or weaken production deletion protection.
+## Authenticated isolated verification
 
-Read the report's individual scenarios and cleanup results. Expected findings leave the result
-**blocked**. Authentication/API errors, insufficient image history, failed reconciliation or cleanup
-failure are incomplete live verification, not proof of compatibility. Retain private diagnostics
-for review; do not commit Terraform state or plans.
+```bash
+python3 infra/gcp/verify_release_ownership.py --live --project financial-analysis-512202 --terraform /absolute/path/to/terraform
+```
 
-The wrapper prints the exact path to `report.json` in its private mode-0700 temporary folder.
-That folder also retains numbered Terraform logs, local state and saved plans for diagnosis.
-`BLOCKED` exits with code `2`: native ownership drift was observed and the adoption gate remains
-closed. `ERROR` or `UNEXPECTED_RESULT` exits with code `1` and needs inspection, including any cleanup
-errors. This verifier has no compatibility-approved success result. Offline and live exit codes
-intentionally differ because CI asserts the known blockers while the live tool reports their
-operational outcome.
+The legacy executable name forwards to this current verifier. Historical classifier helpers remain
+importable only to retain earlier regression evidence.
 
-## Authenticated GCP result: 2026-10-23
+The explicit opt-in runner discovers three existing same-project immutable images, snapshots all
+four production services, and creates one private min-0/max-1 request-billed service plus one
+keyless runtime identity without role grants. It applies two actual saved configuration plans
+across image release and traffic rollback, verifies markers and observed traffic, publishes a
+subsequent image with the staged settings, and requires clean post-apply plans. Cleanup compares the
+Terraform-recorded UID/account identity and independently checks deletion and unchanged production
+fingerprints. No images are built and no application URLs, databases or AI APIs are invoked.
 
-Result: **BLOCKED — do not adopt production services with the current ownership model.**
-The [sanitized live evidence](live-results-2026-10-23.json) records Google provider 7.28.0 and
-Terraform 1.16.7 in Toronto. The disposable service was `fv-compat-64feaca0fa9c`; no existing service,
-trigger or IAM grant was modified. No new images were built and no application URLs were called.
+Cloud operations and logs can incur small charges; instance limits are not a spending cap. The
+mode-0700 temporary folder retains raw state, plans and logs privately. `public-report.json` is an
+explicit allowlist of snapshots/checks/source hashes without environment values or credentials.
+Exit `0` / `PASS` requires every check and cleanup; incomplete evidence exits `1` / `ERROR`.
 
-| Stage                                                   | Observed GCP result                                                                                                                                                             |
-| ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Create image A                                          | Service became ready; the initial Terraform plan was a no-op.                                                                                                                   |
-| Save an environment-change plan, then publish B         | B became ready with 100% observed traffic. A fresh plan proposed B → A image restoration, separately from the intended environment change.                                      |
-| Apply the pre-B saved plan                              | Terraform exited `0`; the service became ready on A with 100% traffic on its new revision. The newer B release was overwritten. Its deployment marker was also cleared.         |
-| Publish C, then route traffic back to B through the API | C became ready; the subsequent rollback served the exact B revision with 100% observed traffic while the desired template still referenced C.                                   |
-| Inspect the post-rollback Terraform plan                | The plan proposed C → A and B-pinned traffic → `LATEST`. This plan was **not applied**.                                                                                         |
-| Cleanup and production check                            | The test service and account independently returned HTTP `404`. All four existing services retained their UID, etag, generation, ready revision and configuration fingerprints. |
+This live sequence uses synthetic build IDs and direct helper calls, not Cloud Build triggers or the
+registered repo runner. Traffic rollback uses the Cloud Run API. Concurrency interleavings are
+verified offline. Every production consumer still needs its own inventory/import/permissions and
+end-to-end deployment validation PR.
 
-The authenticated run used verifier source commit `c51ff3f7df62b59284c50219510329dc52f9b8cd`.
-Exact release-field summaries were then extracted locally from its retained native plan JSON and
-classified with the hardened classifier, without repeating cloud mutations. Raw state, plans,
-credentials, environment values and private diagnostic logs are not committed.
+## Authenticated result: 2026-10-23
 
-The classifier now records image/revision/traffic before and after, distinguishes intended
-environment changes from release drift, and requires a no-op baseline and an observed 100% rollback
-to B. A failed apply alone cannot prove an overwrite. Tests include both the recorded live evidence
-and environment-only changes that must not be classified as compatibility blockers.
+**PASS: all 22 required checks passed** with Terraform 1.16.7 / Google provider 7.28.0 in Toronto.
+The [sanitized evidence](live-ownership-results-2026-10-23.json) records actual desired and observed
+traffic, images/revisions, plan scope and tested source hashes. The tested sources contained
+uncommitted changes on the recorded base commit; file hashes identify the exact code.
 
-This run isolates the native provider and shared release helper on private local test state. The
-registered repo-only saved-plan runner was not involved, and its provenance/state guards remain
-unchanged. This is not an end-to-end verification of a future registered service target. The helper was
-called directly with validation-generated build labels, rather than through a production Cloud
-Build trigger. The rollback used the Cloud Run API, not browser UI automation. Naive-ignore revision
-conflicts and other candidate protocols remain offline regressions; no compatible replacement
-protocol has been live-verified.
+| Stage                                           | Observed result                                                                                                                |
+| ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| Create A                                        | Ready, private min 0/max 1 request billing; baseline Terraform no-op.                                                          |
+| Publish B, apply saved A-era configuration plan | Image B preserved, intended settings applied in a new cfg revision serving at 100%, release markers retained; next plan no-op. |
+| Publish C, save config plan, pin rollback to B  | Desired template C; exact B revision receives 100% observed traffic.                                                           |
+| Apply that saved plan during rollback           | New C configuration template staged; exact B traffic and C release markers retained; next plan no-op.                          |
+| Publish the subsequent B image explicitly       | New release carries staged settings and receives 100% latest traffic; final Terraform no-op.                                   |
+| Cleanup and independent production comparison   | Temporary service/account both return 404; all four production configuration fingerprints unchanged.                           |
 
-## Required follow-up before adopting a service
+The disposable service was `fv-compat-e289f01aa28a`. The check used existing immutable image digests
+and synthetic verification build IDs. Concurrency conflict/polling interleavings passed offline;
+this live sequence did not inject concurrent production traffic or execute Cloud Build triggers.
 
-Keep the adoption gate closed until one reviewed ownership protocol is implemented and verified.
-Viable directions are a single configuration writer that preserves release state with conditional
-etag updates, or exclusive Terraform ownership of image releases and rollback. Repeating a narrower
-`ignore_changes` list or adding a non-atomic pre-apply check does not address the demonstrated race.
-Adopt each consuming service in its own later `infra(<target>)` PR after that protocol is proven.
+References:
 
-Primary references:
-
-- [Pinned provider revision schema and update implementation](https://github.com/hashicorp/terraform-provider-google/blob/v7.28.0/google/services/cloudrunv2/resource_cloud_run_v2_service.go)
-- [Cloud Run Service etag and revision template](https://docs.cloud.google.com/run/docs/reference/rest/v2/projects.locations.services)
-- [Cloud Run PATCH updateMask](https://docs.cloud.google.com/run/docs/reference/rest/v2/projects.locations.services/patch)
+- [Cloud Run Service etag](https://docs.cloud.google.com/run/docs/reference/rest/v2/projects.locations.services)
+- [Cloud Run conditional PATCH and update mask](https://docs.cloud.google.com/run/docs/reference/rest/v2/projects.locations.services/patch)
+- [Terraform data controller](https://developer.hashicorp.com/terraform/language/resources/terraform-data)
+- [Pinned native provider implementation](https://github.com/hashicorp/terraform-provider-google/blob/v7.28.0/google/services/cloudrunv2/resource_cloud_run_v2_service.go)

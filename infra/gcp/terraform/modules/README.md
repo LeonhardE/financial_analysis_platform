@@ -20,34 +20,17 @@ this foundation creates no idle paid resources for proposed features.
 
 ## Adoption gates
 
-This PR completes the reusable-module step, not the release-ownership step. In particular, the
-initial Cloud Run module owns its full template/image and latest traffic. It cannot yet be combined
-with the existing image-release helper. It does not use a broad `ignore_changes(template)` or claim
-that ignoring only the image solves immutable revisions, rollbacks or concurrent updates.
+Reusable modules and the guarded ownership protocol are shared prerequisites. They do not
+register execution targets or import any production resource.
 
-Before **any** production service uses this Cloud Run module, a separate `infra(shared)` release
-compatibility PR must define and test the actual ownership protocol:
+The [guarded release ownership protocol](../compatibility/README.md) now prevents native
+full-template update replay. It separates create/adopt from conditional configuration updates,
+preserves release images and pinned rollback routes, and verifies desired settings. Frozen native
+provider regressions remain historical coverage. See the protocol's authenticated report for the
+actual scope: sequential isolated saved-plan/release/rollback verification; concurrent interleavings
+are tested offline.
 
-1. Create a temporary single service with image A, then release B using the existing image pipeline.
-2. Refresh/plan Terraform and require no release-field drift. Change one harmless environment value,
-   apply, and verify B is retained while a valid new revision serves the new configuration.
-3. Release C, then require another Terraform no-op. Exercise a Console rollback to B and prove a
-   subsequent configuration update does not undo the chosen serving image or traffic.
-4. Prove configuration changes and application releases cannot race. A GCS Terraform state lock
-   does not lock `deploy_existing_service.py`; until a shared protocol exists, pause the affected
-   application trigger and wait for in-flight releases. Document how the live test resources are
-   removed without weakening production deletion protection.
-
-Offline mocked tests in this PR verify input/resource contracts only. They cannot establish live
-IAM, provider refresh/revision behavior, rollback preservation, regional product availability or
-cross-pipeline serialization. No such live test has been performed by this PR.
-
-The subsequent [compatibility verification suite](../compatibility/README.md) now exercises the real
-pinned provider against a strict localhost wire fixture and offers a separate Cloud Shell live
-reproduction. It demonstrates unresolved full-template/traffic replay and immutable-revision
-blockers. It does not relax the gate or change the production module/release helper ownership.
-
-After that prerequisite, use a separate `infra(<target>)` PR for each consumer:
+After reviewing that evidence, use a separate `infra(<target>)` PR for each consumer:
 
 - Add only that target's root, lockfile, state isolation, restricted execution permissions and
   Terraform plan/apply trigger registration. The current repo-only execution identities cannot
@@ -56,9 +39,9 @@ After that prerequisite, use a separate `infra(<target>)` PR for each consumer:
   resources at their exact module addresses. The initial saved plan should be a no-op or contain
   only explicitly reviewed non-destructive differences. Do not duplicate resources or authoritative
   IAM ownership; private module defaults do not remove pre-existing external public grants.
-- Define a reviewed permission-removal path before adoption: the existing execution runner rejects
-  all delete/replacement actions, including deleting an IAM member. Removing an entry from a module
-  map describes revocation but cannot currently pass that runner's normal apply flow.
+- Define reviewed controller-replacement and permission-removal paths before adoption: the existing execution runner rejects
+  all delete/replacement actions, including deleting an IAM member. The new local configuration controller needs a narrow replacement allowlist; this must not allow
+  service replacement. Removing an entry from a module map describes revocation but cannot currently pass that runner's normal apply flow.
 - For a genuinely new service, build a real reviewed digest first. Order required API enablement and
   resource IAM before service creation. Make the Cloud Run module depend on the complete identity
   module when it supplies secret-access grants, not just its email output.
@@ -66,8 +49,8 @@ After that prerequisite, use a separate `infra(<target>)` PR for each consumer:
   after release compatibility is established. The YAML must honor `_DEPLOY_SERVICE`; the trigger
   module cannot enforce the contents of arbitrary build configurations.
 
-The image release helper, all application YAMLs, existing service instances, bootstrap, execution
-policy and CI workflow remain unchanged by this module PR. Existing CI routing already selects
+The release helper supports guarded configuration descendants. Application YAMLs, existing service
+instances, bootstrap, execution-target policy and CI workflow remain unchanged by this foundation. Existing CI routing already selects
 repository/Terraform checks for module code and leaves service/frontend jobs unselected. The current
 pipeline configuration hash already covers all module files, binding saved plans to reviewed source.
 

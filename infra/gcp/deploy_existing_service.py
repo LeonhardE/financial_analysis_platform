@@ -6,6 +6,7 @@ Cloud Run etag makes release ordering atomic across concurrent builds.
 
 import argparse
 import copy
+import hashlib
 import json
 import re
 import subprocess
@@ -18,6 +19,8 @@ from urllib.request import Request, urlopen
 BUILD_ANNOTATION = "financial-analysis/deployment-build"
 TIME_ANNOTATION = "financial-analysis/deployment-created"
 COMMIT_ANNOTATION = "financial-analysis/deployment-commit"
+CONFIG_REVISION_ANNOTATION = "financial-analysis/configuration-revision"
+CONFIG_BASE_BUILD_ANNOTATION = "financial-analysis/configuration-base-build"
 
 
 def gcloud(*args):
@@ -61,8 +64,10 @@ def deployment_body(service, image, build_id, created, commit):
         raise RuntimeError("Automatic deployment currently supports one-container services.")
     containers[0]["image"] = image
     service_id = service["name"].rsplit("/", 1)[-1]
-    template["revision"] = f"{service_id}-cd-{build_id}"
+    template["revision"] = deployment_revision(service_id, build_id)
     annotations = dict(service.get("annotations", {}))
+    annotations.pop(CONFIG_REVISION_ANNOTATION, None)
+    annotations.pop(CONFIG_BASE_BUILD_ANNOTATION, None)
     annotations.update(
         {
             BUILD_ANNOTATION: build_id,
@@ -85,9 +90,20 @@ def same_revision(name, revision):
     return isinstance(name, str) and name.rsplit("/", 1)[-1] == revision
 
 
+def deployment_revision(service_id, build_id):
+    """Preserve short-service names; fit long service IDs within 63 characters."""
+    revision = f"{service_id}-cd-{build_id}"
+    if len(revision) <= 63:
+        return revision
+    suffix_size = 63 - len(service_id) - len("-cd-")
+    if suffix_size < 10:
+        raise RuntimeError("Service name leaves insufficient space for a release revision.")
+    return f"{service_id}-cd-{hashlib.sha256(build_id.encode()).hexdigest()[:suffix_size]}"
+
+
 def deploy(api, resource, image, build_id, created, commit, wait_seconds=600):
     deadline = time.monotonic() + wait_seconds
-    revision = f"{resource.rsplit('/', 1)[-1]}-cd-{build_id}"
+    revision = deployment_revision(resource.rsplit("/", 1)[-1], build_id)
     submitted = False
     while time.monotonic() < deadline:
         service = api.request("GET", resource)
@@ -102,8 +118,18 @@ def deploy(api, resource, image, build_id, created, commit, wait_seconds=600):
         if annotations.get(BUILD_ANNOTATION) == build_id:
             template = service.get("template", {})
             containers = template.get("containers", [])
+            current_revision = template.get("revision")
+            # A conditional configuration update can land after this image PATCH
+            # and before its readiness poll. Accept only an explicitly attested
+            # descendant of this build, preserving its exact image and identity.
+            configuration_descendant = (
+                isinstance(current_revision, str)
+                and current_revision.startswith(f"{resource.rsplit('/', 1)[-1]}-cfg-")
+                and annotations.get(CONFIG_REVISION_ANNOTATION) == current_revision
+                and annotations.get(CONFIG_BASE_BUILD_ANNOTATION) == build_id
+            )
             if (
-                not same_revision(template.get("revision"), revision)
+                not (same_revision(current_revision, revision) or configuration_descendant)
                 or len(containers) != 1
                 or containers[0].get("image") != image
             ):
@@ -122,12 +148,13 @@ def deploy(api, resource, image, build_id, created, commit, wait_seconds=600):
                 )
             traffic = service.get("trafficStatuses", [])
             desired_traffic = service.get("traffic", [])
+            ready_revision = current_revision if configuration_descendant else revision
             if (
                 condition.get("state") == "CONDITION_SUCCEEDED"
                 and service.get("generation")
                 and service.get("observedGeneration") == service["generation"]
-                and same_revision(service.get("latestCreatedRevision"), revision)
-                and same_revision(service.get("latestReadyRevision"), revision)
+                and same_revision(service.get("latestCreatedRevision"), ready_revision)
+                and same_revision(service.get("latestReadyRevision"), ready_revision)
                 and sum(target.get("percent", 0) for target in desired_traffic) == 100
                 and all(
                     target.get("percent", 0) == 0
@@ -136,7 +163,8 @@ def deploy(api, resource, image, build_id, created, commit, wait_seconds=600):
                 )
                 and sum(target.get("percent", 0) for target in traffic) == 100
                 and all(
-                    target.get("percent", 0) == 0 or same_revision(target.get("revision"), revision)
+                    target.get("percent", 0) == 0
+                    or same_revision(target.get("revision"), ready_revision)
                     for target in traffic
                 )
             ):

@@ -70,18 +70,19 @@ def check(terraform: str) -> None:
         if list((root / "tests").glob("*.tftest.hcl")):
             subprocess.run([terraform, "test", "-no-color"], cwd=root, env=environment, check=True)
 
-    # Exercise the pinned provider's real HTTP serialization, not only mocked
-    # schemas. These localhost regressions must reproduce the adoption blockers.
-    subprocess.run(
-        [
-            sys.executable,
-            str(DIRECTORY / "compatibility/provider_check.py"),
-            "--terraform",
-            terraform,
-        ],
-        env=environment,
-        check=True,
-    )
+    # Keep the original native-provider failures reproducible, then prove the
+    # guarded ownership controller through the same actual localhost HTTP path.
+    for script in ("provider_check.py", "ownership_check.py"):
+        subprocess.run(
+            [
+                sys.executable,
+                str(DIRECTORY / "compatibility" / script),
+                "--terraform",
+                terraform,
+            ],
+            env=environment,
+            check=True,
+        )
 
 
 def main() -> None:

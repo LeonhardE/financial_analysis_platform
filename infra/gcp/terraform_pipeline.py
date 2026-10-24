@@ -154,6 +154,8 @@ def configuration_hash(root, directory):
     files = {
         root / POLICY,
         root / "infra/gcp/terraform_pipeline.py",
+        root / "infra/gcp/configure_cloud_run_service.py",
+        root / "infra/gcp/deploy_existing_service.py",
         root / "infra/gcp/terraform/toolchain.json",
     }
     files.update(root / name for name in CONFIG_FILES.values())
