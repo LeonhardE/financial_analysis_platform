@@ -375,6 +375,8 @@ def bootstrap_review(plan):
         'google_service_account_iam_member.market_execution_metadata["apply"]',
         "google_project_iam_custom_role.market_service_read",
         "google_project_iam_custom_role.market_service_configuration",
+        "google_project_iam_custom_role.market_image_read",
+        "google_artifact_registry_repository_iam_member.market_configuration_image",
         "google_project_iam_custom_role.market_identity_read",
         "google_project_iam_custom_role.market_identity_metadata",
     }

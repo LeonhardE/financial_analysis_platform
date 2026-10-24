@@ -51,6 +51,14 @@ override_resource {
 }
 
 override_resource {
+  target          = google_project_iam_custom_role.market_image_read
+  override_during = plan
+  values = {
+    name = "projects/financial-analysis-512202/roles/folioviewMarketConfigurationImageRead"
+  }
+}
+
+override_resource {
   target          = google_project_iam_custom_role.market_identity_read
   override_during = plan
   values = {
@@ -223,6 +231,7 @@ run "market_execution_business_roles_cannot_create_delete_or_administer_resource
     condition = (
       toset(google_project_iam_custom_role.market_service_read.permissions) == toset(["run.services.get"]) &&
       toset(google_project_iam_custom_role.market_service_configuration.permissions) == toset(["run.services.get", "run.services.update"]) &&
+      toset(google_project_iam_custom_role.market_image_read.permissions) == toset(["artifactregistry.repositories.downloadArtifacts"]) &&
       toset(google_project_iam_custom_role.market_identity_read.permissions) == toset(["iam.serviceAccounts.get"]) &&
       toset(google_project_iam_custom_role.market_identity_metadata.permissions) == toset(["iam.serviceAccounts.get", "iam.serviceAccounts.update", "iam.serviceAccounts.enable"])
     )
@@ -249,6 +258,17 @@ run "market_execution_business_roles_cannot_create_delete_or_administer_resource
       google_service_account_iam_member.market_execution_metadata["apply"].role == google_project_iam_custom_role.market_identity_metadata.name
     )
     error_message = "Custom-role definitions are project objects, but execution grants must bind only market-api and its existing runtime account."
+  }
+
+  assert {
+    condition = (
+      google_artifact_registry_repository_iam_member.market_configuration_image.project == var.project_id &&
+      google_artifact_registry_repository_iam_member.market_configuration_image.location == "northamerica-northeast2" &&
+      google_artifact_registry_repository_iam_member.market_configuration_image.repository == "financial-analysis" &&
+      google_artifact_registry_repository_iam_member.market_configuration_image.role == google_project_iam_custom_role.market_image_read.name &&
+      google_artifact_registry_repository_iam_member.market_configuration_image.member == "serviceAccount:${module.target_execution["market"].service_accounts["apply"]}"
+    )
+    error_message = "Only Market apply may download existing images from the Toronto financial-analysis repository; do not grant project-wide artifact access, writes, or repository administration."
   }
 
   assert {
