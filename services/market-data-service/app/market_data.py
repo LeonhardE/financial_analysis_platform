@@ -1,5 +1,6 @@
 """Anonymous market snapshots, cached independently of private Firebase identity."""
 
+import math
 import os
 import re
 import time
@@ -321,6 +322,63 @@ class MarketService:
         raise HTTPException(404, "US stock symbol not found")
 
     def candles(self, raw_symbol, chart_range="1m", *, cached_only=False):
+        result = self._range_candles(raw_symbol, chart_range, cached_only=cached_only)
+        if result is None:
+            return None
+        # Quote identity is independent of the viewed chart range. Decorate only
+        # the response: caches retain their existing OHLC, leases and budgets.
+        canonical = None
+        if chart_range == "1m":
+            canonical = result
+        elif self.source == "mock":
+            canonical = self.mock_candles(DEFAULT_BY_SYMBOL[result["symbol"]])
+        else:
+            try:
+                now = self.clock()
+                entry = self.cached(f"candles:{result['symbol']}", now)
+                if entry:
+                    canonical = self.with_status(entry.value, entry.updated_at, now)
+            except CacheUnavailable:
+                # A missing quote must never turn a usable chart into an error
+                # or reserve another upstream refresh behind the user's back.
+                pass
+        return {**result, "quote": self.daily_quote(canonical)}
+
+    @staticmethod
+    def daily_quote(payload):
+        if (
+            payload is None
+            or payload.get("range", "1m") != "1m"
+            or payload.get("interval", "1d") != "1d"
+            or payload.get("adjustment") not in ("split_and_dividend_adjusted", "mock")
+        ):
+            return None
+        previous = None
+        candles = payload.get("candles", [])
+        if len(candles) >= 2:
+            prior, latest = candles[-2:]
+            value = prior.get("close")
+            prior_date, latest_date = prior.get("time"), latest.get("time")
+            if (
+                isinstance(prior_date, str)
+                and isinstance(latest_date, str)
+                and prior_date < latest_date == payload.get("dataDate")
+                and not isinstance(value, bool)
+                and isinstance(value, int | float)
+                and math.isfinite(value)
+                and value > 0
+            ):
+                previous = value
+        return {
+            **MarketService.summary(payload),
+            "basis": "daily_snapshot",
+            "interval": "1d",
+            "adjustment": payload["adjustment"],
+            # Never infer a missing prior close from a rounded change percentage.
+            "previousClose": previous,
+        }
+
+    def _range_candles(self, raw_symbol, chart_range="1m", *, cached_only=False):
         if chart_range not in HISTORY_RANGES:
             raise HTTPException(400, "Choose one of these chart ranges: 1d, 1w, 1m, 3m, 1y")
         symbol = canonical_symbol(raw_symbol)
