@@ -1,7 +1,15 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { CandleResponse, Instrument, MarketOverview, StockSummary } from "@/lib/market-data";
+import {
+  DEFAULT_INSTRUMENTS,
+  type CandleResponse,
+  type ChartRange,
+  type DailyQuote,
+  type Instrument,
+  type MarketOverview,
+} from "@/lib/market-data";
+import { hasQuote, preferQuote, readCandleQuote, readOverviewQuote } from "@/lib/market-quotes";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
 const MEMORY_TTL = 5 * 60_000;
@@ -15,55 +23,14 @@ type Options = {
   active: boolean;
   owner: string | null;
   refreshKey: number;
+  selectedInstrument?: Instrument | null;
+  selectedRange?: ChartRange;
+  selectedActive?: boolean;
+  selectedChartSettled?: boolean;
+  overviewPending?: boolean;
 };
-type CachedQuote = { quote: StockSummary; freshUntil: number };
+type CachedQuote = { quote: DailyQuote; freshUntil: number };
 type Job = { controller: AbortController; cancel: () => void };
-
-function readQuote(value: unknown, instrument: Instrument): StockSummary | null {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
-  const row = value as Record<string, unknown>;
-  if (
-    row.symbol !== instrument.symbol ||
-    row.instrumentType !== instrument.instrumentType ||
-    row.currency !== instrument.currency ||
-    typeof row.name !== "string" ||
-    !row.name.trim() ||
-    row.name.length > 200 ||
-    !(
-      row.latestClose === null ||
-      (typeof row.latestClose === "number" &&
-        Number.isFinite(row.latestClose) &&
-        row.latestClose > 0)
-    ) ||
-    !(
-      row.changePercent === null ||
-      (typeof row.changePercent === "number" && Number.isFinite(row.changePercent))
-    ) ||
-    !(
-      row.dataDate === null ||
-      (typeof row.dataDate === "string" &&
-        /^\d{4}-\d{2}-\d{2}$/.test(row.dataDate) &&
-        Number.isFinite(Date.parse(row.dataDate)))
-    ) ||
-    !(
-      row.fetchedAt === null ||
-      (typeof row.fetchedAt === "string" &&
-        row.fetchedAt.length <= 40 &&
-        Number.isFinite(Date.parse(row.fetchedAt)))
-    ) ||
-    typeof row.isStale !== "boolean"
-  ) {
-    return null;
-  }
-  return {
-    ...instrument,
-    latestClose: row.latestClose as number | null,
-    changePercent: row.changePercent as number | null,
-    dataDate: row.dataDate as string | null,
-    fetchedAt: row.fetchedAt as string | null,
-    isStale: row.isStale,
-  };
-}
 
 /** One page-owned queue prevents the desktop and mobile pickers duplicating downloads. */
 class QuoteQueue {
@@ -83,11 +50,34 @@ class QuoteQueue {
 
   enabled() {
     const current = this.options();
-    return current.active && current.owner !== null;
+    return (
+      (current.active && current.owner !== null) ||
+      Boolean(current.selectedActive && current.selectedInstrument)
+    );
   }
 
   instrument(symbol: string) {
-    return this.options().items.find((item) => item.symbol === symbol);
+    const current = this.options();
+    return current.selectedInstrument?.symbol === symbol
+      ? current.selectedInstrument
+      : current.items.find((item) => item.symbol === symbol);
+  }
+
+  canRequest(symbol: string) {
+    const current = this.options();
+    const selected = current.selectedInstrument?.symbol === symbol;
+    // A selected 1M chart already owns this exact cache probe/full request. Wait
+    // for other selected ranges too, since their nested quote often suffices.
+    if (selected && (current.selectedRange === "1m" || !current.selectedChartSettled)) return false;
+    // Default symbols share the overview's upstream lease. Never race its batch.
+    const defaultSymbol = DEFAULT_INSTRUMENTS.some((instrument) => instrument.symbol === symbol);
+    if (defaultSymbol && current.overviewPending) return false;
+    return Boolean(
+      (selected && current.selectedActive) ||
+      (current.active &&
+        current.owner !== null &&
+        current.items.some((item) => item.symbol === symbol)),
+    );
   }
 
   cancel() {
@@ -113,58 +103,110 @@ class QuoteQueue {
       this.paused = false;
       if (refreshChanged && !ownerChanged) {
         // Explicit refresh rechecks the server cache while retaining every known price.
-        for (const item of current.items) {
-          const cached = this.cache.get(item.symbol);
-          if (cached) cached.freshUntil = 0;
-        }
+        for (const cached of this.cache.values()) cached.freshUntil = 0;
       }
     }
     if (!this.enabled()) this.cancel();
     this.pending = this.pending.filter((symbol) => {
-      if (this.instrument(symbol)) return true;
+      if (this.instrument(symbol) && this.canRequest(symbol)) return true;
       this.attempted.delete(symbol);
       return false;
     });
     for (const [symbol, job] of this.jobs) {
-      if (this.instrument(symbol)) continue;
+      if (this.instrument(symbol) && this.canRequest(symbol)) continue;
       this.jobs.delete(symbol);
       this.attempted.delete(symbol);
       job.cancel();
     }
   }
 
-  remember(quote: StockSummary) {
-    const previous = this.cache.get(quote.symbol);
-    const timestamp = (value: StockSummary) => (value.fetchedAt ? Date.parse(value.fetchedAt) : 0);
-    if (previous && timestamp(previous.quote) > timestamp(quote)) return;
-    if (previous && JSON.stringify(previous.quote) === JSON.stringify(quote)) return;
+  remember(candidate: DailyQuote) {
+    const previous = this.cache.get(candidate.symbol);
+    const quote = preferQuote(previous?.quote, candidate);
+    if (!quote || (previous && JSON.stringify(previous.quote) === JSON.stringify(quote))) return;
     this.cache.set(quote.symbol, {
       quote,
-      freshUntil: !quote.isStale && quote.latestClose !== null ? Date.now() + MEMORY_TTL : 0,
+      freshUntil: !quote.isStale ? Date.now() + MEMORY_TTL : 0,
     });
     // Public prices stay in page memory only, with bounded retention across account changes.
     while (this.cache.size > 100) this.cache.delete(this.cache.keys().next().value!);
     this.notify();
   }
 
-  seed() {
+  candidates() {
     const current = this.options();
-    const candidates: unknown[] = [
-      ...(current.overview?.stocks ?? []),
-      ...(current.selectedQuote ? [current.selectedQuote] : []),
-    ];
-    for (const candidate of candidates) {
-      if (!candidate || typeof candidate !== "object" || !("symbol" in candidate)) continue;
-      const item = this.instrument(String(candidate.symbol));
-      if (!item || !SYMBOL.test(item.symbol)) continue;
-      const quote = readQuote(candidate, item);
-      if (quote) this.remember(quote);
+    const result: DailyQuote[] = [];
+    for (const row of current.overview?.stocks ?? []) {
+      const instrument = DEFAULT_INSTRUMENTS.find((item) => item.symbol === row.symbol);
+      const quote = instrument
+        ? readOverviewQuote(row, instrument, current.overview?.isMock)
+        : null;
+      if (quote) result.push(quote);
     }
+    const selected = current.selectedQuote;
+    if (selected) {
+      const instrument =
+        current.selectedInstrument?.symbol === selected.symbol
+          ? current.selectedInstrument
+          : this.instrument(selected.symbol);
+      const quote = instrument ? readCandleQuote(selected, instrument) : null;
+      if (quote) result.push(quote);
+    }
+    return result;
+  }
+
+  seed() {
+    for (const quote of this.candidates()) this.remember(quote);
+  }
+
+  requestSelected() {
+    const current = this.options();
+    const selected = current.selectedInstrument;
+    if (!selected || !current.selectedActive || !this.canRequest(selected.symbol)) return;
+    // Fresh canonical data needs no additional download. A stale snapshot or
+    // older API may need one bounded 1M recheck for this selected symbol only.
+    const candidate = this.candidates()
+      .filter((quote) => quote.symbol === selected.symbol)
+      .reduce<DailyQuote | undefined>((best, quote) => preferQuote(best, quote), undefined);
+    const best = preferQuote(this.cache.get(selected.symbol)?.quote, candidate);
+    if (hasQuote(candidate) && hasQuote(best) && !best.isStale) return;
+    this.request(selected.symbol);
+  }
+
+  snapshot() {
+    const current = this.options();
+    const instruments = new Map<string, Instrument>(
+      DEFAULT_INSTRUMENTS.map((instrument) => [instrument.symbol, instrument]),
+    );
+    for (const row of current.overview?.stocks ?? []) instruments.set(row.symbol, row);
+    if (current.owner) for (const item of current.items) instruments.set(item.symbol, item);
+    if (current.selectedInstrument)
+      instruments.set(current.selectedInstrument.symbol, current.selectedInstrument);
+    const quotes: Record<string, DailyQuote> = {};
+    for (const symbol of instruments.keys()) {
+      const cached = this.cache.get(symbol);
+      if (cached) quotes[symbol] = cached.quote;
+    }
+    // Merge current responses during render as well as in the effect, so every
+    // consumer changes to the same quote in the same paint.
+    for (const quote of this.candidates()) {
+      if (!instruments.has(quote.symbol)) continue;
+      const best = preferQuote(quotes[quote.symbol], quote);
+      if (best) quotes[quote.symbol] = best;
+    }
+    return quotes;
   }
 
   request(symbol: string) {
     this.sync();
-    if (!this.enabled() || this.paused || !SYMBOL.test(symbol) || !this.instrument(symbol)) return;
+    if (
+      !this.enabled() ||
+      this.paused ||
+      !SYMBOL.test(symbol) ||
+      !this.instrument(symbol) ||
+      !this.canRequest(symbol)
+    )
+      return;
     this.seed();
     const cached = this.cache.get(symbol);
     if (cached && cached.freshUntil > Date.now()) return;
@@ -177,7 +219,7 @@ class QuoteQueue {
   pump() {
     while (this.enabled() && !this.paused && this.jobs.size < 2 && this.pending.length) {
       const symbol = this.pending.shift()!;
-      if (this.instrument(symbol)) void this.load(symbol);
+      if (this.instrument(symbol) && this.canRequest(symbol)) void this.load(symbol);
     }
     this.notify();
   }
@@ -206,7 +248,10 @@ class QuoteQueue {
       this.options().refreshKey === refreshKey &&
       this.generation === generation;
     const owns = () =>
-      !controller.signal.aborted && currentScope() && Boolean(this.instrument(symbol));
+      !controller.signal.aborted &&
+      currentScope() &&
+      Boolean(this.instrument(symbol)) &&
+      this.canRequest(symbol);
 
     const request = async (cached: boolean) => {
       const path = `/api/stocks/${encodeURIComponent(symbol)}/candles?range=1m${cached ? "&cached=true" : ""}`;
@@ -228,8 +273,6 @@ class QuoteQueue {
       const value: unknown = await response.json();
       if (!owns()) return null;
       const item = this.instrument(symbol)!;
-      const quote = readQuote(value, item);
-      if (!quote) throw new Error("Invalid quote response");
       if (
         !value ||
         typeof value !== "object" ||
@@ -237,12 +280,16 @@ class QuoteQueue {
         value.range !== "1m" ||
         !("interval" in value) ||
         value.interval !== "1d"
-      ) {
+      )
         throw new Error("Invalid quote range");
-      }
-      this.remember(quote);
+      const quote = readCandleQuote(value, item);
+      // A valid new response may explicitly lack a canonical quote. Keep the
+      // previous real price, and honor the server's refresh marker once only.
+      if (!quote && !("quote" in value && value.quote === null))
+        throw new Error("Invalid quote response");
+      if (quote) this.remember(quote);
       const needsRefresh =
-        quote.isStale || ("refreshRequired" in value && value.refreshRequired === true);
+        quote?.isStale || ("refreshRequired" in value && value.refreshRequired === true);
       return { needsRefresh };
     };
 
@@ -283,28 +330,44 @@ export function useWatchlistQuotes(options: Options) {
     queue.sync();
     queue.seed();
     return () => queue.cancel();
-  }, [queue, options.active, options.owner, options.refreshKey]);
+  }, [queue, options.active, options.owner, options.refreshKey, options.selectedActive]);
 
   useEffect(() => {
     queue.sync();
     queue.seed();
+    queue.requestSelected();
     queue.pump();
-  }, [queue, symbols, options.overview, options.selectedQuote]);
+  }, [
+    queue,
+    symbols,
+    options.overview,
+    options.selectedQuote,
+    options.selectedInstrument,
+    options.selectedRange,
+    options.selectedActive,
+    options.selectedChartSettled,
+    options.overviewPending,
+    options.refreshKey,
+    options.owner,
+    options.active,
+  ]);
 
   const requestQuote = useCallback(
     (symbol: string) => queue.request(symbol),
-    [queue, options.active, options.owner, options.refreshKey],
+    [
+      queue,
+      options.active,
+      options.owner,
+      options.refreshKey,
+      options.overviewPending,
+      options.selectedInstrument?.symbol,
+      options.selectedRange,
+      options.selectedChartSettled,
+    ],
   );
-  const quotes: Record<string, StockSummary> = {};
-  if (options.owner) {
-    for (const item of options.items) {
-      const cached = queue.cache.get(item.symbol);
-      if (cached) quotes[item.symbol] = cached.quote;
-    }
-  }
   return {
-    quotes: quotes as Readonly<Record<string, StockSummary>>,
-    loading: Boolean(options.active && options.owner && (queue.jobs.size || queue.pending.length)),
+    quotes: queue.snapshot() as Readonly<Record<string, DailyQuote>>,
+    loading: Boolean(queue.enabled() && (queue.jobs.size || queue.pending.length)),
     requestQuote,
   };
 }

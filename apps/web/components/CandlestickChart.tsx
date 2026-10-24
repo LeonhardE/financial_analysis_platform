@@ -5,21 +5,31 @@ import { useTranslations } from "next-intl";
 import {
   CandlestickSeries,
   ColorType,
+  LineStyle,
   TickMarkType,
   createChart,
   type CandlestickData,
   type Time,
+  type IPriceLine,
+  type ISeriesApi,
 } from "lightweight-charts";
-import { type Candle, type ChartRange, type CandleResponse } from "@/lib/market-data";
+import {
+  type Candle,
+  type ChartRange,
+  type CandleResponse,
+  type DailyQuote,
+} from "@/lib/market-data";
 
 export function CandlestickChart({
   data,
+  quote = null,
   range,
   interval,
   theme,
   locale,
 }: {
   data: Candle[];
+  quote?: DailyQuote | null;
   range: ChartRange;
   interval: CandleResponse["interval"];
   theme: "dark" | "light";
@@ -27,6 +37,9 @@ export function CandlestickChart({
 }) {
   const t = useTranslations();
   const containerRef = useRef<HTMLDivElement>(null);
+  const seriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
+  const quoteLineRef = useRef<IPriceLine | null>(null);
+  const quoteTitle = t("chart.dailySnapshot");
 
   useEffect(() => {
     const container = containerRef.current;
@@ -102,10 +115,13 @@ export function CandlestickChart({
       borderVisible: false,
       wickUpColor: "#26a69a",
       wickDownColor: "#ef6976",
-      priceLineVisible: true,
-      priceLineColor: "rgba(114, 158, 232, 0.65)",
+      // A range's last bar is historical OHLC, not the canonical daily quote.
+      priceLineVisible: false,
+      lastValueVisible: false,
     });
 
+    seriesRef.current = series;
+    quoteLineRef.current = null;
     series.setData(
       data.map((candle) => ({
         time: candle.time as Time,
@@ -142,9 +158,32 @@ export function CandlestickChart({
       resizeObserver.disconnect();
       cancelAnimationFrame(paintFrame);
       cancelAnimationFrame(resizeFrame);
+      seriesRef.current = null;
+      quoteLineRef.current = null;
       chart.remove();
     };
   }, [data, interval, theme, locale]);
+
+  useEffect(() => {
+    const series = seriesRef.current;
+    if (!series) return;
+    if (quoteLineRef.current) {
+      series.removePriceLine(quoteLineRef.current);
+      quoteLineRef.current = null;
+    }
+    const price = quote?.latestClose;
+    if (price == null || !Number.isFinite(price) || price <= 0) return;
+    quoteLineRef.current = series.createPriceLine({
+      price,
+      title: quoteTitle,
+      color: theme === "light" ? "#4479c6" : "#82aaf0",
+      lineWidth: 1,
+      lineStyle: LineStyle.Dashed,
+      axisLabelVisible: true,
+    });
+    // Recreate the reference after chart recreation, but never change the OHLC
+    // series to make different historical intervals look like the same snapshot.
+  }, [data, interval, theme, locale, quote?.latestClose, quoteTitle]);
 
   return (
     <div

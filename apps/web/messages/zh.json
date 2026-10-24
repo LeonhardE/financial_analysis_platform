@@ -75,7 +75,8 @@
     "unavailable": "暂无",
     "daily": "日 K 线",
     "fiveMinute": "5 分钟 K 线",
-    "thirtyMinute": "30 分钟 K 线"
+    "thirtyMinute": "30 分钟 K 线",
+    "dailySnapshot": "日线快照"
   },
   "ranges": {
     "1d": "最近一个交易日",

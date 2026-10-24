@@ -75,7 +75,8 @@
     "unavailable": "unavailable",
     "daily": "Daily candles",
     "fiveMinute": "5-minute candles",
-    "thirtyMinute": "30-minute candles"
+    "thirtyMinute": "30-minute candles",
+    "dailySnapshot": "Daily snapshot"
   },
   "ranges": {
     "1d": "Latest trading session",

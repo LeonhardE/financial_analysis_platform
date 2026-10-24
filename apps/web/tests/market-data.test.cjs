@@ -231,6 +231,25 @@ test("index points and missing prices never appear as dollars, zero, or NaN", ()
   assert.match(formatFetchedAt("2026-10-20T20:10:00Z"), /20:10 UTC$/);
 });
 
+function dailySnapshot(symbol = "AAPL", changes = {}) {
+  return {
+    symbol,
+    name: symbol === "MSFT" ? "Microsoft" : "Apple",
+    instrumentType: "stock",
+    currency: "USD",
+    latestClose: 105,
+    changePercent: 5,
+    dataDate: "2026-10-20",
+    fetchedAt: "2026-10-20T20:10:00Z",
+    isStale: false,
+    basis: "daily_snapshot",
+    interval: "1d",
+    adjustment: "split_and_dividend_adjusted",
+    previousClose: 100,
+    ...changes,
+  };
+}
+
 function renderDashboard({
   overview,
   chart,
@@ -238,6 +257,10 @@ function renderDashboard({
   range = "1m",
   requests = [],
   readiness = [],
+  watchlistItems = [],
+  pickerTab = "markets",
+  controls = [],
+  updates = [],
 }) {
   const market = compile("../lib/market-data.ts", {});
   const selected = market.DEFAULT_INSTRUMENTS.find((item) => item.symbol === selectedSymbol) ?? {
@@ -246,14 +269,18 @@ function renderDashboard({
     instrumentType: "stock",
     currency: "USD",
   };
+  const quoteLibrary = compile("../lib/market-quotes.ts", {});
   let stateIndex = 0;
   const { default: Dashboard } = compile("../app/page.tsx", {
     react: {
       useEffect: () => {},
-      useState: (initial) => [
-        stateIndex++ === 0 ? selected : stateIndex === 2 ? range : initial,
-        () => {},
-      ],
+      useState: (initial) => {
+        const index = stateIndex++;
+        return [
+          index === 0 ? selected : index === 1 ? range : index === 3 ? pickerTab : initial,
+          (next) => updates.push({ index, next }),
+        ];
+      },
       useRef: (current) => ({ current }),
     },
     "react/jsx-runtime": jsxRuntime,
@@ -286,21 +313,46 @@ function renderDashboard({
       WorkspaceSidebar: () => jsxRuntime.jsx("nav", { children: "Workspace navigation" }),
     },
     "@/components/useWatchlist": {
-      useWatchlist: () => ({ authenticated: false, items: [] }),
+      useWatchlist: () => ({ authenticated: watchlistItems.length > 0, items: watchlistItems }),
     },
     "@/components/useWatchlistQuotes": {
-      useWatchlistQuotes: () => ({ quotes: {}, loading: false, requestQuote: () => {} }),
+      useWatchlistQuotes: (options) => {
+        const quotes = {};
+        for (const row of options.overview?.stocks ?? []) {
+          const value = quoteLibrary.readOverviewQuote(row, row);
+          if (value) quotes[row.symbol] = value;
+        }
+        const value = quoteLibrary.readCandleQuote(
+          options.selectedQuote,
+          options.selectedInstrument,
+        );
+        const best = quoteLibrary.preferQuote(quotes[selected.symbol], value);
+        if (best) quotes[selected.symbol] = best;
+        return { quotes, loading: false, requestQuote: () => {} };
+      },
     },
     "@/components/WatchlistNotification": { WatchlistNotification: () => null },
     "@/components/PersonalWatchlist": {
-      PersonalWatchlist: () => jsxRuntime.jsx("aside", { children: "My watchlist" }),
+      PersonalWatchlist: ({ quotes }) =>
+        jsxRuntime.jsx("aside", {
+          children: `My watchlist ${quotes.MSFT?.latestClose ?? ""} ${quotes.MSFT?.changePercent ?? ""}`,
+        }),
       WatchlistAction: () => jsxRuntime.jsx("button", { children: "Sign in to save" }),
     },
     "@/components/CandlestickChart": {
-      CandlestickChart: () => jsxRuntime.jsx("div", { "data-chart": "rendered" }),
+      CandlestickChart: ({ quote }) =>
+        jsxRuntime.jsx("div", { "data-chart": "rendered", "data-reference": quote?.latestClose }),
     },
   });
-  return renderToStaticMarkup(Dashboard());
+  const tree = Dashboard();
+  function inspect(node) {
+    if (!node || typeof node !== "object") return;
+    if (node.type === "button" && node.props.children === "Refresh")
+      controls.push(node.props.onClick);
+    for (const child of [node.props?.children].flat(Infinity)) inspect(child);
+  }
+  inspect(tree);
+  return renderToStaticMarkup(tree);
 }
 
 test("an overview outage retains all ten public instruments without inventing mock prices", () => {
@@ -369,6 +421,7 @@ test("a cached chart remains useful during the first overview refresh and after 
       overview: { data: null, error: "", loading: true, hasSettled: false },
       chart: {
         data: {
+          ...dailySnapshot(),
           symbol: "AAPL",
           range: "1m",
           interval: "1d",
@@ -414,6 +467,7 @@ test("refreshing the overview leaves an already loaded chart visible", () => {
     overview: { data: null, error: "", loading: true, hasSettled: true },
     chart: {
       data: {
+        ...dailySnapshot(),
         symbol: "AAPL",
         range: "1m",
         interval: "1d",
@@ -442,6 +496,7 @@ test("a searched stock remains readable when the separate overview has failed", 
       loading: false,
       error: "",
       data: {
+        ...dailySnapshot("NFLX"),
         symbol: "NFLX",
         range: "1m",
         interval: "1d",
@@ -486,7 +541,9 @@ test("all five time ranges request their own candles and retain an accurate inte
       overview: { data: null, loading: false, error: "" },
       chart: {
         data: {
+          ...dailySnapshot(),
           symbol: "AAPL",
+          quote: dailySnapshot("AAPL", { changePercent: -1.23 }),
           range,
           interval: range === "1d" ? "5m" : range === "1w" ? "30m" : "1d",
           candles: [{ time: "2026-10-20", open: 100, high: 106, low: 99, close: 105 }],
@@ -539,4 +596,62 @@ test("a late time-range response cannot replace a newly selected range", async (
   resource.requests[0].result.resolve(response({ symbol: "AAPL", range: "1m" }));
   await settle();
   assert.equal(resource.render(year).data.range, "1y");
+});
+
+test("selected header, market radar, watchlist and chart reference use one daily snapshot", () => {
+  const canonical = dailySnapshot("MSFT", {
+    latestClose: 524.51,
+    changePercent: 0.66,
+    previousClose: 521.07,
+  });
+  const history = {
+    ...dailySnapshot("MSFT"),
+    range: "1d",
+    interval: "5m",
+    quote: canonical,
+    latestClose: 524.53,
+    changePercent: 0.56,
+    candles: [{ time: 1792785600, open: 524, high: 525, low: 523, close: 524.53 }],
+  };
+  const common = {
+    selectedSymbol: "MSFT",
+    range: "1d",
+    overview: { data: { stocks: [canonical] }, loading: false },
+    chart: { data: history, loading: false, hasSettled: true },
+  };
+  const market = renderDashboard(common);
+  const priceCount = (market.match(/\$524\.51/g) ?? []).length;
+  assert.ok(priceCount >= 2); // The mobile picker shares the same rendered data.
+  assert.equal((market.match(/\+0\.66%/g) ?? []).length, priceCount);
+  assert.match(market, /data-reference="524\.51"/);
+  assert.match(market, /Daily snapshot/);
+  assert.doesNotMatch(market, /524\.53|0\.56%/);
+  const watchlist = renderDashboard({
+    ...common,
+    pickerTab: "watchlist",
+    watchlistItems: [canonical],
+  });
+  assert.match(watchlist, /My watchlist 524\.51 0\.66/);
+  assert.match(watchlist, /\$524\.51/);
+});
+
+test("the workspace refresh control rechecks both overview and selected history", () => {
+  const controls = [];
+  const updates = [];
+  renderDashboard({
+    overview: { data: null, loading: false },
+    chart: { data: null, loading: false },
+    controls,
+    updates,
+  });
+  assert.ok(controls.length > 0);
+  controls[0]();
+  assert.deepEqual(
+    updates.map(({ index }) => index),
+    [4, 5],
+  );
+  assert.deepEqual(
+    updates.map(({ next }) => next(0)),
+    [1, 1],
+  );
 });
