@@ -42,7 +42,7 @@
       "configuration_controllers": ["module.user.terraform_data.configuration"]
     },
     "config": {
-      "enabled": false,
+      "enabled": true,
       "directory": "infra/gcp/terraform/envs/prod/config",
       "state_bucket": "financial-analysis-512202-tfstate-config",
       "state_prefix": "prod/config",
@@ -50,7 +50,7 @@
       "apply_trigger": "terraform-apply-config",
       "plan_service_account": "fa-infra-config-plan@financial-analysis-512202.iam.gserviceaccount.com",
       "apply_service_account": "fa-infra-config-apply@financial-analysis-512202.iam.gserviceaccount.com",
-      "configuration_controllers": []
+      "configuration_controllers": ["module.config.terraform_data.configuration"]
     },
     "web": {
       "enabled": false,
