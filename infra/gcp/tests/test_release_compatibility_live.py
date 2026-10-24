@@ -41,6 +41,67 @@ def arguments(**overrides):
 
 
 class InputTests(unittest.TestCase):
+    def test_pasted_path_whitespace_and_home_expansion_resolve_to_executable(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            binary = Path(temporary) / "terraform"
+            binary.write_text("fixture executable")
+            binary.chmod(0o700)
+            self.assertEqual(LIVE.terraform_binary(str(binary) + "\n\n"), str(binary.resolve()))
+            with patch.dict(os.environ, {"HOME": temporary}):
+                self.assertEqual(LIVE.terraform_binary(" ~/terraform\r\n"), str(binary.resolve()))
+
+    def test_invalid_executable_stops_before_any_cloud_access(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            nonexecutable = Path(temporary) / "terraform"
+            nonexecutable.touch()
+            for supplied in (
+                "",
+                "\n\n",
+                str(nonexecutable),
+                temporary,
+                "/missing/terraform",
+                "a\nb",
+            ):
+                api = Mock()
+                with self.subTest(path=supplied), self.assertRaises(argparse.ArgumentTypeError):
+                    LIVE.verify(arguments(terraform=supplied), api)
+                api.request.assert_not_called()
+                api.iam.assert_not_called()
+                api.credentials.assert_not_called()
+
+    def test_wrong_version_uses_normalized_path_and_stops_before_image_discovery(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            binary = Path(temporary) / "terraform"
+            binary.touch()
+            binary.chmod(0o700)
+            api = Mock()
+            with (
+                patch.object(
+                    LIVE.subprocess, "check_output", return_value='{"terraform_version":"0.0.0"}'
+                ) as execute,
+                self.assertRaisesRegex(RuntimeError, "pinned Terraform"),
+            ):
+                LIVE.verify(arguments(terraform=str(binary) + "\n\n"), api)
+            self.assertEqual(execute.call_args.args[0], [str(binary.resolve()), "version", "-json"])
+            api.request.assert_not_called()
+            api.iam.assert_not_called()
+
+    def test_preflight_error_is_concise_without_a_traceback(self):
+        import io
+
+        with (
+            patch(
+                "sys.argv", ["verify", "--live", "--project", PROJECT, "--terraform", "/missing/tf"]
+            ),
+            patch("sys.stderr", new_callable=io.StringIO) as error,
+            patch.object(LIVE, "Cloud") as cloud,
+            self.assertRaises(SystemExit),
+        ):
+            LIVE.main()
+        self.assertIn("Terraform executable was not found", error.getvalue())
+        self.assertNotIn("Traceback", error.getvalue())
+        cloud.assert_not_called()
+
     def test_requires_explicit_live_opt_in_and_fixed_project_region(self):
         for overrides in ({"live": False}, {"project": "other-project"}, {"region": "us-central1"}):
             with self.subTest(overrides=overrides), self.assertRaises(RuntimeError):
