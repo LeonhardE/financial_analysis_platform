@@ -80,12 +80,24 @@ resource "google_storage_bucket_iam_member" "plan_artifact_write" {
   bucket = google_storage_bucket.plans.name
   role   = "roles/storage.objectCreator"
   member = "serviceAccount:${google_service_account.execution["plan"].email}"
+
+  condition {
+    title       = "repo-plan-artifacts-only"
+    description = "Create append-only repo plans, never another target's plan or recovery artifact."
+    expression  = "resource.name.startsWith('projects/_/buckets/${google_storage_bucket.plans.name}/objects/plans/repo/')"
+  }
 }
 
 resource "google_storage_bucket_iam_member" "plan_artifact_read" {
   bucket = google_storage_bucket.plans.name
   role   = "roles/storage.objectViewer"
   member = "serviceAccount:${google_service_account.execution["apply"].email}"
+
+  condition {
+    title       = "repo-plan-artifacts-only"
+    description = "Read only repo's exact saved plan objects; artifact listing is not required."
+    expression  = "resource.name.startsWith('projects/_/buckets/${google_storage_bucket.plans.name}/objects/plans/repo/')"
+  }
 }
 
 # Keep failed-apply diagnostics and errored.tfstate private for recovery. This

@@ -44,11 +44,11 @@ replacement only reruns the local controller and never destroys the service. Thi
 drift but does not automatically schedule repairs for out-of-band configuration changes. It has
 no timestamp or observed-state-hash trigger that would create perpetual plans.
 
-The registered runner currently permits only the `repo` target and rejects all replacements. Before
-a service target is registered, its separate execution PR must narrowly allow this specific local
-controller replacement, preserve destructive-resource rejection, and grant only its required
-service-scoped permissions. This PR does not widen execution IAM, register targets, or import
-production resources. The saved-plan configuration fingerprint includes both executable helpers.
+The target execution runner supports only explicitly enabled registry entries and exact registered
+controller addresses. The current catalog enables `repo` alone and gives it no controller exception.
+Each consumer PR must supply its root, isolated state/execution permissions and controller address
+before activation. Actual resource deletion or replacement remains rejected. The saved-plan
+configuration fingerprint includes both executable helpers.
 
 ## Offline validation
 

@@ -137,12 +137,79 @@ class GoogleAPI:
 
 def registry(root, target):
     policy = json.loads((root / POLICY).read_text())
-    require(policy.get("schema_version") == 1, "Unsupported pipeline policy schema.")
+    require(isinstance(policy, dict), "Pipeline policy must be an object.")
+    require(policy.get("schema_version") == 2, "Unsupported pipeline policy schema.")
+    require(isinstance(policy.get("targets"), dict), "Pipeline targets must be an object.")
+    project = policy["project_id"]
+    seen = {
+        field: set()
+        for field in ("directory", "state_bucket", "state_prefix", "identity", "trigger")
+    }
+    for name, entry in policy["targets"].items():
+        require(isinstance(entry, dict), "Target policy must be an object.")
+        require(
+            re.fullmatch(r"[a-z]([a-z0-9-]{0,13}[a-z0-9])?", name)
+            and name not in ("bootstrap", "shared"),
+            "Invalid or reserved target identifier.",
+        )
+        require(type(entry.get("enabled")) is bool, "Target activation must be explicit.")
+        require(
+            entry.get("directory") == f"infra/gcp/terraform/envs/prod/{name}",
+            "Target directory must match its target.",
+        )
+        require(entry.get("state_prefix") == f"prod/{name}", "State prefix must match its target.")
+        expected_bucket = policy["state_bucket"] if name == "repo" else f"{project}-tfstate-{name}"
+        require(entry.get("state_bucket") == expected_bucket, "State bucket must match its target.")
+        controllers = entry.get("configuration_controllers")
+        require(
+            isinstance(controllers, list)
+            and len(controllers) <= 1
+            and all(
+                isinstance(address, str)
+                and re.fullmatch(
+                    r"module\.[a-z_][a-z0-9_]*\.terraform_data\.configuration", address
+                )
+                for address in controllers
+            ),
+            "Only one exact shared configuration controller may be registered per target.",
+        )
+        require(
+            name != "repo" or not controllers,
+            "Repo cannot replace service configuration controllers.",
+        )
+        for phase in ("plan", "apply"):
+            account = f"fa-infra-{phase}" if name == "repo" else f"fa-infra-{name}-{phase}"
+            require(
+                entry.get(f"{phase}_service_account")
+                == f"{account}@{project}.iam.gserviceaccount.com",
+                "Execution identity must match its target and phase.",
+            )
+            require(
+                entry.get(f"{phase}_trigger") == f"terraform-{phase}-{name}",
+                "Execution trigger must match its target and phase.",
+            )
+            for field, value in (
+                ("identity", entry[f"{phase}_service_account"]),
+                ("trigger", entry[f"{phase}_trigger"]),
+            ):
+                require(
+                    value not in seen[field],
+                    "Execution targets must not share identities or triggers.",
+                )
+                seen[field].add(value)
+        for field in ("directory", "state_bucket", "state_prefix"):
+            require(
+                entry[field] not in seen[field],
+                "Execution targets must have isolated state and roots.",
+            )
+            seen[field].add(entry[field])
     require(target in policy["targets"], "Target is not registered in the pipeline policy.")
     selected = policy["targets"][target]
+    require(selected["enabled"], "Target is disabled; complete its reviewed adoption first.")
     directory = (root / selected["directory"]).resolve()
     allowed = (root / "infra/gcp/terraform/envs/prod").resolve()
     require(directory.is_relative_to(allowed) and directory != allowed, "Invalid target directory.")
+    require(directory == root / selected["directory"], "Target roots must not use symlinks.")
     require(directory.is_dir(), "The registered Terraform directory does not exist.")
     require(
         re.fullmatch(r"prod/[a-z][a-z0-9-]*", selected["state_prefix"]), "Invalid state prefix."
@@ -189,7 +256,17 @@ def configuration_hash(root, directory):
 
 
 def verify_build(
-    api, policy, selected, mode, identifier, commit, *, target, plan_build_id=None, producer=False
+    api,
+    policy,
+    selected,
+    mode,
+    identifier,
+    commit,
+    *,
+    target,
+    plan_build_id=None,
+    producer=False,
+    repair_controller=None,
 ):
     build = api.build(identifier)
     substitutions = build.get("substitutions", {})
@@ -218,6 +295,7 @@ def verify_build(
     filenames = [trigger.get("filename"), trigger.get("gitFileSource", {}).get("path")]
     require(
         trigger.get("name") == selected[f"{mode}_trigger"]
+        and trigger.get("substitutions", {}).get("_TARGET") == target
         and same_account(trigger.get("serviceAccount"))
         and any(filenames)
         and all(name == CONFIG_FILES[mode] for name in filenames if name),
@@ -240,6 +318,16 @@ def verify_build(
         return match[1]
 
     if mode == "plan":
+        repair = substitutions.get("_REPAIR_CONTROLLER", "")
+        require(
+            isinstance(repair, str)
+            and (not repair or repair in selected.get("configuration_controllers", [])),
+            "Plan repair must name the target's registered configuration controller.",
+        )
+        require(
+            producer or repair == (repair_controller or ""),
+            "Plan repair does not match build metadata.",
+        )
         event = trigger.get("repositoryEventConfig", {})
         repository = event.get("repository", "")
         push = event.get("push", {})
@@ -322,11 +410,45 @@ def preserve_failure(api, bucket, prefix, directory, error):
     print("An administrator must review recovery artifacts and state before retrying.")
 
 
-def plan_summary(plan, version):
+def configuration_replacement(resource, plan, selected, directory, root):
+    """Only the reviewed shared controller has a non-destructive replacement path."""
+    address = resource.get("address", "")
+    if address not in (selected or {}).get("configuration_controllers", []):
+        return False
+    if not (
+        resource.get("mode") == "managed"
+        and resource.get("type") == "terraform_data"
+        and resource.get("name") == "configuration"
+        and resource.get("provider_name") == "terraform.io/builtin/terraform"
+        and resource.get("change", {}).get("actions") == ["delete", "create"]
+        and directory is not None
+    ):
+        return False
+    label = address.split(".")[1]
+    call = (
+        plan.get("configuration", {}).get("root_module", {}).get("module_calls", {}).get(label, {})
+    )
+    source = call.get("source", "")
+    return (
+        isinstance(source, str)
+        and source.startswith(".")
+        and (directory / source).resolve()
+        == (root / "infra/gcp/terraform/modules/cloud-run-service").resolve()
+    )
+
+
+def plan_summary(plan, version, selected=None, directory=None, root=ROOT):
     require(plan.get("terraform_version") == version, "Plan Terraform version does not match.")
     lines = []
     for resource in plan.get("resource_changes", []):
         actions = resource["change"]["actions"]
+        if "delete" in actions and configuration_replacement(
+            resource, plan, selected, directory, root
+        ):
+            lines.append(
+                f"{resource['address']}: replace local configuration controller (service retained)"
+            )
+            continue
         require(
             "delete" not in actions, "Delete and replacement actions require a separate workflow."
         )
@@ -348,6 +470,7 @@ def run(
     root=ROOT,
     api=None,
     now=None,
+    repair_controller=None,
 ):
     root = root.resolve()
     require(mode in ("plan", "apply"), "Unsupported pipeline operation.")
@@ -357,6 +480,11 @@ def run(
     if plan_build_id:
         build_id(plan_build_id)
     policy, selected, directory = registry(root, target)
+    require(
+        not repair_controller
+        or (mode == "plan" and repair_controller in selected["configuration_controllers"]),
+        "Repair is allowed only for a registered configuration controller during plan.",
+    )
     fingerprint = configuration_hash(root, directory)
     version = policy["terraform_version"]
     require(
@@ -366,20 +494,29 @@ def run(
     )
     api = api or GoogleAPI(policy)
     verify_build(
-        api, policy, selected, mode, identifier, commit, target=target, plan_build_id=plan_build_id
+        api,
+        policy,
+        selected,
+        mode,
+        identifier,
+        commit,
+        target=target,
+        plan_build_id=plan_build_id,
+        repair_controller=repair_controller,
     )
     moment = now or datetime.now(UTC)
     bucket = policy["plan_bucket"]
     prefix = f"plans/{target}/{plan_build_id or identifier}/"
     state_name = selected["state_prefix"] + "/default.tfstate"
+    state_bucket = selected["state_bucket"]
 
     def generation():
-        return api.state_generation(policy["state_bucket"], state_name)
+        return api.state_generation(state_bucket, state_name)
 
     observed = generation() if mode == "apply" else None
     manifest = None
     if mode == "apply":
-        verify_build(
+        producer = verify_build(
             api, policy, selected, "plan", plan_build_id, commit, target=target, producer=True
         )
         metadata = api.object_metadata(bucket, prefix + "manifest.json")
@@ -387,7 +524,7 @@ def run(
             api.download(bucket, prefix + "manifest.json", metadata["generation"])
         )
         require(
-            manifest.get("schema_version") == 1
+            manifest.get("schema_version") == 2
             and manifest.get("project_id") == policy["project_id"]
             and manifest.get("target") == target
             and manifest.get("commit") == commit
@@ -396,6 +533,13 @@ def run(
             and manifest.get("configuration_sha256") == fingerprint
             and manifest.get("state_generation") == observed,
             "The reviewed plan does not match this source, toolchain, target, or current state.",
+        )
+        require(
+            manifest.get("state_bucket") == state_bucket
+            and manifest.get("state_prefix") == selected["state_prefix"]
+            and manifest.get("repair_controller", "")
+            == producer.get("substitutions", {}).get("_REPAIR_CONTROLLER", ""),
+            "The reviewed plan backend or repair request does not match this target.",
         )
         age = (moment - datetime.fromisoformat(manifest["created_at"])).total_seconds()
         require(
@@ -409,7 +553,7 @@ def run(
             "init",
             "-input=false",
             "-lockfile=readonly",
-            f"-backend-config=bucket={policy['state_bucket']}",
+            f"-backend-config=bucket={state_bucket}",
             f"-backend-config=prefix={selected['state_prefix']}",
         ],
         directory,
@@ -430,12 +574,17 @@ def run(
                     "-lock-timeout=60s",
                     "-detailed-exitcode",
                     f"-out={binary}",
+                    *([f"-replace={repair_controller}"] if repair_controller else []),
                 ],
                 directory,
                 allowed=(0, 2),
             )
             summary = plan_summary(
-                json.loads(command([terraform, "show", "-json", str(binary)], directory)), version
+                json.loads(command([terraform, "show", "-json", str(binary)], directory)),
+                version,
+                selected,
+                directory,
+                root,
             )
             text = command([terraform, "show", "-no-color", str(binary)], directory)
             require(generation() == observed, "State changed while planning; create a fresh plan.")
@@ -447,7 +596,7 @@ def run(
                 }.items()
             }
             manifest = {
-                "schema_version": 1,
+                "schema_version": 2,
                 "project_id": policy["project_id"],
                 "target": target,
                 "commit": commit,
@@ -456,6 +605,9 @@ def run(
                 "terraform_version": version,
                 "configuration_sha256": fingerprint,
                 "state_generation": observed,
+                "state_bucket": state_bucket,
+                "state_prefix": selected["state_prefix"],
+                "repair_controller": repair_controller or "",
                 "artifacts": artifacts,
             }
             api.upload(
@@ -477,6 +629,15 @@ def run(
                 )
                 if name == "terraform.tfplan":
                     binary.write_bytes(data)
+            # Recheck the exact downloaded binary, not only the producer's text
+            # summary. This uses the same target/controller destruction guard.
+            plan_summary(
+                json.loads(command([terraform, "show", "-json", str(binary)], directory)),
+                version,
+                selected,
+                directory,
+                root,
+            )
             require(generation() == observed, "State changed before apply; create a fresh plan.")
             try:
                 command(
@@ -491,14 +652,29 @@ def run(
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("mode", choices=("plan", "apply"))
-    parser.add_argument("--target", required=True)
-    parser.add_argument("--build-id", required=True)
-    parser.add_argument("--commit", required=True)
-    parser.add_argument("--branch", required=True)
+    parser.add_argument("mode", choices=("plan", "apply", "check-registry"))
+    parser.add_argument("--target")
+    parser.add_argument("--build-id")
+    parser.add_argument("--commit")
+    parser.add_argument("--branch")
     parser.add_argument("--plan-build-id")
     parser.add_argument("--terraform", default="terraform")
+    parser.add_argument("--repair-controller", default="")
     args = parser.parse_args()
+    if args.mode == "check-registry":
+        policy, _, _ = registry(ROOT, "repo")
+        for target, selected in policy["targets"].items():
+            if selected["enabled"]:
+                _, _, directory = registry(ROOT, target)
+                configuration_hash(ROOT, directory)
+        print(
+            "Execution registry is valid; enabled targets: "
+            + ", ".join(name for name, entry in policy["targets"].items() if entry["enabled"])
+        )
+        return
+    for field in ("target", "build_id", "commit", "branch"):
+        if not getattr(args, field):
+            parser.error(f"--{field.replace('_', '-')} is required for {args.mode}.")
     run(
         args.mode,
         args.target,
@@ -507,6 +683,7 @@ def main():
         args.branch,
         plan_build_id=args.plan_build_id,
         terraform=args.terraform,
+        repair_controller=args.repair_controller,
     )
 
 

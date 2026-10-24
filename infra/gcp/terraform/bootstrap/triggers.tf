@@ -6,9 +6,14 @@ resource "google_cloudbuild_trigger" "plan" {
   service_account = google_service_account.execution["plan"].id
   filename        = "infra/gcp/cloudbuild.terraform-plan.yaml"
   included_files = [
-    "infra/gcp/terraform/**",
+    "infra/gcp/terraform/envs/prod/repo/**",
+    "infra/gcp/terraform/modules/**",
+    "infra/gcp/terraform/pipeline.json",
+    "infra/gcp/terraform/toolchain.json",
     "infra/gcp/terraform_pipeline.py",
     "infra/gcp/terraform_tools.py",
+    "infra/gcp/configure_cloud_run_service.py",
+    "infra/gcp/deploy_existing_service.py",
     "infra/gcp/cloudbuild.terraform-*.yaml",
   ]
   ignored_files = ["**/*.md"]
@@ -21,11 +26,16 @@ resource "google_cloudbuild_trigger" "plan" {
   }
 
   substitutions = {
-    _TARGET = "repo"
+    _TARGET            = "repo"
+    _REPAIR_CONTROLLER = ""
   }
 
   lifecycle {
     prevent_destroy = true
+    precondition {
+      condition     = local.execution_registry_valid
+      error_message = "Execution catalog must match the project, region and target conventions; enabled targets require their reviewed root and lockfile."
+    }
   }
 
   depends_on = [

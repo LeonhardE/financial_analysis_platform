@@ -1,60 +1,92 @@
-# Terraform repository foundation
+# Terraform target execution
 
-This is the repository-only foundation for `financial-analysis-512202` in Toronto
-(`northamerica-northeast2`). It does not import, change or deploy Market, User, Config or Web.
-Merging this PR installs no cloud resources by itself. An existing project administrator performs
-bootstrap once after review; subsequent registered execution roots use Cloud Build.
+The repository provides one reusable plan → review → native Cloud Build approval → exact saved-plan
+apply workflow per service/client. This foundation does not import or change Market, User, Config or
+Web resources. Merging code does not apply infrastructure automatically.
 
-## What this foundation owns
+| Target                            | Execution status in this PR                                                    | State boundary                                                                                     |
+| --------------------------------- | ------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------- |
+| `repo`                            | Enabled; existing identities, triggers, bucket and resource addresses retained | `financial-analysis-512202-tfstate`, prefix `prod/repo`                                            |
+| `market`, `user`, `config`, `web` | Disabled catalog entries; no placeholder roots or new cloud resources          | One `${project_id}-tfstate-${target}` bucket and `prod/${target}` prefix after separate activation |
 
-| Root / component                | Ownership                                                                                                                                                     |
-| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `bootstrap/`                    | Three private GCS buckets, two execution identities, narrowly scoped IAM and two repo-only Cloud Build triggers. Administrator-managed, outside normal apply. |
-| `envs/prod/repo/`               | One built-in `terraform_data` execution contract, to exercise remote state and the saved-plan workflow without creating a business service.                   |
-| `modules/`                      | Unused reusable Cloud Run, service identity and service build-trigger modules; contracts and mocked tests only, with no production instances.                 |
-| `pipeline.json`                 | Explicit target registry, state prefix, expected identities/triggers and six-hour plan validity. Only `repo` is registered.                                   |
-| `toolchain.json`, provider lock | Terraform 1.16.7 archive checksums and Google provider 7.28.0 dependency lock.                                                                                |
+`bootstrap/` is administrator-managed. It retains the existing three foundation buckets and repo
+execution resources; [target-execution](modules/target-execution/README.md) supplies per-target
+accounts, state buckets and triggers only when that target is explicitly activated. The normal
+runner cannot provision its own execution IAM, accounts, buckets or approval trigger.
 
-See the [shared module contracts and adoption gates](modules/README.md). Individual service/client
-roots and release-ownership compatibility follow in separate PRs. Neither normal execution
-identity can access administrative bootstrap state, change its own IAM/trigger, create another build,
-approve a build, or modify an existing business service. `fa-build` keeps its existing permissions.
+`pipeline.json` schema 2 is the reviewed catalog. The runner validates canonical target roots,
+backend names, phase-specific identities and triggers, explicit activation and globally isolated
+boundaries. Disabled targets are rejected before Terraform or cloud access. Bootstrap has a blocking
+precondition for catalog identity/conventions and enabled root/lockfile presence. Before an
+administrator bootstrap plan, run this credential-free source preflight as well:
 
-## Execution flow
+```bash
+python3 infra/gcp/terraform_pipeline.py check-registry
+```
 
-1. A PR runs formatting, backend-disabled initialization, validation, native mocked Terraform tests
-   and Python protocol tests. PR jobs receive no GCP credentials and do not create cloud plans.
-2. After relevant changes reach protected `main`, `terraform-plan-repo` runs as `fa-infra-plan`.
-   It initializes the registered GCS backend, validates, takes the state generation before and after
-   planning, and saves a binary plan plus a human-readable private review file.
-3. Review the producing build and private `plan.txt`. Request `terraform-apply-repo` with that plan
-   build's ID in `_PLAN_BUILD_ID`, keeping `_TARGET=repo` and the same source commit.
-4. Review the pending apply build's substitutions/source, then approve it in Cloud Build. Native
-   approval happens **before** the apply build starts. The runner verifies the producer succeeded,
-   actual resolved repository/SHA, registered triggers/identities, target, configuration hash, CLI
-   version, artifact generation/checksum, plan age and current state generation.
-5. Apply runs the saved binary plan, never a newly generated plan. Terraform's backend lock and
-   saved-plan lineage/serial checks remain enabled. A stale plan, changed source, replacement/delete,
-   missing provenance or failed validation stops the build.
+It checks all active roots, locks, source fingerprints, symlinks and disallowed ad-hoc variable files.
+Current output must list only `repo`.
 
-Plan and apply are separate builds because a single approval-required build cannot pause for approval
-between its own plan and apply steps. The plan identity cannot queue an apply build or impersonate
-its identity. Requesting apply and approving it are deliberate operator actions in this version;
-merging does **not** automatically apply infrastructure.
+## Target execution and approval
 
-The manual apply trigger reads `main`. If `main` advances before apply, generate a fresh plan for the
-current commit, even when the newer commit only changed an application. Both builds must report the
-same resolved SHA. Cloud Build can report output-only provenance as either
-`sourceProvenance.resolvedConnectedRepository` (checked against the trigger's repository resource)
-or `sourceProvenance.resolvedGitSource` (checked against the exact `repository_url` pinned in
-`pipeline.json`). Both require the exact commit and repository root. Missing, mixed or other resolved
-sources fail closed; request source fields and overridable substitutions cannot replace provenance.
-The policy URL is an explicit reviewed trust anchor and does not require additional GCP permissions.
+1. PR CI validates code without cloud credentials. No PR build creates an authenticated cloud plan.
+2. For an activated target, `terraform-plan-<target>` runs on protected `main` as its own plan
+   identity. A target-root change selects only that target; shared modules, registry and executor
+   changes select affected active targets. Documentation-only changes are ignored.
+3. Review the producing build and private `gs://financial-analysis-512202-tfplans/plans/<target>/<build-id>/plan.txt`.
+   Keep the exact producing build ID and resolved commit. Plan artifacts are append-only and bound
+   to the target, bucket/prefix, source hash, Terraform version and state generation.
+4. In **Cloud Build → Triggers**, choose the matching `terraform-apply-<target>` in Toronto, run it
+   with that build ID in `_PLAN_BUILD_ID`, then review and approve the pending build in Cloud Build.
+   Keep `_TARGET` fixed. Apply never queues or approves itself.
+5. The runner verifies actual output-only repository/SHA provenance, successful producer, expected
+   accounts/triggers, native approval, backend identity, six-hour age, artifact generation/checksum
+   and current state. It rechecks the downloaded binary plan's action safety, then applies that
+   exact plan without replanning. Backend locking and saved-plan lineage/serial protections remain.
 
-These checks detect wrong or stale invocations; protected source and restricted cloud IAM remain the
-trust boundary. Manual run/admin operators are trusted. A user allowed to submit arbitrary builds and
-act as `fa-infra-apply` can bypass repository scripts, so do not grant those powers broadly. Native
-approval protects the registered trigger, not arbitrary builds submitted outside that trigger.
+Approval occurs before an apply build starts, so plan and apply are separate builds. The manual
+trigger reads `main`; if main advances, generate a fresh plan for the new commit. Overridable
+substitutions and requested source fields cannot replace actual resolved source provenance. Both
+connected-repository and exact pinned Git URL provenance are supported; missing/mixed sources fail.
+
+Operators who can submit arbitrary builds as an apply identity remain trusted. Native approval
+protects registered triggers, not arbitrary custom builds; do not broadly grant submit/actAs powers.
+
+## Runtime configuration controller repair
+
+The [verified ownership protocol](compatibility/README.md) preserves image release state and pinned
+rollback traffic. Ordinary desired-configuration edits replace only its local controller, not the
+service. `configuration_controllers` registers at most one exact
+`module.<name>.terraform_data.configuration` address per service/client; repo has none.
+
+The runner allows `delete,create` only for that exact managed built-in resource from the reviewed
+local `cloud-run-service` module. Other resources, destroy-only actions, create-before-destroy,
+look-alike providers/modules and Cloud Run replacement remain rejected, including during apply.
+
+For externally changed owned configuration, the module deliberately fails a normal plan. After
+reviewing the drift, manually run the target's **plan** trigger with `_REPAIR_CONTROLLER` set to its
+exact registered address. The shared YAML passes only this allowlisted `-replace` option. Review that
+saved plan and approve its matching apply as usual. The repair request is bound to producer metadata
+and the manifest; apply takes no repair override and never generates a new plan. The repo target
+rejects controller repair. IAM revocation and actual resource destruction need a separate reviewed
+workflow; this exception does not enable them.
+
+## Isolation, retention and cost
+
+New targets use separate versioned state buckets because GCS bucket IAM cannot restrict object
+listing by an object-name prefix. Their plan account can read state and initialize missing objects,
+but can delete only its exact backend lock. Apply can update only that target's bucket. Neither
+account receives access to bootstrap state or another target's bucket from these modules.
+
+Plans and recovery files share the existing private artifact bucket with target-specific conditional
+grants: append-only `plans/<target>/`, read-only exact plan objects for that target, and append-only
+`recovery/<target>/` writes. The executor never lists artifact objects. Existing repo bucket-wide
+artifact grants are replaced with `plans/repo/` conditions during the administrator update.
+
+State retains current data and version history with bounded noncurrent cleanup. Saved plans and
+recovery diagnostics expire after seven days; execution validity is only six hours. Storage,
+operations, builds and logs can incur costs. No scheduler, warm service, VPC, model call or hosted
+Terraform subscription is added. Disabled catalog entries allocate nothing.
 
 ## One-time administrator bootstrap
 
@@ -163,43 +195,58 @@ GCS storage/operations and Cloud Build/logging still cost money. No scheduler, w
 load balancer or business service is added. Plan artifacts have a six-hour execution limit independent
 of their seven-day storage lifecycle; remove unused builds/artifacts through reviewed operations.
 
-## Adding the next target
+## Administrator update after this PR merges
 
-The shared modules now have offline contract tests. First complete the separate Terraform/Cloud
-Build release-ownership compatibility work described in the [module adoption gates](modules/README.md).
-The [provider-level compatibility suite](compatibility/README.md) currently reproduces blocking
-revision and stale-write behavior; successful regression tests do not approve service adoption.
-Then use one `infra(<service/client>)` PR at a time to add its root, dependency lock, state/IAM
-boundary and trigger. The current execution-bucket grants cover only this repo foundation's trust
-boundary; introduce per-target isolation and appropriate resource permissions rather than casually
-reusing broad access for business state. Never let normal apply manage its own bootstrap/IAM/trigger.
+Use the existing administrator bootstrap checkout with its existing remote backend and variables.
+Do not initialize an empty local state against already-created foundation resources.
 
-Existing services require deliberate `import` and an initial no-change plan, not recreation. Confirm
-that runtime images, revisions, deployment annotations, traffic and Console rollbacks stay owned by
-Cloud Build. A future service's Terraform apply must not race application deployment; that shared
-release protocol is a later prerequisite, not implemented here.
+1. Quiesce repo plan/apply executions, sync the merged main and run `check-registry` above.
+2. Initialize the existing bootstrap backend with the pinned Terraform/provider, then save and
+   inspect an administrator bootstrap plan. Expected cloud changes are the two repo artifact IAM
+   grants becoming prefix-conditioned and the existing repo plan trigger's filters/substitution
+   updating. The new default-activation output is empty. No service accounts, triggers, state buckets
+   or production services should be recreated; stop and inspect unexpected changes.
+3. Apply that reviewed administrator plan, then resume repo executions. Schema-1/old-source saved
+   plans are intentionally invalid; run a fresh schema-2 `terraform-plan-repo`, review it and approve
+   the matching apply to verify the updated workflow.
 
-After each target is adopted, normal configuration changes can flow through code/PR → automatic plan
-→ reviewed saved-plan apply. One-time bootstrap, external OAuth/account/domain verification, secret
-payload entry and emergency recovery may still require separate actions. Unattended apply is a
-separate policy decision, not enabled by this foundation.
+This PR itself performs no authenticated bootstrap apply, so new conditional grants/triggers are not
+claimed as live-verified. Offline mocked tests and protocol fixtures verify the supplied contracts.
 
-## Validation and official references
+## Activate one service/client later
+
+Use one `infra(<target>)` PR to add that target's actual root and provider lock, inventory/imports,
+owned-resource permissions and exact configuration-controller address, then enable its catalog entry.
+Do not add empty roots merely to enable execution. Existing services require deliberate imports and
+an initial no-change or explicitly reviewed safe plan, never recreation.
+
+An administrator bootstrap update creates only that activated target's execution boundary. Its own
+business-resource read/write and runtime actAs permissions must also be supplied by that target's
+reviewed administrative configuration; normal execution must not grant itself permissions. Run its
+first plan only after those grants exist, review the private artifacts, approve its exact saved apply
+and verify ordinary image publication/rollback separately. Other targets stay disabled until their
+own PR. Shared resource ownership is designed in its separate foundation PR.
+
+Once activated and adopted, normal configuration changes use code/PR → target plan → human approval
+→ exact apply. External OAuth/account/domain verification, secret payload entry and emergency
+recovery remain separate operations. Unattended apply is not enabled.
+
+## Validation and references
 
 ```bash
 npm run check
-python3 infra/gcp/terraform_tools.py install --directory /tmp/folioview-terraform-tools
-python3 infra/gcp/terraform_tools.py check --terraform /tmp/folioview-terraform-tools/terraform
+python3 infra/gcp/terraform_pipeline.py check-registry
+python3 infra/gcp/terraform_tools.py check --terraform /path/to/pinned/terraform
 ```
 
-Checks use a disabled backend and mocked Google resources; none runs a cloud `plan`, `import` or
-`apply`. Provider downloads are verified by the committed lock file. Version changes require
-reviewing official checksums and regenerating provider locks for the developer and Linux CI platforms.
+The pinned toolchain is Terraform 1.16.7 / Google 7.28.0. Checks initialize with backends disabled,
+exercise provider-mocked module contracts, and run actual-provider localhost ownership regressions.
+They need no cloud credentials. Per-target IAM/trigger behavior requires an authenticated activation
+check in each later target PR; these are not claims of live migration.
 
-- [GCS backend, locking and versioning](https://developer.hashicorp.com/terraform/language/backend/gcs)
-- [Cloud Build approvals run before build steps](https://docs.cloud.google.com/build/docs/securing-builds/gate-builds-on-approval)
-- [User-managed Cloud Build execution accounts](https://docs.cloud.google.com/build/docs/securing-builds/configure-user-specified-service-accounts)
+- [GCS backend locking and versioning](https://developer.hashicorp.com/terraform/language/backend/gcs)
+- [Cloud Storage IAM conditions and listing](https://docs.cloud.google.com/storage/docs/access-control/iam#conditions)
+- [Cloud Build native approval timing](https://docs.cloud.google.com/build/docs/securing-builds/gate-builds-on-approval)
 - [Saved Terraform plans and sensitive content](https://developer.hashicorp.com/terraform/cli/commands/plan)
-- [GCS generation preconditions](https://docs.cloud.google.com/storage/docs/request-preconditions)
-- [Cloud Build source provenance](https://docs.cloud.google.com/build/docs/api/reference/rest/v1/projects.builds#SourceProvenance)
-- [Remote-state persistence failure and recovery](https://developer.hashicorp.com/terraform/language/state/backends)
+- [Cloud Build output source provenance](https://docs.cloud.google.com/build/docs/api/reference/rest/v1/projects.builds#SourceProvenance)
+- [State persistence failure and recovery](https://developer.hashicorp.com/terraform/language/state/backends)

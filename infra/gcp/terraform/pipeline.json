@@ -1,5 +1,5 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "project_id": "financial-analysis-512202",
   "region": "northamerica-northeast2",
   "repository_url": "https://github.com/LeonhardE/financial_analysis_platform.git",
@@ -14,7 +14,54 @@
       "plan_trigger": "terraform-plan-repo",
       "apply_trigger": "terraform-apply-repo",
       "plan_service_account": "fa-infra-plan@financial-analysis-512202.iam.gserviceaccount.com",
-      "apply_service_account": "fa-infra-apply@financial-analysis-512202.iam.gserviceaccount.com"
+      "apply_service_account": "fa-infra-apply@financial-analysis-512202.iam.gserviceaccount.com",
+      "enabled": true,
+      "state_bucket": "financial-analysis-512202-tfstate",
+      "configuration_controllers": []
+    },
+    "market": {
+      "enabled": false,
+      "directory": "infra/gcp/terraform/envs/prod/market",
+      "state_bucket": "financial-analysis-512202-tfstate-market",
+      "state_prefix": "prod/market",
+      "plan_trigger": "terraform-plan-market",
+      "apply_trigger": "terraform-apply-market",
+      "plan_service_account": "fa-infra-market-plan@financial-analysis-512202.iam.gserviceaccount.com",
+      "apply_service_account": "fa-infra-market-apply@financial-analysis-512202.iam.gserviceaccount.com",
+      "configuration_controllers": []
+    },
+    "user": {
+      "enabled": false,
+      "directory": "infra/gcp/terraform/envs/prod/user",
+      "state_bucket": "financial-analysis-512202-tfstate-user",
+      "state_prefix": "prod/user",
+      "plan_trigger": "terraform-plan-user",
+      "apply_trigger": "terraform-apply-user",
+      "plan_service_account": "fa-infra-user-plan@financial-analysis-512202.iam.gserviceaccount.com",
+      "apply_service_account": "fa-infra-user-apply@financial-analysis-512202.iam.gserviceaccount.com",
+      "configuration_controllers": []
+    },
+    "config": {
+      "enabled": false,
+      "directory": "infra/gcp/terraform/envs/prod/config",
+      "state_bucket": "financial-analysis-512202-tfstate-config",
+      "state_prefix": "prod/config",
+      "plan_trigger": "terraform-plan-config",
+      "apply_trigger": "terraform-apply-config",
+      "plan_service_account": "fa-infra-config-plan@financial-analysis-512202.iam.gserviceaccount.com",
+      "apply_service_account": "fa-infra-config-apply@financial-analysis-512202.iam.gserviceaccount.com",
+      "configuration_controllers": []
+    },
+    "web": {
+      "enabled": false,
+      "directory": "infra/gcp/terraform/envs/prod/web",
+      "state_bucket": "financial-analysis-512202-tfstate-web",
+      "state_prefix": "prod/web",
+      "plan_trigger": "terraform-plan-web",
+      "apply_trigger": "terraform-apply-web",
+      "plan_service_account": "fa-infra-web-plan@financial-analysis-512202.iam.gserviceaccount.com",
+      "apply_service_account": "fa-infra-web-apply@financial-analysis-512202.iam.gserviceaccount.com",
+      "configuration_controllers": []
     }
   },
   "project_number": "630815932903"
