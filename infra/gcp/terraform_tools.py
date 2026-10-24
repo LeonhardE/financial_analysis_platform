@@ -7,6 +7,7 @@ import json
 import os
 import platform
 import subprocess
+import sys
 import tempfile
 import zipfile
 from pathlib import Path
@@ -68,6 +69,19 @@ def check(terraform: str) -> None:
             subprocess.run([terraform, *arguments], cwd=root, env=environment, check=True)
         if list((root / "tests").glob("*.tftest.hcl")):
             subprocess.run([terraform, "test", "-no-color"], cwd=root, env=environment, check=True)
+
+    # Exercise the pinned provider's real HTTP serialization, not only mocked
+    # schemas. These localhost regressions must reproduce the adoption blockers.
+    subprocess.run(
+        [
+            sys.executable,
+            str(DIRECTORY / "compatibility/provider_check.py"),
+            "--terraform",
+            terraform,
+        ],
+        env=environment,
+        check=True,
+    )
 
 
 def main() -> None:
