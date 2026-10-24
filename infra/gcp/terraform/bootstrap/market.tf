@@ -87,6 +87,25 @@ resource "google_cloud_run_v2_service_iam_member" "market_execution" {
   member   = "serviceAccount:${module.target_execution["market"].service_accounts[each.key]}"
 }
 
+# Cloud Run validates the caller's image access on a full-template config PATCH,
+# even when the image is unchanged. Read only from the existing repository; no
+# image upload/delete, repository administration, or build execution is granted.
+resource "google_project_iam_custom_role" "market_image_read" {
+  project     = var.project_id
+  role_id     = "folioviewMarketConfigurationImageRead"
+  title       = "FolioView Market configuration image read"
+  description = "Read an existing image when Cloud Run validates a Market configuration update."
+  permissions = ["artifactregistry.repositories.downloadArtifacts"]
+}
+
+resource "google_artifact_registry_repository_iam_member" "market_configuration_image" {
+  project    = var.project_id
+  location   = var.region
+  repository = "financial-analysis"
+  role       = google_project_iam_custom_role.market_image_read.name
+  member     = "serviceAccount:${module.target_execution["market"].service_accounts["apply"]}"
+}
+
 resource "google_project_iam_custom_role" "market_identity_read" {
   project     = var.project_id
   role_id     = "folioviewMarketIdentityRead"

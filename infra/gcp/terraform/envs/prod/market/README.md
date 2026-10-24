@@ -7,14 +7,15 @@ User, Config and Web are outside this root and remain disabled Terraform targets
 
 ## Ownership and imports
 
-| Resource                                                      | Owner                                              | Adoption                                                                                           |
-| ------------------------------------------------------------- | -------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
-| `market-api` identity and runtime configuration               | This root, `module.market`                         | Import the existing full service ID; retain UID `9c834402-c8d5-4c71-82d9-1a705e335f02`             |
-| `fa-api-runtime` metadata                                     | This root, `module.runtime_identity`               | Import the existing enabled service account; no new identity or key                                |
-| Market execution accounts, state bucket and approval triggers | Administrator `bootstrap/` state                   | Create only the Market execution boundary after review                                             |
-| Existing Market image trigger and IAM grants                  | Administrator Market configuration in `bootstrap/` | Import the existing trigger and individual grants; retain trigger ID and shared `fa-build` account |
-| Image, release markers, revision selection and traffic        | Existing image-release helper / explicit rollback  | Never imported as desired release state                                                            |
-| Existing Firestore database and other services                | Existing owners                                    | No creation, import or data migration here                                                         |
+| Resource                                                      | Owner                                              | Adoption                                                                                             |
+| ------------------------------------------------------------- | -------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `market-api` identity and runtime configuration               | This root, `module.market`                         | Import the existing full service ID; retain UID `9c834402-c8d5-4c71-82d9-1a705e335f02`               |
+| `fa-api-runtime` metadata                                     | This root, `module.runtime_identity`               | Import the existing enabled service account; no new identity or key                                  |
+| Market execution accounts, state bucket and approval triggers | Administrator `bootstrap/` state                   | Create only the Market execution boundary after review                                               |
+| Existing Market image trigger and IAM grants                  | Administrator Market configuration in `bootstrap/` | Import the existing trigger and individual grants; retain trigger ID and shared `fa-build` account   |
+| Configuration executor's existing-image access                | Administrator Market configuration in `bootstrap/` | Grant only artifact download on the existing Toronto `financial-analysis` repository to Market apply |
+| Image, release markers, revision selection and traffic        | Existing image-release helper / explicit rollback  | Never imported as desired release state                                                              |
+| Existing Firestore database and other services                | Existing owners                                    | No creation, import or data migration here                                                           |
 
 The two declarative blocks in `imports.tf` stay in the root after adoption.
 Existing imported resources must plan as `no-op`; any service/account create,
@@ -46,6 +47,21 @@ traffic route and release markers. Afterward, verify the API returns CPU `1` and
 the next plan is clean. Stop and inspect a failed verification rather than
 repeatedly applying it. Raw state, plans and environment-bearing inventory remain
 private; public evidence must use an explicit sanitized field allowlist.
+
+The first authenticated configuration apply exposed an additional Cloud Run
+requirement: the caller needs `artifactregistry.repositories.downloadArtifacts`
+when validating a template PATCH, even if its image is unchanged. Bootstrap now
+grants that single permission only to `fa-infra-market-apply`, on the existing
+Toronto `financial-analysis` Artifact Registry repository. It grants no image
+upload/deletion, repository administration, build submission, or project-wide
+artifact access. The repository is shared, so this read boundary includes other
+images stored in that repository; it is not an image-path-specific grant. Market
+plan and other service execution identities receive no such grant here.
+
+A failed apply can already have recorded the two imports while leaving the local
+configuration controller tainted. After fixing a verified permission failure,
+review a fresh saved Market plan and use the normal approval flow; never recreate
+the imported service or replay the failed saved plan.
 
 The immutable image input is only the required creation-time contract, resolved
 from the inventoried image digest. Editing it is not a release and adoption does
@@ -118,9 +134,12 @@ Terraform 1.16.7 / Google provider 7.28.0. The verifier downloaded the existing
 administrator state to a private local copy and used an empty private local state
 for Market. It created no remote state, locks, resources or revisions.
 
-- Administrator plan: four existing Market imports with no changes, plus 25
-  additions for Market's execution boundary, scoped roles and grants. All existing
-  repo resources remain no-op.
+- Historical administrator plan: four existing Market imports with no changes,
+  plus 25 additions for Market's execution boundary, scoped roles and grants. The
+  later authenticated apply exposed the image-read requirement described above;
+  its role and repository member add two resources, bringing the fresh-adoption
+  bootstrap allowlist to 27. The linked historical result retains its original
+  source hashes and count. All existing repo resources remain no-op.
 - Market plan: existing service and runtime imports with no native changes;
   only the built-in configuration controller is created, followed by its data read.
 - Live before/after snapshots of all four production services, Market IAM/runtime
