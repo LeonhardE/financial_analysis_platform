@@ -23,6 +23,67 @@ MODULE = ROOT / "infra/gcp/terraform/modules/cloud-run-service"
 IMAGE_PREFIX = "example.invalid/fixture/api@sha256:"
 IMAGES = {name: IMAGE_PREFIX + name.lower() * 64 for name in ("A", "B", "C")}
 SCOPED_NAME = "module.fixture.google_cloud_run_v2_service.service"
+LEGACY_MAIN = """
+# Frozen native-provider baseline from PR #14. It must remain independent of
+# the current ownership controller so every regression still reproduces its bug.
+variable "project_id" { type = string }
+variable "name" { type = string }
+variable "image" { type = string }
+variable "runtime_service_account" { type = string }
+variable "environment" { type = map(string) }
+resource "google_cloud_run_v2_service" "service" {
+  project             = var.project_id
+  location            = "northamerica-northeast2"
+  name                = var.name
+  ingress             = "INGRESS_TRAFFIC_INTERNAL_ONLY"
+  deletion_protection = true
+
+  template {
+    service_account                  = var.runtime_service_account
+    timeout                          = "60s"
+    max_instance_request_concurrency = 40
+
+    scaling {
+      min_instance_count = 0
+      max_instance_count = 1
+    }
+
+    containers {
+      image = var.image
+
+      ports {
+        container_port = 8080
+      }
+
+      resources {
+        limits = {
+          cpu    = "1"
+          memory = "512Mi"
+        }
+        cpu_idle          = true
+        startup_cpu_boost = false
+      }
+
+      dynamic "env" {
+        for_each = var.environment
+        content {
+          name  = env.key
+          value = env.value
+        }
+      }
+    }
+  }
+
+  traffic {
+    type    = "TRAFFIC_TARGET_ALLOCATION_TYPE_LATEST"
+    percent = 100
+  }
+
+  lifecycle {
+    prevent_destroy = true
+  }
+}
+"""
 
 
 def require(condition, message):
@@ -118,11 +179,9 @@ class TerraformCase:
             GCE_METADATA_HOST="127.0.0.1:1",
             NO_PROXY="127.0.0.1,localhost",
         )
-        shutil.copytree(
-            MODULE,
-            directory / "module",
-            ignore=shutil.ignore_patterns(".terraform", "tests"),
-        )
+        (directory / "module").mkdir()
+        shutil.copyfile(MODULE / "versions.tf", directory / "module/versions.tf")
+        (directory / "module/main.tf").write_text(LEGACY_MAIN)
         shutil.copyfile(MODULE / ".terraform.lock.hcl", directory / ".terraform.lock.hcl")
         module_main = directory / "module/main.tf"
         if variant != "baseline":

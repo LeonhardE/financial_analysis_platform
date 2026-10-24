@@ -597,4 +597,7 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    # Keep historical classifier/helpers importable; execute the current protocol.
+    from verify_release_ownership import main as ownership_main
+
+    ownership_main()

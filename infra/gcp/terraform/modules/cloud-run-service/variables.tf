@@ -33,7 +33,7 @@ variable "name" {
 }
 
 variable "image" {
-  description = "Reviewed container image pinned by digest. Release delegation is a later prerequisite."
+  description = "Creation-only bootstrap image pinned by digest. Existing services preserve their current image; use the image-release pipeline for updates."
   type        = string
   nullable    = false
 
