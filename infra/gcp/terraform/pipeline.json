@@ -53,7 +53,7 @@
       "configuration_controllers": ["module.config.terraform_data.configuration"]
     },
     "web": {
-      "enabled": false,
+      "enabled": true,
       "directory": "infra/gcp/terraform/envs/prod/web",
       "state_bucket": "financial-analysis-512202-tfstate-web",
       "state_prefix": "prod/web",
@@ -61,7 +61,7 @@
       "apply_trigger": "terraform-apply-web",
       "plan_service_account": "fa-infra-web-plan@financial-analysis-512202.iam.gserviceaccount.com",
       "apply_service_account": "fa-infra-web-apply@financial-analysis-512202.iam.gserviceaccount.com",
-      "configuration_controllers": []
+      "configuration_controllers": ["module.web.terraform_data.configuration"]
     }
   },
   "project_number": "630815932903"
