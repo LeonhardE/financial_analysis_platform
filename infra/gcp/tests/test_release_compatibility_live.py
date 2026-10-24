@@ -1,6 +1,7 @@
 """Safety boundaries for the opt-in live compatibility verifier; no cloud calls."""
 
 import argparse
+import copy
 import importlib.util
 import json
 import os
@@ -175,7 +176,13 @@ class PlanTests(unittest.TestCase):
                 }
             ]
         }
-        self.assertEqual(LIVE.summarize_plan(plan)[0]["changed_fields"], ["traffic"])
+        summary = LIVE.summarize_plan(plan)[0]
+        self.assertEqual(summary["changed_fields"], ["traffic"])
+        self.assertEqual(summary["traffic_before"], [{"percent": 100, "revision": "old"}])
+        self.assertEqual(summary["traffic_after"], [{"percent": 100, "type": "LATEST"}])
+        self.assertIsNone(summary["image_before"])
+        self.assertIsNone(summary["revision_after"])
+        self.assertFalse(summary["environment_changed"])
         for address, actions in (
             ("google_storage_bucket.production", ["create"]),
             (LIVE.ADDRESS, ["delete", "create"]),
@@ -192,6 +199,41 @@ class PlanTests(unittest.TestCase):
             ),
             [],
         )
+
+    def test_summary_records_release_fields_without_environment_values_or_annotations(self):
+        def state(image, revision, stage):
+            return {
+                "template": [
+                    {
+                        "revision": revision,
+                        "containers": [
+                            {"image": image, "env": [{"name": "STAGE", "value": stage}]}
+                        ],
+                    }
+                ],
+                "annotations": {"private": "not-for-report"},
+            }
+
+        summary = LIVE.summarize_plan(
+            {
+                "resource_changes": [
+                    {
+                        "address": LIVE.ADDRESS,
+                        "change": {
+                            "actions": ["update"],
+                            "before": state(IMAGES[1], "release-b", "old-private-value"),
+                            "after": state(IMAGES[0], "baseline-a", "new-private-value"),
+                        },
+                    }
+                ]
+            }
+        )[0]
+        self.assertEqual(summary["image_before"], IMAGES[1])
+        self.assertEqual(summary["image_after"], IMAGES[0])
+        self.assertEqual(summary["revision_before"], "release-b")
+        self.assertEqual(summary["revision_after"], "baseline-a")
+        self.assertTrue(summary["environment_changed"])
+        self.assertNotIn("private", json.dumps(summary))
 
     def test_fixture_is_private_mock_mode_without_public_invokers(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -234,6 +276,115 @@ class PlanTests(unittest.TestCase):
             self.assertEqual(env["GOOGLE_OAUTH_ACCESS_TOKEN"], "secret-access-token")
             self.assertNotIn("secret-access-token", str(run.call_args.args))
             self.assertTrue((Path(temporary) / "terraform-01.log").exists())
+
+
+class EvidenceTests(unittest.TestCase):
+    def setUp(self):
+        self.report = {
+            "images": IMAGES,
+            "evidence": {
+                "baseline": {"service": {"image": IMAGES[0]}, "plan": []},
+                "release_b": {"image": IMAGES[1], "revision": "release-b"},
+                "release_c": {"image": IMAGES[2], "revision": "release-c"},
+                "plan_after_release": [],
+                "rollback_to_b": {"observed_traffic": [{"revision": "release-b", "percent": 100}]},
+                "plan_after_rollback": [],
+                "stale_saved_plan": {"exit_code": 1, "service": {"image": IMAGES[1]}},
+            },
+            "cleanup_errors": [],
+        }
+
+    def test_environment_only_change_is_not_classified_as_a_blocker(self):
+        self.report["evidence"]["plan_after_release"] = [
+            {
+                "changed_fields": ["template"],
+                "environment_changed": True,
+                "image_before": IMAGES[1],
+                "image_after": IMAGES[1],
+                "revision_before": "release-b",
+                "revision_after": "release-b",
+            }
+        ]
+        unchanged = copy.deepcopy(self.report)
+        result = LIVE.classify_evidence(self.report)
+        self.assertEqual(result, {"status": "UNEXPECTED_RESULT", "findings": []})
+        self.assertEqual(self.report, unchanged)
+
+    def test_recorded_live_evidence_classifies_blocked_and_preserves_cleanup_proof(self):
+        path = Path(__file__).parents[1] / "terraform/compatibility/live-results-2026-10-23.json"
+        recorded = json.loads(path.read_text())
+        result = LIVE.classify_evidence(recorded)
+        self.assertEqual(result["status"], "BLOCKED")
+        self.assertEqual(result["findings"], recorded["findings"])
+        self.assertIn(
+            "stale_saved_plan: successful apply restored baseline image A after release B",
+            result["findings"],
+        )
+        self.assertEqual(recorded["cleanup_errors"], [])
+        checks = recorded["independent_checks"]
+        self.assertEqual(checks["test_cleanup_http_status"], {"service": 404, "account": 404})
+        self.assertTrue(all(checks["production_unchanged"].values()))
+
+    def test_exact_planned_baseline_image_restoration_is_a_blocker(self):
+        self.report["evidence"]["plan_after_release"] = [
+            {"image_before": IMAGES[1], "image_after": IMAGES[0], "environment_changed": True}
+        ]
+        result = LIVE.classify_evidence(self.report)
+        self.assertEqual(result["status"], "BLOCKED")
+        self.assertIn("planned image reversion", result["findings"][0])
+
+    def test_planned_reset_of_rollback_revision_to_latest_is_a_blocker(self):
+        self.report["evidence"]["plan_after_rollback"] = [
+            {
+                "traffic_before": [{"revision": "release-b", "percent": 100}],
+                "traffic_after": [
+                    {"type": "TRAFFIC_TARGET_ALLOCATION_TYPE_LATEST", "percent": 100}
+                ],
+            }
+        ]
+        result = LIVE.classify_evidence(self.report)
+        self.assertEqual(result["status"], "BLOCKED")
+        self.assertIn("reset from revision B", result["findings"][0])
+
+    def test_nonzero_stale_apply_does_not_claim_an_overwrite(self):
+        self.report["evidence"]["stale_saved_plan"] = {
+            "exit_code": 1,
+            "service": {"image": IMAGES[0], "terminal_state": "CONDITION_SUCCEEDED"},
+        }
+        self.assertEqual(LIVE.classify_evidence(self.report)["status"], "UNEXPECTED_RESULT")
+
+    def test_successful_stale_apply_with_observed_image_reversion_is_a_blocker(self):
+        self.report["evidence"]["stale_saved_plan"] = {
+            "exit_code": 0,
+            "service": {"image": IMAGES[0], "terminal_state": "CONDITION_SUCCEEDED"},
+        }
+        result = LIVE.classify_evidence(self.report)
+        self.assertEqual(result["status"], "BLOCKED")
+        self.assertIn("successful apply restored baseline image", result["findings"][0])
+
+    def test_nonempty_baseline_or_cleanup_failure_is_incomplete(self):
+        for changes in ({"baseline": {"plan": [{}]}}, {}):
+            report = copy.deepcopy(self.report)
+            report["evidence"].update(changes)
+            if not changes:
+                report["cleanup_errors"] = ["service not deleted"]
+            with self.subTest(changes=changes):
+                self.assertEqual(LIVE.classify_evidence(report)["status"], "ERROR")
+
+    def test_legacy_summary_without_exact_fields_does_not_prove_drift(self):
+        self.report["evidence"]["plan_after_release"] = [{"changed_fields": ["template"]}]
+        self.assertEqual(LIVE.classify_evidence(self.report)["status"], "UNEXPECTED_RESULT")
+
+    def test_unobserved_rollback_remains_incomplete_even_with_a_blocking_plan(self):
+        self.report["evidence"]["plan_after_release"] = [
+            {"image_before": IMAGES[1], "image_after": IMAGES[0]}
+        ]
+        self.report["evidence"]["rollback_to_b"]["observed_traffic"] = [
+            {"revision": "release-c", "percent": 100}
+        ]
+        result = LIVE.classify_evidence(self.report)
+        self.assertEqual(result["status"], "ERROR")
+        self.assertTrue(result["findings"])
 
 
 class ReadinessTests(unittest.TestCase):

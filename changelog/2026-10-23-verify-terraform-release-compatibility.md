@@ -19,10 +19,16 @@ claiming that an ignore list makes concurrent Terraform and image updates safe.
   modules, image release behavior, resource instances, IAM and execution targets remain unchanged.
 - Normalize pasted Terraform paths, check the local toolchain before cloud access, and show stage
   progress with private log locations. Default to the bootstrap CLI path to simplify Cloud Shell use.
+- Record authenticated Toronto results: a pre-release saved plan successfully overwrote B with A;
+  a plan after rollback proposed resetting pinned B traffic to latest. Independently confirm test
+  resource deletion and unchanged production fingerprints.
+- Classify only exact release-field reversions or observed successful overwrite, instead of treating
+  any configuration change as a blocker; keep environment values and private diagnostics out of reports.
 
 ## Validation
 
-- Root `npm run check` passed, including 21 live-runner safety and preflight unit tests.
+- Root `npm run check` passed, including 31 live-runner safety, preflight and evidence-classifier tests.
 - All 56 native mocked Terraform tests and five real-provider localhost blocker reproductions passed.
-- Live Cloud Run evidence is recorded separately from offline wire tests; offline results do not
-  certify GCP IAM or reconciliation behavior.
+- The authenticated run completed with `BLOCKED`, empty cleanup errors, independent HTTP `404` for
+  both test resources, and unchanged fingerprints for Market, User, Config and Web. The post-rollback
+  plan was inspected but not applied; other offline blockers are not claimed as live-verified fixes.
