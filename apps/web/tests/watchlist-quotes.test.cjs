@@ -40,6 +40,20 @@ function deferred() {
   return { promise, resolve, reject };
 }
 
+function loadLibrary(file) {
+  const filename = path.join(__dirname, file);
+  const { code } = transformSync(readFileSync(filename, "utf8"), {
+    filename,
+    jsc: { parser: { syntax: "typescript" }, target: "es2022" },
+    module: { type: "commonjs" },
+  });
+  const module = { exports: {} };
+  vm.runInNewContext(code, { module, exports: module.exports });
+  return module.exports;
+}
+const quoteLibrary = loadLibrary("../lib/market-quotes.ts");
+const marketLibrary = loadLibrary("../lib/market-data.ts");
+
 function mount(initial = {}) {
   const cells = [];
   const pending = [];
@@ -95,8 +109,10 @@ function mount(initial = {}) {
     module,
     exports: module.exports,
     require: (name) => {
-      assert.equal(name, "react");
-      return react;
+      if (name === "react") return react;
+      if (name === "@/lib/market-quotes") return quoteLibrary;
+      if (name === "@/lib/market-data") return marketLibrary;
+      throw new Error(`Unexpected import: ${name}`);
     },
     process: { env: {} },
     AbortController,
@@ -153,7 +169,18 @@ test("overview and selected chart seed matching public summaries without another
   const app = mount({
     items: [instrument("AAPL"), instrument("NFLX")],
     overview: { stocks: [snapshot("AAPL")] },
-    selectedQuote: snapshot("NFLX", { range: "1d", interval: "5m", latestClose: 140 }),
+    selectedQuote: snapshot("NFLX", {
+      range: "1d",
+      interval: "5m",
+      latestClose: 999,
+      quote: {
+        ...snapshot("NFLX", { latestClose: 140 }),
+        basis: "daily_snapshot",
+        interval: "1d",
+        adjustment: "split_and_dividend_adjusted",
+        previousClose: 141,
+      },
+    }),
   });
   let view = app.render();
   view.requestQuote("AAPL");
@@ -399,4 +426,224 @@ test("anonymous and invalid-symbol callbacks cannot request prices", () => {
   signedIn.requestQuote("../secrets");
   signedIn.requestQuote("NOTSAVED");
   assert.equal(app.requests.length, 0);
+});
+
+test("anonymous selection reuses a nested daily quote and never downloads hidden watchlist rows", () => {
+  const selected = instrument("NFLX");
+  const canonical = {
+    ...snapshot("NFLX", { latestClose: 524.51, changePercent: 0.66 }),
+    basis: "daily_snapshot",
+    interval: "1d",
+    adjustment: "split_and_dividend_adjusted",
+    previousClose: 521.07,
+  };
+  const app = mount({
+    owner: null,
+    active: false,
+    items: Array.from({ length: 50 }, (_, index) => instrument(`SYM${index}`)),
+    selectedInstrument: selected,
+    selectedRange: "1d",
+    selectedActive: true,
+    selectedChartSettled: true,
+    selectedQuote: snapshot("NFLX", {
+      range: "1d",
+      interval: "5m",
+      latestClose: 524.53,
+      changePercent: 0.56,
+      quote: canonical,
+    }),
+  });
+  const view = app.render();
+  assert.equal(view.quotes.NFLX.latestClose, 524.51);
+  assert.equal(view.quotes.NFLX.changePercent, 0.66);
+  view.requestQuote("SYM1");
+  assert.equal(app.requests.length, 0);
+  assert.deepEqual(Object.keys(view.quotes), ["NFLX"]);
+});
+
+test("a missing anonymous selected quote gets one cache-first 1M fallback after chart settlement", async () => {
+  const selected = instrument("NFLX");
+  const app = mount({
+    owner: null,
+    active: false,
+    items: [],
+    selectedInstrument: selected,
+    selectedRange: "1d",
+    selectedActive: true,
+    selectedChartSettled: false,
+    selectedQuote: snapshot("NFLX", { range: "1d", interval: "5m", quote: null }),
+  });
+  app.render();
+  assert.equal(app.requests.length, 0);
+  app.render({ selectedChartSettled: true });
+  assert.equal(app.requests.length, 1);
+  assert.match(app.requests[0].url, /NFLX\/candles\?range=1m&cached=true$/);
+  app.requests[0].result.resolve(response(null, 204));
+  await settle();
+  assert.equal(app.requests.length, 2);
+  app.requests[1].result.resolve(response(snapshot("NFLX", { latestClose: 140 })));
+  await settle();
+  assert.equal(app.render().quotes.NFLX.latestClose, 140);
+  app.render({ selectedRange: "1w" });
+  assert.equal(app.requests.length, 2);
+  app.render({ refreshKey: 1 });
+  assert.equal(app.requests.length, 3);
+  assert.match(app.requests[2].url, /cached=true$/);
+  assert.equal(app.render().quotes.NFLX.latestClose, 140);
+  app.requests[2].result.resolve(response({ ...snapshot("NFLX"), quote: null }));
+  await settle();
+  assert.equal(app.render().quotes.NFLX.latestClose, 140);
+  assert.equal(app.requests.length, 3);
+});
+
+test("selected 1M charts and pending default overview batches never get duplicate quote requests", async () => {
+  const selected = instrument("AAPL");
+  for (const settled of [false, true]) {
+    const app = mount({
+      items: [selected],
+      selectedInstrument: selected,
+      selectedRange: "1m",
+      selectedActive: true,
+      selectedChartSettled: settled,
+    });
+    app.render().requestQuote("AAPL");
+    assert.equal(app.requests.length, 0);
+  }
+  const app = mount({
+    owner: null,
+    active: false,
+    items: [],
+    selectedInstrument: selected,
+    selectedRange: "1d",
+    selectedActive: true,
+    selectedChartSettled: true,
+    overviewPending: true,
+  });
+  app.render();
+  assert.equal(app.requests.length, 0);
+  app.render({ overviewPending: false, overview: { stocks: [snapshot("AAPL")] } });
+  assert.equal(app.requests.length, 0);
+  assert.equal(app.render().quotes.AAPL.latestClose, 123.45);
+});
+
+test("older market sessions and null quotes cannot erase a newer canonical price anywhere", () => {
+  const selected = instrument("AAPL");
+  const app = mount({
+    items: [selected],
+    selectedInstrument: selected,
+    overview: { stocks: [snapshot("AAPL", { latestClose: 140 })] },
+  });
+  app.render();
+  app.render({
+    selectedQuote: snapshot("AAPL", {
+      dataDate: "2026-10-22",
+      fetchedAt: "2026-10-24T20:00:00Z",
+      latestClose: 120,
+    }),
+  });
+  assert.equal(app.render().quotes.AAPL.latestClose, 140);
+  app.render({ overview: null, selectedQuote: { ...snapshot("AAPL"), quote: null } });
+  assert.equal(app.render().quotes.AAPL.latestClose, 140);
+  app.render({
+    overview: { stocks: [snapshot("AAPL", { latestClose: null, changePercent: null })] },
+    selectedQuote: null,
+  });
+  assert.equal(app.render().quotes.AAPL.latestClose, 140);
+});
+
+test("visible default rows can resume after a shared overview batch finishes without a quote", async () => {
+  const app = mount({ items: [instrument("AAPL")], overviewPending: true });
+  const before = app.render().requestQuote;
+  before("AAPL");
+  assert.equal(app.requests.length, 0);
+  const after = app.render({ overviewPending: false }).requestQuote;
+  assert.notEqual(after, before); // Visible-row observers register again when the lease is free.
+  after("AAPL");
+  after("AAPL");
+  assert.equal(app.requests.length, 1);
+  app.requests[0].result.resolve(response(snapshot("AAPL")));
+  await settle();
+  assert.equal(app.render().quotes.AAPL.latestClose, 123.45);
+});
+
+test("an expired observation propagates to every consumer despite an unchanged old fresh chart seed", () => {
+  const selected = instrument("AAPL");
+  const fresh = snapshot("AAPL");
+  const app = mount({
+    items: [selected],
+    selectedInstrument: selected,
+    overview: { stocks: [fresh] },
+    selectedQuote: fresh,
+  });
+  app.render();
+  assert.equal(app.render().quotes.AAPL.isStale, false);
+  app.render({ overview: { stocks: [snapshot("AAPL", { isStale: true })] } });
+  assert.equal(app.render().quotes.AAPL.isStale, true);
+  app.render({ refreshKey: 1 });
+  assert.equal(app.render().quotes.AAPL.isStale, true);
+  app.render({ overview: { stocks: [snapshot("AAPL", { fetchedAt: "2026-10-23T18:10:00Z" })] } });
+  assert.equal(app.render().quotes.AAPL.isStale, false);
+});
+
+test("a stale nested quote gets one daily refresh for the selected anonymous symbol", async () => {
+  const selected = instrument("NFLX");
+  const canonical = {
+    ...snapshot("NFLX", { isStale: true }),
+    basis: "daily_snapshot",
+    interval: "1d",
+    adjustment: "split_and_dividend_adjusted",
+    previousClose: 125,
+  };
+  const app = mount({
+    owner: null,
+    active: false,
+    items: [],
+    selectedInstrument: selected,
+    selectedRange: "1d",
+    selectedActive: true,
+    selectedChartSettled: true,
+    selectedQuote: { ...snapshot("NFLX", { range: "1d", interval: "5m" }), quote: canonical },
+  });
+  app.render();
+  assert.equal(app.requests.length, 1);
+  app.requests[0].result.resolve(response({ ...snapshot("NFLX"), quote: canonical }));
+  await settle();
+  assert.equal(app.requests.length, 2);
+  const updated = {
+    ...canonical,
+    isStale: false,
+    latestClose: 140,
+    fetchedAt: "2026-10-23T18:10:00Z",
+  };
+  app.requests[1].result.resolve(response({ ...snapshot("NFLX"), quote: updated }));
+  await settle();
+  assert.equal(app.render().quotes.NFLX.latestClose, 140);
+  assert.equal(app.render().quotes.NFLX.isStale, false);
+  app.render({ selectedRange: "1w" });
+  assert.equal(app.requests.length, 2);
+  app.render({ refreshKey: 1 });
+  assert.equal(app.requests.length, 2); // The retained newer real snapshot beats the old stale seed.
+});
+
+test("scope changes resume an anonymous selected fallback even when no watchlist items change", async () => {
+  for (const scope of [{ owner: "a:1" }, { active: true }]) {
+    const app = mount({
+      owner: null,
+      active: false,
+      items: [],
+      selectedInstrument: instrument("NFLX"),
+      selectedRange: "1d",
+      selectedActive: true,
+      selectedChartSettled: true,
+    });
+    app.render();
+    assert.equal(app.requests.length, 1);
+    app.render(scope);
+    assert.equal(app.requests[0].options.signal.aborted, true);
+    assert.equal(app.requests.length, 2);
+    app.requests[0].result.resolve(response(snapshot("NFLX", { latestClose: 100 })));
+    app.requests[1].result.resolve(response(snapshot("NFLX", { latestClose: 140 })));
+    await settle();
+    assert.equal(app.render().quotes.NFLX.latestClose, 140);
+  }
 });

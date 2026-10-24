@@ -100,13 +100,23 @@ export default function Dashboard() {
       (desktopPickerVisible || pickerOpen),
     owner: watchlist.authenticated ? watchlist.sessionKey : null,
     refreshKey: overviewReload,
+    selectedInstrument: selected,
+    selectedRange: range,
+    selectedActive: activeView === "markets",
+    selectedChartSettled: chart.hasSettled,
+    overviewPending: overview.loading || overview.refreshing,
   });
+  const selectedQuote = watchlistQuotes.quotes[selected.symbol];
   const stocks = DEFAULT_INSTRUMENTS.map((instrument) => {
-    const quote = overview.data?.stocks.find((stock) => stock.symbol === instrument.symbol);
+    const quote = watchlistQuotes.quotes[instrument.symbol];
     return { ...instrument, ...quote };
   });
-  const latestCandle = marketData?.candles.at(-1);
   const interval = marketData?.interval ?? (range === "1d" ? "5m" : range === "1w" ? "30m" : "1d");
+
+  function refreshMarket() {
+    setOverviewReload((value) => value + 1);
+    setChartReload((value) => value + 1);
+  }
 
   function selectInstrument(instrument: Instrument) {
     setSelected(instrument);
@@ -285,7 +295,7 @@ export default function Dashboard() {
               overview.refreshing ||
               (pickerTab === "watchlist" && watchlistQuotes.loading)
             }
-            onClick={() => setOverviewReload((value) => value + 1)}
+            onClick={refreshMarket}
           >
             {overview.loading ||
             overview.refreshing ||
@@ -410,16 +420,18 @@ export default function Dashboard() {
               )}
               <div className="price-summary" aria-live="polite">
                 <div className="price-line">
-                  <strong>{formatPrice(latestCandle?.close, selected, locale)}</strong>
-                  <span className={changeClass(marketData?.changePercent)}>
-                    {formatChange(marketData?.changePercent, locale)}
+                  <strong>{formatPrice(selectedQuote?.latestClose, selected, locale)}</strong>
+                  <span className={changeClass(selectedQuote?.changePercent)}>
+                    {formatChange(selectedQuote?.changePercent, locale)}
                   </span>
                 </div>
                 <span className="price-caption">
-                  {marketData
-                    ? `${marketData.dataDate} · ${selected.instrumentType === "index" ? t("chart.indexPoints") : selected.currency}`
+                  {selectedQuote
+                    ? `${selectedQuote.dataDate ?? "—"} · ${selected.instrumentType === "index" ? t("chart.indexPoints") : selected.currency}`
                     : t("chart.latest")}
+                  <span>{t("chart.dailySnapshot")}</span>
                   <span>{t("chart.previousClose")}</span>
+                  {selectedQuote?.isStale && <span>{t("market.cached")}</span>}
                 </span>
               </div>
               <div className="chart-toolbar">
@@ -471,7 +483,7 @@ export default function Dashboard() {
                     <button
                       className="account-button secondary"
                       type="button"
-                      onClick={() => setChartReload((value) => value + 1)}
+                      onClick={refreshMarket}
                     >
                       {t("chart.retry")}
                     </button>
@@ -480,11 +492,7 @@ export default function Dashboard() {
                 {!chartLoading && !chart.error && chart.data && !marketData && (
                   <div className="state-message" role="status">
                     <p>{t("chart.rangeUnavailable")}</p>
-                    <button
-                      className="text-button"
-                      type="button"
-                      onClick={() => setChartReload((value) => value + 1)}
-                    >
+                    <button className="text-button" type="button" onClick={refreshMarket}>
                       {t("chart.retry")}
                     </button>
                   </div>
@@ -495,6 +503,7 @@ export default function Dashboard() {
                   (marketData.candles.length ? (
                     <CandlestickChart
                       data={marketData.candles}
+                      quote={selectedQuote ?? null}
                       range={range}
                       interval={interval}
                       theme={resolvedTheme}
@@ -523,11 +532,7 @@ export default function Dashboard() {
               {chart.refreshError && marketData && (
                 <p className="market-warning" role="status">
                   {message(chart.refreshError)}{" "}
-                  <button
-                    className="text-button"
-                    type="button"
-                    onClick={() => setChartReload((value) => value + 1)}
-                  >
+                  <button className="text-button" type="button" onClick={refreshMarket}>
                     {t("chart.retry")}
                   </button>
                 </p>

@@ -13,6 +13,13 @@ export type StockSummary = Instrument & {
   isStale: boolean;
 };
 
+export type DailyQuote = StockSummary & {
+  basis: "daily_snapshot";
+  interval: "1d";
+  adjustment: "split_and_dividend_adjusted" | "mock";
+  previousClose: number | null;
+};
+
 export type MarketOverview = {
   stocks: StockSummary[];
   source: "yfinance" | "mock";
@@ -44,6 +51,8 @@ export type CandleResponse = Instrument & {
   interval: "5m" | "30m" | "1d";
   latestClose: number | null;
   changePercent: number | null;
+  // Missing on older APIs; explicit null means no canonical snapshot is available.
+  quote?: DailyQuote | null;
   source: "yfinance" | "mock";
   isMock: boolean;
   candles: Candle[];
