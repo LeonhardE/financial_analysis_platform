@@ -341,18 +341,20 @@ run "catalog_requires_separate_target_activation_and_scoped_repo_artifacts" {
 
   assert {
     condition = (
-      toset(keys(module.target_execution)) == toset(["market", "user", "config"]) &&
-      toset(keys(output.target_execution)) == toset(["market", "user", "config"]) &&
+      toset(keys(module.target_execution)) == toset(["market", "user", "config", "web"]) &&
+      toset(keys(output.target_execution)) == toset(["market", "user", "config", "web"]) &&
       local.execution_registry.targets.repo.enabled &&
       local.execution_registry.targets.market.enabled &&
       local.execution_registry.targets.user.enabled &&
       local.execution_registry.targets.config.enabled &&
+      local.execution_registry.targets.web.enabled &&
+      local.execution_registry.targets.web.configuration_controllers == ["module.web.terraform_data.configuration"] &&
       local.execution_registry.targets.config.configuration_controllers == ["module.config.terraform_data.configuration"] &&
       local.execution_registry.targets.user.configuration_controllers == ["module.user.terraform_data.configuration"] &&
       local.execution_registry.targets.market.configuration_controllers == ["module.market.terraform_data.configuration"] &&
-      alltrue([for name, target in local.execution_registry.targets : !target.enabled if !contains(["repo", "market", "user", "config"], name)])
+      alltrue([for name, target in local.execution_registry.targets : !target.enabled if !contains(["repo", "market", "user", "config", "web"], name)])
     )
-    error_message = "Only reviewed Market, User and Config adoptions may activate service execution; Web remains disabled."
+    error_message = "Only the separately reviewed Market, User, Config and Web adoptions may activate these execution targets."
   }
 
   assert {
@@ -575,5 +577,108 @@ run "config_execution_business_roles_cannot_create_delete_or_administer_resource
       google_project_iam_member.config_auth.member == "serviceAccount:fa-config-runtime@${var.project_id}.iam.gserviceaccount.com"
     )
     error_message = "Preserve the existing image publisher and preferences grant; Terraform apply may attach only the Config runtime and must not impersonate fa-build."
+  }
+}
+
+override_resource {
+  target = google_cloudbuild_trigger.web_image_release
+  values = {
+    id         = "projects/financial-analysis-512202/locations/northamerica-northeast2/triggers/d337875a-823a-47e1-bc6e-e1ba8b3f4f92"
+    trigger_id = "d337875a-823a-47e1-bc6e-e1ba8b3f4f92"
+  }
+}
+
+override_resource {
+  target = google_cloud_run_v2_service_iam_member.web_image_deployer
+  values = {}
+}
+
+override_resource {
+  target = google_service_account_iam_member.web_runtime_deployer["image"]
+  values = {}
+}
+
+override_resource {
+  target          = google_project_iam_custom_role.web_service_read
+  override_during = plan
+  values = {
+    name = "projects/financial-analysis-512202/roles/folioviewWebServiceRead"
+  }
+}
+
+override_resource {
+  target          = google_project_iam_custom_role.web_service_configuration
+  override_during = plan
+  values = {
+    name = "projects/financial-analysis-512202/roles/folioviewWebServiceConfiguration"
+  }
+}
+
+override_resource {
+  target          = google_project_iam_custom_role.web_image_read
+  override_during = plan
+  values = {
+    name = "projects/financial-analysis-512202/roles/folioviewWebConfigurationImageRead"
+  }
+}
+
+override_resource {
+  target          = google_project_iam_custom_role.web_identity_read
+  override_during = plan
+  values = {
+    name = "projects/financial-analysis-512202/roles/folioviewWebIdentityRead"
+  }
+}
+
+override_resource {
+  target          = google_project_iam_custom_role.web_identity_metadata
+  override_during = plan
+  values = {
+    name = "projects/financial-analysis-512202/roles/folioviewWebIdentityMetadata"
+  }
+}
+
+run "web_retains_existing_build_filter_and_public_frontend_configuration" {
+  command = plan
+
+  assert {
+    condition = (
+      google_cloudbuild_trigger.web_image_release.name == "build-market-web" &&
+      google_cloudbuild_trigger.web_image_release.filename == "infra/gcp/cloudbuild.web.yaml" &&
+      google_cloudbuild_trigger.web_image_release.service_account == "projects/financial-analysis-512202/serviceAccounts/fa-build@financial-analysis-512202.iam.gserviceaccount.com" &&
+      google_cloudbuild_trigger.web_image_release.repository_event_config[0].push[0].branch == "^main$" &&
+      tolist(google_cloudbuild_trigger.web_image_release.included_files) == tolist(["apps/web/**", "package.json", "package-lock.json", ".dockerignore", "infra/gcp/cloudbuild.web.yaml", "infra/gcp/deploy_existing_service.py"]) &&
+      length(google_cloudbuild_trigger.web_image_release.ignored_files) == 0 &&
+      !google_cloudbuild_trigger.web_image_release.disabled &&
+      !contains(keys(google_cloudbuild_trigger.web_image_release.substitutions), "_DEPLOY_SERVICE") &&
+      toset(keys(google_cloudbuild_trigger.web_image_release.substitutions)) == toset(["_API_BASE_URL", "_CONFIG_API_BASE_URL", "_USER_API_BASE_URL", "_FIREBASE_API_KEY", "_FIREBASE_AUTH_DOMAIN", "_FIREBASE_PROJECT_ID", "_FIREBASE_APP_ID", "_REGION", "_REPOSITORY"]) &&
+      google_cloudbuild_trigger.web_image_release.substitutions["_USER_API_BASE_URL"] == "https://user-api-630815932903.northamerica-northeast2.run.app" &&
+      google_cloudbuild_trigger.web_image_release.substitutions["_CONFIG_API_BASE_URL"] == "https://config-api-630815932903.northamerica-northeast2.run.app"
+    )
+    error_message = "Web adoption must retain the existing build trigger, paths and build-time public configuration without adding substitutions or redirecting private requests."
+  }
+}
+
+run "web_execution_is_scoped_to_existing_web_resources" {
+  command = plan
+
+  assert {
+    condition = (
+      toset(google_project_iam_custom_role.web_service_read.permissions) == toset(["run.services.get"]) &&
+      toset(google_project_iam_custom_role.web_service_configuration.permissions) == toset(["run.services.get", "run.services.update"]) &&
+      toset(google_project_iam_custom_role.web_image_read.permissions) == toset(["artifactregistry.repositories.downloadArtifacts"]) &&
+      toset(google_project_iam_custom_role.web_identity_read.permissions) == toset(["iam.serviceAccounts.get"]) &&
+      toset(google_project_iam_custom_role.web_identity_metadata.permissions) == toset(["iam.serviceAccounts.get", "iam.serviceAccounts.update", "iam.serviceAccounts.enable"]) &&
+      alltrue([for phase, grant in google_cloud_run_v2_service_iam_member.web_execution : grant.name == "market-web" && grant.member == "serviceAccount:${module.target_execution["web"].service_accounts[phase]}"]) &&
+      google_cloud_run_v2_service_iam_member.web_execution["plan"].role == google_project_iam_custom_role.web_service_read.name &&
+      google_cloud_run_v2_service_iam_member.web_execution["apply"].role == google_project_iam_custom_role.web_service_configuration.name &&
+      alltrue([for phase, grant in google_service_account_iam_member.web_execution_metadata : grant.service_account_id == local.web_runtime && grant.member == "serviceAccount:${module.target_execution["web"].service_accounts[phase]}"]) &&
+      alltrue([for grant in google_service_account_iam_member.web_runtime_deployer : grant.service_account_id == local.web_runtime && grant.role == "roles/iam.serviceAccountUser"]) &&
+      google_artifact_registry_repository_iam_member.web_configuration_image.repository == "financial-analysis" &&
+      google_artifact_registry_repository_iam_member.web_configuration_image.location == "northamerica-northeast2" &&
+      google_artifact_registry_repository_iam_member.web_configuration_image.role == google_project_iam_custom_role.web_image_read.name &&
+      google_artifact_registry_repository_iam_member.web_configuration_image.member == "serviceAccount:${module.target_execution["web"].service_accounts["apply"]}"
+    )
+    error_message = "Web may configure only market-web and its dedicated runtime, and only Web apply may read images in the current repository. No IAM administration, resource creation/deletion, deployment of another service, or database access is granted."
   }
 }

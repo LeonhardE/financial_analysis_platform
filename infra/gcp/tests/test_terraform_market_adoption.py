@@ -28,7 +28,7 @@ class MarketExecutionBoundaryTests(unittest.TestCase):
         policy, selected, directory = pipeline.registry(ROOT, "market")
         self.assertEqual(
             {name for name, target in policy["targets"].items() if target["enabled"]},
-            {"repo", "market", "user", "config"},
+            {"repo", "market", "user", "config", "web"},
         )
         self.assertEqual(directory, ROOT / "infra/gcp/terraform/envs/prod/market")
         self.assertEqual(selected["state_bucket"], f"{policy['project_id']}-tfstate-market")
@@ -37,9 +37,15 @@ class MarketExecutionBoundaryTests(unittest.TestCase):
         self.assertEqual(
             selected["configuration_controllers"], ["module.market.terraform_data.configuration"]
         )
-        for name in ("web",):
-            with self.subTest(target=name), self.assertRaises(RuntimeError):
-                pipeline.registry(ROOT, name)
+        for name in ("user", "config", "web"):
+            with self.subTest(target=name):
+                _, target, _ = pipeline.registry(ROOT, name)
+                self.assertEqual(target["state_bucket"], f"{policy['project_id']}-tfstate-{name}")
+                self.assertEqual(target["state_prefix"], f"prod/{name}")
+                self.assertEqual(
+                    target["configuration_controllers"],
+                    [f"module.{name}.terraform_data.configuration"],
+                )
 
     def test_market_infrastructure_does_not_build_unmodified_applications(self):
         self.assertEqual(
