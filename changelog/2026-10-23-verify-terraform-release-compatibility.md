@@ -17,10 +17,12 @@ claiming that an ignore list makes concurrent Terraform and image updates safe.
   temporary private service and keyless account, with identity-checked cleanup and private reports.
 - Document the remaining ownership choices. Keep production adoption gated; existing service
   modules, image release behavior, resource instances, IAM and execution targets remain unchanged.
+- Normalize pasted Terraform paths, check the local toolchain before cloud access, and show stage
+  progress with private log locations. Default to the bootstrap CLI path to simplify Cloud Shell use.
 
 ## Validation
 
-- Root `npm run check` passed, including 17 live-runner safety unit tests.
+- Root `npm run check` passed, including 21 live-runner safety and preflight unit tests.
 - All 56 native mocked Terraform tests and five real-provider localhost blocker reproductions passed.
 - Live Cloud Run evidence is recorded separately from offline wire tests; offline results do not
   certify GCP IAM or reconciliation behavior.

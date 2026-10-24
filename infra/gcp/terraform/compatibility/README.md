@@ -57,8 +57,14 @@ existing project administrator in Cloud Shell, with the reviewed PR branch check
 pinned Terraform installed:
 
 ```bash
-python3 infra/gcp/verify_release_compatibility.py --live --project financial-analysis-512202 --region northamerica-northeast2 --terraform "$HOME/folioview-terraform-tools/terraform"
+python3 infra/gcp/verify_release_compatibility.py --live --project financial-analysis-512202
 ```
+
+The default region is Toronto and the default executable is
+`~/folioview-terraform-tools/terraform`; use `--terraform /absolute/path/to/terraform` to override it.
+The wrapper trims surrounding pasted whitespace, resolves the executable and checks the pinned
+version before any cloud query. It prints flushed stage updates and private log locations while
+Terraform runs, so initialization and reconciliation do not look like a silent hang.
 
 The wrapper discovers three existing `market-api` image digests in the project's
 `financial-analysis` Artifact Registry repository. It does not build images or change production

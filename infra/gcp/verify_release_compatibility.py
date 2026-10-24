@@ -35,6 +35,28 @@ def require(condition, message):
         raise RuntimeError(message)
 
 
+def terraform_binary(value):
+    supplied = str(value).strip()
+    if not supplied or any(ord(character) < 32 for character in supplied):
+        raise argparse.ArgumentTypeError(
+            "Terraform path is empty or contains embedded control characters."
+        )
+    try:
+        binary = Path(supplied).expanduser().resolve(strict=True)
+    except (OSError, RuntimeError) as error:
+        raise argparse.ArgumentTypeError(
+            "Terraform executable was not found. Install the pinned CLI with "
+            "infra/gcp/terraform_tools.py install --directory ~/folioview-terraform-tools."
+        ) from error
+    if not binary.is_file() or not os.access(binary, os.X_OK):
+        raise argparse.ArgumentTypeError("Terraform path must identify an executable file.")
+    return str(binary)
+
+
+def progress(message):
+    print(message, flush=True)
+
+
 def validate_inputs(args):
     require(args.live, "Pass --live to create and delete the isolated verification resources.")
     require(
@@ -223,6 +245,7 @@ class Terraform:
             TF_CLI_CONFIG_FILE=os.devnull,
             CHECKPOINT_DISABLE="1",
         )
+        progress(f"Terraform {args[0]}... Private diagnostic: {log}")
         with log.open("w") as output:
             result = subprocess.run(
                 [self.binary, f"-chdir={self.directory}", *args],
@@ -321,16 +344,19 @@ def cleanup(api, resource, uid, account, unique_id):
 
 
 def verify(args, api):
-    images = (
-        validate_images(args, [args.image_a, args.image_b, args.image_c])
-        if args.image_a
-        else discover_images(api, args)
-    )
+    args.terraform = terraform_binary(args.terraform)
+    progress("Checking the pinned Terraform CLI before cloud access...")
     version = json.loads(
         subprocess.check_output([args.terraform, "version", "-json"], text=True, timeout=60)
     )
     require(
         version.get("terraform_version") == "1.16.7", "Use the repository-pinned Terraform 1.16.7."
+    )
+    progress("Reading existing image digests...")
+    images = (
+        validate_images(args, [args.image_a, args.image_b, args.image_c])
+        if args.image_a
+        else discover_images(api, args)
     )
     name = f"fv-compat-{uuid.uuid4().hex[:12]}"
     directory = Path(tempfile.mkdtemp(prefix=f"{name}-"))
@@ -348,9 +374,11 @@ def verify(args, api):
     }
     uid, unique_id, creating, account_attempted = None, None, False, False
     tf = Terraform(args.terraform, directory, api)
+    progress(f"Isolated service: {resource}. Private evidence directory: {directory}")
     try:
         absent(api.request, resource)
         absent(api.iam, account)
+        progress("Creating the isolated runtime identity...")
         account_attempted = True
         created = api.iam(
             "POST",
@@ -386,6 +414,7 @@ def verify(args, api):
         fixture(directory, args, name, images[0], changed=True)
         report["evidence"]["saved_before_release"] = tf.plan("before-release")
         for label, image in (("release_b", images[1]), ("release_c", images[2])):
+            progress(f"Running {label}...")
             build_id = str(uuid.uuid4())
             RELEASE.deploy(
                 api,
@@ -410,6 +439,7 @@ def verify(args, api):
                 service = wait_service(api, resource)
                 report["evidence"]["stale_saved_plan"]["service"] = service_snapshot(service)
         service = api.request("GET", resource)
+        progress("Rolling test traffic back to revision B...")
         api.request(
             "PATCH",
             f"{resource}?updateMask=traffic",
@@ -437,6 +467,7 @@ def verify(args, api):
     except Exception as error:
         report["error"] = f"{type(error).__name__}: {error}"
     finally:
+        progress("Cleaning up the isolated service and runtime identity...")
         report["cleanup_errors"] = cleanup(api, resource, uid, account, unique_id)
         if creating and not uid:
             report["cleanup_errors"].append(
@@ -460,15 +491,24 @@ def main():
     parser.add_argument("--live", action="store_true")
     parser.add_argument("--project", required=True)
     parser.add_argument("--region", default="northamerica-northeast2")
-    parser.add_argument("--terraform", required=True)
+    parser.add_argument(
+        "--terraform",
+        type=terraform_binary,
+        default=str(Path.home() / "folioview-terraform-tools/terraform"),
+        help="Pinned executable path (defaults to ~/folioview-terraform-tools/terraform).",
+    )
     parser.add_argument("--repository", default="financial-analysis")
     parser.add_argument("--image-package", default="market-api")
     for label in ("a", "b", "c"):
         parser.add_argument(f"--image-{label}")
     args = parser.parse_args()
     os.umask(0o077)
-    validate_inputs(args)
-    raise SystemExit(verify(args, Cloud()))
+    try:
+        validate_inputs(args)
+        result = verify(args, Cloud())
+    except (argparse.ArgumentTypeError, OSError, RuntimeError, ValueError) as error:
+        parser.exit(1, f"Verification preflight failed: {error}\n")
+    raise SystemExit(result)
 
 
 if __name__ == "__main__":
