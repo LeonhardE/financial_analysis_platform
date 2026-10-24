@@ -219,10 +219,97 @@ def summarize_plan(plan):
             for key in ("template", "traffic", "annotations")
             if before.get(key) != after.get(key)
         ]
-        summaries.append(
-            {"address": ADDRESS, "actions": change["actions"], "changed_fields": fields}
+        summary = {"address": ADDRESS, "actions": change["actions"], "changed_fields": fields}
+        for label, values in (("before", before), ("after", after)):
+            template = (values.get("template") or [{}])[0]
+            container = (template.get("containers") or [{}])[0]
+            summary.update(
+                {
+                    f"image_{label}": container.get("image"),
+                    f"revision_{label}": template.get("revision"),
+                    f"traffic_{label}": values.get("traffic", []),
+                }
+            )
+        before_container = ((before.get("template") or [{}])[0].get("containers") or [{}])[0]
+        after_container = ((after.get("template") or [{}])[0].get("containers") or [{}])[0]
+        summary["environment_changed"] = before_container.get("env", []) != after_container.get(
+            "env", []
         )
+        summaries.append(summary)
     return summaries
+
+
+def classify_evidence(report):
+    """Classify sanitized observations without treating intended config changes as drift."""
+    evidence = report.get("evidence", {})
+    baseline = evidence.get("baseline", {})
+    images = report.get("images", [])
+    findings = []
+    rollback_revision = evidence.get("release_b", {}).get("revision")
+    rollback_traffic = evidence.get("rollback_to_b", {}).get("observed_traffic", [])
+    rollback_observed = (
+        bool(rollback_revision)
+        and sum(target.get("percent", 0) for target in rollback_traffic) == 100
+        and all(
+            not target.get("percent", 0)
+            or RELEASE.same_revision(target.get("revision"), rollback_revision)
+            for target in rollback_traffic
+        )
+    )
+    complete = (
+        len(images) == 3
+        and len(set(images)) == 3
+        and baseline.get("plan") == []
+        and baseline.get("service", {}).get("image") == images[0]
+        and evidence.get("release_b", {}).get("image") == images[1]
+        and evidence.get("release_c", {}).get("image") == images[2]
+        and isinstance(evidence.get("plan_after_release"), list)
+        and isinstance(evidence.get("plan_after_rollback"), list)
+        and rollback_observed
+    )
+    if len(images) == 3:
+        for key, current_image in (
+            ("plan_after_release", images[1]),
+            ("plan_after_rollback", images[2]),
+        ):
+            for change in evidence.get(key) or []:
+                if (
+                    change.get("image_before") == current_image
+                    and change.get("image_after") == images[0]
+                    and current_image != images[0]
+                ):
+                    findings.append(f"{key}: planned image reversion to baseline A")
+        for change in evidence.get("plan_after_rollback") or []:
+            before = [
+                target for target in change.get("traffic_before", []) if target.get("percent", 0)
+            ]
+            after = [
+                target for target in change.get("traffic_after", []) if target.get("percent", 0)
+            ]
+            if (
+                rollback_revision
+                and len(before) == len(after) == 1
+                and before[0].get("percent") == after[0].get("percent") == 100
+                and RELEASE.same_revision(before[0].get("revision"), rollback_revision)
+                and after[0].get("type") == "TRAFFIC_TARGET_ALLOCATION_TYPE_LATEST"
+            ):
+                findings.append(
+                    "plan_after_rollback: planned reset from revision B to latest traffic"
+                )
+        stale = evidence.get("stale_saved_plan", {})
+        if (
+            stale.get("exit_code") == 0
+            and stale.get("service", {}).get("image") == images[0]
+            and evidence.get("release_b", {}).get("image") == images[1]
+            and stale.get("service", {}).get("terminal_state") == "CONDITION_SUCCEEDED"
+        ):
+            findings.append(
+                "stale_saved_plan: successful apply restored baseline image A after release B"
+            )
+    status = "BLOCKED" if findings else "UNEXPECTED_RESULT"
+    if not complete or report.get("error") or report.get("cleanup_errors"):
+        status = "ERROR"
+    return {"status": status, "findings": findings}
 
 
 class Terraform:
@@ -411,6 +498,10 @@ def verify(args, api):
             "service": service_snapshot(service),
             "plan": tf.plan("baseline"),
         }
+        require(
+            not report["evidence"]["baseline"]["plan"],
+            "The baseline Terraform plan is not a no-op.",
+        )
         fixture(directory, args, name, images[0], changed=True)
         report["evidence"]["saved_before_release"] = tf.plan("before-release")
         for label, image in (("release_b", images[1]), ("release_c", images[2])):
@@ -459,11 +550,6 @@ def verify(args, api):
             wait_service(api, resource, traffic_revision=revision_b)
         )
         report["evidence"]["plan_after_rollback"] = tf.plan("after-rollback")
-        report["status"] = (
-            "BLOCKED"
-            if report["evidence"]["plan_after_release"] or report["evidence"]["plan_after_rollback"]
-            else "UNEXPECTED_RESULT"
-        )
     except Exception as error:
         report["error"] = f"{type(error).__name__}: {error}"
     finally:
@@ -477,8 +563,7 @@ def verify(args, api):
             report["cleanup_errors"].append(
                 "No recorded account uniqueId. Inspect this exact account manually: " + account
             )
-        if report["cleanup_errors"]:
-            report["status"] = "ERROR"
+        report.update(classify_evidence(report))
         (directory / "report.json").write_text(json.dumps(report, indent=2) + "\n")
         print(f"Verification {report['status']}. Private evidence: {directory / 'report.json'}")
         for error in report["cleanup_errors"]:
