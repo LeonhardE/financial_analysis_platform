@@ -1,4 +1,4 @@
-"""Offline digest/approval boundaries using a complete synthetic fourth backend."""
+"""Offline digest/approval boundaries using a complete additional synthetic backend."""
 
 import contextlib
 import copy
@@ -125,8 +125,8 @@ class FirstProvisionTests(unittest.TestCase):
             **{**self.trusted, **changes},
         )
 
-    def test_fourth_backend_produces_digest_pinned_unapproved_review_material_only(self):
-        self.assertEqual(len(self.registry.backends), 4)
+    def test_additional_backend_produces_digest_pinned_unapproved_review_material_only(self):
+        self.assertEqual(len(self.registry.backends), len(first.load_registry(ROOT).backends) + 1)
         request = self.prepare()
         self.assertEqual(request["image"]["reference"], IMAGE_NAME + "@" + DIGEST)
         self.assertEqual(request["approval"], {"status": "not_requested"})

@@ -48,9 +48,7 @@ class ServiceRunnerTests(unittest.TestCase):
     def test_default_runs_every_suite_in_its_own_process(self):
         status, calls = self.run_suites()
         self.assertEqual(status, 0)
-        self.assert_suites(
-            calls, ("common", "market-data-service", "user-service", "config-service")
-        )
+        self.assert_suites(calls, RUNNER.SERVICES)
 
     def test_explicit_shared_and_user_selection_never_runs_other_services(self):
         status, calls = self.run_suites(
@@ -83,7 +81,9 @@ class ServiceRunnerTests(unittest.TestCase):
             root = Path(directory)
             write_registry_fixture(root, extra_backend=True)
             with patch.object(RUNNER, "ROOT", root):
-                status, calls = self.run_suites(results=[SimpleNamespace(returncode=0)] * 5)
+                status, calls = self.run_suites(
+                    results=[SimpleNamespace(returncode=0)] * (len(RUNNER.SERVICES) + 1)
+                )
                 self.assertEqual(status, 0)
                 self.assert_suites(calls, (*RUNNER.SERVICES, "synthetic-service"))
                 status, calls = self.run_suites(["--service", "synthetic-service"])
