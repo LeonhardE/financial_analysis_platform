@@ -1,0 +1,354 @@
+mock_provider "google" {
+  override_during = plan
+
+  mock_resource "google_service_account" {
+    defaults = {
+      id     = "projects/financial-analysis-512202/serviceAccounts/mockbuild@financial-analysis-512202.iam.gserviceaccount.com"
+      email  = "mockbuild@financial-analysis-512202.iam.gserviceaccount.com"
+      member = "serviceAccount:mockbuild@financial-analysis-512202.iam.gserviceaccount.com"
+    }
+  }
+}
+
+override_resource {
+  target = module.market_image_release.google_cloudbuild_trigger.this
+  values = {
+    id         = "projects/financial-analysis-512202/locations/northamerica-northeast2/triggers/db77a22e-83bf-45cc-b114-50e32192a9c8"
+    trigger_id = "db77a22e-83bf-45cc-b114-50e32192a9c8"
+  }
+}
+
+override_resource {
+  target = google_cloud_run_v2_service_iam_member.market_image_deployer
+  values = {}
+}
+
+override_resource {
+  target = google_service_account_iam_member.market_runtime_deployer["image"]
+  values = {}
+}
+
+override_resource {
+  target = google_project_iam_member.market_cache
+  values = {}
+}
+
+override_resource {
+  target          = google_project_iam_custom_role.market_service_read
+  override_during = plan
+  values = {
+    name = "projects/financial-analysis-512202/roles/folioviewMarketServiceRead"
+  }
+}
+
+override_resource {
+  target          = google_project_iam_custom_role.market_service_configuration
+  override_during = plan
+  values = {
+    name = "projects/financial-analysis-512202/roles/folioviewMarketServiceConfiguration"
+  }
+}
+
+override_resource {
+  target          = google_project_iam_custom_role.market_image_read
+  override_during = plan
+  values = {
+    name = "projects/financial-analysis-512202/roles/folioviewMarketConfigurationImageRead"
+  }
+}
+
+override_resource {
+  target          = google_project_iam_custom_role.market_identity_read
+  override_during = plan
+  values = {
+    name = "projects/financial-analysis-512202/roles/folioviewMarketIdentityRead"
+  }
+}
+
+override_resource {
+  target          = google_project_iam_custom_role.market_identity_metadata
+  override_during = plan
+  values = {
+    name = "projects/financial-analysis-512202/roles/folioviewMarketIdentityMetadata"
+  }
+}
+
+override_resource {
+  target = module.user_image_release.google_cloudbuild_trigger.this
+  values = {
+    id         = "projects/financial-analysis-512202/locations/northamerica-northeast2/triggers/4cdbbd0c-94ba-4a47-8fb3-a0c6a73c07e5"
+    trigger_id = "4cdbbd0c-94ba-4a47-8fb3-a0c6a73c07e5"
+  }
+}
+
+override_resource {
+  target = google_cloud_run_v2_service_iam_member.user_image_deployer
+  values = {}
+}
+
+override_resource {
+  target = google_service_account_iam_member.user_runtime_deployer["image"]
+  values = {}
+}
+
+override_resource {
+  target = google_project_iam_member.user_cache
+  values = {}
+}
+
+override_resource {
+  target          = google_project_iam_custom_role.user_service_read
+  override_during = plan
+  values = {
+    name = "projects/financial-analysis-512202/roles/folioviewUserServiceRead"
+  }
+}
+
+override_resource {
+  target          = google_project_iam_custom_role.user_service_configuration
+  override_during = plan
+  values = {
+    name = "projects/financial-analysis-512202/roles/folioviewUserServiceConfiguration"
+  }
+}
+
+override_resource {
+  target          = google_project_iam_custom_role.user_image_read
+  override_during = plan
+  values = {
+    name = "projects/financial-analysis-512202/roles/folioviewUserConfigurationImageRead"
+  }
+}
+
+override_resource {
+  target          = google_project_iam_custom_role.user_identity_read
+  override_during = plan
+  values = {
+    name = "projects/financial-analysis-512202/roles/folioviewUserIdentityRead"
+  }
+}
+
+override_resource {
+  target          = google_project_iam_custom_role.user_identity_metadata
+  override_during = plan
+  values = {
+    name = "projects/financial-analysis-512202/roles/folioviewUserIdentityMetadata"
+  }
+}
+
+override_resource {
+  target = google_project_iam_member.user_auth_metadata
+  values = {}
+}
+
+override_resource {
+  target = module.config_image_release.google_cloudbuild_trigger.this
+  values = {
+    id         = "projects/financial-analysis-512202/locations/northamerica-northeast2/triggers/67b14a77-dd90-42d3-b61d-0f8993a41060"
+    trigger_id = "67b14a77-dd90-42d3-b61d-0f8993a41060"
+  }
+}
+
+override_resource {
+  target = google_cloud_run_v2_service_iam_member.config_image_deployer
+  values = {}
+}
+
+override_resource {
+  target = google_service_account_iam_member.config_runtime_deployer["image"]
+  values = {}
+}
+
+override_resource {
+  target = google_project_iam_member.config_store
+  values = {}
+}
+
+override_resource {
+  target          = google_project_iam_custom_role.config_service_read
+  override_during = plan
+  values = {
+    name = "projects/financial-analysis-512202/roles/folioviewConfigServiceRead"
+  }
+}
+
+override_resource {
+  target          = google_project_iam_custom_role.config_service_configuration
+  override_during = plan
+  values = {
+    name = "projects/financial-analysis-512202/roles/folioviewConfigServiceConfiguration"
+  }
+}
+
+override_resource {
+  target          = google_project_iam_custom_role.config_image_read
+  override_during = plan
+  values = {
+    name = "projects/financial-analysis-512202/roles/folioviewConfigConfigurationImageRead"
+  }
+}
+
+override_resource {
+  target          = google_project_iam_custom_role.config_identity_read
+  override_during = plan
+  values = {
+    name = "projects/financial-analysis-512202/roles/folioviewConfigIdentityRead"
+  }
+}
+
+override_resource {
+  target          = google_project_iam_custom_role.config_identity_metadata
+  override_during = plan
+  values = {
+    name = "projects/financial-analysis-512202/roles/folioviewConfigIdentityMetadata"
+  }
+}
+
+override_resource {
+  target = google_project_iam_member.config_auth
+  values = {}
+}
+
+variables {
+  repository_id = "projects/financial-analysis-512202/locations/northamerica-northeast2/connections/financial-analysis-github/repositories/financial-analysis"
+}
+
+override_resource {
+  target = google_cloudbuild_trigger.web_image_release
+  values = {
+    id         = "projects/financial-analysis-512202/locations/northamerica-northeast2/triggers/d337875a-823a-47e1-bc6e-e1ba8b3f4f92"
+    trigger_id = "d337875a-823a-47e1-bc6e-e1ba8b3f4f92"
+  }
+}
+
+override_resource {
+  target = google_cloud_run_v2_service_iam_member.web_image_deployer
+  values = {}
+}
+
+override_resource {
+  target = google_service_account_iam_member.web_runtime_deployer["image"]
+  values = {}
+}
+
+override_resource {
+  target          = google_project_iam_custom_role.web_service_read
+  override_during = plan
+  values = {
+    name = "projects/financial-analysis-512202/roles/folioviewWebServiceRead"
+  }
+}
+
+override_resource {
+  target          = google_project_iam_custom_role.web_service_configuration
+  override_during = plan
+  values = {
+    name = "projects/financial-analysis-512202/roles/folioviewWebServiceConfiguration"
+  }
+}
+
+override_resource {
+  target          = google_project_iam_custom_role.web_image_read
+  override_during = plan
+  values = {
+    name = "projects/financial-analysis-512202/roles/folioviewWebConfigurationImageRead"
+  }
+}
+
+override_resource {
+  target          = google_project_iam_custom_role.web_identity_read
+  override_during = plan
+  values = {
+    name = "projects/financial-analysis-512202/roles/folioviewWebIdentityRead"
+  }
+}
+
+override_resource {
+  target          = google_project_iam_custom_role.web_identity_metadata
+  override_during = plan
+  values = {
+    name = "projects/financial-analysis-512202/roles/folioviewWebIdentityMetadata"
+  }
+}
+
+run "portfolio_default_none_adds_no_resources" {
+  command = plan
+
+  assert {
+    condition = (
+      !local.execution_registry.targets.portfolio.enabled &&
+      !contains(keys(module.target_execution), "portfolio") &&
+      length(module.portfolio_build_identity) == 0 &&
+      length(module.portfolio_image_release) == 0 &&
+      length(module.portfolio_database_scope) == 0 &&
+      length(google_firebaserules_ruleset.portfolio) == 0 &&
+      length(google_firebaserules_release.portfolio) == 0 &&
+      length(google_project_iam_custom_role.portfolio_database_configuration) == 0 &&
+      length(google_service_account_iam_member.portfolio_runtime_deployer) == 0
+    )
+    error_message = "A merged Portfolio preparation must not activate execution, identities, Rules or IAM; stage defaults to none."
+  }
+}
+
+run "portfolio_execution_stage_has_no_missing_service_or_runtime_dependencies" {
+  command = plan
+  variables {
+    portfolio_provisioning_stage = "execution"
+  }
+
+  assert {
+    condition = (
+      contains(keys(module.target_execution), "portfolio") &&
+      module.target_execution["portfolio"].state_bucket == "financial-analysis-512202-tfstate-portfolio" &&
+      module.target_execution["portfolio"].state_prefix == "prod/portfolio" &&
+      length(module.portfolio_build_identity) == 1 &&
+      length(module.portfolio_image_release) == 1 &&
+      module.portfolio_image_release[0].name == "build-portfolio-api" &&
+      length(module.portfolio_database_scope) == 0 &&
+      length(google_cloud_run_v2_service_iam_member.portfolio_execution) == 0 &&
+      length(google_service_account_iam_member.portfolio_runtime_deployer) == 0 &&
+      length(google_project_iam_member.portfolio_execution_database) == 0 &&
+      length(google_firebaserules_release.portfolio) == 0 &&
+      !output.portfolio_preparation.image_deployment &&
+      !output.portfolio_preparation.pipeline_enabled
+    )
+    error_message = "Execution-only preparation must build without a runtime/DB/Cloud Run dependency or automatic image deployment."
+  }
+}
+
+run "portfolio_service_stage_keeps_normal_execution_narrow_and_clients_denied" {
+  command = plan
+  variables {
+    portfolio_provisioning_stage = "service"
+  }
+
+  assert {
+    condition = (
+      toset(google_project_iam_custom_role.portfolio_service_read[0].permissions) == toset(["run.services.get"]) &&
+      toset(google_project_iam_custom_role.portfolio_service_configuration[0].permissions) == toset(["run.services.get", "run.services.update"]) &&
+      toset(google_project_iam_custom_role.portfolio_database_metadata[0].permissions) == toset(["datastore.databases.getMetadata"]) &&
+      toset(google_project_iam_custom_role.portfolio_database_configuration[0].permissions) == toset(["datastore.databases.getMetadata", "datastore.databases.update", "datastore.operations.get"]) &&
+      !contains(google_project_iam_custom_role.portfolio_database_configuration[0].permissions, "datastore.databases.create") &&
+      !contains(google_project_iam_custom_role.portfolio_database_configuration[0].permissions, "datastore.databases.delete") &&
+      !contains(google_project_iam_custom_role.portfolio_database_configuration[0].permissions, "datastore.entities.get") &&
+      toset(keys(google_cloud_run_v2_service_iam_member.portfolio_execution)) == toset(["plan", "apply"]) &&
+      alltrue([for grant in google_cloud_run_v2_service_iam_member.portfolio_execution : grant.name == "portfolio-api"]) &&
+      alltrue([for grant in google_service_account_iam_member.portfolio_execution_metadata : grant.service_account_id == local.portfolio_runtime]) &&
+      google_service_account_iam_member.portfolio_runtime_deployer[0].service_account_id == local.portfolio_runtime &&
+      module.portfolio_database_scope[0].database_resource_name == "projects/financial-analysis-512202/databases/portfolio" &&
+      module.portfolio_database_scope[0].grants.runtime.member == "serviceAccount:fa-portfolio-runtime@financial-analysis-512202.iam.gserviceaccount.com" &&
+      alltrue([for grant in google_project_iam_member.portfolio_execution_database : grant.condition[0].expression == "resource.type == 'firestore.googleapis.com/Database' && resource.name == 'projects/financial-analysis-512202/databases/portfolio'"]) &&
+      google_firebaserules_release.portfolio[0].name == "cloud.firestore/portfolio" &&
+      strcontains(one(google_firebaserules_ruleset.portfolio[0].source).files[0].content, "allow read, write: if false;")
+    )
+    error_message = "Only Portfolio service/runtime/named DB boundaries may be granted; no DB creation/deletion, content read or client Rules access for normal execution."
+  }
+}
+
+run "portfolio_reject_unknown_admin_stage" {
+  command = plan
+  variables {
+    portfolio_provisioning_stage = "all"
+  }
+  expect_failures = [var.portfolio_provisioning_stage]
+}

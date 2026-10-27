@@ -1,0 +1,2 @@
+bucket = "financial-analysis-512202-tfstate-portfolio"
+prefix = "prod/portfolio"
