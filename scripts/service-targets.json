@@ -2,6 +2,14 @@
   "schema_version": 1,
   "targets": [
     {
+      "id": "agent-hub-service",
+      "kind": "backend",
+      "directory": "services/agent-hub-service",
+      "service": "agent-hub-api",
+      "cloudbuild": "infra/gcp/cloudbuild.agent-hub.yaml",
+      "release_mode": "build_only"
+    },
+    {
       "id": "market-data-service",
       "kind": "backend",
       "directory": "services/market-data-service",
