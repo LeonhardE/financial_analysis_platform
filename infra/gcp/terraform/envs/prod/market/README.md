@@ -123,6 +123,21 @@ state and plans, never the production backend or a copy committed to Git. Keep
 Market application behavior and the other services' deployment fingerprints
 unchanged during adoption.
 
+## Database IAM narrowing (INF-002)
+
+The desired administrator-owned `google_project_iam_member.market_cache` now
+uses a fixed condition limiting `fa-api-runtime`'s existing Datastore User role
+to `projects/financial-analysis-512202/databases/(default)`. A scope-only module
+produces the condition without creating a second grant or managing the database.
+The application still explicitly selects `(default)`; this changes no image,
+service configuration, runtime identity, traffic or database contents.
+
+This is a source change, not evidence that production IAM has been narrowed.
+Follow the [administrator migration and acceptance procedure](database-iam-migration.md).
+Its IAM replacement cannot run through the ordinary Market execution guard.
+The historical read-only adoption verifier and report below describe the earlier
+unconditional import; they do not validate or authorize this later migration.
+
 ## Read-only verification for this adoption
 
 ```bash

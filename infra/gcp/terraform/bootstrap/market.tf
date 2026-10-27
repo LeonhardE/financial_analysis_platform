@@ -50,12 +50,33 @@ resource "google_service_account_iam_member" "market_runtime_deployer" {
   member             = "serviceAccount:${each.value}"
 }
 
-# Preserve the existing cache permission. This does not take ownership of the
-# shared Firestore database, user documents, or any other runtime's permissions.
+# Scope-only: keep the existing administrative IAM address as its sole owner.
+# This module creates no grant, database, API, identity or execution resource.
+module "market_database_scope" {
+  source = "../modules/firestore-access"
+
+  project_id               = var.project_id
+  database_id              = "(default)"
+  runtime_service_accounts = {}
+}
+
+# Constrain only Market's existing cache permission. The provider replaces this
+# IAM tuple when its condition changes; use the reviewed administrator migration,
+# not the ordinary Market runner. The shared database itself remains unmanaged.
 resource "google_project_iam_member" "market_cache" {
   project = var.project_id
   role    = "roles/datastore.user"
   member  = "serviceAccount:fa-api-runtime@${var.project_id}.iam.gserviceaccount.com"
+
+  condition {
+    title       = module.market_database_scope.condition.title
+    description = module.market_database_scope.condition.description
+    expression  = module.market_database_scope.condition.expression
+  }
+
+  lifecycle {
+    create_before_destroy = true
+  }
 }
 
 resource "google_project_iam_custom_role" "market_service_read" {
@@ -152,5 +173,7 @@ import {
 
 import {
   to = google_project_iam_member.market_cache
-  id = "${var.project_id} roles/datastore.user serviceAccount:fa-api-runtime@${var.project_id}.iam.gserviceaccount.com"
+  # Desired conditional membership. Existing unconditional state is not remapped
+  # by editing this ID; follow the administrator migration/recovery procedure.
+  id = "${var.project_id} roles/datastore.user serviceAccount:fa-api-runtime@${var.project_id}.iam.gserviceaccount.com ${module.market_database_scope.condition.title}"
 }
