@@ -60,6 +60,26 @@ class MarketExecutionBoundaryTests(unittest.TestCase):
             Plan(infra=True, terraform=True),
         )
 
+    def test_database_iam_replacement_stays_outside_the_market_runner(self):
+        policy, selected, directory = pipeline.registry(ROOT, "market")
+        for actions in (["create", "delete"], ["delete", "create"], ["delete"]):
+            plan = {
+                "terraform_version": policy["terraform_version"],
+                "resource_changes": [
+                    {
+                        "address": "google_project_iam_member.market_cache",
+                        "mode": "managed",
+                        "type": "google_project_iam_member",
+                        "change": {"actions": actions},
+                    }
+                ],
+            }
+            with (
+                self.subTest(actions=actions),
+                self.assertRaisesRegex(RuntimeError, "separate workflow"),
+            ):
+                pipeline.plan_summary(plan, policy["terraform_version"], selected, directory, ROOT)
+
     def test_import_metadata_does_not_authorize_native_resource_replacement(self):
         policy, selected, directory = pipeline.registry(ROOT, "market")
         native = {
