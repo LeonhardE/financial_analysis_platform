@@ -19,6 +19,8 @@ through normal application publication.
 - Make existing-service publication honor the registry and block enabled
   deployment for build-only targets before cloud access. Preserve existing
   GET/etag-PATCH behavior and404 refusal; bind enabled releases to exact images.
+- Load publication policy only when publishing, keeping standalone configuration
+  helper imports independent from the source registry.
 - Include the registry dependencies in saved-plan configuration hashes so an
   approved plan cannot silently execute a changed imported release-policy module.
 - Add an offline first-provision request preparer/validator that binds successful
