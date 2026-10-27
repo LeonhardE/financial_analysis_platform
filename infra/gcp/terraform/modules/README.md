@@ -1,20 +1,24 @@
 # Shared service infrastructure modules
 
-These are reusable building blocks, not registered execution targets. No production root calls
-them yet. Adding module source files does not create services, identities, IAM grants or triggers.
-The existing `repo` target still contains only its execution contract; merging this foundation
-should produce a no-resource-change repo plan without another bootstrap or apply.
+These are reusable building blocks, not registered execution targets. Existing production roots
+already consume the Cloud Run and service identity modules. The database, database access and KMS
+access modules below have no production instances in this foundation. Adding their source files
+does not create databases, keys, identities, IAM grants or triggers; adoption belongs to a separate
+single-target infrastructure PR and reviewed plan.
 
 | Module                                                   | One-instance responsibility                                                                      | Defaults                                                                                     |
 | -------------------------------------------------------- | ------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------- |
 | [cloud-run-service](cloud-run-service/README.md)         | One HTTP container, runtime settings, Secret Manager references and service-scoped invokers      | Toronto, one vCPU/512Mi, request billing, min 0/max 1, private ingress and no invoker grants |
 | [service-identity](service-identity/README.md)           | One keyless runtime identity, optionally exact-secret access and deployer actAs on this identity | No permissions or credentials                                                                |
 | [service-build-trigger](service-build-trigger/README.md) | One main-branch push trigger using the existing v2 connection and build identity                 | Disabled, build-only, explicit target/dependency path filters                                |
+| [firestore-database](firestore-database/README.md)       | One named Native database and its explicit TTL/composite-index declarations                      | Toronto, Standard, delete protection, ABANDON and prevent_destroy; no IAM                    |
+| [firestore-access](firestore-access/README.md)           | Fixed type-and-exact-database condition, optionally additive runtime datastore.user grants       | Empty grant map; existing grants can reuse only the condition without moving addresses       |
+| [kms-key-access](kms-key-access/README.md)               | Additive fixed-purpose IAM on one existing CryptoKey                                             | No grants; signer, public-key viewer or Firestore-managed CMEK identity only                 |
 
 Each child inherits the consuming root's provider. It has no backend or provider configuration,
 generic project-role assignment interface, service-account keys or secret payloads. Project APIs,
 application-specific IAM, state/runner permissions and imports belong to their owning root. Shared
-registry, Firebase, Firestore and GitHub connection resources remain outside these modules. Async
+registry, Firebase and GitHub connection resources remain outside these modules. Async
 queues, schedules and notification delivery are deferred until their actual consumer is designed;
 this foundation creates no idle paid resources for proposed features.
 
@@ -51,7 +55,8 @@ After reviewing that evidence, use a separate `infra(<target>)` PR for each cons
   module cannot enforce the contents of arbitrary build configurations.
 
 The release helper supports guarded configuration descendants. Application YAMLs, existing service
-instances, bootstrap, execution-target policy and CI workflow remain unchanged by this foundation. Existing CI routing already selects
+instances, bootstrap, execution-target policy and CI workflow remain unchanged by the storage/IAM
+foundation. Existing CI routing already selects
 repository/Terraform checks for module code and leaves service/frontend jobs unselected. The current
 pipeline configuration hash already covers all module files, binding saved plans to reviewed source.
 
@@ -83,3 +88,20 @@ References:
 The administrator-only [target execution module](target-execution/README.md) supplies independent
 plan/apply identities, state and approval triggers. Its catalog entries remain disabled until each
 consumer supplies a reviewed root, lockfile and resource permissions.
+
+## Private storage and identity boundaries
+
+Named databases isolate service data through database-level IAM, not collection-level IAM. The
+access module fixes both `resource.type` and the full project/database name; it cannot cancel an
+existing unconditional grant or another inherited permission. Existing runtime grants must be
+narrowed individually through a reviewed administrative migration before adding private domains.
+Google Cloud console does not enforce these database conditions; use real SDK/REST access checks
+for rollout acceptance. A missing future database returning 404 is not evidence of IAM denial.
+
+TTL is asynchronous cleanup, not an authorization, expiry or revocation fence. Consumers still
+check authoritative state before access/commit. KMS IAM is scoped to a CryptoKey, not a key
+version: delegation signing must additionally pin its allowed numeric version in application
+configuration. Firestore CMEK uses only the Firestore service agent and does not provide end-to-end
+encryption. User root/device/agent private keys and content keys never belong in these modules.
+Reuse `service-identity.secret_ids` and `cloud-run-service.secret_environment` for exact Secret
+Manager references with numeric versions; Terraform never handles secret payloads.
