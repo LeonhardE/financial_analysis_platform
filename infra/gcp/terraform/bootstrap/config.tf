@@ -50,12 +50,32 @@ resource "google_service_account_iam_member" "config_runtime_deployer" {
   member             = "serviceAccount:${each.value}"
 }
 
-# Preserve the existing preferences storage permission. This does not take ownership of the
-# shared Firestore database or other service documents, or any other runtime's permissions.
+# Reuse the fixed database condition without creating another IAM owner or
+# taking ownership of the existing database. Config still uses (default).
+module "config_database_scope" {
+  source = "../modules/firestore-access"
+
+  project_id  = var.project_id
+  database_id = "(default)"
+}
+
+# Keep the existing administrator-owned address. The conditional member replaces
+# its unconditional predecessor; only an explicitly reviewed admin migration may
+# perform this replacement (see the Config database IAM migration runbook).
 resource "google_project_iam_member" "config_store" {
   project = var.project_id
   role    = "roles/datastore.user"
   member  = "serviceAccount:fa-config-runtime@${var.project_id}.iam.gserviceaccount.com"
+
+  condition {
+    title       = module.config_database_scope.condition.title
+    description = module.config_database_scope.condition.description
+    expression  = module.config_database_scope.condition.expression
+  }
+
+  lifecycle {
+    create_before_destroy = true
+  }
 }
 
 # Preserve Firebase user verification access on the existing runtime only.
@@ -159,7 +179,7 @@ import {
 
 import {
   to = google_project_iam_member.config_store
-  id = "${var.project_id} roles/datastore.user serviceAccount:fa-config-runtime@${var.project_id}.iam.gserviceaccount.com"
+  id = "${var.project_id} roles/datastore.user serviceAccount:fa-config-runtime@${var.project_id}.iam.gserviceaccount.com ${module.config_database_scope.condition.title}"
 }
 
 import {

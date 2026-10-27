@@ -597,12 +597,21 @@ run "config_execution_business_roles_cannot_create_delete_or_administer_resource
       google_cloud_run_v2_service_iam_member.config_image_deployer.name == "config-api" &&
       google_cloud_run_v2_service_iam_member.config_image_deployer.role == "roles/run.developer" &&
       google_cloud_run_v2_service_iam_member.config_image_deployer.member == "serviceAccount:fa-build@${var.project_id}.iam.gserviceaccount.com" &&
+      google_project_iam_member.config_store.project == var.project_id &&
       google_project_iam_member.config_store.role == "roles/datastore.user" &&
       google_project_iam_member.config_store.member == "serviceAccount:fa-config-runtime@${var.project_id}.iam.gserviceaccount.com" &&
+      module.config_database_scope.database_resource_name == "projects/${var.project_id}/databases/(default)" &&
+      length(module.config_database_scope.grants) == 0 &&
+      length(google_project_iam_member.config_store.condition) == 1 &&
+      google_project_iam_member.config_store.condition[0].title == "database-default" &&
+      google_project_iam_member.config_store.condition[0].description == "Datastore User access limited to the exact Firestore database projects/${var.project_id}/databases/(default)." &&
+      google_project_iam_member.config_store.condition[0].expression == "resource.type == 'firestore.googleapis.com/Database' && resource.name == 'projects/${var.project_id}/databases/(default)'" &&
+      google_project_iam_member.config_auth.project == var.project_id &&
       google_project_iam_member.config_auth.role == "roles/firebaseauth.viewer" &&
-      google_project_iam_member.config_auth.member == "serviceAccount:fa-config-runtime@${var.project_id}.iam.gserviceaccount.com"
+      google_project_iam_member.config_auth.member == "serviceAccount:fa-config-runtime@${var.project_id}.iam.gserviceaccount.com" &&
+      length(google_project_iam_member.config_auth.condition) == 0
     )
-    error_message = "Preserve the existing image publisher and preferences grant; Terraform apply may attach only the Config runtime and must not impersonate fa-build."
+    error_message = "Preserve the existing image publisher, runtime identity and Firebase Auth grant; Config preferences access must be limited to the exact (default) database through one existing IAM owner, without duplicate module grants."
   }
 }
 
