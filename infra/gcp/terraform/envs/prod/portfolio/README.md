@@ -1,10 +1,11 @@
 # Portfolio first-provision preparation
 
-This is an inactive, single-target infrastructure configuration. `pipeline.json` registers
+This is a single-target infrastructure configuration with inactive normal execution. `pipeline.json` registers
 `portfolio` with `enabled=false`; administrator bootstrap defaults
 `portfolio_provisioning_stage=none`. Merging this preparation creates no resources and does not
-activate target plan/apply triggers. No import, apply, approval or resource creation is part of
-this change. A complete saved plan is review material, not permission to apply it.
+activate target plan/apply triggers. Merging image/configuration updates does not perform an apply. Already-applied administrator
+stages must remain selected in administrator variables. A saved plan is review material, not
+permission to apply it.
 
 ## Ownership and boundaries
 
@@ -63,14 +64,16 @@ For a read-only native creation preview, copy the repository to a private tempor
 replace only this root's empty GCS backend declaration with a local backend, and initialize that
 copy with `-lockfile=readonly`. Use the checked-in creation-only digest candidate and save the complete plan without `-target`;
 `terraform.tfvars.example` documents the same nonsecret candidate, not an extra runner input. Do not initialize a nonexistent remote bucket or apply a preview.
-The example pins an existing manual build-only artifact for planning; its empty output provenance
-and absent target trigger mean it is **not** approved first-provision evidence. Review native
-plans separately from provider-mocked tests, and retain sanitized actions/hashes in local-docs.
+The current example pins the audited target-trigger artifact described below; a local preview
+still grants no cloud apply approval. The former manual artifact was replaced only after
+official resolved-source and registry checks passed. Review native plans separately from
+provider-mocked tests, and retain sanitized actions/hashes in local-docs.
 
 ## Future authorized creation sequence
 
-All stages below are future operations requiring their own reviewed complete saved plans.
-Retain the current `none`/disabled defaults throughout this preparation.
+Each stage requires its own reviewed complete saved plan and explicit resource authorization.
+Keep normal execution disabled until acceptance; retain already-applied administrator stage
+inputs rather than resetting them to the code default `none`.
 
 1. Recheck inventory, project APIs, actual bootstrap backend/state, service-account and database
    name availability, and legacy runtime IAM. Rules publication requires
@@ -111,3 +114,18 @@ that stage input stable in administrator configuration until registry activation
 `none` would propose protected-resource removal. Roll back by keeping the new target closed and
 build-only, preserving protected state/database/identity, and reviewing only the affected grants
 or service revision. Never delete existing targets or relax the legacy database conditions.
+
+## Audited creation image (2026-10-27)
+
+The creation-only default now pins main-only target build
+`7dc66184-691c-4044-83d3-1a7b6efec113`, built from
+`09f813c7369158b34dce036a51fc894160bf955a`. Its official output-only resolved Git
+source, registered trigger, successful isolated image health, unique image result and
+Artifact Registry digest were reviewed; the existing `first_provision.py` prepare/validate
+checks passed without changing their guard. The digest is
+`sha256:93932b8af2887ac39d17bfec040f213416d8a1e8b2547b71c3aa9dedbab535cf`.
+
+This replaces the earlier manual-build plan candidate. It does not perform an apply, enable
+the pipeline, change Hub, or grant normal image deployment permission. An administrator must
+still review a fresh complete business-root plan against its real isolated backend before
+first creation. Retain the already-applied administrator execution/service stage inputs.

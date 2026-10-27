@@ -1,9 +1,9 @@
 variable "bootstrap_image" {
   description = "Creation-only Portfolio digest selected from independently reviewed target-trigger provenance; a plan candidate is not provisioning approval."
   type        = string
-  # Existing manual build artifact for preview only; not first-provision approval.
-  # Future approved provenance must be captured and its digest fixed in source.
-  default  = "northamerica-northeast2-docker.pkg.dev/financial-analysis-512202/financial-analysis/portfolio-api@sha256:cefd9ca35d555f3c5a4c2f521dde71bd98f1f955bf9a07978f6e92f3138c8e98"
+  # Audited main-only build 7dc66184-691c-4044-83d3-1a7b6efec113,
+  # source 09f813c7369158b34dce036a51fc894160bf955a; creation only.
+  default  = "northamerica-northeast2-docker.pkg.dev/financial-analysis-512202/financial-analysis/portfolio-api@sha256:93932b8af2887ac39d17bfec040f213416d8a1e8b2547b71c3aa9dedbab535cf"
   nullable = false
 
   validation {
