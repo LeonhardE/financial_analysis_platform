@@ -13,6 +13,8 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from checks import FULL, SERVICES, Plan, changed_paths, detect, select, validate_gate  # noqa: E402
+from service_targets import RegistryError, load_registry  # noqa: E402
+from test_service_targets import write_registry_fixture  # noqa: E402
 
 
 class SelectionTests(unittest.TestCase):
@@ -124,14 +126,12 @@ class SelectionTests(unittest.TestCase):
         self.assertEqual(select(["local-docs/example.json"]), Plan())
 
     def test_unregistered_targets_and_executable_paths_are_conservative(self):
-        for path in (
-            "apps/mobile/index.ts",
-            "services/research/app.py",
-            "scripts/new.py",
-            "new.json",
-        ):
+        for path in ("scripts/new.py", "new.json"):
             with self.subTest(path=path):
                 self.assertEqual(select([path]), FULL)
+        for path in ("apps/mobile/index.ts", "services/research/app.py"):
+            with self.subTest(path=path), self.assertRaises(RegistryError):
+                select([path])
 
     def test_mixed_changes_are_a_stable_deduplicated_union(self):
         self.assertEqual(
@@ -166,6 +166,7 @@ class GitComparisonTests(unittest.TestCase):
         self.git("init", "--initial-branch=main")
         self.git("config", "user.name", "CI fixture")
         self.git("config", "user.email", "ci@example.invalid")
+        write_registry_fixture(self.root)
         self.write("README.md", "fixture\n")
         self.initial = self.commit()
 
@@ -232,7 +233,7 @@ class GitComparisonTests(unittest.TestCase):
         paths = self.compare("push", {"before": self.initial, "after": head})
         self.assertEqual(select(paths), Plan(services=("user-service", "config-service")))
 
-    def test_initial_missing_invalid_and_unavailable_commits_select_everything(self):
+    def test_invalid_events_and_unavailable_base_registration_fail_closed(self):
         cases = [
             ("push", {"before": "0" * 40, "after": self.initial}),
             ("push", {"before": self.initial, "after": "0" * 40}),
@@ -247,10 +248,19 @@ class GitComparisonTests(unittest.TestCase):
             for name, event in cases:
                 with self.subTest(name=name, event=event):
                     event_file.write_text(json.dumps(event))
-                    self.assertEqual(detect(name, str(event_file)), FULL)
+                    with self.assertRaises(RegistryError):
+                        detect(name, str(event_file))
             event_file.write_text("invalid json")
-            self.assertEqual(detect("push", str(event_file)), FULL)
-            self.assertEqual(detect("push", str(self.root / "missing.json")), FULL)
+            with self.assertRaises(RegistryError):
+                detect("push", str(event_file))
+            with self.assertRaises(RegistryError):
+                detect("push", str(self.root / "missing.json"))
+
+    def test_only_diff_failure_after_validated_registration_checks_every_target(self):
+        event = self.root / "event.json"
+        event.write_text(json.dumps({"before": self.initial, "after": "f" * 40}))
+        with working_directory(self.root):
+            self.assertEqual(detect("push", str(event)), FULL)
 
     def test_detect_reads_event_and_appends_actions_outputs(self):
         self.write("apps/web/app/page.tsx")
@@ -277,6 +287,46 @@ class GitComparisonTests(unittest.TestCase):
             output.read_text(),
             "existing=value\nweb=true\nbackend=false\nservices=[]\ninfra=false\nterraform=false\n",
         )
+
+    def test_first_registry_import_requires_base_files_and_new_targets_start_build_only(self):
+        import shutil
+
+        registration = self.root / "scripts/service-targets.json"
+        document = json.loads(registration.read_text())
+        registration.unlink()
+        base = self.commit()
+        shutil.copytree(self.root / "services/user-service", self.root / "services/new-service")
+        self.write("infra/gcp/cloudbuild.new.yaml", "steps: []\n")
+        document["targets"].append(
+            {
+                "id": "new-service",
+                "kind": "backend",
+                "directory": "services/new-service",
+                "service": "new-api",
+                "cloudbuild": "infra/gcp/cloudbuild.new.yaml",
+                "release_mode": "build_only",
+            }
+        )
+        registration.write_text(json.dumps(document))
+        head = self.commit()
+        event = self.root / "event.json"
+        event.write_text(json.dumps({"before": base, "after": head}))
+        with working_directory(self.root):
+            actual = detect("push", str(event), load_registry(self.root))
+        self.assertEqual(actual.services[-1], "new-service")
+        self.assertTrue(actual.web and actual.infra and actual.terraform)
+        document["targets"][-1]["release_mode"] = "existing"
+        registration.write_text(json.dumps(document))
+        head = self.commit()
+        event.write_text(json.dumps({"before": base, "after": head}))
+        with working_directory(self.root), self.assertRaises(RegistryError):
+            detect("push", str(event), load_registry(self.root))
+        with (
+            working_directory(self.root),
+            patch("checks.changed_paths", side_effect=ValueError("Diff unavailable")),
+            self.assertRaises(RegistryError),
+        ):
+            detect("push", str(event), load_registry(self.root))
 
 
 class GateTests(unittest.TestCase):
@@ -371,6 +421,93 @@ class GateTests(unittest.TestCase):
             patch.object(sys, "argv", ["checks.py", "gate"]),
         ):
             self.assertEqual(checks.main(), 0)
+
+
+class DynamicRegistrationTests(unittest.TestCase):
+    def setUp(self):
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        self.root = Path(temporary.name)
+        write_registry_fixture(self.root, extra_backend=True)
+        self.registry = load_registry(self.root)
+
+    def test_new_target_leaf_dependencies_and_build_config_select_new_owner(self):
+        for path in (
+            "services/synthetic-service/app/main.py",
+            "services/synthetic-service/requirements-dev.txt",
+            "services/synthetic-service/tests/test_ready.py",
+            "services/synthetic-service/Dockerfile",
+        ):
+            self.assertEqual(select([path], self.registry), Plan(services=("synthetic-service",)))
+        self.assertEqual(
+            select(["infra/gcp/cloudbuild.synthetic.yaml"], self.registry),
+            Plan(services=("synthetic-service",), infra=True),
+        )
+
+    def test_shared_and_global_changes_include_every_registered_backend(self):
+        self.assertEqual(
+            select(["services/common/folioview_shared/auth.py"], self.registry),
+            Plan(services=self.registry.backend_ids),
+        )
+        expected = Plan(web=True, services=self.registry.backend_ids, infra=True, terraform=True)
+        for path in (
+            "scripts/service-targets.json",
+            "scripts/service_targets.py",
+            ".github/workflows/ci.yml",
+        ):
+            self.assertEqual(select([path], self.registry), expected)
+
+    def test_unregistered_source_cannot_hide_behind_full_selection_or_doc_change(self):
+        for paths in (
+            [".github/workflows/ci.yml", "services/unknown/app.py"],
+            ["services/unknown/app.py", "package.json"],
+            ["services/future/docs/plan.md", "apps/other/main.js"],
+        ):
+            with self.subTest(paths=paths), self.assertRaises(RegistryError):
+                select(paths, self.registry)
+        self.assertEqual(select(["services/future/docs/plan.md"], self.registry), Plan())
+
+    def test_bad_registry_and_unregistered_inventory_are_not_diff_fallback(self):
+        import checks
+
+        with patch.object(checks, "ROOT", self.root):
+            registry_path = self.root / "scripts/service-targets.json"
+            original = registry_path.read_text()
+            registry_path.write_text("{broken")
+            with self.assertRaises(RegistryError):
+                detect("push", "/missing-event.json")
+            registry_path.write_text(original)
+            (self.root / "services/unknown").mkdir()
+            (self.root / "services/unknown/app.py").write_text("print('new target')")
+            with self.assertRaises(RegistryError):
+                detect("push", "/missing-event.json")
+
+    def test_gate_uses_current_registry_and_rejects_removed_or_unknown_target(self):
+        import checks
+
+        needs = GateTests().needs(Plan(services=("synthetic-service",)))
+        validate_gate(needs, self.registry)
+        with patch.object(checks, "ROOT", self.root):
+            validate_gate(needs)
+            document = json.loads((self.root / "scripts/service-targets.json").read_text())
+            document["targets"] = [
+                row for row in document["targets"] if row["id"] != "synthetic-service"
+            ]
+            (self.root / "scripts/service-targets.json").write_text(json.dumps(document))
+            with self.assertRaises(RegistryError):
+                validate_gate(needs)
+        needs["changes"]["outputs"]["services"] = '["unknown-service"]'
+        with self.assertRaises(ValueError):
+            validate_gate(needs, self.registry)
+
+    def test_cross_service_rename_selection_keeps_both_registered_owners(self):
+        self.assertEqual(
+            select(
+                ["services/user-service/app/old.py", "services/synthetic-service/app/new.py"],
+                self.registry,
+            ),
+            Plan(services=("user-service", "synthetic-service")),
+        )
 
 
 if __name__ == "__main__":

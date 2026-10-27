@@ -113,37 +113,35 @@ jobs:
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: false
+      - name: Resolve registered backend metadata
+        id: target
+        env:
+          SERVICE: ${{ matrix.service }}
+        run: python3 scripts/ci/service_job.py metadata "$SERVICE"
       - name: Set up Python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.13"
           cache: pip
           cache-dependency-path: |
-            services/${{ matrix.service }}/requirements*.txt
+            ${{ steps.target.outputs.directory }}/requirements*.txt
             services/common/pyproject.toml
       - name: Install only this service's dependencies
         env:
-          SERVICE: ${{ matrix.service }}
-        run: python -m pip install -r "services/$SERVICE/requirements-dev.txt" ./services/common
+          REQUIREMENTS_DEV: ${{ steps.target.outputs.requirements_dev }}
+        run: python -m pip install -r "$REQUIREMENTS_DEV" ./services/common
       - name: Check this service and its shared library
         env:
           SERVICE: ${{ matrix.service }}
         run: |
-          # Preserve root npm run check rules as well as service-specific rules.
-          ruff check --config services/market-data-service/pyproject.toml "services/$SERVICE" services/common
-          ruff format --check --config services/market-data-service/pyproject.toml "services/$SERVICE" services/common
-          if [ "$SERVICE" != market-data-service ]; then
-            ruff check --config "services/$SERVICE/pyproject.toml" "services/$SERVICE" services/common
-            ruff format --check --config "services/$SERVICE/pyproject.toml" "services/$SERVICE" services/common
-          fi
-          python scripts/test_services.py --service common --service "$SERVICE"
+          python scripts/ci/service_job.py check "$SERVICE"
       - name: Build independent backend image
         env:
-          SERVICE: ${{ matrix.service }}
-        run: docker build --file "services/$SERVICE/Dockerfile" --tag folioview-backend:test .
+          DOCKERFILE: ${{ steps.target.outputs.dockerfile }}
+        run: docker build --file "$DOCKERFILE" --tag folioview-backend:test .
       - name: Check isolated runtime health
         run: |
-          docker run --detach --name service-smoke --env MARKET_DATA_SOURCE=mock folioview-backend:test
+          docker run --detach --network none --name service-smoke --env MARKET_DATA_SOURCE=mock folioview-backend:test
           docker exec -i service-smoke python - <<'PY'
           import json
           import time
@@ -192,6 +190,9 @@ jobs:
     needs: [changes, repository, web, backend, terraform]
     if: ${{ always() }}
     timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: read
     steps:
       - name: Check out source
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -200,4 +201,5 @@ jobs:
       - name: Require successful checks for every selected target
         env:
           NEEDS_JSON: ${{ toJSON(needs) }}
-        run: python3 scripts/ci/checks.py gate
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python3 scripts/ci/checks.py gate --verify-matrix

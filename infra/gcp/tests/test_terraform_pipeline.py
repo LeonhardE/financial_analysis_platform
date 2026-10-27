@@ -167,6 +167,8 @@ class PipelineTests(unittest.TestCase):
         self.write("infra/gcp/terraform_tools.py", "# verified toolchain\n")
         self.write("infra/gcp/configure_cloud_run_service.py", "# guarded config writer\n")
         self.write("infra/gcp/deploy_existing_service.py", "# guarded release writer\n")
+        self.write("scripts/service_targets.py", "# registered source targets\n")
+        self.write("scripts/service-targets.json", '{"schema_version":1,"targets":[]}')
         self.write("infra/gcp/terraform/toolchain.json", '{"terraform_version":"1.16.7"}')
         for name in pipeline.CONFIG_FILES.values():
             self.write(name, "steps: []\n")
@@ -334,6 +336,8 @@ class PipelineTests(unittest.TestCase):
             "infra/gcp/terraform_tools.py",
             "infra/gcp/configure_cloud_run_service.py",
             "infra/gcp/deploy_existing_service.py",
+            "scripts/service_targets.py",
+            "scripts/service-targets.json",
             "infra/gcp/terraform/toolchain.json",
             pipeline.POLICY,
             *pipeline.CONFIG_FILES.values(),

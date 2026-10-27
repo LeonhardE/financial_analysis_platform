@@ -103,6 +103,12 @@ runtime identity, CPU, memory, scaling, ingress, and IAM remain configured in
 Cloud Run. Missing services or missing etags fail an enabled deployment. Explicit
 build-only mode does not query Cloud Run or require the service to exist yet.
 
+The [target registration and first-provision guide](../../scripts/README.md)
+documents the source registry, mandatory `build_only` registration for new targets,
+and `first_provision.py`'s offline digest-pinned review material. That helper does
+not authorize or execute resource creation; actual first provision retains the
+target's separate saved-plan/native-approval infrastructure flow.
+
 Each service records the accepted build's Cloud Build creation time. An
 earlier-created build that finishes late cannot overwrite a later accepted build;
 an etag conflict forces a new read and ordering check. This order concerns build

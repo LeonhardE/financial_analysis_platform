@@ -223,6 +223,10 @@ def configuration_hash(root, directory):
         root / "infra/gcp/terraform_pipeline.py",
         root / "infra/gcp/configure_cloud_run_service.py",
         root / "infra/gcp/deploy_existing_service.py",
+        # The configuration writer imports release constants; the release module
+        # now imports this registry code. Bind those executable dependencies too.
+        root / "scripts/service_targets.py",
+        root / "scripts/service-targets.json",
         root / "infra/gcp/terraform/toolchain.json",
     }
     files.update(root / name for name in CONFIG_FILES.values())

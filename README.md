@@ -50,6 +50,11 @@ infra/gcp/                     Independent builds and guarded Cloud Run releases
 changelog/                     One Markdown record per material tracked change
 ```
 
+Source targets are registered in `scripts/service-targets.json`. See the
+[target registration and first-provision guide](scripts/README.md) for dynamic CI,
+isolated tests and the build-only boundary. New services register in their own
+PRs; this registry does not create cloud resources.
+
 ## Local setup
 
 Use Node.js 24.12 or newer and Python 3.13. Install the web workspace and a single development

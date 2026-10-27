@@ -3,10 +3,13 @@
 import copy
 import importlib.util
 import json
+import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
 from urllib.error import HTTPError
+
+from test_first_provision import synthetic_registry
 
 SPEC = importlib.util.spec_from_file_location(
     "deploy_existing_service", Path(__file__).parents[1] / "deploy_existing_service.py"
@@ -369,6 +372,22 @@ class DeploymentTests(unittest.TestCase):
         self.assertEqual(api.updates, [])
         self.assertEqual(self.sleeps, [])
 
+    def test_missing_service_get_404_never_becomes_a_creation_request(self):
+        class MissingAPI(FakeAPI):
+            def request(self, method, resource, body=None):
+                self.reads.append((method, resource))
+                if method != "GET" or resource != RESOURCE:
+                    raise AssertionError("Missing services must never be created")
+                raise HTTPError(resource, 404, "service not found", {}, None)
+
+        api = MissingAPI()
+        with self.assertRaises(HTTPError) as error:
+            self.deploy(api)
+        self.assertEqual(error.exception.code, 404)
+        self.assertEqual(api.reads, [("GET", RESOURCE)])
+        self.assertEqual(api.updates, [])
+        self.assertEqual(self.sleeps, [])
+
     def test_service_poll_get_403_after_patch_is_not_swallowed(self):
         class PollDeniedAPI(FakeAPI):
             def request(self, method, resource, body=None):
@@ -493,6 +512,18 @@ class DeploymentTests(unittest.TestCase):
 
 
 class ServiceEntryPointTests(unittest.TestCase):
+    def metadata(self):
+        return {
+            "projectId": "test-project",
+            "createTime": CREATED,
+            "substitutions": {
+                "BRANCH_NAME": "main",
+                "COMMIT_SHA": COMMIT,
+                "_REGION": "northamerica-northeast2",
+                "_REPOSITORY": "financial-analysis",
+            },
+        }
+
     def args(self, service, *extra):
         image = (
             "northamerica-northeast2-docker.pkg.dev/test-project/financial-analysis/"
@@ -512,12 +543,7 @@ class ServiceEntryPointTests(unittest.TestCase):
         ]
 
     def test_each_domain_deploys_only_its_own_existing_service(self):
-        metadata = json.dumps(
-            {
-                "createTime": CREATED,
-                "substitutions": {"BRANCH_NAME": "main", "COMMIT_SHA": COMMIT},
-            }
-        )
+        metadata = json.dumps(self.metadata())
         for service in ("market-api", "user-api", "config-api", "market-web"):
             with (
                 self.subTest(service=service),
@@ -538,6 +564,58 @@ class ServiceEntryPointTests(unittest.TestCase):
                     CREATED,
                     COMMIT,
                 )
+
+    def test_image_registry_project_region_and_repository_are_bound_before_run_auth(self):
+        original = self.args("user-api")
+        image = next(arg for arg in original if arg.startswith("--image="))
+        for replacement in (
+            image.replace("docker.pkg.dev", "untrusted.example"),
+            image.replace("/test-project/", "/other-project/"),
+            image.replace("northamerica-northeast2-docker", "us-central1-docker"),
+            image.replace("/financial-analysis/", "/other-repository/"),
+            image.replace("/financial-analysis/", "/nested/repository/"),
+        ):
+            args = [replacement if arg == image else arg for arg in original]
+            with (
+                self.subTest(image=replacement),
+                patch("sys.argv", args),
+                patch.object(deploy_script, "gcloud", return_value=json.dumps(self.metadata())),
+                patch.object(deploy_script, "RunAPI") as api,
+                patch.object(deploy_script, "deploy") as deploy,
+            ):
+                with self.assertRaisesRegex(RuntimeError, "image must exactly match"):
+                    deploy_script.main()
+                api.assert_not_called()
+                deploy.assert_not_called()
+
+    def test_invalid_build_image_configuration_fails_before_run_auth(self):
+        cases = []
+        metadata = self.metadata()
+        metadata["projectId"] = "other-project"
+        cases.append(metadata)
+        for key, value in (
+            ("_REGION", "us-central1"),
+            ("_REGION", None),
+            ("_REPOSITORY", None),
+            ("_REPOSITORY", "../other"),
+            ("_REPOSITORY", "nested/repository"),
+            ("_REPOSITORY", "repository?tag=other"),
+        ):
+            metadata = self.metadata()
+            metadata["substitutions"][key] = value
+            cases.append(metadata)
+        for metadata in cases:
+            with (
+                self.subTest(metadata=metadata),
+                patch("sys.argv", self.args("user-api")),
+                patch.object(deploy_script, "gcloud", return_value=json.dumps(metadata)),
+                patch.object(deploy_script, "RunAPI") as api,
+                patch.object(deploy_script, "deploy") as deploy,
+            ):
+                with self.assertRaisesRegex(RuntimeError, "image configuration"):
+                    deploy_script.main()
+                api.assert_not_called()
+                deploy.assert_not_called()
 
     def test_build_only_bootstrap_does_not_read_or_update_cloud_services(self):
         for service in ("user-api", "config-api"):
@@ -569,6 +647,46 @@ class ServiceEntryPointTests(unittest.TestCase):
             with self.assertRaises(SystemExit):
                 deploy_script.main()
             cloud.assert_not_called()
+
+    def test_registered_new_target_is_build_only_before_any_credentials_or_cloud_access(self):
+        with tempfile.TemporaryDirectory(prefix="repo001-release-target-") as temporary:
+            registry = synthetic_registry(Path(temporary))
+            for extra in ((), ("--deploy-enabled=true",)):
+                with (
+                    self.subTest(extra=extra),
+                    patch("sys.argv", self.args("synthetic-api", *extra)),
+                    patch.object(deploy_script, "load_registry", return_value=registry),
+                    patch.object(deploy_script, "gcloud") as cloud,
+                    patch.object(deploy_script, "RunAPI") as api,
+                    patch.object(deploy_script, "deploy") as deploy,
+                ):
+                    with self.assertRaisesRegex(RuntimeError, "build-only"):
+                        deploy_script.main()
+                    cloud.assert_not_called()
+                    api.assert_not_called()
+                    deploy.assert_not_called()
+            with (
+                patch("sys.argv", self.args("synthetic-api", "--deploy-enabled=false")),
+                patch.object(deploy_script, "load_registry", return_value=registry),
+                patch.object(deploy_script, "gcloud") as cloud,
+                patch.object(deploy_script, "RunAPI") as api,
+                patch.object(deploy_script, "deploy") as deploy,
+            ):
+                deploy_script.main()
+                cloud.assert_not_called()
+                api.assert_not_called()
+                deploy.assert_not_called()
+
+    def test_unregistered_service_is_rejected_before_cloud_calls(self):
+        with (
+            patch("sys.argv", self.args("unknown-api")),
+            patch.object(deploy_script, "gcloud") as cloud,
+            patch.object(deploy_script, "RunAPI") as api,
+        ):
+            with self.assertRaisesRegex(RuntimeError, "not registered"):
+                deploy_script.main()
+            cloud.assert_not_called()
+            api.assert_not_called()
 
 
 if __name__ == "__main__":
