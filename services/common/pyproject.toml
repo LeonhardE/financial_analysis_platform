@@ -7,6 +7,16 @@ name = "folioview-shared"
 version = "0.1.0"
 description = "Shared identity, HTTP and persistence primitives for FolioView services"
 requires-python = ">=3.13"
+dependencies = [
+  "cryptography>=49,<51",
+  "jsonschema==4.25.1",
+  "jwcrypto==1.6.1",
+  "rfc8785==0.1.4",
+  "tzdata>=2025.2,<2027",
+]
 
 [tool.setuptools.packages.find]
 include = ["folioview_shared*"]
+
+[tool.setuptools.package-data]
+"folioview_shared.encrypted" = ["*.json"]
