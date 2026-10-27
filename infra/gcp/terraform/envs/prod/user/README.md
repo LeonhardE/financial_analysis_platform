@@ -5,7 +5,11 @@ This root imports the existing Toronto `user-api` and dedicated `fa-user-runtime
 The independent UID, public-invoker mode and service-wide maximum of one are checked at plan time.
 
 The existing image publisher and runtime Firestore/Firebase metadata grants are imported by
-`bootstrap/user.tf`. Only the User apply identity receives existing-service configuration,
+`bootstrap/user.tf`. The User Datastore User grant is restricted to `(default)` using the shared
+Firestore access module's scope-only condition. Follow the
+[administrator IAM migration](database-iam-migration.md) to replace the old unconditional tuple;
+merging this configuration alone does not narrow deployed permissions. Firebase Auth Viewer and
+other existing User permissions are preserved. Only the User apply identity receives existing-service configuration,
 runtime metadata/attachment, and single-repository image-download permissions. The image
 repository is shared; download access covers its other images, but deployment remains User-only.
 No service creation/deletion, IAM administration, image upload or build/approval capability is granted.
