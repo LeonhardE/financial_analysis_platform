@@ -1,0 +1,66 @@
+# Build and publish the skeleton only. No trigger or Cloud Run service is created here.
+# The registry's build_only guard also refuses _DEPLOY_SERVICE=true before cloud access.
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - --file=services/agent-hub-service/Dockerfile
+      - --tag=${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPOSITORY}/agent-hub-api:$BUILD_ID
+      - .
+
+  - name: gcr.io/cloud-builders/docker
+    id: isolated-image-health
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        set -eu
+        trap 'docker rm --force agent-hub-build-smoke >/dev/null 2>&1 || true' EXIT
+        docker run --detach --network=none --name=agent-hub-build-smoke ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPOSITORY}/agent-hub-api:$BUILD_ID
+        docker exec -i agent-hub-build-smoke python - <<'PYTHON'
+        import json
+        import time
+        from urllib.request import urlopen
+        for attempt in range(40):
+            try:
+                with urlopen("http://127.0.0.1:8080/health", timeout=1) as response:
+                    assert response.status == 200
+                    assert json.load(response) == {"status": "ok", "service": "agent-hub"}
+                break
+            except OSError:
+                if attempt == 39:
+                    raise
+                time.sleep(0.25)
+        PYTHON
+
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - push
+      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPOSITORY}/agent-hub-api:$BUILD_ID
+
+  - name: gcr.io/google.com/cloudsdktool/google-cloud-cli:slim
+    entrypoint: python3
+    args:
+      - infra/gcp/deploy_existing_service.py
+      - --project=$PROJECT_ID
+      - --region=${_REGION}
+      - --build-region=$LOCATION
+      - --service=agent-hub-api
+      - --image=${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPOSITORY}/agent-hub-api:$BUILD_ID
+      - --build-id=$BUILD_ID
+      - --commit=$COMMIT_SHA
+      - --branch=$BRANCH_NAME
+      - --deploy-enabled=${_DEPLOY_SERVICE}
+
+images:
+  - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPOSITORY}/agent-hub-api:$BUILD_ID
+
+substitutions:
+  _REGION: northamerica-northeast2
+  _REPOSITORY: financial-analysis
+  _DEPLOY_SERVICE: "false"
+
+options:
+  logging: CLOUD_LOGGING_ONLY
+
+timeout: 1200s
