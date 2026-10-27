@@ -3,6 +3,9 @@
 import copy
 import importlib.util
 import json
+import shutil
+import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -512,6 +515,52 @@ class DeploymentTests(unittest.TestCase):
 
 
 class ServiceEntryPointTests(unittest.TestCase):
+    def test_isolated_configuration_helper_import_needs_no_registry_or_cloud_access(self):
+        with tempfile.TemporaryDirectory(prefix="repo001-isolated-helper-") as temporary:
+            root = Path(temporary)
+            helper_directory = root / "infra" / "gcp"
+            helper_directory.mkdir(parents=True)
+            source = Path(__file__).parents[1]
+            for name in ("configure_cloud_run_service.py", "deploy_existing_service.py"):
+                shutil.copyfile(source / name, helper_directory / name)
+            self.assertFalse((root / "scripts").exists())
+            program = """
+import socket
+import subprocess
+import sys
+import urllib.request
+
+def forbidden(*args, **kwargs):
+    raise AssertionError("An import must not access credentials, network or cloud tools")
+
+socket.socket = forbidden
+subprocess.run = forbidden
+subprocess.check_output = forbidden
+urllib.request.urlopen = forbidden
+sys.path.insert(0, sys.argv[1])
+import configure_cloud_run_service as configuration
+import deploy_existing_service as release
+assert configuration.BUILD_ANNOTATION == release.BUILD_ANNOTATION
+assert "service_targets" not in sys.modules
+try:
+    release.load_registry(release.ROOT)
+except ModuleNotFoundError:
+    pass
+else:
+    raise AssertionError("Publishing without its source registry must fail closed")
+print("Isolated configuration import works; publishing still requires its registry")
+"""
+            result = subprocess.run(
+                [sys.executable, "-I", "-c", program, str(helper_directory)],
+                cwd=root,
+                capture_output=True,
+                text=True,
+                timeout=20,
+                check=False,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn("publishing still requires its registry", result.stdout)
+
     def metadata(self):
         return {
             "projectId": "test-project",

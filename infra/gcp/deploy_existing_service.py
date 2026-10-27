@@ -19,15 +19,22 @@ from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
 ROOT = Path(__file__).resolve().parents[2]
-# Cloud Build invokes this file directly; do not depend on cwd or PYTHONPATH.
-sys.path.insert(0, str(ROOT / "scripts"))
-from service_targets import load_registry  # noqa: E402
 
 BUILD_ANNOTATION = "financial-analysis/deployment-build"
 TIME_ANNOTATION = "financial-analysis/deployment-created"
 COMMIT_ANNOTATION = "financial-analysis/deployment-commit"
 CONFIG_REVISION_ANNOTATION = "financial-analysis/configuration-revision"
 CONFIG_BASE_BUILD_ANNOTATION = "financial-analysis/configuration-base-build"
+
+
+def load_registry(root):
+    # Configuration-only compatibility fixtures import these shared constants
+    # from isolated helper copies. Only the publishing entry point needs source
+    # registration; it still loads strictly before any credential or cloud call.
+    sys.path.insert(0, str(ROOT / "scripts"))
+    from service_targets import load_registry as read_registry
+
+    return read_registry(root)
 
 
 def gcloud(*args):
