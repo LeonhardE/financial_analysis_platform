@@ -10,11 +10,18 @@ import hashlib
 import json
 import re
 import subprocess
+import sys
 import time
 from datetime import UTC, datetime
 from decimal import Decimal
+from pathlib import Path
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
+
+ROOT = Path(__file__).resolve().parents[2]
+# Cloud Build invokes this file directly; do not depend on cwd or PYTHONPATH.
+sys.path.insert(0, str(ROOT / "scripts"))
+from service_targets import load_registry  # noqa: E402
 
 BUILD_ANNOTATION = "financial-analysis/deployment-build"
 TIME_ANNOTATION = "financial-analysis/deployment-created"
@@ -206,9 +213,7 @@ def main():
     parser.add_argument("--project", required=True)
     parser.add_argument("--region", required=True)
     parser.add_argument("--build-region", required=True)
-    parser.add_argument(
-        "--service", choices=("market-api", "user-api", "config-api", "market-web"), required=True
-    )
+    parser.add_argument("--service", required=True)
     parser.add_argument("--image", required=True)
     parser.add_argument("--build-id", required=True)
     parser.add_argument("--commit", required=True)
@@ -217,9 +222,15 @@ def main():
         "--deploy-enabled",
         choices=("true", "false"),
         default="true",
-        help="Use false to build the first image before the Console creates a service.",
+        help="Use false for image publication only; first provision needs separate target review.",
     )
     args = parser.parse_args()
+    registry = load_registry(ROOT)
+    target = registry.by_service.get(args.service)
+    if target is None:
+        raise RuntimeError("The service is not registered in repository target policy.")
+    if target.release_mode == "build_only" and args.deploy_enabled != "false":
+        raise RuntimeError("This target is build-only; reviewed first provision is required.")
     if args.branch != "main" or not re.fullmatch(r"[a-f0-9]{40}", args.commit):
         raise RuntimeError("Deployments require a main-branch trigger with a full commit SHA.")
     if not re.fullmatch(r"[a-f0-9-]{36}", args.build_id):
@@ -227,7 +238,10 @@ def main():
     if not args.image.endswith(f"/{args.service}:{args.build_id}"):
         raise RuntimeError("The image must use this service and the unique Cloud Build ID tag.")
     if args.deploy_enabled == "false":
-        print("Build-only mode: image published; create or configure this service in the Console.")
+        print(
+            "Build-only mode: no Cloud Run access. After this build succeeds, prepare its "
+            "digest-pinned first-provision request for separate target review."
+        )
         return
     build = json.loads(
         gcloud(
@@ -242,6 +256,21 @@ def main():
     substitutions = build.get("substitutions", {})
     if substitutions.get("BRANCH_NAME") != "main" or substitutions.get("COMMIT_SHA") != args.commit:
         raise RuntimeError("Cloud Build metadata does not match the requested main-branch release.")
+    repository = substitutions.get("_REPOSITORY")
+    if (
+        build.get("projectId") != args.project
+        or substitutions.get("_REGION") != args.region
+        or not isinstance(repository, str)
+        or re.fullmatch(r"[a-z][a-z0-9-]{0,62}", repository) is None
+    ):
+        raise RuntimeError("Cloud Build image configuration does not match the requested release.")
+    expected_image = (
+        f"{args.region}-docker.pkg.dev/{args.project}/{repository}/{args.service}:{args.build_id}"
+    )
+    if args.image != expected_image:
+        raise RuntimeError(
+            "The image must exactly match the registered build region and repository."
+        )
     resource = f"projects/{args.project}/locations/{args.region}/services/{args.service}"
     deploy(RunAPI(), resource, args.image, args.build_id, build["createTime"], args.commit)
 

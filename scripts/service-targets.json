@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "targets": [
+    {
+      "id": "market-data-service",
+      "kind": "backend",
+      "directory": "services/market-data-service",
+      "service": "market-api",
+      "cloudbuild": "infra/gcp/cloudbuild.api.yaml",
+      "release_mode": "existing"
+    },
+    {
+      "id": "user-service",
+      "kind": "backend",
+      "directory": "services/user-service",
+      "service": "user-api",
+      "cloudbuild": "infra/gcp/cloudbuild.user.yaml",
+      "release_mode": "existing"
+    },
+    {
+      "id": "config-service",
+      "kind": "backend",
+      "directory": "services/config-service",
+      "service": "config-api",
+      "cloudbuild": "infra/gcp/cloudbuild.config.yaml",
+      "release_mode": "existing"
+    },
+    {
+      "id": "web",
+      "kind": "web",
+      "directory": "apps/web",
+      "service": "market-web",
+      "cloudbuild": "infra/gcp/cloudbuild.web.yaml",
+      "release_mode": "existing"
+    }
+  ]
+}
