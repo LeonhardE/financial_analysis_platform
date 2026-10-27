@@ -1,0 +1,4 @@
+# Candidate artifact verified by the earlier build-only delivery. Plan only:
+# it lacks a target-trigger/output provenance approval. Rebuild through the
+# reviewed target trigger and validate first_provision.py before actual creation.
+bootstrap_image = "northamerica-northeast2-docker.pkg.dev/financial-analysis-512202/financial-analysis/agent-hub-api@sha256:e4504d4b3b4624dd0c81585f13166fe3c6a4cb6bd9171adc87c9cf5b0b8ad927"
