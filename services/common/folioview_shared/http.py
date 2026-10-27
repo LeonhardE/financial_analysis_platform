@@ -30,11 +30,12 @@ class PrivateRoute(APIRoute):
 class PrivateResponseHeaders:
     """Prevent private success, validation, auth, missing-route and CORS caching."""
 
-    def __init__(self, app: ASGIApp):
+    def __init__(self, app: ASGIApp, prefixes: Sequence[str] = ("/api/",)):
         self.app = app
+        self.prefixes = tuple(prefixes)
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send):
-        if scope["type"] != "http" or not scope.get("path", "").startswith("/api/"):
+        if scope["type"] != "http" or not scope.get("path", "").startswith(self.prefixes):
             await self.app(scope, receive, send)
             return
 
@@ -55,6 +56,7 @@ def create_app(
     private: bool = False,
     methods: Sequence[str] = ("GET",),
     description: str = "",
+    private_prefixes: Sequence[str] = ("/api/",),
 ) -> FastAPI:
     app = FastAPI(title=title, version="0.1.0", description=description)
     app.add_middleware(
@@ -72,5 +74,5 @@ def create_app(
     )
     if private:
         app.router.route_class = PrivateRoute
-        app.add_middleware(PrivateResponseHeaders)
+        app.add_middleware(PrivateResponseHeaders, prefixes=private_prefixes)
     return app

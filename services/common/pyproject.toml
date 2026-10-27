@@ -19,4 +19,5 @@ dependencies = [
 include = ["folioview_shared*"]
 
 [tool.setuptools.package-data]
+"folioview_shared" = ["delegation_schemas.json"]
 "folioview_shared.encrypted" = ["*.json"]

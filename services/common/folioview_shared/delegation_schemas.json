@@ -1,0 +1,262 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://folioview.invalid/contracts/internal-delegation/v1",
+  "title": "FolioView internal delegation JWT claims",
+  "$ref": "#/$defs/InternalDelegation",
+  "$defs": {
+    "ResourceRef": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": ["watchlist", "channel_follows", "holdings"]
+        },
+        "sourceService": {
+          "type": "string",
+          "enum": ["user", "portfolio"]
+        },
+        "resourceId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$"
+        },
+        "incarnation": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$"
+        }
+      },
+      "required": ["kind", "sourceService", "resourceId", "incarnation"],
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "holdings"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "sourceService": {
+                "const": "portfolio"
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "sourceService": {
+                "const": "user"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "ResourceBinding": {
+      "type": "object",
+      "properties": {
+        "ref": {
+          "$ref": "#/$defs/ResourceRef"
+        },
+        "sourceEpoch": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": ["ref", "sourceEpoch"],
+      "additionalProperties": false
+    },
+    "BrowserCatalogueDelegation": {
+      "type": "object",
+      "properties": {
+        "iss": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2048,
+          "format": "uri"
+        },
+        "sub": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "aud": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2048,
+          "format": "uri"
+        },
+        "iat": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "exp": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "jti": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$"
+        },
+        "caller": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "resourceKinds": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["watchlist", "channel_follows", "holdings"]
+          },
+          "minItems": 1,
+          "maxItems": 3,
+          "uniqueItems": true
+        },
+        "purpose": {
+          "const": "browser_catalog"
+        },
+        "scopes": {
+          "type": "array",
+          "items": {
+            "const": "resources:catalog"
+          },
+          "minItems": 1,
+          "maxItems": 1
+        }
+      },
+      "required": [
+        "iss",
+        "sub",
+        "aud",
+        "iat",
+        "exp",
+        "jti",
+        "caller",
+        "resourceKinds",
+        "purpose",
+        "scopes"
+      ],
+      "additionalProperties": false
+    },
+    "AgentRunDelegation": {
+      "type": "object",
+      "properties": {
+        "iss": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2048,
+          "format": "uri"
+        },
+        "sub": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "aud": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2048,
+          "format": "uri"
+        },
+        "iat": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "exp": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "jti": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$"
+        },
+        "caller": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "resources": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ResourceBinding"
+          },
+          "minItems": 1,
+          "maxItems": 10
+        },
+        "purpose": {
+          "const": "agent_run"
+        },
+        "scopes": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["watchlist:read", "channel_follows:read", "portfolio:read"]
+          },
+          "minItems": 1,
+          "maxItems": 3,
+          "uniqueItems": true
+        },
+        "runId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$"
+        },
+        "taskId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$"
+        },
+        "grantId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$"
+        },
+        "grantEpoch": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": [
+        "iss",
+        "sub",
+        "aud",
+        "iat",
+        "exp",
+        "jti",
+        "caller",
+        "resources",
+        "purpose",
+        "scopes",
+        "runId",
+        "taskId",
+        "grantId",
+        "grantEpoch"
+      ],
+      "additionalProperties": false
+    },
+    "InternalDelegation": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/BrowserCatalogueDelegation"
+        },
+        {
+          "$ref": "#/$defs/AgentRunDelegation"
+        }
+      ]
+    }
+  }
+}
