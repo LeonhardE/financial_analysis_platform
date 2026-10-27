@@ -2,7 +2,11 @@ locals {
   execution_registry = jsondecode(file("${path.module}/../pipeline.json"))
   enabled_target_execution = {
     for name, target in local.execution_registry.targets : name => target
-    if name != "repo" && (target.enabled || (name == "portfolio" && var.portfolio_provisioning_stage != "none"))
+    if name != "repo" && (
+      target.enabled ||
+      (name == "portfolio" && var.portfolio_provisioning_stage != "none") ||
+      (name == "agent-hub" && var.agent_hub_provisioning_stage != "none")
+    )
   }
   # Use a blocking lifecycle precondition on the existing repo plan trigger.
   # A check block would only warn and could provision an unusable target.
