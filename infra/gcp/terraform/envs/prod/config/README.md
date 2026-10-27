@@ -32,10 +32,20 @@ ownership through the existing pipeline.
 Administrator `bootstrap/config.tf` adopts the existing `build-config-api`
 trigger (`67b14a77-dd90-42d3-b61d-0f8993a41060`) and its `fa-build` deployment
 and runtime attachment grants, preserving push filters and substitutions. It also
-adopts Config runtime's existing `roles/datastore.user` and
-`roles/firebaseauth.viewer` grants without importing
-the shared database or user data. Additive IAM members never replace a complete
-policy or binding.
+owns Config runtime's existing `roles/datastore.user` and
+`roles/firebaseauth.viewer` grants without importing the shared database or user
+data. Datastore User now uses the shared scope-only database condition and is
+restricted to `projects/financial-analysis-512202/databases/(default)` at the
+existing `google_project_iam_member.config_store` address. Firebase Auth Viewer
+and every other Config permission remain unchanged. Additive IAM members never
+replace a complete policy or binding.
+
+The condition changes the provider's IAM membership identity and requires a
+separate administrator migration, even though the Terraform address stays the
+same. Follow [the database IAM migration runbook](DATABASE_IAM_MIGRATION.md)
+before considering isolation active. Normal Config plan/apply execution neither
+owns this IAM nor permits its replacement; do not widen that execution boundary.
+No database, service or runtime identity is created by this change.
 
 Only Config plan/apply execution accounts receive service and identity read /
 configuration permissions bound to this service and runtime. They cannot create,
@@ -55,9 +65,11 @@ inventory and credentials private.
 
 After merging this target's own infrastructure PR:
 
-1. Review and apply the administrator bootstrap saved plan. Expect five existing
-   Config imports as no-ops and only Config execution-boundary additions; reject
-   changes to existing triggers, another service or any destroy/replacement.
+1. Complete the administrator database IAM migration runbook first. Historical
+   adoption imports retain their original boundaries, but the Config Datastore
+   User member is now conditional: its old unconditional state requires the
+   narrowly reviewed replacement described there. Reject unrelated bootstrap
+   changes, service/account/database creation or replacement, and trigger changes.
 2. Run `terraform-plan-config` from merged `main`. Review the exact saved plan:
    two native imports must be no-ops; only the local controller and its ordered
    verification read are new. Stop on service or account creation/replacement.
