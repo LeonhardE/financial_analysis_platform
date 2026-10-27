@@ -40,6 +40,14 @@
       "service": "market-web",
       "cloudbuild": "infra/gcp/cloudbuild.web.yaml",
       "release_mode": "existing"
+    },
+    {
+      "id": "portfolio-service",
+      "kind": "backend",
+      "directory": "services/portfolio-service",
+      "service": "portfolio-api",
+      "cloudbuild": "infra/gcp/cloudbuild.portfolio.yaml",
+      "release_mode": "build_only"
     }
   ]
 }
