@@ -30,9 +30,11 @@ steps:
 images:
   - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPOSITORY}/user-api:$BUILD_ID
 
+# The administrator-managed User trigger supplies this deployment instance.
+# Manual builds must provide both values explicitly; there is no owner fallback.
 substitutions:
-  _REGION: northamerica-northeast2
-  _REPOSITORY: financial-analysis
+  _REGION: ""
+  _REPOSITORY: ""
   _DEPLOY_SERVICE: "false"
 
 options:

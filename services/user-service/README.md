@@ -59,6 +59,15 @@ change does not claim encrypted holdings or agent-readable list content,
 and it does not introduce a second editable list in Hub. The resource interfaces
 below supply version and authorization metadata only.
 
+## Deployment instance
+
+Production project, regional image repository, runtime identity, inventoried service UID and
+Web/Market origins are supplied through one reviewed private deployment projection. See the
+[User infrastructure configuration](../../infra/gcp/terraform/envs/prod/user/README.md) for candidate
+compilation and complete no-change plan requirements. The local `.env.example` leaves the Firebase
+project empty; choose your own project explicitly to enable sign-in. This does not relax token
+verification, change the default database or enable Hub trust.
+
 ## Verification
 
 Run the service suite in a development environment with its dependencies and the

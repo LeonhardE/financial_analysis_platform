@@ -2,16 +2,17 @@
 # for the new target execution identities and their narrowly scoped permissions.
 # Normal User execution cannot administer IAM or the shared image-build identity.
 locals {
-  user_service = "projects/${var.project_id}/locations/${var.region}/services/user-api"
-  user_runtime = "projects/${var.project_id}/serviceAccounts/fa-user-runtime@${var.project_id}.iam.gserviceaccount.com"
-  user_build   = "fa-build@${var.project_id}.iam.gserviceaccount.com"
+  user_deployment = jsondecode(var.deployment_configs["user"])
+  user_service    = "projects/${var.project_id}/locations/${var.region}/services/user-api"
+  user_runtime    = "projects/${var.project_id}/serviceAccounts/${local.user_deployment.inputs.runtime_account_id}@${var.project_id}.iam.gserviceaccount.com"
+  user_build      = "fa-build@${var.project_id}.iam.gserviceaccount.com"
 }
 
 module "user_image_release" {
   source = "../modules/service-build-trigger"
 
   project_id            = var.project_id
-  region                = var.region
+  region                = local.user_deployment.region
   name                  = "build-user-api"
   description           = ""
   repository_id         = var.repository_id
@@ -26,7 +27,7 @@ module "user_image_release" {
     "infra/gcp/deploy_existing_service.py"
   ]
   ignored_files  = []
-  substitutions  = { _REPOSITORY = "financial-analysis" }
+  substitutions  = { _REPOSITORY = local.user_deployment.artifactRepository }
   disabled       = false
   deploy_enabled = true
 }
@@ -63,7 +64,7 @@ module "user_database_scope" {
 resource "google_project_iam_member" "user_cache" {
   project = var.project_id
   role    = "roles/datastore.user"
-  member  = "serviceAccount:fa-user-runtime@${var.project_id}.iam.gserviceaccount.com"
+  member  = "serviceAccount:${local.user_deployment.inputs.runtime_account_id}@${var.project_id}.iam.gserviceaccount.com"
 
   condition {
     title       = module.user_database_scope.condition.title
@@ -120,7 +121,7 @@ resource "google_project_iam_custom_role" "user_image_read" {
 resource "google_artifact_registry_repository_iam_member" "user_configuration_image" {
   project    = var.project_id
   location   = var.region
-  repository = "financial-analysis"
+  repository = local.user_deployment.artifactRepository
   role       = google_project_iam_custom_role.user_image_read.name
   member     = "serviceAccount:${module.target_execution["user"].service_accounts["apply"]}"
 }
@@ -156,7 +157,7 @@ resource "google_service_account_iam_member" "user_execution_metadata" {
 # The service and runtime identity are imported by the User business root.
 import {
   to = module.user_image_release.google_cloudbuild_trigger.this
-  id = "projects/${var.project_id}/locations/${var.region}/triggers/4cdbbd0c-94ba-4a47-8fb3-a0c6a73c07e5"
+  id = "projects/${var.project_id}/locations/${var.region}/triggers/${local.user_deployment.adoption.buildTriggerId}"
 }
 
 import {
@@ -171,17 +172,17 @@ import {
 
 import {
   to = google_project_iam_member.user_cache
-  id = "${var.project_id} roles/datastore.user serviceAccount:fa-user-runtime@${var.project_id}.iam.gserviceaccount.com ${module.user_database_scope.condition.title}"
+  id = "${var.project_id} roles/datastore.user serviceAccount:${local.user_deployment.inputs.runtime_account_id}@${var.project_id}.iam.gserviceaccount.com ${module.user_database_scope.condition.title}"
 }
 
 # Keep the existing token-verification metadata permission on the runtime only.
 resource "google_project_iam_member" "user_auth_metadata" {
   project = var.project_id
   role    = "roles/firebaseauth.viewer"
-  member  = "serviceAccount:fa-user-runtime@${var.project_id}.iam.gserviceaccount.com"
+  member  = "serviceAccount:${local.user_deployment.inputs.runtime_account_id}@${var.project_id}.iam.gserviceaccount.com"
 }
 
 import {
   to = google_project_iam_member.user_auth_metadata
-  id = "${var.project_id} roles/firebaseauth.viewer serviceAccount:fa-user-runtime@${var.project_id}.iam.gserviceaccount.com"
+  id = "${var.project_id} roles/firebaseauth.viewer serviceAccount:${local.user_deployment.inputs.runtime_account_id}@${var.project_id}.iam.gserviceaccount.com"
 }
