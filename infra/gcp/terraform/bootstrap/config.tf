@@ -2,16 +2,17 @@
 # for the new target execution identities and their narrowly scoped permissions.
 # Normal Config execution cannot administer IAM or the shared image-build identity.
 locals {
-  config_service = "projects/${var.project_id}/locations/${var.region}/services/config-api"
-  config_runtime = "projects/${var.project_id}/serviceAccounts/fa-config-runtime@${var.project_id}.iam.gserviceaccount.com"
-  config_build   = "fa-build@${var.project_id}.iam.gserviceaccount.com"
+  config_deployment = jsondecode(var.deployment_configs["config"])
+  config_service    = "projects/${var.project_id}/locations/${var.region}/services/config-api"
+  config_runtime    = "projects/${var.project_id}/serviceAccounts/${local.config_deployment.inputs.runtime_account_id}@${var.project_id}.iam.gserviceaccount.com"
+  config_build      = "fa-build@${var.project_id}.iam.gserviceaccount.com"
 }
 
 module "config_image_release" {
   source = "../modules/service-build-trigger"
 
   project_id            = var.project_id
-  region                = var.region
+  region                = local.config_deployment.region
   name                  = "build-config-api"
   description           = ""
   repository_id         = var.repository_id
@@ -26,7 +27,7 @@ module "config_image_release" {
     "infra/gcp/deploy_existing_service.py",
   ]
   ignored_files  = []
-  substitutions  = { _REPOSITORY = "financial-analysis" }
+  substitutions  = { _REPOSITORY = local.config_deployment.artifactRepository }
   disabled       = false
   deploy_enabled = true
 }
@@ -65,7 +66,7 @@ module "config_database_scope" {
 resource "google_project_iam_member" "config_store" {
   project = var.project_id
   role    = "roles/datastore.user"
-  member  = "serviceAccount:fa-config-runtime@${var.project_id}.iam.gserviceaccount.com"
+  member  = "serviceAccount:${local.config_deployment.inputs.runtime_account_id}@${var.project_id}.iam.gserviceaccount.com"
 
   condition {
     title       = module.config_database_scope.condition.title
@@ -82,7 +83,7 @@ resource "google_project_iam_member" "config_store" {
 resource "google_project_iam_member" "config_auth" {
   project = var.project_id
   role    = "roles/firebaseauth.viewer"
-  member  = "serviceAccount:fa-config-runtime@${var.project_id}.iam.gserviceaccount.com"
+  member  = "serviceAccount:${local.config_deployment.inputs.runtime_account_id}@${var.project_id}.iam.gserviceaccount.com"
 }
 
 resource "google_project_iam_custom_role" "config_service_read" {
@@ -128,7 +129,7 @@ resource "google_project_iam_custom_role" "config_image_read" {
 resource "google_artifact_registry_repository_iam_member" "config_configuration_image" {
   project    = var.project_id
   location   = var.region
-  repository = "financial-analysis"
+  repository = local.config_deployment.artifactRepository
   role       = google_project_iam_custom_role.config_image_read.name
   member     = "serviceAccount:${module.target_execution["config"].service_accounts["apply"]}"
 }
@@ -164,7 +165,7 @@ resource "google_service_account_iam_member" "config_execution_metadata" {
 # The service and runtime identity are imported by the Config business root.
 import {
   to = module.config_image_release.google_cloudbuild_trigger.this
-  id = "projects/${var.project_id}/locations/${var.region}/triggers/67b14a77-dd90-42d3-b61d-0f8993a41060"
+  id = "projects/${var.project_id}/locations/${var.region}/triggers/${local.config_deployment.adoption.buildTriggerId}"
 }
 
 import {
@@ -179,10 +180,10 @@ import {
 
 import {
   to = google_project_iam_member.config_store
-  id = "${var.project_id} roles/datastore.user serviceAccount:fa-config-runtime@${var.project_id}.iam.gserviceaccount.com ${module.config_database_scope.condition.title}"
+  id = "${var.project_id} roles/datastore.user serviceAccount:${local.config_deployment.inputs.runtime_account_id}@${var.project_id}.iam.gserviceaccount.com ${module.config_database_scope.condition.title}"
 }
 
 import {
   to = google_project_iam_member.config_auth
-  id = "${var.project_id} roles/firebaseauth.viewer serviceAccount:fa-config-runtime@${var.project_id}.iam.gserviceaccount.com"
+  id = "${var.project_id} roles/firebaseauth.viewer serviceAccount:${local.config_deployment.inputs.runtime_account_id}@${var.project_id}.iam.gserviceaccount.com"
 }

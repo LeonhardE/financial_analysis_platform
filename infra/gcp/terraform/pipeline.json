@@ -29,13 +29,8 @@
     "config": {
       "enabled": true,
       "directory": "infra/gcp/terraform/envs/prod/config",
-      "state_bucket": "financial-analysis-512202-tfstate-config",
-      "state_prefix": "prod/config",
-      "plan_trigger": "terraform-plan-config",
-      "apply_trigger": "terraform-apply-config",
-      "plan_service_account": "fa-infra-config-plan@financial-analysis-512202.iam.gserviceaccount.com",
-      "apply_service_account": "fa-infra-config-apply@financial-analysis-512202.iam.gserviceaccount.com",
-      "configuration_controllers": ["module.config.terraform_data.configuration"]
+      "configuration_controllers": ["module.config.terraform_data.configuration"],
+      "deployment_source": "trigger-v1"
     },
     "web": {
       "enabled": true,
