@@ -1,0 +1,36 @@
+title = "FolioView secret scanning policy"
+
+[extend]
+useDefault = true
+
+# Firebase Web config is public browser configuration, not GCP IAM authority.
+# This exception is limited to one rule, exact file and named assignment line.
+[[rules]]
+id = "gcp-api-key"
+[[rules.allowlists]]
+description = "Public Firebase Web configuration assignment"
+condition = "AND"
+paths = ['''^infra/gcp/terraform/bootstrap/web\.tf$''']
+regexTarget = "line"
+regexes = ['''^\r?\n?[ \t]*_FIREBASE_API_KEY[ \t]*=[ \t]*"AIza[A-Za-z0-9_-]{35}"[ \t]*\r?\n?$''']
+
+# The two exact fragments below occur in the audited public JWS payload vectors.
+# They are public ciphertext/context bytes, not API credentials. Every other
+# value and all other rules remain active in this same fixture file.
+[[rules]]
+id = "generic-api-key"
+[[rules.allowlists]]
+description = "Public Firebase Web configuration assignment (generic detector)"
+condition = "AND"
+paths = ['''^infra/gcp/terraform/bootstrap/web\.tf$''']
+regexTarget = "line"
+regexes = ['''^\r?\n?[ \t]*_FIREBASE_API_KEY[ \t]*=[ \t]*"AIza[A-Za-z0-9_-]{35}"[ \t]*\r?\n?$''']
+[[rules.allowlists]]
+description = "Exact public JWS payload fragments in the audited interoperability fixture"
+condition = "AND"
+paths = ['''^services/common/tests/fixtures/encrypted_v2_node\.json$''']
+regexTarget = "secret"
+regexes = [
+  '''^223\-hgbJIY8mvEpZnU6wQu\-5WfWetHvsc7NTV85o4sbvGqHPIrSw5A$''',
+  '''^LyXMNgX2i0j4Q_T2y1RknvBEsxw6mCusighVkxONOao29xKwuMad4A$''',
+]

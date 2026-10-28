@@ -44,6 +44,7 @@ jobs:
       - name: Check out source
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
+          fetch-depth: 0
           persist-credentials: false
       - name: Set up Node.js for repository formatting
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
@@ -58,8 +59,14 @@ jobs:
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.13"
+      - name: Install checksum-pinned secret scanner
+        run: python scripts/ci/secret_scan.py install --directory "$RUNNER_TEMP/security-tools"
       - name: Test CI selection and required-check aggregation
+        env:
+          FOLIOVIEW_GITLEAKS_PATH: ${{ runner.temp }}/security-tools/gitleaks
         run: python -m unittest discover -s scripts/ci/tests -v
+      - name: Scan complete history, index and worktree with pinned Gitleaks
+        run: python scripts/ci/secret_scan.py scan --gitleaks "$RUNNER_TEMP/security-tools/gitleaks"
       - name: Install infrastructure linter
         if: needs.changes.outputs.infra == 'true'
         run: python -m pip install 'ruff>=0.12,<1.0'

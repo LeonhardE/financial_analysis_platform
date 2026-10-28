@@ -188,3 +188,78 @@ no new resource or provisioning command is required for this foundation.
 
 The metadata format follows Google's [build/source-provenance reference](https://docs.cloud.google.com/build/docs/api/reference/rest/v1/projects.builds)
 and [trigger reference](https://docs.cloud.google.com/build/docs/api/reference/rest/v1/projects.locations.triggers).
+
+## Required secret scanning
+
+`npm run check` and the pre-commit hook run `npm run security:scan` first. A new
+clone downloads the fixed official Gitleaks release into the ignored
+`.security-tools/` directory. Installation validates both the release archive
+and extracted executable against the reviewed SHA-256 values in
+`ci/gitleaks-toolchain.json`. A cached executable is rechecked before every use.
+A missing tool, unsupported platform, failed download, invalid checksum or
+incomplete scan fails the command; there is no successful skip. Linux and macOS
+on x64 and arm64 are supported by this toolchain.
+
+```sh
+npm run security:scan
+python3 scripts/ci/secret_scan.py install --directory .security-tools
+python3 scripts/ci/secret_scan.py scan --gitleaks .security-tools/gitleaks
+```
+
+The scan covers every locally reachable Git ref, the exact staged blobs, and
+current tracked/unignored files, as three independent inputs. Fetch complete
+history before scanning a shallow clone. Staged ignored files are still scanned;
+ignored local deployment profiles, credentials and environment files stay out of
+normal Git/Docker inputs. Public examples, schemas and JSON source fixtures
+remain eligible source files. Local private files need their own handling and
+must never be force-added. The scanner does not call cloud services or validate
+credentials against a provider.
+
+CI fetches full history, installs the same checksum-pinned CLI, runs its
+integration tests and performs the required repository scan in the Repository
+checks job. No licensed scanner Action is required. For isolated scanner tests,
+set `FOLIOVIEW_GITLEAKS_PATH` to that verified executable; `npm run check` installs
+it at the default location before tests. A bare `test:ci` run without either
+executable skips scanner integration cases, so it is not equivalent to the
+required security scan or full check.
+
+Only rule, path and line number are printed for findings. Matching values,
+source lines and scanner diagnostics are suppressed; redacted reports and
+snapshots live in automatically removed temporary directories. Inline
+`gitleaks:allow` comments and `.gitleaksignore` files cannot bypass this wrapper.
+Snapshot/file limits, unresolved merge stages, submodules, shallow history and
+scanner errors fail closed rather than silently reducing coverage. Existing
+ignore rules are a preventive layer, not a replacement for scanning or review.
+
+`.gitleaks.toml` extends the pinned defaults and records narrowly reviewed public
+exceptions: the named Firebase Web public-config assignment in its historical
+bootstrap path, and two exact public JWS payload fragments at the existing
+interoperability fixture path. The Firebase exception applies only to the two
+key detectors and that complete assignment line; another backend key or private
+key in the same file still fails. Other rules and unknown fixture values remain
+active. Firebase Web configuration is public client configuration, not an IAM
+service-account credential; its API restrictions and backend authorization still
+need to be managed. Review any change to scanner policy or pinned hashes as a
+security-sensitive code change. No secret scanner proves that every possible
+secret is absent; rotate actual exposed credentials if an investigation finds
+one.
+
+Temporary Git fixtures remove all inherited `GIT_*` context and configuration
+injection. Scanner subprocesses also isolate repository/configuration settings,
+and use no global/system Git configuration. Within the caller's selected
+repository, scanning binds an active `GIT_INDEX_FILE` to that repository's real
+Git directory/worktree, copies it to a bounded temporary regular file, and uses
+only that copy for read-only index listing. A missing or mismatched active index
+fails; it never falls back to the clean default. This covers hook temporary
+indexes and explicit alternate indexes when the working copy is already clean.
+When `--root` deliberately selects a different repository, the caller's index is
+not imported; that selected repository's default index is scanned instead.
+Regression tests verify the parent repository's configuration, author settings,
+index and refs are unchanged under hook-like variables.
+
+Upstream release and checksum sources are recorded alongside the pinned hashes:
+[Gitleaks 8.30.1](https://github.com/gitleaks/gitleaks/releases/tag/v8.30.1) and its
+[official checksum asset](https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_checksums.txt).
+To upgrade, independently review that release, verify each supported archive
+against its official checksum, recompute the regular executable hash, and rerun
+the positive, negative and tamper tests before changing the pins.

@@ -8,3 +8,6 @@ package-lock.json
 **/.terraform-tools/
 **/*.tfstate*
 **/*.tfplan
+
+# Checksum-pinned local security executable
+.security-tools/

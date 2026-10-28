@@ -13,6 +13,7 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from checks import FULL, SERVICES, Plan, changed_paths, detect, select, validate_gate  # noqa: E402
+from git_environment import isolated_git_environment  # noqa: E402
 from service_targets import RegistryError, load_registry  # noqa: E402
 from test_service_targets import write_registry_fixture  # noqa: E402
 
@@ -160,6 +161,9 @@ def working_directory(directory):
 
 class GitComparisonTests(unittest.TestCase):
     def setUp(self):
+        environment = patch.dict(os.environ, isolated_git_environment(), clear=True)
+        environment.start()
+        self.addCleanup(environment.stop)
         temporary = tempfile.TemporaryDirectory()
         self.addCleanup(temporary.cleanup)
         self.root = Path(temporary.name)
