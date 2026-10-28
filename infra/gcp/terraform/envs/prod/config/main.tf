@@ -1,7 +1,7 @@
 locals {
-  project_id          = "financial-analysis-512202"
-  region              = "northamerica-northeast2"
-  existing_config_uid = "e4f50b70-600b-4aac-9530-4caa9de99944"
+  project_id          = var.deployment.project_id
+  region              = var.deployment.region
+  existing_config_uid = var.deployment.existing_service_uid
 }
 
 provider "google" {
@@ -16,8 +16,8 @@ module "runtime_identity" {
   source = "../../../modules/service-identity"
 
   project_id   = local.project_id
-  account_id   = "fa-config-runtime"
-  display_name = "fa-config-runtime"
+  account_id   = var.deployment.runtime_account_id
+  display_name = var.deployment.runtime_account_id
   description  = ""
 
   secret_ids                = {}
@@ -34,7 +34,7 @@ module "config" {
 
   # Creation-only input required by the shared contract. Imports and subsequent
   # configuration applies preserve the live image and release-owned traffic.
-  image = "northamerica-northeast2-docker.pkg.dev/financial-analysis-512202/financial-analysis/config-api@sha256:6d7be547a8ffd9452c16f8f4cda225c90e0b0fdab69eecc4769cb52434f4df83"
+  image = var.deployment.creation_image
 
   port              = 8080
   memory            = "256Mi"
@@ -46,7 +46,7 @@ module "config" {
   ingress           = "INGRESS_TRAFFIC_ALL"
 
   environment = {
-    CORS_ORIGINS         = "https://market-web-630815932903.northamerica-northeast2.run.app"
+    CORS_ORIGINS         = var.deployment.web_origin
     FIREBASE_PROJECT_ID  = local.project_id
     FIRESTORE_DATABASE   = "(default)"
     CONFIG_STORE_BACKEND = "firestore"

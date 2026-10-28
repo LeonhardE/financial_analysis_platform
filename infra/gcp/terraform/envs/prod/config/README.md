@@ -1,85 +1,96 @@
-# Adopt the existing Config service
+# Config infrastructure adoption and instance inputs
 
-This target adopts only `config-api` in Toronto and its existing keyless
-`fa-config-runtime` identity. User, Market and Web retain independent roots and
-execution identities. Shared modules and application behavior are unchanged.
+This root adopts only the explicitly selected existing `config-api` and its keyless runtime
+identity. Other services retain their independent roots and execution identities. The independent
+service UID, public invocation mode and service-wide maximum of one are checked at plan time,
+before any controller action. No service or runtime account is created or renamed.
 
-## Existing boundaries
+## Private instance configuration
 
-- Service UID: `e4f50b70-600b-4aac-9530-4caa9de99944`.
-- Runtime account unique ID: `115909004860419228588`.
-- Preserve ingress `INGRESS_TRAFFIC_ALL`, `invokerIamDisabled=true` and the
-  service-wide maximum of one instance. Config's own private endpoints continue
-  to require Firebase authentication; public Cloud Run invocation is intentional.
-- Preserve one request-billed vCPU, `256Mi`, port `8080`, timeout `60s`,
-  concurrency `8`, revision minimum `0` / maximum `12`, startup CPU boost and all
-  four existing environment values. These are adopted values, not cost tuning.
-- The first controller apply normalizes equivalent CPU `1000m` to `1`; this may
-  create a configuration revision while retaining the service UID, live image,
-  release markers and traffic. The shared controller preserves unknown template
-  fields, including the existing execution environment and startup probe.
+The required `deployment` object contains exactly the supported instance fields: `project_id`,
+`region`, `artifact_repository`, `runtime_account_id`, `creation_image`, `existing_service_uid`
+and `web_origin`. It has no production defaults or arbitrary environment map. The immutable image
+must select `config-api` in the same project, region and repository; the Web origin must be one
+canonical lowercase HTTPS origin without userinfo, port, path, query or fragment.
 
-The production root declaratively imports the existing service and runtime
-account. Planning independently checks the service UID, invocation mode and
-service-wide cap before any controller action. Native resources have deletion
-protection / `prevent_destroy`; the service resource ignores later provider
-updates. Desired configuration uses the guarded controller at
-`module.config.terraform_data.configuration`, which reads the live image and
-etag at execution time. The immutable image input is creation-only; editing it
-is not a release. Image publishing and explicit revision traffic rollback retain
-ownership through the existing pipeline.
+Compile the explicitly selected private profile into a new private review directory:
 
-Administrator `bootstrap/config.tf` adopts the existing `build-config-api`
-trigger (`67b14a77-dd90-42d3-b61d-0f8993a41060`) and its `fa-build` deployment
-and runtime attachment grants, preserving push filters and substitutions. It also
-owns Config runtime's existing `roles/datastore.user` and
-`roles/firebaseauth.viewer` grants without importing the shared database or user
-data. Datastore User now uses the shared scope-only database condition and is
-restricted to `projects/financial-analysis-512202/databases/(default)` at the
-existing `google_project_iam_member.config_store` address. Firebase Auth Viewer
-and every other Config permission remain unchanged. Additive IAM members never
-replace a complete policy or binding.
+```sh
+python3 infra/gcp/deployment_profile.py compile \
+  --profile /absolute/private/production.profile.json \
+  --target config \
+  --output-dir /absolute/private/new-config-review
+```
 
-The condition changes the provider's IAM membership identity and requires a
-separate administrator migration, even though the Terraform address stays the
-same. Follow [the database IAM migration runbook](DATABASE_IAM_MIGRATION.md)
-before considering isolation active. Normal Config plan/apply execution neither
-owns this IAM nor permits its replacement; do not widen that execution boundary.
-No database, service or runtime identity is created by this change.
+The new directory uses permissions `0700`; its files use `0600`.
+`terraform-inputs.candidate.json` contains the `deployment` variable object for an explicitly
+authorized local diagnostic plan's `-var-file`. Its candidate filename is not automatically loaded.
+`deployment-config.candidate.json` is the Config projection for the administrator-managed plan/apply
+triggers, `trigger-substitutions.candidate.json` carries its transport substitutions, and
+`manifest.json` binds the file hashes. These candidates do not approve or activate a deployment.
+Keep profiles, projections, state, plans and runtime-bearing evidence outside Git and app images.
 
-Only Config plan/apply execution accounts receive service and identity read /
-configuration permissions bound to this service and runtime. They cannot create,
-delete or administer IAM, submit image builds or impersonate `fa-build`. Config
-apply alone may attach the Config runtime. Cloud Run validates existing images
-on a configuration PATCH, so Config apply also receives only
-`artifactregistry.repositories.downloadArtifacts` on the existing Toronto
-`financial-analysis` repository. This repository is shared; the read grant is not
-an image-path isolation boundary. It grants no writes or administration.
+The profile `render` command also supplies the canonical projection string in the bootstrap
+`deployment_configs` map. Bootstrap uses its Config entry for the runtime/IAM references, existing
+image-trigger anchor, repository and build substitutions. That projection must agree with the
+bootstrap's explicit project, region and source repository. Production execution consumes the
+reviewed trigger configuration and binds its bytes, instance, source and target to the saved plan.
+Remote Cloud Build cannot obtain inputs from an operator's ignored local files.
 
-## State, approval and minimal acceptance
+## Preserved service and ownership boundaries
 
-The isolated backend is `financial-analysis-512202-tfstate-config`, prefix
-`prod/config`. The registered runner supplies backend settings and uses the
-repository's pinned Terraform/provider lock. Keep raw state, plans, environment
-inventory and credentials private.
+Preserve ingress `INGRESS_TRAFFIC_ALL`, public Cloud Run invocation using
+`invokerIamDisabled=true`, and the service-wide maximum of one instance. Private Config routes
+continue requiring verified Firebase Google identity, including revoked/disabled-user checks,
+owner isolation and private/no-store failures. Keep one request-billed vCPU, `256Mi`, port `8080`,
+timeout `60s`, concurrency `8`, revision scaling `0..12`, startup CPU boost and the same four
+runtime environment values. No delegation caller or Hub trust setting is introduced.
 
-After merging this target's own infrastructure PR:
+Native deletion protection and `prevent_destroy` remain enabled. The native service ignores
+updates; `module.config.terraform_data.configuration` owns runtime configuration through the
+guarded controller. It reads the live image/etag at execution time and preserves unknown template
+fields. The creation-image input is digest-pinned and cannot replace a release. Images, release
+markers and explicit traffic rollback remain owned by the existing release protocol. Historical
+CPU normalization during first adoption is not a reason to force another controller apply.
 
-1. Complete the administrator database IAM migration runbook first. Historical
-   adoption imports retain their original boundaries, but the Config Datastore
-   User member is now conditional: its old unconditional state requires the
-   narrowly reviewed replacement described there. Reject unrelated bootstrap
-   changes, service/account/database creation or replacement, and trigger changes.
-2. Run `terraform-plan-config` from merged `main`. Review the exact saved plan:
-   two native imports must be no-ops; only the local controller and its ordered
-   verification read are new. Stop on service or account creation/replacement.
-3. Request `terraform-apply-config` with the producer build ID and provide native
-   approval for that exact reviewed source and saved plan.
-4. Verify unchanged service UID, runtime unique ID, live image, release markers,
-   traffic, public invocation and capacity boundaries. Verify `/health`, a `401`
-   for an unauthenticated preferences request, and a fresh no-change plan.
+Administrator `bootstrap/config.tf` keeps ownership of the existing `build-config-api` trigger,
+image deployment/runtime attachment grants, scoped Datastore User membership and Firebase Auth
+Viewer. It preserves push filters and the existing deployment switch. The database condition
+continues restricting `google_project_iam_member.config_store` to this selected project's exact
+`(default)` database, with no second owner or database import. The
+[database IAM migration runbook](DATABASE_IAM_MIGRATION.md) is a separate historical migration and
+recovery procedure; this instance-input migration must preserve an already-correct tuple instead
+of repeating IAM replacement. Normal Config execution cannot administer or replace those grants.
 
-This adoption reuses the already verified shared image-release/rollback ownership
-protocol and existing trigger without another extended production rollback drill.
-Local mock tests require no cloud access. A successful plan alone does not claim
-that a production apply or authenticated application flow has been tested.
+Only Config execution identities receive service/runtime read or configuration permissions bound
+to this target. Config apply can attach its own runtime and download existing images from its
+selected artifact repository, without uploads or administration. The repository is shared, so its
+download grant includes other images and is not an image-path isolation boundary. No service,
+identity, database, state bucket or permission is provisioned by this configuration migration.
+
+## Complete plan review and verification
+
+Keep the existing isolated state bucket and `prod/config` prefix, state lineage, provider locks,
+resource addresses, imports, runtime identity and live configuration. Use the trusted runner for a
+complete state-backed Config plan, without `-target` or a forced controller replacement. Require
+no managed resource changes for this migration. Stop on a new/replaced service/account, IAM or
+database change, altered trigger ownership, unexpected controller work, or image/traffic change.
+Input validation, synthetic tests and CI do not replace that state-backed review.
+
+The Config image-build YAML has empty `_REGION` and `_REPOSITORY` defaults; the existing managed
+trigger explicitly supplies both from the reviewed instance. A manual build-only run must supply
+both. `_DEPLOY_SERVICE` still defaults to `false` in YAML while the existing reviewed trigger keeps
+its deployment switch. Subsequent application releases use the same Config image trigger.
+
+Offline checks use the pinned toolchain and synthetic provider data only:
+
+```sh
+terraform -chdir=infra/gcp/terraform/envs/prod/config init -backend=false -lockfile=readonly
+terraform -chdir=infra/gcp/terraform/envs/prod/config test
+```
+
+The tests cover two projects/regions/repositories/runtime accounts, the existing UID/access/cap
+guards and malformed/mixed-instance inputs. Existing Config service tests exercise private owner
+storage, authentication failures, bounded bodies, conflict handling and emulator refusal. They do
+not connect to accounts, production state or cloud services. Full repository checks and review of
+a complete unchanged production plan remain required after integration with the shared foundation.
