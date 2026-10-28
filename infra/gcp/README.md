@@ -145,6 +145,61 @@ References: [Cloud Run deployment permissions](https://cloud.google.com/run/docs
 [Cloud Run service etag and revision settings](https://cloud.google.com/run/docs/reference/rest/v2/projects.locations.services),
 [Cloud Build substitutions](https://cloud.google.com/build/docs/configuring-builds/substitute-variable-values).
 
+## Firestore runtime permissions
+
+Use the [firestore-access module](terraform/modules/firestore-access/README.md) as the policy source
+for each runtime that needs document/transaction access. The data role is `roles/datastore.user`
+with **both** exact-database predicates below. Replace placeholders with the selected deployment's
+project and database; do not use a wildcard or omit the condition:
+
+```text
+resource.type == 'firestore.googleapis.com/Database' &&
+resource.name == 'projects/<project-id>/databases/<database-id>'
+```
+
+`(default)` and a named database such as `portfolio` are different resources. The module derives
+`database-default` or `database-named-<id>` as its condition title. In adopted Terraform-managed
+services, preserve the existing IAM resource address as the sole grant owner and reference the
+module's condition output; do not create a duplicate grant through a second module instance.
+
+| Target    | Current database boundary  | Permission guidance                                                                                              |
+| --------- | -------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| Market    | `(default)` cache          | Runtime data access is conditional on this database only.                                                        |
+| User      | `(default)` lists          | Same exact database condition; independently verify users and owners in the API.                                 |
+| Config    | `(default)` preferences    | Same exact database condition; no private holdings/task storage.                                                 |
+| Portfolio | Named `portfolio` database | Its own runtime grant; legacy runtimes must not receive access. Production API enablement remains separate work. |
+| Agent Hub | Not yet provisioned        | Do not grant access or create a database from this guide; use its separately authorized target plan.             |
+
+The current Market/User/Config database remains shared. A database condition does **not** isolate
+its collections: a compromised runtime with this data role can access other collections in that
+same database. Application owner checks remain necessary. Separating the public Market cache into a
+new database is a separately reviewed infrastructure/data migration, not part of this documentation
+change or a reason to create test resources.
+
+Browser/mobile Rules and server IAM are separate controls. Keep browser document access denied for
+these server-owned stores; the Web runtime also receives no data role. Server SDKs authenticate with
+attached identity/ADC and [bypass browser Security Rules](https://firebase.google.com/docs/firestore/security/rules-conditions).
+No downloaded service-account key is needed. User/Config's separate Firebase user-lookup permission
+supports revoked/disabled-token checks; it is not a database grant or content-decryption permission.
+
+Adding a conditional membership does not cancel an older unconditional membership or inherited
+project/folder/organization access. Review all effective additive grants and remove an obsolete broad
+grant through its owning target's infrastructure PR and reviewed full saved plan. Do not apply a
+manual role change over Terraform-managed IAM, grant an admin/list role merely to make the Console
+usable, or treat a newly added condition alone as proof of isolation.
+
+Verify the effective runtime identity with SDK/REST requests: permitted CRUD/transactions in the
+selected database and `PERMISSION_DENIED` in another **existing** database. A missing database's
+404 is not permission-denial evidence; if the comparison database does not exist, retain that check
+as pending until its separately authorized creation. The
+[database access documentation](https://firebase.google.com/docs/firestore/manage-databases#configure_per-database_access_permissions)
+notes that the Console does not enforce these per-database IAM conditions, so Console visibility is
+not this acceptance test. Mock plans check policy shape, not effective live permission.
+
+The Console rollout below preserves the earlier service migration sequence. For an already adopted
+environment, use its current single-target Terraform owner and saved-plan process rather than
+repeating creation or manual IAM steps. No cloud mutation is authorized merely by reading this guide.
+
 ## Market, User, and Config service migration
 
 The three deployable APIs have separate entry points, dependency sets, Dockerfiles,
@@ -183,14 +238,17 @@ research worker, scheduled job, model call, or additional database.
    `services/common/**`, `.dockerignore`, their matching build YAML, and
    `infra/gcp/deploy_existing_service.py`. Add `services/common/**` to the existing
    Market trigger as well.
-4. Create the two runtime service accounts in IAM. Grant each
+4. Select the two runtime service accounts. User and Config need
    **Firebase Authentication Viewer** (`roles/firebaseauth.viewer`) for revoked
-   and disabled user verification and **Cloud Datastore User**
-   (`roles/datastore.user`) on the existing project's Firestore data. Do not
-   download keys. Keep the existing database, `user_watchlists` / `user_preferences`
-   collections, UID-derived document keys and stored preference versions. No data
-   copying, clearing, or collection recreation is needed. Shared database IAM is
-   not collection-level isolation; application ownership checks remain required.
+   and disabled user verification, plus **Cloud Datastore User** (`roles/datastore.user`)
+   conditioned on the exact selected Firestore database resource type and name, as defined in
+   [Firestore runtime permissions](#firestore-runtime-permissions). Never choose an unconditional
+   project-wide data grant. For adopted services, change permissions only through their existing
+   Terraform owner and reviewed single-target plan; inspect inherited/broad grants as well.
+   Do not download keys. Keep the database, `user_watchlists` / `user_preferences` collections,
+   UID-derived document keys and stored preference versions. No data copying, clearing or
+   collection recreation is needed. Shared database IAM is not collection-level isolation;
+   application ownership checks remain required.
 5. Create `user-api` and `config-api` from their just-built images in Cloud Run.
    Select Toronto and their respective runtime identity, port `8080`, request-based
    billing, minimum instances `0`, service-level maximum instances `1`, and a small

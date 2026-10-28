@@ -112,9 +112,16 @@ Cloud Run uses Firestore for shared cached data, refresh leases and an atomic da
 This preserves cache contents and limits across cold starts and multiple instances. Create a
 **Standard edition, Native mode** Firestore database named `(default)` in the API's region. Keep
 browser Security Rules in production mode (deny all reads and writes); only the API server accesses
-the database using its attached identity. Grant the API runtime **Cloud Datastore User**
-(`roles/datastore.user`). The browser and web runtime need no Firestore access. No service-account
-key is required. Cloud Run refuses to fetch upstream data if its shared cache is unavailable.
+the database using its attached identity. Grant **Cloud Datastore User** (`roles/datastore.user`)
+only with the exact database condition from the
+[Firestore access module](infra/gcp/terraform/modules/firestore-access/README.md), never as an
+unconditional project-wide grant. The condition must match both the Firestore Database resource type
+and `projects/<project-id>/databases/<database-id>`; use `(default)` only when that is the selected
+database. The browser and web runtime need no Firestore access or service-account key. Server SDKs
+use IAM rather than browser Security Rules, so deny-all Rules alone do not restrict a runtime.
+See the [runtime IAM guide](infra/gcp/README.md#firestore-runtime-permissions) for inherited grants,
+shared-database limits and the reviewed migration boundary. Cloud Run refuses to fetch upstream data
+if its shared cache is unavailable.
 
 The API does not automatically load `.env` files. Set its environment directly, or use Uvicorn's
 `--env-file .env` option locally. Relevant settings are:
