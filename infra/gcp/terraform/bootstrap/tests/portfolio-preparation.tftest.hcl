@@ -274,6 +274,16 @@ override_resource {
   }
 }
 
+# Existing Portfolio trigger identity is provider-mocked, never a live ID.
+override_resource {
+  target          = module.portfolio_image_release[0].google_cloudbuild_trigger.this
+  override_during = plan
+  values = {
+    id         = "projects/financial-analysis-512202/locations/northamerica-northeast2/triggers/bfe780e3-430e-5eba-9915-7932a8fb77fd"
+    trigger_id = "bfe780e3-430e-5eba-9915-7932a8fb77fd"
+  }
+}
+
 run "portfolio_default_none_adds_no_resources" {
   command = plan
 
@@ -283,6 +293,7 @@ run "portfolio_default_none_adds_no_resources" {
       !contains(keys(module.target_execution), "portfolio") &&
       length(module.portfolio_build_identity) == 0 &&
       length(module.portfolio_image_release) == 0 &&
+      local.portfolio_deployment == null &&
       length(module.portfolio_database_scope) == 0 &&
       length(google_firebaserules_ruleset.portfolio) == 0 &&
       length(google_firebaserules_release.portfolio) == 0 &&
@@ -307,6 +318,8 @@ run "portfolio_execution_stage_has_no_missing_service_or_runtime_dependencies" {
       length(module.portfolio_build_identity) == 1 &&
       length(module.portfolio_image_release) == 1 &&
       module.portfolio_image_release[0].name == "build-portfolio-api" &&
+      module.portfolio_image_release[0].trigger_id == local.portfolio_deployment.adoption.buildTriggerId &&
+      google_artifact_registry_repository_iam_member.portfolio_build_images[0].repository == local.portfolio_deployment.artifactRepository &&
       length(module.portfolio_database_scope) == 0 &&
       length(google_cloud_run_v2_service_iam_member.portfolio_execution) == 0 &&
       length(google_service_account_iam_member.portfolio_runtime_deployer) == 0 &&
@@ -354,4 +367,18 @@ run "portfolio_reject_unknown_admin_stage" {
     portfolio_provisioning_stage = "all"
   }
   expect_failures = [var.portfolio_provisioning_stage]
+}
+
+run "portfolio_reject_replaced_build_trigger_identity" {
+  command = plan
+  variables { portfolio_provisioning_stage = "service" }
+  override_resource {
+    target          = module.portfolio_image_release[0].google_cloudbuild_trigger.this
+    override_during = plan
+    values = {
+      id         = "projects/financial-analysis-512202/locations/northamerica-northeast2/triggers/ffffffff-ffff-4fff-8fff-ffffffffffff"
+      trigger_id = "ffffffff-ffff-4fff-8fff-ffffffffffff"
+    }
+  }
+  expect_failures = [output.portfolio_preparation]
 }

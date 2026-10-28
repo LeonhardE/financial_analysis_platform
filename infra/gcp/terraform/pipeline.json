@@ -41,13 +41,8 @@
     "portfolio": {
       "enabled": false,
       "directory": "infra/gcp/terraform/envs/prod/portfolio",
-      "state_bucket": "financial-analysis-512202-tfstate-portfolio",
-      "state_prefix": "prod/portfolio",
-      "plan_trigger": "terraform-plan-portfolio",
-      "apply_trigger": "terraform-apply-portfolio",
-      "plan_service_account": "fa-infra-portfolio-plan@financial-analysis-512202.iam.gserviceaccount.com",
-      "apply_service_account": "fa-infra-portfolio-apply@financial-analysis-512202.iam.gserviceaccount.com",
-      "configuration_controllers": ["module.portfolio.terraform_data.configuration"]
+      "configuration_controllers": ["module.portfolio.terraform_data.configuration"],
+      "deployment_source": "trigger-v1"
     },
     "agent-hub": {
       "enabled": false,

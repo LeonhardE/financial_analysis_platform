@@ -1,12 +1,12 @@
 locals {
-  project_id  = "financial-analysis-512202"
-  region      = "northamerica-northeast2"
+  project_id  = var.deployment.project_id
+  region      = var.deployment.region
   database_id = "portfolio"
   environment = {
     FIREBASE_PROJECT_ID     = local.project_id
     FIRESTORE_DATABASE      = local.database_id
     PORTFOLIO_STORE_BACKEND = "firestore"
-    CORS_ORIGINS            = "https://market-web-630815932903.northamerica-northeast2.run.app"
+    CORS_ORIGINS            = var.deployment.web_origin
   }
 }
 
@@ -21,7 +21,7 @@ module "runtime_identity" {
   source = "../../../modules/service-identity"
 
   project_id   = local.project_id
-  account_id   = "fa-portfolio-runtime"
+  account_id   = var.deployment.runtime_account_id
   display_name = "FolioView Portfolio runtime"
   description  = "Keyless runtime for encrypted holdings and permitted metadata only."
 
@@ -36,8 +36,8 @@ module "database" {
   database_id = local.database_id
   location_id = local.region
 
-  # The skeleton has no storage/query contract yet. POR-002 introduces only the
-  # needed metadata indexes/TTL/exemptions before any real content is admitted.
+  # Preserve the already-created named database and its existing storage shape.
+  # Schema/index/TTL changes remain a separate Portfolio change.
   ttl_fields        = {}
   composite_indexes = {}
 }
@@ -49,7 +49,7 @@ module "portfolio" {
   region                  = local.region
   name                    = "portfolio-api"
   runtime_service_account = module.runtime_identity.email
-  image                   = var.bootstrap_image
+  image                   = var.deployment.creation_image
 
   port              = 8080
   memory            = "256Mi"
@@ -63,8 +63,33 @@ module "portfolio" {
   environment        = local.environment
   secret_environment = {}
 
-  # A skeleton is not an authenticated private API. Keep Cloud Run IAM closed;
-  # browser invocation/application authentication requires its own later change.
+  # Preserve the existing private Cloud Run IAM boundary. Public browser
+  # invocation/application authentication requires a separate reviewed change.
   allow_unauthenticated    = false
   invoker_service_accounts = {}
+}
+
+# This target has already been created. A missing or replaced service must fail
+# a read-only plan rather than let this configuration recreate it.
+data "google_cloud_run_v2_service" "portfolio_boundary" {
+  project  = local.project_id
+  location = local.region
+  name     = "portfolio-api"
+
+  lifecycle {
+    postcondition {
+      condition     = self.uid == var.deployment.existing_service_uid
+      error_message = "Portfolio adoption requires the inventoried service UID; never recreate portfolio-api."
+    }
+
+    postcondition {
+      condition     = !self.invoker_iam_disabled
+      error_message = "Portfolio must retain its existing private invoker IAM checks."
+    }
+
+    postcondition {
+      condition     = try(self.scaling[0].max_instance_count, 0) == 12
+      error_message = "Portfolio's existing service-wide maximum is 12; the independently owned revision maximum remains 1."
+    }
+  }
 }
