@@ -12,24 +12,23 @@ locals {
   # A check block would only warn and could provision an unusable target.
   execution_registry_valid = try(
     local.execution_registry.schema_version == 2 &&
-    local.execution_registry.project_id == var.project_id &&
-    local.execution_registry.region == var.region &&
-    local.execution_registry.state_bucket == "${var.project_id}-tfstate" &&
-    local.execution_registry.plan_bucket == "${var.project_id}-tfplans" &&
+    toset(keys(local.execution_registry)) == toset(["schema_version", "terraform_version", "max_plan_age_seconds", "targets"]) &&
+    local.execution_registry.terraform_version == jsondecode(file("${path.module}/../toolchain.json")).terraform_version &&
+    local.execution_registry.max_plan_age_seconds == 21600 &&
     local.execution_registry.targets.repo.enabled &&
     alltrue([for name, target in local.execution_registry.targets : (
       can(regex("^[a-z]([a-z0-9-]{0,13}[a-z0-9])?$", name)) &&
       !contains(["bootstrap", "shared"], name) &&
       contains([true, false], target.enabled) &&
       target.directory == "infra/gcp/terraform/envs/prod/${name}" &&
-      contains(["committed-v2", "trigger-v1"], try(target.deployment_source, "committed-v2")) &&
-      (try(target.deployment_source, "committed-v2") == "trigger-v1" ? try(
-        length(setsubtract(toset(keys(target)), toset([
-          "directory", "enabled", "configuration_controllers", "deployment_source", "state_prefix", "plan_trigger", "apply_trigger",
-        ]))) == 0 &&
-        try(target.state_prefix, "prod/${name}") == "prod/${name}" &&
-        try(target.plan_trigger, "terraform-plan-${name}") == "terraform-plan-${name}" &&
-        try(target.apply_trigger, "terraform-apply-${name}") == "terraform-apply-${name}" &&
+      contains(["trigger-v1", "inactive-v1"], try(target.deployment_source, "")) &&
+      length(setsubtract(toset(keys(target)), toset([
+        "directory", "enabled", "configuration_controllers", "deployment_source", "state_prefix", "plan_trigger", "apply_trigger",
+      ]))) == 0 &&
+      try(target.state_prefix, "prod/${name}") == "prod/${name}" &&
+      try(target.plan_trigger, "terraform-plan-${name}") == "terraform-plan-${name}" &&
+      try(target.apply_trigger, "terraform-apply-${name}") == "terraform-apply-${name}" &&
+      (try(target.deployment_source, "") == "trigger-v1" ? try(
         length(var.deployment_configs[name]) <= 4000 &&
         can(regex("^[\\x20-\\x7e]+$", var.deployment_configs[name])) &&
         !strcontains(var.deployment_configs[name], "$") &&
@@ -42,15 +41,7 @@ locals {
         jsondecode(var.deployment_configs[name]).inputs.project_id == var.project_id &&
         (name != "repo" || toset(keys(jsondecode(var.deployment_configs[name]).inputs)) == toset(["project_id"])),
         false,
-        ) : try(
-        target.state_prefix == "prod/${name}" &&
-        target.state_bucket == (name == "repo" ? "${var.project_id}-tfstate" : "${var.project_id}-tfstate-${name}") &&
-        target.plan_trigger == "terraform-plan-${name}" &&
-        target.apply_trigger == "terraform-apply-${name}" &&
-        target.plan_service_account == (name == "repo" ? "fa-infra-plan@${var.project_id}.iam.gserviceaccount.com" : "fa-infra-${name}-plan@${var.project_id}.iam.gserviceaccount.com") &&
-        target.apply_service_account == (name == "repo" ? "fa-infra-apply@${var.project_id}.iam.gserviceaccount.com" : "fa-infra-${name}-apply@${var.project_id}.iam.gserviceaccount.com"),
-        false,
-      )) &&
+      ) : (!target.enabled && name == "agent-hub")) &&
       length(target.configuration_controllers) <= 1 &&
       (name != "repo" || length(target.configuration_controllers) == 0) &&
       alltrue([for address in target.configuration_controllers : can(regex("^module\\.[a-z_][a-z0-9_]*\\.terraform_data\\.configuration$", address))]) &&
@@ -77,7 +68,9 @@ module "target_execution" {
   plan_bucket         = google_storage_bucket.plans.name
   build_metadata_role = google_project_iam_custom_role.build_metadata.name
   lock_delete_role    = google_project_iam_custom_role.state_lock_delete.name
-  deployment_config = try(each.value.deployment_source, "committed-v2") == "trigger-v1" ? try(
+  # Inactive Hub preparation retains its existing admin-only staged behavior;
+  # it cannot enter ordinary target execution without an explicit migration.
+  deployment_config = each.value.deployment_source == "trigger-v1" ? try(
     var.deployment_configs[each.key], null,
   ) : null
 }

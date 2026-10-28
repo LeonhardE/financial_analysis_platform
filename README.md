@@ -249,10 +249,12 @@ results, including documentation-only PRs. See the
 
 ## Cloud Run deployment and migration
 
-The [Terraform repository foundation](infra/gcp/terraform/README.md) defines private remote state and
-separate plan/apply identities and execution. It requires one-time administrator bootstrap and does
-not yet manage existing services. Shared modules and each service/client's adoption follow through
-separate infrastructure PRs.
+The [Terraform target workflow](infra/gcp/terraform/README.md) defines private remote state and
+separate plan/apply identities. Existing repo, Market, User, Config, Web and Portfolio roots consume
+explicit operator deployment profiles through their managed triggers; the source catalog contains
+static registration rather than a deployer's project or cloud identity. Portfolio normal execution
+and uncreated Agent Hub remain disabled. Administrative bootstrap and each target's resource
+ownership stay separate from ordinary image publication.
 
 **This refactor removes private routes from the new Market image. Follow the staged migration in
 [the Console deployment guide](infra/gcp/README.md#market-user-and-config-service-migration) before enabling

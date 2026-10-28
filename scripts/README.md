@@ -22,10 +22,12 @@ configuration in that backend's single-target PR. Add one closed registry row:
 ```
 
 This is an illustrative registration, not a target delivered by this foundation.
-Current registrations are the three existing backends and Web. `common` remains
+Current registrations include Market, User, Config, Portfolio, Agent Hub and Web. `common` remains
 an independent shared test suite, not a deployable service. The infrastructure
 execution registry in `infra/gcp/terraform/pipeline.json` is separate: source
-registration does not register or enable Terraform targets.
+registration does not register or enable Terraform targets. That catalog contains static
+protocol metadata; managed target triggers supply the explicitly selected deployment instance.
+Its disabled `inactive-v1` Hub entry cannot enter normal infrastructure execution.
 
 The registry is versioned/closed, bounds entries and paths, and requires unique
 IDs, directories, service names and Cloud Build files. Backend IDs match their
