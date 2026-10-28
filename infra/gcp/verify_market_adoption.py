@@ -230,6 +230,7 @@ def source_evidence():
             "configure_cloud_run_service.py",
             "deploy_existing_service.py",
             "terraform_pipeline.py",
+            "deployment_profile.py",
             "terraform_tools.py",
             "verify_market_adoption.py",
             "cloudbuild.terraform-plan.yaml",
