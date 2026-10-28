@@ -18,6 +18,7 @@ from uuid import UUID
 
 ROOT = Path(__file__).resolve().parents[2]
 MAX_PROFILE_BYTES = 131_072
+MAX_TARGET_BYTES = 4_000
 MAX_PLAN_AGE_SECONDS = 21_600
 TARGET_SERVICES = {
     "repo": None,
@@ -43,6 +44,36 @@ TOP_FIELDS = {
 }
 TARGET_FIELDS = {"enabled", "lifecycle", "origin", "image", "runtimeAccountId", "adoption"}
 ADOPTION_FIELDS = {"serviceUid", "buildTriggerId", "planTriggerId", "applyTriggerId"}
+TARGET_TOP_FIELDS = {
+    "schemaVersion",
+    "instanceId",
+    "target",
+    "project",
+    "region",
+    "source",
+    "artifactRepository",
+    "adoption",
+    "inputs",
+}
+DEPLOYMENT_FIELDS = {
+    "project_id",
+    "region",
+    "artifact_repository",
+    "runtime_account_id",
+    "creation_image",
+    "existing_service_uid",
+}
+WEB_BUILD_FIELDS = {
+    "_REGION",
+    "_REPOSITORY",
+    "_API_BASE_URL",
+    "_USER_API_BASE_URL",
+    "_CONFIG_API_BASE_URL",
+    "_FIREBASE_API_KEY",
+    "_FIREBASE_AUTH_DOMAIN",
+    "_FIREBASE_PROJECT_ID",
+    "_FIREBASE_APP_ID",
+}
 SLUG = re.compile(r"[a-z][a-z0-9-]{1,62}\Z")
 PROJECT = re.compile(r"[a-z][a-z0-9-]{4,28}[a-z0-9]\Z")
 REGION = re.compile(r"[a-z]+(?:-[a-z0-9]+)+[0-9]\Z")
@@ -255,6 +286,223 @@ def validate_profile(value):
         raise ProfileError from None
 
 
+def input_fields(target):
+    if target == "repo":
+        return {"project_id"}
+    result = set(DEPLOYMENT_FIELDS)
+    if target in {"market", "config", "portfolio", "user"}:
+        result.add("web_origin")
+    if target == "user":
+        result.add("market_origin")
+    return result
+
+
+def validate_instance_origin(address, service, number, region):
+    origin(address)
+    if re.search(r"-[0-9]+\.[a-z0-9-]+\.run\.app\Z", address):
+        require(address == f"https://{service}-{number}.{region}.run.app")
+
+
+def validate_target(value):
+    """Closed per-target transport, not approval or independent inventory."""
+    try:
+        require(type(value) is dict)
+        target = value.get("target")
+        require(type(target) is str and target in TARGET_SERVICES)
+        fields(value, TARGET_TOP_FIELDS | ({"build"} if target == "web" else set()))
+        require(type(value["schemaVersion"]) is int and value["schemaVersion"] == 1)
+        matches(SLUG, value["instanceId"])
+        fields(value["project"], {"id", "number"})
+        project, number = value["project"]["id"], value["project"]["number"]
+        matches(PROJECT, project)
+        matches(re.compile(r"[1-9][0-9]{5,19}\Z"), number)
+        region = value["region"]
+        matches(REGION, region)
+        matches(SLUG, value["artifactRepository"])
+        fields(value["source"], {"repositoryUrl", "repositoryResource"})
+        source = value["source"]
+        matches(
+            re.compile(
+                r"https://[a-z0-9.-]+/[A-Za-z0-9][A-Za-z0-9_.-]{0,99}/[A-Za-z0-9][A-Za-z0-9_.-]{0,99}\.git\Z"
+            ),
+            source["repositoryUrl"],
+        )
+        hostname(urlsplit(source["repositoryUrl"]).hostname)
+        matches(
+            re.compile(
+                rf"projects/(?:{re.escape(project)}|{number})/locations/{region}/"
+                r"connections/[A-Za-z0-9][A-Za-z0-9._-]{0,127}/repositories/[A-Za-z0-9][A-Za-z0-9._-]{0,127}\Z"
+            ),
+            source["repositoryResource"],
+        )
+        anchors = value["adoption"]
+        fields(anchors, ADOPTION_FIELDS)
+        seen = set()
+        for name, identifier in anchors.items():
+            if target == "repo" and name in {"serviceUid", "buildTriggerId"}:
+                require(identifier is None)
+                continue
+            uuid(identifier)
+            require(identifier not in seen)
+            seen.add(identifier)
+        inputs = value["inputs"]
+        fields(inputs, input_fields(target))
+        require(inputs["project_id"] == project)
+        if target != "repo":
+            require(inputs["region"] == region)
+            require(inputs["artifact_repository"] == value["artifactRepository"])
+            matches(ACCOUNT, inputs["runtime_account_id"])
+            require(inputs["existing_service_uid"] == anchors["serviceUid"])
+            matches(
+                re.compile(
+                    rf"{region}-docker\.pkg\.dev/{project}/{value['artifactRepository']}/"
+                    rf"{TARGET_SERVICES[target]}@sha256:[a-f0-9]{{64}}\Z"
+                ),
+                inputs["creation_image"],
+            )
+        for name, service in (("web_origin", "market-web"), ("market_origin", "market-api")):
+            if name in inputs:
+                validate_instance_origin(inputs[name], service, number, region)
+        if "market_origin" in inputs:
+            require(inputs["market_origin"] != inputs["web_origin"])
+        if target == "web":
+            build = value["build"]
+            fields(build, WEB_BUILD_FIELDS)
+            require(build["_REGION"] == region)
+            require(build["_REPOSITORY"] == value["artifactRepository"])
+            origins = []
+            for name, service in (
+                ("_API_BASE_URL", "market-api"),
+                ("_USER_API_BASE_URL", "user-api"),
+                ("_CONFIG_API_BASE_URL", "config-api"),
+            ):
+                require(type(build[name]) is str)
+                if build[name]:
+                    validate_instance_origin(build[name], service, number, region)
+                    origins.append(build[name])
+            require(len(set(origins)) == len(origins))
+            if build["_FIREBASE_PROJECT_ID"] == "":
+                require(
+                    all(
+                        build[name] == ""
+                        for name in (
+                            "_FIREBASE_API_KEY",
+                            "_FIREBASE_AUTH_DOMAIN",
+                            "_FIREBASE_APP_ID",
+                        )
+                    )
+                )
+            else:
+                require(build["_FIREBASE_PROJECT_ID"] == project)
+                matches(re.compile(r"AIza[A-Za-z0-9_-]{35}\Z"), build["_FIREBASE_API_KEY"])
+                hostname(build["_FIREBASE_AUTH_DOMAIN"])
+                if build["_FIREBASE_AUTH_DOMAIN"].endswith(".firebaseapp.com"):
+                    require(build["_FIREBASE_AUTH_DOMAIN"] == project + ".firebaseapp.com")
+                matches(
+                    re.compile(rf"1:{number}:web:[a-f0-9]{{16,64}}\Z"), build["_FIREBASE_APP_ID"]
+                )
+        require(len(canonical(value)) <= MAX_TARGET_BYTES)
+    except (KeyError, TypeError, ValueError, AttributeError, RecursionError):
+        raise ProfileError from None
+    return value
+
+
+def parse_target(data):
+    """Require exactly canonical bytes as stored in a managed substitution."""
+    require(type(data) is bytes and 0 < len(data) <= MAX_TARGET_BYTES)
+    try:
+        value = json.loads(
+            data.decode("utf-8"), object_pairs_hook=unique_pairs, parse_constant=reject_constant
+        )
+        validate_target(value)
+        require(canonical(value) == data)
+        return value
+    except (UnicodeError, ValueError, TypeError, RecursionError):
+        raise ProfileError from None
+
+
+def terraform_inputs(instance):
+    """The only variable file body; no arbitrary Terraform variables."""
+    value = parse_target(canonical(instance))
+    return {"deployment": dict(value["inputs"])}
+
+
+def compile_target(profile, target):
+    """Project operator input without coupling unrelated target settings."""
+    profile = validate_profile(profile)
+    require(type(target) is str and target in TARGET_SERVICES)
+    selected = profile["targets"][target]
+    require(selected["lifecycle"] == "adopt")
+    project = profile["project"]["id"]
+    inputs = {"project_id": project}
+    if target != "repo":
+        inputs.update(
+            region=profile["region"],
+            artifact_repository=profile["artifactRepository"],
+            runtime_account_id=selected["runtimeAccountId"],
+            creation_image=selected["image"],
+            existing_service_uid=selected["adoption"]["serviceUid"],
+        )
+    if "web_origin" in input_fields(target):
+        inputs["web_origin"] = profile["targets"]["web"]["origin"]
+    if target == "user":
+        inputs["market_origin"] = profile["targets"]["market"]["origin"]
+    result = {
+        "schemaVersion": 1,
+        "instanceId": profile["profileId"],
+        "target": target,
+        "project": dict(profile["project"]),
+        "region": profile["region"],
+        "source": dict(profile["source"]),
+        "artifactRepository": profile["artifactRepository"],
+        "adoption": dict(selected["adoption"]),
+        "inputs": inputs,
+    }
+    if target == "web":
+        firebase = profile["firebase"]
+        result["build"] = {
+            "_REGION": profile["region"],
+            "_REPOSITORY": profile["artifactRepository"],
+            "_API_BASE_URL": profile["targets"]["market"]["origin"] or "",
+            "_USER_API_BASE_URL": profile["targets"]["user"]["origin"] or "",
+            "_CONFIG_API_BASE_URL": profile["targets"]["config"]["origin"] or "",
+            "_FIREBASE_API_KEY": firebase["apiKey"],
+            "_FIREBASE_AUTH_DOMAIN": firebase["authDomain"],
+            "_FIREBASE_PROJECT_ID": project if firebase["enabled"] else "",
+            "_FIREBASE_APP_ID": firebase["appId"],
+        }
+    return parse_target(canonical(result))
+
+
+def compile_artifacts(profile, target):
+    instance = compile_target(profile, target)
+    artifacts = {
+        "deployment-config.candidate.json": instance,
+        "terraform-inputs.candidate.json": terraform_inputs(instance),
+        "trigger-substitutions.candidate.json": {
+            "_DEPLOYMENT_CONFIG": canonical(instance).decode("ascii"),
+            "_DEPLOYMENT_SHA256": digest(instance),
+        },
+    }
+    return {
+        **artifacts,
+        "manifest.json": {
+            "schemaVersion": 1,
+            "purpose": "offline_target_candidate",
+            "approval": "not_requested",
+            "productionActivation": False,
+            "instanceId": instance["instanceId"],
+            "target": target,
+            "deploymentSha256": digest(instance),
+            "terraformInputsSha256": digest(terraform_inputs(instance)),
+            "filesSha256": {
+                name: hashlib.sha256(canonical(value) + b"\n").hexdigest()
+                for name, value in artifacts.items()
+            },
+        },
+    }
+
+
 def render(profile, *, root=ROOT):
     profile = validate_profile(profile)
     project, number = profile["project"]["id"], profile["project"]["number"]
@@ -306,6 +554,11 @@ def render(profile, *, root=ROOT):
             "repository_id": profile["source"]["repositoryResource"],
             "portfolio_provisioning_stage": profile["bootstrapStages"]["portfolio"],
             "agent_hub_provisioning_stage": profile["bootstrapStages"]["agent-hub"],
+            "deployment_configs": {
+                name: canonical(compile_target(profile, name)).decode("ascii")
+                for name, target in profile["targets"].items()
+                if target["lifecycle"] == "adopt"
+            },
         },
         "backends.candidate.json": {
             "bootstrap": {"bucket": profile["state"]["bootstrapBucket"], "prefix": "bootstrap"},
@@ -377,15 +630,19 @@ def write_candidates(artifacts, destination):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("action", choices=("validate", "render"))
+    parser.add_argument("action", choices=("validate", "render", "compile"))
     parser.add_argument("--profile", required=True)
     parser.add_argument("--output-dir")
+    parser.add_argument("--target")
     args = parser.parse_args()
     try:
-        require((args.action == "render") == (args.output_dir is not None))
+        require((args.action in {"render", "compile"}) == (args.output_dir is not None))
+        require((args.action == "compile") == (args.target is not None))
         profile = load_profile(args.profile)
-        artifacts = render(profile)
-        if args.action == "render":
+        artifacts = (
+            compile_artifacts(profile, args.target) if args.action == "compile" else render(profile)
+        )
+        if args.action in {"render", "compile"}:
             write_candidates(artifacts, args.output_dir)
         # Hashes identify selected input; they are not source-provenance or approval proof.
         print(json.dumps(artifacts["manifest.json"], sort_keys=True))

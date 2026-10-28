@@ -32,3 +32,9 @@ variable "repository_id" {
     error_message = "Use the existing project's Toronto Cloud Build v2 repository resource name."
   }
 }
+
+variable "deployment_configs" {
+  description = "Optional canonical target-instance-v1 JSON for explicitly migrated targets. Empty leaves existing consumers unchanged; no secrets or arbitrary environment maps."
+  type        = map(string)
+  default     = {}
+}

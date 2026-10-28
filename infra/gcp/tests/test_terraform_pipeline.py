@@ -164,6 +164,7 @@ class PipelineTests(unittest.TestCase):
         self.directory.mkdir(parents=True)
         self.write(pipeline.POLICY, json.dumps(POLICY))
         self.write("infra/gcp/terraform_pipeline.py", "# trusted runner\n")
+        self.write("infra/gcp/deployment_profile.py", "# bounded instance contract\n")
         self.write("infra/gcp/terraform_tools.py", "# verified toolchain\n")
         self.write("infra/gcp/configure_cloud_run_service.py", "# guarded config writer\n")
         self.write("infra/gcp/deploy_existing_service.py", "# guarded release writer\n")

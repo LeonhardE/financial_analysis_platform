@@ -1,8 +1,9 @@
 """Plan privately, then apply the exact reviewed plan from an approved Cloud Build.
 
-The committed registry is the only source of targets and backend locations. This
-runner never provisions its own bootstrap, accepts ad-hoc Terraform arguments,
-prints plan values, or runs a fresh plan during apply.
+The committed catalog selects target/source contracts. Explicitly migrated
+targets bind instance inputs to actual managed-trigger metadata; legacy targets
+keep committed instance policy. This runner never provisions its own bootstrap,
+accepts ad-hoc Terraform arguments, prints plan values, or replans during apply.
 """
 
 import argparse
@@ -11,6 +12,7 @@ import json
 import os
 import re
 import subprocess
+import sys
 import tempfile
 from datetime import UTC, datetime
 from pathlib import Path
@@ -20,6 +22,9 @@ from urllib.request import Request, urlopen
 from uuid import UUID
 
 ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import deployment_profile as deployments  # noqa: E402
+
 POLICY = "infra/gcp/terraform/pipeline.json"
 CONFIG_FILES = {
     "plan": "infra/gcp/cloudbuild.terraform-plan.yaml",
@@ -135,12 +140,29 @@ class GoogleAPI:
         return {"generation": metadata["generation"], "sha256": hashlib.sha256(data).hexdigest()}
 
 
-def registry(root, target):
+def instance_target(instance):
+    name, project = instance["target"], instance["project"]["id"]
+    prefix = "fa-infra" if name == "repo" else "fa-infra-" + name
+    return {
+        "state_bucket": f"{project}-tfstate" + ("" if name == "repo" else "-" + name),
+        "state_prefix": "prod/" + name,
+        **{f"{phase}_trigger": f"terraform-{phase}-{name}" for phase in ("plan", "apply")},
+        **{
+            f"{phase}_service_account": f"{prefix}-{phase}@{project}.iam.gserviceaccount.com"
+            for phase in ("plan", "apply")
+        },
+    }
+
+
+def registry(root, target, instance=None):
     policy = json.loads((root / POLICY).read_text())
     require(isinstance(policy, dict), "Pipeline policy must be an object.")
     require(policy.get("schema_version") == 2, "Unsupported pipeline policy schema.")
     require(isinstance(policy.get("targets"), dict), "Pipeline targets must be an object.")
-    project = policy["project_id"]
+    project = policy.get("project_id")
+    if instance is not None:
+        instance = deployments.parse_target(deployments.canonical(instance))
+        require(instance["target"] == target, "Deployment instance belongs to another target.")
     seen = {
         field: set()
         for field in ("directory", "state_bucket", "state_prefix", "identity", "trigger")
@@ -153,13 +175,43 @@ def registry(root, target):
             "Invalid or reserved target identifier.",
         )
         require(type(entry.get("enabled")) is bool, "Target activation must be explicit.")
+        source = entry.get("deployment_source", "committed-v2")
+        require(source in {"committed-v2", "trigger-v1"}, "Unsupported deployment source.")
+        if source == "trigger-v1":
+            require(
+                set(entry)
+                <= {
+                    "enabled",
+                    "directory",
+                    "configuration_controllers",
+                    "deployment_source",
+                    "state_prefix",
+                    "plan_trigger",
+                    "apply_trigger",
+                },
+                "Static trigger-managed policy cannot contain deployment instance fields.",
+            )
         require(
             entry.get("directory") == f"infra/gcp/terraform/envs/prod/{name}",
             "Target directory must match its target.",
         )
-        require(entry.get("state_prefix") == f"prod/{name}", "State prefix must match its target.")
-        expected_bucket = policy["state_bucket"] if name == "repo" else f"{project}-tfstate-{name}"
-        require(entry.get("state_bucket") == expected_bucket, "State bucket must match its target.")
+        if source == "committed-v2":
+            require(isinstance(project, str) and project, "Legacy instance policy is required.")
+            expected = {
+                "state_prefix": f"prod/{name}",
+                "state_bucket": policy["state_bucket"]
+                if name == "repo"
+                else f"{project}-tfstate-{name}",
+            }
+        else:
+            expected = {"state_prefix": f"prod/{name}"}
+            if name == target and instance is not None:
+                expected.update(instance_target(instance))
+        for field, value in expected.items():
+            require(
+                (source == "trigger-v1" and field not in entry) or entry.get(field) == value,
+                "Target execution input does not match its deployment instance.",
+            )
         controllers = entry.get("configuration_controllers")
         require(
             isinstance(controllers, list)
@@ -179,25 +231,31 @@ def registry(root, target):
         )
         for phase in ("plan", "apply"):
             account = f"fa-infra-{phase}" if name == "repo" else f"fa-infra-{name}-{phase}"
+            if source == "committed-v2":
+                require(
+                    entry.get(f"{phase}_service_account")
+                    == f"{account}@{project}.iam.gserviceaccount.com",
+                    "Execution identity must match its target and phase.",
+                )
             require(
-                entry.get(f"{phase}_service_account")
-                == f"{account}@{project}.iam.gserviceaccount.com",
-                "Execution identity must match its target and phase.",
-            )
-            require(
-                entry.get(f"{phase}_trigger") == f"terraform-{phase}-{name}",
+                (source == "trigger-v1" and f"{phase}_trigger" not in entry)
+                or entry.get(f"{phase}_trigger") == f"terraform-{phase}-{name}",
                 "Execution trigger must match its target and phase.",
             )
             for field, value in (
-                ("identity", entry[f"{phase}_service_account"]),
-                ("trigger", entry[f"{phase}_trigger"]),
+                ("identity", entry.get(f"{phase}_service_account")),
+                ("trigger", entry.get(f"{phase}_trigger")),
             ):
+                if value is None and source == "trigger-v1":
+                    continue
                 require(
                     value not in seen[field],
                     "Execution targets must not share identities or triggers.",
                 )
                 seen[field].add(value)
         for field in ("directory", "state_bucket", "state_prefix"):
+            if field not in entry and source == "trigger-v1":
+                continue
             require(
                 entry[field] not in seen[field],
                 "Execution targets must have isolated state and roots.",
@@ -206,21 +264,44 @@ def registry(root, target):
     require(target in policy["targets"], "Target is not registered in the pipeline policy.")
     selected = policy["targets"][target]
     require(selected["enabled"], "Target is disabled; complete its reviewed adoption first.")
+    if instance is not None:
+        require(
+            selected.get("deployment_source") == "trigger-v1", "Target is not instance-managed."
+        )
+        project = instance["project"]["id"]
+        selected = {**selected, **instance_target(instance)}
+        policy = {
+            **policy,
+            "project_id": project,
+            "project_number": instance["project"]["number"],
+            "region": instance["region"],
+            "repository_url": instance["source"]["repositoryUrl"],
+            "repository_resource": instance["source"]["repositoryResource"],
+            "terraform_version": json.loads(
+                (root / "infra/gcp/terraform/toolchain.json").read_text()
+            )["terraform_version"],
+            "state_bucket": f"{project}-tfstate",
+            "plan_bucket": f"{project}-tfplans",
+            "max_plan_age_seconds": deployments.MAX_PLAN_AGE_SECONDS,
+            "deployment": instance,
+        }
     directory = (root / selected["directory"]).resolve()
     allowed = (root / "infra/gcp/terraform/envs/prod").resolve()
     require(directory.is_relative_to(allowed) and directory != allowed, "Invalid target directory.")
     require(directory == root / selected["directory"], "Target roots must not use symlinks.")
     require(directory.is_dir(), "The registered Terraform directory does not exist.")
-    require(
-        re.fullmatch(r"prod/[a-z][a-z0-9-]*", selected["state_prefix"]), "Invalid state prefix."
-    )
+    if "state_prefix" in selected:
+        require(
+            re.fullmatch(r"prod/[a-z][a-z0-9-]*", selected["state_prefix"]), "Invalid state prefix."
+        )
     return policy, selected, directory
 
 
-def configuration_hash(root, directory):
+def configuration_hash(root, directory, instance=None):
     files = {
         root / POLICY,
         root / "infra/gcp/terraform_pipeline.py",
+        root / "infra/gcp/deployment_profile.py",
         root / "infra/gcp/configure_cloud_run_service.py",
         root / "infra/gcp/deploy_existing_service.py",
         # The configuration writer imports release constants; the release module
@@ -256,7 +337,56 @@ def configuration_hash(root, directory):
         name = path.relative_to(root).as_posix().encode()
         data = path.read_bytes()
         digest.update(len(name).to_bytes(8) + name + len(data).to_bytes(8) + data)
+    if instance is not None:
+        for name, value in (
+            (b"deployment-instance-v1", instance),
+            (b"deployment-inputs-v1", deployments.terraform_inputs(instance)),
+        ):
+            data = deployments.canonical(value)
+            digest.update(len(name).to_bytes(8) + name + len(data).to_bytes(8) + data)
     return digest.hexdigest()
+
+
+def instance_manifest(instance):
+    if instance is None:
+        return {}
+    return {
+        "instance_id": instance["instanceId"],
+        "deployment_sha256": deployments.digest(instance),
+        "deployment_inputs_sha256": deployments.digest(deployments.terraform_inputs(instance)),
+    }
+
+
+def trigger_instance(api, identifier, target, project, region):
+    build = api.build(identifier)
+    trigger = api.trigger(build_id(build.get("buildTriggerId")))
+    source = trigger.get("substitutions", {})
+    body = source.get("_DEPLOYMENT_CONFIG")
+    require(type(body) is str, "Managed deployment configuration is required.")
+    instance = deployments.parse_target(body.encode("utf-8"))
+    require(
+        instance["target"] == target
+        and instance["project"]["id"] == project
+        and instance["region"] == region,
+        "Deployment configuration does not match the located build.",
+    )
+    verify_instance_metadata(build, trigger, instance)
+    return instance
+
+
+def verify_instance_metadata(build, trigger, instance):
+    expected = {
+        "_DEPLOYMENT_CONFIG": deployments.canonical(instance).decode("ascii"),
+        "_DEPLOYMENT_SHA256": deployments.digest(instance),
+    }
+    require(
+        all(
+            metadata.get("substitutions", {}).get(name) == value
+            for metadata in (build, trigger)
+            for name, value in expected.items()
+        ),
+        "Managed deployment configuration is missing, changed, or overridden.",
+    )
 
 
 def verify_build(
@@ -296,6 +426,15 @@ def verify_build(
 
     require(same_account(build.get("serviceAccount")), "Unexpected Cloud Build service account.")
     trigger = api.trigger(build.get("buildTriggerId", ""))
+    instance = policy.get("deployment")
+    if instance is not None:
+        expected_trigger = instance["adoption"][f"{mode}TriggerId"]
+        require(
+            build.get("buildTriggerId") == expected_trigger
+            and trigger.get("id") == expected_trigger,
+            "Execution trigger identity differs from the adopted instance.",
+        )
+        verify_instance_metadata(build, trigger, instance)
     filenames = [trigger.get("filename"), trigger.get("gitFileSource", {}).get("path")]
     require(
         trigger.get("name") == selected[f"{mode}_trigger"]
@@ -350,6 +489,11 @@ def verify_build(
             "The apply trigger must read its source and pipeline from the registered main branch.",
         )
     expected_repository = repository_identity(repository)
+    if instance is not None:
+        require(
+            expected_repository == repository_identity(policy["repository_resource"]),
+            "Execution source differs from the instance repository.",
+        )
     provenance = build.get("sourceProvenance", {})
     require(isinstance(provenance, dict), "Cloud Build returned invalid source provenance.")
     resolved_sources = {
@@ -475,6 +619,8 @@ def run(
     api=None,
     now=None,
     repair_controller=None,
+    project=None,
+    region=None,
 ):
     root = root.resolve()
     require(mode in ("plan", "apply"), "Unsupported pipeline operation.")
@@ -484,19 +630,42 @@ def run(
     if plan_build_id:
         build_id(plan_build_id)
     policy, selected, directory = registry(root, target)
+    external = selected.get("deployment_source") == "trigger-v1"
+    if external:
+        require(
+            type(project) is str
+            and deployments.PROJECT.fullmatch(project)
+            and type(region) is str
+            and deployments.REGION.fullmatch(region),
+            "Instance-managed execution requires explicit project and region locators.",
+        )
+        version = json.loads((root / "infra/gcp/terraform/toolchain.json").read_text())[
+            "terraform_version"
+        ]
+    else:
+        require(
+            project in (None, policy["project_id"]) and region in (None, policy["region"]),
+            "Execution locators differ from committed legacy policy.",
+        )
+        version = policy["terraform_version"]
     require(
         not repair_controller
         or (mode == "plan" and repair_controller in selected["configuration_controllers"]),
         "Repair is allowed only for a registered configuration controller during plan.",
     )
-    fingerprint = configuration_hash(root, directory)
-    version = policy["terraform_version"]
+    # Validate all checked-in source constraints before requesting credentials.
+    configuration_hash(root, directory)
     require(
         json.loads(command([terraform, "version", "-json"], directory))["terraform_version"]
         == version,
         "Installed Terraform version does not match policy.",
     )
-    api = api or GoogleAPI(policy)
+    api = api or GoogleAPI({"project_id": project, "region": region} if external else policy)
+    instance = None
+    if external:
+        instance = trigger_instance(api, identifier, target, project, region)
+        policy, selected, directory = registry(root, target, instance)
+    fingerprint = configuration_hash(root, directory, instance)
     verify_build(
         api,
         policy,
@@ -539,6 +708,10 @@ def run(
             "The reviewed plan does not match this source, toolchain, target, or current state.",
         )
         require(
+            all(manifest.get(name) == value for name, value in instance_manifest(instance).items()),
+            "The reviewed plan belongs to a different deployment configuration.",
+        )
+        require(
             manifest.get("state_bucket") == state_bucket
             and manifest.get("state_prefix") == selected["state_prefix"]
             and manifest.get("repair_controller", "")
@@ -570,6 +743,13 @@ def run(
     with tempfile.TemporaryDirectory(prefix="folioview-terraform-") as temporary:
         binary = Path(temporary) / "terraform.tfplan"
         if mode == "plan":
+            variables = []
+            if instance is not None:
+                inputs_file = Path(temporary) / "deployment.tfvars.json"
+                with inputs_file.open("xb") as output:
+                    os.chmod(output.name, 0o600)
+                    output.write(deployments.canonical(deployments.terraform_inputs(instance)))
+                variables = [f"-var-file={inputs_file}"]
             command(
                 [
                     terraform,
@@ -578,6 +758,7 @@ def run(
                     "-lock-timeout=60s",
                     "-detailed-exitcode",
                     f"-out={binary}",
+                    *variables,
                     *([f"-replace={repair_controller}"] if repair_controller else []),
                 ],
                 directory,
@@ -613,6 +794,7 @@ def run(
                 "state_prefix": selected["state_prefix"],
                 "repair_controller": repair_controller or "",
                 "artifacts": artifacts,
+                **instance_manifest(instance),
             }
             api.upload(
                 bucket, prefix + "manifest.json", json.dumps(manifest, sort_keys=True).encode()
@@ -664,6 +846,8 @@ def main():
     parser.add_argument("--plan-build-id")
     parser.add_argument("--terraform", default="terraform")
     parser.add_argument("--repair-controller", default="")
+    parser.add_argument("--project")
+    parser.add_argument("--region")
     args = parser.parse_args()
     if args.mode == "check-registry":
         policy, _, _ = registry(ROOT, "repo")
@@ -688,6 +872,8 @@ def main():
         plan_build_id=args.plan_build_id,
         terraform=args.terraform,
         repair_controller=args.repair_controller,
+        project=args.project,
+        region=args.region,
     )
 
 

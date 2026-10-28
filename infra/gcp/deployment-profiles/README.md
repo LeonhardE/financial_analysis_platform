@@ -6,8 +6,9 @@ an ambient gcloud project, the working directory, or a production default.
 
 This foundation does **not** migrate the existing production Terraform roots, remove their
 adoption guards, modify `terraform/pipeline.json`, activate a target, or implement a fresh cloud
-installation. Those are separate, ordered per-target changes. The current pipeline still accepts
-only its committed policy; it does not read these files or an arbitrary profile override.
+installation. Those are separate, ordered per-target changes. Existing catalog targets retain
+their committed policy. The shared runner also supports the explicit `trigger-v1` contract below,
+but this foundation does not opt any production target into it or modify an existing trigger.
 
 ## Local use
 
@@ -85,7 +86,7 @@ builds, Firebase provider/domains and isolated state. The new profile does not c
 | Artifact                           | Consumer shape / purpose                                                                                                                              |
 | ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `pipeline.candidate.json`          | Existing saved-plan policy schema v2; pinned toolchain version, unchanged six-hour maximum plan age, per-target state/identities/triggers/controllers |
-| `bootstrap-inputs.candidate.json`  | Exact current bootstrap variable names, including both explicitly selected stages                                                                     |
+| `bootstrap-inputs.candidate.json`  | Bootstrap variables including both explicit stages and a `deployment_configs` map of canonical adopted-target projections                             |
 | `backends.candidate.json`          | Bootstrap and each target's bucket/prefix, keeping administrator and ordinary target state separate                                                   |
 | `web-substitutions.candidate.json` | Existing Web public substitution names; values derived from one selected profile                                                                      |
 | `inventory.candidate.json`         | Explicit runtime account/origin/image/adoption inputs for later per-target migration                                                                  |
@@ -97,15 +98,98 @@ saved-plan hash, lineage/serial, age limit, native approval, or configuration/im
 Current live consumers remain unchanged. Do not copy candidates wholesale over their production
 files: their adoption-only roots still contain target-specific guards requiring separate migration.
 
-Remote Cloud Build does not inherit a developer's ignored local files. A later target integration
-must explicitly provide configuration through a reviewed trusted source, bind its digest to the
-selected source/target, and preserve plan/apply verification. There is no remote auto-discovery or
-apply flag in this producer.
+Remote Cloud Build does not inherit a developer's ignored local files. A separate target migration
+must connect its bootstrap input and variable consumer to the following contract. This producer
+has no remote auto-discovery, credentials, upload, trigger-update or apply action.
+
+## Target-instance v1 and private compilation
+
+```sh
+python3 infra/gcp/deployment_profile.py compile \
+  --profile .deployment/profile.json \
+  --target market \
+  --output-dir .deployment/market-review
+```
+
+Compilation requires an explicitly adopted target, including its existing service and trigger
+UUIDs. Fresh-install targets cannot use this route to create resources. The new output directory
+and fixed four files use the same `0700`/`0600`, no-overwrite rules as `render`:
+
+- `deployment-config.candidate.json`: the closed target projection as a reviewable JSON file.
+- `terraform-inputs.candidate.json`: exactly `{"deployment": inputs}` for an explicit local
+  reviewed `-var-file`; it is not automatically loaded from a root or read by Cloud Build.
+- `trigger-substitutions.candidate.json`: `_DEPLOYMENT_CONFIG` containing the canonical projection
+  string and `_DEPLOYMENT_SHA256` containing its SHA-256. Use the string from this mapping, not
+  the raw candidate file with its terminal newline.
+- `manifest.json`: instance/target/input/file digests, `approval=not_requested` and
+  `productionActivation=false`. Stdout prints this manifest only, never input values.
+
+The projection has exactly `schemaVersion=1`, `instanceId`, `target`, `project{id,number}`,
+`region`, `source{repositoryUrl,repositoryResource}`, `artifactRepository`,
+`adoption{serviceUid,buildTriggerId,planTriggerId,applyTriggerId}` and `inputs`.
+Only Web adds a closed `build` object. Canonical ASCII JSON is at most 4000 bytes, matching the
+Cloud Build per-substitution limit. Duplicate/unknown fields, noncanonical whitespace, wrong
+types, mixed project/source/image/origin/UID values and generic environment maps are rejected.
+
+`inputs` contains only target-owned Terraform values:
+
+| Target                  | Fields under root variable `deployment`                                                                       |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------- |
+| repo                    | `project_id`                                                                                                  |
+| all services/Web        | `project_id`, `region`, `artifact_repository`, `runtime_account_id`, `creation_image`, `existing_service_uid` |
+| market/config/portfolio | Above plus `web_origin`                                                                                       |
+| user                    | Above plus `web_origin`, `market_origin`                                                                      |
+
+Web has no `web_origin` Terraform field. Its public `build` object contains exactly the existing
+`_REGION`, `_REPOSITORY`, three API origin and four Firebase substitutions. These are bounded
+public settings, not credentials or arbitrary environment entries. An API origin may be empty
+when that optional service is absent; nonempty origins remain canonical and distinct. Disabled
+Firebase retains its existing empty public fields. Shared project/source values
+and explicitly consumed origins are part of the projection digest. Unrelated target settings and
+the full operator-profile hash are not, so an unrelated service edit does not silently invalidate
+this target's plans. The input inventory still is not live ownership attestation.
+
+## Explicit trigger-managed consumption
+
+A separately reviewed single-target migration sets `deployment_source: "trigger-v1"` on its static
+catalog entry, declares its typed `deployment` variable and wires its existing plan/apply triggers
+to the canonical `deployment_configs[target]` string and SHA-256. Bootstrap's optional
+`map(string)` defaults to `{}`; adding this input alone creates or changes no resource instance.
+The catalog must remove that target's instance-specific state bucket/service-account fields;
+only static protocol keys remain, including optional validated target prefixes/trigger names.
+Static target roots/controllers and `enabled`
+remain checked-in policy. A disabled target still fails before credentials or Terraform.
+
+The YAML passes only built-in project/region locators, never JSON on a shell command line or in
+an environment variable. The runner reads the actual Build and Trigger via Google APIs, validates
+the trigger's canonical configuration/hash, and requires the build's actual substitutions to
+match exactly. Invocation-time overrides, missing pins or a mismatched target/instance fail;
+there is no fallback to local files or legacy policy for an opted-in target. Legacy targets
+remain on their existing explicit committed-policy path.
+
+The runner verifies phase-specific accounts and trigger UUIDs, exact regional repository
+resource/URL, protected main source and output-only provenance. Plan/apply must use the same
+projection. The source fingerprint and private saved-plan manifest include the instance ID,
+projection digest and exact Terraform-input digest in addition to existing source/toolchain/
+backend/state/TTL/artifact bindings. Native apply approval and saved-plan lineage/serial checks
+remain required. Apply never replans or takes arbitrary Terraform arguments.
+
+Only plan writes one temporary private `deployment.tfvars.json` and supplies its exact path.
+Apply uses the reviewed binary with its embedded inputs. Root tfvars, symlinks, `TF_*` injection
+and arbitrary CLI arguments remain forbidden. `check-registry` checks source/static contracts
+without cloud access or a local operator profile. Administrators who can alter trusted main,
+triggers or build identities remain trusted; the scheme cannot resist those administrators.
+
+The provider documents [substitution bounds and triggered-build missing-variable behavior](https://docs.cloud.google.com/build/docs/configuring-builds/substitute-variable-values)
+and [invocation-time substitution overrides](https://docs.cloud.google.com/build/docs/manually-build-code-source-repos).
+The runner therefore enforces its own required-value and server-metadata checks rather than
+depending on YAML substitutions to fail when a value is absent.
 
 ## Verification
 
 ```sh
 python3 -m unittest discover -s infra/gcp/tests -p test_deployment_profile.py -v
+python3 -m unittest discover -s infra/gcp/tests -p test_deployment_instances.py -v
 ```
 
 Tests render two independent synthetic projects/regions/sources, exercise the real existing policy
