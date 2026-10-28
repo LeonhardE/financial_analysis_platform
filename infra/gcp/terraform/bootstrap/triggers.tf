@@ -1,3 +1,11 @@
+locals {
+  repo_deployment_config = try(var.deployment_configs["repo"], "")
+  repo_deployment_substitutions = {
+    _DEPLOYMENT_CONFIG = local.repo_deployment_config
+    _DEPLOYMENT_SHA256 = sha256(local.repo_deployment_config)
+  }
+}
+
 resource "google_cloudbuild_trigger" "plan" {
   project         = var.project_id
   location        = var.region
@@ -11,6 +19,7 @@ resource "google_cloudbuild_trigger" "plan" {
     "infra/gcp/terraform/pipeline.json",
     "infra/gcp/terraform/toolchain.json",
     "infra/gcp/terraform_pipeline.py",
+    "infra/gcp/deployment_profile.py",
     "infra/gcp/terraform_tools.py",
     "infra/gcp/configure_cloud_run_service.py",
     "infra/gcp/deploy_existing_service.py",
@@ -25,10 +34,10 @@ resource "google_cloudbuild_trigger" "plan" {
     }
   }
 
-  substitutions = {
+  substitutions = merge({
     _TARGET            = "repo"
     _REPAIR_CONTROLLER = ""
-  }
+  }, local.repo_deployment_substitutions)
 
   lifecycle {
     prevent_destroy = true
@@ -71,10 +80,10 @@ resource "google_cloudbuild_trigger" "apply" {
     approval_required = true
   }
 
-  substitutions = {
+  substitutions = merge({
     _TARGET        = "repo"
     _PLAN_BUILD_ID = ""
-  }
+  }, local.repo_deployment_substitutions)
 
   lifecycle {
     prevent_destroy = true

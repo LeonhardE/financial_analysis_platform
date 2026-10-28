@@ -1,3 +1,11 @@
-# Copy to terraform.tfvars (Git-ignored) and paste the EXISTING repository resource
-# from Cloud Build > Repositories > 2nd gen. Do not create a new GitHub connection.
-repository_id = "projects/financial-analysis-512202/locations/northamerica-northeast2/connections/REPLACE_CONNECTION/repositories/REPLACE_REPOSITORY"
+# Existing-deployment migration uses explicit reviewed operator inputs, not
+# original-author defaults or a copied production project/source identifier.
+# Generate bootstrap-inputs.candidate.json with deployment_profile.py render
+# from an ignored profile, review project_id, region, repository_id,
+# deployment_configs and BOTH actual provisioning stages, then explicitly pass
+# that private JSON with -var-file. Candidates do not authorize activation.
+#
+# Preserve existing ignored backend/variables and state lineage; do not overwrite
+# them, reset an applied Portfolio service stage, or create another connection.
+# This adoption template intentionally has no executable default assignments.
+# A fresh-install workflow remains separate from this existing-deployment step.

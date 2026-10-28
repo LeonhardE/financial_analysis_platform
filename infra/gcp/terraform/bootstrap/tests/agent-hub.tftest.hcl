@@ -211,7 +211,10 @@ override_resource {
 }
 
 variables {
-  repository_id = "projects/financial-analysis-512202/locations/northamerica-northeast2/connections/financial-analysis-github/repositories/financial-analysis"
+  project_id         = "financial-analysis-512202"
+  region             = "northamerica-northeast2"
+  deployment_configs = jsondecode(file("tests/fixtures/deployment-configs.json"))
+  repository_id      = "projects/financial-analysis-512202/locations/northamerica-northeast2/connections/financial-analysis-github/repositories/financial-analysis"
 }
 
 override_resource {

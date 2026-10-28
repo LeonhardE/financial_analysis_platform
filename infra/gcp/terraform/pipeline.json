@@ -10,14 +10,9 @@
   "targets": {
     "repo": {
       "directory": "infra/gcp/terraform/envs/prod/repo",
-      "state_prefix": "prod/repo",
-      "plan_trigger": "terraform-plan-repo",
-      "apply_trigger": "terraform-apply-repo",
-      "plan_service_account": "fa-infra-plan@financial-analysis-512202.iam.gserviceaccount.com",
-      "apply_service_account": "fa-infra-apply@financial-analysis-512202.iam.gserviceaccount.com",
       "enabled": true,
-      "state_bucket": "financial-analysis-512202-tfstate",
-      "configuration_controllers": []
+      "configuration_controllers": [],
+      "deployment_source": "trigger-v1"
     },
     "market": {
       "enabled": true,

@@ -214,7 +214,10 @@ override_resource {
 
 
 variables {
-  repository_id = "projects/financial-analysis-512202/locations/northamerica-northeast2/connections/financial-analysis-github/repositories/financial-analysis"
+  project_id         = "financial-analysis-512202"
+  region             = "northamerica-northeast2"
+  deployment_configs = jsondecode(file("tests/fixtures/deployment-configs.json"))
+  repository_id      = "projects/financial-analysis-512202/locations/northamerica-northeast2/connections/financial-analysis-github/repositories/financial-analysis"
 }
 
 run "separate_private_state_and_plan_boundaries" {
@@ -286,7 +289,13 @@ run "only_main_plans_and_explicitly_approved_manual_apply" {
       google_cloudbuild_trigger.plan.repository_event_config[0].push[0].branch == "^main$" &&
       google_cloudbuild_trigger.plan.filename == "infra/gcp/cloudbuild.terraform-plan.yaml" &&
       contains(google_cloudbuild_trigger.plan.included_files, "infra/gcp/terraform_tools.py") &&
-      google_cloudbuild_trigger.plan.substitutions["_TARGET"] == "repo"
+      contains(google_cloudbuild_trigger.plan.included_files, "infra/gcp/deployment_profile.py") &&
+      google_cloudbuild_trigger.plan.substitutions == tomap({
+        _TARGET            = "repo"
+        _REPAIR_CONTROLLER = ""
+        _DEPLOYMENT_CONFIG = var.deployment_configs["repo"]
+        _DEPLOYMENT_SHA256 = sha256(var.deployment_configs["repo"])
+      })
     )
     error_message = "Plans must use the trusted main branch and the repo-only execution root."
   }
@@ -298,7 +307,12 @@ run "only_main_plans_and_explicitly_approved_manual_apply" {
       google_cloudbuild_trigger.apply.git_file_source[0].path == "infra/gcp/cloudbuild.terraform-apply.yaml" &&
       google_cloudbuild_trigger.apply.git_file_source[0].revision == "refs/heads/main" &&
       google_cloudbuild_trigger.apply.approval_config[0].approval_required &&
-      google_cloudbuild_trigger.apply.substitutions["_PLAN_BUILD_ID"] == ""
+      google_cloudbuild_trigger.apply.substitutions == tomap({
+        _TARGET            = "repo"
+        _PLAN_BUILD_ID     = ""
+        _DEPLOYMENT_CONFIG = var.deployment_configs["repo"]
+        _DEPLOYMENT_SHA256 = sha256(var.deployment_configs["repo"])
+      })
     )
     error_message = "Apply must be manually requested, explicitly approved, and receive an explicit producing plan build ID."
   }
@@ -716,4 +730,85 @@ run "web_execution_is_scoped_to_existing_web_resources" {
     )
     error_message = "Web may configure only market-web and its dedicated runtime, and only Web apply may read images in the current repository. No IAM administration, resource creation/deletion, deployment of another service, or database access is granted."
   }
+}
+
+run "reject_missing_explicit_repo_projection" {
+  command = plan
+  variables {
+    deployment_configs = {
+      for name, config in var.deployment_configs : name => config if name != "repo"
+    }
+  }
+  expect_failures = [var.project_id, var.region]
+}
+
+run "reject_projection_for_another_target" {
+  command = plan
+  variables {
+    deployment_configs = merge(var.deployment_configs, {
+      repo = jsonencode({
+        schemaVersion = 1
+        target        = "market"
+        project       = { id = "financial-analysis-512202", number = "630815932903" }
+        region        = "northamerica-northeast2"
+        source        = { repositoryResource = "projects/financial-analysis-512202/locations/northamerica-northeast2/connections/financial-analysis-github/repositories/financial-analysis" }
+        inputs        = { project_id = "financial-analysis-512202" }
+      })
+    })
+  }
+  expect_failures = [google_cloudbuild_trigger.plan]
+}
+
+run "reject_noncanonical_projection_before_trigger_update" {
+  command = plan
+  variables {
+    deployment_configs = merge(var.deployment_configs, {
+      repo = "{ \"inputs\":{\"project_id\":\"financial-analysis-512202\"},\"project\":{\"id\":\"financial-analysis-512202\",\"number\":\"630815932903\"},\"region\":\"northamerica-northeast2\",\"schemaVersion\":1,\"source\":{\"repositoryResource\":\"projects/financial-analysis-512202/locations/northamerica-northeast2/connections/financial-analysis-github/repositories/financial-analysis\"},\"target\":\"repo\"}"
+    })
+  }
+  expect_failures = [google_cloudbuild_trigger.plan]
+}
+
+run "reject_repository_different_from_projection" {
+  command = plan
+  variables {
+    repository_id = "projects/financial-analysis-512202/locations/northamerica-northeast2/connections/another/repositories/application"
+  }
+  expect_failures = [var.repository_id]
+}
+
+run "reject_projection_expansion_before_trigger_update" {
+  command = plan
+  variables {
+    deployment_configs = merge(var.deployment_configs, {
+      repo = jsonencode({
+        schemaVersion = 1
+        target        = "repo"
+        project       = { id = "financial-analysis-512202", number = "630815932903" }
+        region        = "northamerica-northeast2"
+        source        = { repositoryResource = "projects/financial-analysis-512202/locations/northamerica-northeast2/connections/financial-analysis-github/repositories/financial-analysis" }
+        inputs        = { project_id = "financial-analysis-512202" }
+        note          = "$_UNTRUSTED"
+      })
+    })
+  }
+  expect_failures = [google_cloudbuild_trigger.plan]
+}
+
+run "reject_nonnumeric_project_alias_in_projection" {
+  command = plan
+  variables {
+    repository_id = "projects/another-project/locations/northamerica-northeast2/connections/github/repositories/application"
+    deployment_configs = merge(var.deployment_configs, {
+      repo = jsonencode({
+        schemaVersion = 1
+        target        = "repo"
+        project       = { id = "financial-analysis-512202", number = "another-project" }
+        region        = "northamerica-northeast2"
+        source        = { repositoryResource = "projects/another-project/locations/northamerica-northeast2/connections/github/repositories/application" }
+        inputs        = { project_id = "financial-analysis-512202" }
+      })
+    })
+  }
+  expect_failures = [var.repository_id]
 }
