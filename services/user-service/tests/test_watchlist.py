@@ -150,8 +150,15 @@ class SQLiteWatchlistTests(unittest.TestCase):
 class FirestoreWatchlistTests(unittest.TestCase):
     def setUp(self):
         self.client = MagicMock()
-        self.document = self.client.collection.return_value.document.return_value
+        self.collection = MagicMock()
+        self.metadata_collection = MagicMock()
+        self.client.collection.side_effect = lambda name: (
+            self.collection if name == "user_watchlists" else self.metadata_collection
+        )
+        self.document = self.collection.document.return_value
+        self.metadata_document = self.metadata_collection.document.return_value
         self.document.get.return_value.to_dict.return_value = None
+        self.metadata_document.get.return_value.to_dict.return_value = None
         with patch("app.watchlist.firestore.Client", return_value=self.client) as constructor:
             self.store = FirestoreWatchlistStore("test-project", "(default)")
         constructor.assert_called_once_with(project="test-project", database="(default)")
@@ -170,22 +177,26 @@ class FirestoreWatchlistTests(unittest.TestCase):
         self.assertEqual(self.document.get.call_count, 2)
         self.document.get.assert_called_with(timeout=4, retry=None)
         self.client.collection.assert_called_once_with("user_watchlists")
-        self.client.collection.return_value.document.assert_called_with(owner_key(USER))
+        self.collection.document.assert_called_with(owner_key(USER))
 
     def test_transaction_adds_once_and_does_not_write_duplicate_or_missing_delete(self):
         self.assertEqual(self.store.change(USER, "AAPL", item()), [item()])
         self.transaction_constructor.assert_called_once_with(self.client, max_attempts=2)
         self.document.get.assert_called_with(transaction=self.transaction, timeout=4, retry=None)
-        self.transaction.set.assert_called_once_with(
-            self.document, {"version": 1, "items": [item()]}
-        )
+        self.assertEqual(self.transaction.set.call_count, 2)
+        self.transaction.set.assert_any_call(self.document, {"version": 1, "items": [item()]})
+        metadata = self.transaction.set.call_args_list[1].args[1]
+        self.assertEqual(metadata["revision"], 1)
+        self.metadata_document.get.return_value.to_dict.return_value = metadata
         self.document.get.return_value.to_dict.return_value = {"version": 1, "items": [item()]}
         self.transaction.reset_mock()
         self.assertEqual(self.store.change(USER, "AAPL", item()), [item()])
         self.assertEqual(self.store.change(USER, "MSFT", None), [item()])
         self.transaction.set.assert_not_called()
         self.assertEqual(self.store.change(USER, "AAPL", None), [])
-        self.transaction.set.assert_called_once_with(self.document, {"version": 1, "items": []})
+        self.assertEqual(self.transaction.set.call_count, 2)
+        self.transaction.set.assert_any_call(self.document, {"version": 1, "items": []})
+        self.assertEqual(self.transaction.set.call_args_list[1].args[1]["revision"], 2)
 
     def test_transaction_enforces_limit_and_sdk_errors_are_private(self):
         full = [item(f"S{x}") for x in range(LIMIT)]
