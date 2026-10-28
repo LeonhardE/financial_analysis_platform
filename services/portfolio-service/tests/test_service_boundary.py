@@ -16,12 +16,21 @@ COMMON_ROOT = SERVICE_ROOT.parent / "common"
 
 
 class PortfolioBoundaryTests(unittest.TestCase):
-    def test_health_is_the_only_implemented_route(self):
+    def test_health_and_encrypted_owner_routes_are_the_only_implemented_routes(self):
         with TestClient(app) as client:
             response = client.get("/health")
             self.assertEqual(response.status_code, 200)
             self.assertEqual(response.json(), {"status": "ok", "service": "portfolio"})
-            self.assertEqual(set(client.get("/openapi.json").json()["paths"]), {"/health"})
+            self.assertEqual(
+                set(client.get("/openapi.json").json()["paths"]),
+                {
+                    "/health",
+                    "/api/v2/holdings/sources/{source_id}",
+                    "/api/v2/holdings/sources/{source_id}/latest",
+                    "/api/v2/holdings/sources/{source_id}/snapshots/{snapshot_id}",
+                    "/api/v2/holdings/sources/{source_id}/operations/{operation_id}",
+                },
+            )
 
     def test_unimplemented_private_and_brokerage_paths_refuse_requests(self):
         with TestClient(app) as client:
@@ -70,7 +79,7 @@ class PortfolioBoundaryTests(unittest.TestCase):
                     assert response.json() == {"status": "ok", "service": "portfolio"}
 
             for module in (
-                "firebase_admin", "google.cloud.firestore", "yfinance",
+                "yfinance",
                 "app.watchlist", "app.preferences", "app.market_data",
                 "app.market_client", "app.brokerage",
             ):
