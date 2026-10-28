@@ -272,6 +272,15 @@ fall back to Market after a network or server failure.
 | `config-api`      | `infra/gcp/cloudbuild.config.yaml` | Web `_CONFIG_API_BASE_URL`                             |
 | `market-web`      | `infra/gcp/cloudbuild.web.yaml`    | All origins and Firebase values compiled at build time |
 
+Web deployment configuration is an explicitly selected instance input. Its
+[Web infrastructure root](infra/gcp/terraform/envs/prod/web/README.md) consumes six
+validated deployment fields; its existing image trigger reads all nine public
+Firebase/API substitutions from the compiled Web projection. Region/repository
+YAML defaults are empty, so builds require the reviewed trigger values. This
+migration preserves Web's public access, service cap of two, revision cap of 12,
+Firebase behavior and image/traffic ownership; it adds no UI feature or cloud
+resource. Private compiler output is not an implicit remote configuration source.
+
 Console rollout: publish initial images; create/configure User and Config with their own runtime
 identities, Firebase project, original Firestore database and frontend CORS origin; verify both private
 APIs; rebuild Web with both new origins; verify real sign-in, two-account watchlist isolation and saved

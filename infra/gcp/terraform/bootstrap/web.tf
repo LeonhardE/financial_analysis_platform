@@ -1,10 +1,11 @@
-# Web-only administrative adoption. These resources already exist, except
-# for the new target execution identities and their narrowly scoped permissions.
+# Web-only administrative references. Existing resources and ownership stay in
+# place; instance values come from the explicitly selected Web projection.
 # Normal Web execution cannot administer IAM or the shared image-build identity.
 locals {
-  web_service = "projects/${var.project_id}/locations/${var.region}/services/market-web"
-  web_runtime = "projects/${var.project_id}/serviceAccounts/fa-web-runtime@${var.project_id}.iam.gserviceaccount.com"
-  web_build   = "fa-build@${var.project_id}.iam.gserviceaccount.com"
+  web_deployment = jsondecode(var.deployment_configs["web"])
+  web_service    = "projects/${var.project_id}/locations/${var.region}/services/market-web"
+  web_runtime    = "projects/${var.project_id}/serviceAccounts/${local.web_deployment.inputs.runtime_account_id}@${var.project_id}.iam.gserviceaccount.com"
+  web_build      = "fa-build@${var.project_id}.iam.gserviceaccount.com"
 }
 
 # Preserve the deployed image trigger exactly, including its absent optional
@@ -28,17 +29,7 @@ resource "google_cloudbuild_trigger" "web_image_release" {
     "infra/gcp/deploy_existing_service.py",
   ]
   ignored_files = []
-  substitutions = {
-    _API_BASE_URL         = "https://market-api-630815932903.northamerica-northeast2.run.app"
-    _CONFIG_API_BASE_URL  = "https://config-api-630815932903.northamerica-northeast2.run.app"
-    _FIREBASE_API_KEY     = "AIzaSyDkkKPMgMWycDwaxHV0a5xUoAFWFYx8coM"
-    _FIREBASE_APP_ID      = "1:630815932903:web:3aa0de1bcf98ace140fd42"
-    _FIREBASE_AUTH_DOMAIN = "financial-analysis-512202.firebaseapp.com"
-    _FIREBASE_PROJECT_ID  = "financial-analysis-512202"
-    _REGION               = "northamerica-northeast2"
-    _REPOSITORY           = "financial-analysis"
-    _USER_API_BASE_URL    = "https://user-api-630815932903.northamerica-northeast2.run.app"
-  }
+  substitutions = local.web_deployment.build
 
   repository_event_config {
     repository = var.repository_id
@@ -49,6 +40,32 @@ resource "google_cloudbuild_trigger" "web_image_release" {
 
   lifecycle {
     prevent_destroy = true
+    precondition {
+      condition = try(
+        local.web_deployment.schemaVersion == 1 &&
+        local.web_deployment.target == "web" &&
+        local.web_deployment.project.id == var.project_id &&
+        local.web_deployment.region == var.region &&
+        local.web_deployment.source.repositoryResource == var.repository_id &&
+        local.web_deployment.inputs.project_id == var.project_id &&
+        local.web_deployment.inputs.region == var.region &&
+        local.web_deployment.inputs.existing_service_uid == local.web_deployment.adoption.serviceUid &&
+        local.web_deployment.inputs.artifact_repository == local.web_deployment.artifactRepository &&
+        local.web_deployment.build._REGION == var.region &&
+        local.web_deployment.build._REPOSITORY == local.web_deployment.artifactRepository &&
+        toset(keys(local.web_deployment.build)) == toset([
+          "_API_BASE_URL", "_USER_API_BASE_URL", "_CONFIG_API_BASE_URL",
+          "_FIREBASE_API_KEY", "_FIREBASE_APP_ID", "_FIREBASE_AUTH_DOMAIN",
+          "_FIREBASE_PROJECT_ID", "_REGION", "_REPOSITORY",
+        ]),
+        false,
+      )
+      error_message = "Web image configuration must use the selected instance/project/region/repository and exactly the nine public build substitutions."
+    }
+    postcondition {
+      condition     = self.trigger_id == local.web_deployment.adoption.buildTriggerId
+      error_message = "Web image release must retain the selected existing trigger UUID."
+    }
   }
 }
 
@@ -114,7 +131,7 @@ resource "google_project_iam_custom_role" "web_image_read" {
 resource "google_artifact_registry_repository_iam_member" "web_configuration_image" {
   project    = var.project_id
   location   = var.region
-  repository = "financial-analysis"
+  repository = local.web_deployment.artifactRepository
   role       = google_project_iam_custom_role.web_image_read.name
   member     = "serviceAccount:${module.target_execution["web"].service_accounts["apply"]}"
 }
@@ -150,7 +167,7 @@ resource "google_service_account_iam_member" "web_execution_metadata" {
 # The service and dedicated runtime identity are imported by the Web root.
 import {
   to = google_cloudbuild_trigger.web_image_release
-  id = "projects/${var.project_id}/locations/${var.region}/triggers/d337875a-823a-47e1-bc6e-e1ba8b3f4f92"
+  id = "projects/${var.project_id}/locations/${var.region}/triggers/${local.web_deployment.adoption.buildTriggerId}"
 }
 
 import {

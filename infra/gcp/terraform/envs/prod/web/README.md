@@ -1,68 +1,95 @@
-# Production Web infrastructure
+# Web deployment instance configuration
 
-This root adopts the existing `market-web` service and its dedicated `fa-web-runtime`
-identity into an isolated Web Terraform state. It does not rebuild either resource,
-change the client implementation, or provision a database permission for the Web runtime.
+This root adopts the selected existing `market-web` and its dedicated runtime
+identity into isolated Web state. It accepts an explicit `deployment` input
+compiled from the selected target-instance-v1 projection; no author project,
+region, account, UID or image is a production default.
 
-The reviewed Cloud Run UID is `4cd78365-f1a5-4049-a397-d00b1eebfd68`; the runtime
-unique ID is `102894855052714235808`. Planning reads the service independently and
-fails if its identity, disabled invoker IAM checks, or service-wide maximum of two
-instances changes. Native imports and `prevent_destroy` protect the existing objects.
-The imported native service uses `ignore_changes = all`; configuration changes use
-the existing etag-aware controller rather than a native full-template update.
+The six required fields are `project_id`, `region`, `artifact_repository`,
+`runtime_account_id`, `creation_image` and `existing_service_uid`. Unknown/missing
+fields, runtime emails in place of account IDs, invalid UUIDs, mutable image tags
+and images outside the selected project/region/repository/Web path fail closed.
+The schema remains a closed string map; no generic environment or secret map is
+accepted. This input alone does not grant authority to create a missing service.
 
-## Ownership
+## Ownership and retained boundaries
 
 - The Web root owns its runtime metadata and declared Cloud Run configuration.
-- Bootstrap owns Web's plan/apply identities, isolated state bucket, native approval
-  trigger, additive service/runtime grants and the existing `build-market-web` trigger.
-- The normal Web image pipeline owns images, revision names and traffic. Terraform
-  reads those fields immediately before a configuration update and preserves rollback
-  routes. A reviewed controller replacement is available for explicit drift repair.
-- Public invocation already uses `invokerIamDisabled=true`; adoption does not add an
-  `allUsers` IAM grant. Revision scaling remains 0–12, while the existing service-wide
-  maximum remains two. This preserves the current cost settings.
-- The browser Firebase/API configuration remains build-time configuration in the
-  imported Web trigger. All nine existing substitutions and the existing file filters
-  are preserved exactly. Firebase Web configuration is public client configuration,
-  not a service-account credential. There are no runtime environment variables or
-  secret payloads in this service.
+  Native imports select that project/region/account and `market-web`; independent
+  reads fail if the service UID, public invocation mode or service-wide maximum
+  of two changes. `prevent_destroy` and native `ignore_changes = all` remain.
+- Revision scaling remains 0–12, service-wide maximum two, with the existing
+  memory, concurrency, timeout and startup settings. No allUsers grant is added;
+  public invocation continues to use `invokerIamDisabled=true`.
+- The image pipeline owns images, revision names and traffic. The configuration
+  controller reads current release fields and preserves rollback traffic. The
+  digest input is creation-only, not a request to reset a live image.
+- Bootstrap owns Web execution identities/state/approval and existing additive
+  grants. Its Web runtime, Artifact Registry reference and image-trigger UUID
+  come from `deployment_configs["web"]`. It does not adopt the shared build SA.
+- All nine browser-public Firebase/API substitutions come from that projection's
+  restricted `build` object. No new build key, runtime environment, private key,
+  Firebase provider or browser database permission is introduced. Optional
+  User/Config origins retain their existing migration behavior; a usable Market
+  API origin is still required for the actual Web image build.
 
-The Web trigger is declared directly because the shared trigger module always adds
-`_DEPLOY_SERVICE`; the existing Web trigger has no such key and already deploys through
-its retained build configuration. Adopting it directly avoids an incidental update.
-The existing shared `fa-build` identity is referenced, never adopted or reconfigured.
-The Web runtime is a dedicated user-managed account, so adopting its metadata does not
-claim ownership of a Compute default account or another service's runtime.
+The existing Web image trigger remains a native target-owned resource because
+its exact substitution set omits `_DEPLOY_SERVICE`. Its source/main branch,
+filters, disabled=false and normal deployment behavior are retained. Missing
+region/repository values no longer fall back to the author's YAML defaults;
+existing reviewed trigger substitutions provide them explicitly.
 
-## Minimal execution permissions
+## Private inputs and reviewed execution
 
-Plan can read only the existing Web service and runtime account. Apply can update
-that service, maintain that runtime's metadata/enabled state, and attach only that
-runtime. Apply also receives `artifactregistry.repositories.downloadArtifacts` on
-the existing Toronto `financial-analysis` repository because Cloud Run revalidates
-the current image during a configuration PATCH. The repository contains multiple
-images, so this is a repository read boundary, not per-image isolation. It grants
-no upload, deletion, repository administration, database access or IAM editing.
+Use the [shared compiler](../../../../deployment-profiles/README.md) after its
+foundation is merged:
 
-## Apply procedure
+```sh
+python3 infra/gcp/deployment_profile.py compile \
+  --profile .deployment/profile.json \
+  --target web \
+  --output-dir .deployment/web-review
+```
 
-1. Merge this Web-only infrastructure PR after User and Config are independently
-   migrated. Review an administrator bootstrap saved plan: existing Web trigger and
-   two existing additive deployer grants import unchanged; only Web execution
-   boundaries and narrowly scoped permissions are added. Apply that exact plan.
-2. Run `terraform-plan-web` from trusted `main`. Review the immutable saved plan,
-   provenance, configuration hash and state generation. Initial Web adoption must
-   import the two native resources without updates/replacement and create only
-   `module.web.terraform_data.configuration`.
-3. Request `terraform-apply-web` with that producing plan build ID. Verify it is
-   natively pending, approve the reviewed plan, and let the runner apply it unchanged.
-4. Check the same service/runtime identities, retained image/traffic and a successful
-   public HTML response. CPU representation can normalize from `1000m` to `1`, yielding
-   a configuration revision without rebuilding the service. Run a fresh plan and
-   require `No resource changes.`
+The four candidate files are private and unapproved. The generated
+`terraform-inputs.candidate.json` contains exactly `{"deployment": inputs}`;
+local reviews pass it explicitly with `-var-file`, with an independently selected
+backend. Operator profiles, plans, state and account inventories must stay out of
+Git. Do not put a tfvars file in the root for the remote runner to discover.
 
-If configuration execution fails after imports, inspect the current remote state
-and service first. Generate and approve a fresh plan for the tainted controller;
-do not replay a stale initial import plan or upload old state. Raw plans, state and
-live account/policy inventories remain private and must not be committed.
+For administrator bootstrap, use the full compiler's `bootstrap-inputs.candidate.json`
+as reviewed explicit input so `deployment_configs["web"]` is present. Bootstrap
+binds Web to that project/region/repository, its adopted image-trigger UUID and
+exactly nine public build keys. The static catalog opts only Web into `trigger-v1`.
+Plan/apply read actual server Build/Trigger metadata and reject missing or
+invocation-overridden pins; no private local file is implicitly inherited.
+
+Review a complete administrator plan against existing identities and state.
+The migration adds the Web trigger configuration pins; it must not create/delete
+resources, migrate a database, change grants or alter the current public build
+settings. Existing state addresses and image/configuration ownership stay intact.
+Apply only through the separately authorized administrator procedure. Source
+merge and candidate generation do not establish cloud acceptance.
+
+After the managed triggers have the reviewed pins, run `terraform-plan-web` from
+trusted main. Review source/projection/input hashes, exact UID/backend/state,
+private saved plan and action summary, then request the corresponding natively
+approved `terraform-apply-web`. Apply uses only that saved binary. Configuration
+repair still requires a fresh explicit controller-replacement plan; never reset
+state, recreate `market-web` or replay a stale plan to recover.
+
+Plan may read the existing Web service/runtime. Apply may update that service,
+maintain the selected runtime metadata, attach only that runtime and download
+images only from the selected existing Artifact Registry repository. There is
+no upload/delete/repository administration, database permission or IAM editing
+added by this migration.
+
+## Offline verification
+
+Native mock-provider tests plan two unrelated synthetic projects/regions, retain
+the three UID/public-mode/service-cap failures, and reject missing/extra inputs,
+wrong-project images, mutable tags, runtime emails and invalid UID values.
+Bootstrap tests check all nine selected build values and reject unexpected keys
+or a mixed build region. Mocks use no backend, credentials or GCP API calls.
+The frontend source contains no author-instance fallback; localhost development
+and explicit combined-API migration routing are unchanged, with no UI change.
