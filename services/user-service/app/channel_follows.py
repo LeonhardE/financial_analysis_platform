@@ -5,7 +5,6 @@ material, are never resolved over the network, and are not an agent projection.
 """
 
 import asyncio
-import hashlib
 import json
 import os
 import re
@@ -33,9 +32,11 @@ from folioview_shared.http import PrivateRoute
 from folioview_shared.identity import owner_key
 from folioview_shared.instruments import iso_time
 
+from .resource_versions import MAX_REVISION, content_digest, validate_version
+from .resource_versions import version_key as resource_version_key
+
 LIMIT = 50
 MAX_BODY_BYTES = 131_072
-MAX_REVISION = 9_007_199_254_740_991
 UNAVAILABLE = "Your channel follows are temporarily unavailable. Please try again later."
 LOCATOR = re.compile(r"(?:@|https://(?:www\.)?youtube\.com/@)([A-Za-z0-9_.-]{1,64})\Z")
 IDENTIFIER = re.compile(r"[A-Za-z0-9][A-Za-z0-9_-]{0,127}\Z")
@@ -98,13 +99,8 @@ def normalize_inputs(items: list[ChannelInput]) -> list[dict]:
     return result
 
 
-def content_digest(items: list[dict]) -> str:
-    """Internal consistency guard only; never expose low-entropy list hashes."""
-    return hashlib.sha256(canonical_json(items)).hexdigest()
-
-
 def version_key(uid: str) -> str:
-    return f"{owner_key(uid)}_channel_follows"
+    return resource_version_key(uid, "channel_follows")
 
 
 def checked_pair(content: object, metadata: object) -> dict:
@@ -125,7 +121,7 @@ def checked_pair(content: object, metadata: object) -> dict:
             or type(metadata["version"]) is not int
             or metadata["version"] != 1
             or type(metadata["revision"]) is not int
-            or not 1 <= metadata["revision"] <= MAX_REVISION
+            or not 0 <= metadata["revision"] <= MAX_REVISION
             or type(metadata["sourceEpoch"]) is not int
             or not 1 <= metadata["sourceEpoch"] <= MAX_REVISION
         ):
@@ -158,7 +154,8 @@ def checked_pair(content: object, metadata: object) -> dict:
             locators.add(row["handleOrUrl"])
             rows.append(row)
         rows.sort(key=lambda row: (_checked_timestamp(row["addedAt"]), row["followId"]))
-        if rows != content["items"] or metadata["contentDigest"] != content_digest(rows):
+        validate_version("channel_follows", rows, metadata)
+        if rows != content["items"]:
             raise ValueError
         return {"revision": metadata["revision"], "items": rows, "limit": LIMIT}
     except (ValueError, TypeError, KeyError, ContractError) as error:

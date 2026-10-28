@@ -16,6 +16,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from starlette.concurrency import run_in_threadpool
 
 from folioview_shared.auth import CurrentUser, require_google_user
+from folioview_shared.encrypted.jsonutil import strict_json_loads
 from folioview_shared.firestore import BoundedTransaction
 from folioview_shared.http import PrivateRoute
 from folioview_shared.identity import owner_key
@@ -27,6 +28,7 @@ from folioview_shared.instruments import (
 )
 
 from .market_client import MarketResolver, get_market_resolver
+from .resource_versions import new_version, validate_version, version_key
 
 LIMIT = 50
 UNAVAILABLE = "Your watchlist is temporarily unavailable. Please try again later."
@@ -127,6 +129,10 @@ class SQLiteWatchlistStore(WatchlistStore):
                     "CREATE TABLE IF NOT EXISTS user_watchlists "
                     "(owner TEXT PRIMARY KEY, value TEXT NOT NULL)"
                 )
+                db.execute(
+                    "CREATE TABLE IF NOT EXISTS user_resource_versions "
+                    "(owner TEXT PRIMARY KEY, value TEXT NOT NULL)"
+                )
             FilePath(path).chmod(0o600)
         except OSError as error:
             raise WatchlistUnavailable from error
@@ -152,12 +158,39 @@ class SQLiteWatchlistStore(WatchlistStore):
         owner = owner_key(uid)
         with self.connection() as db:
             db.execute("BEGIN IMMEDIATE")
-            items, changed = update_items(self.read(db, owner), symbol, item)
+            content = db.execute(
+                "SELECT value FROM user_watchlists WHERE owner=?",
+                (owner,),
+            ).fetchone()
+            current = checked_items(strict_json_loads(content[0]) if content else None)
+            row = db.execute(
+                "SELECT value FROM user_resource_versions WHERE owner=?",
+                (version_key(uid, "watchlist"),),
+            ).fetchone()
+            if row is not None and content is None:
+                raise WatchlistUnavailable
+            metadata = validate_version(
+                "watchlist",
+                current,
+                strict_json_loads(row[0]) if row else None,
+            )
+            items, changed = update_items(current, symbol, item)
             if changed:
                 db.execute(
                     "INSERT INTO user_watchlists(owner, value) VALUES (?, ?) "
                     "ON CONFLICT(owner) DO UPDATE SET value=excluded.value",
                     (owner, json.dumps({"version": 1, "items": items}, allow_nan=False)),
+                )
+                db.execute(
+                    "INSERT INTO user_resource_versions(owner, value) VALUES (?, ?) "
+                    "ON CONFLICT(owner) DO UPDATE SET value=excluded.value",
+                    (
+                        version_key(uid, "watchlist"),
+                        json.dumps(
+                            new_version("watchlist", items, previous=metadata),
+                            allow_nan=False,
+                        ),
+                    ),
                 )
             return items
 
@@ -183,13 +216,28 @@ class FirestoreWatchlistStore(WatchlistStore):
 
     def change(self, uid: str, symbol: str, item: dict | None) -> list[dict]:
         reference = self.document(uid)
+        metadata_reference = self.client.collection("user_resource_versions").document(
+            version_key(uid, "watchlist")
+        )
 
         @firestore.transactional
         def change_transaction(transaction):
             current = reference.get(transaction=transaction, timeout=4, retry=None).to_dict()
-            items, changed = update_items(checked_items(current), symbol, item)
+            current_items = checked_items(current)
+            stored_metadata = metadata_reference.get(
+                transaction=transaction,
+                timeout=4,
+                retry=None,
+            ).to_dict()
+            if stored_metadata is not None and current is None:
+                raise WatchlistUnavailable
+            metadata = validate_version("watchlist", current_items, stored_metadata)
+            items, changed = update_items(current_items, symbol, item)
             if changed:
                 transaction.set(reference, {"version": 1, "items": items})
+                transaction.set(
+                    metadata_reference, new_version("watchlist", items, previous=metadata)
+                )
             return items
 
         try:

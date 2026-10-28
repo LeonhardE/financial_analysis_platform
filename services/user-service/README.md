@@ -55,10 +55,9 @@ rather than repairing or overwriting them. The digest is an internal consistency
 guard, not a public projection or confidentiality guarantee.
 
 These user-maintained lists remain in User's existing plaintext domain. This
-change does not claim encrypted holdings or agent-ready resource projection,
-and it does not introduce a second editable list in Hub. Resource initialization,
-watchlist versioning and restricted metadata projections are separate follow-up
-work.
+change does not claim encrypted holdings or agent-readable list content,
+and it does not introduce a second editable list in Hub. The resource interfaces
+below supply version and authorization metadata only.
 
 ## Verification
 
@@ -73,3 +72,76 @@ Tests use synthetic identities and temporary local storage or mocked Firestore;
 no real account, YouTube request, or cloud resource is used. Coverage includes
 owner isolation, exact retries/no-ops, competing revisions, atomic rollback,
 corruption/missing metadata, locator limits, body budgets and private errors.
+
+## Resource versions and initialization
+
+Watchlist writes now maintain a separate `user_resource_versions` record in the
+same transaction as actual list changes. The existing watchlist wire response is
+unchanged. Duplicate adds, missing deletes and GET requests do not initialize or
+advance versions. A real mutation of an unversioned list establishes revision 1
+for the new content; untouched legacy lists remain explicitly uninitialized.
+
+`POST /api/v1/resource-initializations` accepts `{kind, operationKey}` for
+`watchlist` or `channel_follows`, authenticated with the owner's Firebase token.
+It preserves existing items and added times, creates a stable source reference
+and incarnation, and starts at revision 1 for nonempty or 0 for empty lists. An
+already initialized source never resets its identity, revision or source epoch.
+Inconsistent metadata/content cannot be repaired by calling initialization.
+
+Initialization operations are namespaced by owner and kind, with at most 32
+receipts in one aggregate record. Retrying an existing operation returns its
+original metadata result, after current content integrity and source epoch are
+checked, even when the budget is full. A new key at capacity returns a fixed 409
+with no writes; callers must reuse an existing operation key. No receipt query,
+per-operation document growth, TTL or additional cloud resource is introduced.
+
+For local development, list APIs and resource APIs must share one SQLite file.
+`CHANNEL_FOLLOWS_DB_PATH`, when set, must match `WATCHLIST_DB_PATH`; resource APIs
+fail closed on split files instead of creating a second mutable copy. Cloud Run
+continues using the existing configured User database and runtime identity.
+
+## Internal v2 metadata only
+
+The following interfaces are separate from frozen v1 plaintext projections:
+
+- `GET /internal/v2/resources/catalogue` lists only signed-authorized source
+  kinds; optional `?kind=watchlist` or `?kind=channel_follows` narrows that set.
+- `POST /internal/v2/resources/projections/read` takes
+  `{contractVersion, refs}` and returns source reference/state/revision/epoch
+  metadata. There are at most two refs, one per source kind.
+- `POST /internal/v2/resources/states/read` uses the same request shape and reads
+  current source revision/epoch on every request.
+
+All require `X-FolioView-Contract: folioview.agent-workspace.v2.0` and both a signed
+Google workload token in `Authorization: Bearer ...` and a Hub-issued signed
+`X-FolioView-Delegation` token. The delegated purpose must be `browser_catalog`
+with `resources:catalog` and the selected kinds. Owner partition comes only from
+the signed delegation; unknown/foreign refs and stale incarnations share the
+same 404. These endpoints reject `agent_run`, Firebase user tokens, arbitrary
+owner selectors, unknown query fields and v1 contracts; no plaintext fallback is
+implemented. They return no list items, titles, ticker symbols, counts or
+low-entropy content digests. Trusted clients still read their own User lists to
+form encrypted Run evidence.
+
+Production trust is disabled unless every explicit setting is valid:
+
+| Setting                    | Purpose                                                                                         |
+| -------------------------- | ----------------------------------------------------------------------------------------------- |
+| `USER_SERVICE_AUDIENCE`    | This service's trusted Google workload-token audience                                           |
+| `USER_DELEGATION_AUDIENCE` | Exactly that audience plus `/internal/v2`                                                       |
+| `USER_DELEGATION_ISSUER`   | Trusted Hub HTTPS origin; its fixed `/.well-known/jwks.json` supplies public verification keys  |
+| `USER_TRUSTED_HUB_CALLERS` | JSON mapping of pinned numeric service-account IDs to their exact emails, maximum eight callers |
+
+Missing/invalid configuration returns a fixed 503; health and existing private
+list routes remain available. Public keys may be cached by the shared verifier,
+but source state and authorization results are not cached. INF-007 must
+separately configure actual cloud trust; no production caller was enabled here.
+Run/source-fence consumers remain subsequent Hub work, not simulated by trusting
+self-reported Run claims.
+
+V2 failures use the shared closed `{contractVersion, error: {code, retryable,
+requestId}}` contract with no diagnostic message. Raw writes are limited to
+128 KiB and a five-second total read deadline. Malformed/slow v2 requests map to
+`400 malformed_request`; auth failures use the shared codes. Unknown v2 paths,
+method errors and CORS denials receive the same closed framing and `no-store`.
+Legacy User routes retain their existing success/error shapes.

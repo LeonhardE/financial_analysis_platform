@@ -8,11 +8,22 @@ from folioview_shared.auth import CurrentUser, require_google_user
 from folioview_shared.http import create_app
 
 from .channel_follows import router as channel_follows_router
+from .resource_api import V2MetadataErrors
+from .resource_api import internal as metadata_router
+from .resource_api import public as initialization_router
 from .watchlist import router as watchlist_router
 
-app = create_app("FolioView User API", private=True, methods=("GET", "PUT", "DELETE"))
+app = create_app(
+    "FolioView User API",
+    private=True,
+    methods=("GET", "PUT", "DELETE", "POST"),
+    private_prefixes=("/api/", "/internal/"),
+)
+app.add_middleware(V2MetadataErrors)
 app.include_router(watchlist_router)
 app.include_router(channel_follows_router)
+app.include_router(initialization_router)
+app.include_router(metadata_router)
 
 
 @app.get("/health")
