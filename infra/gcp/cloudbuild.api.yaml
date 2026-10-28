@@ -30,9 +30,11 @@ steps:
 images:
   - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPOSITORY}/market-api:$BUILD_ID
 
+# The administrator-managed Market trigger supplies the selected instance.
+# Manual builds must provide both values explicitly; there is no owner fallback.
 substitutions:
-  _REGION: northamerica-northeast2
-  _REPOSITORY: financial-analysis
+  _REGION: ""
+  _REPOSITORY: ""
   _DEPLOY_SERVICE: "false"
 
 options:
