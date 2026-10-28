@@ -5,6 +5,7 @@ and saved-plan policy used in production without cloud credentials or writes.
 """
 
 import copy
+import json
 import sys
 import unittest
 from pathlib import Path
@@ -23,9 +24,20 @@ from test_configure_cloud_run_service import ConfigAPI  # noqa: E402
 from test_deploy_existing_service import RESOURCE  # noqa: E402
 
 
+def reviewed_target(name):
+    """Exercise the actual catalog with explicit offline instance fixtures."""
+    catalog = json.loads((ROOT / pipeline.POLICY).read_text())
+    instance = None
+    if catalog["targets"][name].get("deployment_source") == "trigger-v1":
+        fixture = ROOT / "infra/gcp/terraform/bootstrap/tests/fixtures/deployment-configs.json"
+        values = json.loads(fixture.read_text())
+        instance = pipeline.deployments.parse_target(values[name].encode("ascii"))
+    return pipeline.registry(ROOT, name, instance=instance)
+
+
 class MarketExecutionBoundaryTests(unittest.TestCase):
     def test_reviewed_targets_are_active_with_market_state_and_controller_isolated(self):
-        policy, selected, directory = pipeline.registry(ROOT, "market")
+        policy, selected, directory = reviewed_target("market")
         self.assertEqual(
             {name for name, target in policy["targets"].items() if target["enabled"]},
             {"repo", "market", "user", "config", "web"},
@@ -33,13 +45,14 @@ class MarketExecutionBoundaryTests(unittest.TestCase):
         self.assertEqual(directory, ROOT / "infra/gcp/terraform/envs/prod/market")
         self.assertEqual(selected["state_bucket"], f"{policy['project_id']}-tfstate-market")
         self.assertEqual(selected["state_prefix"], "prod/market")
-        self.assertNotEqual(selected["state_bucket"], policy["targets"]["repo"]["state_bucket"])
+        _, repo, _ = reviewed_target("repo")
+        self.assertNotEqual(selected["state_bucket"], repo["state_bucket"])
         self.assertEqual(
             selected["configuration_controllers"], ["module.market.terraform_data.configuration"]
         )
         for name in ("user", "config", "web"):
             with self.subTest(target=name):
-                _, target, _ = pipeline.registry(ROOT, name)
+                _, target, _ = reviewed_target(name)
                 self.assertEqual(target["state_bucket"], f"{policy['project_id']}-tfstate-{name}")
                 self.assertEqual(target["state_prefix"], f"prod/{name}")
                 self.assertEqual(
@@ -61,7 +74,7 @@ class MarketExecutionBoundaryTests(unittest.TestCase):
         )
 
     def test_database_iam_replacement_stays_outside_the_market_runner(self):
-        policy, selected, directory = pipeline.registry(ROOT, "market")
+        policy, selected, directory = reviewed_target("market")
         for actions in (["create", "delete"], ["delete", "create"], ["delete"]):
             plan = {
                 "terraform_version": policy["terraform_version"],
@@ -81,7 +94,7 @@ class MarketExecutionBoundaryTests(unittest.TestCase):
                 pipeline.plan_summary(plan, policy["terraform_version"], selected, directory, ROOT)
 
     def test_import_metadata_does_not_authorize_native_resource_replacement(self):
-        policy, selected, directory = pipeline.registry(ROOT, "market")
+        policy, selected, directory = reviewed_target("market")
         native = {
             "address": "module.market.google_cloud_run_v2_service.service",
             "mode": "managed",

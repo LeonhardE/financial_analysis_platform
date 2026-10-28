@@ -3,7 +3,7 @@
 resource "terraform_data" "execution_contract" {
   input = {
     schema_version = 1
-    project_id     = "financial-analysis-512202"
+    project_id     = var.deployment.project_id
     environment    = "prod"
     target         = "repo"
   }
