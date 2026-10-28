@@ -1,7 +1,7 @@
 [project]
 name = "agent-hub-service"
 version = "0.1.0"
-description = "Independent build-only Agent Hub API skeleton for FolioView"
+description = "Build-only encrypted vault archive and public authority producer for FolioView"
 requires-python = ">=3.13"
 
 [tool.ruff]
