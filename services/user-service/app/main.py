@@ -1,4 +1,4 @@
-"""Identity and private stock watchlists, deployed independently of Market."""
+"""Identity, stock watchlists and manual channel follows, independent of Market."""
 
 from typing import Annotated
 
@@ -7,10 +7,12 @@ from fastapi import Depends
 from folioview_shared.auth import CurrentUser, require_google_user
 from folioview_shared.http import create_app
 
+from .channel_follows import router as channel_follows_router
 from .watchlist import router as watchlist_router
 
 app = create_app("FolioView User API", private=True, methods=("GET", "PUT", "DELETE"))
 app.include_router(watchlist_router)
+app.include_router(channel_follows_router)
 
 
 @app.get("/health")
