@@ -1,4 +1,4 @@
-# Encrypted Portfolio snapshots
+# Encrypted Portfolio snapshots and source lifecycle
 
 Portfolio stores immutable owner holdings snapshots as signed encrypted envelopes. It accepts no
 CSV files, holdings plaintext, private keys or brokerage sessions. Local CSV parsing, decimal and
@@ -12,7 +12,7 @@ from its verified UID. All private successes and failures use `Cache-Control: no
 ## HTTP contract
 
 Every private request requires `X-FolioView-Contract: folioview.agent-workspace.v2.0`. Only the exact
-stable shared v2.0/P1 contract is accepted; candidate versions, v1, aliases and plaintext fallback
+stable shared v2.0/P1 encrypted/control primitives are accepted; candidate versions, v1, aliases and plaintext fallback
 are rejected. No query parameters or server-side financial searches are supported.
 
 | Method / path                                                      | Result                                                                                 |
@@ -21,7 +21,9 @@ are rejected. No query parameters or server-side financial searches are supporte
 | `PUT /api/v2/holdings/sources/{sourceId}/snapshots/{snapshotId}`   | Verify and atomically save immutable ciphertext, operation/receipt and latest pointer  |
 | `GET /api/v2/holdings/sources/{sourceId}/snapshots/{snapshotId}`   | Authorized retained ciphertext, original receipt and historical public key proofs      |
 | `GET /api/v2/holdings/sources/{sourceId}/latest`                   | Latest authorized snapshot, or 404 if the source has no saved snapshot                 |
-| `GET /api/v2/holdings/sources/{sourceId}/operations/{operationId}` | Recover the original immutable receipt after current owner/source authorization        |
+| `GET /api/v2/holdings/sources/{sourceId}/operations/{operationId}` | Recover the original immutable receipt after current owner/vault authorization         |
+| `POST /api/v2/holdings/sources/{sourceId}/mutations/{action}`      | Owner-signed `fence`, `disconnect` or `delete`; persist a local pending fence          |
+| `GET /api/v2/holdings/sources/{sourceId}/mutations/{operationId}`  | Recover one pending/completed source mutation without scanning history                 |
 
 Writes also require `Content-Type: application/json`, exactly one `Idempotency-Key`, and one
 `X-FolioView-Author-Key` selecting an allowed owner device signing key. The closed outer body has
@@ -53,7 +55,7 @@ is not an identical operation.
 ## Trusted public authority replica
 
 Hub remains the authority for vaults, root pins and key directories. Portfolio exposes **no HTTP
-root enrollment, registry upload, signing, decryption, agent or brokerage endpoint**. No environment
+root enrollment, registry upload, signing, decryption, agent content or brokerage endpoint**. No environment
 switch or request field trusts caller-supplied keys. An empty deployment returns 503 for private
 source operations until a trusted source projection exists.
 
@@ -73,9 +75,93 @@ replicas directly through this internal interface.
 Every committing transaction re-reads current authority, operation, snapshot and latest before
 staging writes. Firestore conflict retries re-run authorization and verification against changed
 authority. SQLite uses real immediate transactions. No fingerprint cache bypasses a lock/revocation.
-Historical reads authorize the current owner/source and return retained public proofs: a writer's
+Historical reads authorize the current owner and unlocked vault and return retained public proofs: a writer's
 later revocation does not erase the owner's ciphertext. Clients still verify their independent root
 pins/checkpoint history and retained author proofs before decrypting.
+
+## Source lifecycle and retained history
+
+Source mutation bodies contain exactly `contractVersion`, `expectedVersion` (the current authority
+replica version), `expectedSourceEpoch` and `command` (a flattened shared `ControlCommandPayload`
+JWS). The existing contract, idempotency and author-key headers are required. The route selects
+`resource_fence_request`, `source_disconnect` or `source_delete`; fence parameters contain exactly
+the current `resourceRef`, while disconnect/delete parameters are empty. Owner, vault, current
+certified control writer, registry checkpoint, source incarnation, expected version/epoch and
+stable operation ID must match independent current state. No extra scope, credential or ACK field
+is accepted. Mutation requests have a 65 KiB body ceiling and five-second receive deadline.
+
+A single transaction records `revoking`, advances `sourceEpoch` by one and stores the exact public
+operation fingerprint and pending receipt. Future source writes and active projections stop before
+a remote request is attempted. Exact retries recheck current authority/keys and return the stored
+receipt; current key revocation or a vault lock can reject an old retry. A different command under
+the same ID conflicts. `202` means the mutation receipt was accepted; callers must inspect its
+`state`, and must not interpret it as completed cross-service revocation.
+
+`PortfolioService.finish_fence` is an internal adapter seam with **no installed runtime caller,
+HTTP endpoint or environment switch**. A future authenticated HUB-008 adapter must validate a real
+Hub transaction ACK before invoking it. It compares the exact owner/source/ref/incarnation,
+mutation ID and epoch and uses transaction CAS. The test suite supplies synthetic adapter inputs;
+these tests do not prove Hub revocation. Until that adapter exists, production mutations remain
+pending. Failure, restart or a lost response cannot silently clear the fence. Replaying an older
+acknowledged operation returns its original receipt and never clears a newer pending operation.
+
+A completed ordinary fence permits new writes at the new source epoch. Disconnect retains owner
+history while denying future source use; it cannot reconnect through authority installation. The
+owner can subsequently request deletion. Delete is a **logical tombstone**, immediately hides owner
+snapshot/receipt history while pending, and stays terminal after ACK. Ciphertext/operation records
+are retained, not physically purged from storage or backups. No purge or deletion-compliance claim
+is made. Source IDs/incarnations cannot be replaced via the authority replica adapter. A future
+explicit reconnect/recreation flow must use a safely new resource incarnation and preserve fences.
+
+Source permission epochs are separate from registry key epochs and the vault `active` lock. A source
+fence/disconnect does not remove the owner's access to retained history in an unlocked vault. Reads
+still check immutable owner, root, vault, resource/incarnation, snapshot, revision, original source
+epoch, operation and fingerprint bindings. The current vault lock still denies history, receipts
+and mutations. Current writes require current registry/key epoch and source epoch; already copied
+ciphertext/plaintext or private keys cannot be recalled.
+
+Each source retains at most 128 mutation receipts, with two slots reserved for disconnect followed
+by deletion after ordinary fences reach their 126-operation limit. At the ordinary limit, new
+fences return `409 version_conflict`; existing receipts remain recoverable and terminal actions
+remain available. This is a bounded initial retention policy, not automatic background compaction.
+Mutation operations use three point reads and three atomic writes, with existing SDK RPC deadlines
+and at most three transaction attempts. There is no list scan, worker, response-after-background
+thread, broker refresh, lease renewal or Cloud Tasks job. Refresh remains a newly encrypted client
+snapshot upload with revision CAS; real broker acquisition and refresh leases are not implemented.
+
+## Internal source metadata producer
+
+`POST /internal/v2/resources/projections/read` and `POST /internal/v2/resources/states/read` accept
+exactly `{contractVersion, refs}`, with one to ten distinct Portfolio holdings resource references.
+Requests require both the pinned Google workload token and short-lived Hub `browser_catalog`
+delegation for `holdings`, plus the exact contract header and JSON media type. An `agent_run`
+delegation is refused by these discovery routes. The verified signed owner UID alone selects the
+data partition; no UID is accepted in a request. References/incarnations must match current stored
+authority. Unknown queries, duplicate references/headers, oversized bodies and dependency errors
+use the same closed v2 error format and `no-store` headers. The receive budget is 128 KiB/five seconds.
+
+These responses are **Portfolio metadata extensions**, not the frozen shared
+`ResourceCatalogueItem`, a ciphertext projection, an agent decryption grant, or an immutable Run
+input manifest. Both return `{contractVersion,items}`. Each item contains exactly `ref`, `revision`
+(the retained latest revision), `sourceEpoch` and `state`. Active projections additionally return
+`snapshotId`; states additionally return `observedAt`. No carrier, author proofs, key packet,
+recipient list, credential or content is returned. Sources are independently read in separate
+transactions (at most three point reads each), not an atomic multi-source snapshot. A future Hub
+must still enforce current Run/grant/source fences and exact delivery bindings.
+
+Projection reads require an active source and a latest snapshot explicitly bound to its current
+epoch. An acknowledged fence leaves old owner history readable, but active projection returns
+`503 source_unavailable` until a fresh current-epoch client upload exists. Owner metadata separates
+`snapshotSourceEpoch` from current `sourceEpoch`. Old four-field latest-head records remain readable;
+their unknown snapshot epoch cannot be promoted into an eligible projection. States can report
+`revoking`, `disconnected` and `deleted` for future fencing coordination, without granting content
+access. New sources without a snapshot return a null pointer, not synthetic holdings.
+
+Trust requires explicit `PORTFOLIO_SERVICE_AUDIENCE`, matching versioned
+`PORTFOLIO_DELEGATION_AUDIENCE`, `PORTFOLIO_DELEGATION_ISSUER` and
+`PORTFOLIO_TRUSTED_HUB_CALLERS` (a bounded JSON subject-to-service-email map). Empty/malformed
+configuration fails closed with 503 before lookup or key fetch. This PR configures no deployed
+trust or IAM and never installs authority from a metadata request.
 
 ## Storage and configuration
 
@@ -88,7 +174,8 @@ Cloud Run requires `PORTFOLIO_STORE_BACKEND=firestore`, explicit `FIREBASE_PROJE
 `FIRESTORE_DATABASE`. Default-database use, SQLite fallback and Firestore emulator are rejected in
 cloud mode. Attached runtime identity is used, without downloading a service-account key.
 
-Collections: `portfolio_authorities`, `portfolio_heads`, `portfolio_snapshots`, `portfolio_operations`.
+Collections: `portfolio_authorities`, `portfolio_heads`, `portfolio_snapshots`, `portfolio_operations`,
+`portfolio_source_states`, `portfolio_source_mutations`.
 Hashed owner/source/object partitions are used. Snapshot, operation/receipt and latest pointer commit
 atomically. The carrier is one opaque `carrierJson` string, rather than a deeply indexed plaintext
 holdings map. Every complete write is checked against actual SDK Document bytes including its full
@@ -123,4 +210,5 @@ Tests use fresh synthetic root/device/recovery keys and real JOSE, durable SQLit
 rollback, and the real Firestore SDK against an in-memory RPC boundary. They cover owner separation,
 immutable versions, CAS, exact retries/original receipts, changed-ciphertext conflicts, current
 fences/revocations, registry rollback, SDK retry reauthorization, raw and protobuf budgets, slow
-uploads, formal private errors and dependency-independent health. No live account/cloud data is used.
+uploads, durable source mutations, exact ACK adapter matching, old-epoch projection refusal,
+dual signed metadata credentials, formal private errors and dependency-independent health. No live account/cloud data is used.

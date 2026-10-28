@@ -10,7 +10,7 @@ from unittest.mock import patch
 import httpx
 from fastapi import HTTPException, Request
 from fastapi.testclient import TestClient
-from fixtures import OPERATION, OTHER_UID, SOURCE, UID, HoldingsFixture
+from fixtures import MUTATION_OPERATION, OPERATION, OTHER_UID, SOURCE, UID, HoldingsFixture
 
 from app.api import get_service
 from app.holdings import PortfolioService
@@ -78,6 +78,58 @@ class HoldingsRouteTests(unittest.TestCase):
         recovered = self.client.get(self.base + "/operations/" + OPERATION, headers=self.headers)
         self.assert_private(recovered, 200)
         self.assertEqual(recovered.json(), saved.json())
+
+    def test_signed_mutation_returns_pending_and_can_be_recovered_without_an_ack_route(self):
+        command = self.fixture.control(action="disconnect")
+        headers = {**self.headers, "Idempotency-Key": MUTATION_OPERATION}
+        body = {
+            "contractVersion": CONTRACT_VERSION,
+            "expectedVersion": 1,
+            "expectedSourceEpoch": 1,
+            "command": command,
+        }
+        url = self.base + "/mutations/disconnect"
+        pending = self.client.post(url, headers=headers, json=body)
+        self.assert_private(pending, 202)
+        self.assertEqual(pending.json()["state"], "pending")
+        self.assert_private(self.client.post(url, headers=headers, json=body), 202)
+        recovered = self.client.get(
+            self.base + "/mutations/synthetic_mutation_000001", headers=self.headers
+        )
+        self.assert_private(recovered, 200)
+        self.assertEqual(recovered.json(), pending.json())
+        self.assert_private(self.client.put(self.url, headers=self.headers, json=self.body), 403)
+        for path in ("/fences/ack", "/mutations/synthetic_mutation_000001/ack"):
+            self.assert_private(
+                self.client.post(self.base + path, headers=headers, json={"sourceEpoch": 2}), 404
+            )
+
+    def test_mutation_requests_are_owner_signed_closed_and_bounded(self):
+        headers = {**self.headers, "Idempotency-Key": MUTATION_OPERATION}
+        body = {
+            "contractVersion": CONTRACT_VERSION,
+            "expectedVersion": 1,
+            "expectedSourceEpoch": 1,
+            "command": self.fixture.control(),
+        }
+        url = self.base + "/mutations/fence"
+        self.assert_private(self.client.post(url, headers=headers, json={**body, "ack": True}), 400)
+        self.assert_private(
+            self.client.post(url, headers=headers, json={**body, "expectedVersion": True}), 400
+        )
+        self.assert_private(
+            self.client.post(
+                url, headers={**headers, "Authorization": "Bearer synthetic-B"}, json=body
+            ),
+            503,
+        )
+        self.assert_private(
+            self.client.post(
+                url, headers={**headers, "Content-Type": "application/json"}, content=b" " * 66_561
+            ),
+            413,
+        )
+        self.assertEqual(self.service.metadata(UID, SOURCE)["state"], "active")
 
     def test_anonymous_requests_fail_before_private_storage_or_parser(self):
         app.dependency_overrides.pop(require_google_user)
