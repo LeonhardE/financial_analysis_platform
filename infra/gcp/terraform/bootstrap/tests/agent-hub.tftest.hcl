@@ -281,6 +281,8 @@ run "agent_hub_preparation_is_inert_by_default" {
     condition = (
       var.agent_hub_provisioning_stage == "none" &&
       !local.execution_registry.targets["agent-hub"].enabled &&
+      local.execution_registry.targets["agent-hub"].deployment_source == "inactive-v1" &&
+      !contains(keys(var.deployment_configs), "agent-hub") &&
       !contains(keys(module.target_execution), "agent-hub") &&
       length(module.agent_hub_build_identity) == 0 &&
       length(module.agent_hub_image_release) == 0 &&
@@ -298,6 +300,8 @@ run "agent_hub_execution_precedes_business_resources" {
   assert {
     condition = (
       contains(keys(module.target_execution), "agent-hub") &&
+      local.execution_registry.targets["agent-hub"].deployment_source == "inactive-v1" &&
+      !contains(keys(var.deployment_configs), "agent-hub") &&
       module.target_execution["agent-hub"].state_prefix == "prod/agent-hub" &&
       length(module.agent_hub_build_identity) == 1 &&
       module.agent_hub_image_release[0].name == "build-agent-hub-api" &&

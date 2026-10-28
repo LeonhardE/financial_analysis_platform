@@ -504,6 +504,67 @@ class InstancePipelineTests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "Unsupported deployment source"):
             self.run_pipeline()
 
+    def test_inactive_metadata_stays_disabled_and_cannot_enter_execution(self):
+        hub = {
+            "enabled": False,
+            "directory": "infra/gcp/terraform/envs/prod/agent-hub",
+            "configuration_controllers": ["module.agent_hub.terraform_data.configuration"],
+            "deployment_source": "inactive-v1",
+        }
+        self.catalog["targets"]["agent-hub"] = hub
+        self.write_catalog()
+        pipeline.registry(self.root, "repo")
+        with self.assertRaisesRegex(RuntimeError, "disabled"):
+            self.run_pipeline(target="agent-hub")
+        self.assertFalse(self.api.reads)
+        self.assertFalse(self.fixture.calls)
+        hub["enabled"] = True
+        self.write_catalog()
+        with self.assertRaisesRegex(RuntimeError, "reserved for disabled Agent Hub"):
+            self.run_pipeline()
+        hub["enabled"] = False
+        hub["state_bucket"] = "unreviewed-instance-state"
+        self.write_catalog()
+        with self.assertRaisesRegex(RuntimeError, "deployment instance fields"):
+            self.run_pipeline()
+        self.assertFalse(self.api.reads)
+        self.assertFalse(self.fixture.calls)
+
+    def test_inactive_source_cannot_skip_an_existing_or_unrelated_target_configuration(self):
+        original = copy.deepcopy(self.catalog)
+        for name in ("portfolio", "market", "repo", "unrelated"):
+            self.catalog = copy.deepcopy(original)
+            self.catalog["targets"][name] = {
+                "enabled": False,
+                "directory": f"infra/gcp/terraform/envs/prod/{name}",
+                "configuration_controllers": [],
+                "deployment_source": "inactive-v1",
+            }
+            self.write_catalog()
+            with (
+                self.subTest(target=name),
+                self.assertRaisesRegex(RuntimeError, "reserved for disabled Agent Hub"),
+            ):
+                self.run_pipeline()
+        self.assertFalse(self.api.reads)
+        self.assertFalse(self.fixture.calls)
+
+    def test_no_global_instance_cannot_downgrade_to_legacy(self):
+        entry = self.catalog["targets"]["repo"]
+        for source in ("committed-v2", None):
+            if source is None:
+                entry.pop("deployment_source")
+            else:
+                entry["deployment_source"] = source
+            self.write_catalog()
+            with (
+                self.subTest(source=source),
+                self.assertRaisesRegex(RuntimeError, "Legacy instance policy"),
+            ):
+                self.run_pipeline()
+        self.assertFalse(self.api.reads)
+        self.assertFalse(self.fixture.calls)
+
     def test_tfvars_symlinks_and_unapproved_apply_remain_forbidden(self):
         path = self.directory / "operator.auto.tfvars.json"
         path.write_text("{}")
@@ -519,6 +580,61 @@ class InstancePipelineTests(unittest.TestCase):
         self.api.builds[legacy.APPLY]["approval"]["result"]["decision"] = "REJECTED"
         with self.assertRaisesRegex(RuntimeError, "native Cloud Build approval"):
             self.run_pipeline("apply")
+
+
+class NeutralProductionCatalogTests(unittest.TestCase):
+    def test_production_catalog_contains_protocol_registration_only(self):
+        value = json.loads((profiles.ROOT / pipeline.POLICY).read_text())
+        self.assertEqual(
+            set(value), {"schema_version", "terraform_version", "max_plan_age_seconds", "targets"}
+        )
+        self.assertEqual(
+            {name for name, target in value["targets"].items() if target["enabled"]},
+            {"repo", "market", "user", "config", "web"},
+        )
+        for name, target in value["targets"].items():
+            self.assertEqual(
+                set(target),
+                {"enabled", "directory", "configuration_controllers", "deployment_source"},
+            )
+            self.assertEqual(
+                target["deployment_source"], "inactive-v1" if name == "agent-hub" else "trigger-v1"
+            )
+        self.assertFalse(value["targets"]["portfolio"]["enabled"])
+        self.assertFalse(value["targets"]["agent-hub"]["enabled"])
+
+    def test_actual_neutral_preflight_has_no_cloud_or_terraform_dependency(self):
+        with (
+            patch.object(pipeline, "ROOT", profiles.ROOT),
+            patch.object(pipeline, "GoogleAPI", side_effect=AssertionError("cloud")),
+            patch.object(pipeline, "command", side_effect=AssertionError("terraform")),
+            patch.object(sys, "argv", ["pipeline", "check-registry"]),
+            redirect_stdout(io.StringIO()) as output,
+        ):
+            pipeline.main()
+        self.assertIn("repo, market, user, config, web", output.getvalue())
+        self.assertNotIn("agent-hub", output.getvalue())
+
+    def test_active_contexts_bind_two_instances_without_catalog_defaults(self):
+        first = profiles.adopted()
+        second = json.loads(
+            json.dumps(first)
+            .replace("demo-folio-beta", "demo-folio-gamma")
+            .replace("222333444555", "333444555666")
+            .replace("europe-west3", "us-central1")
+        )
+        for full in (first, second):
+            for name in ("repo", "market", "user", "config", "web"):
+                instance = profile.compile_target(full, name)
+                policy, target, _ = pipeline.registry(profiles.ROOT, name, instance=instance)
+                project = full["project"]["id"]
+                self.assertEqual(policy["project_id"], project)
+                self.assertEqual(policy["region"], full["region"])
+                self.assertEqual(policy["plan_bucket"], project + "-tfplans")
+                self.assertEqual(
+                    target["state_bucket"],
+                    project + "-tfstate" + ("" if name == "repo" else "-" + name),
+                )
 
 
 if __name__ == "__main__":

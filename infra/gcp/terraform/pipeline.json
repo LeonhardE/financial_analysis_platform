@@ -1,11 +1,6 @@
 {
   "schema_version": 2,
-  "project_id": "financial-analysis-512202",
-  "region": "northamerica-northeast2",
-  "repository_url": "https://github.com/LeonhardE/financial_analysis_platform.git",
   "terraform_version": "1.16.7",
-  "state_bucket": "financial-analysis-512202-tfstate",
-  "plan_bucket": "financial-analysis-512202-tfplans",
   "max_plan_age_seconds": 21600,
   "targets": {
     "repo": {
@@ -47,14 +42,8 @@
     "agent-hub": {
       "enabled": false,
       "directory": "infra/gcp/terraform/envs/prod/agent-hub",
-      "state_bucket": "financial-analysis-512202-tfstate-agent-hub",
-      "state_prefix": "prod/agent-hub",
-      "plan_trigger": "terraform-plan-agent-hub",
-      "apply_trigger": "terraform-apply-agent-hub",
-      "plan_service_account": "fa-infra-agent-hub-plan@financial-analysis-512202.iam.gserviceaccount.com",
-      "apply_service_account": "fa-infra-agent-hub-apply@financial-analysis-512202.iam.gserviceaccount.com",
-      "configuration_controllers": ["module.agent_hub.terraform_data.configuration"]
+      "configuration_controllers": ["module.agent_hub.terraform_data.configuration"],
+      "deployment_source": "inactive-v1"
     }
-  },
-  "project_number": "630815932903"
+  }
 }

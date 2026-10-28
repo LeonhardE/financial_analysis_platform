@@ -4,11 +4,12 @@
 selected deployment instance, then renders reviewable candidate files. No profile is selected by
 an ambient gcloud project, the working directory, or a production default.
 
-This foundation does **not** migrate the existing production Terraform roots, remove their
-adoption guards, modify `terraform/pipeline.json`, activate a target, or implement a fresh cloud
-installation. Those are separate, ordered per-target changes. Existing catalog targets retain
-their committed policy. The shared runner also supports the explicit `trigger-v1` contract below,
-but this foundation does not opt any production target into it or modify an existing trigger.
+The existing repo, Market, User, Config, Web and Portfolio consumers now use the explicit
+`trigger-v1` contract below. Their production catalog contains static registration only; an
+operator's selected instance reaches remote execution through the existing managed triggers.
+Portfolio remains disabled for normal execution and build-only for image publication. Uncreated
+Hub uses the disabled `inactive-v1` marker, which cannot run a normal plan/apply. The producer
+itself does not update triggers, activate targets, remove adoption guards or install cloud resources.
 
 ## Local use
 
@@ -83,24 +84,25 @@ builds, Firebase provider/domains and isolated state. The new profile does not c
 
 ## Output contracts
 
-| Artifact                           | Consumer shape / purpose                                                                                                                              |
-| ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `pipeline.candidate.json`          | Existing saved-plan policy schema v2; pinned toolchain version, unchanged six-hour maximum plan age, per-target state/identities/triggers/controllers |
-| `bootstrap-inputs.candidate.json`  | Bootstrap variables including both explicit stages and a `deployment_configs` map of canonical adopted-target projections                             |
-| `backends.candidate.json`          | Bootstrap and each target's bucket/prefix, keeping administrator and ordinary target state separate                                                   |
-| `web-substitutions.candidate.json` | Existing Web public substitution names; values derived from one selected profile                                                                      |
-| `inventory.candidate.json`         | Explicit runtime account/origin/image/adoption inputs for later per-target migration                                                                  |
-| `manifest.json`                    | Canonical normalized profile/source/target hashes, exact output-file byte hashes, `approval=not_requested`, `productionActivation=false`              |
+| Artifact                           | Consumer shape / purpose                                                                                                                 |
+| ---------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `pipeline.candidate.json`          | Offline legacy schema-v2 review view, including derived state/identities/triggers; never a replacement for the static production catalog |
+| `bootstrap-inputs.candidate.json`  | Bootstrap variables including both explicit stages and a `deployment_configs` map of canonical adopted-target projections                |
+| `backends.candidate.json`          | Bootstrap and each target's bucket/prefix, keeping administrator and ordinary target state separate                                      |
+| `web-substitutions.candidate.json` | Existing Web public substitution names; values derived from one selected profile                                                         |
+| `inventory.candidate.json`         | Explicit runtime account/origin/image/adoption inputs for later per-target migration                                                     |
+| `manifest.json`                    | Canonical normalized profile/source/target hashes, exact output-file byte hashes, `approval=not_requested`, `productionActivation=false` |
 
 The metadata binds inputs and output files to one configuration selection. It is not an approval,
 SLSA statement, live ownership check, or replacement for source provenance, main-only checks,
 saved-plan hash, lineage/serial, age limit, native approval, or configuration/image ownership.
-Current live consumers remain unchanged. Do not copy candidates wholesale over their production
-files: their adoption-only roots still contain target-specific guards requiring separate migration.
+Do not copy candidates wholesale over production files. In particular, `pipeline.candidate.json`
+is an offline legacy compatibility view, not the production registration contract. Consumer roots
+continue to validate explicit typed inputs and adoption ownership.
 
-Remote Cloud Build does not inherit a developer's ignored local files. A separate target migration
-must connect its bootstrap input and variable consumer to the following contract. This producer
-has no remote auto-discovery, credentials, upload, trigger-update or apply action.
+Remote Cloud Build does not inherit a developer's ignored local files. Its existing managed trigger
+must receive the selected projection through an explicitly reviewed administrator update. This
+producer has no remote auto-discovery, credentials, upload, trigger-update or apply action.
 
 ## Target-instance v1 and private compilation
 
@@ -151,14 +153,18 @@ this target's plans. The input inventory still is not live ownership attestation
 
 ## Explicit trigger-managed consumption
 
-A separately reviewed single-target migration sets `deployment_source: "trigger-v1"` on its static
-catalog entry, declares its typed `deployment` variable and wires its existing plan/apply triggers
-to the canonical `deployment_configs[target]` string and SHA-256. Bootstrap's optional
-`map(string)` defaults to `{}`; adding this input alone creates or changes no resource instance.
-The catalog must remove that target's instance-specific state bucket/service-account fields;
-only static protocol keys remain, including optional validated target prefixes/trigger names.
-Static target roots/controllers and `enabled`
-remain checked-in policy. A disabled target still fails before credentials or Terraform.
+Each existing consumer has `deployment_source: "trigger-v1"` on its static catalog entry, a typed
+`deployment` variable and existing plan/apply triggers wired to the canonical
+`deployment_configs[target]` string and SHA-256. The bootstrap `map(string)` defaults to `{}` for
+its input shape, but every `trigger-v1` catalog entry requires a valid projection, including disabled
+Portfolio. Missing configuration fails closed; it does not select a production default.
+
+The catalog has no global instance fields or per-target state bucket/service-account fields.
+Only static protocol keys remain, including optional validated target prefixes/trigger names.
+Static target roots/controllers and `enabled` remain checked-in policy. A disabled target fails
+before credentials or Terraform. `inactive-v1` is reserved for disabled Hub static metadata, and its
+existing administrator preparation stages do not require an invented adopted service/trigger
+identity. Normal Hub execution requires a separate migration to `trigger-v1` and valid configuration.
 
 The YAML passes only built-in project/region locators, never JSON on a shell command line or in
 an environment variable. The runner reads the actual Build and Trigger via Google APIs, validates

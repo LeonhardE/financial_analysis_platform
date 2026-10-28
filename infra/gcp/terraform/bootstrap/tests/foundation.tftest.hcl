@@ -362,13 +362,16 @@ run "catalog_requires_separate_target_activation_and_scoped_repo_artifacts" {
       local.execution_registry.targets.user.enabled &&
       local.execution_registry.targets.config.enabled &&
       local.execution_registry.targets.web.enabled &&
+      toset(keys(local.execution_registry)) == toset(["schema_version", "terraform_version", "max_plan_age_seconds", "targets"]) &&
+      alltrue([for name, target in local.execution_registry.targets : target.deployment_source == "trigger-v1" if name != "agent-hub"]) &&
+      local.execution_registry.targets["agent-hub"].deployment_source == "inactive-v1" &&
       local.execution_registry.targets.web.configuration_controllers == ["module.web.terraform_data.configuration"] &&
       local.execution_registry.targets.config.configuration_controllers == ["module.config.terraform_data.configuration"] &&
       local.execution_registry.targets.user.configuration_controllers == ["module.user.terraform_data.configuration"] &&
       local.execution_registry.targets.market.configuration_controllers == ["module.market.terraform_data.configuration"] &&
       alltrue([for name, target in local.execution_registry.targets : !target.enabled if !contains(["repo", "market", "user", "config", "web"], name)])
     )
-    error_message = "Only the separately reviewed Market, User, Config and Web adoptions may activate these execution targets."
+    error_message = "The catalog carries static protocol metadata only; existing targets require explicit projections and inactive Hub cannot activate normal execution."
   }
 
   assert {
@@ -755,6 +758,28 @@ run "reject_projection_for_another_target" {
         source        = { repositoryResource = "projects/financial-analysis-512202/locations/northamerica-northeast2/connections/financial-analysis-github/repositories/financial-analysis" }
         inputs        = { project_id = "financial-analysis-512202" }
       })
+    })
+  }
+  expect_failures = [google_cloudbuild_trigger.plan]
+}
+
+run "disabled_portfolio_still_requires_explicit_projection" {
+  command = plan
+  variables {
+    deployment_configs = {
+      for name, config in var.deployment_configs : name => config if name != "portfolio"
+    }
+  }
+  expect_failures = [google_cloudbuild_trigger.plan]
+}
+
+run "disabled_portfolio_rejects_cross_project_projection" {
+  command = plan
+  variables {
+    deployment_configs = merge(var.deployment_configs, {
+      portfolio = jsonencode(merge(jsondecode(var.deployment_configs["portfolio"]), {
+        project = { id = "other-project", number = "999888777666" }
+      }))
     })
   }
   expect_failures = [google_cloudbuild_trigger.plan]

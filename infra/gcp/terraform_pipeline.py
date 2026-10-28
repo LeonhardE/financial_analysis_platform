@@ -176,8 +176,17 @@ def registry(root, target, instance=None):
         )
         require(type(entry.get("enabled")) is bool, "Target activation must be explicit.")
         source = entry.get("deployment_source", "committed-v2")
-        require(source in {"committed-v2", "trigger-v1"}, "Unsupported deployment source.")
-        if source == "trigger-v1":
+        require(
+            source in {"committed-v2", "trigger-v1", "inactive-v1"},
+            "Unsupported deployment source.",
+        )
+        neutral = source in {"trigger-v1", "inactive-v1"}
+        if source == "inactive-v1":
+            require(
+                name == "agent-hub" and not entry["enabled"],
+                "Inactive deployment source is reserved for disabled Agent Hub.",
+            )
+        if neutral:
             require(
                 set(entry)
                 <= {
@@ -209,7 +218,7 @@ def registry(root, target, instance=None):
                 expected.update(instance_target(instance))
         for field, value in expected.items():
             require(
-                (source == "trigger-v1" and field not in entry) or entry.get(field) == value,
+                (neutral and field not in entry) or entry.get(field) == value,
                 "Target execution input does not match its deployment instance.",
             )
         controllers = entry.get("configuration_controllers")
@@ -238,7 +247,7 @@ def registry(root, target, instance=None):
                     "Execution identity must match its target and phase.",
                 )
             require(
-                (source == "trigger-v1" and f"{phase}_trigger" not in entry)
+                (neutral and f"{phase}_trigger" not in entry)
                 or entry.get(f"{phase}_trigger") == f"terraform-{phase}-{name}",
                 "Execution trigger must match its target and phase.",
             )
@@ -246,7 +255,7 @@ def registry(root, target, instance=None):
                 ("identity", entry.get(f"{phase}_service_account")),
                 ("trigger", entry.get(f"{phase}_trigger")),
             ):
-                if value is None and source == "trigger-v1":
+                if value is None and neutral:
                     continue
                 require(
                     value not in seen[field],
@@ -254,7 +263,7 @@ def registry(root, target, instance=None):
                 )
                 seen[field].add(value)
         for field in ("directory", "state_bucket", "state_prefix"):
-            if field not in entry and source == "trigger-v1":
+            if field not in entry and neutral:
                 continue
             require(
                 entry[field] not in seen[field],

@@ -46,7 +46,7 @@ variable "repository_id" {
 }
 
 variable "deployment_configs" {
-  description = "Optional canonical target-instance-v1 JSON for explicitly migrated targets. Empty leaves existing consumers unchanged; no secrets or arbitrary environment maps."
+  description = "Canonical target-instance-v1 JSON required for every trigger-v1 catalog target, including disabled Portfolio. No production fallback, secrets or arbitrary environment maps. Inactive Hub preparation requires no adopted projection."
   type        = map(string)
   default     = {}
 }
