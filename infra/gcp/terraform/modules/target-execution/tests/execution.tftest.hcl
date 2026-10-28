@@ -119,6 +119,7 @@ run "main_only_plan_filters_target_root_and_common_execution_tooling" {
 
   assert {
     condition = (
+      var.deployment_config == null &&
       google_cloudbuild_trigger.plan.name == "terraform-plan-example" &&
       google_cloudbuild_trigger.plan.service_account == google_service_account.execution["plan"].id &&
       google_cloudbuild_trigger.plan.repository_event_config[0].repository == var.repository_id &&
@@ -215,4 +216,146 @@ run "reject_cross_project_lock_delete_role" {
     lock_delete_role = "projects/another-project/roles/terraformStateLockDelete"
   }
   expect_failures = [var.lock_delete_role]
+}
+
+run "optional_projection_pins_identical_json_and_digest_in_both_triggers" {
+  command = plan
+
+  variables {
+    deployment_config = jsonencode({
+      schemaVersion = 1
+      target        = "example"
+      project       = { id = "example-project" }
+      region        = "northamerica-northeast2"
+    })
+  }
+
+  assert {
+    condition = (
+      contains(google_cloudbuild_trigger.plan.included_files, "infra/gcp/deployment_profile.py") &&
+      google_cloudbuild_trigger.plan.substitutions == tomap({
+        _TARGET            = "example"
+        _REPAIR_CONTROLLER = ""
+        _DEPLOYMENT_CONFIG = var.deployment_config
+        _DEPLOYMENT_SHA256 = sha256(var.deployment_config)
+      }) &&
+      google_cloudbuild_trigger.apply.substitutions == tomap({
+        _TARGET            = "example"
+        _PLAN_BUILD_ID     = ""
+        _DEPLOYMENT_CONFIG = var.deployment_config
+        _DEPLOYMENT_SHA256 = sha256(var.deployment_config)
+      })
+    )
+    error_message = "Both existing trigger maps must retain their original metadata and pin exactly the same target projection and byte digest."
+  }
+}
+
+run "reject_projection_for_another_target" {
+  command = plan
+  variables {
+    deployment_config = jsonencode({
+      schemaVersion = 1
+      target        = "another"
+      project       = { id = "example-project" }
+      region        = "northamerica-northeast2"
+    })
+  }
+  expect_failures = [var.deployment_config]
+}
+
+run "reject_projection_for_another_project" {
+  command = plan
+  variables {
+    deployment_config = jsonencode({
+      schemaVersion = 1
+      target        = "example"
+      project       = { id = "another-project" }
+      region        = "northamerica-northeast2"
+    })
+  }
+  expect_failures = [var.deployment_config]
+}
+
+run "reject_projection_for_another_region" {
+  command = plan
+  variables {
+    deployment_config = jsonencode({
+      schemaVersion = 1
+      target        = "example"
+      project       = { id = "example-project" }
+      region        = "us-central1"
+    })
+  }
+  expect_failures = [var.deployment_config]
+}
+
+run "reject_projection_larger_than_cloud_build_value_limit" {
+  command = plan
+  variables {
+    deployment_config = jsonencode({
+      schemaVersion = 1
+      target        = "example"
+      project       = { id = "example-project" }
+      region        = "northamerica-northeast2"
+      padding       = join("", [for unused in range(1000) : "xxxx"])
+    })
+  }
+  expect_failures = [var.deployment_config]
+}
+
+run "reject_noncanonical_json" {
+  command = plan
+  variables {
+    deployment_config = "{ \"project\":{\"id\":\"example-project\"},\"region\":\"northamerica-northeast2\",\"schemaVersion\":1,\"target\":\"example\"}"
+  }
+  expect_failures = [var.deployment_config]
+}
+
+run "reject_invalid_json" {
+  command = plan
+  variables {
+    deployment_config = "{"
+  }
+  expect_failures = [var.deployment_config]
+}
+
+run "reject_another_schema_version" {
+  command = plan
+  variables {
+    deployment_config = jsonencode({
+      schemaVersion = 2
+      target        = "example"
+      project       = { id = "example-project" }
+      region        = "northamerica-northeast2"
+    })
+  }
+  expect_failures = [var.deployment_config]
+}
+
+run "reject_non_ascii_projection" {
+  command = plan
+  variables {
+    deployment_config = jsonencode({
+      schemaVersion = 1
+      target        = "example"
+      project       = { id = "example-project" }
+      region        = "northamerica-northeast2"
+      note          = "é"
+    })
+  }
+  expect_failures = [var.deployment_config]
+}
+
+run "reject_cloud_build_substitution_expansion" {
+  command = plan
+  variables {
+    deployment_config = jsonencode({
+      schemaVersion = 1
+      target        = "example"
+      project       = { id = "example-project" }
+      region        = "northamerica-northeast2"
+      note          = "$_UNTRUSTED"
+    })
+  }
+  expect_failures = [var.deployment_config]
 }

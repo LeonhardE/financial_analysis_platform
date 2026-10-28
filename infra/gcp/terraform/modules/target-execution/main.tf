@@ -1,4 +1,8 @@
 locals {
+  deployment_substitutions = var.deployment_config == null ? {} : {
+    _DEPLOYMENT_CONFIG = var.deployment_config
+    _DEPLOYMENT_SHA256 = sha256(var.deployment_config)
+  }
   target_directory = "infra/gcp/terraform/envs/prod/${var.target}"
   state_prefix     = "prod/${var.target}"
   plan_prefix      = "projects/_/buckets/${var.plan_bucket}/objects/plans/${var.target}/"
@@ -146,7 +150,7 @@ resource "google_cloudbuild_trigger" "plan" {
   description     = "Plan only ${var.target} infrastructure from trusted main; never apply or administer execution resources."
   service_account = google_service_account.execution["plan"].id
   filename        = "infra/gcp/cloudbuild.terraform-plan.yaml"
-  included_files = [
+  included_files = concat([
     "${local.target_directory}/**",
     "infra/gcp/terraform/modules/**",
     "infra/gcp/terraform/pipeline.json",
@@ -156,7 +160,7 @@ resource "google_cloudbuild_trigger" "plan" {
     "infra/gcp/configure_cloud_run_service.py",
     "infra/gcp/deploy_existing_service.py",
     "infra/gcp/cloudbuild.terraform-*.yaml",
-  ]
+  ], var.deployment_config == null ? [] : ["infra/gcp/deployment_profile.py"])
   ignored_files = ["**/*.md"]
 
   repository_event_config {
@@ -166,10 +170,10 @@ resource "google_cloudbuild_trigger" "plan" {
     }
   }
 
-  substitutions = {
+  substitutions = merge({
     _TARGET            = var.target
     _REPAIR_CONTROLLER = ""
-  }
+  }, local.deployment_substitutions)
 
   lifecycle {
     prevent_destroy = true
@@ -208,10 +212,10 @@ resource "google_cloudbuild_trigger" "apply" {
     approval_required = true
   }
 
-  substitutions = {
+  substitutions = merge({
     _TARGET        = var.target
     _PLAN_BUILD_ID = ""
-  }
+  }, local.deployment_substitutions)
 
   lifecycle {
     prevent_destroy = true
