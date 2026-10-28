@@ -9,6 +9,7 @@ from functools import lru_cache
 
 from fastapi import HTTPException
 
+from .cost_controls import MarketLimited
 from .market_cache import CacheUnavailable, MarketCache, bounded_int, create_cache
 from .mock_data import mock_range_candles
 from .yahoo_provider import (
@@ -338,9 +339,10 @@ class MarketService:
                 entry = self.cached(f"candles:{result['symbol']}", now)
                 if entry:
                     canonical = self.with_status(entry.value, entry.updated_at, now)
-            except CacheUnavailable:
-                # A missing quote must never turn a usable chart into an error
-                # or reserve another upstream refresh behind the user's back.
+            except (CacheUnavailable, MarketLimited):
+                # Optional quote enrichment may be omitted after a denied read.
+                # This returns the usable chart without additional SDK/upstream
+                # work; it does not bypass admission for required operations.
                 pass
         return {**result, "quote": self.daily_quote(canonical)}
 
@@ -507,6 +509,9 @@ def get_market_service() -> MarketService:
             ("GOOGLE_CLOUD_PROJECT", ""),
             ("K_SERVICE", ""),
             ("MARKET_UPSTREAM_DAILY_LIMIT", "200"),
+            ("MARKET_REQUESTS_PER_MINUTE", "600"),
+            ("MARKET_STORAGE_OPERATIONS_PER_MINUTE", "180"),
+            ("MARKET_MAX_INFLIGHT_REQUESTS", "8"),
             ("MARKET_CACHE_TTL_SECONDS", "3600"),
         )
     )

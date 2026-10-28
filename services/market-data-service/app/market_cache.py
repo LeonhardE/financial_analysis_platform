@@ -16,6 +16,8 @@ from google.cloud import firestore
 
 from folioview_shared.firestore import BoundedTransaction
 
+from .cost_controls import MarketLimited, get_cost_controls
+
 
 class CacheUnavailable(Exception):
     """The shared cache cannot safely reserve upstream capacity."""
@@ -166,8 +168,9 @@ class SQLiteMarketCache(MarketCache):
 class FirestoreMarketCache(MarketCache):
     """A single collection; transactions coordinate budgets and refresh leases."""
 
-    def __init__(self, project_id: str, database: str = "(default)"):
+    def __init__(self, project_id: str, database: str = "(default)", *, controls=None):
         super().__init__()
+        self.controls = controls if controls is not None else get_cost_controls()
         try:
             self.client = firestore.Client(project=project_id, database=database)
             self.collection = self.client.collection("market_data_cache")
@@ -179,16 +182,32 @@ class FirestoreMarketCache(MarketCache):
     def document(self, key: str):
         return self.collection.document(hashlib.sha256(key.encode()).hexdigest())
 
+    def read_document(self, reference, transaction=None):
+        self.controls.storage.charge()
+        kwargs = {"timeout": 4, "retry": None}
+        if transaction is not None:
+            kwargs["transaction"] = transaction
+        return reference.get(**kwargs).to_dict()
+
+    def queue_writes(self, transaction, writes):
+        # Reserve the whole batch immediately before staging it. A failed
+        # reservation stages nothing; exceptions in a transaction roll it back.
+        self.controls.storage.charge(len(writes))
+        for reference, value, merge in writes:
+            transaction.set(reference, value, **({"merge": True} if merge else {}))
+
     def get(self, key: str) -> Entry | None:
         with self.read_cache_lock:
             local = self.read_cache.get(key)
         if local and local[0] > time.monotonic():
             return local[1]
         try:
-            row = self.document(key).get(timeout=4, retry=None).to_dict()
+            row = self.read_document(self.document(key))
             entry = Entry(row["value"], row["updated"]) if row and "value" in row else None
             self.remember(key, entry)
             return entry
+        except MarketLimited:
+            raise
         except Exception as error:
             raise CacheUnavailable from error
 
@@ -209,8 +228,8 @@ class FirestoreMarketCache(MarketCache):
 
         @firestore.transactional
         def claim_transaction(transaction):
-            row = entry_ref.get(transaction=transaction, timeout=4, retry=None).to_dict() or {}
-            state = state_ref.get(transaction=transaction, timeout=4, retry=None).to_dict() or {}
+            row = self.read_document(entry_ref, transaction) or {}
+            state = self.read_document(state_ref, transaction) or {}
             refresh_after = row.get("value", {}).get(
                 "_refreshAfter", row.get("updated", 0) + self.fresh_seconds
             )
@@ -221,12 +240,19 @@ class FirestoreMarketCache(MarketCache):
             reason = reserve(state, now, cost, self.daily_limit)
             if reason:
                 return reason
-            transaction.set(state_ref, state)
-            transaction.set(entry_ref, {"lease": now + self.lease_seconds}, merge=True)
+            self.queue_writes(
+                transaction,
+                [
+                    (state_ref, state, False),
+                    (entry_ref, {"lease": now + self.lease_seconds}, True),
+                ],
+            )
             return None
 
         try:
             return claim_transaction(BoundedTransaction(self.client, max_attempts=2))
+        except MarketLimited:
+            raise
         except Exception as error:
             raise CacheUnavailable from error
 
@@ -235,29 +261,43 @@ class FirestoreMarketCache(MarketCache):
 
         @firestore.transactional
         def write_if_newer(transaction):
-            row = reference.get(transaction=transaction, timeout=4, retry=None).to_dict() or {}
+            row = self.read_document(reference, transaction) or {}
             if row.get("updated", 0) > now:
                 return Entry(row["value"], row["updated"])
-            transaction.set(reference, {"value": value, "updated": now, "lease": 0, "retry": 0})
+            self.queue_writes(
+                transaction,
+                [
+                    (reference, {"value": value, "updated": now, "lease": 0, "retry": 0}, False),
+                ],
+            )
             return Entry(value, now)
 
         try:
             json.dumps(value, allow_nan=False)
             stored = write_if_newer(BoundedTransaction(self.client, max_attempts=2))
             self.remember(key, stored)
+        except MarketLimited:
+            raise
         except Exception as error:
             raise CacheUnavailable from error
 
     def fail(self, key: str, now: float, *, rate_limited: bool = False) -> None:
         try:
             batch = self.client.batch()
-            batch.set(self.document(key), {"lease": 0, "retry": now + 300}, merge=True)
-            batch.set(
-                self.collection.document("shared_upstream_budget"),
-                {"cooldown": now + (900 if rate_limited else 300)},
-                merge=True,
+            self.queue_writes(
+                batch,
+                [
+                    (self.document(key), {"lease": 0, "retry": now + 300}, True),
+                    (
+                        self.collection.document("shared_upstream_budget"),
+                        {"cooldown": now + (900 if rate_limited else 300)},
+                        True,
+                    ),
+                ],
             )
             batch.commit(timeout=4, retry=None)
+        except MarketLimited:
+            raise
         except Exception as error:
             raise CacheUnavailable from error
 
