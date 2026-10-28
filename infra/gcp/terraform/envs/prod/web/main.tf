@@ -1,7 +1,7 @@
 locals {
-  project_id       = "financial-analysis-512202"
-  region           = "northamerica-northeast2"
-  existing_web_uid = "4cd78365-f1a5-4049-a397-d00b1eebfd68"
+  project_id       = var.deployment.project_id
+  region           = var.deployment.region
+  existing_web_uid = var.deployment.existing_service_uid
 }
 
 provider "google" {
@@ -16,8 +16,8 @@ module "runtime_identity" {
   source = "../../../modules/service-identity"
 
   project_id   = local.project_id
-  account_id   = "fa-web-runtime"
-  display_name = "fa-web-runtime"
+  account_id   = var.deployment.runtime_account_id
+  display_name = var.deployment.runtime_account_id
   description  = ""
 
   secret_ids                = {}
@@ -34,7 +34,7 @@ module "web" {
 
   # Creation-only input required by the shared contract. Imports and subsequent
   # configuration applies preserve the live image and release-owned traffic.
-  image = "northamerica-northeast2-docker.pkg.dev/financial-analysis-512202/financial-analysis/market-web@sha256:1884ba316a00f16639c93f670de6670b8bb3f797b6e7eab2e7fd2defe30ab26d"
+  image = var.deployment.creation_image
 
   port              = 8080
   memory            = "512Mi"

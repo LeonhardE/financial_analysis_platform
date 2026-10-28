@@ -37,8 +37,8 @@ images:
   - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPOSITORY}/market-web:$BUILD_ID
 
 substitutions:
-  _REGION: northamerica-northeast2
-  _REPOSITORY: financial-analysis
+  _REGION: ""
+  _REPOSITORY: ""
   _API_BASE_URL: ""
   # Leave empty during migration to keep private requests on the existing API.
   _USER_API_BASE_URL: ""

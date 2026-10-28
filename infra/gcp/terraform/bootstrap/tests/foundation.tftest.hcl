@@ -694,15 +694,16 @@ run "web_retains_existing_build_filter_and_public_frontend_configuration" {
     condition = (
       google_cloudbuild_trigger.web_image_release.name == "build-market-web" &&
       google_cloudbuild_trigger.web_image_release.filename == "infra/gcp/cloudbuild.web.yaml" &&
-      google_cloudbuild_trigger.web_image_release.service_account == "projects/financial-analysis-512202/serviceAccounts/fa-build@financial-analysis-512202.iam.gserviceaccount.com" &&
+      google_cloudbuild_trigger.web_image_release.service_account == "projects/${var.project_id}/serviceAccounts/fa-build@${var.project_id}.iam.gserviceaccount.com" &&
       google_cloudbuild_trigger.web_image_release.repository_event_config[0].push[0].branch == "^main$" &&
       tolist(google_cloudbuild_trigger.web_image_release.included_files) == tolist(["apps/web/**", "package.json", "package-lock.json", ".dockerignore", "infra/gcp/cloudbuild.web.yaml", "infra/gcp/deploy_existing_service.py"]) &&
       length(google_cloudbuild_trigger.web_image_release.ignored_files) == 0 &&
       !google_cloudbuild_trigger.web_image_release.disabled &&
       !contains(keys(google_cloudbuild_trigger.web_image_release.substitutions), "_DEPLOY_SERVICE") &&
       toset(keys(google_cloudbuild_trigger.web_image_release.substitutions)) == toset(["_API_BASE_URL", "_CONFIG_API_BASE_URL", "_USER_API_BASE_URL", "_FIREBASE_API_KEY", "_FIREBASE_AUTH_DOMAIN", "_FIREBASE_PROJECT_ID", "_FIREBASE_APP_ID", "_REGION", "_REPOSITORY"]) &&
-      google_cloudbuild_trigger.web_image_release.substitutions["_USER_API_BASE_URL"] == "https://user-api-630815932903.northamerica-northeast2.run.app" &&
-      google_cloudbuild_trigger.web_image_release.substitutions["_CONFIG_API_BASE_URL"] == "https://config-api-630815932903.northamerica-northeast2.run.app"
+      google_cloudbuild_trigger.web_image_release.substitutions == tomap(local.web_deployment.build) &&
+      local.web_deployment.build._REGION == var.region &&
+      local.web_deployment.build._REPOSITORY == local.web_deployment.artifactRepository
     )
     error_message = "Web adoption must retain the existing build trigger, paths and build-time public configuration without adding substitutions or redirecting private requests."
   }
@@ -723,8 +724,8 @@ run "web_execution_is_scoped_to_existing_web_resources" {
       google_cloud_run_v2_service_iam_member.web_execution["apply"].role == google_project_iam_custom_role.web_service_configuration.name &&
       alltrue([for phase, grant in google_service_account_iam_member.web_execution_metadata : grant.service_account_id == local.web_runtime && grant.member == "serviceAccount:${module.target_execution["web"].service_accounts[phase]}"]) &&
       alltrue([for grant in google_service_account_iam_member.web_runtime_deployer : grant.service_account_id == local.web_runtime && grant.role == "roles/iam.serviceAccountUser"]) &&
-      google_artifact_registry_repository_iam_member.web_configuration_image.repository == "financial-analysis" &&
-      google_artifact_registry_repository_iam_member.web_configuration_image.location == "northamerica-northeast2" &&
+      google_artifact_registry_repository_iam_member.web_configuration_image.repository == local.web_deployment.artifactRepository &&
+      google_artifact_registry_repository_iam_member.web_configuration_image.location == var.region &&
       google_artifact_registry_repository_iam_member.web_configuration_image.role == google_project_iam_custom_role.web_image_read.name &&
       google_artifact_registry_repository_iam_member.web_configuration_image.member == "serviceAccount:${module.target_execution["web"].service_accounts["apply"]}"
     )
@@ -811,4 +812,28 @@ run "reject_nonnumeric_project_alias_in_projection" {
     })
   }
   expect_failures = [var.repository_id]
+}
+
+run "web_rejects_unknown_public_build_substitution" {
+  command = plan
+  variables {
+    deployment_configs = merge(var.deployment_configs, {
+      web = jsonencode(merge(jsondecode(var.deployment_configs["web"]), {
+        build = merge(jsondecode(var.deployment_configs["web"]).build, { _BACKEND_TOKEN = "synthetic" })
+      }))
+    })
+  }
+  expect_failures = [google_cloudbuild_trigger.web_image_release]
+}
+
+run "web_rejects_mixed_build_region" {
+  command = plan
+  variables {
+    deployment_configs = merge(var.deployment_configs, {
+      web = jsonencode(merge(jsondecode(var.deployment_configs["web"]), {
+        build = merge(jsondecode(var.deployment_configs["web"]).build, { _REGION = "us-east1" })
+      }))
+    })
+  }
+  expect_failures = [google_cloudbuild_trigger.web_image_release]
 }
