@@ -17,13 +17,8 @@
     "market": {
       "enabled": true,
       "directory": "infra/gcp/terraform/envs/prod/market",
-      "state_bucket": "financial-analysis-512202-tfstate-market",
-      "state_prefix": "prod/market",
-      "plan_trigger": "terraform-plan-market",
-      "apply_trigger": "terraform-apply-market",
-      "plan_service_account": "fa-infra-market-plan@financial-analysis-512202.iam.gserviceaccount.com",
-      "apply_service_account": "fa-infra-market-apply@financial-analysis-512202.iam.gserviceaccount.com",
-      "configuration_controllers": ["module.market.terraform_data.configuration"]
+      "configuration_controllers": ["module.market.terraform_data.configuration"],
+      "deployment_source": "trigger-v1"
     },
     "user": {
       "enabled": true,

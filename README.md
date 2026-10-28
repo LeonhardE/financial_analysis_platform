@@ -298,6 +298,47 @@ service-scoped deployment IAM using the Console guide. Firebase ID tokens, servi
 other secrets must never be public build arguments. `NEXT_PUBLIC_*` origins and Firebase Web config
 are public, compiled values: changing runtime variables alone does not update the browser bundle.
 
+### Market instance configuration
+
+The adopted Market Terraform root now requires one explicit `deployment` object, rather than
+embedding the original operator's project, region, runtime account, image, Web origin or Run UID.
+Compile a private profile into a new review directory:
+
+```sh
+python3 infra/gcp/deployment_profile.py compile \
+  --profile /absolute/private/production.profile.json \
+  --target market \
+  --output-dir /absolute/private/new-market-review
+```
+
+The output directory is private (`0700`), with private files (`0600`).
+`terraform-inputs.candidate.json` contains the explicit `deployment` variable object;
+`deployment-config.candidate.json` is the single-target projection for the administrator-managed
+plan/apply triggers, and `trigger-substitutions.candidate.json` contains the associated trigger
+inputs. Candidates and their manifest are review material, not approval or activation. Keep the
+profile and all generated inputs out of Git and application images. The existing profile `render`
+command also includes the canonical Market projection in the bootstrap `deployment_configs` map.
+
+Production execution must consume the reviewed trigger configuration and bind its exact bytes,
+instance, source and target to the saved plan. Remote Cloud Build cannot use a developer's ignored
+local files. For an explicitly authorized local diagnostic plan, pass the generated
+`terraform-inputs.candidate.json` as an explicit `-var-file`; its candidate filename is deliberately
+not automatically loaded. Keep the existing isolated backend, state lineage, Terraform/provider
+locks, resource addresses, runtime identity and import destinations unchanged.
+
+Review a complete state-backed Market plan before any execution, without `-target` or a forced
+controller replacement. A configuration-only migration must have no managed resource changes and
+must retain the actual service UID, public invocation mode, service-wide maximum of two,
+revision-level maximum of twelve, current image/traffic and default database. The creation-image
+input remains digest-pinned and never replaces a deployed release. Wrong identities, access modes
+or service caps must still fail planning. This migration creates no resources and changes no
+Firestore database or IAM permission boundary.
+
+The Market image-build YAML has empty `_REGION` and `_REPOSITORY` defaults. Its existing managed
+trigger supplies both explicitly from the selected instance; manual build-only runs must also
+supply both. `_DEPLOY_SERVICE` still defaults to `false` in the YAML, with the existing reviewed
+trigger retaining its deployment switch.
+
 The paired local-only Console runbook and future Research plan remain excluded from Git in
 `local-docs/`.
 

@@ -1,7 +1,7 @@
 locals {
-  project_id          = "financial-analysis-512202"
-  region              = "northamerica-northeast2"
-  existing_market_uid = "9c834402-c8d5-4c71-82d9-1a705e335f02"
+  project_id          = var.deployment.project_id
+  region              = var.deployment.region
+  existing_market_uid = var.deployment.existing_service_uid
 }
 
 provider "google" {
@@ -16,8 +16,8 @@ module "runtime_identity" {
   source = "../../../modules/service-identity"
 
   project_id   = local.project_id
-  account_id   = "fa-api-runtime"
-  display_name = "fa-api-runtime"
+  account_id   = var.deployment.runtime_account_id
+  display_name = var.deployment.runtime_account_id
   description  = ""
 
   secret_ids                = {}
@@ -34,7 +34,7 @@ module "market" {
 
   # Creation-only input required by the shared contract. Imports and subsequent
   # configuration applies preserve the live image and release-owned traffic.
-  image = "northamerica-northeast2-docker.pkg.dev/financial-analysis-512202/financial-analysis/market-api@sha256:ff9fdab6bfbd0193d47b53d64fea87152a1896337c90baf6207536d97212f521"
+  image = var.deployment.creation_image
 
   port              = 8080
   memory            = "512Mi"
@@ -46,7 +46,7 @@ module "market" {
   ingress           = "INGRESS_TRAFFIC_ALL"
 
   environment = {
-    CORS_ORIGINS                = "https://market-web-630815932903.northamerica-northeast2.run.app"
+    CORS_ORIGINS                = var.deployment.web_origin
     FIREBASE_PROJECT_ID         = local.project_id
     MARKET_DATA_SOURCE          = "yfinance"
     MARKET_CACHE_BACKEND        = "firestore"

@@ -2,16 +2,17 @@
 # for the new target execution identities and their narrowly scoped permissions.
 # Normal Market execution cannot administer IAM or the shared image-build identity.
 locals {
-  market_service = "projects/${var.project_id}/locations/${var.region}/services/market-api"
-  market_runtime = "projects/${var.project_id}/serviceAccounts/fa-api-runtime@${var.project_id}.iam.gserviceaccount.com"
-  market_build   = "fa-build@${var.project_id}.iam.gserviceaccount.com"
+  market_deployment = jsondecode(var.deployment_configs["market"])
+  market_service    = "projects/${var.project_id}/locations/${var.region}/services/market-api"
+  market_runtime    = "projects/${var.project_id}/serviceAccounts/${local.market_deployment.inputs.runtime_account_id}@${var.project_id}.iam.gserviceaccount.com"
+  market_build      = "fa-build@${var.project_id}.iam.gserviceaccount.com"
 }
 
 module "market_image_release" {
   source = "../modules/service-build-trigger"
 
   project_id            = var.project_id
-  region                = var.region
+  region                = local.market_deployment.region
   name                  = "build-market-api"
   description           = ""
   repository_id         = var.repository_id
@@ -26,7 +27,7 @@ module "market_image_release" {
     "services/common/**",
   ]
   ignored_files  = []
-  substitutions  = { _REPOSITORY = "financial-analysis" }
+  substitutions  = { _REPOSITORY = local.market_deployment.artifactRepository }
   disabled       = false
   deploy_enabled = true
 }
@@ -66,7 +67,7 @@ module "market_database_scope" {
 resource "google_project_iam_member" "market_cache" {
   project = var.project_id
   role    = "roles/datastore.user"
-  member  = "serviceAccount:fa-api-runtime@${var.project_id}.iam.gserviceaccount.com"
+  member  = "serviceAccount:${local.market_deployment.inputs.runtime_account_id}@${var.project_id}.iam.gserviceaccount.com"
 
   condition {
     title       = module.market_database_scope.condition.title
@@ -122,7 +123,7 @@ resource "google_project_iam_custom_role" "market_image_read" {
 resource "google_artifact_registry_repository_iam_member" "market_configuration_image" {
   project    = var.project_id
   location   = var.region
-  repository = "financial-analysis"
+  repository = local.market_deployment.artifactRepository
   role       = google_project_iam_custom_role.market_image_read.name
   member     = "serviceAccount:${module.target_execution["market"].service_accounts["apply"]}"
 }
@@ -158,7 +159,7 @@ resource "google_service_account_iam_member" "market_execution_metadata" {
 # The service and runtime identity are imported by the Market business root.
 import {
   to = module.market_image_release.google_cloudbuild_trigger.this
-  id = "projects/${var.project_id}/locations/${var.region}/triggers/db77a22e-83bf-45cc-b114-50e32192a9c8"
+  id = "projects/${var.project_id}/locations/${var.region}/triggers/${local.market_deployment.adoption.buildTriggerId}"
 }
 
 import {
@@ -175,5 +176,5 @@ import {
   to = google_project_iam_member.market_cache
   # Desired conditional membership. Existing unconditional state is not remapped
   # by editing this ID; follow the administrator migration/recovery procedure.
-  id = "${var.project_id} roles/datastore.user serviceAccount:fa-api-runtime@${var.project_id}.iam.gserviceaccount.com ${module.market_database_scope.condition.title}"
+  id = "${var.project_id} roles/datastore.user serviceAccount:${local.market_deployment.inputs.runtime_account_id}@${var.project_id}.iam.gserviceaccount.com ${module.market_database_scope.condition.title}"
 }
