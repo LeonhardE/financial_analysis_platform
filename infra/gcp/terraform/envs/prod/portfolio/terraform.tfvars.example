@@ -1,3 +1,11 @@
-# Creation-only image from audited main-only target build 7dc66184-691c-4044-83d3-1a7b6efec113.
-# Actual provisioning still requires a fresh complete saved plan and operator approval.
-bootstrap_image = "northamerica-northeast2-docker.pkg.dev/financial-analysis-512202/financial-analysis/portfolio-api@sha256:93932b8af2887ac39d17bfec040f213416d8a1e8b2547b71c3aa9dedbab535cf"
+# Synthetic adoption template only. Generate the actual private variable file
+# from the selected operator profile; never use these IDs as deployment evidence.
+deployment = {
+  project_id           = "demo-folio-alpha"
+  region               = "us-central1"
+  artifact_repository  = "folio-images"
+  runtime_account_id   = "folio-portfolio-runtime"
+  creation_image       = "us-central1-docker.pkg.dev/demo-folio-alpha/folio-images/portfolio-api@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  existing_service_uid = "11111111-1111-4111-8111-111111111111"
+  web_origin           = "https://web.alpha.example.invalid"
+}

@@ -1,4 +1,4 @@
-# Portfolio-only first-provision preparation. Defaults add no cloud resources.
+# Portfolio-only operator configuration migration. Preserve the existing stage.
 # Keep these objects in administrator state; business runners never own IAM.
 variable "portfolio_provisioning_stage" {
   description = "Explicit administrative stage: none (no objects), execution (build/state/identities), service (after Portfolio runtime/DB/Run exist). Enabled registry entries retain service-stage ownership."
@@ -15,8 +15,9 @@ variable "portfolio_provisioning_stage" {
 locals {
   portfolio_execution_enabled = local.execution_registry.targets.portfolio.enabled || var.portfolio_provisioning_stage != "none"
   portfolio_service_enabled   = local.execution_registry.targets.portfolio.enabled || var.portfolio_provisioning_stage == "service"
-  portfolio_runtime           = "projects/${var.project_id}/serviceAccounts/fa-portfolio-runtime@${var.project_id}.iam.gserviceaccount.com"
-  portfolio_runtime_email     = "fa-portfolio-runtime@${var.project_id}.iam.gserviceaccount.com"
+  portfolio_deployment        = local.portfolio_execution_enabled ? jsondecode(var.deployment_configs["portfolio"]) : null
+  portfolio_runtime           = local.portfolio_service_enabled ? "projects/${var.project_id}/serviceAccounts/${local.portfolio_deployment.inputs.runtime_account_id}@${var.project_id}.iam.gserviceaccount.com" : null
+  portfolio_runtime_email     = local.portfolio_service_enabled ? "${local.portfolio_deployment.inputs.runtime_account_id}@${var.project_id}.iam.gserviceaccount.com" : null
 }
 
 module "portfolio_build_identity" {
@@ -40,7 +41,7 @@ resource "google_artifact_registry_repository_iam_member" "portfolio_build_image
   count      = local.portfolio_execution_enabled ? 1 : 0
   project    = var.project_id
   location   = var.region
-  repository = "financial-analysis"
+  repository = local.portfolio_deployment.artifactRepository
   role       = "roles/artifactregistry.writer"
   member     = module.portfolio_build_identity[0].member
 }
@@ -50,7 +51,7 @@ module "portfolio_image_release" {
   source = "../modules/service-build-trigger"
 
   project_id            = var.project_id
-  region                = var.region
+  region                = local.portfolio_deployment.region
   name                  = "build-portfolio-api"
   repository_id         = var.repository_id
   build_service_account = module.portfolio_build_identity[0].id
@@ -64,7 +65,7 @@ module "portfolio_image_release" {
     "infra/gcp/cloudbuild.portfolio.yaml",
     "infra/gcp/deploy_existing_service.py",
   ]
-  substitutions  = { _REPOSITORY = "financial-analysis" }
+  substitutions  = { _REPOSITORY = local.portfolio_deployment.artifactRepository }
   disabled       = false
   deploy_enabled = false
 
@@ -157,7 +158,7 @@ resource "google_artifact_registry_repository_iam_member" "portfolio_configurati
   count      = local.portfolio_service_enabled ? 1 : 0
   project    = var.project_id
   location   = var.region
-  repository = "financial-analysis"
+  repository = local.portfolio_deployment.artifactRepository
   role       = google_project_iam_custom_role.portfolio_image_read[0].name
   member     = "serviceAccount:${module.target_execution["portfolio"].service_accounts["apply"]}"
 }
@@ -248,5 +249,12 @@ output "portfolio_preparation" {
     service_enabled   = local.portfolio_service_enabled
     pipeline_enabled  = local.execution_registry.targets.portfolio.enabled
     image_deployment  = false
+  }
+
+  precondition {
+    condition = !local.portfolio_execution_enabled ? true : (
+      module.portfolio_image_release[0].trigger_id == local.portfolio_deployment.adoption.buildTriggerId
+    )
+    error_message = "Retain Portfolio's inventoried build-trigger UUID; never substitute a new trigger."
   }
 }

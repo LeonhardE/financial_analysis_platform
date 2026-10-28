@@ -1,2 +1,4 @@
-bucket = "financial-analysis-512202-tfstate-portfolio"
+# Select the existing Portfolio backend from the reviewed operator profile.
+# Replace this placeholder; never initialize a new or another target's state.
+bucket = "REPLACE_EXISTING_PORTFOLIO_STATE_BUCKET"
 prefix = "prod/portfolio"
