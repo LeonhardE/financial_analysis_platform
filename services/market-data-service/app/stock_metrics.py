@@ -10,6 +10,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 
+from .cost_controls import MarketCostRoute
 from .market_cache import CacheUnavailable
 from .market_data import (
     CACHED_SNAPSHOT,
@@ -28,7 +29,7 @@ from .yahoo_provider import (
     iso_time,
 )
 
-router = APIRouter()
+router = APIRouter(route_class=MarketCostRoute)
 METRICS_LOCK = Lock()
 METRICS_TTL_SECONDS = 86400
 WORKER_TIMEOUT_SECONDS = 15
