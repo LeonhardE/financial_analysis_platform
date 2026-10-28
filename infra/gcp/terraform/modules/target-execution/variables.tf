@@ -77,3 +77,25 @@ variable "lock_delete_role" {
     error_message = "Pass a same-project custom role for condition-scoped state lock deletion."
   }
 }
+
+variable "deployment_config" {
+  description = "Optional canonical ASCII JSON projection for this target, pinned in both administrator-owned triggers. Full closed-schema and provenance validation belongs to the runtime loader."
+  type        = string
+  default     = null
+  nullable    = true
+
+  validation {
+    condition = var.deployment_config == null ? true : try(
+      length(var.deployment_config) <= 4000 &&
+      can(regex("^[\\x20-\\x7e]+$", var.deployment_config)) &&
+      !strcontains(var.deployment_config, "$") &&
+      var.deployment_config == jsonencode(jsondecode(var.deployment_config)) &&
+      jsondecode(var.deployment_config).schemaVersion == 1 &&
+      jsondecode(var.deployment_config).target == var.target &&
+      jsondecode(var.deployment_config).project.id == var.project_id &&
+      jsondecode(var.deployment_config).region == var.region,
+      false,
+    )
+    error_message = "Use null or canonical printable ASCII JSON of at most 4000 bytes, without dollar substitutions, with schemaVersion 1 and this target/project/region."
+  }
+}
