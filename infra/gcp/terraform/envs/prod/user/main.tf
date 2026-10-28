@@ -1,7 +1,7 @@
 locals {
-  project_id        = "financial-analysis-512202"
-  region            = "northamerica-northeast2"
-  existing_user_uid = "504e5160-2ebb-4aa4-8255-7f96a02d48ce"
+  project_id        = var.deployment.project_id
+  region            = var.deployment.region
+  existing_user_uid = var.deployment.existing_service_uid
 }
 
 provider "google" {
@@ -16,8 +16,8 @@ module "runtime_identity" {
   source = "../../../modules/service-identity"
 
   project_id   = local.project_id
-  account_id   = "fa-user-runtime"
-  display_name = "fa-user-runtime"
+  account_id   = var.deployment.runtime_account_id
+  display_name = var.deployment.runtime_account_id
   description  = ""
 
   secret_ids                = {}
@@ -34,7 +34,7 @@ module "user" {
 
   # Creation-only input required by the shared contract. Imports and subsequent
   # configuration applies preserve the live image and release-owned traffic.
-  image = "northamerica-northeast2-docker.pkg.dev/financial-analysis-512202/financial-analysis/user-api@sha256:34e924cfd43a05ce2efcb9acb1d3c0598965befe39ae1f454f0ebc264c338185"
+  image = var.deployment.creation_image
 
   port              = 8080
   memory            = "256Mi"
@@ -47,10 +47,10 @@ module "user" {
 
   environment = {
     FIREBASE_PROJECT_ID = local.project_id
-    CORS_ORIGINS        = "https://market-web-630815932903.northamerica-northeast2.run.app"
+    CORS_ORIGINS        = var.deployment.web_origin
     FIRESTORE_DATABASE  = "(default)"
     USER_STORE_BACKEND  = "firestore"
-    MARKET_API_BASE_URL = "https://market-api-630815932903.northamerica-northeast2.run.app"
+    MARKET_API_BASE_URL = var.deployment.market_origin
   }
   secret_environment = {}
 
