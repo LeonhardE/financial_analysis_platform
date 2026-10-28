@@ -30,7 +30,8 @@
     "lint": "npm run typecheck:web && npm run lint:api && npm run lint:infra",
     "format": "npm run format:web && npm run format:api && npm run format:infra",
     "format:check": "npm run format:check:web && npm run format:check:api && npm run format:check:infra",
-    "check": "npm run lint && npm run test:web && npm run test:api && npm run test:infra && npm run test:ci && npm run format:check"
+    "check": "npm run security:scan && npm run lint && npm run test:web && npm run test:api && npm run test:infra && npm run test:ci && npm run format:check",
+    "security:scan": "python3 scripts/ci/secret_scan.py check --directory .security-tools"
   },
   "simple-git-hooks": {
     "pre-commit": "npm run check"
