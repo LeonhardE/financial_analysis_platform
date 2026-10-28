@@ -1,4 +1,4 @@
-"""Health is independent and unimplemented private/protocol paths fail closed."""
+"""Health stays independent; only the bounded vault authority APIs are implemented."""
 
 import json
 import os
@@ -10,18 +10,31 @@ from pathlib import Path
 from fastapi.testclient import TestClient
 
 from app.main import app
+from folioview_shared.encrypted.schema import validate_schema
 
 SERVICE = Path(__file__).resolve().parents[1]
 ROOT = SERVICE.parents[1]
 
 
 class AgentHubBoundaryTests(unittest.TestCase):
-    def test_health_and_openapi_expose_only_the_skeleton(self):
+    def test_health_and_openapi_expose_bounded_vault_authority_only(self):
         with TestClient(app) as client:
             response = client.get("/health")
             self.assertEqual(response.status_code, 200)
             self.assertEqual(response.json(), {"status": "ok", "service": "agent-hub"})
-            self.assertEqual(set(client.get("/openapi.json").json()["paths"]), {"/health"})
+            self.assertEqual(
+                set(client.get("/openapi.json").json()["paths"]),
+                {
+                    "/health",
+                    "/api/v2/vaults/current",
+                    "/api/v2/vaults",
+                    "/api/v2/vaults/{vault_id}/registry",
+                    "/api/v2/vaults/{vault_id}/holdings-sources/{source_id}",
+                    "/api/v2/vaults/current/authority-token",
+                    "/internal/v2/portfolio-authorities/read",
+                    "/.well-known/jwks.json",
+                },
+            )
 
     def test_private_and_protocol_paths_are_not_implemented_or_cached(self):
         with TestClient(app) as client:
@@ -50,7 +63,10 @@ class AgentHubBoundaryTests(unittest.TestCase):
                         json={"report": "synthetic-private-marker"},
                     )
                     self.assertEqual(response.status_code, 404)
-                    self.assertEqual(response.json(), {"detail": "Not Found"})
+                    if path.startswith(("/api/v2/", "/.well-known/")):
+                        validate_schema("Error", response.json())
+                    else:
+                        self.assertEqual(response.json(), {"detail": "Not Found"})
                     self.assertEqual(response.headers["cache-control"], "no-store")
                     self.assertNotIn("synthetic-private-marker", response.text)
                     self.assertNotIn("synthetic-untrusted-token", response.text)
