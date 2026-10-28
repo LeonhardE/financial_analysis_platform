@@ -33,7 +33,9 @@ class PortfolioErrors:
         self.app = app
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send):
-        if scope["type"] != "http" or not scope.get("path", "").startswith("/api/v2/"):
+        if scope["type"] != "http" or not scope.get("path", "").startswith(
+            ("/api/v2/", "/internal/v2/")
+        ):
             await self.app(scope, receive, send)
             return
         start = None

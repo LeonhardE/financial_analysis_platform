@@ -13,7 +13,14 @@ from folioview_shared.encrypted.errors import ContractError
 from folioview_shared.encrypted.jsonutil import canonical_json, strict_json_loads
 
 COLLECTIONS = frozenset(
-    {"portfolio_authorities", "portfolio_heads", "portfolio_snapshots", "portfolio_operations"}
+    {
+        "portfolio_authorities",
+        "portfolio_heads",
+        "portfolio_snapshots",
+        "portfolio_operations",
+        "portfolio_source_states",
+        "portfolio_source_mutations",
+    }
 )
 
 

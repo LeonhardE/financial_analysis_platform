@@ -177,8 +177,9 @@ class HoldingsStoreTests(unittest.TestCase):
         self.assert_code(
             "recipient_binding_mismatch", lambda: self.fixture.write(self.service, carrier=carrier)
         )
-        with self.assertRaises(PortfolioError):
-            self.service.snapshot(UID, SOURCE)
+        # A source permission epoch fences future writes/agents, not the
+        # authenticated owner's retained history in an unlocked vault.
+        self.assertEqual(self.service.snapshot(UID, SOURCE)["carrier"], carrier)
 
     def test_root_or_registry_rollback_is_rejected_without_changing_replica(self):
         next_bundle = self.fixture.make_bundle(previous=self.fixture.registry)

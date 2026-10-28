@@ -21,6 +21,7 @@ from google.cloud.firestore_v1.types import (
 from google.protobuf.empty_pb2 import Empty
 
 from app.holdings import PortfolioError, PortfolioService
+from app.lifecycle import state_path
 from app.store import FirestorePortfolioStore, StoreUnavailable, document_path, get_store
 from folioview_shared.encrypted.errors import ContractError
 from folioview_shared.identity import owner_key
@@ -130,6 +131,43 @@ class FirestorePortfolioTests(unittest.TestCase):
         self.assertEqual(result.exception.status, 403)
         self.assertEqual(len(self.rpc.documents), 1)
         self.assertTrue(any(kind == "rollback" for kind, _ in self.rpc.calls))
+
+    def test_sdk_fence_updates_authority_state_and_receipt_atomically_after_retry(self):
+        self.rpc.aborts = 1
+        pending = self.fixture.mutate(self.service)
+        self.assertEqual(pending["state"], "pending")
+        self.assertEqual(self.service.metadata(UID, SOURCE)["sourceEpoch"], 2)
+        writes = [
+            kwargs["request"]["writes"]
+            for name, kwargs in self.rpc.calls
+            if name == "commit" and kwargs["request"]["writes"]
+        ]
+        for batch in writes[-2:]:
+            self.assertEqual(len(batch), 3)
+            names = {write.update.name.split("/documents/")[1].split("/")[0] for write in batch}
+            self.assertEqual(
+                names,
+                {"portfolio_authorities", "portfolio_source_states", "portfolio_source_mutations"},
+            )
+        self.assertEqual(len(self.rpc.documents), 3)
+
+    def test_sdk_aborted_upload_rechecks_fence_and_does_not_save_old_carrier(self):
+        def fence():
+            self.rpc.before_abort = None
+            self.fixture.mutate(self.service)
+
+        self.rpc.aborts = 1
+        self.rpc.before_abort = fence
+        with self.assertRaises(ContractError) as result:
+            self.fixture.write(self.service)
+        self.assertEqual(result.exception.code, "insufficient_scope")
+        self.assertEqual(self.service.metadata(UID, SOURCE)["state"], "revoking")
+        self.assertFalse(any("/portfolio_snapshots/" in name for name in self.rpc.documents))
+        self.assertIn(
+            "projects/synthetic-portfolio/databases/portfolio/documents/"
+            + state_path(owner_key(UID), SOURCE),
+            self.rpc.documents,
+        )
 
     def test_document_budget_counts_actual_sdk_encoding_and_rejects_before_commit(self):
         with self.assertRaises(ContractError) as result:

@@ -5,10 +5,10 @@ import time
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
-from folioview_shared.encrypted.authority import verify_registry
+from folioview_shared.encrypted.authority import verify_control_command, verify_registry
 from folioview_shared.encrypted.budgets import check_read_response
 from folioview_shared.encrypted.constants import CONTRACT_VERSION
-from folioview_shared.encrypted.crypto import jwk_thumbprint, signing_input_fingerprint
+from folioview_shared.encrypted.crypto import jwk_thumbprint, signing_input_fingerprint, verify_jws
 from folioview_shared.encrypted.envelope import (
     EnvelopeExpectation,
     operation_namespace,
@@ -17,10 +17,20 @@ from folioview_shared.encrypted.envelope import (
     verify_carrier,
 )
 from folioview_shared.encrypted.errors import ContractError
-from folioview_shared.encrypted.jsonutil import canonical_json
+from folioview_shared.encrypted.jsonutil import b64url_decode, canonical_json, strict_json_loads
 from folioview_shared.encrypted.schema import validate_schema
 from folioview_shared.identity import owner_key
 
+from .lifecycle import (
+    ACTIONS,
+    MAX_SOURCE_MUTATIONS,
+    mutation_path,
+    mutation_record,
+    public_mutation,
+    require_active,
+    source_state,
+    state_path,
+)
 from .store import StoreUnavailable, document_path
 
 _IDENTIFIER = re.compile(r"[A-Za-z0-9][A-Za-z0-9_-]{0,127}\Z")
@@ -151,16 +161,28 @@ def _current_authority(unit, owner: str, source: str, now: int) -> Authority:
 def _head(unit, owner: str, source: str) -> dict:
     row = unit.get(document_path("portfolio_heads", owner, source))
     if row is None:
-        return {"ownerSubject": owner, "sourceId": source, "revision": 0, "snapshotId": None}
+        return {
+            "ownerSubject": owner,
+            "sourceId": source,
+            "revision": 0,
+            "snapshotId": None,
+            "sourceEpoch": None,
+        }
     if (
         type(row) is not dict
-        or set(row) != {"ownerSubject", "sourceId", "revision", "snapshotId"}
+        or set(row)
+        not in (
+            {"ownerSubject", "sourceId", "revision", "snapshotId"},
+            {"ownerSubject", "sourceId", "revision", "snapshotId", "sourceEpoch"},
+        )
         or row["ownerSubject"] != owner
         or row["sourceId"] != source
     ):
         raise StoreUnavailable
     _positive(row["revision"])
     _identifier(row["snapshotId"])
+    if "sourceEpoch" in row:
+        _positive(row["sourceEpoch"])
     return row
 
 
@@ -190,6 +212,12 @@ def _binding(authority: Authority, revision: int) -> dict:
         "sourceRevision": revision,
         "sourceEpoch": authority.document["sourceEpoch"],
     }
+
+
+def _binding_for_history(authority: Authority, row: dict) -> dict:
+    binding = _binding(authority, row["revision"])
+    binding["sourceEpoch"] = row["sourceEpoch"]
+    return binding
 
 
 def _receipt(value: dict, *, owner: str, source: str, snapshot: str) -> dict:
@@ -266,6 +294,14 @@ class PortfolioService:
                     or source_epoch < prior.document["sourceEpoch"]
                 ):
                     raise ContractError("recipient_binding_mismatch")
+                lifecycle = unit.get(state_path(owner, source))
+                if lifecycle is not None:
+                    source_state(unit, prior)
+                    # Local fences own source epochs once initialized. A replica
+                    # update may rotate public keys or lock the vault, but cannot
+                    # skip a pending fence or resurrect a terminal source.
+                    if source_epoch != prior.document["sourceEpoch"]:
+                        raise ContractError("version_conflict")
                 history = list(prior.document["registryHistory"])
             if not history or canonical_json(bundle) != canonical_json(history[-1]):
                 history.append(bundle)
@@ -305,6 +341,7 @@ class PortfolioService:
         def read(unit):
             authority = _current_authority(unit, owner, source, self.now())
             head = _head(unit, owner, source)
+            lifecycle = source_state(unit, authority)
             return {
                 "contractVersion": CONTRACT_VERSION,
                 "ownerSubject": owner,
@@ -314,7 +351,10 @@ class PortfolioService:
                 "sourceEpoch": authority.document["sourceEpoch"],
                 "revision": head["revision"],
                 "snapshotId": head["snapshotId"],
+                "snapshotSourceEpoch": head.get("sourceEpoch"),
                 "authorityVersion": authority.version,
+                "state": lifecycle["state"],
+                "pendingMutationId": lifecycle["pendingMutationId"],
             }
 
         return self.store.transact(read)
@@ -344,6 +384,7 @@ class PortfolioService:
             now = self.now()
             authority = _current_authority(unit, owner, source, now)
             row = authority.document
+            require_active(source_state(unit, authority))
             if writer_key_id not in row["writerKeyIds"]:
                 raise ContractError("key_authorization_required")
             expectation = EnvelopeExpectation(
@@ -445,6 +486,7 @@ class PortfolioService:
                     "sourceId": source,
                     "revision": expected_revision + 1,
                     "snapshotId": snapshot,
+                    "sourceEpoch": row["sourceEpoch"],
                 },
             )
             return receipt
@@ -474,13 +516,34 @@ class PortfolioService:
                 or row.get("snapshotId") != selected
             ):
                 raise PortfolioError("not_found", 404, "Snapshot not found.")
-            if row["sourceEpoch"] != authority.document["sourceEpoch"]:
-                raise PortfolioError("insufficient_scope", 403, "This source is not authorized.")
+            self._owner_history(unit, authority)
+            if (
+                type(row["sourceEpoch"]) is not int
+                or not 1 <= row["sourceEpoch"] <= authority.document["sourceEpoch"]
+            ):
+                raise StoreUnavailable
             receipt = _receipt(row["receipt"], owner=owner, source=source, snapshot=selected)
             carrier = parse_carrier(row["carrierJson"], contract_header=CONTRACT_VERSION)
             if (
                 signing_input_fingerprint(carrier["signedObject"]) != row["fingerprint"]
                 or row["fingerprint"] != receipt["envelopeFingerprint"]
+            ):
+                raise StoreUnavailable
+            message = strict_json_loads(b64url_decode(carrier["signedObject"]["payload"]))
+            context = message["context"]
+            if (
+                context["ownerSubject"] != owner
+                or context["vaultId"] != authority.document["vaultId"]
+                or context["rootKeyId"] != authority.document["rootKeyId"]
+                or context["objectType"] != "holdings_snapshot"
+                or context["objectId"] != selected
+                or context["revision"] != row["revision"]
+                or context["binding"] != _binding_for_history(authority, row)
+                or receipt["resourceRef"] != authority.document["resourceRef"]
+                or receipt["sourceEpoch"] != row["sourceEpoch"]
+                or receipt["revision"] != row["revision"]
+                or receipt["vaultId"] != context["vaultId"]
+                or receipt["stableOperationId"] != context["stableOperationId"]
             ):
                 raise StoreUnavailable
             validate_schema("KeyProofs", row["keyProofs"])
@@ -512,8 +575,245 @@ class PortfolioService:
                 source=source,
                 snapshot=row["receipt"]["snapshotId"],
             )
-            if receipt["sourceEpoch"] != authority.document["sourceEpoch"]:
-                raise PortfolioError("insufficient_scope", 403, "This source is not authorized.")
+            self._owner_history(unit, authority)
+            if (
+                not 1 <= receipt["sourceEpoch"] <= authority.document["sourceEpoch"]
+                or receipt["resourceRef"] != authority.document["resourceRef"]
+                or receipt["vaultId"] != authority.document["vaultId"]
+                or receipt["stableOperationId"] != operation_id
+                or receipt["envelopeFingerprint"] != row.get("fingerprint")
+            ):
+                raise StoreUnavailable
             return receipt
 
         return self.store.transact(read)
+
+    @staticmethod
+    def _owner_history(unit, authority):
+        lifecycle = source_state(unit, authority)
+        if lifecycle["state"] == "deleted":
+            raise ContractError("not_found")
+        if lifecycle["pendingMutationId"] is not None:
+            row = mutation_record(
+                unit.get(
+                    mutation_path(
+                        authority.document["ownerSubject"],
+                        authority.document["sourceId"],
+                        lifecycle["pendingMutationId"],
+                    )
+                ),
+                owner=authority.document["ownerSubject"],
+                source=authority.document["sourceId"],
+                operation=lifecycle["pendingMutationId"],
+                resource_ref=authority.document["resourceRef"],
+            )
+            if row["action"] == "delete":
+                raise ContractError("not_found")
+
+    def begin_mutation(
+        self,
+        uid: str,
+        source: str,
+        action: str,
+        *,
+        expected_version: int,
+        expected_source_epoch: int,
+        operation_id: str,
+        writer_key_id: str,
+        command: dict,
+    ):
+        """Atomically stop new source operations before an eventual Hub ACK.
+
+        The signed closed shared control is checked against the independent
+        owner/root/source and route-selected action. Only one mutation may be
+        pending. No broker request, implicit refresh or remote ACK is attempted.
+        """
+        _identifier(source)
+        _positive(expected_version)
+        _positive(expected_source_epoch)
+        validate_schema("OperationIdentifier", operation_id)
+        validate_schema("KeyId", writer_key_id)
+        if action not in ACTIONS:
+            raise ContractError("malformed_request")
+        owner = owner_key(uid)
+
+        def write(unit):
+            now = self.now()
+            authority = _current_authority(unit, owner, source, now)
+            row = authority.document
+            if writer_key_id not in row["writerKeyIds"]:
+                raise ContractError("key_authorization_required")
+            certificate = authority.registry.cert(writer_key_id, role="device_sig", now=now)
+            verify_jws(
+                command, certificate["publicJwk"], typ="fv-control+jws", expected_kid=writer_key_id
+            )
+            parameters = {"resourceRef": row["resourceRef"]} if action == "fence" else {}
+            payload = verify_control_command(
+                command,
+                registry=authority.registry,
+                expected_action=ACTIONS[action],
+                expected_target_id=source,
+                expected_version=expected_version,
+                expected_source_epoch=expected_source_epoch,
+                expected_parameters=parameters,
+                now=now,
+            )
+            if payload["stableOperationId"] != operation_id:
+                raise ContractError("idempotency_conflict")
+            fingerprint = signing_input_fingerprint(command)
+            path = mutation_path(owner, source, operation_id)
+            saved = unit.get(path)
+            lifecycle = source_state(unit, authority)
+            if saved is not None:
+                saved = mutation_record(
+                    saved,
+                    owner=owner,
+                    source=source,
+                    operation=operation_id,
+                    resource_ref=row["resourceRef"],
+                )
+                if saved["vaultId"] != row["vaultId"]:
+                    raise StoreUnavailable
+                if saved["commandFingerprint"] != fingerprint or saved["action"] != action:
+                    raise ContractError("idempotency_conflict")
+                return {"contractVersion": CONTRACT_VERSION, **public_mutation(saved)}
+            if not (action == "delete" and lifecycle["state"] == "disconnected"):
+                require_active(lifecycle)
+            if authority.version != expected_version or row["sourceEpoch"] != expected_source_epoch:
+                raise ContractError("version_conflict")
+            # Retaining operation receipts is bounded without scan/delete loops.
+            # Two terminal slots are reserved so an exhausted ordinary-fence
+            # budget cannot prevent local disconnect followed by deletion.
+            limit = MAX_SOURCE_MUTATIONS - {"fence": 2, "disconnect": 1, "delete": 0}[action]
+            if lifecycle["mutationCount"] >= limit:
+                raise ContractError("version_conflict")
+            _positive(expected_source_epoch + 1)
+            _positive(expected_version + 1)
+            mutation = {
+                "ownerSubject": owner,
+                "sourceId": source,
+                "vaultId": row["vaultId"],
+                "resourceRef": row["resourceRef"],
+                "operationId": operation_id,
+                "action": action,
+                "expectedAuthorityVersion": expected_version,
+                "expectedSourceEpoch": expected_source_epoch,
+                "sourceEpoch": expected_source_epoch + 1,
+                "commandFingerprint": fingerprint,
+                "state": "pending",
+                "requestedAt": datetime.fromtimestamp(now, UTC).isoformat().replace("+00:00", "Z"),
+                "completedAt": None,
+            }
+            lifecycle.update(
+                state="revoking",
+                sourceEpoch=expected_source_epoch + 1,
+                pendingMutationId=operation_id,
+                lastMutationId=operation_id,
+                mutationCount=lifecycle["mutationCount"] + 1,
+            )
+            unit.put(
+                document_path("portfolio_authorities", owner, source),
+                {
+                    **row,
+                    "version": expected_version + 1,
+                    "sourceEpoch": expected_source_epoch + 1,
+                },
+            )
+            unit.put(state_path(owner, source), lifecycle)
+            unit.put(path, mutation)
+            return {"contractVersion": CONTRACT_VERSION, **public_mutation(mutation)}
+
+        return self.store.transact(write)
+
+    def mutation(self, uid: str, source: str, operation_id: str):
+        _identifier(source)
+        validate_schema("OperationIdentifier", operation_id)
+        owner = owner_key(uid)
+
+        def read(unit):
+            authority = _current_authority(unit, owner, source, self.now())
+            saved = mutation_record(
+                unit.get(mutation_path(owner, source, operation_id)),
+                owner=owner,
+                source=source,
+                operation=operation_id,
+                resource_ref=authority.document["resourceRef"],
+            )
+            source_state(unit, authority)
+            if saved["vaultId"] != authority.document["vaultId"]:
+                raise StoreUnavailable
+            result = {"contractVersion": CONTRACT_VERSION, **public_mutation(saved)}
+            check_read_response(result)
+            return result
+
+        return self.store.transact(read)
+
+    def finish_fence(
+        self,
+        uid: str,
+        source: str,
+        *,
+        operation_id: str,
+        resource_ref: dict,
+        source_epoch: int,
+    ):
+        """Internal adapter seam; NOT a remotely trusted ACK format or endpoint.
+
+        A future Hub-008 adapter must authenticate/validate the actual Hub ACK
+        before invoking this method. No runtime caller is installed. Passing
+        locally fabricated parameters is test setup, never live Hub evidence.
+        """
+        _identifier(source)
+        validate_schema("OperationIdentifier", operation_id)
+        validate_schema("ResourceRef", resource_ref)
+        _positive(source_epoch)
+        owner = owner_key(uid)
+
+        def write(unit):
+            now = self.now()
+            authority = _current_authority(unit, owner, source, now)
+            row = authority.document
+            saved = mutation_record(
+                unit.get(mutation_path(owner, source, operation_id)),
+                owner=owner,
+                source=source,
+                operation=operation_id,
+                resource_ref=row["resourceRef"],
+            )
+            if (
+                saved["resourceRef"] != resource_ref
+                or saved["sourceEpoch"] != source_epoch
+                or saved["vaultId"] != row["vaultId"]
+            ):
+                raise ContractError("recipient_binding_mismatch")
+            lifecycle = source_state(unit, authority)
+            if saved["sourceEpoch"] > row["sourceEpoch"]:
+                raise StoreUnavailable
+            if saved["state"] == "acknowledged":
+                return {"contractVersion": CONTRACT_VERSION, **public_mutation(saved)}
+            if (
+                lifecycle["state"] != "revoking"
+                or lifecycle["pendingMutationId"] != operation_id
+                or row["sourceEpoch"] != source_epoch
+            ):
+                raise ContractError("version_conflict")
+            _positive(authority.version + 1)
+            lifecycle.update(
+                state={"fence": "active", "disconnect": "disconnected", "delete": "deleted"}[
+                    saved["action"]
+                ],
+                pendingMutationId=None,
+            )
+            saved.update(
+                state="acknowledged",
+                completedAt=datetime.fromtimestamp(now, UTC).isoformat().replace("+00:00", "Z"),
+            )
+            unit.put(
+                document_path("portfolio_authorities", owner, source),
+                {**row, "version": authority.version + 1},
+            )
+            unit.put(state_path(owner, source), lifecycle)
+            unit.put(mutation_path(owner, source, operation_id), saved)
+            return {"contractVersion": CONTRACT_VERSION, **public_mutation(saved)}
+
+        return self.store.transact(write)

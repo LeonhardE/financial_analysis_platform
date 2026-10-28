@@ -25,10 +25,14 @@ class PortfolioBoundaryTests(unittest.TestCase):
                 set(client.get("/openapi.json").json()["paths"]),
                 {
                     "/health",
+                    "/internal/v2/resources/projections/read",
+                    "/internal/v2/resources/states/read",
                     "/api/v2/holdings/sources/{source_id}",
                     "/api/v2/holdings/sources/{source_id}/latest",
                     "/api/v2/holdings/sources/{source_id}/snapshots/{snapshot_id}",
                     "/api/v2/holdings/sources/{source_id}/operations/{operation_id}",
+                    "/api/v2/holdings/sources/{source_id}/mutations/{action}",
+                    "/api/v2/holdings/sources/{source_id}/mutations/{operation_id}",
                 },
             )
 
