@@ -59,9 +59,9 @@ root enrollment, registry upload, signing, decryption, agent content or brokerag
 switch or request field trusts caller-supplied keys. An empty deployment returns 503 for private
 source operations until a trusted source projection exists.
 
-`PortfolioService.install_authority` is an internal adapter seam, not an admin API. A future
-authenticated Hub adapter must independently establish the root pin and source ownership before
-calling it. It stores only public material: owner/source/vault bindings, pinned public root,
+`PortfolioService.install_authority` remains an internal test/adapter seam, not an admin API.
+The explicit Hub synchronization adapter below obtains public root and source ownership from its
+fixed authenticated Hub endpoint; no browser can install these values directly. It stores only public material: owner/source/vault bindings, pinned public root,
 consecutive root-signed directory bundles, source epoch/active fence, and explicit owner device and
 recovery key allowlists. Registry signatures, high-water/revocation continuity and update CAS are
 verified. An existing source cannot change owner/root/vault/incarnation; epochs cannot decrease.
@@ -212,3 +212,33 @@ immutable versions, CAS, exact retries/original receipts, changed-ciphertext con
 fences/revocations, registry rollback, SDK retry reauthorization, raw and protobuf budgets, slow
 uploads, durable source mutations, exact ACK adapter matching, old-epoch projection refusal,
 dual signed metadata credentials, formal private errors and dependency-independent health. No live account/cloud data is used.
+
+## Explicit Hub authority synchronization
+
+`POST /api/v2/holdings/sources/{sourceId}/authority-sync` accepts only
+`{contractVersion: "folioview.agent-workspace.v2.0"}` with the version header and exactly one
+`X-FolioView-Authority-Delegation`. The current Firebase owner is verified first. The browser obtains
+the narrow, 60-second owner catalogue delegation from Hub; it supplies no root, public key policy,
+owner override, broker session or content key.
+
+Set `PORTFOLIO_HUB_AUTHORITY_ORIGIN` to the explicit HTTPS Hub origin. Unconfigured remains 503.
+Portfolio contacts only `/internal/v2/portfolio-authorities/read` on that origin with its runtime
+Google workload token plus the Hub delegation. Hub verifies both credentials and derives the
+owner from the signed delegation. Portfolio separately binds the returned owner hash and source,
+then verifies the complete pinned-root public directory and owner writer/recipient roles.
+
+Transport does not use ambient proxies, redirects or compressed responses. It limits the response
+to the shared 1 MiB read ceiling, uses four-second I/O timeouts and checks a 12-second total
+deadline (an already pending I/O can take up to its four-second bound). No response-body diagnostics,
+tokens or keys are logged or returned.
+
+Replication transactionally preserves the current root, vault, resource incarnation, source epoch
+and signed history prefix. A locked replica cannot be unlocked by this read operation; a pending
+or terminal local source is not reactivated. Identical projections are no-ops. Hub's projection
+version is distinct from Portfolio's local CAS/lifecycle version. Ciphertext and receipts are not
+rewritten. Hub's initial CSV sources stay at epoch 1; a later local source fence must be reconciled
+by the separate source-fence protocol, never reset by synchronization.
+
+This is public authority replication for an owner upload, not agent content access or a root
+enrollment shortcut. It creates no cloud resources, IAM grants or database migration, does not
+activate the normal Portfolio release pipeline, and does not enable brokerage login or Hub ACKs.

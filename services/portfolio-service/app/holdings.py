@@ -334,6 +334,68 @@ class PortfolioService:
 
         return self.store.transact(install)
 
+    def synchronize_authority(self, uid: str, source: str, document: dict):
+        """Install a public projection fetched by the authenticated Hub adapter.
+
+        This method has no direct HTTP body binding. The caller must obtain its
+        document from the fixed dual-authenticated Hub read, never a browser's
+        proposed root. Hub versions are not local replica/lifecycle CAS versions.
+        """
+        _identifier(source)
+        owner = owner_key(uid)
+        now = self.now()
+        verified = _authority(document, owner, source, now)
+        if document["active"]:
+            for key in document["writerKeyIds"]:
+                cert = verified.registry.cert(key, role="device_sig", now=now)
+                if "object_write" not in cert["capabilities"]:
+                    raise ContractError("key_authorization_required")
+            roles = {
+                verified.registry.cert(key, now=now)["role"] for key in document["recipientKeyIds"]
+            }
+            if roles != {"device_enc", "recovery_enc"}:
+                raise ContractError("key_authorization_required")
+
+        def install(unit):
+            path = document_path("portfolio_authorities", owner, source)
+            previous = unit.get(path)
+            version = 0
+            if previous is not None:
+                prior = _authority(previous, owner, source, self.now())
+                # A read/sync cannot unlock a locally locked replica, replace a
+                # root/incarnation or roll back/skip a source-owned fence.
+                if not prior.document["active"]:
+                    raise ContractError("insufficient_scope")
+                if any(
+                    previous[key] != document[key]
+                    for key in ("rootJwk", "rootKeyId", "vaultId", "resourceRef", "sourceEpoch")
+                ):
+                    raise ContractError("recipient_binding_mismatch")
+                old_history = previous["registryHistory"]
+                if canonical_json(
+                    document["registryHistory"][: len(old_history)]
+                ) != canonical_json(old_history):
+                    raise ContractError("registry_conflict")
+                source_state(unit, prior)
+                version = prior.version
+                if all(previous[key] == document[key] for key in _AUTHORITY_FIELDS - {"version"}):
+                    return {
+                        "contractVersion": CONTRACT_VERSION,
+                        "authorityVersion": version,
+                        "sourceEpoch": previous["sourceEpoch"],
+                    }
+            _positive(version + 1)
+            replica = {**document, "version": version + 1}
+            _authority(replica, owner, source, self.now())
+            unit.put(path, replica)
+            return {
+                "contractVersion": CONTRACT_VERSION,
+                "authorityVersion": version + 1,
+                "sourceEpoch": replica["sourceEpoch"],
+            }
+
+        return self.store.transact(install)
+
     def metadata(self, uid: str, source: str):
         _identifier(source)
         owner = owner_key(uid)
