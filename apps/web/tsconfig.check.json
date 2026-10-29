@@ -9,7 +9,8 @@
     "app/**/*.ts",
     "app/**/*.tsx",
     "components/**/*.ts",
-    "components/**/*.tsx"
+    "components/**/*.tsx",
+    "lib/**/*.ts"
   ],
   "exclude": ["node_modules", ".next"]
 }

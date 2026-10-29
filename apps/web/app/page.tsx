@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { usePreferences } from "@/components/PreferencesProvider";
 import SettingsPanel from "@/components/SettingsPanel";
+import ResourcesPanel from "@/components/ResourcesPanel";
 import { localizeMessage } from "@/lib/ui-messages";
 import { CandlestickChart } from "@/components/CandlestickChart";
 import { InstrumentMetrics } from "@/components/InstrumentMetrics";
@@ -51,7 +52,7 @@ export default function Dashboard() {
   const [pickerTab, setPickerTab] = useState<"markets" | "watchlist">("markets");
   const [overviewReload, setOverviewReload] = useState(0);
   const [chartReload, setChartReload] = useState(0);
-  const [activeView, setActiveView] = useState<"markets" | "settings">("markets");
+  const [activeView, setActiveView] = useState<"markets" | "resources" | "settings">("markets");
   const [pickerOpen, setPickerOpen] = useState(false);
   const [desktopPickerVisible, setDesktopPickerVisible] = useState(false);
   useEffect(() => {
@@ -329,6 +330,14 @@ export default function Dashboard() {
       {!pickerOpen && activeView === "markets" && <WatchlistNotification watchlist={watchlist} />}
       <main className="workspace-content" id="workspace-content">
         {activeView === "settings" && <SettingsPanel />}
+        <div hidden={activeView !== "resources"}>
+          <ResourcesPanel
+            onOpenWatchlist={() => {
+              setPickerTab("watchlist");
+              setActiveView("markets");
+            }}
+          />
+        </div>
         <div className="market-view" hidden={activeView !== "markets"}>
           <section className="index-strip" aria-label={t("market.indices")}>
             {stocks

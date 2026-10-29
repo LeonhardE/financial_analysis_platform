@@ -294,6 +294,7 @@ function renderDashboard({
       }),
     },
     "@/components/SettingsPanel": { default: () => null },
+    "@/components/ResourcesPanel": { __esModule: true, default: () => null },
     "@/components/InstrumentMetrics": { InstrumentMetrics: () => null },
     "@/components/useMarketResource": {
       useMarketResource: (resourcePath) => {

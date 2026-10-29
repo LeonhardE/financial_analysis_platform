@@ -5,7 +5,7 @@ import { useTranslations } from "next-intl";
 import { AccountControls } from "@/components/AccountControls";
 import styles from "./WorkspaceSidebar.module.css";
 
-type WorkspaceView = "markets" | "settings";
+export type WorkspaceView = "markets" | "resources" | "settings";
 
 function NavigationIcon({ view }: { view: WorkspaceView }) {
   return (
@@ -22,6 +22,11 @@ function NavigationIcon({ view }: { view: WorkspaceView }) {
         <>
           <path d="M4 19.5h16M5.5 15V9m6.5 6V4m6.5 11V7" />
           <path d="m3 7 5-3 5 3 7-5" />
+        </>
+      ) : view === "resources" ? (
+        <>
+          <path d="M3 7h7l2 2h9v11H3z" />
+          <path d="M3 7V4h7l2 3m0 5v5m-2.5-2.5h5" />
         </>
       ) : (
         <>
@@ -167,7 +172,7 @@ export function WorkspaceSidebar({
         </div>
         <div className={styles.bottom}>
           <nav className={styles.navigation} aria-label={t("nav.primary")}>
-            {(["markets", "settings"] as const).map((view) => (
+            {(["markets", "resources", "settings"] as const).map((view) => (
               <button
                 key={view}
                 type="button"

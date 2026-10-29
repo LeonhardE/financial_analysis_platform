@@ -99,6 +99,8 @@ function mountProvider({
     },
     process: { env },
     AbortController,
+    URL,
+    TextEncoder,
     window: { setTimeout: () => 1, clearTimeout: () => {} },
     fetch: (...args) => {
       requests.push(args);
@@ -527,4 +529,204 @@ test("aborting a pending settings token prevents its JSON write after the deadli
   await rejected;
   assert.equal(harness.requests.length, 1);
   assert.equal(harness.state().profile.uid, "a");
+});
+
+const encryptedEnv = {
+  NEXT_PUBLIC_PORTFOLIO_API_BASE_URL: "https://portfolio.example.test",
+  NEXT_PUBLIC_AGENT_HUB_API_BASE_URL: "https://hub.example.test",
+};
+const version = "folioview.agent-workspace.v2.0";
+const operation = "synthetic_operation_000001";
+const author = "A".repeat(43);
+function operationHeaders(extra = {}) {
+  return { "Idempotency-Key": operation, ...extra };
+}
+
+test("encrypted requests use only explicit services, fixed version, closed methods and no redirects", async () => {
+  const harness = mountProvider({ env: encryptedEnv });
+  harness.emitUser(user("a"));
+  await settle();
+  const entries = [
+    ["agent-hub", "/api/v2/vaults/current", {}],
+    [
+      "agent-hub",
+      "/api/v2/vaults",
+      {
+        method: "POST",
+        headers: operationHeaders(),
+        json: {
+          contractVersion: version,
+          vaultId: "vault_A",
+          rootJwk: {},
+          rootKeyId: author,
+          registryBundle: {},
+          archive: {},
+        },
+      },
+    ],
+    [
+      "agent-hub",
+      "/api/v2/vaults/vault_A/registry",
+      {
+        method: "PUT",
+        headers: operationHeaders(),
+        json: { contractVersion: version, expectedVersion: 1, registryBundle: {} },
+      },
+    ],
+    [
+      "agent-hub",
+      "/api/v2/vaults/vault_A/holdings-sources/source_A",
+      {
+        method: "POST",
+        headers: operationHeaders({ "X-FolioView-Author-Key": author }),
+        json: { contractVersion: version, command: {} },
+      },
+    ],
+    [
+      "agent-hub",
+      "/api/v2/vaults/current/authority-token",
+      { method: "POST", json: { contractVersion: version } },
+    ],
+    [
+      "portfolio",
+      "/api/v2/holdings/sources/source_A/authority-sync",
+      {
+        method: "POST",
+        headers: { "X-FolioView-Authority-Delegation": ["a", "b", "c"].join(".") },
+        json: { contractVersion: version },
+      },
+    ],
+    ["portfolio", "/api/v2/holdings/sources/source_A", {}],
+    ["portfolio", "/api/v2/holdings/sources/source_A/latest", {}],
+    [
+      "portfolio",
+      "/api/v2/holdings/sources/source_A/snapshots/snapshot_A",
+      {
+        method: "PUT",
+        headers: operationHeaders({ "X-FolioView-Author-Key": author }),
+        json: { contractVersion: version, expectedRevision: 0, carrier: {} },
+      },
+    ],
+    ["portfolio", "/api/v2/holdings/sources/source_A/operations/synthetic_operation_000001", {}],
+  ];
+  for (const [service, path, options] of entries) {
+    await harness.actions.requestPrivate(service, path, "a:1", options);
+    const [url, request] = harness.requests.at(-1);
+    assert.equal(
+      url,
+      encryptedEnv[
+        service === "portfolio"
+          ? "NEXT_PUBLIC_PORTFOLIO_API_BASE_URL"
+          : "NEXT_PUBLIC_AGENT_HUB_API_BASE_URL"
+      ] + path,
+    );
+    assert.equal(request.headers["X-FolioView-Contract"], version);
+    assert.equal(request.headers.Authorization, "Bearer test-token-a");
+    assert.equal(request.credentials, "omit");
+    assert.equal(request.cache, "no-store");
+    assert.equal(request.redirect, "error");
+    assert.equal(request.referrerPolicy, "no-referrer");
+  }
+});
+
+test("missing or malformed encrypted origins never fall back to Market or forward a bearer", async () => {
+  for (const origin of [
+    undefined,
+    "http://example.test",
+    "https://user:pass@example.test",
+    "https://example.test/",
+    "https://example.test/path",
+    "https://example.test?x=1",
+  ]) {
+    let tokens = 0;
+    const harness = mountProvider({
+      env: {
+        NEXT_PUBLIC_API_BASE_URL: "https://market.example.test",
+        NEXT_PUBLIC_PORTFOLIO_API_BASE_URL: origin,
+      },
+    });
+    harness.emitUser({
+      uid: "a",
+      getIdToken: async () => {
+        tokens++;
+        return "test-token-a";
+      },
+    });
+    await settle();
+    await assert.rejects(
+      harness.actions.requestPrivate("portfolio", "/api/v2/holdings/sources/source_A", "a:1"),
+      /not configured/,
+    );
+    assert.equal(tokens, 1);
+    assert.equal(harness.requests.length, 1);
+  }
+});
+
+test("encrypted routes reject header overrides, duplicates, wrong methods, unknown bodies and URLs before token retrieval", async () => {
+  let tokens = 0;
+  const harness = mountProvider({ env: encryptedEnv });
+  harness.emitUser({
+    uid: "a",
+    getIdToken: async () => {
+      tokens++;
+      return "test-token-a";
+    },
+  });
+  await settle();
+  const source = "/api/v2/holdings/sources/source_A";
+  const failures = [
+    ["portfolio", source, { method: "POST" }],
+    ["portfolio", source, { json: { holdings: "private" } }],
+    ["portfolio", source, { headers: { Authorization: "Bearer stolen" } }],
+    ["portfolio", source, { headers: { "X-FolioView-Contract": "old-version" } }],
+    [
+      "portfolio",
+      source,
+      { headers: { "X-FolioView-Contract": version, "x-folioview-contract": version } },
+    ],
+    ["portfolio", source, { headers: JSON.parse('{"__proto__":"unexpected"}') }],
+    ["portfolio", "https://other.example.test" + source, {}],
+    ["portfolio", source + "?owner=other", {}],
+    ["portfolio", source.replace("source_A", "%2fother"), {}],
+    [
+      "agent-hub",
+      "/internal/v2/portfolio-authorities/read",
+      { method: "POST", json: { contractVersion: version } },
+    ],
+    [
+      "agent-hub",
+      "/api/v2/vaults/current/authority-token",
+      { method: "POST", json: { contractVersion: version, ownerUid: "other" } },
+    ],
+    [
+      "agent-hub",
+      "/api/v2/vaults/current/authority-token",
+      {
+        method: "POST",
+        json: { contractVersion: version },
+        headers: { "X-FolioView-Author-Key": author },
+      },
+    ],
+    [
+      "portfolio",
+      source + "/authority-sync",
+      { method: "POST", json: { contractVersion: version } },
+    ],
+    [
+      "portfolio",
+      source + "/snapshots/snapshot_A",
+      {
+        method: "PUT",
+        headers: operationHeaders(),
+        json: { contractVersion: version, expectedRevision: 0, carrier: {} },
+      },
+    ],
+  ];
+  for (const args of failures)
+    await assert.rejects(
+      harness.actions.requestPrivate(args[0], args[1], "a:1", args[2]),
+      /Invalid private API/,
+    );
+  assert.equal(tokens, 1);
+  assert.equal(harness.requests.length, 1);
 });
