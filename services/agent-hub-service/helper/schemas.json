@@ -1,0 +1,3724 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://folioview.app/contracts/agent-workspace/v2.0/schemas.json",
+  "title": "FolioView encrypted workspace v2.0 strict wire and private schemas",
+  "$defs": {
+    "ResourceRef": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": ["watchlist", "channel_follows", "holdings"]
+        },
+        "sourceService": {
+          "type": "string",
+          "enum": ["user", "portfolio"]
+        },
+        "resourceId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$"
+        },
+        "incarnation": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$"
+        }
+      },
+      "required": ["kind", "sourceService", "resourceId", "incarnation"],
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "holdings"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "sourceService": {
+                "const": "portfolio"
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "sourceService": {
+                "const": "user"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "ResourceBinding": {
+      "type": "object",
+      "properties": {
+        "ref": {
+          "$ref": "#/$defs/ResourceRef"
+        },
+        "sourceEpoch": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": ["ref", "sourceEpoch"],
+      "additionalProperties": false
+    },
+    "Coverage": {
+      "type": "object",
+      "properties": {
+        "state": {
+          "type": "string",
+          "enum": ["complete", "partial", "unknown"]
+        },
+        "issues": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          },
+          "minItems": 0,
+          "maxItems": 20,
+          "uniqueItems": true
+        }
+      },
+      "required": ["state", "issues"],
+      "additionalProperties": false
+    },
+    "WatchlistItem": {
+      "type": "object",
+      "properties": {
+        "symbol": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 14
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 180
+        },
+        "instrumentType": {
+          "type": "string",
+          "enum": ["stock", "index"]
+        },
+        "currency": {
+          "const": "USD"
+        },
+        "addedAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "Z$"
+        }
+      },
+      "required": ["symbol", "name", "instrumentType", "currency", "addedAt"],
+      "additionalProperties": false
+    },
+    "WatchlistData": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "const": "watchlist"
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/WatchlistItem"
+          },
+          "minItems": 0,
+          "maxItems": 50
+        }
+      },
+      "required": ["kind", "items"],
+      "additionalProperties": false
+    },
+    "ChannelFollow": {
+      "type": "object",
+      "properties": {
+        "followId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "handleOrUrl": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "note": {
+          "type": "string",
+          "minLength": 0,
+          "maxLength": 1000
+        },
+        "verification": {
+          "const": "user_provided"
+        },
+        "addedAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "Z$"
+        }
+      },
+      "required": ["followId", "name", "handleOrUrl", "note", "verification", "addedAt"],
+      "additionalProperties": false
+    },
+    "ChannelFollowsData": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "const": "channel_follows"
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ChannelFollow"
+          },
+          "minItems": 0,
+          "maxItems": 50
+        },
+        "readableMaterialCount": {
+          "const": 0
+        }
+      },
+      "required": ["kind", "items", "readableMaterialCount"],
+      "additionalProperties": false
+    },
+    "Money": {
+      "type": "object",
+      "properties": {
+        "currency": {
+          "type": "string",
+          "enum": ["CAD", "USD"]
+        },
+        "amount": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 34,
+          "pattern": "^-?(0|[1-9][0-9]{0,19})(\\.[0-9]{1,12})?$"
+        }
+      },
+      "required": ["currency", "amount"],
+      "additionalProperties": false
+    },
+    "HoldingPosition": {
+      "type": "object",
+      "properties": {
+        "assetId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$"
+        },
+        "brokerAssetId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 180
+        },
+        "symbol": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 32
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "exchange": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 180
+        },
+        "assetType": {
+          "type": "string",
+          "enum": ["stock", "etf", "unsupported"]
+        },
+        "quantity": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 33,
+          "pattern": "^(0|[1-9][0-9]{0,19})(\\.[0-9]{1,12})?$"
+        },
+        "currency": {
+          "type": "string",
+          "enum": ["CAD", "USD"]
+        },
+        "marketValue": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Money"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "assetId",
+        "brokerAssetId",
+        "symbol",
+        "exchange",
+        "name",
+        "assetType",
+        "quantity",
+        "currency",
+        "marketValue"
+      ],
+      "additionalProperties": false
+    },
+    "CashBalance": {
+      "type": "object",
+      "properties": {
+        "currency": {
+          "type": "string",
+          "enum": ["CAD", "USD"]
+        },
+        "cashBalance": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 34,
+              "pattern": "^-?(0|[1-9][0-9]{0,19})(\\.[0-9]{1,12})?$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "buyingPower": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 34,
+              "pattern": "^-?(0|[1-9][0-9]{0,19})(\\.[0-9]{1,12})?$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": ["currency", "cashBalance", "buyingPower"],
+      "additionalProperties": false
+    },
+    "HoldingAccount": {
+      "type": "object",
+      "properties": {
+        "accountId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$"
+        },
+        "displayName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "balances": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/CashBalance"
+          },
+          "minItems": 0,
+          "maxItems": 2
+        },
+        "positions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/HoldingPosition"
+          },
+          "minItems": 0,
+          "maxItems": 1000
+        }
+      },
+      "required": ["accountId", "displayName", "balances", "positions"],
+      "additionalProperties": false
+    },
+    "HoldingsData": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "const": "holdings"
+        },
+        "snapshotId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$"
+        },
+        "accounts": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/HoldingAccount"
+          },
+          "minItems": 0,
+          "maxItems": 10
+        },
+        "excludedAssets": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "brokerAssetId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 180
+              },
+              "reason": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 120
+              }
+            },
+            "required": ["brokerAssetId", "reason"],
+            "additionalProperties": false
+          },
+          "minItems": 0,
+          "maxItems": 100
+        }
+      },
+      "required": ["kind", "snapshotId", "accounts", "excludedAssets"],
+      "additionalProperties": false
+    },
+    "SectionSpec": {
+      "type": "object",
+      "properties": {
+        "sectionId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$"
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "instructions": {
+          "type": "string",
+          "minLength": 0,
+          "maxLength": 1000
+        }
+      },
+      "required": ["sectionId", "title", "instructions"],
+      "additionalProperties": false
+    },
+    "OutputSpec": {
+      "type": "object",
+      "properties": {
+        "label": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 40
+        },
+        "sections": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/SectionSpec"
+          },
+          "minItems": 1,
+          "maxItems": 8
+        },
+        "language": {
+          "type": "string",
+          "enum": ["zh", "en"]
+        },
+        "verbosity": {
+          "type": "string",
+          "enum": ["concise", "standard"]
+        }
+      },
+      "required": ["label", "sections", "language", "verbosity"],
+      "additionalProperties": false
+    },
+    "InputPolicy": {
+      "type": "object",
+      "properties": {
+        "allowPartial": {
+          "type": "boolean"
+        },
+        "allowUnknownAsOf": {
+          "type": "boolean"
+        },
+        "maxFetchedAgeSeconds": {
+          "type": "integer",
+          "minimum": 60,
+          "maximum": 604800
+        }
+      },
+      "required": ["allowPartial", "allowUnknownAsOf", "maxFetchedAgeSeconds"],
+      "additionalProperties": false
+    },
+    "DeliveryExpectation": {
+      "type": "object",
+      "properties": {
+        "cadence": {
+          "type": "string",
+          "enum": ["daily", "weekdays", "weekly"]
+        },
+        "localTime": {
+          "type": "string",
+          "minLength": 5,
+          "maxLength": 5,
+          "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9]$"
+        },
+        "timeZone": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80,
+          "format": "iana-timezone"
+        },
+        "graceMinutes": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1440
+        },
+        "weekday": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 6
+        }
+      },
+      "required": ["cadence", "localTime", "timeZone", "graceMinutes"],
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "cadence": {
+                "const": "weekly"
+              }
+            }
+          },
+          "then": {
+            "required": ["weekday"]
+          },
+          "else": {
+            "not": {
+              "required": ["weekday"]
+            }
+          }
+        }
+      ]
+    },
+    "ResultSection": {
+      "type": "object",
+      "properties": {
+        "sectionId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$"
+        },
+        "markdown": {
+          "type": "string",
+          "minLength": 0,
+          "maxLength": 16384
+        }
+      },
+      "required": ["sectionId", "markdown"],
+      "additionalProperties": false
+    },
+    "Citation": {
+      "type": "object",
+      "properties": {
+        "citationId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$"
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 180
+        },
+        "url": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2048,
+          "format": "uri",
+          "pattern": "^https://"
+        },
+        "provenance": {
+          "const": "agent_provided"
+        },
+        "publishedAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "Z$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": ["citationId", "title", "url", "provenance", "publishedAt"],
+      "additionalProperties": false
+    },
+    "ResultContent": {
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160
+        },
+        "summary": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 600
+        },
+        "sections": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ResultSection"
+          },
+          "minItems": 1,
+          "maxItems": 8
+        },
+        "citations": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Citation"
+          },
+          "minItems": 0,
+          "maxItems": 20
+        },
+        "limitations": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          },
+          "minItems": 0,
+          "maxItems": 20
+        }
+      },
+      "required": ["title", "summary", "sections", "citations", "limitations"],
+      "additionalProperties": false
+    },
+    "Identifier": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$"
+    },
+    "OperationIdentifier": {
+      "type": "string",
+      "minLength": 22,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9_-]+$"
+    },
+    "Digest": {
+      "type": "string",
+      "minLength": 64,
+      "maxLength": 64,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "KeyId": {
+      "type": "string",
+      "minLength": 43,
+      "maxLength": 43,
+      "pattern": "^[A-Za-z0-9_-]{43}$"
+    },
+    "PublicJWK": {
+      "type": "object",
+      "properties": {
+        "kty": {
+          "const": "EC"
+        },
+        "crv": {
+          "const": "P-256"
+        },
+        "x": {
+          "type": "string",
+          "minLength": 43,
+          "maxLength": 43,
+          "pattern": "^[A-Za-z0-9_-]{43}$"
+        },
+        "y": {
+          "type": "string",
+          "minLength": 43,
+          "maxLength": 43,
+          "pattern": "^[A-Za-z0-9_-]{43}$"
+        }
+      },
+      "required": ["kty", "crv", "x", "y"],
+      "additionalProperties": false
+    },
+    "PublicJwk": {
+      "$ref": "#/$defs/PublicJWK"
+    },
+    "SignedObject": {
+      "type": "object",
+      "properties": {
+        "protected": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1024,
+          "pattern": "^[A-Za-z0-9_-]+$"
+        },
+        "payload": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 699051,
+          "pattern": "^[A-Za-z0-9_-]+$"
+        },
+        "signature": {
+          "type": "string",
+          "minLength": 86,
+          "maxLength": 86,
+          "pattern": "^[A-Za-z0-9_-]+$"
+        }
+      },
+      "required": ["protected", "payload", "signature"],
+      "additionalProperties": false
+    },
+    "Carrier": {
+      "type": "object",
+      "properties": {
+        "contractVersion": {
+          "const": "folioview.agent-workspace.v2.0"
+        },
+        "signedObject": {
+          "$ref": "#/$defs/SignedObject"
+        }
+      },
+      "required": ["contractVersion", "signedObject"],
+      "additionalProperties": false
+    },
+    "SignedObjectCarrier": {
+      "$ref": "#/$defs/Carrier"
+    },
+    "JWERecipient": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "object",
+          "properties": {
+            "kid": {
+              "type": "string",
+              "minLength": 43,
+              "maxLength": 43,
+              "pattern": "^[A-Za-z0-9_-]{43}$"
+            },
+            "epk": {
+              "$ref": "#/$defs/PublicJWK"
+            }
+          },
+          "required": ["kid", "epk"],
+          "additionalProperties": false
+        },
+        "encrypted_key": {
+          "type": "string",
+          "minLength": 54,
+          "maxLength": 54,
+          "pattern": "^[A-Za-z0-9_-]+$"
+        }
+      },
+      "required": ["header", "encrypted_key"],
+      "additionalProperties": false
+    },
+    "JWE": {
+      "type": "object",
+      "properties": {
+        "protected": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1024,
+          "pattern": "^[A-Za-z0-9_-]+$"
+        },
+        "recipients": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/JWERecipient"
+          },
+          "minItems": 1,
+          "maxItems": 8
+        },
+        "iv": {
+          "type": "string",
+          "minLength": 16,
+          "maxLength": 16,
+          "pattern": "^[A-Za-z0-9_-]+$"
+        },
+        "ciphertext": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 262144,
+          "pattern": "^[A-Za-z0-9_-]+$"
+        },
+        "tag": {
+          "type": "string",
+          "minLength": 22,
+          "maxLength": 22,
+          "pattern": "^[A-Za-z0-9_-]+$"
+        },
+        "aad": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 21846,
+          "pattern": "^[A-Za-z0-9_-]+$"
+        }
+      },
+      "required": ["protected", "recipients", "iv", "ciphertext", "tag", "aad"],
+      "additionalProperties": false
+    },
+    "ResourceBindingMetadata": {
+      "type": "object",
+      "properties": {
+        "ref": {
+          "$ref": "#/$defs/ResourceRef"
+        },
+        "sourceEpoch": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": ["ref", "sourceEpoch"],
+      "additionalProperties": false
+    },
+    "GrantResourceBinding": {
+      "type": "object",
+      "properties": {
+        "ref": {
+          "$ref": "#/$defs/ResourceRef"
+        },
+        "sourceEpoch": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "versionAccess": {
+          "enum": ["selected", "future_within_source_epoch"]
+        },
+        "selectedVersions": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "minItems": 0,
+          "maxItems": 50,
+          "uniqueItems": true
+        }
+      },
+      "required": ["ref", "sourceEpoch", "versionAccess", "selectedVersions"],
+      "additionalProperties": false
+    },
+    "Recipient": {
+      "type": "object",
+      "properties": {
+        "keyId": {
+          "type": "string",
+          "minLength": 43,
+          "maxLength": 43,
+          "pattern": "^[A-Za-z0-9_-]{43}$"
+        },
+        "role": {
+          "enum": ["device_enc", "agent_enc", "recovery_enc"]
+        },
+        "principalId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$"
+        },
+        "connectionId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "keyEpoch": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": ["keyId", "role", "principalId", "connectionId", "keyEpoch"],
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "role": {
+                "const": "agent_enc"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "connectionId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128,
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$"
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "connectionId": {
+                "type": "null"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "Binding": {
+      "type": "object",
+      "properties": {
+        "taskId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "taskVersion": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "runId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "manifestId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "taskEnvelopeFingerprint": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 64,
+              "maxLength": 64,
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "manifestFingerprint": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 64,
+              "maxLength": 64,
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "connectionId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "grantId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "grantEpoch": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "executionEpoch": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "resourceRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ResourceRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "sourceRevision": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "sourceEpoch": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "taskId",
+        "taskVersion",
+        "runId",
+        "manifestId",
+        "taskEnvelopeFingerprint",
+        "manifestFingerprint",
+        "connectionId",
+        "grantId",
+        "grantEpoch",
+        "executionEpoch",
+        "resourceRef",
+        "sourceRevision",
+        "sourceEpoch"
+      ],
+      "additionalProperties": false
+    },
+    "Context": {
+      "type": "object",
+      "properties": {
+        "contractVersion": {
+          "const": "folioview.agent-workspace.v2.0"
+        },
+        "profileId": {
+          "const": "P1"
+        },
+        "ownerSubject": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$"
+        },
+        "vaultId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$"
+        },
+        "rootKeyId": {
+          "type": "string",
+          "minLength": 43,
+          "maxLength": 43,
+          "pattern": "^[A-Za-z0-9_-]{43}$"
+        },
+        "rootEpoch": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "registrySequence": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "checkpointDigest": {
+          "type": "string",
+          "minLength": 64,
+          "maxLength": 64,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "keyEpoch": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "objectId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$"
+        },
+        "objectType": {
+          "enum": [
+            "task",
+            "holdings_snapshot",
+            "watchlist_evidence",
+            "channel_follows_evidence",
+            "result_revision"
+          ]
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "deliveryRevision": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "priorEnvelopeFingerprint": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 64,
+              "maxLength": 64,
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "expectedRevision": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "stableOperationId": {
+          "$ref": "#/$defs/OperationIdentifier"
+        },
+        "operationType": {
+          "enum": [
+            "create_task",
+            "update_task",
+            "transition_task",
+            "commit_snapshot",
+            "commit_evidence",
+            "submit_result",
+            "revise_result",
+            "reshare_delivery"
+          ]
+        },
+        "authorSigningKeyId": {
+          "type": "string",
+          "minLength": 43,
+          "maxLength": 43,
+          "pattern": "^[A-Za-z0-9_-]{43}$"
+        },
+        "binding": {
+          "$ref": "#/$defs/Binding"
+        },
+        "resourceBindings": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ResourceBindingMetadata"
+          },
+          "minItems": 0,
+          "maxItems": 10,
+          "uniqueItems": true
+        },
+        "recipients": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Recipient"
+          },
+          "minItems": 1,
+          "maxItems": 8,
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "contractVersion",
+        "profileId",
+        "ownerSubject",
+        "vaultId",
+        "rootKeyId",
+        "rootEpoch",
+        "registrySequence",
+        "checkpointDigest",
+        "keyEpoch",
+        "objectId",
+        "objectType",
+        "revision",
+        "deliveryRevision",
+        "priorEnvelopeFingerprint",
+        "expectedRevision",
+        "stableOperationId",
+        "operationType",
+        "authorSigningKeyId",
+        "binding",
+        "resourceBindings",
+        "recipients"
+      ],
+      "additionalProperties": false
+    },
+    "ObjectMessage": {
+      "type": "object",
+      "properties": {
+        "context": {
+          "$ref": "#/$defs/Context"
+        },
+        "jwe": {
+          "$ref": "#/$defs/JWE"
+        }
+      },
+      "required": ["context", "jwe"],
+      "additionalProperties": false
+    },
+    "KeyCertificatePayload": {
+      "type": "object",
+      "properties": {
+        "artifactType": {
+          "const": "key_certificate"
+        },
+        "contractVersion": {
+          "const": "folioview.agent-workspace.v2.0"
+        },
+        "vaultId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$"
+        },
+        "ownerSubject": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$"
+        },
+        "certificateId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$"
+        },
+        "keyId": {
+          "type": "string",
+          "minLength": 43,
+          "maxLength": 43,
+          "pattern": "^[A-Za-z0-9_-]{43}$"
+        },
+        "role": {
+          "enum": ["root_sig", "device_sig", "device_enc", "agent_sig", "agent_enc", "recovery_enc"]
+        },
+        "publicJwk": {
+          "$ref": "#/$defs/PublicJWK"
+        },
+        "principalId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$"
+        },
+        "connectionId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "keyEpoch": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "issuerKeyId": {
+          "type": "string",
+          "minLength": 43,
+          "maxLength": 43,
+          "pattern": "^[A-Za-z0-9_-]{43}$"
+        },
+        "notBefore": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "expiresAt": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "capabilities": {
+          "type": "array",
+          "items": {
+            "enum": ["object_write", "task_grant", "control_write", "run_request", "result_write"]
+          },
+          "minItems": 0,
+          "maxItems": 5,
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "artifactType",
+        "contractVersion",
+        "vaultId",
+        "ownerSubject",
+        "certificateId",
+        "keyId",
+        "role",
+        "publicJwk",
+        "principalId",
+        "connectionId",
+        "keyEpoch",
+        "issuerKeyId",
+        "notBefore",
+        "expiresAt",
+        "capabilities"
+      ],
+      "additionalProperties": false
+    },
+    "RegistryCheckpointPayload": {
+      "type": "object",
+      "properties": {
+        "artifactType": {
+          "const": "registry_checkpoint"
+        },
+        "contractVersion": {
+          "const": "folioview.agent-workspace.v2.0"
+        },
+        "vaultId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$"
+        },
+        "ownerSubject": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$"
+        },
+        "rootKeyId": {
+          "type": "string",
+          "minLength": 43,
+          "maxLength": 43,
+          "pattern": "^[A-Za-z0-9_-]{43}$"
+        },
+        "rootEpoch": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "registrySequence": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "previousDigest": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 64,
+              "maxLength": 64,
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "entriesDigest": {
+          "type": "string",
+          "minLength": 64,
+          "maxLength": 64,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "keyEpoch": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "revokedKeyIds": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 43,
+            "maxLength": 43,
+            "pattern": "^[A-Za-z0-9_-]{43}$"
+          },
+          "minItems": 0,
+          "maxItems": 64,
+          "uniqueItems": true
+        },
+        "issuedAt": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": [
+        "artifactType",
+        "contractVersion",
+        "vaultId",
+        "ownerSubject",
+        "rootKeyId",
+        "rootEpoch",
+        "registrySequence",
+        "previousDigest",
+        "entriesDigest",
+        "keyEpoch",
+        "revokedKeyIds",
+        "issuedAt"
+      ],
+      "additionalProperties": false
+    },
+    "AgentKeyGrantPayload": {
+      "type": "object",
+      "properties": {
+        "artifactType": {
+          "const": "agent_key_grant"
+        },
+        "contractVersion": {
+          "const": "folioview.agent-workspace.v2.0"
+        },
+        "vaultId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$"
+        },
+        "ownerSubject": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$"
+        },
+        "authorizationId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$"
+        },
+        "deviceSigningKeyId": {
+          "type": "string",
+          "minLength": 43,
+          "maxLength": 43,
+          "pattern": "^[A-Za-z0-9_-]{43}$"
+        },
+        "connectionId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$"
+        },
+        "taskId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$"
+        },
+        "taskVersions": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "minItems": 1,
+          "maxItems": 50,
+          "uniqueItems": true
+        },
+        "executionEpoch": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "grantId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$"
+        },
+        "grantEpoch": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "agentSigningKeyId": {
+          "type": "string",
+          "minLength": 43,
+          "maxLength": 43,
+          "pattern": "^[A-Za-z0-9_-]{43}$"
+        },
+        "agentSigningKeyEpoch": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "agentEncryptionKeyId": {
+          "type": "string",
+          "minLength": 43,
+          "maxLength": 43,
+          "pattern": "^[A-Za-z0-9_-]{43}$"
+        },
+        "agentEncryptionKeyEpoch": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "keyEpoch": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "resourceBindings": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/GrantResourceBinding"
+          },
+          "minItems": 0,
+          "maxItems": 10,
+          "uniqueItems": true
+        },
+        "capabilities": {
+          "type": "array",
+          "items": {
+            "enum": ["decrypt_task", "decrypt_resources", "encrypt_result"]
+          },
+          "minItems": 1,
+          "maxItems": 3,
+          "uniqueItems": true
+        },
+        "writebackRecipientKeyIds": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 43,
+            "maxLength": 43,
+            "pattern": "^[A-Za-z0-9_-]{43}$"
+          },
+          "minItems": 2,
+          "maxItems": 8,
+          "uniqueItems": true
+        },
+        "historyPolicy": {
+          "enum": ["none", "selected"]
+        },
+        "notBefore": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "expiresAt": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "registrySequence": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "checkpointDigest": {
+          "type": "string",
+          "minLength": 64,
+          "maxLength": 64,
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "required": [
+        "artifactType",
+        "contractVersion",
+        "vaultId",
+        "ownerSubject",
+        "authorizationId",
+        "deviceSigningKeyId",
+        "connectionId",
+        "taskId",
+        "taskVersions",
+        "executionEpoch",
+        "grantId",
+        "grantEpoch",
+        "agentSigningKeyId",
+        "agentSigningKeyEpoch",
+        "agentEncryptionKeyId",
+        "agentEncryptionKeyEpoch",
+        "keyEpoch",
+        "resourceBindings",
+        "capabilities",
+        "writebackRecipientKeyIds",
+        "historyPolicy",
+        "notBefore",
+        "expiresAt",
+        "registrySequence",
+        "checkpointDigest"
+      ],
+      "additionalProperties": false
+    },
+    "BeginResourceVersion": {
+      "type": "object",
+      "properties": {
+        "ref": {
+          "$ref": "#/$defs/ResourceRef"
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "sourceEpoch": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "envelopeFingerprint": {
+          "type": "string",
+          "minLength": 64,
+          "maxLength": 64,
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "required": ["ref", "revision", "sourceEpoch", "envelopeFingerprint"],
+      "additionalProperties": false
+    },
+    "BeginRunIntentPayload": {
+      "type": "object",
+      "properties": {
+        "artifactType": {
+          "const": "begin_run_intent"
+        },
+        "contractVersion": {
+          "const": "folioview.agent-workspace.v2.0"
+        },
+        "vaultId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$"
+        },
+        "ownerSubject": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$"
+        },
+        "stableOperationId": {
+          "$ref": "#/$defs/OperationIdentifier"
+        },
+        "taskId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$"
+        },
+        "expectedTaskVersion": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "taskEnvelopeFingerprint": {
+          "type": "string",
+          "minLength": 64,
+          "maxLength": 64,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "resourceVersions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/BeginResourceVersion"
+          },
+          "minItems": 0,
+          "maxItems": 10,
+          "uniqueItems": true
+        },
+        "connectionId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$"
+        },
+        "grantId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$"
+        },
+        "grantEpoch": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "executionEpoch": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "keyEpoch": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "registrySequence": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "checkpointDigest": {
+          "type": "string",
+          "minLength": 64,
+          "maxLength": 64,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "authorizationId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$"
+        }
+      },
+      "required": [
+        "artifactType",
+        "contractVersion",
+        "vaultId",
+        "ownerSubject",
+        "stableOperationId",
+        "taskId",
+        "expectedTaskVersion",
+        "taskEnvelopeFingerprint",
+        "resourceVersions",
+        "connectionId",
+        "grantId",
+        "grantEpoch",
+        "executionEpoch",
+        "keyEpoch",
+        "registrySequence",
+        "checkpointDigest",
+        "authorizationId"
+      ],
+      "additionalProperties": false
+    },
+    "ControlCommandPayload": {
+      "type": "object",
+      "properties": {
+        "artifactType": {
+          "const": "control_command"
+        },
+        "contractVersion": {
+          "const": "folioview.agent-workspace.v2.0"
+        },
+        "vaultId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$"
+        },
+        "ownerSubject": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$"
+        },
+        "stableOperationId": {
+          "$ref": "#/$defs/OperationIdentifier"
+        },
+        "action": {
+          "enum": [
+            "task_pause",
+            "task_resume",
+            "task_archive",
+            "resource_fence_request",
+            "result_state_update",
+            "connection_revoke",
+            "manual_source_create",
+            "source_disconnect",
+            "source_delete"
+          ]
+        },
+        "targetId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$"
+        },
+        "expectedVersion": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "expectedSourceEpoch": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "registrySequence": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "checkpointDigest": {
+          "type": "string",
+          "minLength": 64,
+          "maxLength": 64,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "keyEpoch": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "parameters": {
+          "type": "object"
+        }
+      },
+      "required": [
+        "artifactType",
+        "contractVersion",
+        "vaultId",
+        "ownerSubject",
+        "stableOperationId",
+        "action",
+        "targetId",
+        "expectedVersion",
+        "expectedSourceEpoch",
+        "registrySequence",
+        "checkpointDigest",
+        "keyEpoch",
+        "parameters"
+      ],
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "action": {
+                "const": "task_pause"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "parameters": {
+                "type": "object",
+                "properties": {},
+                "required": [],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "action": {
+                "const": "task_resume"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "parameters": {
+                "type": "object",
+                "properties": {},
+                "required": [],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "action": {
+                "const": "task_archive"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "parameters": {
+                "type": "object",
+                "properties": {},
+                "required": [],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "action": {
+                "const": "resource_fence_request"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "resourceRef": {
+                    "$ref": "#/$defs/ResourceRef"
+                  }
+                },
+                "required": ["resourceRef"],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "action": {
+                "const": "result_state_update"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "read": {
+                    "type": "boolean"
+                  },
+                  "starred": {
+                    "type": "boolean"
+                  },
+                  "archived": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [],
+                "additionalProperties": false,
+                "minProperties": 1
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "action": {
+                "const": "connection_revoke"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "parameters": {
+                "type": "object",
+                "properties": {},
+                "required": [],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "action": {
+                "const": "manual_source_create"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "parameters": {
+                "type": "object",
+                "properties": {},
+                "required": [],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "action": {
+                "const": "source_disconnect"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "parameters": {
+                "type": "object",
+                "properties": {},
+                "required": [],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "action": {
+                "const": "source_delete"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "parameters": {
+                "type": "object",
+                "properties": {},
+                "required": [],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      ]
+    },
+    "TaskTransitionIntentPayload": {
+      "type": "object",
+      "properties": {
+        "artifactType": {
+          "const": "task_transition_intent"
+        },
+        "contractVersion": {
+          "const": "folioview.agent-workspace.v2.0"
+        },
+        "vaultId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$"
+        },
+        "ownerSubject": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$"
+        },
+        "stableOperationId": {
+          "$ref": "#/$defs/OperationIdentifier"
+        },
+        "taskId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$"
+        },
+        "action": {
+          "enum": ["pause", "resume", "archive"]
+        },
+        "expectedVersion": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "nextTaskVersion": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "nextExecutionEpoch": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "nextEnvelopeFingerprint": {
+          "type": "string",
+          "minLength": 64,
+          "maxLength": 64,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "registrySequence": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "checkpointDigest": {
+          "type": "string",
+          "minLength": 64,
+          "maxLength": 64,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "keyEpoch": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": [
+        "artifactType",
+        "contractVersion",
+        "vaultId",
+        "ownerSubject",
+        "stableOperationId",
+        "taskId",
+        "action",
+        "expectedVersion",
+        "nextTaskVersion",
+        "nextExecutionEpoch",
+        "nextEnvelopeFingerprint",
+        "registrySequence",
+        "checkpointDigest",
+        "keyEpoch"
+      ],
+      "additionalProperties": false
+    },
+    "ResourceScopeCommandPayload": {
+      "type": "object",
+      "properties": {
+        "artifactType": {
+          "const": "resource_scope_command"
+        },
+        "contractVersion": {
+          "const": "folioview.agent-workspace.v2.0"
+        },
+        "vaultId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$"
+        },
+        "ownerSubject": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$"
+        },
+        "stableOperationId": {
+          "$ref": "#/$defs/OperationIdentifier"
+        },
+        "connectionId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$"
+        },
+        "expectedSourceEpoch": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "selectedResourceRefs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ResourceRef"
+          },
+          "minItems": 1,
+          "maxItems": 10,
+          "uniqueItems": true
+        },
+        "registrySequence": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "checkpointDigest": {
+          "type": "string",
+          "minLength": 64,
+          "maxLength": 64,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "keyEpoch": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": [
+        "artifactType",
+        "contractVersion",
+        "vaultId",
+        "ownerSubject",
+        "stableOperationId",
+        "connectionId",
+        "expectedSourceEpoch",
+        "selectedResourceRefs",
+        "registrySequence",
+        "checkpointDigest",
+        "keyEpoch"
+      ],
+      "additionalProperties": false
+    },
+    "RootChallenge": {
+      "type": "object",
+      "properties": {
+        "contractVersion": {
+          "const": "folioview.agent-workspace.v2.0"
+        },
+        "challengeId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$"
+        },
+        "vaultId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$"
+        },
+        "ownerSubject": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$"
+        },
+        "rootKeyId": {
+          "type": "string",
+          "minLength": 43,
+          "maxLength": 43,
+          "pattern": "^[A-Za-z0-9_-]{43}$"
+        },
+        "expectedRegistrySequence": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "action": {
+          "const": "recover_registry"
+        },
+        "nonce": {
+          "type": "string",
+          "minLength": 22,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_-]+$"
+        },
+        "expiresAt": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": [
+        "contractVersion",
+        "challengeId",
+        "vaultId",
+        "ownerSubject",
+        "rootKeyId",
+        "expectedRegistrySequence",
+        "action",
+        "nonce",
+        "expiresAt"
+      ],
+      "additionalProperties": false
+    },
+    "RecoveryAuthorizationPayload": {
+      "type": "object",
+      "properties": {
+        "artifactType": {
+          "const": "recovery_authorization"
+        },
+        "contractVersion": {
+          "const": "folioview.agent-workspace.v2.0"
+        },
+        "vaultId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$"
+        },
+        "ownerSubject": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$"
+        },
+        "challengeId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$"
+        },
+        "challengeNonce": {
+          "type": "string",
+          "minLength": 22,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_-]+$"
+        },
+        "expectedRegistrySequence": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "replacementCheckpointDigest": {
+          "type": "string",
+          "minLength": 64,
+          "maxLength": 64,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "stableOperationId": {
+          "$ref": "#/$defs/OperationIdentifier"
+        },
+        "expiresAt": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": [
+        "artifactType",
+        "contractVersion",
+        "vaultId",
+        "ownerSubject",
+        "challengeId",
+        "challengeNonce",
+        "expectedRegistrySequence",
+        "replacementCheckpointDigest",
+        "stableOperationId",
+        "expiresAt"
+      ],
+      "additionalProperties": false
+    },
+    "KeyCertificate": {
+      "$ref": "#/$defs/KeyCertificatePayload"
+    },
+    "RegistryCheckpoint": {
+      "$ref": "#/$defs/RegistryCheckpointPayload"
+    },
+    "AgentKeyGrant": {
+      "$ref": "#/$defs/AgentKeyGrantPayload"
+    },
+    "BeginRunIntent": {
+      "$ref": "#/$defs/BeginRunIntentPayload"
+    },
+    "ControlCommand": {
+      "$ref": "#/$defs/ControlCommandPayload"
+    },
+    "TaskTransitionIntent": {
+      "$ref": "#/$defs/TaskTransitionIntentPayload"
+    },
+    "ResourceScopeCommand": {
+      "$ref": "#/$defs/ResourceScopeCommandPayload"
+    },
+    "RecoveryAuthorization": {
+      "$ref": "#/$defs/RecoveryAuthorizationPayload"
+    },
+    "RegistryEntry": {
+      "type": "object",
+      "properties": {
+        "certificate": {
+          "$ref": "#/$defs/SignedObject"
+        },
+        "active": {
+          "type": "boolean"
+        }
+      },
+      "required": ["certificate", "active"],
+      "additionalProperties": false
+    },
+    "RegistryBundle": {
+      "type": "object",
+      "properties": {
+        "contractVersion": {
+          "const": "folioview.agent-workspace.v2.0"
+        },
+        "checkpoint": {
+          "$ref": "#/$defs/SignedObject"
+        },
+        "entries": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/RegistryEntry"
+          },
+          "minItems": 1,
+          "maxItems": 64
+        }
+      },
+      "required": ["contractVersion", "checkpoint", "entries"],
+      "additionalProperties": false
+    },
+    "KeyProofs": {
+      "type": "object",
+      "properties": {
+        "checkpoint": {
+          "$ref": "#/$defs/SignedObject"
+        },
+        "certificates": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/SignedObject"
+          },
+          "minItems": 1,
+          "maxItems": 64
+        }
+      },
+      "required": ["checkpoint", "certificates"],
+      "additionalProperties": false
+    },
+    "ManifestEntry": {
+      "type": "object",
+      "properties": {
+        "ref": {
+          "$ref": "#/$defs/ResourceRef"
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "sourceEpoch": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "objectId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$"
+        },
+        "objectType": {
+          "enum": ["holdings_snapshot", "watchlist_evidence", "channel_follows_evidence"]
+        },
+        "deliveryRevision": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "envelopeFingerprint": {
+          "type": "string",
+          "minLength": 64,
+          "maxLength": 64,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "keyEpoch": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": [
+        "ref",
+        "revision",
+        "sourceEpoch",
+        "objectId",
+        "objectType",
+        "deliveryRevision",
+        "envelopeFingerprint",
+        "keyEpoch"
+      ],
+      "additionalProperties": false
+    },
+    "ManifestTaskEnvelope": {
+      "type": "object",
+      "properties": {
+        "objectId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$"
+        },
+        "objectType": {
+          "const": "task"
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "deliveryRevision": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "envelopeFingerprint": {
+          "type": "string",
+          "minLength": 64,
+          "maxLength": 64,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "keyEpoch": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": [
+        "objectId",
+        "objectType",
+        "revision",
+        "deliveryRevision",
+        "envelopeFingerprint",
+        "keyEpoch"
+      ],
+      "additionalProperties": false
+    },
+    "ManifestDescriptor": {
+      "type": "object",
+      "properties": {
+        "contractVersion": {
+          "const": "folioview.agent-workspace.v2.0"
+        },
+        "vaultId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$"
+        },
+        "manifestId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$"
+        },
+        "runId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$"
+        },
+        "taskId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$"
+        },
+        "taskVersion": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "connectionId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$"
+        },
+        "grantId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$"
+        },
+        "grantEpoch": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "executionEpoch": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "keyEpoch": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "beginIntentFingerprint": {
+          "type": "string",
+          "minLength": 64,
+          "maxLength": 64,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "signedBeginIntent": {
+          "$ref": "#/$defs/SignedObject"
+        },
+        "taskEnvelope": {
+          "$ref": "#/$defs/ManifestTaskEnvelope"
+        },
+        "entries": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ManifestEntry"
+          },
+          "minItems": 0,
+          "maxItems": 10,
+          "uniqueItems": true
+        },
+        "createdAt": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 40,
+          "format": "date-time",
+          "pattern": "Z$"
+        },
+        "expiresAt": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 40,
+          "format": "date-time",
+          "pattern": "Z$"
+        }
+      },
+      "required": [
+        "contractVersion",
+        "vaultId",
+        "manifestId",
+        "runId",
+        "taskId",
+        "taskVersion",
+        "connectionId",
+        "grantId",
+        "grantEpoch",
+        "executionEpoch",
+        "keyEpoch",
+        "beginIntentFingerprint",
+        "signedBeginIntent",
+        "taskEnvelope",
+        "entries",
+        "createdAt",
+        "expiresAt"
+      ],
+      "additionalProperties": false
+    },
+    "RunDescriptor": {
+      "type": "object",
+      "properties": {
+        "contractVersion": {
+          "const": "folioview.agent-workspace.v2.0"
+        },
+        "vaultId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$"
+        },
+        "runId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$"
+        },
+        "taskId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$"
+        },
+        "taskVersion": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "executionEpoch": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "connectionId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$"
+        },
+        "grantId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$"
+        },
+        "grantEpoch": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "authorizationId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$"
+        },
+        "keyEpoch": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "state": {
+          "enum": ["preparing", "ready", "submitted", "failed", "invalidated", "expired"]
+        },
+        "manifestId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "initialResultId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$"
+        },
+        "beginIntentFingerprint": {
+          "type": "string",
+          "minLength": 64,
+          "maxLength": 64,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "createdAt": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 40,
+          "format": "date-time",
+          "pattern": "Z$"
+        },
+        "expiresAt": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 40,
+          "format": "date-time",
+          "pattern": "Z$"
+        }
+      },
+      "required": [
+        "contractVersion",
+        "vaultId",
+        "runId",
+        "taskId",
+        "taskVersion",
+        "executionEpoch",
+        "connectionId",
+        "grantId",
+        "grantEpoch",
+        "authorizationId",
+        "keyEpoch",
+        "state",
+        "manifestId",
+        "initialResultId",
+        "beginIntentFingerprint",
+        "createdAt",
+        "expiresAt"
+      ],
+      "additionalProperties": false
+    },
+    "EncryptedComponent": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "enum": ["task", "resource"]
+        },
+        "objectId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$"
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "deliveryRevision": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "signedObject": {
+          "$ref": "#/$defs/SignedObject"
+        }
+      },
+      "required": ["kind", "objectId", "revision", "deliveryRevision", "signedObject"],
+      "additionalProperties": false
+    },
+    "ManifestComponentPage": {
+      "type": "object",
+      "properties": {
+        "contractVersion": {
+          "const": "folioview.agent-workspace.v2.0"
+        },
+        "manifest": {
+          "$ref": "#/$defs/ManifestDescriptor"
+        },
+        "manifestFingerprint": {
+          "type": "string",
+          "minLength": 64,
+          "maxLength": 64,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "componentIndex": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "component": {
+          "$ref": "#/$defs/EncryptedComponent"
+        },
+        "nextCursor": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 2048
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "contractVersion",
+        "manifest",
+        "manifestFingerprint",
+        "componentIndex",
+        "component",
+        "nextCursor"
+      ],
+      "additionalProperties": false
+    },
+    "ResultReceipt": {
+      "type": "object",
+      "properties": {
+        "contractVersion": {
+          "const": "folioview.agent-workspace.v2.0"
+        },
+        "vaultId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$"
+        },
+        "runId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$"
+        },
+        "taskId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$"
+        },
+        "resultId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$"
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "deliveryRevision": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "stableOperationId": {
+          "$ref": "#/$defs/OperationIdentifier"
+        },
+        "envelopeFingerprint": {
+          "type": "string",
+          "minLength": 64,
+          "maxLength": 64,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "receivedAt": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 40,
+          "format": "date-time",
+          "pattern": "Z$"
+        },
+        "resultPath": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256,
+          "pattern": "^/results/[A-Za-z0-9][A-Za-z0-9_-]{0,127}\\?revision=[1-9][0-9]*$"
+        }
+      },
+      "required": [
+        "contractVersion",
+        "vaultId",
+        "runId",
+        "taskId",
+        "resultId",
+        "revision",
+        "deliveryRevision",
+        "stableOperationId",
+        "envelopeFingerprint",
+        "receivedAt",
+        "resultPath"
+      ],
+      "additionalProperties": false
+    },
+    "DeliveryReceipt": {
+      "type": "object",
+      "properties": {
+        "contractVersion": {
+          "const": "folioview.agent-workspace.v2.0"
+        },
+        "vaultId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$"
+        },
+        "objectId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$"
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "deliveryRevision": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "stableOperationId": {
+          "$ref": "#/$defs/OperationIdentifier"
+        },
+        "envelopeFingerprint": {
+          "type": "string",
+          "minLength": 64,
+          "maxLength": 64,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "priorEnvelopeFingerprint": {
+          "type": "string",
+          "minLength": 64,
+          "maxLength": 64,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "receivedAt": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 40,
+          "format": "date-time",
+          "pattern": "Z$"
+        }
+      },
+      "required": [
+        "contractVersion",
+        "vaultId",
+        "objectId",
+        "revision",
+        "deliveryRevision",
+        "stableOperationId",
+        "envelopeFingerprint",
+        "priorEnvelopeFingerprint",
+        "receivedAt"
+      ],
+      "additionalProperties": false
+    },
+    "SourceVersionCandidate": {
+      "type": "object",
+      "properties": {
+        "ref": {
+          "$ref": "#/$defs/ResourceRef"
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "sourceEpoch": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "objectId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$"
+        },
+        "deliveryRevision": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "envelopeFingerprint": {
+          "type": "string",
+          "minLength": 64,
+          "maxLength": 64,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "keyEpoch": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": [
+        "ref",
+        "revision",
+        "sourceEpoch",
+        "objectId",
+        "deliveryRevision",
+        "envelopeFingerprint",
+        "keyEpoch"
+      ],
+      "additionalProperties": false
+    },
+    "TaskMetadata": {
+      "type": "object",
+      "properties": {
+        "contractVersion": {
+          "const": "folioview.agent-workspace.v2.0"
+        },
+        "vaultId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$"
+        },
+        "taskId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$"
+        },
+        "taskVersion": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "executionEpoch": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "status": {
+          "enum": ["active", "paused", "archived"]
+        },
+        "resourceBindings": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ResourceBindingMetadata"
+          },
+          "minItems": 0,
+          "maxItems": 10,
+          "uniqueItems": true
+        },
+        "objectRevision": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "deliveryRevision": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "envelopeFingerprint": {
+          "type": "string",
+          "minLength": 64,
+          "maxLength": 64,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "keyEpoch": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "createdAt": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 40,
+          "format": "date-time",
+          "pattern": "Z$"
+        },
+        "updatedAt": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 40,
+          "format": "date-time",
+          "pattern": "Z$"
+        }
+      },
+      "required": [
+        "contractVersion",
+        "vaultId",
+        "taskId",
+        "taskVersion",
+        "executionEpoch",
+        "status",
+        "resourceBindings",
+        "objectRevision",
+        "deliveryRevision",
+        "envelopeFingerprint",
+        "keyEpoch",
+        "createdAt",
+        "updatedAt"
+      ],
+      "additionalProperties": false
+    },
+    "ResultMetadata": {
+      "type": "object",
+      "properties": {
+        "resultId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$"
+        },
+        "taskId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$"
+        },
+        "runId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$"
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "deliveryRevision": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "envelopeFingerprint": {
+          "type": "string",
+          "minLength": 64,
+          "maxLength": 64,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "connectionId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$"
+        },
+        "receivedAt": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 40,
+          "format": "date-time",
+          "pattern": "Z$"
+        },
+        "taskVersion": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "stateVersion": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "read": {
+          "type": "boolean"
+        },
+        "starred": {
+          "type": "boolean"
+        },
+        "archived": {
+          "type": "boolean"
+        },
+        "manifestId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$"
+        },
+        "keyEpoch": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": [
+        "resultId",
+        "taskId",
+        "runId",
+        "revision",
+        "deliveryRevision",
+        "envelopeFingerprint",
+        "connectionId",
+        "receivedAt",
+        "taskVersion",
+        "stateVersion",
+        "read",
+        "starred",
+        "archived",
+        "manifestId",
+        "keyEpoch"
+      ],
+      "additionalProperties": false
+    },
+    "EncryptedTask": {
+      "type": "object",
+      "properties": {
+        "contractVersion": {
+          "const": "folioview.agent-workspace.v2.0"
+        },
+        "metadata": {
+          "$ref": "#/$defs/TaskMetadata"
+        },
+        "signedObject": {
+          "$ref": "#/$defs/SignedObject"
+        },
+        "keyProofs": {
+          "$ref": "#/$defs/KeyProofs"
+        }
+      },
+      "required": ["contractVersion", "metadata", "signedObject", "keyProofs"],
+      "additionalProperties": false
+    },
+    "EncryptedTaskWithKeyProofs": {
+      "type": "object",
+      "properties": {
+        "contractVersion": {
+          "const": "folioview.agent-workspace.v2.0"
+        },
+        "metadata": {
+          "$ref": "#/$defs/TaskMetadata"
+        },
+        "signedObject": {
+          "$ref": "#/$defs/SignedObject"
+        },
+        "keyProofs": {
+          "$ref": "#/$defs/KeyProofs"
+        },
+        "sourceVersionCandidates": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/SourceVersionCandidate"
+          },
+          "minItems": 0,
+          "maxItems": 10,
+          "uniqueItems": true
+        },
+        "agentKeyGrant": {
+          "$ref": "#/$defs/SignedObject"
+        }
+      },
+      "required": [
+        "contractVersion",
+        "metadata",
+        "signedObject",
+        "keyProofs",
+        "sourceVersionCandidates",
+        "agentKeyGrant"
+      ],
+      "additionalProperties": false
+    },
+    "EncryptedResult": {
+      "type": "object",
+      "properties": {
+        "contractVersion": {
+          "const": "folioview.agent-workspace.v2.0"
+        },
+        "metadata": {
+          "$ref": "#/$defs/ResultMetadata"
+        },
+        "signedObject": {
+          "$ref": "#/$defs/SignedObject"
+        },
+        "keyProofs": {
+          "$ref": "#/$defs/KeyProofs"
+        }
+      },
+      "required": ["contractVersion", "metadata", "signedObject", "keyProofs"],
+      "additionalProperties": false
+    },
+    "ResourceCatalogueItem": {
+      "type": "object",
+      "properties": {
+        "ref": {
+          "$ref": "#/$defs/ResourceRef"
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "sourceEpoch": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "state": {
+          "enum": ["ready", "empty", "pending", "unavailable", "revoked"]
+        },
+        "keyEpoch": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "envelopeFingerprint": {
+          "type": "string",
+          "minLength": 64,
+          "maxLength": 64,
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "required": ["ref", "revision", "sourceEpoch", "state", "keyEpoch", "envelopeFingerprint"],
+      "additionalProperties": false
+    },
+    "ResourceCatalogueMetadata": {
+      "type": "object",
+      "properties": {
+        "contractVersion": {
+          "const": "folioview.agent-workspace.v2.0"
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ResourceCatalogueItem"
+          },
+          "minItems": 0,
+          "maxItems": 50
+        },
+        "readAt": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 40,
+          "format": "date-time",
+          "pattern": "Z$"
+        }
+      },
+      "required": ["contractVersion", "items", "readAt"],
+      "additionalProperties": false
+    },
+    "TaskMetadataPage": {
+      "type": "object",
+      "properties": {
+        "contractVersion": {
+          "const": "folioview.agent-workspace.v2.0"
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/TaskMetadata"
+          },
+          "minItems": 0,
+          "maxItems": 50
+        },
+        "nextCursor": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 2048
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": ["contractVersion", "items", "nextCursor"],
+      "additionalProperties": false
+    },
+    "ResultMetadataPage": {
+      "type": "object",
+      "properties": {
+        "contractVersion": {
+          "const": "folioview.agent-workspace.v2.0"
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ResultMetadata"
+          },
+          "minItems": 0,
+          "maxItems": 50
+        },
+        "nextCursor": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 2048
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": ["contractVersion", "items", "nextCursor"],
+      "additionalProperties": false
+    },
+    "Error": {
+      "type": "object",
+      "properties": {
+        "contractVersion": {
+          "const": "folioview.agent-workspace.v2.0"
+        },
+        "error": {
+          "type": "object",
+          "properties": {
+            "code": {
+              "enum": [
+                "malformed_request",
+                "unsupported_contract",
+                "unsupported_query",
+                "invalid_token",
+                "insufficient_scope",
+                "key_authorization_required",
+                "not_found",
+                "version_conflict",
+                "idempotency_conflict",
+                "initial_result_exists",
+                "registry_conflict",
+                "stale_key_epoch",
+                "payload_too_large",
+                "unsupported_media_type",
+                "invalid_envelope",
+                "invalid_signature",
+                "recipient_binding_mismatch",
+                "unsupported_profile",
+                "authorization_unavailable",
+                "source_unavailable"
+              ]
+            },
+            "retryable": {
+              "type": "boolean"
+            },
+            "requestId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$"
+            }
+          },
+          "required": ["code", "retryable", "requestId"],
+          "additionalProperties": false
+        }
+      },
+      "required": ["contractVersion", "error"],
+      "additionalProperties": false
+    },
+    "TaskContent": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "template": {
+          "type": "string",
+          "enum": ["brief", "custom"]
+        },
+        "goal": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2000
+        },
+        "inputPolicy": {
+          "$ref": "#/$defs/InputPolicy"
+        },
+        "outputSpec": {
+          "$ref": "#/$defs/OutputSpec"
+        },
+        "deliveryExpectation": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DeliveryExpectation"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": ["name", "template", "goal", "inputPolicy", "outputSpec", "deliveryExpectation"],
+      "additionalProperties": false
+    },
+    "ResourceData": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/HoldingsData"
+        },
+        {
+          "$ref": "#/$defs/WatchlistData"
+        },
+        {
+          "$ref": "#/$defs/ChannelFollowsData"
+        }
+      ]
+    },
+    "ResourceContent": {
+      "type": "object",
+      "properties": {
+        "state": {
+          "enum": ["ready", "empty"]
+        },
+        "coverage": {
+          "$ref": "#/$defs/Coverage"
+        },
+        "sourceAsOf": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40,
+              "format": "date-time",
+              "pattern": "Z$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "fetchedAt": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 40,
+          "format": "date-time",
+          "pattern": "Z$"
+        },
+        "freshness": {
+          "enum": ["fresh", "stale", "unknown"]
+        },
+        "data": {
+          "$ref": "#/$defs/ResourceData"
+        }
+      },
+      "required": ["state", "coverage", "sourceAsOf", "fetchedAt", "freshness", "data"],
+      "additionalProperties": false
+    },
+    "PrivatePayload": {
+      "type": "object",
+      "properties": {
+        "privateSchemaVersion": {
+          "const": 2
+        },
+        "objectId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$"
+        },
+        "objectType": {
+          "enum": [
+            "task",
+            "holdings_snapshot",
+            "watchlist_evidence",
+            "channel_follows_evidence",
+            "result_revision"
+          ]
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "binding": {
+          "$ref": "#/$defs/Binding"
+        },
+        "payload": {
+          "type": "object"
+        }
+      },
+      "required": [
+        "privateSchemaVersion",
+        "objectId",
+        "objectType",
+        "revision",
+        "binding",
+        "payload"
+      ],
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "objectType": {
+                "const": "task"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "payload": {
+                "$ref": "#/$defs/TaskContent"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "objectType": {
+                "const": "holdings_snapshot"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "payload": {
+                "$ref": "#/$defs/ResourceContent"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "objectType": {
+                "const": "watchlist_evidence"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "payload": {
+                "$ref": "#/$defs/ResourceContent"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "objectType": {
+                "const": "channel_follows_evidence"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "payload": {
+                "$ref": "#/$defs/ResourceContent"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "objectType": {
+                "const": "result_revision"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "payload": {
+                "$ref": "#/$defs/ResultContent"
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

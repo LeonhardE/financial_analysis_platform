@@ -11,6 +11,10 @@ COPY services/common ./common
 RUN pip install --no-cache-dir ./common
 RUN useradd --system --uid 10001 --create-home appuser
 COPY services/agent-hub-service/app ./app
+COPY services/agent-hub-service/helper/dist ./helper/dist
+COPY services/agent-hub-service/helper/integrity.json ./helper/integrity.json
+COPY services/agent-hub-service/helper/protocol.json ./helper/protocol.json
+COPY services/agent-hub-service/helper/THIRD_PARTY_NOTICES.md ./helper/THIRD_PARTY_NOTICES.md
 
 USER appuser
 EXPOSE 8080

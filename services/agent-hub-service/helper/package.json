@@ -1,0 +1,21 @@
+{
+  "name": "@folioview/foreground-agent-helper",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=20.19"
+  },
+  "scripts": {
+    "build": "node build.mjs"
+  },
+  "dependencies": {
+    "canonicalize": "5.1.0",
+    "jose": "6.2.13"
+  },
+  "devDependencies": {
+    "ajv": "8.20.0",
+    "esbuild": "0.28.2",
+    "prettier": "3.9.6"
+  }
+}
