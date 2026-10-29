@@ -13,7 +13,16 @@ from folioview_shared.encrypted.errors import ContractError
 from folioview_shared.encrypted.jsonutil import canonical_json, strict_json_loads
 
 COLLECTIONS = frozenset(
-    {"hub_vaults", "hub_operations", "hub_source_fences", "hub_fence_mutations"}
+    {
+        "hub_vaults",
+        "hub_operations",
+        "hub_source_fences",
+        "hub_fence_mutations",
+        "hub_tasks",
+        "hub_task_versions",
+        "hub_task_operations",
+        "hub_task_indexes",
+    }
 )
 
 
