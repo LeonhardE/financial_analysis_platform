@@ -11,6 +11,8 @@ The separately configured Muse OAuth foundation handles delegated API permission
 state. It is disabled by default and does not itself grant content decryption or start an agent.
 The separately gated [encrypted preparation protocol and foreground helper](PREPARATIONS.md)
 publish owner-encrypted copies to one explicitly authorized agent, without creating a Run.
+The [Run producer](RUNS.md) freezes those committed deliveries into formal manifests and serves
+authorized immutable input pages. It does not execute a model or submit a result.
 
 `GET /health` remains `{ "status": "ok", "service": "agent-hub" }`. Import, startup and health
 need no Firebase/Firestore/KMS credentials, clients or network. Those dependencies are lazy.
@@ -93,7 +95,8 @@ registry/archive material, private keys or source credentials are returned.
 This owner discovery DTO is intentionally **not** shared `ResourceCatalogueMetadata`. That encrypted
 contract requires genuine key epochs and envelope fingerprints, which these producers do not expose.
 The Hub does not invent those fields or return a placeholder encrypted catalogue. Future encrypted
-Run consumers must obtain and validate actual prepared evidence and current recipient permissions.
+Run consumers obtain and validate committed prepared evidence and current recipient permissions;
+the discovery DTO itself remains insufficient.
 
 The request uses lazy server-only settings `HUB_USER_ORIGIN`, `HUB_PORTFOLIO_ORIGIN` and
 `HUB_CATALOGUE_CALLER_EMAIL`, plus the existing fixed Hub issuer/KMS signing configuration. The caller
@@ -313,8 +316,8 @@ the deprecated Authlib JOSE implementation is not used for content or signatures
 The fixed issuer is the configured HTTPS origin `H`; the encrypted logical resource/audience is
 exactly `H/mcp/v2`, including when a future consumer uses `/agent/v2/*` REST. A v1 `/mcp` approval
 does not become a v2 approval. Discovery and protocol URLs are generated from configuration, never
-from caller Host or forwarded headers. Encrypted preparation reads use the separate gated protocol
-below; MCP and Run/result tools remain unimplemented.
+from caller Host or forwarded headers. Encrypted preparation and formal Run reads use the gated
+protocols below and in [RUNS.md](RUNS.md); MCP and result tools remain unimplemented.
 
 | Endpoint                                                                | Behavior                                                                                                     |
 | ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
@@ -450,6 +453,6 @@ Its health smoke check runs with networking disabled and removes its test contai
 
 No Cloud Run service, database, KMS key, IAM grant or trigger is created here. INF-006 and explicit
 future trust/configuration approval still govern any cloud activation. Owner task CRUD and the
-disabled OAuth foundation and encrypted preparations are implemented locally/build-only. MCP,
-Runs/Results/Inbox and broker access remain separate consumers and fail closed; this change does not
+disabled OAuth foundation, encrypted preparations and formal Runs are implemented locally/build-only.
+MCP, Results/Inbox and broker access remain separate consumers and fail closed; this change does not
 activate those consumers or any production endpoint.

@@ -675,9 +675,20 @@ class PreparationService:
             raise ContractError("not_found")
         return principal, row
 
-    def _agent_read(self, token, task_id=None, prep_id=None, *, object_id=None, sequence=None):
+    def _agent_read(
+        self,
+        token,
+        task_id=None,
+        prep_id=None,
+        *,
+        object_id=None,
+        sequence=None,
+        scope="tasks:read",
+    ):
         def run(unit, expected=None, observe=False):
-            principal, prepared = self._agent(unit, token, task_id=task_id, prep_id=prep_id)
+            principal, prepared = self._agent(
+                unit, token, task_id=task_id, prep_id=prep_id, scope=scope
+            )
             state = self._authority(
                 unit, principal.owner_uid, principal.connection_id, prepared["taskId"]
             )

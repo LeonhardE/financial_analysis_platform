@@ -40,6 +40,7 @@ class HubErrors:
                 "/.well-known/",
                 "/agent/v2/tasks/",
                 "/agent/v2/preparations/",
+                "/agent/v2/runs/",
             )
         ):
             await self.app(scope, receive, send)

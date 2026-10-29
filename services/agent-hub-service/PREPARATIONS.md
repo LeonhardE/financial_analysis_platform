@@ -1,4 +1,4 @@
-# Encrypted preparations and foreground helper 1.0.0
+# Encrypted preparations and foreground helper
 
 This is the first HUB-009 implementation slice. It reuses OAuth, resource discovery and formal
 `folioview.agent-workspace.v2.0` / P1 envelopes. Its local orchestration profile is
@@ -76,7 +76,7 @@ deleting revocation history. There is no background preparation worker or additi
 
 ## Helper trust and execution
 
-The Hub-owned [helper package](helper/protocol.json) fixes version 1.0.0, schema/dependency/source
+The Hub-owned [helper package](helper/protocol.json) fixes version 1.1.0, schema/dependency/source
 hashes, a self-contained worker and third-party notices. Public distribution accepts only
 `worker.mjs`, `integrity.json`, `protocol.json` and `THIRD_PARTY_NOTICES.md`. No dynamic key URL,
 module fetch, filesystem access, user upload or server decrypt path is exposed. The container
@@ -113,7 +113,8 @@ dependency hashes are verified, without runtime package downloads or unsafe-eval
 
 This phase supplies reusable protocol/helper components. It does not supply the trusted owning
 page, full Web/BFF consent handoff or a new real Muse acceptance run. Real Muse evidence from
-VAL-004 remains historical and bounded. HUB-005 adds the formal Run/manifest producer; HUB-006
-adds results/revisions/receipts; HUB-009 then completes their helper integration and real consumer
-acceptance. HUB-009 stays partially delivered until that remaining scope passes. No cloud resource
-or public enablement is authorized by this implementation.
+VAL-004 remains historical and bounded. The [formal Run producer and helper extensions](RUNS.md)
+now support restricted Begin signing, manifest verification and frozen input decryption while
+retaining preparation compatibility. HUB-006 adds results/revisions/receipts; the remaining
+HUB-009 integration and real consumer acceptance are still open. No cloud resource or public
+enablement is authorized by this implementation.

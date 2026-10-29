@@ -1,17 +1,17 @@
 {
-  "helperVersion": "1.0.0",
+  "helperVersion": "1.1.0",
   "contractVersion": "folioview.agent-workspace.v2.0",
   "profile": "folioview.agent-preparation.v1",
   "assets": { "worker": "dist/worker.mjs" },
   "files": {
-    "package.json": "bc97edffc84331c7148805828eb07f367fd98f1b7c2e31deba8d8579f5096f49",
-    "package-lock.json": "734b2a7abd3682772265bd302e9c310cc36aa09d4b28cb5ca3b2b78563eef1ee",
-    "protocol.json": "c0b6ad04a7e44d891bab87b7ce238780f2008c5acc8e2e77bfff006aa601b14b",
+    "package.json": "eb3fb24b285325c0534dff35d9005f80fccfd7d66adf2aa614292d78de3e03e4",
+    "package-lock.json": "3d2f8dfb8def977389adac3c61e1876302f032eb99bb7ae6d7aa1af7248f9302",
+    "protocol.json": "f600cfac770f5642c69aacab660d3734fadf7c387a409b67b718213a3222ebfb",
     "schemas.json": "3ed3ba67eddcb077f5f138b9b0e2e47ce6d7ecb7b977071e68bc8d744f8ebf84",
-    "build.mjs": "213ffd15898878bdfa4d7111a365ac3570690e7c9025d81f12d42853100af5af",
-    "src/session.mjs": "00a435896cd6a0620410cec3a130c8574bb45497c419e8b24965665e963b03a1",
+    "build.mjs": "43660ba31769fb8fa1bd883537f8787b715147356d6120fb2bf9b896c7d74944",
+    "src/session.mjs": "c4c71bd9757b87e2d71aeae37d636c8c5d8102188767587843dc552dc1849494",
     "src/worker.mjs": "90ee9302e26157ce00855f732628601e36f3dae5523bc455fd4357006b7c013f",
-    "dist/worker.mjs": "cfff302d056cd097325a6e30cdc990eca008accd51687d8ec7e8b44cb0d9ef91",
+    "dist/worker.mjs": "c14b003b57070a5e03e4bc720a2f1d38d9d02fa8c4aa43c91f2433159f9e9848",
     "THIRD_PARTY_NOTICES.md": "2c5ecce45123353c40e546a1d84179a8dc7f5e120dfc0c819e5f1ed3866f95de"
   }
 }

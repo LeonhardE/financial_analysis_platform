@@ -32,6 +32,12 @@ COLLECTIONS = frozenset(
         "hub_preparations",
         "hub_preparation_objects",
         "hub_task_deliveries",
+        "hub_runs",
+        "hub_run_components",
+        "hub_run_proofs",
+        "hub_run_operations",
+        "hub_run_indexes",
+        "hub_run_quotas",
     }
 )
 

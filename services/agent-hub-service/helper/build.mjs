@@ -48,6 +48,10 @@ const names = [
   "Context",
   "TaskMetadata",
   "PrivatePayload",
+  "BeginRunIntentPayload",
+  "RunDescriptor",
+  "ManifestDescriptor",
+  "ManifestComponentPage",
 ];
 const mapping = {};
 for (const name of names) {
@@ -116,7 +120,7 @@ await writeFile(
   "integrity.json",
   await format(
     JSON.stringify({
-      helperVersion: "1.0.0",
+      helperVersion: "1.1.0",
       contractVersion: "folioview.agent-workspace.v2.0",
       profile: "folioview.agent-preparation.v1",
       assets: { worker: "dist/worker.mjs" },

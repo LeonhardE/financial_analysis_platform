@@ -59,6 +59,10 @@ class AgentHubBoundaryTests(unittest.TestCase):
                     "/agent/v2/tasks/{task_id}/preparation",
                     "/agent/v2/preparations/{preparation_id}/objects/{object_id}",
                     "/agent/v2/preparations/{preparation_id}/registries/{sequence}",
+                    "/agent/v2/tasks/{task_id}/runs",
+                    "/agent/v2/runs/{run_id}",
+                    "/agent/v2/runs/{run_id}/inputs",
+                    "/agent/v2/runs/{run_id}/registries/{sequence}",
                 },
             )
 
