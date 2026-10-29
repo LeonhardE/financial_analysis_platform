@@ -76,7 +76,7 @@ deleting revocation history. There is no background preparation worker or additi
 
 ## Helper trust and execution
 
-The Hub-owned [helper package](helper/protocol.json) fixes version 1.1.0, schema/dependency/source
+The Hub-owned [helper package](helper/protocol.json) fixes version 1.2.0, schema/dependency/source
 hashes, a self-contained worker and third-party notices. Public distribution accepts only
 `worker.mjs`, `integrity.json`, `protocol.json` and `THIRD_PARTY_NOTICES.md`. No dynamic key URL,
 module fetch, filesystem access, user upload or server decrypt path is exposed. The container
@@ -115,6 +115,7 @@ This phase supplies reusable protocol/helper components. It does not supply the 
 page, full Web/BFF consent handoff or a new real Muse acceptance run. Real Muse evidence from
 VAL-004 remains historical and bounded. The [formal Run producer and helper extensions](RUNS.md)
 now support restricted Begin signing, manifest verification and frozen input decryption while
-retaining preparation compatibility. HUB-006 adds results/revisions/receipts; the remaining
+retaining preparation compatibility. The [result producer](RESULTS.md) adds encrypted results,
+CAS revisions and original receipts with helper 1.2.0; the remaining
 HUB-009 integration and real consumer acceptance are still open. No cloud resource or public
 enablement is authorized by this implementation.

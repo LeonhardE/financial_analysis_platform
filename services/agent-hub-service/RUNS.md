@@ -111,6 +111,8 @@ the selected input/author/recipient/intent bindings, not backend persistence, mo
 analysis quality. There is no additional server content signature or KMS decryption path; future
 result writes must still find and authorize the stored Run.
 
-HUB-006 supplies initial-result uniqueness, encrypted submissions, revisions and receipts.
-The remaining HUB-009 integration and real Muse/trusted-controller acceptance stay explicit;
-this producer does not claim those deliveries or unattended execution.
+The [result producer](RESULTS.md) supplies initial-result uniqueness, encrypted submissions,
+revisions and original receipts. Successful initial persistence advances Run state to submitted
+without changing its manifest or frozen inputs. The remaining HUB-009 integration and real
+Muse/trusted-controller acceptance stay explicit; this producer does not claim those deliveries
+or unattended execution.

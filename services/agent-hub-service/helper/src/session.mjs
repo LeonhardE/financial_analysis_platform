@@ -4,7 +4,7 @@
 import * as jose from "jose";
 import canonicalize from "canonicalize";
 import validators from "./validators.cjs";
-export const VERSION = "1.1.0";
+export const VERSION = "1.2.0";
 export const CONTRACT = "folioview.agent-workspace.v2.0";
 export const PROFILE = "folioview.agent-preparation.v1";
 const encoder = new TextEncoder();
@@ -33,7 +33,11 @@ const EMPTY_BINDING = [
   "sourceEpoch",
 ];
 const ROLES = ["root_sig", "device_sig", "device_enc", "agent_sig", "agent_enc", "recovery_enc"];
-const OWNER_OPS = { initialize: ["anchor", "now", "ttlSeconds"], confirmDelivery: ["pin"] };
+const OWNER_OPS = {
+  initialize: ["anchor", "now", "ttlSeconds"],
+  confirmDelivery: ["pin"],
+  acceptReceipt: ["runId", "stableOperationId", "receipt"],
+};
 const AGENT_OPS = {
   registry: ["bundles"],
   install: ["metadata"],
@@ -41,6 +45,9 @@ const AGENT_OPS = {
   beginRun: ["stableOperationId"],
   installRun: ["response"],
   decryptRun: ["runId", "page"],
+  sealResult: ["runId", "stableOperationId", "content"],
+  reviseResult: ["runId", "stableOperationId", "expectedRevision", "content"],
+  resultOutbox: ["runId", "stableOperationId"],
   status: [],
   lock: [],
   revoke: [],
@@ -306,6 +313,67 @@ function safeUrl(value) {
     return false;
   }
 }
+function markdown(value) {
+  // Conservative input checks, not a renderer/sanitizer. Unknown named HTML
+  // entities are rejected so decoding differences cannot conceal HTML/URLs.
+  const named = {
+    amp: "&",
+    lt: "<",
+    gt: ">",
+    quot: '"',
+    apos: "'",
+    colon: ":",
+    Tab: "\t",
+    NewLine: "\n",
+  };
+  let text = value;
+  for (let count = 0; count < 4; count++) {
+    const decoded = text.replace(/&(#x[0-9a-f]+|#\d+|[A-Za-z][A-Za-z0-9]+);?/gi, (_, code) => {
+      if (code[0] !== "#") {
+        if (!Object.hasOwn(named, code)) deny("private_schema_invalid");
+        return named[code];
+      }
+      const point = /^#x/i.test(code) ? parseInt(code.slice(2), 16) : Number(code.slice(1));
+      if (
+        !Number.isSafeInteger(point) ||
+        point <= 0 ||
+        point > 0x10ffff ||
+        (point >= 0xd800 && point <= 0xdfff)
+      )
+        deny("private_schema_invalid");
+      return String.fromCodePoint(point);
+    });
+    if (decoded === text) break;
+    text = decoded;
+    if (count === 3 && /&(?:#x[0-9a-f]+|#\d+|[A-Za-z][A-Za-z0-9]+);?/i.test(text))
+      deny("private_schema_invalid");
+  }
+  if (/<\s*(?:\/?[A-Za-z][A-Za-z0-9-]*(?:\s|\/?>)|!|\?)/.test(text) || /!\s*\[/.test(text))
+    deny("private_schema_invalid");
+  const destinations = [
+    ...[...text.matchAll(/\]\(\s*(<[^>]+>|[^\s)]+)/g)].map((m) => m[1]),
+    ...[...text.matchAll(/^\s*\[[^\]]+\]:\s*(\S+)/gm)].map((m) => m[1]),
+    ...[...text.matchAll(/<([^<>\s]+:[^<>\s]*)>/g)].map((m) => m[1]),
+  ];
+  if (destinations.some((x) => !safeUrl(x.replace(/^<|>$/g, "")))) deny("private_schema_invalid");
+}
+function resultContent(content, outputSpec) {
+  validate("ResultContent", content);
+  unique(content.sections.map((row) => row.sectionId));
+  unique(content.citations.map((row) => row.citationId));
+  if (
+    !same(
+      content.sections.map((row) => row.sectionId),
+      outputSpec.sections.map((row) => row.sectionId),
+    )
+  )
+    deny("private_output_mismatch");
+  for (const section of content.sections) markdown(section.markdown);
+  for (const citation of content.citations) {
+    if (!safeUrl(citation.url)) deny("private_schema_invalid");
+    if (citation.publishedAt !== null) utc(citation.publishedAt);
+  }
+}
 function privateContent(value, context) {
   validate("PrivatePayload", value);
   for (const key of ["objectId", "objectType", "revision", "binding"])
@@ -374,6 +442,7 @@ export class ForegroundSession {
   #registrySnapshots = new Map();
   #begins = new Map();
   #runs = new Map();
+  #resultOutbox = new Map();
   #decrypted = new Map();
   #inputFacts = new Map();
   #inputPolicy = null;
@@ -427,6 +496,7 @@ export class ForegroundSession {
     this.#registrySnapshots.clear();
     this.#begins.clear();
     this.#runs.clear();
+    this.#resultOutbox.clear();
     this.#decrypted.clear();
     this.#inputFacts.clear();
     this.#inputPolicy = null;
@@ -490,6 +560,11 @@ export class ForegroundSession {
     else if (m.op === "beginRun") return await this.#beginRun(m.args.stableOperationId, g);
     else if (m.op === "installRun") return await this.#installRun(m.args.response, g);
     else if (m.op === "decryptRun") return await this.#decryptRun(m.args.runId, m.args.page, g);
+    else if (m.op === "sealResult" || m.op === "reviseResult")
+      return await this.#sealResult(m.args, m.op === "reviseResult", g);
+    else if (m.op === "resultOutbox") return this.#outbox(m.args.runId, m.args.stableOperationId);
+    else if (m.op === "acceptReceipt")
+      return this.#acceptReceipt(m.args.runId, m.args.stableOperationId, m.args.receipt);
     this.#alive(g);
     return this.status();
   }
@@ -751,6 +826,7 @@ export class ForegroundSession {
     if (pin.deliveryRevision < 2) deny("invalid_delivery_pin");
     this.#begins.clear();
     this.#runs.clear();
+    this.#resultOutbox.clear();
     this.#decrypted.clear();
     this.#inputFacts.clear();
     this.#inputPolicy = null;
@@ -1278,7 +1354,13 @@ export class ForegroundSession {
     const old = this.#runs.get(r.runId);
     if (old && !same(old.frozen, frozen)) deny("run_replacement");
     if (!old)
-      this.#runs.set(r.runId, { frozen: structuredClone(frozen), nextIndex: 0, lastIndex: -1 });
+      this.#runs.set(r.runId, {
+        frozen: structuredClone(frozen),
+        nextIndex: 0,
+        lastIndex: -1,
+        outputSpec: null,
+        acceptedRevision: 0,
+      });
     return {
       runId: r.runId,
       manifestId: r.manifestId,
@@ -1321,6 +1403,7 @@ export class ForegroundSession {
     );
     this.#alive(g);
     if (index === saved.nextIndex) {
+      if (index === 0) saved.outputSpec = structuredClone(result.payload.outputSpec);
       saved.lastIndex = index;
       saved.nextIndex = index + 1;
     }
@@ -1332,6 +1415,207 @@ export class ForegroundSession {
       componentIndex: index,
       nextCursor: page.nextCursor,
     };
+  }
+  #operation(operation) {
+    if (typeof operation !== "string" || !/^[A-Za-z0-9_-]{22,128}$/.test(operation))
+      deny("invalid_operation_id");
+  }
+  #outbox(id, operation) {
+    identifier(id);
+    this.#operation(operation);
+    const saved = this.#resultOutbox.get(id + "/" + operation);
+    if (!saved || saved.packet.runId !== id) deny("result_operation_not_found");
+    // No current Run expiry/key check: retrieving already produced ciphertext
+    // and verifying an authenticated saved receipt are not new cryptographic writes.
+    return { ...structuredClone(saved.packet), receipt: structuredClone(saved.receipt) };
+  }
+  #resultAuthority(saved) {
+    if (this.#state !== "ACTIVE" || !this.#grant || !this.#metadata) deny("grant_required");
+    const grant = this.#grant,
+      run = saved.frozen.run;
+    if (this.#time() >= Math.min(grant.expiresAt, this.#metadata.authorizationExpiresAt))
+      deny("grant_expired_or_untrusted");
+    const author = this.#key(this.#sigKid, "agent_sig", this.#anchor.connectionId);
+    this.#key(this.#encKid, "agent_enc", this.#anchor.connectionId);
+    if (
+      !author.capabilities.includes("result_write") ||
+      !grant.capabilities.includes("encrypt_result")
+    )
+      deny("insufficient_capability");
+    for (const k of [
+      "taskId",
+      "connectionId",
+      "authorizationId",
+      "grantId",
+      "grantEpoch",
+      "executionEpoch",
+      "keyEpoch",
+    ])
+      if (run[k] !== grant[k]) deny("run_binding_mismatch");
+    if (!grant.taskVersions.includes(run.taskVersion) || run.keyEpoch !== this.#registry.keyEpoch)
+      deny("run_binding_mismatch");
+    if (this.#time() >= Date.parse(run.expiresAt) / 1000) deny("run_expired_or_untrusted");
+    const recipients = grant.writebackRecipientKeyIds.map((kid) => this.#key(kid, null, null));
+    if (
+      !recipients.some((r) => r.role === "device_enc") ||
+      !recipients.some((r) => r.role === "recovery_enc") ||
+      recipients.some((r) => !["device_enc", "recovery_enc"].includes(r.role))
+    )
+      deny("invalid_recipients");
+    return recipients;
+  }
+  async #sealResult(args, isRevision, g) {
+    identifier(args.runId);
+    this.#operation(args.stableOperationId);
+    const saved = this.#runs.get(args.runId);
+    if (!saved) deny("run_pin_required");
+    const recipients = this.#resultAuthority(saved),
+      { run, manifest, fp } = saved.frozen;
+    if (saved.nextIndex !== manifest.entries.length + 1 || !saved.outputSpec)
+      deny("run_inputs_not_decrypted");
+    const expected = isRevision ? integer(args.expectedRevision, 1) : 0;
+    if (!Number.isSafeInteger(expected + 1)) deny("invalid_integer");
+    resultContent(args.content, saved.outputSpec);
+    const privateIntent = await digest({
+      runId: args.runId,
+      operation: args.stableOperationId,
+      expectedRevision: expected,
+      operationType: isRevision ? "revise_result" : "submit_result",
+      content: args.content,
+    });
+    this.#alive(g);
+    const operationKey = args.runId + "/" + args.stableOperationId;
+    const old = this.#resultOutbox.get(operationKey);
+    if (old) {
+      if (old.privateIntent !== privateIntent) deny("idempotency_conflict");
+      return structuredClone(old.packet);
+    }
+    if (!isRevision && [...this.#resultOutbox.values()].some((x) => x.packet.runId === args.runId))
+      deny("initial_result_exists");
+    if (isRevision && saved.acceptedRevision !== expected) deny("revision_base_unacknowledged");
+    if (this.#resultOutbox.size >= 32) deny("result_capacity");
+    const candidates = [...this.#resultOutbox.values()].filter(
+      (x) => x.packet.runId === args.runId && x.packet.expectedRevision === expected,
+    );
+    if (isRevision && candidates.length >= 2) deny("revision_candidate_limit");
+    const binding = {
+      ...Object.fromEntries(EMPTY_BINDING.map((k) => [k, null])),
+      taskId: run.taskId,
+      taskVersion: run.taskVersion,
+      runId: run.runId,
+      manifestId: run.manifestId,
+      taskEnvelopeFingerprint: manifest.taskEnvelope.envelopeFingerprint,
+      manifestFingerprint: fp,
+      connectionId: run.connectionId,
+      grantId: run.grantId,
+      grantEpoch: run.grantEpoch,
+      executionEpoch: run.executionEpoch,
+    };
+    const context = {
+      contractVersion: CONTRACT,
+      profileId: "P1",
+      ownerSubject: this.#anchor.ownerSubject,
+      vaultId: this.#anchor.vaultId,
+      rootKeyId: this.#anchor.rootKeyId,
+      rootEpoch: this.#anchor.rootEpoch,
+      registrySequence: this.#sequence,
+      checkpointDigest: this.#registry.digest,
+      keyEpoch: this.#registry.keyEpoch,
+      objectId: run.initialResultId,
+      objectType: "result_revision",
+      revision: expected + 1,
+      deliveryRevision: 1,
+      priorEnvelopeFingerprint: null,
+      expectedRevision: expected,
+      stableOperationId: args.stableOperationId,
+      operationType: isRevision ? "revise_result" : "submit_result",
+      authorSigningKeyId: this.#sigKid,
+      binding,
+      resourceBindings: [],
+      recipients: recipients.map((r) =>
+        Object.fromEntries(
+          ["keyId", "role", "principalId", "connectionId", "keyEpoch"].map((k) => [k, r[k]]),
+        ),
+      ),
+    };
+    validate("Context", context);
+    const content = {
+      privateSchemaVersion: 2,
+      objectId: context.objectId,
+      objectType: context.objectType,
+      revision: context.revision,
+      binding,
+      payload: args.content,
+    };
+    validate("PrivatePayload", content);
+    if (canonical(content).length > 65536 || canonical(context).length > 16384)
+      deny("payload_too_large");
+    const encryptor = new jose.GeneralEncrypt(canonical(content))
+      .setProtectedHeader(JWE_HEADER)
+      .setAdditionalAuthenticatedData(canonical(context));
+    for (const recipient of recipients) {
+      const key = await jose.importJWK(recipient.publicJwk, "ECDH-ES+A256KW");
+      this.#alive(g);
+      encryptor.addRecipient(key).setUnprotectedHeader({ kid: recipient.keyId });
+    }
+    const jwe = await encryptor.encrypt();
+    this.#alive(g);
+    const signedObject = await sign(
+      { context, jwe },
+      this.#keys.sig,
+      this.#sigKid,
+      "fv-object+jws",
+    );
+    this.#alive(g);
+    const envelope = { contractVersion: CONTRACT, signedObject };
+    validate("Carrier", envelope);
+    if (canonical(envelope).length > MAX_CARRIER) deny("payload_too_large");
+    const packet = {
+      contractVersion: CONTRACT,
+      runId: run.runId,
+      resultId: run.initialResultId,
+      revision: context.revision,
+      expectedRevision: expected,
+      stableOperationId: args.stableOperationId,
+      envelopeFingerprint: await fingerprint(envelope),
+      envelope,
+    };
+    this.#alive(g);
+    this.#resultOutbox.set(operationKey, { privateIntent, packet, context, receipt: null });
+    return structuredClone(packet);
+  }
+  #acceptReceipt(id, operation, receipt) {
+    this.#outbox(id, operation);
+    const pending = this.#resultOutbox.get(id + "/" + operation),
+      saved = this.#runs.get(id);
+    validate("ResultReceipt", receipt);
+    utc(receipt.receivedAt);
+    const p = pending.packet,
+      c = pending.context;
+    const expected = {
+      contractVersion: CONTRACT,
+      vaultId: this.#anchor.vaultId,
+      runId: id,
+      taskId: c.binding.taskId,
+      resultId: p.resultId,
+      revision: p.revision,
+      deliveryRevision: c.deliveryRevision,
+      stableOperationId: operation,
+      envelopeFingerprint: p.envelopeFingerprint,
+      resultPath: `/results/${p.resultId}?revision=${p.revision}`,
+    };
+    if (Object.keys(expected).some((k) => receipt[k] !== expected[k]))
+      deny("receipt_binding_mismatch");
+    if (pending.receipt) {
+      if (!same(pending.receipt, receipt)) deny("receipt_replacement");
+      return structuredClone(pending.receipt);
+    }
+    if (saved.acceptedRevision !== p.expectedRevision) deny("receipt_revision_conflict");
+    if (Date.parse(receipt.receivedAt) < Date.parse(saved.frozen.run.createdAt))
+      deny("receipt_time_mismatch");
+    pending.receipt = structuredClone(receipt);
+    saved.acceptedRevision = p.revision;
+    return structuredClone(receipt);
   }
   async #decrypt(id, carrier, g, historical = null) {
     if (this.#state !== "ACTIVE" || !this.#metadata || !this.#grant) deny("grant_required");
