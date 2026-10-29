@@ -17,7 +17,7 @@ ROOT = SERVICE.parents[1]
 
 
 class AgentHubBoundaryTests(unittest.TestCase):
-    def test_health_and_openapi_expose_bounded_vault_authority_only(self):
+    def test_health_and_openapi_expose_bounded_vault_and_oauth_authority(self):
         with TestClient(app) as client:
             response = client.get("/health")
             self.assertEqual(response.status_code, 200)
@@ -39,6 +39,19 @@ class AgentHubBoundaryTests(unittest.TestCase):
                     "/internal/v2/portfolio-authorities/read",
                     "/internal/v2/source-fences",
                     "/.well-known/jwks.json",
+                    "/.well-known/oauth-authorization-server",
+                    "/.well-known/oauth-protected-resource/mcp/v2",
+                    "/oauth/authorize",
+                    "/oauth/token",
+                    "/oauth/revoke",
+                    "/api/v2/agent-authorizations/{request_id}",
+                    "/api/v2/agent-authorizations/{request_id}/claim",
+                    "/api/v2/agent-authorizations/{request_id}/prepare",
+                    "/api/v2/agent-authorizations/{request_id}/decision",
+                    "/api/v2/agent-connections",
+                    "/api/v2/agent-connections/{connection_id}/revoke",
+                    "/api/v2/agent-connections/{connection_id}/grants/{grant_id}/revoke",
+                    "/agent/v2/authorization",
                 },
             )
 
@@ -52,10 +65,7 @@ class AgentHubBoundaryTests(unittest.TestCase):
                 ("GET", "/mcp"),
                 ("POST", "/mcp/v2"),
                 ("GET", "/oauth"),
-                ("GET", "/oauth/authorize"),
-                ("POST", "/oauth/token"),
                 ("GET", "/.well-known"),
-                ("GET", "/.well-known/oauth-authorization-server"),
                 ("GET", "/.well-known/oauth-protected-resource"),
                 ("GET", "/connectors"),
                 ("POST", "/connectors/muse"),
@@ -75,6 +85,30 @@ class AgentHubBoundaryTests(unittest.TestCase):
                     self.assertEqual(response.headers["cache-control"], "no-store")
                     self.assertNotIn("synthetic-private-marker", response.text)
                     self.assertNotIn("synthetic-untrusted-token", response.text)
+
+    def test_oauth_is_disabled_without_configuration_and_needs_no_cloud(self):
+        from unittest.mock import patch
+
+        with (
+            patch.dict(os.environ, {"HUB_OAUTH_ENABLED": "0"}),
+            patch(
+                "app.oauth.get_store",
+                side_effect=AssertionError("Disabled OAuth must not open storage"),
+            ),
+            TestClient(app) as client,
+        ):
+            for method, path in (
+                ("GET", "/oauth/authorize"),
+                ("POST", "/oauth/token"),
+                ("POST", "/oauth/revoke"),
+                ("GET", "/.well-known/oauth-authorization-server"),
+                ("GET", "/.well-known/oauth-protected-resource/mcp/v2"),
+                ("GET", "/agent/v2/authorization"),
+            ):
+                response = client.request(method, path)
+                self.assertEqual(response.status_code, 503, response.text)
+                self.assertEqual(response.headers["cache-control"], "no-store")
+                self.assertNotIn("credentials", response.text.lower())
 
     def test_fresh_start_and_health_need_no_credentials_or_network(self):
         # A fresh interpreter cannot accidentally reuse another service's app or

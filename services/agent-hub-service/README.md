@@ -1,12 +1,14 @@
-# Agent Hub encrypted vaults, resource discovery and tasks
+# Agent Hub encrypted vaults, tasks and delegated authorization
 
 The build-only Hub stores one opaque, passkey-sealed vault archive and its root-signed public
 key directory per verified Google owner. It owns up to ten public holdings-source references.
 Portfolio holds the encrypted snapshots; Hub never receives CSV, positions, account labels,
 content keys, passkey PRF output or private JWKs. The owner resource catalogue composes only existing
-User/Portfolio discovery metadata. Neither capability implements agent authorization, encrypted Run
-evidence delivery, Run execution, broker login or inbox delivery.
+User/Portfolio discovery metadata. These owner capabilities do not deliver encrypted Run evidence,
+execute Runs, log into brokers or deliver inbox results.
 Owner task management stores signed encrypted rules and immutable versions without opening them.
+The separately configured Muse OAuth foundation handles delegated API permissions and connection
+state. It is disabled by default and does not itself grant content decryption or start an agent.
 
 `GET /health` remains `{ "status": "ok", "service": "agent-hub" }`. Import, startup and health
 need no Firebase/Firestore/KMS credentials, clients or network. Those dependencies are lazy.
@@ -15,7 +17,7 @@ need no Firebase/Firestore/KMS credentials, clients or network. Those dependenci
 
 Every owner request requires the existing verified Firebase Google identity and exact
 `X-FolioView-Contract: folioview.agent-workspace.v2.0`. Bodies are closed strict JSON;
-requests cannot supply an owner UID or overwrite an existing root/archive. Write operations also
+requests cannot supply an owner UID or overwrite an existing root/archive. Vault/source writes also
 require one bounded `Idempotency-Key`; source creation requires `X-FolioView-Author-Key`.
 
 | Endpoint                                                    | Behavior                                                                               |
@@ -298,6 +300,103 @@ The vault/public-authority API above still reports enrollment metadata with its 
 epoch; it must not be used as a substitute for current source status or this separate transaction
 fence. HUB-002/005/006 will consume these boundaries in their own implementations.
 
+## Muse delegated authorization foundation
+
+This surface uses Authlib's framework-independent authorization server, authorization-code and
+refresh grants, S256 PKCE and revocation endpoint. Authlib is pinned to 1.9.1 after checking its
+[official release/security notes](https://docs.authlib.org/en/stable/upgrades/changelog.html).
+The existing shared library continues to verify encrypted objects and signed public authority;
+the deprecated Authlib JOSE implementation is not used for content or signatures.
+
+The fixed issuer is the configured HTTPS origin `H`; the encrypted logical resource/audience is
+exactly `H/mcp/v2`, including when a future consumer uses `/agent/v2/*` REST. A v1 `/mcp` approval
+does not become a v2 approval. Discovery and protocol URLs are generated from configuration, never
+from caller Host or forwarded headers. This ticket does not implement MCP or encrypted content tools.
+
+| Endpoint                                                                | Behavior                                                                                                     |
+| ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `GET /.well-known/oauth-authorization-server`                           | Configured authorization-server metadata                                                                     |
+| `GET /.well-known/oauth-protected-resource/mcp/v2`                      | The separate encrypted v2 logical resource                                                                   |
+| `GET /oauth/authorize`                                                  | Validate preregistered client, exact callback, state, resource and S256; start a bounded browser flow        |
+| `POST /oauth/token`                                                     | One-time code exchange or rotating refresh; URL-encoded form and the registered client authentication method |
+| `POST /oauth/revoke`                                                    | Revoke a token or its refresh family, within the authenticated client                                        |
+| `POST /api/v2/agent-authorizations/{requestId}/claim`                   | Bind the flow to the verified Google owner and current vault                                                 |
+| `GET /api/v2/agent-authorizations/{requestId}`                          | Read the owner/cookie-bound pending authorization status                                                     |
+| `POST /api/v2/agent-authorizations/{requestId}/prepare`                 | Select tasks and an approved scope subset; obtain stable server-generated grant identities                   |
+| `POST /api/v2/agent-authorizations/{requestId}/decision`                | Approve device-signed grants, approve OAuth alone, deny or cancel                                            |
+| `GET /api/v2/agent-connections`                                         | Owner-only connection/task authorization metadata and bounded attempt history                                |
+| `POST /api/v2/agent-connections/{connectionId}/revoke`                  | Independently revoke this owner's connection                                                                 |
+| `POST /api/v2/agent-connections/{connectionId}/grants/{grantId}/revoke` | Revoke one selected task grant                                                                               |
+| `GET /agent/v2/authorization`                                           | Minimal opaque-token authorization metadata; no task content, resource data or content keys                  |
+
+Owner requests retain strict Firebase Google authentication, the exact v2 contract header and
+closed JSON. They cannot select an owner UID. Claim has only `contractVersion`; prepare adds
+`taskIds`, `connectionId` (null for a new connection), and `approvedScopes`; decision adds
+`decision` and `signedGrants`. Revoke bodies have only `contractVersion`. Approval returns a
+registered `redirectUri` for the owner UI to follow, including the protocol code/state/issuer;
+it never includes the Firebase credential. Repeating a decision does not issue another code.
+
+The authorization redirect sets one short-lived HttpOnly, Secure, SameSite=Lax flow cookie.
+Consent calls additionally require the exact configured origin and flow-cookie binding. The
+consent URL must share the exact Hub issuer origin: this backend phase does **not** provide a
+consent page or a cross-origin Web/BFF bridge. Shared CORS does not allow credentialed cross-origin
+requests; do not relax the cookie/CORS boundary to disguise that missing UI integration. WEB-006
+and the existing Hub adapter work must deliver and test that handoff before enabling a real client.
+
+`HUB_OAUTH_ENABLED` must explicitly equal `1`; missing/invalid configuration fails closed before
+creating storage clients. Set `HUB_OAUTH_ISSUER`, the exact same-origin
+`HUB_OAUTH_CONSENT_URL`, and `HUB_OAUTH_CLIENTS_JSON`. The latter is a closed array of up to eight
+preregistrations, each with `provider` (only `muse`), `clientId`, `redirectUris` (one to four exact
+HTTPS callbacks), `tokenEndpointAuthMethod` (`none` or `client_secret_basic`), and `secretSha256`
+(null for public clients, otherwise a SHA-256 digest of a high-entropy client secret supplied out
+of band). Do not commit credentials or put them in Terraform, prompts or query parameters.
+Anonymous client registration, implicit/password/client-credentials grants and other providers
+are unavailable. The local example stays disabled; no deployment setting is changed here.
+
+OAuth permission alone does not authorize decryption: an empty signed-grant list leaves content
+authority unavailable. A signed grant must match the current root-pinned registry, connection,
+authorization, exact selected task version/execution epoch, resource incarnation/source epochs,
+agent key roles/epochs, capabilities and owner writeback recipients. Grant history is not inferred;
+this phase approves only the selected current task version and `historyPolicy=none`. Private
+account selection and task semantics inside ciphertext remain client responsibilities. A new task
+version never silently expands an old grant. `signedGrantPresent` records a saved signature, not a
+claim that its keys or task are currently usable; each consumer must validate current authority.
+
+Future consumers must use `authorize_in_transaction` with the original token, required scope and
+task **inside the same transaction as their write**. A prior public authorization response is not
+an authorization cache. Consumers must also check fresh source state outside that transaction,
+then recheck local task/source/key fences inside it and validate concrete Run/version bindings.
+Saved-receipt recovery requires its separately specified narrower guard; this new-execution check
+must not erase an already saved receipt on a later source outage or task pause. No receipt API is
+implemented here. `readObserved` and `resultSaved` remain false until their actual consumer events
+are implemented; OAuth success never sets them.
+
+Codes expire within two minutes; access tokens within ten; pending flows within ten; refresh
+families have an absolute thirty-day deadline that rotation cannot extend. Only credential hashes
+are persisted, and refresh reuse revokes that family atomically. New consent advances the connection
+authorization identity and task grant generation so old tokens cannot regain permission. A/B
+owners and A1/A2 connections share a client registration without sharing ownership or revocation.
+
+The existing named Hub database gains bounded `hub_oauth_pending`, `hub_oauth_owners`,
+`hub_oauth_connections`, `hub_oauth_codes`, `hub_oauth_access`, `hub_oauth_refresh` and
+`hub_oauth_families` records. There is no new database/service, background cleanup worker or TTL
+requirement. Anonymous pending state uses one fixed pool: at most 64 active entries and 256 new
+requests per hour, reusing expired slots. Each owner has at most 32 lifetime connections, each
+connection 32 authorizations, each family 8192 token issues; capacity fails closed rather than
+deleting revocation/replay evidence. These provider bounds are not a substitute for the existing
+INF-006 public-release abuse, cost and logging checks.
+The owner index retains up to 64 authorization-attempt display records, including denied,
+cancelled, expired, superseded and revoked outcomes. Evicting terminal display history never
+removes credential reuse markers or revocation authority; this is a bounded UI history, not an
+indefinite audit archive. OAuth connection metadata remains separate from encrypted private rules.
+
+The container already disables Uvicorn access logging. Keep Authlib protocol DEBUG/body logging
+disabled; future public release must verify platform request and callback log handling as well.
+OAuth code/state may occur in protocol redirects; access/refresh tokens, client secrets, Firebase
+credentials and decryption secrets must never occur in URLs or logs. This local delivery uses
+synthetic owners/keys and does not establish real Muse, browser consent or two-account production
+acceptance. Those remain explicit release gates, with integration disabled by default.
+
 ## Storage, bounds and local verification
 
 SQLite is local-only: private file mode 0600, immediate atomic transactions and bounded lock wait.
@@ -343,6 +442,7 @@ an attempted deployment override. The container runs as UID 10001 with access lo
 Its health smoke check runs with networking disabled and removes its test container.
 
 No Cloud Run service, database, KMS key, IAM grant or trigger is created here. INF-006 and explicit
-future trust/configuration approval still govern any cloud activation. MCP, OAuth, agent grants,
-Runs/Results/Inbox and broker access remain unimplemented and fail closed. Owner task CRUD is
-implemented locally/build-only; it does not activate those consumers or any production endpoint.
+future trust/configuration approval still govern any cloud activation. Owner task CRUD and the
+disabled OAuth foundation are implemented locally/build-only. MCP, encrypted agent content delivery,
+Runs/Results/Inbox and broker access remain separate consumers and fail closed; this change does not
+activate those consumers or any production endpoint.

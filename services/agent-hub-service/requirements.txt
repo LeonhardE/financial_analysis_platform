@@ -5,3 +5,5 @@ google-cloud-kms>=3.18,<4.0
 google-crc32c>=1.7,<2.0
 uvicorn[standard]>=0.34,<1.0
 httpx>=0.28,<1.0
+
+Authlib==1.9.1

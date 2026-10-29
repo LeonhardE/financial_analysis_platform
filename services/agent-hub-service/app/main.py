@@ -5,6 +5,9 @@ from folioview_shared.http import create_app
 from .api import internal_router, owner_router, public_router
 from .catalogue import router as catalogue_router
 from .errors import HubErrors
+from .oauth_routes import agent_router
+from .oauth_routes import owner_router as oauth_owner_router
+from .oauth_routes import router as oauth_router
 from .tasks import router as tasks_router
 
 app = create_app(
@@ -12,13 +15,24 @@ app = create_app(
     private=True,
     methods=("GET", "POST", "PUT"),
     description="Passkey-sealed owner archive and signed public directory. No content decryption.",
-    private_prefixes=("/api", "/internal", "/mcp", "/oauth", "/.well-known", "/connectors"),
+    private_prefixes=(
+        "/api",
+        "/internal",
+        "/mcp",
+        "/oauth",
+        "/.well-known",
+        "/connectors",
+        "/agent",
+    ),
 )
 app.include_router(owner_router)
 app.include_router(internal_router)
 app.include_router(public_router)
 app.include_router(catalogue_router)
 app.include_router(tasks_router)
+app.include_router(oauth_router)
+app.include_router(oauth_owner_router)
+app.include_router(agent_router)
 app.add_middleware(HubErrors)
 
 
