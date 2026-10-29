@@ -9,6 +9,8 @@ execute Runs, log into brokers or deliver inbox results.
 Owner task management stores signed encrypted rules and immutable versions without opening them.
 The separately configured Muse OAuth foundation handles delegated API permissions and connection
 state. It is disabled by default and does not itself grant content decryption or start an agent.
+The separately gated [encrypted preparation protocol and foreground helper](PREPARATIONS.md)
+publish owner-encrypted copies to one explicitly authorized agent, without creating a Run.
 
 `GET /health` remains `{ "status": "ok", "service": "agent-hub" }`. Import, startup and health
 need no Firebase/Firestore/KMS credentials, clients or network. Those dependencies are lazy.
@@ -80,8 +82,8 @@ initialized list, not a ready one. Holdings states are `active`, `revoking`, `di
 `deleted`, `pending` or `unavailable`. `pending` means the observed producer epoch does not match
 the current Hub fence. `snapshotId` is only a source pointer, never a ciphertext or decryption grant.
 
-`encryptedEvidence=not_prepared` for User sources because this slice does not store trusted-client
-encrypted list evidence. It does not fetch the plaintext list and then encrypt it on the server.
+`encryptedEvidence=not_prepared` for User sources because source discovery does not certify
+per-grant encrypted preparation copies. It does not fetch plaintext lists and encrypt them on the server.
 For holdings, only a successful active current-epoch projection with no snapshot pointer establishes
 `not_prepared`; pointer-present, pending, terminal and unavailable states remain `not_checked`.
 Neither value proves current recipient/key-epoch authorization, authenticated decryption, financial
@@ -311,7 +313,8 @@ the deprecated Authlib JOSE implementation is not used for content or signatures
 The fixed issuer is the configured HTTPS origin `H`; the encrypted logical resource/audience is
 exactly `H/mcp/v2`, including when a future consumer uses `/agent/v2/*` REST. A v1 `/mcp` approval
 does not become a v2 approval. Discovery and protocol URLs are generated from configuration, never
-from caller Host or forwarded headers. This ticket does not implement MCP or encrypted content tools.
+from caller Host or forwarded headers. Encrypted preparation reads use the separate gated protocol
+below; MCP and Run/result tools remain unimplemented.
 
 | Endpoint                                                                | Behavior                                                                                                     |
 | ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
@@ -357,7 +360,9 @@ OAuth permission alone does not authorize decryption: an empty signed-grant list
 authority unavailable. A signed grant must match the current root-pinned registry, connection,
 authorization, exact selected task version/execution epoch, resource incarnation/source epochs,
 agent key roles/epochs, capabilities and owner writeback recipients. Grant history is not inferred;
-this phase approves only the selected current task version and `historyPolicy=none`. Private
+the original prepare endpoint approves only the selected current task version and `historyPolicy=none`.
+The explicit `prepare-encrypted` path additionally authorizes selected-current-version resharing,
+as specified in [the preparation protocol](PREPARATIONS.md). Private
 account selection and task semantics inside ciphertext remain client responsibilities. A new task
 version never silently expands an old grant. `signedGrantPresent` records a saved signature, not a
 claim that its keys or task are currently usable; each consumer must validate current authority.
@@ -368,8 +373,10 @@ an authorization cache. Consumers must also check fresh source state outside tha
 then recheck local task/source/key fences inside it and validate concrete Run/version bindings.
 Saved-receipt recovery requires its separately specified narrower guard; this new-execution check
 must not erase an already saved receipt on a later source outage or task pause. No receipt API is
-implemented here. `readObserved` and `resultSaved` remain false until their actual consumer events
-are implemented; OAuth success never sets them.
+implemented here. A successful authorized encrypted preparation-object read sets `readObserved`
+only after the fresh-source and final transaction checks. Metadata/proof reads and OAuth success
+never set it; it means an API read was authorized, not that an agent decrypted all inputs or ran a
+model. `resultSaved` stays false until a result consumer actually saves a result.
 
 Codes expire within two minutes; access tokens within ten; pending flows within ten; refresh
 families have an absolute thirty-day deadline that rotation cannot extend. Only credential hashes
@@ -443,6 +450,6 @@ Its health smoke check runs with networking disabled and removes its test contai
 
 No Cloud Run service, database, KMS key, IAM grant or trigger is created here. INF-006 and explicit
 future trust/configuration approval still govern any cloud activation. Owner task CRUD and the
-disabled OAuth foundation are implemented locally/build-only. MCP, encrypted agent content delivery,
+disabled OAuth foundation and encrypted preparations are implemented locally/build-only. MCP,
 Runs/Results/Inbox and broker access remain separate consumers and fail closed; this change does not
 activate those consumers or any production endpoint.

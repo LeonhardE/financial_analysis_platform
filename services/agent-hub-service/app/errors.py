@@ -34,7 +34,13 @@ class HubErrors:
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send):
         if scope["type"] != "http" or not scope.get("path", "").startswith(
-            ("/api/v2/", "/internal/v2/", "/.well-known/")
+            (
+                "/api/v2/",
+                "/internal/v2/",
+                "/.well-known/",
+                "/agent/v2/tasks/",
+                "/agent/v2/preparations/",
+            )
         ):
             await self.app(scope, receive, send)
             return
@@ -51,6 +57,13 @@ class HubErrors:
                 detail = value.get("detail") if type(value) is dict else None
                 if type(detail) is dict and detail.get("code") in ERROR_STATUS:
                     code = detail["code"]
+                elif (
+                    type(value) is dict
+                    and value.get("contractVersion") == "folioview.agent-workspace.v2.0"
+                    and type(value.get("error")) is dict
+                    and value["error"].get("code") in ERROR_STATUS
+                ):
+                    code = value["error"]["code"]
             except (ValueError, UnicodeError, TypeError):
                 pass
             failure = ContractError(code)

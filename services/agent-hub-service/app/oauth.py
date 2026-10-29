@@ -507,8 +507,19 @@ class OAuthService:
         )
 
     def prepare(
-        self, uid, request_id, browser_secret, task_ids, connection_id=None, approved_scopes=None
+        self,
+        uid,
+        request_id,
+        browser_secret,
+        task_ids,
+        connection_id=None,
+        approved_scopes=None,
+        *,
+        history_policy="none",
+        source_versions=None,
     ):
+        if history_policy not in {"none", "selected"}:
+            raise ContractError("malformed_request")
         if (
             type(task_ids) is not list
             or not 1 <= len(task_ids) <= 10
@@ -554,6 +565,7 @@ class OAuthService:
                     row["prepared"]["taskIds"] != task_ids
                     or row["connectionId"] != selected_connection
                     or row["prepared"]["approvedScopes"] != sorted(chosen_scopes)
+                    or row["prepared"].get("historyPolicy", "none") != history_policy
                 ):
                     raise ContractError("version_conflict")
                 return self._pending_response(row)
@@ -588,6 +600,14 @@ class OAuthService:
                         "grantEpoch": previous["grantEpoch"] + 1 if previous else 1,
                     }
                 )
+                if history_policy == "selected":
+                    selected = []
+                    for binding in meta["resourceBindings"]:
+                        source = (source_versions or {}).get(canonical_json(binding["ref"]))
+                        if source is None or source["sourceEpoch"] != binding["sourceEpoch"]:
+                            raise ContractError("source_unavailable")
+                        selected.append(source)
+                    tasks[-1]["selectedResourceVersions"] = selected
             row["prepared"] = {
                 "taskIds": task_ids,
                 "approvedScopes": sorted(chosen_scopes),
@@ -597,6 +617,7 @@ class OAuthService:
                 "registrySequence": registry.registry_sequence,
                 "checkpointDigest": registry.checkpoint_digest,
                 "authorizationExpiresAt": self.now() + FAMILY_SECONDS,
+                "historyPolicy": history_policy,
             }
             _put(unit, "hub_oauth_pending", ("pool",), bucket)
             return self._pending_response(row)
@@ -624,9 +645,20 @@ class OAuthService:
         ]
         if canonical_json(bindings) != canonical_json(prepared["resourceBindings"]):
             raise ContractError("recipient_binding_mismatch")
-        # Historical task scope is a separate explicit future UX, never inferred.
-        if grant["taskVersions"] != [prepared["taskVersion"]] or grant["historyPolicy"] != "none":
+        # Explicit current-version re-sharing does not approve arbitrary historical rules.
+        policy = row["prepared"].get("historyPolicy", "none")
+        if grant["taskVersions"] != [prepared["taskVersion"]] or grant["historyPolicy"] != policy:
             raise ContractError("insufficient_scope")
+        if policy == "selected":
+            versions = prepared.get("selectedResourceVersions", [])
+            for binding in grant["resourceBindings"]:
+                selected = next((v for v in versions if v["ref"] == binding["ref"]), None)
+                if (
+                    selected is None
+                    or binding["versionAccess"] != "selected"
+                    or binding["selectedVersions"] != [selected["revision"]]
+                ):
+                    raise ContractError("insufficient_scope")
         scopes = set(row["prepared"]["approvedScopes"])
         if (
             "decrypt_task" in grant["capabilities"]

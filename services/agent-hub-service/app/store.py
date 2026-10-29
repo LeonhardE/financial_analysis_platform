@@ -29,6 +29,9 @@ COLLECTIONS = frozenset(
         "hub_oauth_families",
         "hub_oauth_connections",
         "hub_oauth_owners",
+        "hub_preparations",
+        "hub_preparation_objects",
+        "hub_task_deliveries",
     }
 )
 

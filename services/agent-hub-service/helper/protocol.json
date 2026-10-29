@@ -1,0 +1,69 @@
+{
+  "helperVersion": "1.0.0",
+  "contractVersion": "folioview.agent-workspace.v2.0",
+  "profile": "folioview.agent-preparation.v1",
+  "executionProfile": "BH-M-E",
+  "worker": "dist/worker.mjs",
+  "bootstrap": "The trusted owning page creates a module Worker, transfers distinct ownerPort and agentPort MessagePorts exactly once using {op:attach,ownerPort,agentPort}, and retains the owner port.",
+  "messageFields": ["id", "sessionId", "generation", "op", "args"],
+  "ownerOperations": {
+    "initialize": ["anchor", "now", "ttlSeconds"],
+    "confirmDelivery": ["pin"]
+  },
+  "agentOperations": {
+    "registry": ["bundles"],
+    "install": ["metadata"],
+    "decrypt": ["objectId", "envelope"],
+    "status": [],
+    "lock": [],
+    "revoke": []
+  },
+  "anchorFields": [
+    "ownerSubject",
+    "vaultId",
+    "rootJwk",
+    "rootKeyId",
+    "rootEpoch",
+    "registrySequence",
+    "checkpointDigest",
+    "connectionId",
+    "agentPrincipalId",
+    "taskId"
+  ],
+  "deliveryPinFields": [
+    "preparationId",
+    "taskVersion",
+    "taskEnvelopeFingerprint",
+    "taskDeliveryFingerprint",
+    "objects",
+    "deliveryRevision",
+    "priorEnvelopeFingerprint",
+    "authorizationId",
+    "grantId",
+    "grantEpoch",
+    "executionEpoch"
+  ],
+  "limits": {
+    "ttlSeconds": 3600,
+    "messageBytes": 1048576,
+    "carrierBytes": 524288,
+    "registryBytes": 131072,
+    "controlBytes": 65536,
+    "registryHistory": 32,
+    "queuedOperations": 8
+  },
+  "lifecycle": "Lock, revoke and TTL expiry discard key handles and emit sessionEnded metadata to both ports. The trusted controller must clear its plaintext views and terminate the Worker; forensic memory erasure is not promised.",
+  "onlineAuthorization": "The Worker has no network and cannot independently discover token/connection revocation. The trusted controller must fetch through current Hub OAuth checks and lock on 401/403 or current-fence failures. Already delivered ciphertext/keys/plaintext cannot be remotely recalled; cached offline data is not fresh online authorization.",
+  "trust": "Root/checkpoint and selected delivery pins are supplied through an independently trusted owner handoff, never auto-confirmed from the same backend response or manifest. A release hash authenticates bytes only relative to a trusted release source.",
+  "closedCapabilities": [
+    "privateKeyImport",
+    "privateKeyExport",
+    "network",
+    "persistence",
+    "arbitrarySign",
+    "resultEncryptionWithoutRun",
+    "modelCalls",
+    "unattendedExecution"
+  ],
+  "nextStage": "Run/manifest binding, result encryption, exact ciphertext replay and receipts remain HUB-005/006 integration work. No result operation is exposed in this package."
+}

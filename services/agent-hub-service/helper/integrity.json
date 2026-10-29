@@ -1,0 +1,17 @@
+{
+  "helperVersion": "1.0.0",
+  "contractVersion": "folioview.agent-workspace.v2.0",
+  "profile": "folioview.agent-preparation.v1",
+  "assets": { "worker": "dist/worker.mjs" },
+  "files": {
+    "package.json": "bc97edffc84331c7148805828eb07f367fd98f1b7c2e31deba8d8579f5096f49",
+    "package-lock.json": "734b2a7abd3682772265bd302e9c310cc36aa09d4b28cb5ca3b2b78563eef1ee",
+    "protocol.json": "c0b6ad04a7e44d891bab87b7ce238780f2008c5acc8e2e77bfff006aa601b14b",
+    "schemas.json": "3ed3ba67eddcb077f5f138b9b0e2e47ce6d7ecb7b977071e68bc8d744f8ebf84",
+    "build.mjs": "213ffd15898878bdfa4d7111a365ac3570690e7c9025d81f12d42853100af5af",
+    "src/session.mjs": "00a435896cd6a0620410cec3a130c8574bb45497c419e8b24965665e963b03a1",
+    "src/worker.mjs": "90ee9302e26157ce00855f732628601e36f3dae5523bc455fd4357006b7c013f",
+    "dist/worker.mjs": "cfff302d056cd097325a6e30cdc990eca008accd51687d8ec7e8b44cb0d9ef91",
+    "THIRD_PARTY_NOTICES.md": "2c5ecce45123353c40e546a1d84179a8dc7f5e120dfc0c819e5f1ed3866f95de"
+  }
+}

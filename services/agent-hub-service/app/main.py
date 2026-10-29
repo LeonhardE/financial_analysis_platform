@@ -5,9 +5,12 @@ from folioview_shared.http import create_app
 from .api import internal_router, owner_router, public_router
 from .catalogue import router as catalogue_router
 from .errors import HubErrors
+from .helper_assets import router as helper_router
 from .oauth_routes import agent_router
 from .oauth_routes import owner_router as oauth_owner_router
 from .oauth_routes import router as oauth_router
+from .preparations import agent_router as preparation_agent_router
+from .preparations import owner_router as preparation_owner_router
 from .tasks import router as tasks_router
 
 app = create_app(
@@ -33,6 +36,9 @@ app.include_router(tasks_router)
 app.include_router(oauth_router)
 app.include_router(oauth_owner_router)
 app.include_router(agent_router)
+app.include_router(preparation_owner_router)
+app.include_router(preparation_agent_router)
+app.include_router(helper_router)
 app.add_middleware(HubErrors)
 
 

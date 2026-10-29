@@ -47,11 +47,18 @@ class AgentHubBoundaryTests(unittest.TestCase):
                     "/api/v2/agent-authorizations/{request_id}",
                     "/api/v2/agent-authorizations/{request_id}/claim",
                     "/api/v2/agent-authorizations/{request_id}/prepare",
+                    "/api/v2/agent-authorizations/{request_id}/prepare-encrypted",
                     "/api/v2/agent-authorizations/{request_id}/decision",
                     "/api/v2/agent-connections",
                     "/api/v2/agent-connections/{connection_id}/revoke",
                     "/api/v2/agent-connections/{connection_id}/grants/{grant_id}/revoke",
                     "/agent/v2/authorization",
+                    "/api/v2/agent-connections/{connection_id}/tasks/{task_id}/preparation-intent",
+                    "/api/v2/agent-connections/{connection_id}/tasks/{task_id}/preparation/objects/{object_id}",
+                    "/api/v2/agent-connections/{connection_id}/tasks/{task_id}/preparation/commit",
+                    "/agent/v2/tasks/{task_id}/preparation",
+                    "/agent/v2/preparations/{preparation_id}/objects/{object_id}",
+                    "/agent/v2/preparations/{preparation_id}/registries/{sequence}",
                 },
             )
 
