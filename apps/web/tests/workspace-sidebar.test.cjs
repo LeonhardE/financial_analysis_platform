@@ -246,3 +246,17 @@ test("navigating from an expanded mobile sidebar closes the overlay and releases
   assert.equal(sidebar.document.body.style.overflow, "auto");
   sidebar.unmount();
 });
+
+test("resources are reachable from bottom navigation while Markets remains the default", () => {
+  const sidebar = mountSidebar();
+  let tree = sidebar.render();
+  assert.equal(button(tree, "Markets").props["aria-pressed"], true);
+  button(tree, "Resources").props.onClick();
+  tree = sidebar.render();
+  assert.equal(button(tree, "Resources").props["aria-pressed"], true);
+  assert.equal(button(tree, "Markets").props["aria-pressed"], false);
+  button(tree, "Markets").props.onClick();
+  tree = sidebar.render();
+  assert.equal(button(tree, "Markets").props["aria-pressed"], true);
+  sidebar.unmount();
+});
