@@ -42,6 +42,8 @@ COLLECTIONS = frozenset(
         "hub_result_revisions",
         "hub_result_operations",
         "hub_result_indexes",
+        "hub_inbox_cursors",
+        "hub_result_state_operations",
     }
 )
 
@@ -78,6 +80,46 @@ def stored_document(value: dict, *, path: str, project: str, database: str) -> d
     return data
 
 
+def _batch_paths(paths):
+    if type(paths) not in {list, tuple} or len(paths) > 1024:
+        raise StoreUnavailable
+    for path in paths:
+        if type(path) is not str:
+            raise StoreUnavailable
+        parts = path.split("/")
+        if (
+            len(parts) != 2
+            or parts[0] not in COLLECTIONS
+            or len(parts[1]) != 64
+            or any(char not in "0123456789abcdef" for char in parts[1])
+        ):
+            raise StoreUnavailable
+    if len(paths) != len(set(paths)):
+        raise StoreUnavailable
+    return tuple(paths)
+
+
+def _batch_fields(field_paths):
+    if field_paths is None:
+        return None
+    if (
+        type(field_paths) not in {list, tuple}
+        or len(field_paths) != 4
+        or set(field_paths) != {"ownerSubject", "resultId", "revision", "receipt"}
+    ):
+        raise StoreUnavailable
+    return tuple(field_paths)
+
+
+def _project(value, field_paths):
+    if field_paths is None:
+        return value
+    try:
+        return {field: value[field] for field in field_paths}
+    except KeyError:
+        raise StoreUnavailable from None
+
+
 class SQLiteTransaction:
     def __init__(self, connection, store):
         self.connection = connection
@@ -96,6 +138,26 @@ class SQLiteTransaction:
         if type(value) is not dict:
             raise StoreUnavailable
         return value
+
+    def get_many(self, paths, *, field_paths=None) -> dict[str, dict | None]:
+        paths = _batch_paths(paths)
+        field_paths = _batch_fields(field_paths)
+        result = dict.fromkeys(paths)
+        for start in range(0, len(paths), 128):
+            group = paths[start : start + 128]
+            placeholders = ",".join("?" for _ in group)
+            rows = self.connection.execute(
+                f"SELECT path, body FROM hub_documents WHERE path IN ({placeholders})", group
+            ).fetchall()
+            for path, body in rows:
+                try:
+                    value = strict_json_loads(body, max_bytes=MAX_STORED_DOCUMENT_BYTES)
+                except ContractError:
+                    raise StoreUnavailable from None
+                if path not in result or type(value) is not dict:
+                    raise StoreUnavailable
+                result[path] = _project(value, field_paths)
+        return result
 
     def put(self, path: str, value: dict) -> None:
         data = stored_document(
@@ -157,6 +219,41 @@ class FirestoreTransaction:
             return strict_json_loads(canonical_json(value), max_bytes=MAX_STORED_DOCUMENT_BYTES)
         except ContractError:
             raise StoreUnavailable from None
+
+    def get_many(self, paths, *, field_paths=None) -> dict[str, dict | None]:
+        paths = _batch_paths(paths)
+        field_paths = _batch_fields(field_paths)
+        result = dict.fromkeys(paths)
+        for start in range(0, len(paths), 128):
+            refs = [self.store.client.document(path) for path in paths[start : start + 128]]
+            expected = {ref._document_path: ref.path for ref in refs}
+            seen = set()
+            for row in self.store.client.get_all(
+                refs,
+                field_paths=field_paths,
+                transaction=self.transaction,
+                timeout=4,
+                retry=None,
+            ):
+                name = row.reference._document_path
+                if name not in expected or name in seen:
+                    raise StoreUnavailable
+                seen.add(name)
+                if not row.exists:
+                    continue
+                value = row.to_dict()
+                if type(value) is not dict:
+                    raise StoreUnavailable
+                try:
+                    result[expected[name]] = strict_json_loads(
+                        canonical_json(_project(value, field_paths)),
+                        max_bytes=MAX_STORED_DOCUMENT_BYTES,
+                    )
+                except ContractError:
+                    raise StoreUnavailable from None
+            if seen != set(expected):
+                raise StoreUnavailable
+        return result
 
     def put(self, path: str, value: dict) -> None:
         data = stored_document(

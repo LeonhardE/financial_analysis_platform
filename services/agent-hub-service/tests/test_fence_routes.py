@@ -79,7 +79,11 @@ class FenceRouteTests(unittest.TestCase):
         self.assertEqual(self.post().content, first.content)
         current = self.store.transact(lambda unit: unit.get(fence_path(OWNER, REF)))
         self.assertEqual(current["sourceEpoch"], 3)
-        self.failure(self.client.post("/api/v2/results", headers=self.headers, json={}), 404)
+        # The owner collection now implements GET. POST remains unsupported;
+        # its 405 is normalized to the existing closed v2 malformed-request error.
+        rejected = self.client.post("/api/v2/results", headers=self.headers, json={})
+        self.failure(rejected, 400)
+        self.assertEqual(rejected.json()["error"]["code"], "malformed_request")
 
     def test_full_signed_authorization_not_forwarded_headers_or_other_token_families(self):
         invalid = [
