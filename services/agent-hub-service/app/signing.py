@@ -1,6 +1,7 @@
 """Narrow 60-second owner delegation; production signing stays in an existing KMS key."""
 
 import hashlib
+import math
 import os
 import re
 import time
@@ -59,6 +60,15 @@ def _number(value):
     return int(value.value if hasattr(value, "value") else value)
 
 
+def _rpc_timeout(deadline, clock):
+    if deadline is None:
+        return 4
+    value = deadline - clock()
+    if not math.isfinite(value) or value <= 0:
+        raise ContractError("authorization_unavailable")
+    return min(4, value)
+
+
 class KMSSigner:
     """No private material is exported or read from the environment.
 
@@ -81,14 +91,16 @@ class KMSSigner:
             self.client = kms_v1.KeyManagementServiceClient()
         return self.client
 
-    def _public(self):
+    def _public(self, *, deadline=None, budget_clock=time.monotonic):
         import google_crc32c
         from cryptography.hazmat.primitives import serialization
         from cryptography.hazmat.primitives.asymmetric import rsa
 
         if self.cached is not None and self.clock() < self.cached[0]:
             return self.cached[1], self.cached[2]
-        reply = self._client().get_public_key(request={"name": self.name}, timeout=4, retry=None)
+        reply = self._client().get_public_key(
+            request={"name": self.name}, timeout=_rpc_timeout(deadline, budget_clock), retry=None
+        )
         algorithm = getattr(reply.algorithm, "name", reply.algorithm)
         if reply.name != self.name or algorithm not in {
             "RSA_SIGN_PKCS1_2048_SHA256",
@@ -125,13 +137,13 @@ class KMSSigner:
         except Exception:
             raise ContractError("authorization_unavailable") from None
 
-    def sign(self, claims):
+    def sign(self, claims, *, deadline=None, budget_clock=time.monotonic):
         import google_crc32c
         from cryptography.hazmat.primitives import hashes
         from cryptography.hazmat.primitives.asymmetric import padding
 
         try:
-            key, _ = self._public()
+            key, _ = self._public(deadline=deadline, budget_clock=budget_clock)
             header = b64url_encode(
                 canonical_json({"alg": "RS256", "kid": self.kid, "typ": DELEGATION_TYPE})
             )
@@ -144,7 +156,7 @@ class KMSSigner:
                     "digest": {"sha256": digest},
                     "digest_crc32c": google_crc32c.value(digest),
                 },
-                timeout=4,
+                timeout=_rpc_timeout(deadline, budget_clock),
                 retry=None,
             )
             signature = bytes(reply.signature)
@@ -156,6 +168,7 @@ class KMSSigner:
             ):
                 raise ContractError("authorization_unavailable")
             key.verify(signature, data, padding.PKCS1v15(), hashes.SHA256())
+            _rpc_timeout(deadline, budget_clock)
             return header + "." + payload + "." + b64url_encode(signature)
         except Exception:
             raise ContractError("authorization_unavailable") from None

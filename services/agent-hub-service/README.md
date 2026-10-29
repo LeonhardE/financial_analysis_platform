@@ -3,8 +3,9 @@
 The build-only Hub stores one opaque, passkey-sealed vault archive and its root-signed public
 key directory per verified Google owner. It owns up to ten public holdings-source references.
 Portfolio holds the encrypted snapshots; Hub never receives CSV, positions, account labels,
-content keys, passkey PRF output or private JWKs. This is the local-integration prerequisite for
-encrypted CSV persistence, not agent authorization, Run execution, broker login or inbox delivery.
+content keys, passkey PRF output or private JWKs. The owner resource catalogue composes only existing
+User/Portfolio discovery metadata. Neither capability implements agent authorization, encrypted Run
+evidence delivery, Run execution, broker login or inbox delivery.
 
 `GET /health` remains `{ "status": "ok", "service": "agent-hub" }`. Import, startup and health
 need no Firebase/Firestore/KMS credentials, clients or network. Those dependencies are lazy.
@@ -44,6 +45,84 @@ client responsibilities. The backend cannot decrypt or establish whether a clien
 honestly; it validates bounds and public bindings only. Private keys and PRF outputs have no
 accepted plaintext fields. There is no password/backup-key override, platform recovery key,
 archive replacement/reset, second vault, device management UI or broad key-recovery endpoint.
+
+## Owner resource discovery
+
+`GET /api/v2/resources/catalogue` requires the same verified Firebase Google owner and exact v2
+contract header. There is no query/body owner, upstream URL, resource selection or recipient
+override. External agent/delegation credentials and `X-Serverless-Authorization` cannot replace
+owner identity. Responses and failures are `no-store`.
+
+The closed response has `contractVersion`, `profile`, `readAt`, `groups`;
+`profile=folioview.owner-resource-discovery.v1`. Groups always occur in this order:
+
+| Group kind        | Source      | Discovery source                                                       |
+| ----------------- | ----------- | ---------------------------------------------------------------------- |
+| `holdings`        | `portfolio` | Hub-owned signed source refs, then existing state/projection reads     |
+| `watchlist`       | `user`      | Existing delegated metadata catalogue, without list content            |
+| `channel_follows` | `user`      | Same metadata catalogue, without channel names, URLs or video contents |
+
+Each group has exactly `kind`, `sourceService`, `status`, `items`. A group status is `available`,
+`uninitialized`, `partial` or `unavailable`. An empty holdings group is `uninitialized`, never a
+claim of zero financial positions. User groups have one entry even when their source state is
+`uninitialized`; a producer outage has an `unavailable` entry rather than a fabricated empty list.
+The two User kinds share one producer request, so an invalid/unavailable User response makes both
+groups unavailable. Portfolio refs are checked independently; one missing replica does not hide
+other registered sources or User metadata. There are at most ten holdings refs and two User entries.
+
+Each item contains exactly `ref`, `revision`, `sourceEpoch`, `state`, `snapshotId`, `updatedAt`,
+`encryptedEvidence`. Ref/revision/epoch/timestamp can be null when not initialized or unavailable.
+User metadata state is `ready`, `empty` or `uninitialized`; revision zero is permitted for an empty
+initialized list, not a ready one. Holdings states are `active`, `revoking`, `disconnected`,
+`deleted`, `pending` or `unavailable`. `pending` means the observed producer epoch does not match
+the current Hub fence. `snapshotId` is only a source pointer, never a ciphertext or decryption grant.
+
+`encryptedEvidence=not_prepared` for User sources because this slice does not store trusted-client
+encrypted list evidence. It does not fetch the plaintext list and then encrypt it on the server.
+For holdings, only a successful active current-epoch projection with no snapshot pointer establishes
+`not_prepared`; pointer-present, pending, terminal and unavailable states remain `not_checked`.
+Neither value proves current recipient/key-epoch authorization, authenticated decryption, financial
+freshness or readiness for an agent Run. No amounts, labels, symbols, counts, content digests,
+registry/archive material, private keys or source credentials are returned.
+
+This owner discovery DTO is intentionally **not** shared `ResourceCatalogueMetadata`. That encrypted
+contract requires genuine key epochs and envelope fingerprints, which these producers do not expose.
+The Hub does not invent those fields or return a placeholder encrypted catalogue. Future encrypted
+Run consumers must obtain and validate actual prepared evidence and current recipient permissions.
+
+The request uses lazy server-only settings `HUB_USER_ORIGIN`, `HUB_PORTFOLIO_ORIGIN` and
+`HUB_CATALOGUE_CALLER_EMAIL`, plus the existing fixed Hub issuer/KMS signing configuration. The caller
+email is the **Hub runtime identity**, not reverse `HUB_PORTFOLIO_CALLER_EMAIL`. Every downstream
+request uses a fresh target-audience Google workload token plus a 60-second Hub-signed
+`browser_catalog` / `resources:catalog` delegation with the verified owner, exact target audience
+and only that producer's kinds. Browser Firebase tokens are never forwarded. Missing configuration,
+producer 401/403, redirects, malformed/oversize/private-field responses and timeouts make the affected
+source unavailable; they do not sign the owner out or expose upstream diagnostics.
+
+Credential preparation and upstream metadata calls share a cooperative 12-second admission budget,
+at most four request-scoped joined workers, and no more than eleven jobs. Queued work and target-lock
+waits check the same budget. Metadata and producer HTTP use fixed URLs, no ambient proxies, no
+redirects, identity encoding, streaming byte limits and at most four seconds per I/O. Optional KMS
+timeouts use remaining budget for cold public-key retrieval and signing with `retry=None`; existing
+signing/JWKS calls retain their four-second defaults. This is **not** an exact twelve-second wall-clock
+guarantee: SDK client/ADC discovery and credential refresh, a final blocking read and the separate
+bounded Hub database transactions are not a fully cancellable asynchronous operation. There is no
+detached worker, retry loop, scheduler or persistent owner/token/metadata cache.
+
+Hub verifies its current vault, signed registry checkpoint/key epoch, source refs and source fences
+before RPCs and again afterward in separate read transactions. Changes return a conflict rather than
+old active discovery. The initial epoch recorded on a vault source is only registration metadata;
+fresh Portfolio metadata is compared with the actual Hub fence and cannot reset it to epoch one.
+Terminal local fences are shown without reading old source data. No network call runs inside a
+database transaction. The result is not a globally atomic snapshot across User, Portfolio and Hub:
+later grant/Run/result consumers must recheck current source state, task/grant fences, key authorization
+and transaction-bound fence guards.
+
+Only source APIs are consumed: User `GET /internal/v2/resources/catalogue`, Portfolio
+`POST /internal/v2/resources/states/read` and `POST /internal/v2/resources/projections/read`. This
+change reads only Hub's own database and does not initialize lists, synchronize Portfolio authority,
+read encrypted snapshots or create copies of User's mutable masters. Actual cloud trust and deployment
+remain separate work; the new settings are examples, not activated cloud configuration.
 
 ## Public authority and signing
 

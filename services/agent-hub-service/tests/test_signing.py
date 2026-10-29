@@ -120,3 +120,29 @@ class SigningTests(unittest.TestCase):
             with self.subTest(issuer=issuer), self.assertRaises(ContractError):
                 mint_authority_token(UID, self.signer, configuration=(issuer, caller), now=NOW)
         self.assertEqual(self.rpc.calls, [])
+
+    def test_optional_catalogue_deadline_counts_cold_public_key_before_signing(self):
+        clock = [100.0]
+        observed = []
+
+        class BudgetRpc(KMSRpc):
+            def get_public_key(self, **kwargs):
+                observed.append(("public", kwargs["timeout"]))
+                result = super().get_public_key(**{**kwargs, "timeout": 4})
+                clock[0] += 4
+                return result
+
+            def asymmetric_sign(self, **kwargs):
+                observed.append(("sign", kwargs["timeout"]))
+                return super().asymmetric_sign(**{**kwargs, "timeout": 4})
+
+        signer = KMSSigner(KEY, client=BudgetRpc())
+        token = signer.sign({"synthetic": True}, deadline=105, budget_clock=lambda: clock[0])
+        self.assertEqual(observed, [("public", 4), ("sign", 1)])
+        self.assertEqual(len(token.split(".")), 3)
+        observed.clear()
+        clock[0] = 100
+        signer = KMSSigner(KEY, client=BudgetRpc())
+        with self.assertRaises(ContractError):
+            signer.sign({"synthetic": True}, deadline=103, budget_clock=lambda: clock[0])
+        self.assertEqual(observed, [("public", 3)])
