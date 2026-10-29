@@ -4,8 +4,8 @@ The build-only Hub stores one opaque, passkey-sealed vault archive and its root-
 key directory per verified Google owner. It owns up to ten public holdings-source references.
 Portfolio holds the encrypted snapshots; Hub never receives CSV, positions, account labels,
 content keys, passkey PRF output or private JWKs. The owner resource catalogue composes only existing
-User/Portfolio discovery metadata. These owner capabilities do not deliver encrypted Run evidence,
-execute Runs, log into brokers or deliver inbox results.
+User/Portfolio discovery metadata. These vault/catalogue capabilities do not deliver encrypted
+Run evidence, execute models or log into brokers.
 Owner task management stores signed encrypted rules and immutable versions without opening them.
 The separately configured Muse OAuth foundation handles delegated API permissions and connection
 state. It is disabled by default and does not itself grant content decryption or start an agent.
@@ -15,7 +15,10 @@ The [Run producer](RUNS.md) freezes those committed deliveries into formal manif
 authorized immutable input pages. It does not execute a model or submit a result.
 The [result producer](RESULTS.md) accepts authorized client-encrypted initial results and
 CAS revisions, with atomic persistence and original receipt recovery. Report content remains
-opaque to the backend; these endpoints do not implement owner Inbox browsing or MCP tools.
+opaque to the backend; owner retrieval uses the separate APIs below and MCP tools remain pending.
+The [owner Inbox API](INBOX.md) supplies bounded metadata lists/counts, historical encrypted
+details/evidence and signed read/star/archive controls. It authenticates the Google owner
+independently of agent OAuth and never marks content read merely by retrieving it.
 
 `GET /health` remains `{ "status": "ok", "service": "agent-hub" }`. Import, startup and health
 need no Firebase/Firestore/KMS credentials, clients or network. Those dependencies are lazy.
@@ -445,7 +448,8 @@ Tests use freshly generated synthetic keys, actual SQLite restart/concurrency an
 SDK serialization/retry against an in-memory RPC boundary. Controlled collisions cover a writer
 reading an absent epoch-1 fence before invalidation commits, retrying and rejecting stale input;
 the reverse commit order; competing mutations; lost ACKs and exact operation recovery. A synthetic
-writer marker tests the transaction guard, not an implemented result API. Tests do not use cloud credentials,
+writer marker tests the original transaction guard; separate result and Inbox suites exercise
+the implemented APIs, historical decryption proofs and owner isolation. Tests do not use cloud credentials,
 real broker data, a live KMS signer or an authentication bypass environment setting.
 
 ## Build-only delivery
@@ -457,7 +461,7 @@ Its health smoke check runs with networking disabled and removes its test contai
 
 No Cloud Run service, database, KMS key, IAM grant or trigger is created here. INF-006 and explicit
 future trust/configuration approval still govern any cloud activation. Owner task CRUD and the
-disabled OAuth foundation, encrypted preparations, formal Runs and encrypted result writes are
-implemented locally/build-only.
-MCP adaptation, owner Inbox browsing and broker access remain separate consumers and fail closed;
+disabled OAuth foundation, encrypted preparations, formal Runs, encrypted result writes and owner
+Inbox APIs are implemented locally/build-only.
+MCP adaptation, the Web Inbox interface and broker access remain separate consumers and fail closed;
 this change does not activate those consumers or any production endpoint.

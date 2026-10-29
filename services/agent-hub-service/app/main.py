@@ -6,6 +6,7 @@ from .api import internal_router, owner_router, public_router
 from .catalogue import router as catalogue_router
 from .errors import HubErrors
 from .helper_assets import router as helper_router
+from .inbox import router as inbox_router
 from .oauth_routes import agent_router
 from .oauth_routes import owner_router as oauth_owner_router
 from .oauth_routes import router as oauth_router
@@ -18,7 +19,7 @@ from .tasks import router as tasks_router
 app = create_app(
     "FolioView Agent Hub API",
     private=True,
-    methods=("GET", "POST", "PUT"),
+    methods=("GET", "POST", "PUT", "PATCH"),
     description="Passkey-sealed owner archive and signed public directory. No content decryption.",
     private_prefixes=(
         "/api",
@@ -42,6 +43,7 @@ app.include_router(preparation_owner_router)
 app.include_router(preparation_agent_router)
 app.include_router(runs_router)
 app.include_router(results_router)
+app.include_router(inbox_router)
 app.include_router(helper_router)
 app.add_middleware(HubErrors)
 

@@ -66,6 +66,13 @@ class AgentHubBoundaryTests(unittest.TestCase):
                     "/agent/v2/runs/{run_id}/results",
                     "/agent/v2/results/{result_id}/revisions",
                     "/agent/v2/runs/{run_id}/receipts/{operation}",
+                    "/api/v2/results",
+                    "/api/v2/results/counts",
+                    "/api/v2/results/{result_id}",
+                    "/api/v2/results/{result_id}/revisions",
+                    "/api/v2/results/{result_id}/state",
+                    "/api/v2/results/{result_id}/revisions/{revision}/evidence",
+                    "/api/v2/results/{result_id}/revisions/{revision}/registries/{sequence}",
                 },
             )
 
@@ -74,7 +81,7 @@ class AgentHubBoundaryTests(unittest.TestCase):
             for method, path in (
                 ("GET", "/api"),
                 ("GET", "/api/v2/resources"),
-                ("POST", "/api/v2/results"),
+                ("POST", "/api/v2/inbox"),
                 ("GET", "/api/v2/inbox"),
                 ("GET", "/mcp"),
                 ("POST", "/mcp/v2"),

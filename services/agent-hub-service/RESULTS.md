@@ -20,9 +20,10 @@ enabled adapter/OAuth configuration. Query parameters are rejected. Writes requi
 
 Initial saves and new revisions return a formal `ResultReceipt` with status 201. Exact authorized
 replays return the original receipt with status 200. Receipt lookup returns that receipt or null,
-after authenticating the original connection/grant relationship. Owner Inbox/history retrieval and
-state controls are separate work; the receipt's `/results/{resultId}?revision={revision}` is a stable,
-key-free application navigation path, not a decryption credential or an implemented owner read API.
+after authenticating the original connection/grant relationship. The separate [owner Inbox
+API](INBOX.md) supplies history and state controls under Google owner identity. The receipt's
+`/results/{resultId}?revision={revision}` is a stable, key-free application navigation path,
+not a decryption credential or an implemented Web page.
 
 ## New writes and immutable evidence
 
@@ -121,4 +122,4 @@ The foreground helper owns nonextractable memory-only agent keys, validates priv
 content, seals to exact owner/recovery recipients and retains exact packets in its bounded session
 outbox. The owning controller authenticates Hub transport and supplies verified receipts over its
 trusted owner port. No automatic durable outbox, model execution, background schedule, trusted
-page/real Muse acceptance, owner Inbox or cloud deployment is claimed here.
+page/real Muse acceptance, Web Inbox interface or cloud deployment is claimed here.
