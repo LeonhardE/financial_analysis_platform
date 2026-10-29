@@ -32,6 +32,7 @@ class AgentHubBoundaryTests(unittest.TestCase):
                     "/api/v2/vaults/{vault_id}/holdings-sources/{source_id}",
                     "/api/v2/vaults/current/authority-token",
                     "/internal/v2/portfolio-authorities/read",
+                    "/internal/v2/source-fences",
                     "/.well-known/jwks.json",
                 },
             )

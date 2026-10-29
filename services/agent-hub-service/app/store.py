@@ -12,7 +12,9 @@ from folioview_shared.encrypted.constants import MAX_STORED_DOCUMENT_BYTES
 from folioview_shared.encrypted.errors import ContractError
 from folioview_shared.encrypted.jsonutil import canonical_json, strict_json_loads
 
-COLLECTIONS = frozenset({"hub_vaults", "hub_operations"})
+COLLECTIONS = frozenset(
+    {"hub_vaults", "hub_operations", "hub_source_fences", "hub_fence_mutations"}
+)
 
 
 class StoreUnavailable(RuntimeError):
