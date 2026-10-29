@@ -1,4 +1,4 @@
-# Agent Hub encrypted vault authority
+# Agent Hub encrypted vault authority and source fences
 
 The build-only Hub stores one opaque, passkey-sealed vault archive and its root-signed public
 key directory per verified Google owner. It owns up to ten public holdings-source references.
@@ -61,9 +61,9 @@ projection version separately from its local replica version; this API cannot re
 
 Current owner registry updates must retain an authorized device writer plus device and recovery
 encryption recipients within the budget. Replacing/revoking an old device alongside a valid new
-device is supported. Revoke-all, vault locks, global fence/ACK propagation, archive rewrap and
-server-side retention/reset are not implemented by this CSV prerequisite. Missing those behaviors
-must not be represented as full WEB-010/HUB-008 acceptance.
+device is supported. Revoke-all, vault locks, registry-to-source propagation, archive rewrap and
+server-side retention/reset remain outside this slice. Source invalidation and immutable ACKs
+are implemented separately below; this does not complete user key-management or cloud acceptance.
 
 The owner authority-token endpoint accepts only `{contractVersion}` and signs a fixed claim set:
 verified UID, configured Portfolio caller, configured Hub issuer/audience, holdings metadata only,
@@ -79,12 +79,74 @@ fixed 503. Tests inject fresh synthetic signing RPCs; no deployed signer or KMS 
 See [Google KMS integrity guidelines](https://docs.cloud.google.com/kms/docs/data-integrity-guidelines)
 and [asymmetric signing](https://docs.cloud.google.com/kms/docs/reference/rest/v1/projects.locations.keyRings.cryptoKeys.cryptoKeyVersions/asymmetricSign).
 
+## Source invalidation and exact ACKs
+
+`POST /internal/v2/source-fences` is a narrow reverse callback from the configured Portfolio
+workload. It requires a **full signed Google ID token in Authorization**, the fixed Hub audience,
+and an exact numeric service-account subject/email pin in the existing
+`HUB_TRUSTED_PORTFOLIO_CALLERS` configuration. Cloud Run's potentially signature-stripped
+`X-Serverless-Authorization`, Firebase identities, external agent tokens, self-reported owner
+headers and additional delegation headers do not authorize it. Missing configuration fails closed;
+there is no new KMS signing requirement or user-login fallback.
+
+Unlike Hub-to-source reads, this reverse callback intentionally requires no Hub owner-delegation
+JWT: it can only invalidate `portfolio/holdings`, not read data, mint grants, reactivate sources or
+write results. Portfolio is trusted to report its own owner's source metadata. Its `ownerSubject`
+is the existing 64-character lowercase SHA256 owner partition, **not a raw UID and not hashed a
+second time**. This metadata must never be accepted from a browser or agent as authority.
+
+The request has exactly `contractVersion`, `ownerSubject`, `mutationId`, `ref`,
+`expectedSourceEpoch`, `newSourceEpoch`, `reason`. `ref` is the shared full ResourceRef;
+mutation IDs use the shared 22–128-character OperationIdentifier. Epochs are strict positive safe
+integers, with `newSourceEpoch = expectedSourceEpoch + 1`. Reason is one of
+`account_scope_changed`, `disconnected`, `deleted`; body size is at most 8192 bytes, including
+chunked requests, and the common five-second body deadline/strict JSON parser applies.
+
+The response has exactly `contractVersion`, `mutationId`, `ref`, `acknowledgedSourceEpoch`,
+`acknowledgedAt`. Fence and immutable operation ACK are written in one transaction. The operation
+namespace is owner/source-service/mutationId; canonical request fingerprints bind the full owner,
+resource/incarnation, epochs and reason. Same-operation/same-content replay returns identical
+original ACK fields **and response bytes**, even after a later fence or restart. A historical ACK
+is not the current fence. Changed content returns 409 `idempotency_conflict`; a new operation with
+the wrong current expected epoch returns 409 `version_conflict`, never a replacement higher ACK.
+
+Each owner/full resource incarnation starts at implicit epoch 1. An absent fence is read within
+the transaction and cannot bootstrap at a caller-selected higher epoch. Disconnect/delete are
+terminal for ordinary scope changes; disconnect may only advance to delete, while deleted sources
+cannot advance again. A recreated source needs a new incarnation. Existing old fences and ACKs
+are retained; no TTL or delete/reset API can silently resurrect old bindings. At most 128 mutations
+are accepted per incarnation, reserving the last two slots for disconnect and deletion. Exact
+receipt replay remains available at capacity.
+
+The source must already be locally `revoking` before calling Hub. In a later independent
+Portfolio consumer PR, map its pending `operationId`→`mutationId`, `resourceRef`→`ref`,
+`sourceEpoch`→`newSourceEpoch`; preserve `expectedSourceEpoch` and the owner partition.
+Actions fence/disconnect/delete map to the three reasons above. Only an authenticated reply matching
+the current pending mutation/ref/epoch permits source-side CAS finalization. ACK loss or a crash
+after ACK needs the same durable mutation, not a restarted broker session or new operation ID.
+That remote Portfolio adapter and real cloud trust are not installed by this Hub-only change.
+
+`app.fences.require_current_bindings(unit, ownerSubject, bindings)` is the integration seam for
+future Run/Result transactions. It reads the same fence documents (including absent epoch-1
+documents), rejects outdated epochs and terminal incarnations, and must execute **inside the same
+transaction as the write**. It does not replace a fresh external active-source/epoch precheck or
+current task/grant/recipient-key checks. Source `revoking` or unavailable must already fail that
+external precheck; no network call belongs inside a retried DB transaction. The guard does not
+mint a grant or publish a Run/result endpoint. Resource-free tasks may pass an empty binding list.
+
+The vault/public-authority API above still reports enrollment metadata with its initial source
+epoch; it must not be used as a substitute for current source status or this separate transaction
+fence. HUB-002/005/006 will consume these boundaries in their own implementations.
+
 ## Storage, bounds and local verification
 
 SQLite is local-only: private file mode 0600, immediate atomic transactions and bounded lock wait.
 Cloud Run requires Firestore and an explicitly selected named database; `(default)`, SQLite and
 Firestore emulator configuration are refused. `hub_vaults` contains the public directory, opaque
 archive and bounded source list. `hub_operations` stores only owner/kind/fingerprint metadata.
+`hub_source_fences` holds owner/full-ref/epoch/state metadata; `hub_fence_mutations` holds bounded
+validated mutation metadata, a canonical request fingerprint and its original ACK. No private
+positions, task/report content, user/agent keys or tokens enter these records.
 No background workers, post-response tasks or database scans are used.
 
 A vault allows at most 32 consecutive registry bundles, ten sources and 64 operation records.
@@ -103,7 +165,10 @@ docker build --file services/agent-hub-service/Dockerfile --tag folioview-agent-
 
 Local runtime settings are documented in `.env.example`. Health needs none of the private settings.
 Tests use freshly generated synthetic keys, actual SQLite restart/concurrency and actual Firestore
-SDK serialization/retry against an in-memory RPC boundary. They do not use cloud credentials,
+SDK serialization/retry against an in-memory RPC boundary. Controlled collisions cover a writer
+reading an absent epoch-1 fence before invalidation commits, retrying and rejecting stale input;
+the reverse commit order; competing mutations; lost ACKs and exact operation recovery. A synthetic
+writer marker tests the transaction guard, not an implemented result API. Tests do not use cloud credentials,
 real broker data, a live KMS signer or an authentication bypass environment setting.
 
 ## Build-only delivery
