@@ -4,7 +4,7 @@
 import * as jose from "jose";
 import canonicalize from "canonicalize";
 import validators from "./validators.cjs";
-export const VERSION = "1.0.0";
+export const VERSION = "1.1.0";
 export const CONTRACT = "folioview.agent-workspace.v2.0";
 export const PROFILE = "folioview.agent-preparation.v1";
 const encoder = new TextEncoder();
@@ -38,6 +38,9 @@ const AGENT_OPS = {
   registry: ["bundles"],
   install: ["metadata"],
   decrypt: ["objectId", "envelope"],
+  beginRun: ["stableOperationId"],
+  installRun: ["response"],
+  decryptRun: ["runId", "page"],
   status: [],
   lock: [],
   revoke: [],
@@ -368,6 +371,12 @@ export class ForegroundSession {
   #keys = null;
   #anchor = null;
   #registry = null;
+  #registrySnapshots = new Map();
+  #begins = new Map();
+  #runs = new Map();
+  #decrypted = new Map();
+  #inputFacts = new Map();
+  #inputPolicy = null;
   #sequence = 0;
   #history = new Map();
   #localEpochs = new Map();
@@ -415,6 +424,12 @@ export class ForegroundSession {
     this.#metadata = null;
     this.#grant = null;
     this.#deliveryPin = null;
+    this.#registrySnapshots.clear();
+    this.#begins.clear();
+    this.#runs.clear();
+    this.#decrypted.clear();
+    this.#inputFacts.clear();
+    this.#inputPolicy = null;
     this.#history.clear();
     this.#localEpochs.clear();
     this.#onInvalidate({ event: "sessionEnded", ...this.status() });
@@ -472,6 +487,9 @@ export class ForegroundSession {
     else if (m.op === "confirmDelivery") this.#confirm(m.args.pin);
     else if (m.op === "install") await this.#install(m.args.metadata, g);
     else if (m.op === "decrypt") return await this.#decrypt(m.args.objectId, m.args.envelope, g);
+    else if (m.op === "beginRun") return await this.#beginRun(m.args.stableOperationId, g);
+    else if (m.op === "installRun") return await this.#installRun(m.args.response, g);
+    else if (m.op === "decryptRun") return await this.#decryptRun(m.args.runId, m.args.page, g);
     this.#alive(g);
     return this.status();
   }
@@ -678,6 +696,10 @@ export class ForegroundSession {
         keyEpoch: cp.keyEpoch,
         issuedAt: cp.issuedAt,
       };
+      this.#registrySnapshots.set(cp.registrySequence, {
+        ...this.#registry,
+        localEpochs: new Map(this.#localEpochs),
+      });
     }
     if (this.#grant) {
       try {
@@ -727,6 +749,11 @@ export class ForegroundSession {
     unique(pin.objects.map((row) => row.objectId));
     digestString(pin.priorEnvelopeFingerprint);
     if (pin.deliveryRevision < 2) deny("invalid_delivery_pin");
+    this.#begins.clear();
+    this.#runs.clear();
+    this.#decrypted.clear();
+    this.#inputFacts.clear();
+    this.#inputPolicy = null;
     this.#deliveryPin = structuredClone(pin);
     this.#metadata = null;
     this.#grant = null;
@@ -979,7 +1006,334 @@ export class ForegroundSession {
     this.#grant = grant;
     this.#state = "ACTIVE";
   }
-  async #decrypt(id, carrier, g) {
+  #runAuthority() {
+    if (this.#state !== "ACTIVE" || !this.#metadata || !this.#grant) deny("grant_required");
+    const grant = this.#grant;
+    if (this.#time() >= Math.min(grant.expiresAt, this.#metadata.authorizationExpiresAt)) {
+      this.#invalidate("LOCKED");
+      deny("grant_expired_or_untrusted");
+    }
+    const sig = this.#key(this.#sigKid, "agent_sig", this.#anchor.connectionId);
+    this.#key(this.#encKid, "agent_enc", this.#anchor.connectionId);
+    if (!sig.capabilities.includes("run_request") || !grant.capabilities.includes("decrypt_task"))
+      deny("insufficient_capability");
+    if (grant.resourceBindings.length && !grant.capabilities.includes("decrypt_resources"))
+      deny("insufficient_capability");
+    return grant;
+  }
+  #resourceVersions() {
+    return this.#grant.resourceBindings.map((binding) => {
+      const d = this.#metadata.objects.find((row) => same(row.resourceRef, binding.ref));
+      if (!d) deny("resource_not_authorized");
+      return {
+        ref: structuredClone(binding.ref),
+        revision: d.revision,
+        sourceEpoch: d.sourceEpoch,
+        envelopeFingerprint: d.envelopeFingerprint,
+      };
+    });
+  }
+  async #beginRun(operation, g) {
+    const grant = this.#runAuthority();
+    if (typeof operation !== "string" || !/^[A-Za-z0-9_-]{22,128}$/.test(operation))
+      deny("invalid_operation_id");
+    this.#checkInputPolicy();
+    const existing = this.#begins.get(operation);
+    if (existing) return structuredClone(existing.public);
+    if (this.#begins.size >= 32) deny("run_capacity");
+    // Typed decryption and the conservative private input-policy checks precede
+    // signing; they do not prove source truth, financial equivalence or model quality.
+    if (
+      this.#metadata.objects.some((d) => this.#decrypted.get(d.objectId) !== d.envelopeFingerprint)
+    )
+      deny("inputs_not_decrypted");
+    const intent = {
+      artifactType: "begin_run_intent",
+      contractVersion: CONTRACT,
+      ownerSubject: this.#anchor.ownerSubject,
+      vaultId: this.#anchor.vaultId,
+      stableOperationId: operation,
+      taskId: grant.taskId,
+      expectedTaskVersion: this.#metadata.taskVersion,
+      taskEnvelopeFingerprint: this.#deliveryPin.taskDeliveryFingerprint,
+      resourceVersions: this.#resourceVersions(),
+      connectionId: grant.connectionId,
+      authorizationId: grant.authorizationId,
+      grantId: grant.grantId,
+      grantEpoch: grant.grantEpoch,
+      executionEpoch: grant.executionEpoch,
+      keyEpoch: this.#registry.keyEpoch,
+      registrySequence: this.#sequence,
+      checkpointDigest: this.#registry.digest,
+    };
+    validate("BeginRunIntentPayload", intent);
+    const signed = await sign(intent, this.#keys.sig, this.#sigKid, "fv-control+jws");
+    this.#alive(g);
+    const fp = await fingerprint({ signedObject: signed });
+    this.#alive(g);
+    const ns = [
+      intent.ownerSubject,
+      intent.vaultId,
+      intent.connectionId,
+      intent.authorizationId,
+      intent.grantId,
+      intent.grantEpoch,
+      intent.taskId,
+      operation,
+      fp,
+    ];
+    const ids = {
+      runId: "run_" + (await digest(["folioview.run-allocation.v1", ...ns])),
+      manifestId: "manifest_" + (await digest(["folioview.manifest-allocation.v1", ...ns])),
+      initialResultId: "result_" + (await digest(["folioview.result-allocation.v1", ...ns])),
+    };
+    this.#alive(g);
+    const value = {
+      contractVersion: CONTRACT,
+      stableOperationId: operation,
+      signedBeginIntent: signed,
+      beginIntentFingerprint: fp,
+      ...ids,
+    };
+    this.#begins.set(operation, { intent, signed, fp, ids, public: value });
+    return structuredClone(value);
+  }
+  #checkInputPolicy(at = this.#time()) {
+    if (
+      !this.#inputPolicy ||
+      !this.#metadata ||
+      this.#metadata.objects.some((d) => this.#decrypted.get(d.objectId) !== d.envelopeFingerprint)
+    )
+      deny("inputs_not_decrypted");
+    for (const d of this.#metadata.objects.filter((row) => row.objectType !== "task")) {
+      const facts = this.#inputFacts.get(d.objectId),
+        policy = this.#inputPolicy;
+      if (!facts) deny("inputs_not_decrypted");
+      if (!policy.allowPartial && facts.coverage !== "complete") deny("input_policy_partial");
+      if (!policy.allowUnknownAsOf && facts.sourceAsOf === null) deny("input_policy_asof");
+      const age = at - Date.parse(facts.fetchedAt) / 1000;
+      if (!Number.isFinite(age) || age < 0 || age > policy.maxFetchedAgeSeconds)
+        deny("input_policy_fetched_age");
+      if (
+        facts.freshness === "stale" ||
+        (facts.freshness === "unknown" && !policy.allowUnknownAsOf)
+      )
+        deny("input_policy_freshness");
+    }
+  }
+  #historicalAuthor(kid, proof) {
+    const snapshot = this.#registrySnapshots.get(proof.registrySequence),
+      author = snapshot?.keys.get(kid);
+    if (
+      !snapshot ||
+      proof.verifiedAt < snapshot.issuedAt ||
+      !author ||
+      !author.active ||
+      snapshot.revoked.has(kid) ||
+      author.role !== "device_sig" ||
+      author.connectionId !== null ||
+      !(author.notBefore <= proof.verifiedAt && proof.verifiedAt < author.expiresAt) ||
+      author.keyEpoch !==
+        snapshot.localEpochs.get(
+          [author.principalId, author.role, author.connectionId].join("/"),
+        ) ||
+      !author.capabilities.includes("object_write")
+    )
+      deny("historical_author_untrusted");
+    return author;
+  }
+  async #installRun(response, g) {
+    this.#runAuthority();
+    exact(response, [
+      "contractVersion",
+      "profile",
+      "run",
+      "manifest",
+      "manifestFingerprint",
+      "componentPath",
+      "registryProofs",
+      "authorProofs",
+    ]);
+    if (response.contractVersion !== CONTRACT || response.profile !== "folioview.agent-run.v1")
+      deny("unsupported_contract");
+    const r = response.run,
+      m = response.manifest;
+    validate("RunDescriptor", r);
+    validate("ManifestDescriptor", m);
+    if (canonical(m).length > 262144) deny("payload_too_large");
+    const begin = [...this.#begins.values()].find((row) => row.fp === r.beginIntentFingerprint);
+    if (!begin) deny("begin_intent_pin_required");
+    for (const k of ["runId", "manifestId", "initialResultId"])
+      if (r[k] !== begin.ids[k]) deny("run_allocation_mismatch");
+    if (r.state !== "ready") deny("run_not_ready");
+    const fields = [
+      "vaultId",
+      "taskId",
+      "connectionId",
+      "authorizationId",
+      "grantId",
+      "grantEpoch",
+      "executionEpoch",
+      "keyEpoch",
+    ];
+    for (const k of fields) if (r[k] !== begin.intent[k]) deny("run_binding_mismatch");
+    if (r.taskVersion !== begin.intent.expectedTaskVersion) deny("run_binding_mismatch");
+    const lifetime = (value) => {
+      utc(value.createdAt);
+      utc(value.expiresAt);
+      const created = Date.parse(value.createdAt) / 1000,
+        expires = Date.parse(value.expiresAt) / 1000;
+      if (
+        !(this.#grant.notBefore <= created && created <= this.#time() && this.#time() < expires) ||
+        expires - created <= 0 ||
+        expires - created > 7200 ||
+        expires > this.#grant.expiresAt
+      )
+        deny("run_expired_or_untrusted");
+    };
+    lifetime(r);
+    lifetime(m);
+    if (
+      Date.parse(m.createdAt) < Date.parse(r.createdAt) ||
+      Date.parse(m.expiresAt) > Date.parse(r.expiresAt)
+    )
+      deny("run_lifetime_mismatch");
+    for (const k of [
+      "manifestId",
+      "runId",
+      "vaultId",
+      "taskId",
+      "taskVersion",
+      "connectionId",
+      "grantId",
+      "grantEpoch",
+      "executionEpoch",
+      "keyEpoch",
+      "beginIntentFingerprint",
+    ])
+      if (m[k] !== r[k]) deny("manifest_binding_mismatch");
+    if ((await fingerprint({ signedObject: m.signedBeginIntent })) !== begin.fp)
+      deny("begin_intent_mismatch");
+    this.#alive(g);
+    const signedIntent = await verify(
+      m.signedBeginIntent,
+      this.#key(this.#sigKid, "agent_sig", this.#anchor.connectionId).publicJwk,
+      "fv-control+jws",
+    );
+    this.#alive(g);
+    if (
+      !same(signedIntent, begin.intent) ||
+      this.#history.get(signedIntent.registrySequence) !== signedIntent.checkpointDigest
+    )
+      deny("begin_intent_mismatch");
+    const expectedTask = this.#metadata.objects.find((d) => d.objectType === "task");
+    const reference = (d) => ({
+      objectId: d.objectId,
+      objectType: d.objectType,
+      revision: d.revision,
+      deliveryRevision: d.deliveryRevision,
+      envelopeFingerprint: d.envelopeFingerprint,
+      keyEpoch: this.#grant.keyEpoch,
+    });
+    if (!same(m.taskEnvelope, reference(expectedTask))) deny("manifest_task_mismatch");
+    const entries = begin.intent.resourceVersions.map((selected) => {
+      const d = this.#metadata.objects.find((row) => same(row.resourceRef, selected.ref));
+      return { ...reference(d), ref: selected.ref, sourceEpoch: selected.sourceEpoch };
+    });
+    if (!same(m.entries, entries)) deny("manifest_resource_mismatch");
+    if ((await digest(m)) !== response.manifestFingerprint) deny("manifest_fingerprint_mismatch");
+    this.#alive(g);
+    if (response.componentPath !== `/agent/v2/runs/${r.runId}/inputs`) deny("run_path_mismatch");
+    array(response.registryProofs, 32, 1);
+    for (let i = 0; i < response.registryProofs.length; i++) {
+      const proof = response.registryProofs[i];
+      exact(proof, ["registrySequence", "checkpointDigest", "path"]);
+      if (
+        proof.registrySequence !== i + 1 ||
+        this.#history.get(i + 1) !== proof.checkpointDigest ||
+        proof.path !== `/agent/v2/runs/${r.runId}/registries/${i + 1}`
+      )
+        deny("invalid_registry_proof");
+    }
+    array(response.authorProofs, entries.length + 1, entries.length + 1);
+    const descriptors = [m.taskEnvelope, ...m.entries];
+    for (let i = 0; i < descriptors.length; i++) {
+      const proof = response.authorProofs[i];
+      exact(proof, ["objectId", "registrySequence", "verifiedAt"]);
+      if (
+        proof.objectId !== descriptors[i].objectId ||
+        proof.registrySequence !== begin.intent.registrySequence ||
+        proof.verifiedAt !== Date.parse(r.createdAt) / 1000 ||
+        !this.#registrySnapshots.has(proof.registrySequence) ||
+        proof.verifiedAt < this.#registrySnapshots.get(proof.registrySequence).issuedAt
+      )
+        deny("historical_author_untrusted");
+    }
+    const frozen = {
+      run: r,
+      manifest: m,
+      fp: response.manifestFingerprint,
+      authorProofs: response.authorProofs,
+    };
+    const old = this.#runs.get(r.runId);
+    if (old && !same(old.frozen, frozen)) deny("run_replacement");
+    if (!old)
+      this.#runs.set(r.runId, { frozen: structuredClone(frozen), nextIndex: 0, lastIndex: -1 });
+    return {
+      runId: r.runId,
+      manifestId: r.manifestId,
+      manifestFingerprint: response.manifestFingerprint,
+      componentCount: descriptors.length,
+      nextComponentIndex: this.#runs.get(r.runId).nextIndex,
+    };
+  }
+  async #decryptRun(id, page, g) {
+    this.#runAuthority();
+    const saved = this.#runs.get(id);
+    if (!saved) deny("run_pin_required");
+    const { run, manifest, fp, authorProofs } = saved.frozen;
+    this.#checkInputPolicy(Date.parse(run.createdAt) / 1000);
+    if (this.#time() >= Date.parse(run.expiresAt) / 1000) deny("run_expired_or_untrusted");
+    validate("ManifestComponentPage", page);
+    if (canonical(page).length > MAX_RPC) deny("payload_too_large");
+    if (!same(page.manifest, manifest) || page.manifestFingerprint !== fp)
+      deny("manifest_binding_mismatch");
+    const index = page.componentIndex,
+      references = [manifest.taskEnvelope, ...manifest.entries];
+    if (index >= references.length || (index !== saved.nextIndex && index !== saved.lastIndex))
+      deny("component_order_mismatch");
+    if ((page.nextCursor === null) !== (index === references.length - 1))
+      deny("component_cursor_mismatch");
+    const d = references[index],
+      c = page.component;
+    if (
+      c.kind !== (index === 0 ? "task" : "resource") ||
+      c.objectId !== d.objectId ||
+      c.revision !== d.revision ||
+      c.deliveryRevision !== d.deliveryRevision
+    )
+      deny("component_binding_mismatch");
+    const result = await this.#decrypt(
+      c.objectId,
+      { contractVersion: CONTRACT, signedObject: c.signedObject },
+      g,
+      authorProofs[index],
+    );
+    this.#alive(g);
+    if (index === saved.nextIndex) {
+      saved.lastIndex = index;
+      saved.nextIndex = index + 1;
+    }
+    return {
+      ...result,
+      runId: id,
+      manifestId: run.manifestId,
+      manifestFingerprint: fp,
+      componentIndex: index,
+      nextCursor: page.nextCursor,
+    };
+  }
+  async #decrypt(id, carrier, g, historical = null) {
     if (this.#state !== "ACTIVE" || !this.#metadata || !this.#grant) deny("grant_required");
     const m = this.#metadata,
       grant = this.#grant,
@@ -1040,7 +1394,9 @@ export class ForegroundSession {
         deny("resource_binding_mismatch");
     }
     if (!same(c.binding, binding)) deny("object_binding_mismatch");
-    const author = this.#key(c.authorSigningKeyId, "device_sig", null);
+    const author = historical
+      ? this.#historicalAuthor(c.authorSigningKeyId, historical)
+      : this.#key(c.authorSigningKeyId, "device_sig", null);
     if (!author.capabilities.includes("object_write")) deny("insufficient_capability");
     const signed = await verify(carrier.signedObject, author.publicJwk, "fv-object+jws");
     this.#alive(g);
@@ -1089,6 +1445,16 @@ export class ForegroundSession {
     this.#alive(g);
     const content = privateContent(parsed(out.plaintext, true), c);
     this.#alive(g);
+    this.#decrypted.set(d.objectId, d.envelopeFingerprint);
+    if (c.objectType === "task") this.#inputPolicy = structuredClone(content.inputPolicy);
+    else
+      this.#inputFacts.set(d.objectId, {
+        state: content.state,
+        coverage: content.coverage.state,
+        sourceAsOf: content.sourceAsOf,
+        fetchedAt: content.fetchedAt,
+        freshness: content.freshness,
+      });
     return {
       objectId: d.objectId,
       objectType: d.objectType,

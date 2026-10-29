@@ -1,5 +1,5 @@
 {
-  "helperVersion": "1.0.0",
+  "helperVersion": "1.1.0",
   "contractVersion": "folioview.agent-workspace.v2.0",
   "profile": "folioview.agent-preparation.v1",
   "executionProfile": "BH-M-E",
@@ -16,7 +16,10 @@
     "decrypt": ["objectId", "envelope"],
     "status": [],
     "lock": [],
-    "revoke": []
+    "revoke": [],
+    "beginRun": ["stableOperationId"],
+    "installRun": ["response"],
+    "decryptRun": ["runId", "page"]
   },
   "anchorFields": [
     "ownerSubject",
@@ -50,7 +53,8 @@
     "registryBytes": 131072,
     "controlBytes": 65536,
     "registryHistory": 32,
-    "queuedOperations": 8
+    "queuedOperations": 8,
+    "runOperations": 32
   },
   "lifecycle": "Lock, revoke and TTL expiry discard key handles and emit sessionEnded metadata to both ports. The trusted controller must clear its plaintext views and terminate the Worker; forensic memory erasure is not promised.",
   "onlineAuthorization": "The Worker has no network and cannot independently discover token/connection revocation. The trusted controller must fetch through current Hub OAuth checks and lock on 401/403 or current-fence failures. Already delivered ciphertext/keys/plaintext cannot be remotely recalled; cached offline data is not fresh online authorization.",
@@ -65,5 +69,27 @@
     "modelCalls",
     "unattendedExecution"
   ],
-  "nextStage": "Run/manifest binding, result encryption, exact ciphertext replay and receipts remain HUB-005/006 integration work. No result operation is exposed in this package."
+  "nextStage": "Formal Run/manifest verification and input decryption are supported. Result encryption, revisions, exact ciphertext writeback replay and receipts remain HUB-006/HUB-009 integration work; no result operation is exposed.",
+  "runAllocation": {
+    "profile": "folioview.agent-run.v1",
+    "namespaceFields": [
+      "ownerSubject",
+      "vaultId",
+      "connectionId",
+      "authorizationId",
+      "grantId",
+      "grantEpoch",
+      "taskId",
+      "stableOperationId",
+      "beginIntentFingerprint"
+    ],
+    "labels": {
+      "runId": "folioview.run-allocation.v1",
+      "manifestId": "folioview.manifest-allocation.v1",
+      "initialResultId": "folioview.result-allocation.v1"
+    },
+    "encoding": "prefix run_/manifest_/result_ plus FULL64 lowercase SHA-256 hex of RFC8785 JCS [label,...namespace]. Allocation is pinned locally before POST, never copied from the response."
+  },
+  "runOperations": "beginRun requires every confirmed preparation object to have passed typed decryption; it caches exact signed Begin bytes per operation. installRun verifies independently allocated IDs, immutable manifest, original intent and issuance author proofs. decryptRun accepts task then resources in formal grant order, with exact last-page retry. Carrier AAD stays its original task/source context; Run binding is transitive through signed Begin and manifest fingerprint references.",
+  "runInputPolicy": "Run-only private checks retain policy and source facts in memory, cleared on lock. Begin evaluates allowPartial, allowUnknownAsOf and maxFetchedAgeSeconds at trusted client time; frozen Run inputs evaluate those facts at Run.createdAt selection time, while current authorization and Run expiry still use current time. Future fetchedAt, excessive age and stale freshness fail; unknown freshness needs allowUnknownAsOf. Missing sourceAsOf is never replaced with fetchedAt. These are conservative owner-attested input checks, not proof of broker truth or financial freshness."
 }
