@@ -74,6 +74,29 @@ WEB_BUILD_FIELDS = {
     "_FIREBASE_PROJECT_ID",
     "_FIREBASE_APP_ID",
 }
+WEB_OWNER_FLAGS = {"portfolio", "agentHub"}
+WEB_OWNER_ENVIRONMENT_FIELDS = {
+    "FOLIOVIEW_OWNER_FIREBASE_PROJECT_ID",
+    "FOLIOVIEW_PORTFOLIO_OWNER_ENABLED",
+    "FOLIOVIEW_PORTFOLIO_ORIGIN",
+    "FOLIOVIEW_PORTFOLIO_AUDIENCE",
+    "FOLIOVIEW_HUB_OWNER_ENABLED",
+    "FOLIOVIEW_HUB_ORIGIN",
+}
+WEB_OWNER_SERVER_FIELDS = {
+    "schemaVersion",
+    "instanceId",
+    "target",
+    "webDeploymentSha256",
+    "environment",
+}
+WEB_OWNER_PUBLIC_FIELDS = {
+    "schemaVersion",
+    "instanceId",
+    "target",
+    "serverConfigurationSha256",
+    "flags",
+}
 SLUG = re.compile(r"[a-z][a-z0-9-]{1,62}\Z")
 PROJECT = re.compile(r"[a-z][a-z0-9-]{4,28}[a-z0-9]\Z")
 REGION = re.compile(r"[a-z]+(?:-[a-z0-9]+)+[0-9]\Z")
@@ -170,8 +193,10 @@ def uuid(value):
 def validate_profile(value):
     """Closed structure and cross-field consistency, not live ownership attestation."""
     try:
-        fields(value, TOP_FIELDS)
-        require(type(value["schemaVersion"]) is int and value["schemaVersion"] == 1)
+        require(type(value) is dict)
+        version = value.get("schemaVersion")
+        require(type(version) is int and version in {1, 2})
+        fields(value, TOP_FIELDS | ({"webOwnerApis"} if version == 2 else set()))
         matches(SLUG, value["profileId"])
         require(value["mode"] in {"adoption", "fresh_install"})
         fields(value["project"], {"id", "number"})
@@ -280,6 +305,23 @@ def validate_profile(value):
                 require(address is not None and image is not None)
         if firebase["enabled"]:
             require(value["targets"]["web"]["origin"] is not None)
+        if version == 2:
+            flags = value["webOwnerApis"]
+            fields(flags, WEB_OWNER_FLAGS)
+            require(all(type(flag) is bool for flag in flags.values()))
+            for flag, target_name in (("portfolio", "portfolio"), ("agentHub", "agent-hub")):
+                if flags[flag]:
+                    require(firebase["enabled"])
+                    require(value["targets"]["web"]["lifecycle"] == "adopt")
+                    upstream = value["targets"][target_name]
+                    require(upstream["lifecycle"] == "adopt" and upstream["origin"] is not None)
+                    if target_name == "portfolio":
+                        # This first consumer contract supports the numbered Run URL
+                        # as both origin and default audience, not custom audiences.
+                        require(
+                            upstream["origin"]
+                            == f"https://{TARGET_SERVICES[target_name]}-{number}.{region}.run.app"
+                        )
         # Canonical serialization rejects invalid Unicode and snapshots mutable callers.
         return json.loads(canonical(value))
     except (KeyError, TypeError, ValueError, OverflowError, RecursionError):
@@ -503,6 +545,160 @@ def compile_artifacts(profile, target):
     }
 
 
+def validate_web_owner_server(value, instance):
+    """Validate a separate future-consumer contract, never Terraform inputs."""
+    try:
+        instance = parse_target(canonical(instance))
+        require(instance["target"] == "web")
+        fields(value, WEB_OWNER_SERVER_FIELDS)
+        require(type(value["schemaVersion"]) is int and value["schemaVersion"] == 1)
+        require(value["target"] == "web" and value["instanceId"] == instance["instanceId"])
+        require(value["webDeploymentSha256"] == digest(instance))
+        environment = value["environment"]
+        fields(environment, WEB_OWNER_ENVIRONMENT_FIELDS)
+        require(all(type(item) is str for item in environment.values()))
+        portfolio_enabled = environment["FOLIOVIEW_PORTFOLIO_OWNER_ENABLED"]
+        hub_enabled = environment["FOLIOVIEW_HUB_OWNER_ENABLED"]
+        require(portfolio_enabled in {"true", "false"} and hub_enabled in {"true", "false"})
+        enabled = "true" in {portfolio_enabled, hub_enabled}
+        project = instance["project"]["id"]
+        require(environment["FOLIOVIEW_OWNER_FIREBASE_PROJECT_ID"] == (project if enabled else ""))
+        if enabled:
+            require(instance["build"]["_FIREBASE_PROJECT_ID"] == project)
+        portfolio = environment["FOLIOVIEW_PORTFOLIO_ORIGIN"]
+        audience = environment["FOLIOVIEW_PORTFOLIO_AUDIENCE"]
+        if portfolio_enabled == "true":
+            number, region = instance["project"]["number"], instance["region"]
+            require(portfolio == f"https://portfolio-api-{number}.{region}.run.app")
+            require(audience == portfolio)
+        else:
+            require(portfolio == audience == "")
+        hub = environment["FOLIOVIEW_HUB_ORIGIN"]
+        if hub_enabled == "true":
+            validate_instance_origin(
+                hub, "agent-hub-api", instance["project"]["number"], instance["region"]
+            )
+            require(hub != portfolio)
+            require(
+                hub
+                not in {
+                    instance["build"][name]
+                    for name in ("_API_BASE_URL", "_USER_API_BASE_URL", "_CONFIG_API_BASE_URL")
+                }
+            )
+        else:
+            require(hub == "")
+        require(len(canonical(value)) <= MAX_TARGET_BYTES)
+    except (KeyError, TypeError, ValueError, AttributeError, RecursionError):
+        raise ProfileError from None
+    return value
+
+
+def parse_web_owner_document(data):
+    """Bounded canonical JSON shared by the separate owner configuration files."""
+    require(type(data) is bytes and 0 < len(data) <= MAX_TARGET_BYTES)
+    try:
+        value = json.loads(
+            data.decode("utf-8"), object_pairs_hook=unique_pairs, parse_constant=reject_constant
+        )
+        require(canonical(value) == data)
+        return value
+    except (UnicodeError, ValueError, TypeError, RecursionError):
+        raise ProfileError from None
+
+
+def parse_web_owner_server(data, *, instance, expected_sha256):
+    """Consumers must supply the independently trusted configuration hash pin."""
+    value = parse_web_owner_document(data)
+    validate_web_owner_server(value, instance)
+    matches(re.compile(r"[a-f0-9]{64}\Z"), expected_sha256)
+    require(digest(value) == expected_sha256)
+    return value
+
+
+def parse_web_owner_public(data, *, server, instance, expected_server_sha256):
+    """Public flags must match the validated, pinned server configuration."""
+    try:
+        server = parse_web_owner_server(
+            canonical(server), instance=instance, expected_sha256=expected_server_sha256
+        )
+        value = parse_web_owner_document(data)
+        fields(value, WEB_OWNER_PUBLIC_FIELDS)
+        require(type(value["schemaVersion"]) is int and value["schemaVersion"] == 1)
+        require(value["instanceId"] == server["instanceId"] and value["target"] == "web")
+        require(value["serverConfigurationSha256"] == digest(server))
+        fields(value["flags"], WEB_OWNER_FLAGS)
+        require(all(type(flag) is bool for flag in value["flags"].values()))
+        require(
+            value["flags"]
+            == {
+                "portfolio": server["environment"]["FOLIOVIEW_PORTFOLIO_OWNER_ENABLED"] == "true",
+                "agentHub": server["environment"]["FOLIOVIEW_HUB_OWNER_ENABLED"] == "true",
+            }
+        )
+    except (KeyError, TypeError, ValueError, AttributeError, RecursionError):
+        raise ProfileError from None
+    return value
+
+
+def compile_web_owner_artifacts(profile):
+    """Explicit offline output only; existing compile/render consumers are unchanged."""
+    profile = validate_profile(profile)
+    instance = compile_target(profile, "web")
+    flags = profile.get("webOwnerApis", {"portfolio": False, "agentHub": False})
+    portfolio = profile["targets"]["portfolio"]["origin"] if flags["portfolio"] else ""
+    hub = profile["targets"]["agent-hub"]["origin"] if flags["agentHub"] else ""
+    server = {
+        "schemaVersion": 1,
+        "instanceId": instance["instanceId"],
+        "target": "web",
+        "webDeploymentSha256": digest(instance),
+        "environment": {
+            "FOLIOVIEW_OWNER_FIREBASE_PROJECT_ID": profile["project"]["id"]
+            if any(flags.values())
+            else "",
+            "FOLIOVIEW_PORTFOLIO_OWNER_ENABLED": str(flags["portfolio"]).lower(),
+            "FOLIOVIEW_PORTFOLIO_ORIGIN": portfolio,
+            "FOLIOVIEW_PORTFOLIO_AUDIENCE": portfolio,
+            "FOLIOVIEW_HUB_OWNER_ENABLED": str(flags["agentHub"]).lower(),
+            "FOLIOVIEW_HUB_ORIGIN": hub,
+        },
+    }
+    parse_web_owner_server(canonical(server), instance=instance, expected_sha256=digest(server))
+    public = {
+        "schemaVersion": 1,
+        "instanceId": instance["instanceId"],
+        "target": "web",
+        "serverConfigurationSha256": digest(server),
+        "flags": dict(flags),
+    }
+    parse_web_owner_public(
+        canonical(public), server=server, instance=instance, expected_server_sha256=digest(server)
+    )
+    artifacts = {
+        "web-owner-server.candidate.json": server,
+        "web-owner-public.candidate.json": public,
+    }
+    return {
+        **artifacts,
+        "manifest.json": {
+            "schemaVersion": 1,
+            "purpose": "offline_web_owner_candidate",
+            "approval": "not_requested",
+            "productionActivation": False,
+            "instanceId": instance["instanceId"],
+            "target": "web",
+            "profileSha256": digest(profile),
+            "webDeploymentSha256": digest(instance),
+            "serverConfigurationSha256": digest(server),
+            "filesSha256": {
+                name: hashlib.sha256(canonical(value) + b"\n").hexdigest()
+                for name, value in artifacts.items()
+            },
+        },
+    }
+
+
 def render(profile, *, root=ROOT):
     profile = validate_profile(profile)
     project, number = profile["project"]["id"], profile["project"]["number"]
@@ -630,19 +826,27 @@ def write_candidates(artifacts, destination):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("action", choices=("validate", "render", "compile"))
+    parser.add_argument("action", choices=("validate", "render", "compile", "compile-web-owner"))
     parser.add_argument("--profile", required=True)
     parser.add_argument("--output-dir")
     parser.add_argument("--target")
     args = parser.parse_args()
     try:
-        require((args.action in {"render", "compile"}) == (args.output_dir is not None))
+        require(
+            (args.action in {"render", "compile", "compile-web-owner"})
+            == (args.output_dir is not None)
+        )
         require((args.action == "compile") == (args.target is not None))
         profile = load_profile(args.profile)
-        artifacts = (
-            compile_artifacts(profile, args.target) if args.action == "compile" else render(profile)
-        )
-        if args.action in {"render", "compile"}:
+        if args.action == "compile-web-owner":
+            artifacts = compile_web_owner_artifacts(profile)
+        else:
+            artifacts = (
+                compile_artifacts(profile, args.target)
+                if args.action == "compile"
+                else render(profile)
+            )
+        if args.action in {"render", "compile", "compile-web-owner"}:
             write_candidates(artifacts, args.output_dir)
         # Hashes identify selected input; they are not source-provenance or approval proof.
         print(json.dumps(artifacts["manifest.json"], sort_keys=True))

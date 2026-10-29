@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://folioview.example/schemas/web-owner-server-v1",
+  "title": "web-owner-server offline configuration v1",
+  "description": "Closed structural schema. Python parsers additionally enforce canonical bytes, trusted hash and Web deployment bindings, per-flag origin and Firebase consistency. This does not activate a consumer.",
+  "type": "object",
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "instanceId": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{1,62}$"
+    },
+    "target": {
+      "const": "web"
+    },
+    "webDeploymentSha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "environment": {
+      "type": "object",
+      "properties": {
+        "FOLIOVIEW_OWNER_FIREBASE_PROJECT_ID": {
+          "type": "string"
+        },
+        "FOLIOVIEW_PORTFOLIO_OWNER_ENABLED": {
+          "enum": ["true", "false"]
+        },
+        "FOLIOVIEW_PORTFOLIO_ORIGIN": {
+          "type": "string"
+        },
+        "FOLIOVIEW_PORTFOLIO_AUDIENCE": {
+          "type": "string"
+        },
+        "FOLIOVIEW_HUB_OWNER_ENABLED": {
+          "enum": ["true", "false"]
+        },
+        "FOLIOVIEW_HUB_ORIGIN": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "FOLIOVIEW_OWNER_FIREBASE_PROJECT_ID",
+        "FOLIOVIEW_PORTFOLIO_OWNER_ENABLED",
+        "FOLIOVIEW_PORTFOLIO_ORIGIN",
+        "FOLIOVIEW_PORTFOLIO_AUDIENCE",
+        "FOLIOVIEW_HUB_OWNER_ENABLED",
+        "FOLIOVIEW_HUB_ORIGIN"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "required": ["schemaVersion", "instanceId", "target", "webDeploymentSha256", "environment"],
+  "additionalProperties": false
+}
