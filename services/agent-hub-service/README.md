@@ -13,6 +13,9 @@ The separately gated [encrypted preparation protocol and foreground helper](PREP
 publish owner-encrypted copies to one explicitly authorized agent, without creating a Run.
 The [Run producer](RUNS.md) freezes those committed deliveries into formal manifests and serves
 authorized immutable input pages. It does not execute a model or submit a result.
+The [result producer](RESULTS.md) accepts authorized client-encrypted initial results and
+CAS revisions, with atomic persistence and original receipt recovery. Report content remains
+opaque to the backend; these endpoints do not implement owner Inbox browsing or MCP tools.
 
 `GET /health` remains `{ "status": "ok", "service": "agent-hub" }`. Import, startup and health
 need no Firebase/Firestore/KMS credentials, clients or network. Those dependencies are lazy.
@@ -317,7 +320,8 @@ The fixed issuer is the configured HTTPS origin `H`; the encrypted logical resou
 exactly `H/mcp/v2`, including when a future consumer uses `/agent/v2/*` REST. A v1 `/mcp` approval
 does not become a v2 approval. Discovery and protocol URLs are generated from configuration, never
 from caller Host or forwarded headers. Encrypted preparation and formal Run reads use the gated
-protocols below and in [RUNS.md](RUNS.md); MCP and result tools remain unimplemented.
+protocols below and in [RUNS.md](RUNS.md). [Result writes and receipts](RESULTS.md) have gated
+HTTP routes; MCP tool adaptation remains unimplemented.
 
 | Endpoint                                                                | Behavior                                                                                                     |
 | ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
@@ -453,6 +457,7 @@ Its health smoke check runs with networking disabled and removes its test contai
 
 No Cloud Run service, database, KMS key, IAM grant or trigger is created here. INF-006 and explicit
 future trust/configuration approval still govern any cloud activation. Owner task CRUD and the
-disabled OAuth foundation, encrypted preparations and formal Runs are implemented locally/build-only.
-MCP, Results/Inbox and broker access remain separate consumers and fail closed; this change does not
-activate those consumers or any production endpoint.
+disabled OAuth foundation, encrypted preparations, formal Runs and encrypted result writes are
+implemented locally/build-only.
+MCP adaptation, owner Inbox browsing and broker access remain separate consumers and fail closed;
+this change does not activate those consumers or any production endpoint.

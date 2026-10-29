@@ -307,4 +307,4 @@ class PreparationRouteTests(unittest.TestCase):
             response = self.client.get(prefix + "worker.mjs")
             self.assertEqual(response.status_code, 503)
             self.assertNotEqual(response.content, worker.content)
-        self.assertEqual(json.loads(manifest_response.content)["helperVersion"], "1.1.0")
+        self.assertEqual(json.loads(manifest_response.content)["helperVersion"], "1.2.0")

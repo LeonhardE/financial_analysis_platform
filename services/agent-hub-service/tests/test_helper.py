@@ -271,7 +271,7 @@ class BrowserHelperTests(unittest.TestCase):
             ("confirmDelivery", {"pin": self.pin}),
             ("importPrivateKey", {"privateJwk": {"d": "synthetic"}}),
             ("exportPrivateKey", {}),
-            ("sealResult", {"content": "synthetic"}),
+            ("encryptArbitrary", {"content": "synthetic"}),
         ):
             denied = self.peer.call(op, args, ok=False)
             self.assertFalse(denied["ok"])

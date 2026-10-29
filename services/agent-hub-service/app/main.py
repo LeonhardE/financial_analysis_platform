@@ -11,6 +11,7 @@ from .oauth_routes import owner_router as oauth_owner_router
 from .oauth_routes import router as oauth_router
 from .preparations import agent_router as preparation_agent_router
 from .preparations import owner_router as preparation_owner_router
+from .results import router as results_router
 from .runs import router as runs_router
 from .tasks import router as tasks_router
 
@@ -40,6 +41,7 @@ app.include_router(agent_router)
 app.include_router(preparation_owner_router)
 app.include_router(preparation_agent_router)
 app.include_router(runs_router)
+app.include_router(results_router)
 app.include_router(helper_router)
 app.add_middleware(HubErrors)
 

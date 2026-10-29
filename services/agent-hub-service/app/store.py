@@ -38,6 +38,10 @@ COLLECTIONS = frozenset(
         "hub_run_operations",
         "hub_run_indexes",
         "hub_run_quotas",
+        "hub_results",
+        "hub_result_revisions",
+        "hub_result_operations",
+        "hub_result_indexes",
     }
 )
 
