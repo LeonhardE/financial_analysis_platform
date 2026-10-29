@@ -1,4 +1,4 @@
-# Agent Hub encrypted vault authority and source fences
+# Agent Hub encrypted vaults, resource discovery and tasks
 
 The build-only Hub stores one opaque, passkey-sealed vault archive and its root-signed public
 key directory per verified Google owner. It owns up to ten public holdings-source references.
@@ -6,6 +6,7 @@ Portfolio holds the encrypted snapshots; Hub never receives CSV, positions, acco
 content keys, passkey PRF output or private JWKs. The owner resource catalogue composes only existing
 User/Portfolio discovery metadata. Neither capability implements agent authorization, encrypted Run
 evidence delivery, Run execution, broker login or inbox delivery.
+Owner task management stores signed encrypted rules and immutable versions without opening them.
 
 `GET /health` remains `{ "status": "ok", "service": "agent-hub" }`. Import, startup and health
 need no Firebase/Firestore/KMS credentials, clients or network. Those dependencies are lazy.
@@ -124,6 +125,86 @@ change reads only Hub's own database and does not initialize lists, synchronize 
 read encrypted snapshots or create copies of User's mutable masters. Actual cloud trust and deployment
 remain separate work; the new settings are examples, not activated cloud configuration.
 
+## Encrypted owner tasks
+
+Task APIs use the existing verified Firebase Google owner, exact v2 contract header and `no-store`
+responses. Writes also require one `Idempotency-Key` and `X-FolioView-Author-Key`. A browser owner
+cannot supply another owner partition, an agent/delegation header or a workload token as owner
+authority. Unknown fields, duplicate JSON members, duplicate resource refs and unsupported queries
+fail closed through the existing bounded body/error transport.
+
+| Endpoint                                        | Behavior                                                |
+| ----------------------------------------------- | ------------------------------------------------------- |
+| `GET /api/v2/tasks`                             | Bounded public metadata page; `limit` and `cursor` only |
+| `GET /api/v2/tasks/{taskId}`                    | Current encrypted version                               |
+| `GET /api/v2/tasks/{taskId}/versions/{version}` | One immutable encrypted historical version              |
+| `POST /api/v2/tasks`                            | Create active version 1 with expected version 0         |
+| `PUT /api/v2/tasks/{taskId}`                    | CAS rule/scope edit with a newly signed envelope        |
+| `POST /api/v2/tasks/{taskId}/transitions`       | Signed pause, resume or terminal archive                |
+
+Create has exactly `contractVersion`, `taskId`, `expectedVersion`, `resourceBindings`, `envelope`.
+Update omits the body `taskId`; transition adds `transitionIntent`. `envelope` is the existing shared
+Carrier, with `contractVersion` and `signedObject`. The task context binds the same task ID and
+next task version, operation ID, expected version, resource bindings, current checkpoint/key epoch,
+author and owner-device/recovery recipients. The server derives shared `TaskMetadata` including
+status, `executionEpoch`, version, timestamps and envelope fingerprint; clients cannot set them.
+Responses use shared `EncryptedTask`, preserving the signed object and original public `KeyProofs`.
+Create returns 201 on first save and 200 on exact replay; update/transition return 200.
+
+Only a current `device_sig` writer may save, with every currently authorized owner `device_enc` and
+`recovery_enc` recipient. Registering an agent key is insufficient: no Task recipient is granted to
+an agent by this API. Formal agent grants and Run delivery remain separate consumers. New writes
+require the current root-pinned checkpoint. A state transition also requires the existing device
+control signature committing the same author, operation, task, expected/next versions, next epoch
+and exact next envelope fingerprint. Generic control commands cannot bypass this intent.
+
+Every edit, including pause/resume/archive, advances `taskVersion` and retains prior ciphertext.
+An ordinary encrypted rule edit keeps `executionEpoch`. Changes to the public set of full resource
+refs/epochs, a current registry key-epoch change, pause or archive advance it once; reordering the
+same binding set does not. Resume preserves the current epoch unless the key epoch changed, and
+requires a new version. Transitions cannot simultaneously alter the public resource set: save the
+scope change separately. Archive is terminal; there is no irreversible purge or unarchive API.
+The server cannot inspect encrypted account selection, input policy, titles, output sections,
+language, time zone or private schedule. An unlocked client must apply templates and validate
+private `TaskContent`; backend signature acceptance is not private-schema or AEAD-tag validation.
+An immediate execution invalidation needs an explicit pause/public scope fence. New task versions
+do not silently expand an existing agent grant's allowed versions or rewrite a Run's frozen rules.
+
+Create, changed resource bindings and resume first verify selected refs/epochs against available
+current owner discovery metadata. This occurs outside the transaction. Final registry/CAS and
+Hub source-fence checks occur together inside the write transaction. Same-binding active rule
+edits check local fences without a source RPC. Paused rule edits, pause and archive remain possible
+during source outages; pause/archive do not depend on an active external source. Zero-resource
+custom tasks use the same encrypted contract with no source calls. Discovery selection is neither
+prepared encrypted evidence nor an agent grant, and later Run consumers still need current
+source/grant/task/key checks. No network call runs inside a retried database transaction.
+
+The task head, immutable version, operation record and owner index commit atomically in SQLite or
+Firestore. Competing expected versions return `version_conflict`. Reusing an operation with changed
+ciphertext or bindings returns `idempotency_conflict`; exact same-envelope replay returns the
+original encrypted version even after later edits and never rolls back the current head. Legal
+signature variants are compared through the shared signing-input fingerprint. Replay still checks
+current writer/recipient/key-epoch authority, so revoked keys cannot recover writes as fresh
+authority. Historical reads instead verify the retained checkpoint, certificates, signature and
+public recipient bindings at the original save time: an author revoked or expired today does not
+make a formerly valid owner history unreadable. Historical proof or stored receipt corruption
+fails closed. A backwards server clock rejects a new version before commit; saved exact replays
+remain recoverable.
+
+Lists return only shared `TaskMetadataPage`, never private task text or encrypted carriers. They
+default to 20 entries, allow at most 50, and sort by opaque task ID. A cursor is a persistent random
+reference bound to this authenticated owner/vault, page size and exact metadata snapshot, expiring
+after 15 minutes. Updates invalidate that snapshot; foreign, expired or malformed cursors fail.
+It is not an authorization credential. Search, title sorting, status filters and offsets are not
+accepted. At most 32 live cursor records are retained per owner/vault, without a new server secret.
+
+This slice retains at most 32 tasks, 50 versions per task and 128 operation records per task, with
+no automatic history eviction. Ordinary edits/resume stop at version 48, reserving version 49 for
+pause and version 50 for archive; archive may use either remaining slot. Reads and exact authorized
+replays remain available at capacity. Limits can be reached sooner through shared serialized byte
+budgets. Saving does not invoke a model, create a scheduled task, decrypt rules or send a report.
+It adds no runtime settings, cloud configuration, resources or deployment activation.
+
 ## Public authority and signing
 
 `POST /internal/v2/portfolio-authorities/read` accepts exactly
@@ -226,6 +307,10 @@ archive and bounded source list. `hub_operations` stores only owner/kind/fingerp
 `hub_source_fences` holds owner/full-ref/epoch/state metadata; `hub_fence_mutations` holds bounded
 validated mutation metadata, a canonical request fingerprint and its original ACK. No private
 positions, task/report content, user/agent keys or tokens enter these records.
+`hub_tasks` stores public task heads, `hub_task_versions` stores opaque carriers and original public
+proofs, `hub_task_operations` binds original write responses, and `hub_task_indexes` stores the
+bounded owner/vault metadata index and cursor references. Task plaintext and private keys are not
+stored in these collections.
 No background workers, post-response tasks or database scans are used.
 
 A vault allows at most 32 consecutive registry bundles, ten sources and 64 operation records.
@@ -259,4 +344,5 @@ Its health smoke check runs with networking disabled and removes its test contai
 
 No Cloud Run service, database, KMS key, IAM grant or trigger is created here. INF-006 and explicit
 future trust/configuration approval still govern any cloud activation. MCP, OAuth, agent grants,
-Tasks/Runs/Results/Inbox and broker access remain unimplemented and fail closed.
+Runs/Results/Inbox and broker access remain unimplemented and fail closed. Owner task CRUD is
+implemented locally/build-only; it does not activate those consumers or any production endpoint.

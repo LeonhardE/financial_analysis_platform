@@ -32,6 +32,10 @@ class AgentHubBoundaryTests(unittest.TestCase):
                     "/api/v2/vaults/{vault_id}/holdings-sources/{source_id}",
                     "/api/v2/vaults/current/authority-token",
                     "/api/v2/resources/catalogue",
+                    "/api/v2/tasks",
+                    "/api/v2/tasks/{task_id}",
+                    "/api/v2/tasks/{task_id}/versions/{version}",
+                    "/api/v2/tasks/{task_id}/transitions",
                     "/internal/v2/portfolio-authorities/read",
                     "/internal/v2/source-fences",
                     "/.well-known/jwks.json",
@@ -43,7 +47,6 @@ class AgentHubBoundaryTests(unittest.TestCase):
             for method, path in (
                 ("GET", "/api"),
                 ("GET", "/api/v2/resources"),
-                ("GET", "/api/v2/tasks"),
                 ("POST", "/api/v2/results"),
                 ("GET", "/api/v2/inbox"),
                 ("GET", "/mcp"),
