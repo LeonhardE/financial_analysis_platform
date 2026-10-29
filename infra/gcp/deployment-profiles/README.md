@@ -191,14 +191,128 @@ and [invocation-time substitution overrides](https://docs.cloud.google.com/build
 The runner therefore enforces its own required-value and server-metadata checks rather than
 depending on YAML substitutions to fail when a value is absent.
 
+## Separate Web owner configuration (profile v2)
+
+The owner-entry foundation is an additional offline contract. Existing profile v1, target-instance
+v1, `compile`, `render`, the six-field Web Terraform input and the nine public build substitutions
+retain their existing behavior. No current Terraform, Cloud Build, application or runtime consumer
+reads the new files. Enabling an offline flag does not enable a deployment or change the existing
+Web container's empty environment. The target compiler never silently places owner settings into
+`deployment`, `_DEPLOYMENT_CONFIG`, public build fields or bootstrap inputs.
+
+Use [profile-v2.schema.json](profile-v2.schema.json) instead of
+[profile.schema.json](profile.schema.json) to opt into a closed `webOwnerApis` object:
+
+```json
+{
+  "schemaVersion": 2,
+  "webOwnerApis": {
+    "portfolio": false,
+    "agentHub": false
+  }
+}
+```
+
+This is a fragment: retain all the other v1 profile fields. Both flags are required booleans in v2;
+unknown fields, inline credentials, arbitrary environment dictionaries or separately supplied
+upstream URLs/audiences are rejected. A v1 profile has neither flag and compiles to both disabled
+under this new command. The original v1 schema remains closed and unchanged. All existing
+source, project, region, image, UID, stage and target validation continues to apply to v2.
+
+Each enabled owner route requires Firebase to be configured and Web and that upstream to have
+explicit `adopt` metadata. A disabled route emits no retained origin or audience. Hub may remain
+`create` with no origin/image and stay disabled while Portfolio is enabled. Upstream `enabled`
+continues to mean pipeline policy; owner flags neither change it nor approve service creation.
+
+Portfolio currently supports only its same-profile numbered Cloud Run service URL,
+`https://portfolio-api-{projectNumber}.{region}.run.app`, as the fixed upstream and identical
+default service-token audience. This is an explicit first-consumer support boundary, not a claim
+that other valid Cloud Run URL formats do not exist. Custom domains, hashed Run URLs and custom
+audiences are not enabled by this contract; existing v1/disabled-route profiles may still contain
+their previously supported canonical origins. Hub uses its same-profile canonical HTTPS origin,
+has no IAM-token audience, and remains responsible for Firebase owner authorization on its public
+service. Custom-domain ownership is operator-supplied metadata, not independently attested here.
+
+```sh
+python3 infra/gcp/deployment_profile.py compile-web-owner \
+  --profile .deployment/profile.json \
+  --output-dir .deployment/web-owner-review
+```
+
+There is no `--target` argument for this Web-only action. It produces exactly three private files
+with the existing `0700` directory, `0600` files and no-overwrite rules:
+
+| File                              | Closed contents and future use                                                                                                                                                                   |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `web-owner-server.candidate.json` | Version 1, selected instance, `target=web`, the existing canonical Web target projection's SHA-256 and six fixed server environment values. This is not a Terraform variable file.               |
+| `web-owner-public.candidate.json` | Version 1, selected instance, `target=web`, server configuration SHA-256 and only the two boolean public flags. No upstream, audience, Firebase server setting, token or environment dictionary. |
+| `manifest.json`                   | Input/Web/server/file-byte hashes, `approval=not_requested` and `productionActivation=false`. Stdout prints only this manifest.                                                                  |
+
+The server file's `environment` has exactly these string-valued names:
+
+- `FOLIOVIEW_OWNER_FIREBASE_PROJECT_ID`: the selected project when at least one route is enabled,
+  otherwise empty. It is derived rather than an independently editable Firebase project.
+- `FOLIOVIEW_PORTFOLIO_OWNER_ENABLED`: `"true"` or `"false"`.
+- `FOLIOVIEW_PORTFOLIO_ORIGIN` and `FOLIOVIEW_PORTFOLIO_AUDIENCE`: the same validated Portfolio
+  origin when enabled, otherwise both empty.
+- `FOLIOVIEW_HUB_OWNER_ENABLED`: `"true"` or `"false"`.
+- `FOLIOVIEW_HUB_ORIGIN`: the validated Hub origin when enabled, otherwise empty.
+
+The public file is a transport envelope for future build configuration, not a browser response to
+publish wholesale. Its `flags` object is exactly `{"portfolio": bool, "agentHub": bool}`; a later
+Web consumer explicitly maps these flags into its reviewed public build names. The existing nine
+build substitutions are unchanged. Metadata URLs are not secrets, but a browser never selects a
+server forwarding destination.
+
+### Future consumer validation and delivery boundary
+
+The structural contracts are [web-owner-server.schema.json](web-owner-server.schema.json) and
+[web-owner-public.schema.json](web-owner-public.schema.json). Parsers require canonical ASCII
+JSON of at most 4000 bytes and reject duplicate/unknown fields, non-JSON constants and mixed
+contexts. Files have a terminal newline for storage; remove exactly that writer newline before
+calling the canonical-byte parsers, without reserializing arbitrary input first.
+
+A future INF-009 consumer must obtain both the existing selected Web target projection and an
+independently reviewed server-configuration hash from trusted configuration metadata. It must not
+accept a hash supplied by the browser or merely trust a candidate manifest placed beside an
+untrusted file. With `instance` parsed by the existing `parse_target` and `server_hash` independently
+pinned:
+
+```python
+server = parse_web_owner_server(server_bytes, instance=instance, expected_sha256=server_hash)
+public = parse_web_owner_public(
+    public_bytes,
+    server=server,
+    instance=instance,
+    expected_server_sha256=server_hash,
+)
+```
+
+The server configuration is bound to the entire existing Web projection, including project,
+region, source, image, runtime account and adoption UIDs, without creating independently divergent
+copies of those values. The public flags must match that pinned server configuration. A whole
+bundle from another instance or a modified UID/source fails rather than falling back. These
+digests bind selected inputs; they do not attest live ownership or authorize cloud changes.
+
+WEB-002 separately implements fixed owner routes and tests, first Portfolio and then Hub in its own
+Web PR. INF-008 separately grants only the approved Portfolio invoker. INF-009 later reviews and
+consumes this contract, configures server/public settings, and enables each path only after actual
+authorization and transport acceptance. Hub Muse OAuth/REST/discovery/JWKS do not pass through
+this owner proxy. No all-protocol gateway, service credentials, account keys, decryptor, new
+service, cloud plan/apply or production enablement is introduced by this foundation.
+
 ## Verification
 
 ```sh
 python3 -m unittest discover -s infra/gcp/tests -p test_deployment_profile.py -v
 python3 -m unittest discover -s infra/gcp/tests -p test_deployment_instances.py -v
+python3 -m unittest discover -s infra/gcp/tests -p test_web_owner_configuration.py -v
 ```
 
 Tests render two independent synthetic projects/regions/sources, exercise the real existing policy
 validator on an isolated temporary root, compare bootstrap/Web variable shapes, reject mixed
 projects/images/anchors and secret/unknown fields, verify actual file-byte hashes/private modes,
 and prove an existing policy is not modified. They perform no cloud calls or Terraform execution.
+The owner-configuration suite additionally checks pre-change target/input digests, v1/v2 default
+compatibility, independent flags, missing Hub, exact server/public hash binding, hostile metadata,
+fixed environment fields, private CLI output and unchanged active-consumer inputs.

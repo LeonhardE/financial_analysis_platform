@@ -1,0 +1,26 @@
+{
+  "config": {
+    "projectionSha256": "b0e64765ed80d9bd96e1ff68939b0b4c1231c0e7a15f88a29c5b44ba0b65a2d5",
+    "terraformInputsSha256": "b82ee483dcc35dddd892767f4d0baba1dc82b067f1543decfa891085e013f5a6"
+  },
+  "market": {
+    "projectionSha256": "749d5d498c2e6505629186e030bf5ccbd02fac34c4a65c33150bd79f0af6a260",
+    "terraformInputsSha256": "a5f12d6ff2efea60e36a47c8ff487983e3a6320bdfcdc8c1ab5fef766cebcbea"
+  },
+  "portfolio": {
+    "projectionSha256": "e33935f8f664157c9b5d05c64e9094b538969d92485c89f06e128235c3e17aa5",
+    "terraformInputsSha256": "6a0077d4d020445ed30d9210d46d5f0a2c123acbc306b4321bfdf1cf0999b09d"
+  },
+  "repo": {
+    "projectionSha256": "b8c849b49e8b714db7877b082f4b95a098c0a7df2e1e77b9fd2dd76c89021560",
+    "terraformInputsSha256": "df683ff3850c8f12a4800135646609d4985e6420ef01a2b3da43bdfb222b0f3e"
+  },
+  "user": {
+    "projectionSha256": "77e9b243339f76d1391ad548cc85c717f8adf55c4db7ed0986ddfdc8cf81d0d7",
+    "terraformInputsSha256": "1fdfe13ac4bef895ca654228bae703ceb37d6483c38aedd14aa76ab0bb5fc99a"
+  },
+  "web": {
+    "projectionSha256": "471e5852eecff3d41780e97164a5be23e8431c034cf6ebec05f7fb208416312b",
+    "terraformInputsSha256": "eb5d6cd119b54ad22fde759bf4c05d13aad470a526c23b16c572b860d88ff1fd"
+  }
+}

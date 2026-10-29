@@ -1,0 +1,209 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://folioview.example/schemas/deployment-profile-v2",
+  "title": "Explicit offline deployment profile v2 with bounded Web owner APIs",
+  "description": "Structural schema. The loader additionally enforces cross-project/source/image/anchor/stage consistency; validation is not cloud provenance or approval.",
+  "type": "object",
+  "properties": {
+    "schemaVersion": {
+      "const": 2
+    },
+    "profileId": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{1,62}$"
+    },
+    "mode": {
+      "enum": ["adoption", "fresh_install"]
+    },
+    "project": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]{4,28}[a-z0-9]$"
+        },
+        "number": {
+          "type": "string",
+          "pattern": "^[1-9][0-9]{5,19}$"
+        }
+      },
+      "required": ["id", "number"],
+      "additionalProperties": false
+    },
+    "region": {
+      "type": "string",
+      "pattern": "^[a-z]+(?:-[a-z0-9]+)+[0-9]$"
+    },
+    "source": {
+      "type": "object",
+      "properties": {
+        "repositoryUrl": {
+          "type": "string"
+        },
+        "repositoryResource": {
+          "type": "string"
+        }
+      },
+      "required": ["repositoryUrl", "repositoryResource"],
+      "additionalProperties": false
+    },
+    "artifactRepository": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{1,62}$"
+    },
+    "state": {
+      "type": "object",
+      "properties": {
+        "bootstrapBucket": {
+          "type": "string"
+        },
+        "stateBucket": {
+          "type": "string"
+        },
+        "planBucket": {
+          "type": "string"
+        }
+      },
+      "required": ["bootstrapBucket", "stateBucket", "planBucket"],
+      "additionalProperties": false
+    },
+    "bootstrapStages": {
+      "type": "object",
+      "properties": {
+        "portfolio": {
+          "enum": ["none", "execution", "service"]
+        },
+        "agent-hub": {
+          "enum": ["none", "execution", "service"]
+        }
+      },
+      "required": ["portfolio", "agent-hub"],
+      "additionalProperties": false
+    },
+    "firebase": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "apiKey": {
+          "type": "string"
+        },
+        "authDomain": {
+          "type": "string"
+        },
+        "appId": {
+          "type": "string"
+        }
+      },
+      "required": ["enabled", "apiKey", "authDomain", "appId"],
+      "additionalProperties": false
+    },
+    "targets": {
+      "type": "object",
+      "properties": {
+        "repo": {
+          "$ref": "#/$defs/target"
+        },
+        "market": {
+          "$ref": "#/$defs/target"
+        },
+        "user": {
+          "$ref": "#/$defs/target"
+        },
+        "config": {
+          "$ref": "#/$defs/target"
+        },
+        "web": {
+          "$ref": "#/$defs/target"
+        },
+        "portfolio": {
+          "$ref": "#/$defs/target"
+        },
+        "agent-hub": {
+          "$ref": "#/$defs/target"
+        }
+      },
+      "required": ["repo", "market", "user", "config", "web", "portfolio", "agent-hub"],
+      "additionalProperties": false
+    },
+    "webOwnerApis": {
+      "type": "object",
+      "properties": {
+        "portfolio": {
+          "type": "boolean"
+        },
+        "agentHub": {
+          "type": "boolean"
+        }
+      },
+      "required": ["portfolio", "agentHub"],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "profileId",
+    "mode",
+    "project",
+    "region",
+    "source",
+    "artifactRepository",
+    "state",
+    "bootstrapStages",
+    "firebase",
+    "targets",
+    "webOwnerApis"
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "target": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "lifecycle": {
+          "enum": ["adopt", "create"]
+        },
+        "origin": {
+          "type": ["string", "null"]
+        },
+        "image": {
+          "type": ["string", "null"]
+        },
+        "runtimeAccountId": {
+          "type": ["string", "null"]
+        },
+        "adoption": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "object",
+              "properties": {
+                "serviceUid": {
+                  "type": ["string", "null"]
+                },
+                "buildTriggerId": {
+                  "type": ["string", "null"]
+                },
+                "planTriggerId": {
+                  "type": "string"
+                },
+                "applyTriggerId": {
+                  "type": "string"
+                }
+              },
+              "required": ["serviceUid", "buildTriggerId", "planTriggerId", "applyTriggerId"],
+              "additionalProperties": false
+            }
+          ]
+        }
+      },
+      "required": ["enabled", "lifecycle", "origin", "image", "runtimeAccountId", "adoption"],
+      "additionalProperties": false
+    }
+  }
+}

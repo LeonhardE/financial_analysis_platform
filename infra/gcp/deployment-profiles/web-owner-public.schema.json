@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://folioview.example/schemas/web-owner-public-v1",
+  "title": "web-owner-public offline configuration v1",
+  "description": "Closed structural schema. Python parsers additionally enforce canonical bytes, trusted hash and Web deployment bindings, per-flag origin and Firebase consistency. This does not activate a consumer.",
+  "type": "object",
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "instanceId": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{1,62}$"
+    },
+    "target": {
+      "const": "web"
+    },
+    "serverConfigurationSha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "flags": {
+      "type": "object",
+      "properties": {
+        "portfolio": {
+          "type": "boolean"
+        },
+        "agentHub": {
+          "type": "boolean"
+        }
+      },
+      "required": ["portfolio", "agentHub"],
+      "additionalProperties": false
+    }
+  },
+  "required": ["schemaVersion", "instanceId", "target", "serverConfigurationSha256", "flags"],
+  "additionalProperties": false
+}
