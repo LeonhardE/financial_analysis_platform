@@ -124,6 +124,7 @@ function harness({
   const passkey = deferred();
   let auth = { status: "authenticated", sessionKey: "owner_a:1", profile: { uid: "owner_a" } };
   let portfolioConfigured = configured;
+  let agentHubConfigured = hubConfigured;
   let bodyHold = null;
   let bodyReads = 0;
   let remoteVault = hasVault ? vault : null;
@@ -366,10 +367,10 @@ function harness({
       useAuth: () => ({
         ...auth,
         portfolioConfigured,
+        agentHubConfigured,
         requestPrivate,
         signIn: async () => {},
       }),
-      isPrivateServiceConfigured: () => hubConfigured,
     },
     "@/lib/holdings-csv": {
       HOLDINGS_CSV_MAX_BYTES: 4194304,
@@ -414,6 +415,9 @@ function harness({
     },
     configured(next) {
       portfolioConfigured = next;
+    },
+    hubConfigured(next) {
+      agentHubConfigured = next;
     },
     holdBody(next) {
       bodyHold = next;
@@ -805,6 +809,68 @@ test("late encrypted response body after account switch or logout cannot decrypt
     assert.equal(model.content, null);
     assert.equal(model.preview, null);
     assert.equal(h.counts().opens, opened);
+    assert.ok(h.instances.every((instance) => instance.locked));
+    h.unmount();
+  }
+});
+
+test("Hub availability independently blocks loading and locks an already open holdings workspace", async () => {
+  const h = harness({ hubConfigured: false });
+  let model = await ready(h);
+  assert.equal(model.configured, false);
+  assert.equal(h.requests.length, 0);
+  h.hubConfigured(true);
+  model = await unlocked(h);
+  await model.importFile(file);
+  assert.ok(h.render().preview);
+  h.hubConfigured(false);
+  model = h.render({ flush: false });
+  assert.equal(model.configured, false);
+  assert.equal(model.preview, null);
+  assert.equal(model.content, null);
+  h.render();
+  assert.ok(h.instances.every((instance) => instance.locked));
+  const calls = h.requests.length;
+  await h.render().reload();
+  assert.equal(h.requests.length, calls);
+  h.unmount();
+});
+
+test("late Hub vault response body cannot restore a switched or logged-out owner's workspace", async () => {
+  for (const transition of ["switch", "logout"]) {
+    const h = harness();
+    let model = await unlocked(h);
+    await model.importFile(file);
+    const body = deferred();
+    let reads = 0;
+    h.holdCurrent({
+      promise: Promise.resolve({
+        ok: true,
+        status: 200,
+        text: async () => {
+          reads++;
+          await body.promise;
+          return JSON.stringify({ contractVersion: CONTRACT, vault, sources: [source] });
+        },
+      }),
+    });
+    const loading = h.render().reload();
+    await settle();
+    assert.equal(reads, 1);
+    h.auth(
+      transition === "switch"
+        ? { status: "authenticated", sessionKey: "owner_b:1", profile: { uid: "owner_b" } }
+        : { status: "anonymous", sessionKey: null, profile: null },
+    );
+    model = h.render({ flush: false });
+    assert.equal(model.preview, null);
+    assert.equal(model.content, null);
+    assert.equal(model.vault, null);
+    body.resolve();
+    await loading;
+    model = h.render();
+    assert.equal(model.preview, null);
+    assert.equal(model.content, null);
     assert.ok(h.instances.every((instance) => instance.locked));
     h.unmount();
   }

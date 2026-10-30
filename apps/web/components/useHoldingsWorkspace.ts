@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { isPrivateServiceConfigured, useAuth } from "@/components/AuthProvider";
+import { useAuth } from "@/components/AuthProvider";
 import {
   HOLDINGS_CSV_MAX_BYTES,
   HoldingsCsvError,
@@ -108,7 +108,7 @@ export function useHoldingsWorkspace() {
   const auth = useAuth();
   const owner = auth.status === "authenticated" && auth.profile ? auth.sessionKey : null;
   const uid = owner ? auth.profile!.uid : null;
-  const configured = auth.portfolioConfigured && isPrivateServiceConfigured("agent-hub");
+  const configured = auth.portfolioConfigured && auth.agentHubConfigured;
   const ownerRef = useRef(owner);
   ownerRef.current = owner;
   const [state, setState] = useState<State>(empty);

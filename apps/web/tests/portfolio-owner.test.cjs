@@ -186,11 +186,22 @@ test.before(async () => {
     alg: "RS256",
     use: "sig",
   };
-  moduleApi = compile("../lib/server/portfolio-owner.ts", {
+  const common = compile("../lib/server/owner-transport.ts", {
     "server-only": {},
     "node:crypto": require("node:crypto"),
     jose,
   });
+  const portfolio = compile("../lib/server/portfolio-owner.ts", {
+    "server-only": {},
+    "./owner-transport": common,
+    jose,
+  });
+  const caps = compile("../lib/server/owner-config.ts", {
+    "server-only": {},
+    "./portfolio-owner": portfolio,
+    "./hub-owner": { hubConfiguration: () => null },
+  });
+  moduleApi = { ...portfolio, ...caps };
   tokenA = await googleToken();
   serviceToken = await new jose.SignJWT({
     iss: "https://accounts.google.com",
@@ -237,7 +248,7 @@ test("Next routes expose only owner methods and anonymous configuration with no 
   assert.equal(routes.runtime, "nodejs");
   assert.equal(routes.dynamic, "force-dynamic");
   const config = compile("../app/api/private/owner-config/route.ts", {
-    "@/lib/server/portfolio-owner": moduleApi,
+    "@/lib/server/owner-config": moduleApi,
   });
   const response = config.GET();
   assert.equal(response.headers.get("cache-control"), "no-store");

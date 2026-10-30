@@ -1,4 +1,4 @@
-import { ownerCapabilities } from "@/lib/server/portfolio-owner";
+import { ownerCapabilities } from "@/lib/server/owner-config";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
