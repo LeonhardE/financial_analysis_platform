@@ -24,6 +24,7 @@ function render(model, locale = "en") {
   const messages = require(`../messages/${locale}.json`);
   const imports = {
     react: React,
+    "./ResourceLibrary": { __esModule: true, default: ({ children }) => children },
     "react/jsx-runtime": jsxRuntime,
     "next-intl": {
       useTranslations: (namespace) => createTranslator({ locale, messages, namespace }),

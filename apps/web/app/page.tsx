@@ -335,6 +335,7 @@ export default function Dashboard() {
         {activeView === "settings" && <SettingsPanel />}
         <div hidden={activeView !== "resources"}>
           <ResourcesPanel
+            active={activeView === "resources"}
             workspace={encryptedWorkspace}
             onOpenWatchlist={() => {
               setPickerTab("watchlist");

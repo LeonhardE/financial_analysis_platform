@@ -4,6 +4,7 @@ const path = require("node:path");
 const test = require("node:test");
 const vm = require("node:vm");
 const { transformSync } = require("next/dist/build/swc");
+const { contracts: resourceContracts } = require("./resource-library-helpers.cjs");
 
 // Exercise the actual provider's asynchronous SDK/API boundary without a browser or
 // an extra test framework. React rendering and Firebase are isolated at imports.
@@ -126,6 +127,7 @@ function mountProvider({
     "react/jsx-runtime": { jsx: (type, props) => ({ type, props }) },
     "firebase/auth": firebase,
     "@/lib/firebase-client": { getBrowserAuth: () => auth },
+    "@/lib/resource-library": resourceContracts,
   };
   vm.runInNewContext(code, {
     module,
@@ -1475,4 +1477,80 @@ test("Hub legacy direct transport exists only for explicit development loopback 
       );
     h.unmount();
   }
+});
+
+test("manual follows permits only fixed User GET and bounded CAS PUT before obtaining a token", async () => {
+  const h = mountProvider();
+  const account = user("a");
+  h.emitUser(account);
+  await settle();
+  let tokens = 0;
+  account.getIdToken = async () => {
+    tokens++;
+    return "synthetic-token";
+  };
+  const valid = {
+    expectedRevision: 0,
+    items: [{ name: "Synthetic", handleOrUrl: "@synthetic", note: "" }],
+  };
+  await h.actions.requestPrivate("user", "/api/v1/channel-follows", "a:1");
+  await h.actions.requestPrivate("user", "/api/v1/channel-follows", "a:1", {
+    method: "PUT",
+    json: valid,
+  });
+  assert.equal(tokens, 2);
+  const last = h.requests.at(-1);
+  assert.equal(last[0], "http://localhost:8000/api/v1/channel-follows");
+  assert.equal(last[1].credentials, "omit");
+  assert.equal(last[1].redirect, "error");
+  assert.equal(
+    last[1].body,
+    JSON.stringify({
+      ...valid,
+      items: [{ ...valid.items[0], handleOrUrl: "https://www.youtube.com/@synthetic" }],
+    }),
+  );
+  const cases = [
+    ["user", "/api/v1/channel-follows?owner=b", {}],
+    ["user", "/api/v1/channel-follows/item", {}],
+    ["config", "/api/v1/channel-follows", {}],
+    ["user", "/api/v1/channel-follows", { method: "DELETE" }],
+    ["user", "/api/v1/channel-follows", { method: "POST", json: valid }],
+    ["user", "/api/v1/channel-follows", { json: valid }],
+    ["user", "/api/v1/channel-follows", { method: "PUT" }],
+    ["user", "/api/v1/channel-follows", { headers: { Authorization: "Bearer arbitrary" } }],
+    ["user", "/api/v1/channel-follows", { method: "PUT", json: { ...valid, owner: "b" } }],
+    [
+      "user",
+      "/api/v1/channel-follows",
+      { method: "PUT", json: { ...valid, expectedRevision: -1 } },
+    ],
+    [
+      "user",
+      "/api/v1/channel-follows",
+      {
+        method: "PUT",
+        json: { ...valid, items: [{ ...valid.items[0], handleOrUrl: "https://evil.test/@a" }] },
+      },
+    ],
+    [
+      "user",
+      "/api/v1/channel-follows",
+      {
+        method: "PUT",
+        json: {
+          ...valid,
+          items: Array.from({ length: 50 }, (_, i) => ({
+            name: "A",
+            handleOrUrl: `@a${i}`,
+            note: "字".repeat(1000),
+          })),
+        },
+      },
+    ],
+  ];
+  for (const [service, route, options] of cases)
+    await assert.rejects(h.actions.requestPrivate(service, route, "a:1", options));
+  assert.equal(tokens, 2, "invalid route/body never requests an SDK token");
+  h.unmount();
 });
