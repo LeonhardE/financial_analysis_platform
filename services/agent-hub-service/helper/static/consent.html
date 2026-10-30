@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="referrer" content="no-referrer" />
+    <title>Connect Muse · FolioView</title>
+    <link rel="stylesheet" href="/agent/v2/helper/controller.css" />
+    <script type="module" src="/agent/v2/helper/consent.mjs"></script>
+  </head>
+  <body>
+    <main>
+      <p class="eyebrow">FolioView · Personal agent</p>
+      <h1>Review your Muse connection</h1>
+      <p>
+        Your FolioView window handles Google sign-in, Passkey unlock and approval. Your Passkey and
+        private keys stay there.
+      </p>
+      <label for="owner-origin">Your FolioView site</label
+      ><select id="owner-origin"></select>
+      <p id="status" role="status">Checking this connection…</p>
+      <div class="actions">
+        <button id="continue" disabled>Continue to FolioView</button
+        ><button id="cancel" class="secondary">Close connection</button>
+      </div>
+      <p class="note">
+        Connecting OAuth access does not grant decryption keys or create a schedule. Review
+        resources and each agent key separately.
+      </p>
+    </main>
+  </body>
+</html>

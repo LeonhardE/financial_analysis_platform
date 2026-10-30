@@ -16,6 +16,7 @@
   "devDependencies": {
     "ajv": "8.20.0",
     "esbuild": "0.28.2",
-    "prettier": "3.9.6"
+    "prettier": "3.9.6",
+    "fake-indexeddb": "6.2.6"
   }
 }

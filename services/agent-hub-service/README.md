@@ -355,10 +355,11 @@ it never includes the Firebase credential. Repeating a decision does not issue a
 
 The authorization redirect sets one short-lived HttpOnly, Secure, SameSite=Lax flow cookie.
 Consent calls additionally require the exact configured origin and flow-cookie binding. The
-consent URL must share the exact Hub issuer origin: this backend phase does **not** provide a
-consent page or a cross-origin Web/BFF bridge. Shared CORS does not allow credentialed cross-origin
-requests; do not relax the cookie/CORS boundary to disguise that missing UI integration. WEB-006
-and the existing Hub adapter work must deliver and test that handoff before enabling a real client.
+consent URL must share the exact Hub issuer origin. The fixed foreground consent shell described
+in [CONTROLLER.md](CONTROLLER.md) performs only closed owner-flow operations in that origin while
+the independently trusted Web window keeps Passkey unlock and signing. Shared CORS still refuses
+credentialed cross-origin requests; the bridge does not forge a cookie or Origin. Real Muse host
+attachment and production enablement retain their existing acceptance boundaries.
 
 `HUB_OAUTH_ENABLED` must explicitly equal `1`; missing/invalid configuration fails closed before
 creating storage clients. Set `HUB_OAUTH_ISSUER`, the exact same-origin
@@ -469,3 +470,14 @@ disabled OAuth foundation, encrypted preparations, formal Runs, encrypted result
 Inbox APIs and the MCP protocol adapter are implemented locally/build-only.
 Trusted consumer UI/controller, the Web Inbox interface and broker access remain separate consumers;
 this change does not activate those consumers or any production endpoint.
+
+## Foreground controller code stage
+
+The fixed [controller and same-origin consent shell](CONTROLLER.md) reuse helper 1.2.0 without
+changing its crypto/schema or algorithm. A separate owner-only channel provides independently
+confirmed public root/release/delivery pins; model operations cannot initialize trust, acknowledge
+a receipt or acquire an owner credential. The programmable trusted host performs fixed authenticated
+preparation/Run/result requests and persists only ciphertext for exact replay and receipt recovery.
+The manual public-card page has no token input and does not claim an authenticated server save.
+Both modes keep private keys in memory and disable unattended execution. No cloud setting, service
+identity or resource is enabled by this code change.
