@@ -54,8 +54,84 @@ function encryptedOrigin(service: "portfolio" | "agent-hub"): string | null {
   }
 }
 
-export function isPrivateServiceConfigured(service: "portfolio" | "agent-hub"): boolean {
+// Hub keeps its existing direct transport until its separate forwarding slice.
+export function isPrivateServiceConfigured(service: "agent-hub"): boolean {
   return encryptedOrigin(service) !== null;
+}
+
+function developmentPortfolioOrigin(): string | null {
+  if (
+    process.env.NODE_ENV !== "development" ||
+    typeof window === "undefined" ||
+    !["localhost", "127.0.0.1"].includes(window.location.hostname)
+  )
+    return null;
+  const origin = encryptedOrigin("portfolio");
+  return origin && ["localhost", "127.0.0.1"].includes(new URL(origin).hostname) ? origin : null;
+}
+
+export type OwnerCapabilities = Readonly<{ portfolio: boolean; agentHub: false }>;
+export type OwnerConfigStatus = "loading" | "ready" | "unavailable";
+type OwnerConfig = { status: OwnerConfigStatus; flags: OwnerCapabilities };
+const disabledCapabilities: OwnerCapabilities = { portfolio: false, agentHub: false };
+
+async function readOwnerCapabilities(
+  response: Response,
+  signal: AbortSignal,
+): Promise<OwnerCapabilities> {
+  if (
+    response.status !== 200 ||
+    response.headers.get("content-type")?.split(";", 1)[0].trim().toLowerCase() !==
+      "application/json" ||
+    !response.body
+  )
+    throw new Error("Invalid owner configuration");
+  const reader = response.body.getReader();
+  const cancelRead = () => {
+    void reader.cancel().catch(() => {});
+  };
+  signal.addEventListener("abort", cancelRead, { once: true });
+  const decoder = new TextDecoder("utf-8", { fatal: true });
+  let size = 0;
+  let text = "";
+  try {
+    while (true) {
+      if (signal.aborted) throw new Error("Owner configuration cancelled");
+      const { value, done } = await reader.read();
+      if (signal.aborted) throw new Error("Owner configuration cancelled");
+      if (done) break;
+      size += value.byteLength;
+      if (size > 4096) throw new Error("Invalid owner configuration");
+      text += decoder.decode(value, { stream: true });
+    }
+    text += decoder.decode();
+  } finally {
+    // Cancellation does not wait for a stalled or malicious response stream.
+    signal.removeEventListener("abort", cancelRead);
+    cancelRead();
+    reader.releaseLock();
+  }
+  const value: unknown = JSON.parse(text);
+  if (
+    !value ||
+    typeof value !== "object" ||
+    Array.isArray(value) ||
+    Object.keys(value).sort().join("|") !== "flags|schemaVersion"
+  )
+    throw new Error("Invalid owner configuration");
+  const config = value as Record<string, unknown>;
+  const flags = config.flags;
+  if (
+    config.schemaVersion !== 1 ||
+    !flags ||
+    typeof flags !== "object" ||
+    Array.isArray(flags) ||
+    Object.keys(flags).sort().join("|") !== "agentHub|portfolio" ||
+    typeof (flags as Record<string, unknown>).portfolio !== "boolean" ||
+    (flags as Record<string, unknown>).agentHub !== false
+  )
+    throw new Error("Invalid owner configuration");
+  return { portfolio: (flags as Record<string, unknown>).portfolio as boolean, agentHub: false };
 }
 
 type EncryptedRule = {
@@ -93,7 +169,7 @@ function encryptedRule(service: "portfolio" | "agent-hub", path: string): Encryp
   } else {
     if (
       new RegExp(
-        `^/api/v2/holdings/sources/${id}(?:/latest|/snapshots/${id}|/operations/${id})?$`,
+        `^/api/v2/holdings/sources/${id}(?:/latest|/snapshots/${id}|/operations/${id}|/mutations/${id})?$`,
       ).test(path)
     )
       return { method: "GET" };
@@ -179,6 +255,9 @@ type AuthState = {
 };
 
 type AuthContextValue = AuthState & {
+  ownerConfigStatus: OwnerConfigStatus;
+  ownerCapabilities: OwnerCapabilities;
+  portfolioConfigured: boolean;
   sessionKey: string | null;
   requestPrivate: (
     service: PrivateService,
@@ -227,6 +306,12 @@ function popupErrorMessage(error: unknown): string | null {
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<AuthState>({ ...anonymousState, status: "loading" });
+  const [ownerConfig, setOwnerConfig] = useState<OwnerConfig>({
+    status: "loading",
+    flags: disabledCapabilities,
+  });
+  const ownerConfigRef = useRef(ownerConfig);
+  ownerConfigRef.current = ownerConfig;
   const authRef = useRef<Auth | null>(null);
   const firebaseUserRef = useRef<User | null>(null);
   const signingOutRef = useRef(false);
@@ -289,6 +374,44 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } finally {
       window.clearTimeout(timeout);
     }
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    const controller = new AbortController();
+    const publish = (config: OwnerConfig) => {
+      if (!active) return;
+      ownerConfigRef.current = config;
+      setOwnerConfig(config);
+    };
+    const timeout = window.setTimeout(() => {
+      controller.abort();
+      publish({ status: "unavailable", flags: disabledCapabilities });
+    }, 5_000);
+    void (async () => {
+      try {
+        const response = await fetch("/api/private/owner-config", {
+          method: "GET",
+          cache: "no-store",
+          credentials: "omit",
+          redirect: "error",
+          referrerPolicy: "no-referrer",
+          signal: controller.signal,
+        });
+        const flags = await readOwnerCapabilities(response, controller.signal);
+        if (!controller.signal.aborted) publish({ status: "ready", flags });
+      } catch {
+        if (!controller.signal.aborted)
+          publish({ status: "unavailable", flags: disabledCapabilities });
+      } finally {
+        window.clearTimeout(timeout);
+      }
+    })();
+    return () => {
+      active = false;
+      controller.abort();
+      window.clearTimeout(timeout);
+    };
   }, []);
 
   useEffect(() => {
@@ -401,6 +524,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         let rule = encryptedRule(service, path);
         if (
           service === "portfolio" &&
+          method === "POST" &&
+          /^\/api\/v2\/holdings\/sources\/[A-Za-z0-9][A-Za-z0-9_-]{0,127}\/mutations\/(fence|disconnect|delete)$/.test(
+            path,
+          )
+        )
+          rule = {
+            method: "POST",
+            keys: ["contractVersion", "expectedVersion", "expectedSourceEpoch", "command"],
+            idempotent: true,
+            author: true,
+          };
+        if (
+          service === "portfolio" &&
           method === "PUT" &&
           /^\/api\/v2\/holdings\/sources\/[A-Za-z0-9][A-Za-z0-9_-]{0,127}\/snapshots\/[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/.test(
             path,
@@ -414,7 +550,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           };
         }
         if (!rule) throw new Error("Invalid private API path");
-        const configured = encryptedOrigin(service);
+        const configured =
+          service === "portfolio"
+            ? ownerConfigRef.current.status === "ready" && ownerConfigRef.current.flags.portfolio
+              ? "/api/private/portfolio"
+              : developmentPortfolioOrigin()
+            : encryptedOrigin(service);
         if (!configured) throw new Error("Encrypted workspace is not configured.");
         origin = configured;
         contractHeaders = encryptedRequestHeaders(rule, options);
@@ -507,6 +648,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const value = useMemo(
     () => ({
       ...state,
+      ownerConfigStatus: ownerConfig.status,
+      ownerCapabilities: ownerConfig.flags,
+      portfolioConfigured:
+        (ownerConfig.status === "ready" && ownerConfig.flags.portfolio) ||
+        developmentPortfolioOrigin() !== null,
       sessionKey:
         state.status === "authenticated" ? (verifiedSessionRef.current?.key ?? null) : null,
       requestPrivate,
@@ -514,7 +660,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       signOut,
       retry,
     }),
-    [state, requestPrivate, signIn, signOut, retry],
+    [state, ownerConfig, requestPrivate, signIn, signOut, retry],
   );
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

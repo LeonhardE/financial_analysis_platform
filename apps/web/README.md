@@ -51,16 +51,46 @@ combined without an explicit FX source. Unsupported assets/directions remain vis
 
 ## Local configuration and boundaries
 
-See [.env.example](.env.example). The encrypted workspace requires explicit build-time origins:
+See [.env.example](.env.example). Portfolio owner requests use the fixed same-origin prefix
+`/api/private/portfolio` followed by the canonical `/api/v2/holdings/sources/...` path. An anonymous,
+bounded `/api/private/owner-config` response exposes only schema version and feature booleans.
+Unavailable configuration disables Portfolio without delaying Google login or Markets.
 
-- `NEXT_PUBLIC_AGENT_HUB_API_BASE_URL`
-- `NEXT_PUBLIC_PORTFOLIO_API_BASE_URL`
+Portfolio uses the existing REPO-002 **server runtime** projection:
+`FOLIOVIEW_OWNER_FIREBASE_PROJECT_ID`, `FOLIOVIEW_PORTFOLIO_OWNER_ENABLED`,
+`FOLIOVIEW_PORTFOLIO_ORIGIN`, and `FOLIOVIEW_PORTFOLIO_AUDIENCE`. The flag must be `true`, the
+origin must be a canonical `portfolio-api-{projectNumber}.{region}.run.app` HTTPS origin, and the
+audience must match it exactly. These are not public build arguments. A deployed browser ignores
+`NEXT_PUBLIC_PORTFOLIO_API_BASE_URL`; its direct-API exception is restricted to `next dev` with
+both a loopback page and loopback HTTP(S) API for the existing local CSV acceptance setup.
 
-Both may be HTTPS origins, or localhost/127.0.0.1 HTTP for local testing, without paths or trailing
-slashes. Missing or malformed values disable cloud import; there is no fallback to Market's private
-routes. The Dockerfile declares optional arguments, but configuring remote build substitutions and
-cloud trust is a separate infrastructure change. Runtime variables alone cannot change compiled
-`NEXT_PUBLIC` values. This feature does not provision or activate Hub/Portfolio.
+Hub still uses its explicit `NEXT_PUBLIC_AGENT_HUB_API_BASE_URL` build-time origin in this slice;
+its independent owner-forwarding change follows separately. Missing values do not fall back to
+Market or another service. This code does not change Cloud Run IAM, deployment configuration,
+invoker grants or resources. Portfolio activation requires the separately reviewed runtime
+configuration and Web runtime invoker authorization; the default remains disabled.
+
+The Node route verifies the original Firebase JWT against Google's fixed SecureToken JWKS,
+including signature, configured project/issuer/audience, timestamps and Google provider. This
+precheck does not replace Portfolio's authoritative revoked-user, owner and encrypted-contract
+validation. It needs no Firebase user-directory permission. Only after the precheck, Web uses
+its default runtime identity's fixed metadata endpoint to obtain a short-lived ID token for that
+Portfolio audience. That service token goes only in `X-Serverless-Authorization`; the original
+user `Authorization` reaches Portfolio unchanged. External service-identity headers and cookies
+are stripped. No key file, browser service token, new cookie session or private content key is used.
+
+The proxy only accepts named owner routes and their exact methods, body shapes and control
+headers. Queries, encoded paths, internal/agent routes, caller-selected targets and redirects are
+rejected. Actual streamed request sizes follow the existing 576 KiB snapshot, 65 KiB mutation
+and 1 KiB authority limits; responses are bounded to 1 MiB. Duplicate JSON keys, excessive depth
+and unsafe numbers are rejected. Valid ciphertext/signature bytes and operation identifiers are
+forwarded unchanged, with no write retries. The total deadline is 12 seconds including bodies,
+verification and identity fetches; each shared identity/key fetch has its own 4-second ceiling.
+Per-process admission is bounded to 16 requests, four active requests and 30 attempts per minute
+per verified UID, with at most 1,024 tracked UID windows. These local bounds do not replace
+separate deployment-wide cost controls. Only fixed formal application errors cross the boundary;
+metadata/IAM/network/key-fetch failures become retryable service errors, not a user logout.
+Responses use `no-store` and never forward authentication headers, cookies or raw diagnostics.
 
 The authenticated request client restricts each service's exact paths, methods, body fields and
 contract headers, rejects arbitrary destinations and identity-header overrides, and fences late
