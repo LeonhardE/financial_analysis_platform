@@ -111,13 +111,21 @@ const vault = {
   archive: { profile: "folioview.passkey-vault.v1" },
 };
 
-function harness({ configured = true, hasVault = true, hasSource = true } = {}) {
+function harness({
+  configured = true,
+  hubConfigured = true,
+  hasVault = true,
+  hasSource = true,
+} = {}) {
   const requests = [];
   const instances = [];
   const commits = [];
   const outboxes = new Map();
   const passkey = deferred();
   let auth = { status: "authenticated", sessionKey: "owner_a:1", profile: { uid: "owner_a" } };
+  let portfolioConfigured = configured;
+  let bodyHold = null;
+  let bodyReads = 0;
   let remoteVault = hasVault ? vault : null;
   let sources = hasSource ? [source] : [];
   let readFailure = null;
@@ -276,9 +284,22 @@ function harness({ configured = true, hasVault = true, hasSource = true } = {}) 
       }
       if (snapshotSwap === "revision") receipt.revision = 2;
       if (snapshotSwap === "epoch") receipt.sourceEpoch = 2;
-      return new Response(
-        JSON.stringify({ contractVersion: CONTRACT, carrier: { opaque: true }, receipt }),
-      );
+      const text = JSON.stringify({
+        contractVersion: CONTRACT,
+        carrier: { opaque: true },
+        receipt,
+      });
+      if (bodyHold)
+        return {
+          ok: true,
+          status: 200,
+          text: async () => {
+            bodyReads++;
+            await bodyHold.promise;
+            return text;
+          },
+        };
+      return new Response(text);
     }
     if (route.includes("/operations/")) {
       if (receiptFound)
@@ -342,8 +363,13 @@ function harness({ configured = true, hasVault = true, hasSource = true } = {}) 
   const { useHoldingsWorkspace } = compile("../components/useHoldingsWorkspace.ts", {
     react: React,
     "@/components/AuthProvider": {
-      useAuth: () => ({ ...auth, requestPrivate, signIn: async () => {} }),
-      isPrivateServiceConfigured: () => configured,
+      useAuth: () => ({
+        ...auth,
+        portfolioConfigured,
+        requestPrivate,
+        signIn: async () => {},
+      }),
+      isPrivateServiceConfigured: () => hubConfigured,
     },
     "@/lib/holdings-csv": {
       HOLDINGS_CSV_MAX_BYTES: 4194304,
@@ -386,6 +412,13 @@ function harness({ configured = true, hasVault = true, hasSource = true } = {}) 
     auth(next) {
       auth = next;
     },
+    configured(next) {
+      portfolioConfigured = next;
+    },
+    holdBody(next) {
+      bodyHold = next;
+    },
+    bodyReads: () => bodyReads,
     holdCurrent(value) {
       getCurrentHold = value;
     },
@@ -720,4 +753,59 @@ test("unverified recovery receipts never clear the exact encrypted retry packet"
   assert.equal(model.hasPending, true);
   assert.ok(h.outboxes.has("owner_a"));
   h.unmount();
+});
+
+test("reactive Portfolio availability enables loading only after capabilities and immediately hides a disabled workspace", async () => {
+  const h = harness({ configured: false });
+  let model = await ready(h);
+  assert.equal(model.configured, false);
+  assert.equal(h.requests.length, 0);
+  h.configured(true);
+  model = await unlocked(h);
+  await model.importFile(file);
+  await h.render().save();
+  model = h.render();
+  assert.equal(model.content.data.accounts[0].positions[0].symbol, "PRIVATE_SENTINEL");
+  h.configured(false);
+  model = h.render({ flush: false });
+  assert.equal(model.configured, false);
+  assert.equal(model.content, null);
+  assert.equal(model.preview, null);
+  h.render();
+  assert.ok(h.instances.every((instance) => instance.locked));
+  const count = h.requests.length;
+  await h.render().save();
+  assert.equal(h.requests.length, count);
+  h.unmount();
+});
+
+test("late encrypted response body after account switch or logout cannot decrypt or restore holdings", async () => {
+  for (const transition of ["switch", "logout"]) {
+    const h = harness();
+    let model = await unlocked(h);
+    await model.importFile(file);
+    await h.render().save();
+    const opened = h.counts().opens;
+    const body = deferred();
+    h.holdBody(body);
+    const reading = h.render().readStored();
+    await settle();
+    assert.equal(h.bodyReads(), 1);
+    h.auth(
+      transition === "switch"
+        ? { status: "authenticated", sessionKey: "owner_b:1", profile: { uid: "owner_b" } }
+        : { status: "anonymous", sessionKey: null, profile: null },
+    );
+    model = h.render({ flush: false });
+    assert.equal(model.content, null);
+    h.render();
+    body.resolve();
+    await reading;
+    model = h.render();
+    assert.equal(model.content, null);
+    assert.equal(model.preview, null);
+    assert.equal(h.counts().opens, opened);
+    assert.ok(h.instances.every((instance) => instance.locked));
+    h.unmount();
+  }
 });

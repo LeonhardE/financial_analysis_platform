@@ -44,32 +44,69 @@ async function settle() {
   await new Promise((resolve) => setImmediate(resolve));
 }
 
+function configResponse(portfolio = true) {
+  return new Response(JSON.stringify({ schemaVersion: 1, flags: { portfolio, agentHub: false } }), {
+    headers: { "Content-Type": "application/json" },
+  });
+}
+
 function mountProvider({
   logout = async () => {},
   fetchProfile = async () => profileResponse("a"),
+  fetchOwnerConfig = async () => configResponse(),
   env = {},
+  hostname = "folioview.example.test",
 } = {}) {
-  let state;
   let observer;
   let observerError;
+  let index = 0;
+  let dirty = false;
+  let mounted = true;
   const effects = [];
+  const cells = [];
   const requests = [];
+  const configRequests = [];
+  const timers = new Map();
+  let timerId = 0;
   const auth = { currentUser: null };
+  const changed = (before, after) =>
+    !before || after.some((value, position) => value !== before[position]);
   const react = {
     createContext: () => ({ Provider: "provider" }),
     useState: (initial) => {
-      state = initial;
+      const slot = index++;
+      cells[slot] ??= { state: typeof initial === "function" ? initial() : initial };
       return [
-        state,
+        cells[slot].state,
         (next) => {
-          state = next;
+          const value = typeof next === "function" ? next(cells[slot].state) : next;
+          dirty ||= !Object.is(cells[slot].state, value);
+          cells[slot].state = value;
         },
       ];
     },
-    useRef: (current) => ({ current }),
-    useCallback: (callback) => callback,
-    useMemo: (callback) => callback(),
-    useEffect: (effect) => effects.push(effect),
+    useRef: (current) => {
+      const slot = index++;
+      cells[slot] ??= { current };
+      return cells[slot];
+    },
+    useCallback: (callback, dependencies) => {
+      const slot = index++;
+      if (!cells[slot] || changed(cells[slot].dependencies, dependencies))
+        cells[slot] = { value: callback, dependencies };
+      return cells[slot].value;
+    },
+    useMemo: (callback, dependencies) => {
+      const slot = index++;
+      if (!cells[slot] || changed(cells[slot].dependencies, dependencies))
+        cells[slot] = { value: callback(), dependencies };
+      return cells[slot].value;
+    },
+    useEffect: (effect, dependencies) => {
+      const slot = index++;
+      if (!cells[slot] || changed(cells[slot].dependencies, dependencies))
+        effects.push({ slot, effect, dependencies });
+    },
   };
   const firebase = {
     onIdTokenChanged: (_auth, next, error) => {
@@ -101,24 +138,61 @@ function mountProvider({
     AbortController,
     URL,
     TextEncoder,
-    window: { setTimeout: () => 1, clearTimeout: () => {} },
+    TextDecoder,
+    window: {
+      location: { hostname },
+      setTimeout: (callback, milliseconds) => {
+        timers.set(++timerId, { callback, milliseconds });
+        return timerId;
+      },
+      clearTimeout: (id) => timers.delete(id),
+    },
     fetch: (...args) => {
+      if (args[0] === "/api/private/owner-config") {
+        configRequests.push(args);
+        return fetchOwnerConfig(...args);
+      }
       requests.push(args);
       return fetchProfile(...args);
     },
   });
-  const tree = module.exports.AuthProvider({ children: null });
-  effects.forEach((effect) => effect());
+  function render() {
+    assert.equal(mounted, true);
+    let tree;
+    do {
+      dirty = false;
+      index = 0;
+      tree = module.exports.AuthProvider({ children: null });
+      for (const { slot, effect, dependencies } of effects.splice(0)) {
+        cells[slot]?.cleanup?.();
+        cells[slot] = { dependencies, cleanup: effect() };
+      }
+    } while (dirty);
+    return tree.props.value;
+  }
+  render();
   return {
-    actions: tree.props.value,
+    get actions() {
+      return render();
+    },
     auth,
     requests,
-    state: () => state,
+    configRequests,
+    state: render,
     emitUser: (next) => {
       auth.currentUser = next;
       observer(next);
     },
     emitError: () => observerError(new Error("Observer unavailable")),
+    expireConfig: () => {
+      const timer = [...timers.values()].find((item) => item.milliseconds === 5_000);
+      assert.ok(timer, "owner config timeout exists");
+      timer.callback();
+    },
+    unmount: () => {
+      mounted = false;
+      cells.forEach((cell) => cell.cleanup?.());
+    },
   };
 }
 
@@ -608,17 +682,26 @@ test("encrypted requests use only explicit services, fixed version, closed metho
       },
     ],
     ["portfolio", "/api/v2/holdings/sources/source_A/operations/synthetic_operation_000001", {}],
+    ["portfolio", "/api/v2/holdings/sources/source_A/snapshots/snapshot_A", {}],
+    ["portfolio", "/api/v2/holdings/sources/source_A/mutations/synthetic_operation_000001", {}],
+    ...["fence", "disconnect", "delete"].map((action) => [
+      "portfolio",
+      `/api/v2/holdings/sources/source_A/mutations/${action}`,
+      {
+        method: "POST",
+        headers: operationHeaders({ "X-FolioView-Author-Key": author }),
+        json: { contractVersion: version, expectedVersion: 1, expectedSourceEpoch: 1, command: {} },
+      },
+    ]),
   ];
   for (const [service, path, options] of entries) {
     await harness.actions.requestPrivate(service, path, "a:1", options);
     const [url, request] = harness.requests.at(-1);
     assert.equal(
       url,
-      encryptedEnv[
-        service === "portfolio"
-          ? "NEXT_PUBLIC_PORTFOLIO_API_BASE_URL"
-          : "NEXT_PUBLIC_AGENT_HUB_API_BASE_URL"
-      ] + path,
+      (service === "portfolio"
+        ? "/api/private/portfolio"
+        : encryptedEnv.NEXT_PUBLIC_AGENT_HUB_API_BASE_URL) + path,
     );
     assert.equal(request.headers["X-FolioView-Contract"], version);
     assert.equal(request.headers.Authorization, "Bearer test-token-a");
@@ -629,7 +712,7 @@ test("encrypted requests use only explicit services, fixed version, closed metho
   }
 });
 
-test("missing or malformed encrypted origins never fall back to Market or forward a bearer", async () => {
+test("disabled proxy never falls back to direct Portfolio, Market or forwards a bearer", async () => {
   for (const origin of [
     undefined,
     "http://example.test",
@@ -640,6 +723,7 @@ test("missing or malformed encrypted origins never fall back to Market or forwar
   ]) {
     let tokens = 0;
     const harness = mountProvider({
+      fetchOwnerConfig: async () => configResponse(false),
       env: {
         NEXT_PUBLIC_API_BASE_URL: "https://market.example.test",
         NEXT_PUBLIC_PORTFOLIO_API_BASE_URL: origin,
@@ -729,4 +813,274 @@ test("encrypted routes reject header overrides, duplicates, wrong methods, unkno
     );
   assert.equal(tokens, 1);
   assert.equal(harness.requests.length, 1);
+});
+
+test("owner capabilities load anonymously and Portfolio waits without delaying account verification", async () => {
+  const config = deferred();
+  let tokens = 0;
+  const h = mountProvider({ fetchOwnerConfig: () => config.promise, env: encryptedEnv });
+  h.emitUser({ uid: "a", getIdToken: async () => `test-token-${++tokens}` });
+  await settle();
+  assert.equal(h.state().status, "authenticated");
+  assert.equal(h.actions.ownerConfigStatus, "loading");
+  assert.equal(h.actions.portfolioConfigured, false);
+  await assert.rejects(
+    h.actions.requestPrivate("portfolio", "/api/v2/holdings/sources/source_A", "a:1"),
+    /not configured/,
+  );
+  assert.equal(tokens, 1, "only User profile token is requested before configuration");
+  assert.equal(h.requests.length, 1);
+  const [url, options] = h.configRequests[0];
+  assert.equal(url, "/api/private/owner-config");
+  assert.equal(options.method, "GET");
+  assert.equal(options.headers, undefined);
+  assert.equal(options.credentials, "omit");
+  assert.equal(options.cache, "no-store");
+  assert.equal(options.redirect, "error");
+  assert.equal(options.referrerPolicy, "no-referrer");
+  config.resolve(configResponse());
+  await settle();
+  assert.equal(h.actions.ownerConfigStatus, "ready");
+  assert.equal(h.actions.ownerCapabilities.portfolio, true);
+  assert.equal(h.actions.ownerCapabilities.agentHub, false);
+  assert.equal(h.actions.portfolioConfigured, true);
+  await h.actions.requestPrivate("portfolio", "/api/v2/holdings/sources/source_A", "a:1");
+  assert.equal(h.requests.at(-1)[0], "/api/private/portfolio/api/v2/holdings/sources/source_A");
+  assert.equal(tokens, 2);
+});
+
+test("missing, invalid, oversized and future owner configuration disables Portfolio without direct fallback", async () => {
+  const json = (value) =>
+    new Response(JSON.stringify(value), {
+      headers: { "Content-Type": "application/json" },
+    });
+  for (const reply of [
+    () => new Response("missing", { status: 404 }),
+    () => {
+      throw new Error("unavailable");
+    },
+    () => configResponse(false),
+    () => json({ schemaVersion: 2, flags: { portfolio: true, agentHub: false } }),
+    () => json({ schemaVersion: 1, flags: { portfolio: "true", agentHub: false } }),
+    () => json({ schemaVersion: 1, flags: { portfolio: true, agentHub: true } }),
+    () =>
+      json({ schemaVersion: 1, flags: { portfolio: true, agentHub: false, upstream: "private" } }),
+    () =>
+      json({ schemaVersion: 1, flags: { portfolio: true, agentHub: false }, upstream: "private" }),
+    () => new Response("x".repeat(4097), { headers: { "Content-Type": "application/json" } }),
+    () => new Response("{invalid", { headers: { "Content-Type": "application/json" } }),
+    () =>
+      new Response(
+        JSON.stringify({ schemaVersion: 1, flags: { portfolio: true, agentHub: false } }),
+      ),
+  ]) {
+    let tokens = 0;
+    const h = mountProvider({ fetchOwnerConfig: reply, env: encryptedEnv });
+    h.emitUser({ uid: "a", getIdToken: async () => `test-token-${++tokens}` });
+    await settle();
+    assert.equal(h.actions.portfolioConfigured, false);
+    assert.equal(h.actions.ownerCapabilities.portfolio, false);
+    await assert.rejects(
+      h.actions.requestPrivate("portfolio", "/api/v2/holdings/sources/source_A", "a:1"),
+      /not configured/,
+    );
+    assert.equal(tokens, 1);
+    assert.equal(h.requests.length, 1);
+    assert.equal(h.state().status, "authenticated");
+    h.unmount();
+  }
+});
+
+test("capability deadline aborts a stalled body and late bytes cannot enable Portfolio", async () => {
+  let stream;
+  let cancelled = false;
+  const h = mountProvider({
+    fetchOwnerConfig: async () =>
+      new Response(
+        new ReadableStream({
+          start(controller) {
+            stream = controller;
+          },
+          cancel() {
+            cancelled = true;
+          },
+        }),
+        { headers: { "Content-Type": "application/json" } },
+      ),
+  });
+  await settle();
+  assert.equal(h.actions.ownerConfigStatus, "loading");
+  h.expireConfig();
+  await settle();
+  assert.equal(h.actions.ownerConfigStatus, "unavailable");
+  assert.equal(h.actions.portfolioConfigured, false);
+  assert.equal(h.configRequests[0][1].signal.aborted, true);
+  assert.equal(cancelled, true);
+  assert.throws(() =>
+    stream.enqueue(
+      new TextEncoder().encode(
+        JSON.stringify({
+          schemaVersion: 1,
+          flags: { portfolio: true, agentHub: false },
+        }),
+      ),
+    ),
+  );
+  h.unmount();
+});
+
+test("unmount aborts capability body reads and late config fetches cannot publish", async () => {
+  const config = deferred();
+  const h = mountProvider({ fetchOwnerConfig: () => config.promise });
+  h.unmount();
+  assert.equal(h.configRequests[0][1].signal.aborted, true);
+  config.resolve(configResponse());
+  await settle();
+  assert.equal(h.configRequests.length, 1);
+  assert.equal(h.requests.length, 0);
+});
+
+test("only an explicit development loopback page and loopback API permit legacy direct Portfolio", async () => {
+  for (const [nodeEnv, hostname, origin, direct] of [
+    ["development", "localhost", "http://127.0.0.1:8788", true],
+    ["development", "127.0.0.1", "http://localhost:8788", true],
+    ["production", "localhost", "http://127.0.0.1:8788", false],
+    ["development", "folioview.example.test", "http://127.0.0.1:8788", false],
+    ["development", "localhost", "https://portfolio.example.test", false],
+    ["development", "localhost", "http://127.0.0.1.evil.test:8788", false],
+    ["development", "localhost", "http://localhost:8788/path", false],
+  ]) {
+    const h = mountProvider({
+      fetchOwnerConfig: async () => configResponse(false),
+      env: { NODE_ENV: nodeEnv, NEXT_PUBLIC_PORTFOLIO_API_BASE_URL: origin },
+      hostname,
+    });
+    h.emitUser(user("a"));
+    await settle();
+    assert.equal(h.actions.portfolioConfigured, direct);
+    if (direct) {
+      await h.actions.requestPrivate("portfolio", "/api/v2/holdings/sources/source_A", "a:1");
+      assert.equal(h.requests.at(-1)[0], origin + "/api/v2/holdings/sources/source_A");
+    } else {
+      await assert.rejects(
+        h.actions.requestPrivate("portfolio", "/api/v2/holdings/sources/source_A", "a:1"),
+        /not configured/,
+      );
+      assert.equal(h.requests.length, 1);
+    }
+    h.unmount();
+  }
+});
+
+test("Portfolio proxy preserves account switch, logout, abort and late 401 session fences", async () => {
+  for (const transition of ["switch", "logout", "abort"]) {
+    const token = deferred();
+    let attempts = 0;
+    const h = mountProvider({
+      fetchProfile: async (_url, options) =>
+        profileResponse(options.headers.Authorization.endsWith("-b") ? "b" : "a"),
+    });
+    h.emitUser({
+      uid: "a",
+      getIdToken: () => (++attempts === 1 ? Promise.resolve("test-token-a") : token.promise),
+    });
+    await settle();
+    const controller = new AbortController();
+    const pending = h.actions.requestPrivate(
+      "portfolio",
+      "/api/v2/holdings/sources/source_A",
+      "a:1",
+      { signal: controller.signal },
+    );
+    const rejected = assert.rejects(pending, /account session changed/);
+    if (transition === "switch") h.emitUser(user("b"));
+    if (transition === "logout") await h.actions.signOut();
+    if (transition === "abort") controller.abort();
+    await settle();
+    token.resolve("late-test-token-a");
+    await rejected;
+    assert.ok(h.requests.every(([url]) => url.endsWith("/api/v1/me")));
+    h.unmount();
+  }
+  const response = deferred();
+  const h = mountProvider({
+    fetchProfile: async (url, options) =>
+      url.endsWith("/api/v1/me")
+        ? profileResponse(options.headers.Authorization.endsWith("-b") ? "b" : "a")
+        : response.promise,
+  });
+  h.emitUser(user("a"));
+  await settle();
+  const pending = h.actions.requestPrivate("portfolio", "/api/v2/holdings/sources/source_A", "a:1");
+  const rejected = assert.rejects(pending, /account session changed/);
+  await settle();
+  h.emitUser(user("b"));
+  await settle();
+  response.resolve({ status: 401, ok: false });
+  await rejected;
+  assert.equal(h.state().profile.uid, "b");
+  h.unmount();
+});
+
+test("Portfolio 401 invalidates the active session and invalid mutation shapes never request a token", async () => {
+  let tokens = 0;
+  const h = mountProvider({
+    fetchProfile: async (url) =>
+      url.endsWith("/api/v1/me") ? profileResponse("a") : { status: 401, ok: false },
+  });
+  h.emitUser({ uid: "a", getIdToken: async () => `test-token-${++tokens}` });
+  await settle();
+  for (const [path, options] of [
+    [
+      "/api/v2/holdings/sources/source_A/mutations/unknown",
+      {
+        method: "POST",
+        json: { contractVersion: version, expectedVersion: 1, expectedSourceEpoch: 1, command: {} },
+        headers: operationHeaders({ "X-FolioView-Author-Key": author }),
+      },
+    ],
+    [
+      "/api/v2/holdings/sources/source_A/mutations/fence",
+      {
+        method: "POST",
+        json: {
+          contractVersion: version,
+          expectedVersion: 1,
+          expectedSourceEpoch: 1,
+          command: {},
+          ownerUid: "b",
+        },
+        headers: operationHeaders({ "X-FolioView-Author-Key": author }),
+      },
+    ],
+    [
+      "/api/v2/holdings/sources/source_A/mutations/delete",
+      {
+        method: "POST",
+        json: { contractVersion: version, expectedVersion: 1, expectedSourceEpoch: 1, command: {} },
+        headers: operationHeaders(),
+      },
+    ],
+    [
+      "/api/v2/holdings/sources/source_A/mutations/disconnect",
+      {
+        method: "POST",
+        json: { contractVersion: version, expectedVersion: 1, expectedSourceEpoch: 1, command: {} },
+        headers: { "X-FolioView-Author-Key": author },
+      },
+    ],
+    ["/api/v2/holdings/sources/source_A/mutations/operation_A/ack", {}],
+  ])
+    await assert.rejects(
+      h.actions.requestPrivate("portfolio", path, "a:1", options),
+      /Invalid private API/,
+    );
+  assert.equal(tokens, 1);
+  await assert.rejects(
+    h.actions.requestPrivate("portfolio", "/api/v2/holdings/sources/source_A", "a:1"),
+    /account session changed/,
+  );
+  assert.equal(h.state().status, "error");
+  assert.equal(h.state().profile, null);
+  assert.equal(tokens, 2);
 });

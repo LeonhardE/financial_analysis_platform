@@ -108,8 +108,7 @@ export function useHoldingsWorkspace() {
   const auth = useAuth();
   const owner = auth.status === "authenticated" && auth.profile ? auth.sessionKey : null;
   const uid = owner ? auth.profile!.uid : null;
-  const configured =
-    isPrivateServiceConfigured("portfolio") && isPrivateServiceConfigured("agent-hub");
+  const configured = auth.portfolioConfigured && isPrivateServiceConfigured("agent-hub");
   const ownerRef = useRef(owner);
   ownerRef.current = owner;
   const [state, setState] = useState<State>(empty);
@@ -727,7 +726,7 @@ export function useHoldingsWorkspace() {
     }));
   }, [terminate]);
 
-  const visible = owner && state.owner === owner ? state : { ...empty, owner };
+  const visible = owner && configured && state.owner === owner ? state : { ...empty, owner };
   return {
     ...visible,
     authenticated: Boolean(owner),
