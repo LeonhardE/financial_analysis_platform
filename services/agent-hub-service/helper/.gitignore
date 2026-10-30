@@ -1,2 +1,3 @@
 # Rebuilt by build.mjs; only the standalone browser distribution is checked in.
 src/validators.cjs
+src/controller-validators.cjs

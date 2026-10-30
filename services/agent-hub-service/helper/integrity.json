@@ -2,16 +2,35 @@
   "helperVersion": "1.2.0",
   "contractVersion": "folioview.agent-workspace.v2.0",
   "profile": "folioview.agent-preparation.v1",
-  "assets": { "worker": "dist/worker.mjs" },
+  "assets": {
+    "worker": "dist/worker.mjs",
+    "controller": "dist/controller.mjs",
+    "ownerPage": "static/controller.html",
+    "consentPage": "static/consent.html"
+  },
   "files": {
-    "package.json": "93b24dc8bbe3697bd695df58255b15b606f42ac43c62bb7abb54b063798be4e1",
-    "package-lock.json": "ed78e1095321de06041fea771e88ac2dc7a74b8515eeef29a489a43a60f7ac51",
-    "protocol.json": "2a21df11e8a1f564b7bcaf3fa11abe69f60c3b360719f3dc54ebc7daaf547408",
+    "package.json": "49db211aa9258dc4c1916617ac9976e8337d003b3e190ed17fa80d9d1455b046",
+    "package-lock.json": "b4795c79bf5d87b4d5101bfa0c54daffaedf73f97a0951e4a4b7e333272eb005",
+    "protocol.json": "59cf3560239aac1da2181ec587f32c02f944c655b2d111d8f061bc90dbdc4028",
     "schemas.json": "3ed3ba67eddcb077f5f138b9b0e2e47ce6d7ecb7b977071e68bc8d744f8ebf84",
-    "build.mjs": "1a73d70ad702f8844699587efac245a82840991670b620f3f8b75f3039d71737",
+    "build.mjs": "5856a7164a0fdcffdad79fd5e9157b1d84ecd517d43bb53defea1d44e4da3733",
+    "../tests/fixtures/idb-runtime.mjs": "37e2188e65f1554c9139242bb52b03793c292680636cb49cd6e62289cc0989da",
     "src/session.mjs": "fa42bd6fc9da1b167dde741dbd75056a5915171539b591ac9ac369ef8f5fb10a",
     "src/worker.mjs": "90ee9302e26157ce00855f732628601e36f3dae5523bc455fd4357006b7c013f",
+    "src/controller.mjs": "7dab0e3b7a83f07c4329fd7b3682ac07453ee9e5963dc710fd36b83f40c93257",
+    "src/controller-storage.mjs": "6c35daff6f6f08d6a27ddf91035220a478b82b5e51c48223af21a672d3911608",
+    "src/controller-page.mjs": "8375757a63589468c1458a7850909e7ffd84da52928d03f82f786fbc62d0a34c",
+    "src/owner-helper.mjs": "b4437a47563ade7530414d469ac575e66c5899df28c9f20a28b1231f7f14d1be",
+    "src/consent.mjs": "12f927272a98a33b14982f78bc05bfe5deacf47403d1770b8837d3a88efb7fe1",
+    "src/consent-page.mjs": "7bb58c5673341bf08870780a63a960f4eb1a8dbfca037ef80c24b967e9f6e90d",
+    "static/controller.html": "d37273f639be0c0687a90efc4e929bd67b2a201999324a32232288c77c23c650",
+    "static/consent.html": "d18d39db06be39fd3ccba24ce540d1e0eefe9fb51eaeceb6d686def805da3d93",
+    "static/controller.css": "6b5390d817b74d47ad0d9b5bb81fbf707e304f32d5608a3c88f221c0af3a346e",
     "dist/worker.mjs": "930519d391fb3aafc489ab449c50da18991d32a64ff3039a99fa0edf84cd513c",
-    "THIRD_PARTY_NOTICES.md": "2c5ecce45123353c40e546a1d84179a8dc7f5e120dfc0c819e5f1ed3866f95de"
+    "dist/controller.mjs": "897e6a8e4929802a97f6ce2fdf0802a1b0d93caa835760240154484ede2f95e4",
+    "dist/owner-helper.mjs": "7bbaf165d2a5c20cf0f1de310aaf384f7863ad93dacb39643a1cb02adb9ad3c1",
+    "dist/controller-page.mjs": "93032ff287264ba0285e04d405e46a852e9d71b411e43e8fc156d9e0ac33734a",
+    "dist/consent.mjs": "5b26cb8943819f8d19dae52d163c44a08e21a7d92f3c9efc086e5bf6bacd3381",
+    "THIRD_PARTY_NOTICES.md": "16b1768276d7eed2a7ce1142f5766c211da784615fa004a36853f2658e18dd4d"
   }
 }

@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { createRequire } from "node:module";
 import Ajv from "ajv/dist/2020.js";
 import standalone from "ajv/dist/standalone/index.js";
 import { build } from "esbuild";
@@ -65,8 +66,32 @@ await writeFile(
   "src/validators.cjs",
   await format(standalone.default ? standalone.default(ajv, mapping) : standalone(ajv, mapping)),
 );
+await writeFile(
+  "src/controller-validators.cjs",
+  await format(
+    standalone.default
+      ? standalone.default(
+          ajv,
+          Object.fromEntries(
+            ["Carrier", "ObjectMessage", "ResultReceipt"].map((name) => [name, mapping[name]]),
+          ),
+        )
+      : standalone(
+          ajv,
+          Object.fromEntries(
+            ["Carrier", "ObjectMessage", "ResultReceipt"].map((name) => [name, mapping[name]]),
+          ),
+        ),
+  ),
+);
 await mkdir("dist", { recursive: true });
-for (const [entry, outfile, mode] of [["src/worker.mjs", "dist/worker.mjs", "esm"]]) {
+for (const [entry, outfile, mode] of [
+  ["src/worker.mjs", "dist/worker.mjs", "esm"],
+  ["src/controller.mjs", "dist/controller.mjs", "esm"],
+  ["src/owner-helper.mjs", "dist/owner-helper.mjs", "esm"],
+  ["src/controller-page.mjs", "dist/controller-page.mjs", "esm"],
+  ["src/consent-page.mjs", "dist/consent.mjs", "esm"],
+]) {
   const result = await build({
     absWorkingDir: root,
     entryPoints: [entry],
@@ -76,10 +101,35 @@ for (const [entry, outfile, mode] of [["src/worker.mjs", "dist/worker.mjs", "esm
     target: ["es2022"],
     write: false,
     minify: true,
+    external:
+      entry === "src/controller-page.mjs"
+        ? ["./controller.mjs", "./owner-helper.mjs"]
+        : entry === "src/owner-helper.mjs"
+          ? ["./controller.mjs"]
+          : [],
     legalComments: "none",
   });
   await writeFile(outfile, await format(result.outputFiles[0].text));
 }
+// Test-only, checked offline IDB model. It is never served or copied into the image.
+const require = createRequire(import.meta.url);
+const testIDB = await build({
+  absWorkingDir: root,
+  stdin: {
+    contents: 'export { IDBFactory, IDBKeyRange } from "fake-indexeddb";',
+    resolveDir: root,
+    sourcefile: "idb-test-entry.mjs",
+  },
+  bundle: true,
+  format: "esm",
+  platform: "browser",
+  target: ["es2022"],
+  write: false,
+  minify: true,
+  legalComments: "none",
+});
+await mkdir("../tests/fixtures", { recursive: true });
+await writeFile("../tests/fixtures/idb-runtime.mjs", await format(testIDB.outputFiles[0].text));
 const packages = [
   "jose",
   "canonicalize",
@@ -104,6 +154,10 @@ for (const name of packages) {
   if (!text) throw new Error("Missing license: " + name);
   licenses += `## ${name} ${pkg.version}\n\n\`\`\`text\n${text.trim()}\n\`\`\`\n\n`;
 }
+const fakePackagePath = resolve(dirname(require.resolve("fake-indexeddb")), "../../package.json");
+const fakePackage = JSON.parse(await readFile(fakePackagePath));
+const fakeLicense = await readFile(resolve(dirname(fakePackagePath), "LICENSE"), "utf8");
+licenses += `## Test-only fake-indexeddb ${fakePackage.version}\n\n\`\`\`text\n${fakeLicense.trim()}\n\`\`\`\n\n`;
 await writeFile("THIRD_PARTY_NOTICES.md", await format(licenses, "markdown"));
 const files = [
   "package.json",
@@ -111,9 +165,23 @@ const files = [
   "protocol.json",
   "schemas.json",
   "build.mjs",
+  "../tests/fixtures/idb-runtime.mjs",
   "src/session.mjs",
   "src/worker.mjs",
+  "src/controller.mjs",
+  "src/controller-storage.mjs",
+  "src/controller-page.mjs",
+  "src/owner-helper.mjs",
+  "src/consent.mjs",
+  "src/consent-page.mjs",
+  "static/controller.html",
+  "static/consent.html",
+  "static/controller.css",
   "dist/worker.mjs",
+  "dist/controller.mjs",
+  "dist/owner-helper.mjs",
+  "dist/controller-page.mjs",
+  "dist/consent.mjs",
   "THIRD_PARTY_NOTICES.md",
 ];
 const hashes = {};
@@ -125,7 +193,12 @@ await writeFile(
       helperVersion: "1.2.0",
       contractVersion: "folioview.agent-workspace.v2.0",
       profile: "folioview.agent-preparation.v1",
-      assets: { worker: "dist/worker.mjs" },
+      assets: {
+        worker: "dist/worker.mjs",
+        controller: "dist/controller.mjs",
+        ownerPage: "static/controller.html",
+        consentPage: "static/consent.html",
+      },
       files: hashes,
     }),
     "json",

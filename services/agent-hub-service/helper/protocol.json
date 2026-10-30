@@ -76,7 +76,7 @@
     "modelCalls",
     "unattendedExecution"
   ],
-  "nextStage": "Formal Run verification, restricted result encryption/revision and exact-envelope outbox/receipt validation are supported. Trusted-page authenticated transport/durable ciphertext outbox persistence, real Muse acceptance and owner Inbox remain separate integration work.",
+  "nextStage": "The checked foreground controller, closed same-browser owner bridge and durable ciphertext outbox are implemented as a code stage. Remote Muse host attachment and real consumer/production acceptance remain separate existing work; same-browser MessageChannels do not establish a remote connection.",
   "runAllocation": {
     "profile": "folioview.agent-run.v1",
     "namespaceFields": [
@@ -101,5 +101,32 @@
   "runInputPolicy": "Run-only private checks retain policy and source facts in memory, cleared on lock. Begin evaluates allowPartial, allowUnknownAsOf and maxFetchedAgeSeconds at trusted client time; frozen Run inputs evaluate those facts at Run.createdAt selection time, while current authorization and Run expiry still use current time. Future fetchedAt, excessive age and stale freshness fail; unknown freshness needs allowUnknownAsOf. Missing sourceAsOf is never replaced with fetchedAt. These are conservative owner-attested input checks, not proof of broker truth or financial freshness.",
   "resultOperations": "sealResult requires every frozen Run input to have passed typed decryption and private input policy. It creates revision 1 to exactly the signed grant owner device/recovery recipients. reviseResult requires a locally accepted receipt at expectedRevision. The worker fixes resultId, original task carrier and manifest fingerprint, all Run/grant bindings, current registry and author; callers cannot supply keys/recipients/context. Output is {contractVersion,runId,resultId,revision,expectedRevision,stableOperationId,envelopeFingerprint,envelope:{contractVersion,signedObject}}; POST envelope to /agent/v2/runs/{runId}/results or its signedObject plus contractVersion/expectedRevision to /agent/v2/results/{resultId}/revisions with matching Idempotency-Key. Safe HTTPS citations, conservative Markdown and exact declared outputSpec section ordering are checked privately. These are input guards, not a renderer or proof of analysis/citation truth.",
   "resultOutbox": "resultOutbox returns the original exact ciphertext/signature packet plus saved receipt or null, without new encryption. Same Run/operation/content returns original bytes; changing private content under the same operation conflicts. A second initial operation is rejected because the operation ID is authenticated AAD. Up to 32 cached result operations total and two revision candidates per Run/base. Trusted controllers may persist only the returned ciphertext packet for durable retry; this Worker has no persistence and loses its cache on lock/reload. Never silently reencrypt after uncertain outcomes or switch operation IDs.",
-  "receiptAcceptance": "Only the trusted ownerPort controller may call acceptReceipt after independently fetching the receipt over authenticated current Hub transport; the model/agentPort cannot acknowledge storage. The Worker checks the closed formal ResultReceipt against original outbox context/fingerprint, IDs, operation, revision, deliveryRevision, internal key-free path and nonpredating receivedAt, then advances local revision CAS. A byte-identical prior accepted receipt may be repeated. Receipt acceptance and original outbox retrieval do not require a still-live Run or new cryptographic write authority; the live memory session/pins must still exist. This local check is not a server signature, proof of model execution, successful user decryption or durable storage. Lock/revoke/TTL discards keys, private output rules and outbox handles; saved backend receipt recovery remains available through its own narrowly authorized API."
+  "receiptAcceptance": "Only the trusted ownerPort controller may call acceptReceipt after independently fetching the receipt over authenticated current Hub transport; the model/agentPort cannot acknowledge storage. The Worker checks the closed formal ResultReceipt against original outbox context/fingerprint, IDs, operation, revision, deliveryRevision, internal key-free path and nonpredating receivedAt, then advances local revision CAS. A byte-identical prior accepted receipt may be repeated. Receipt acceptance and original outbox retrieval do not require a still-live Run or new cryptographic write authority; the live memory session/pins must still exist. This local check is not a server signature, proof of model execution, successful user decryption or durable storage. Lock/revoke/TTL discards keys, private output rules and outbox handles; saved backend receipt recovery remains available through its own narrowly authorized API.",
+  "controller": {
+    "profile": "folioview.foreground-controller.v1",
+    "version": "1.0.0",
+    "module": "dist/controller.mjs",
+    "page": "static/controller.html",
+    "ownerConsentBridgeProfile": "folioview.owner-consent-bridge.v1",
+    "ownerHelperBridgeProfile": "folioview.foreground-owner.v1",
+    "ownerHelperOperations": ["initialize", "confirm_delivery", "status", "lock"],
+    "ownerCardFields": ["helperVersion", "workerSha256", "anchor", "ttlSeconds"],
+    "publicOfferFields": [
+      "helperVersion",
+      "sessionId",
+      "generation",
+      "anchor",
+      "agentSigningPublicJwk",
+      "agentEncryptionPublicJwk",
+      "agentSigningKeyId",
+      "agentEncryptionKeyId",
+      "keyExportRejected"
+    ],
+    "sameBrowserOnly": "Owner window pairing requires the exact configured origin, the actual peer WindowProxy, a one-use 32-byte nonce and one transferred MessagePort. Paired helper DOM exposes no manual owner controls; opener is severed after attachment. This is not a remote Muse transport.",
+    "lifecycle": "Paired owner heartbeats extend a 90-second owner-presence lease, never the original Worker TTL. Manual public-card mode has no observable remote owner window and relies on bounded Worker TTL, page close/explicit lock and current authenticated host fences. Hidden helper pages pause model operations and hide private views; public owner setup/status may continue.",
+    "credentials": "Transient consent RPC uses a fresh raw Firebase ID token only for the exact same-origin closed owner request. It never reaches helper/model ports, URLs, DOM or storage. The programmable controller can accept a host-provided opaque OAuth access token in memory; model/public UI has no token operation/input. Same-identity idle host access-token renewal does not extend key TTL or change scopes.",
+    "durableOutbox": "IndexedDB contains only closed ciphertext packet, approved public scope, immutable run creation time and exact server receipt. CAS preserves original bytes across tabs and lock/reload. Recovery cannot restore private keys or grant a new revision session. No report text, tokens, private JWKs or Passkey data are persisted.",
+    "receiptTrust": "The controller accepts receipts only from its fixed authenticated host HTTP transport; model-pasted receipt JSON is not an owner capability. Manual public-card page does not claim server storage or enable revisions until a trusted authenticated host provides this integration.",
+    "testModel": "Pinned fake-indexeddb dev dependency is bundled only under tests/fixtures for mandatory offline transaction tests. It is not a public helper asset or part of the container image. Real WebCrypto tests and simulated browser/Window facades are distinct from physical-browser or Muse acceptance."
+  }
 }

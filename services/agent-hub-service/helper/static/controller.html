@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="referrer" content="no-referrer" />
+    <title>Foreground agent helper · FolioView</title>
+    <link rel="stylesheet" href="/agent/v2/helper/controller.css" />
+    <script type="module" src="/agent/v2/helper/controller-page.mjs"></script>
+  </head>
+  <body>
+    <main>
+      <p class="eyebrow">FolioView · Foreground helper</p>
+      <h1>A private session for your agent</h1>
+      <p>
+        The helper keeps temporary agent keys in a browser Worker. Closing or locking it discards
+        those keys. It is not an unattended agent or a remote Muse connection.
+      </p>
+      <p id="status" role="status">Waiting for independent owner setup.</p>
+      <button id="lock" class="secondary">Lock and end session</button>
+      <section id="manual-owner">
+        <h2>Owner-assisted setup</h2>
+        <p>
+          Paste only the public setup card copied from your signed-in FolioView library. The library
+          is the independent source of root and release pins. Never paste a password, token,
+          Passkey, private key or holdings.
+        </p>
+        <p class="note">
+          Manual setup is for an independently confirmed owner handoff. It does not establish a live
+          remote owner channel or prove that a Muse browser is yours.
+        </p>
+        <label for="owner-card">Public owner setup card</label
+        ><textarea id="owner-card" spellcheck="false" autocomplete="off"></textarea
+        ><button id="initialize">Initialize foreground session</button
+        ><label for="delivery-pin">Public selected-delivery pin from FolioView</label
+        ><textarea id="delivery-pin" spellcheck="false" autocomplete="off"></textarea
+        ><button id="confirm-delivery">Confirm selected delivery</button>
+      </section>
+      <section>
+        <h2>Public agent key offer</h2>
+        <p>
+          Return this public offer to FolioView. The owner must review both key fingerprints,
+          register them and approve the exact task and resources.
+        </p>
+        <div class="actions">
+          <button id="show-offer" class="secondary">Show public offer</button
+          ><button id="copy-offer" class="secondary">Copy public offer</button>
+        </div>
+        <pre id="public-offer"></pre>
+      </section>
+      <section>
+        <h2>Agent operations</h2>
+        <p>
+          Use only cipher objects and metadata returned by the authorized agent API. Private decoded
+          content is displayed only in this foreground page. It is not stored in the outbox.
+        </p>
+        <label for="agent-operation">Operation</label
+        ><select id="agent-operation">
+          <option value="status">Session status</option>
+          <option value="registry">Verify registry bundles</option>
+          <option value="install">Install confirmed preparation</option>
+          <option value="decrypt">Decrypt selected preparation object</option>
+          <option value="beginRun">Sign Begin Run</option>
+          <option value="installRun">Verify frozen Run</option>
+          <option value="decryptRun">Decrypt frozen Run page</option>
+          <option value="sealResult">Encrypt initial report</option>
+          <option value="reviseResult">Encrypt revision (authenticated receipt required)</option>
+          <option value="resultOutbox">Retrieve original encrypted operation</option></select
+        ><label for="agent-args">Operation arguments</label
+        ><textarea id="agent-args" spellcheck="false" autocomplete="off">{}</textarea
+        ><button id="agent-run">Run permitted operation</button>
+        <pre id="output" aria-live="polite"></pre>
+        <p class="note">
+          Saving ciphertext on this device is not a server receipt. This manual page cannot accept a
+          model-pasted receipt or verify an external schedule. A trusted authenticated host is
+          required for server receipt recovery and revision confirmation.
+        </p>
+      </section>
+    </main>
+  </body>
+</html>

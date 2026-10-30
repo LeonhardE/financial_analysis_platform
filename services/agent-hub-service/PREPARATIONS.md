@@ -1,6 +1,6 @@
 # Encrypted preparations and foreground helper
 
-This is the first HUB-009 implementation slice. It reuses OAuth, resource discovery and formal
+The base preparation portion reuses OAuth, resource discovery and formal
 `folioview.agent-workspace.v2.0` / P1 envelopes. Its local orchestration profile is
 `folioview.agent-preparation.v1`, **not** a Run, manifest or result receipt. It does not start a
 model, schedule an agent or implement result encryption/writeback without a Run.
@@ -111,8 +111,10 @@ envelopes, actual non-extractable agent keys and the preparation APIs. Missing/i
 fails the helper checks; it is not silently skipped. The served artifact's source/schema/lock and
 dependency hashes are verified, without runtime package downloads or unsafe-eval compilation.
 
-This phase supplies reusable protocol/helper components. It does not supply the trusted owning
-page, full Web/BFF consent handoff or a new real Muse acceptance run. Real Muse evidence from
+The base phase supplied reusable protocol/helper components. The current
+[foreground controller](CONTROLLER.md) adds a pinned owning page, a same-browser owner consent
+bridge and durable ciphertext recovery. It does not establish remote Muse transport attachment
+or constitute a new real Muse acceptance run. Real Muse evidence from
 VAL-004 remains historical and bounded. The [formal Run producer and helper extensions](RUNS.md)
 now support restricted Begin signing, manifest verification and frozen input decryption while
 retaining preparation compatibility. The [result producer](RESULTS.md) adds encrypted results,
