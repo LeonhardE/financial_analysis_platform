@@ -31,7 +31,7 @@ misconfiguration fails that adapter closed without making health unavailable.
 
 Every owner request requires the existing verified Firebase Google identity and exact
 `X-FolioView-Contract: folioview.agent-workspace.v2.0`. Bodies are closed strict JSON;
-requests cannot supply an owner UID or overwrite an existing root/archive. Vault/source writes also
+requests cannot supply an owner UID or implicitly overwrite an existing root/archive. Vault/source writes also
 require one bounded `Idempotency-Key`; source creation requires `X-FolioView-Author-Key`.
 
 | Endpoint                                                    | Behavior                                                                               |
@@ -41,6 +41,10 @@ require one bounded `Idempotency-Key`; source creation requires `X-FolioView-Aut
 | `PUT /api/v2/vaults/{vaultId}/registry`                     | Root-pinned, consecutive signed registry CAS                                           |
 | `POST /api/v2/vaults/{vaultId}/holdings-sources/{sourceId}` | Current owner-device `manual_source_create` control; derived incarnation, epoch 1      |
 | `POST /api/v2/vaults/current/authority-token`               | Fixed Portfolio caller/Hub audience, holdings metadata delegation valid for 60 seconds |
+
+The separate [vault lifecycle API](VAULT_LIFECYCLE.md) adds root-signed opaque archive replacement,
+Passkey-change intent, bounded recovery approval/revocation and immutable operation receipts.
+It keeps this legacy response shape and the existing directory/source version unchanged.
 
 Bootstrap and registry writes return `{contractVersion,vault,sources}`. An exact operation replay
 returns the current verified aggregate, never an old directory or archive replacement; these are
@@ -60,8 +64,10 @@ base64url at most 2048 characters, PRF salt is 32 bytes, IV 12 bytes, and opaque
 16–24576 decoded bytes / at most 32768 encoded characters. AES-GCM and WebAuthn PRF derivation are
 client responsibilities. The backend cannot decrypt or establish whether a client encrypted
 honestly; it validates bounds and public bindings only. Private keys and PRF outputs have no
-accepted plaintext fields. There is no password/backup-key override, platform recovery key,
-archive replacement/reset, second vault, device management UI or broad key-recovery endpoint.
+accepted plaintext fields. Archive replacement requires the verified Google owner and a signature
+from the existing pinned root; recovery cannot reconstruct that root from Google login. There is
+no platform recovery private key, archive reset, second vault, root rotation or server decryption.
+New Passkey ceremonies and independent recovery-kit UX remain client responsibilities.
 
 ## Owner resource discovery
 
