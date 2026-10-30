@@ -64,6 +64,8 @@ function mountProvider({
   fetchOwnerConfig = async () => configResponse(),
   env = {},
   hostname = "folioview.example.test",
+  browser = true,
+  flushInitialEffects = true,
   fetchLinkConfig = async () => ({
     schemaVersion: 1,
     enabled: true,
@@ -117,8 +119,10 @@ function mountProvider({
     },
     useEffect: (effect, dependencies) => {
       const slot = index++;
-      if (!cells[slot] || changed(cells[slot].dependencies, dependencies))
+      if (!cells[slot] || changed(cells[slot].dependencies, dependencies)) {
+        cells[slot] = { dependencies, cleanup: cells[slot]?.cleanup };
         effects.push({ slot, effect, dependencies });
+      }
     },
   };
   const firebase = {
@@ -159,14 +163,16 @@ function mountProvider({
     URLSearchParams,
     TextEncoder,
     TextDecoder,
-    window: {
-      location: { hostname },
-      setTimeout: (callback, milliseconds) => {
-        timers.set(++timerId, { callback, milliseconds });
-        return timerId;
-      },
-      clearTimeout: (id) => timers.delete(id),
-    },
+    window: browser
+      ? {
+          location: { hostname },
+          setTimeout: (callback, milliseconds) => {
+            timers.set(++timerId, { callback, milliseconds });
+            return timerId;
+          },
+          clearTimeout: (id) => timers.delete(id),
+        }
+      : undefined,
     fetch: (...args) => {
       if (args[0] === "/api/private/owner-config") {
         configRequests.push(args);
@@ -176,22 +182,24 @@ function mountProvider({
       return fetchProfile(...args);
     },
   });
-  function render() {
+  function render({ flushEffects = true } = {}) {
     assert.equal(mounted, true);
     let tree;
     do {
       dirty = false;
       index = 0;
       tree = module.exports.AuthProvider({ children: null });
-      for (const { slot, effect, dependencies } of effects.splice(0)) {
-        cells[slot]?.cleanup?.();
-        cells[slot] = { dependencies, cleanup: effect() };
-      }
-    } while (dirty);
+      if (flushEffects)
+        for (const { slot, effect, dependencies } of effects.splice(0)) {
+          cells[slot]?.cleanup?.();
+          cells[slot] = { dependencies, cleanup: effect() };
+        }
+    } while (flushEffects && dirty);
     return tree.props.value;
   }
-  render();
+  const initial = render({ flushEffects: flushInitialEffects });
   return {
+    initial,
     get actions() {
       return render();
     },
@@ -215,6 +223,65 @@ function mountProvider({
     },
   };
 }
+
+test("loopback capability markup inputs match SSR and the first client render before mount", async () => {
+  for (const hostname of ["localhost", "127.0.0.1"]) {
+    const env = {
+      NODE_ENV: "development",
+      NEXT_PUBLIC_PORTFOLIO_API_BASE_URL: "http://127.0.0.1:8770",
+      NEXT_PUBLIC_AGENT_HUB_API_BASE_URL: "http://localhost:8769",
+    };
+    const server = mountProvider({ env, hostname, browser: false, flushInitialEffects: false });
+    const client = mountProvider({ env, hostname, flushInitialEffects: false });
+    for (const context of [server.initial, client.initial]) {
+      assert.equal(context.status, "loading");
+      assert.equal(context.profile, null);
+      assert.equal(context.ownerConfigStatus, "loading");
+      assert.equal(context.portfolioConfigured, false);
+      assert.equal(context.agentHubConfigured, false);
+    }
+    assert.equal(server.configRequests.length, 0);
+    assert.equal(client.configRequests.length, 0);
+    // After hydration commits, the existing explicit loopback mode still works.
+    const mounted = client.state();
+    assert.equal(mounted.portfolioConfigured, true);
+    assert.equal(mounted.agentHubConfigured, true);
+    assert.equal(client.configRequests.length, 1);
+    await settle();
+    assert.equal(client.state().portfolioConfigured, true);
+    assert.equal(client.state().agentHubConfigured, true);
+    server.unmount();
+    client.unmount();
+  }
+});
+
+test("mounting alone cannot enable development capabilities on production or public-host pages", async () => {
+  for (const [NODE_ENV, hostname] of [
+    ["production", "localhost"],
+    ["development", "folioview.example.test"],
+  ]) {
+    const env = {
+      NODE_ENV,
+      NEXT_PUBLIC_PORTFOLIO_API_BASE_URL: "http://localhost:8770",
+      NEXT_PUBLIC_AGENT_HUB_API_BASE_URL: "http://localhost:8769",
+    };
+    const h = mountProvider({
+      env,
+      hostname,
+      flushInitialEffects: false,
+      fetchOwnerConfig: async () => configResponse(false, false),
+    });
+    assert.equal(h.initial.portfolioConfigured, false);
+    assert.equal(h.initial.agentHubConfigured, false);
+    assert.equal(h.state().portfolioConfigured, false);
+    assert.equal(h.state().agentHubConfigured, false);
+    await settle();
+    assert.equal(h.state().ownerConfigStatus, "ready");
+    assert.equal(h.state().portfolioConfigured, false);
+    assert.equal(h.state().agentHubConfigured, false);
+    h.unmount();
+  }
+});
 
 test("a token refresh cannot restore an identity while sign-out is pending", async () => {
   const logout = deferred();

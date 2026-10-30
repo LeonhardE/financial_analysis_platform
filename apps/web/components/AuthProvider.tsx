@@ -478,6 +478,7 @@ function popupErrorMessage(error: unknown): string | null {
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
+  const [clientMounted, setClientMounted] = useState(false);
   const [state, setState] = useState<AuthState>({ ...anonymousState, status: "loading" });
   const [ownerConfig, setOwnerConfig] = useState<OwnerConfig>({
     status: "loading",
@@ -491,6 +492,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const generationRef = useRef(0);
   const requestRef = useRef<AbortController | null>(null);
   const verifiedSessionRef = useRef<{ key: string; user: User } | null>(null);
+
+  useEffect(() => {
+    // SSR and the first hydration render must expose the same capabilities.
+    // Browser-only development origins become visible after the client commits.
+    setClientMounted(true);
+  }, []);
 
   const verifyUser = useCallback(async (user: User | null, forceRefresh = false) => {
     // A refresh notification for the old user can arrive while sign-out is pending.
@@ -904,10 +911,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       ownerCapabilities: ownerConfig.flags,
       portfolioConfigured:
         (ownerConfig.status === "ready" && ownerConfig.flags.portfolio) ||
-        developmentEncryptedOrigin("portfolio") !== null,
+        (clientMounted && developmentEncryptedOrigin("portfolio") !== null),
       agentHubConfigured:
         (ownerConfig.status === "ready" && ownerConfig.flags.agentHub) ||
-        developmentEncryptedOrigin("agent-hub") !== null,
+        (clientMounted && developmentEncryptedOrigin("agent-hub") !== null),
       sessionKey:
         state.status === "authenticated" ? (verifiedSessionRef.current?.key ?? null) : null,
       requestPrivate,
@@ -916,7 +923,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       signOut,
       retry,
     }),
-    [state, ownerConfig, requestPrivate, requestAgentConsent, signIn, signOut, retry],
+    [
+      clientMounted,
+      state,
+      ownerConfig,
+      requestPrivate,
+      requestAgentConsent,
+      signIn,
+      signOut,
+      retry,
+    ],
   );
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
