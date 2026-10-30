@@ -19,6 +19,7 @@ import {
   type User,
 } from "firebase/auth";
 import { getBrowserAuth } from "@/lib/firebase-client";
+import { channelInputs, exact } from "@/lib/resource-library";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
 // An unset service origin keeps the current deployment usable during migration.
@@ -646,6 +647,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       let origin: string;
       let contractHeaders: Record<string, string> = {};
       let maxBodyBytes = 589824;
+      let validatedJson = options.json;
       if (service === "portfolio" || service === "agent-hub") {
         let rule = encryptedRule(service, path, method);
         if (
@@ -689,30 +691,41 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         maxBodyBytes = rule.maxBytes ?? 589824;
       } else {
         const preferencesPath = path === "/api/v1/preferences";
+        const followsPath = service === "user" && path === "/api/v1/channel-follows";
         const watchlistPath =
           /^\/api\/v1\/watchlist(?:\/[A-Z][A-Z0-9]{0,9}(?:[.-][A-Z0-9]{1,3})?)?$/.test(path);
         if (
           (service !== "user" && service !== "config") ||
-          (service === "user" && !watchlistPath) ||
+          (service === "user" && !watchlistPath && !followsPath) ||
           (service === "config" && !preferencesPath)
         )
           throw new Error("Invalid private API path");
         if (
           !["GET", "PUT", "DELETE"].includes(method) ||
           Object.keys(options.headers ?? {}).length ||
-          (options.json !== undefined && (!preferencesPath || method !== "PUT")) ||
-          (preferencesPath &&
+          (options.json !== undefined &&
+            ((!preferencesPath && !followsPath) || method !== "PUT")) ||
+          ((preferencesPath || followsPath) &&
             (method === "DELETE" || (method === "PUT" && options.json === undefined)))
         )
           throw new Error("Invalid private API request");
+        if (followsPath && method === "PUT") {
+          if (
+            !exact(options.json, ["expectedRevision", "items"]) ||
+            !Number.isSafeInteger(options.json.expectedRevision) ||
+            options.json.expectedRevision < 0
+          )
+            throw new Error("Invalid private API request");
+          validatedJson = {
+            expectedRevision: options.json.expectedRevision,
+            items: channelInputs(options.json.items),
+          };
+          maxBodyBytes = 131072;
+        }
         origin = service === "user" ? USER_API_BASE_URL : CONFIG_API_BASE_URL;
       }
-      const body = options.json === undefined ? undefined : JSON.stringify(options.json);
-      if (
-        (service === "portfolio" || service === "agent-hub") &&
-        body !== undefined &&
-        new TextEncoder().encode(body).byteLength > maxBodyBytes
-      )
+      const body = validatedJson === undefined ? undefined : JSON.stringify(validatedJson);
+      if (body !== undefined && new TextEncoder().encode(body).byteLength > maxBodyBytes)
         throw new Error("Invalid private API request");
       const session = verifiedSessionRef.current;
       const ownsSession = () =>

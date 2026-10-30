@@ -5,6 +5,8 @@ import { useTranslations } from "next-intl";
 import { useHoldingsWorkspace, type HoldingsWorkspace } from "@/components/useHoldingsWorkspace";
 import type { HoldingsResourceContent } from "@/lib/holdings-csv";
 import styles from "./ResourcesPanel.module.css";
+import ResourceLibrary from "./ResourceLibrary";
+import type { ResourceSelection } from "@/lib/resource-library";
 
 const GUIDE =
   "https://help.wealthsimple.com/hc/en-ca/articles/35654428540571-Request-a-custom-statement";
@@ -404,9 +406,13 @@ function Workspace({ model }: { model: HoldingsWorkspace }) {
 function ResourcesView({
   model,
   onOpenWatchlist,
+  active,
+  onCreateTask,
 }: {
   model: HoldingsWorkspace;
   onOpenWatchlist?: () => void;
+  active?: boolean;
+  onCreateTask?: (selection: ResourceSelection) => void;
 }) {
   const t = useTranslations("resources");
   return (
@@ -423,74 +429,85 @@ function ResourcesView({
           </button>
         )}
       </header>
-      <div className={styles.brokers} aria-label={t("providers")}>
-        <button type="button" className={styles.broker} aria-pressed="true">
-          <span className={styles.logo}>W</span>
-          <span>
-            <strong>Wealthsimple</strong>
-            <small>{t("holdingsCsv")}</small>
-          </span>
-          <span className={styles.badge}>{t("available")}</span>
-        </button>
-        {["Robinhood", "Interactive Brokers"].map((name) => (
-          <button className={styles.broker} type="button" disabled key={name}>
-            <span className={styles.logo}>{name === "Robinhood" ? "R" : "IB"}</span>
+      <ResourceLibrary
+        holdingsVersion={model.content?.data.snapshotId}
+        active={active}
+        onOpenWatchlist={onOpenWatchlist}
+        onCreateTask={onCreateTask}
+      >
+        <div className={styles.brokers} aria-label={t("providers")}>
+          <button type="button" className={styles.broker} aria-pressed="true">
+            <span className={styles.logo}>W</span>
             <span>
-              <strong>{name}</strong>
-              <small>{t("planned")}</small>
+              <strong>Wealthsimple</strong>
+              <small>{t("holdingsCsv")}</small>
             </span>
+            <span className={styles.badge}>{t("available")}</span>
           </button>
-        ))}
-      </div>
-      <div className={styles.columns}>
-        <div className={styles.workspace}>
-          <Workspace model={model} />
+          {["Robinhood", "Interactive Brokers"].map((name) => (
+            <button className={styles.broker} type="button" disabled key={name}>
+              <span className={styles.logo}>{name === "Robinhood" ? "R" : "IB"}</span>
+              <span>
+                <strong>{name}</strong>
+                <small>{t("planned")}</small>
+              </span>
+            </button>
+          ))}
         </div>
-        <aside className={styles.guide} aria-labelledby="wealthsimple-guide">
-          <span className={styles.eyebrow}>{t("exportGuide")}</span>
-          <h2 id="wealthsimple-guide">{t("guideTitle")}</h2>
-          <p>{t("guideIntro")}</p>
-          <ol>
-            {["login", "documents", "generate", "holdings", "date", "accounts", "download"].map(
-              (step) => (
-                <li key={step}>{t(`guide.${step}`)}</li>
-              ),
-            )}
-          </ol>
-          <a href={GUIDE} target="_blank" rel="noreferrer noopener">
-            {t("officialInstructions")} <span aria-hidden="true">↗</span>
-          </a>
-          <div className={styles.guideNote}>
-            <h3>{t("correctReport")}</h3>
-            <p>{t("reportHelp")}</p>
-            <p>{t("compatibility")}</p>
+        <div className={styles.columns}>
+          <div className={styles.workspace}>
+            <Workspace model={model} />
           </div>
-          <div className={styles.guideNote}>
-            <h3>{t("privacyTitle")}</h3>
-            <p>{t("privacyHelp")}</p>
-            <p>{t("passkeyRecovery")}</p>
-          </div>
-        </aside>
-      </div>
+          <aside className={styles.guide} aria-labelledby="wealthsimple-guide">
+            <span className={styles.eyebrow}>{t("exportGuide")}</span>
+            <h2 id="wealthsimple-guide">{t("guideTitle")}</h2>
+            <p>{t("guideIntro")}</p>
+            <ol>
+              {["login", "documents", "generate", "holdings", "date", "accounts", "download"].map(
+                (step) => (
+                  <li key={step}>{t(`guide.${step}`)}</li>
+                ),
+              )}
+            </ol>
+            <a href={GUIDE} target="_blank" rel="noreferrer noopener">
+              {t("officialInstructions")} <span aria-hidden="true">↗</span>
+            </a>
+            <div className={styles.guideNote}>
+              <h3>{t("correctReport")}</h3>
+              <p>{t("reportHelp")}</p>
+              <p>{t("compatibility")}</p>
+            </div>
+            <div className={styles.guideNote}>
+              <h3>{t("privacyTitle")}</h3>
+              <p>{t("privacyHelp")}</p>
+              <p>{t("passkeyRecovery")}</p>
+            </div>
+          </aside>
+        </div>
+      </ResourceLibrary>
     </section>
   );
 }
 
-function IndependentResources({ onOpenWatchlist }: { onOpenWatchlist?: () => void }) {
+type ResourcesProps = {
+  active?: boolean;
+  onOpenWatchlist?: () => void;
+  onCreateTask?: (selection: ResourceSelection) => void;
+};
+function IndependentResources(props: ResourcesProps) {
   const model = useHoldingsWorkspace();
-  return <ResourcesView model={model} onOpenWatchlist={onOpenWatchlist} />;
+  return <ResourcesView model={model} {...props} />;
 }
 
 export default function ResourcesPanel({
   workspace,
-  onOpenWatchlist,
-}: {
+  ...props
+}: ResourcesProps & {
   workspace?: HoldingsWorkspace;
-  onOpenWatchlist?: () => void;
 }) {
   return workspace ? (
-    <ResourcesView model={workspace} onOpenWatchlist={onOpenWatchlist} />
+    <ResourcesView model={workspace} {...props} />
   ) : (
-    <IndependentResources onOpenWatchlist={onOpenWatchlist} />
+    <IndependentResources {...props} />
   );
 }

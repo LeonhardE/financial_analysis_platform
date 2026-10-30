@@ -5,6 +5,33 @@ sidebar. Resources adds a Wealthsimple holdings CSV import with client-side encr
 explicit account/coverage preview. Robinhood and Interactive Brokers remain disabled future
 adapters; a transaction ledger is not treated as a current holdings snapshot.
 
+## Resource library
+
+Resources presents holdings, the existing Market watchlist, and a manually maintained YouTube
+creator list with type filters and current source versions. Watchlist rows come directly from
+User's existing `/api/v1/watchlist`; manage them in Market, then return to refresh. They carry no
+holdings quantities, valuations or portfolio weights, and need no connected broker or passkey.
+
+Creator add/edit/remove uses only User's exact `/api/v1/channel-follows` GET/PUT. Whole-list writes
+carry `expectedRevision`, at most 50 closed entries, strict YouTube handle locators and a 128 KiB
+UTF-8 budget. Names, handles and notes are user-provided; the UI fetches no YouTube subscriptions,
+channel metadata or videos. **Watchlist and creator text remain in User's existing plaintext
+domain.** The encryption behavior below applies to CSV holdings and the encrypted workspace.
+
+Current discovery metadata comes from Hub's fixed owner catalogue through the existing Web
+forwarder. Available/empty/uninitialized/partial/unavailable/pending/revoked states are distinct;
+source failure is never interpreted as an empty list. Discovery is not encrypted Run evidence or
+agent authorization. An optional `onCreateTask({ref, sourceEpoch})` integration appears only for
+current ready/active resources when a task consumer is present; it carries no content or keys and
+creates no task automatically. Current-source changes do not rewrite historical task/Run evidence.
+
+Reads enforce actual streamed response limits and deadlines, and never cache private rows in
+browser storage. Reentry from Market, tab visibility restoration, creator saves and holdings
+snapshot changes refresh the relevant source metadata. Account changes/logout mask rows during
+render, abort old fetch/body reads, clear editor drafts and reject stale callbacks. A conflict,
+malformed response or uncertain write requires explicit successful reload before another save;
+there is no automatic write retry and the local draft remains available for review.
+
 ## Import and privacy behavior
 
 1. Sign in with the existing Google/Firebase flow.
