@@ -15,13 +15,17 @@ The [Run producer](RUNS.md) freezes those committed deliveries into formal manif
 authorized immutable input pages. It does not execute a model or submit a result.
 The [result producer](RESULTS.md) accepts authorized client-encrypted initial results and
 CAS revisions, with atomic persistence and original receipt recovery. Report content remains
-opaque to the backend; owner retrieval uses the separate APIs below and MCP tools remain pending.
+opaque to the backend; owner retrieval uses the separate APIs below.
 The [owner Inbox API](INBOX.md) supplies bounded metadata lists/counts, historical encrypted
 details/evidence and signed read/star/archive controls. It authenticates the Google owner
 independently of agent OAuth and never marks content read merely by retrieving it.
+The separately gated [MCP v2 protocol adapter](MCP.md) exposes seven encrypted tools and bounded
+proof/ciphertext resources through the official SDK, reusing those same domain guards.
 
 `GET /health` remains `{ "status": "ok", "service": "agent-hub" }`. Import, startup and health
 need no Firebase/Firestore/KMS credentials, clients or network. Those dependencies are lazy.
+When the optional MCP adapter is explicitly enabled, its startup attempts configured storage;
+misconfiguration fails that adapter closed without making health unavailable.
 
 ## Owner APIs
 
@@ -324,7 +328,7 @@ exactly `H/mcp/v2`, including when a future consumer uses `/agent/v2/*` REST. A 
 does not become a v2 approval. Discovery and protocol URLs are generated from configuration, never
 from caller Host or forwarded headers. Encrypted preparation and formal Run reads use the gated
 protocols below and in [RUNS.md](RUNS.md). [Result writes and receipts](RESULTS.md) have gated
-HTTP routes; MCP tool adaptation remains unimplemented.
+HTTP routes; [MCP.md](MCP.md) describes their gated MCP protocol adaptation.
 
 | Endpoint                                                                | Behavior                                                                                                     |
 | ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
@@ -462,6 +466,6 @@ Its health smoke check runs with networking disabled and removes its test contai
 No Cloud Run service, database, KMS key, IAM grant or trigger is created here. INF-006 and explicit
 future trust/configuration approval still govern any cloud activation. Owner task CRUD and the
 disabled OAuth foundation, encrypted preparations, formal Runs, encrypted result writes and owner
-Inbox APIs are implemented locally/build-only.
-MCP adaptation, the Web Inbox interface and broker access remain separate consumers and fail closed;
+Inbox APIs and the MCP protocol adapter are implemented locally/build-only.
+Trusted consumer UI/controller, the Web Inbox interface and broker access remain separate consumers;
 this change does not activate those consumers or any production endpoint.

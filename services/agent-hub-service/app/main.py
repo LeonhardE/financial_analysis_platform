@@ -7,6 +7,7 @@ from .catalogue import router as catalogue_router
 from .errors import HubErrors
 from .helper_assets import router as helper_router
 from .inbox import router as inbox_router
+from .mcp_transport import install_mcp
 from .oauth_routes import agent_router
 from .oauth_routes import owner_router as oauth_owner_router
 from .oauth_routes import router as oauth_router
@@ -46,6 +47,7 @@ app.include_router(results_router)
 app.include_router(inbox_router)
 app.include_router(helper_router)
 app.add_middleware(HubErrors)
+install_mcp(app)
 
 
 @app.get("/health")
