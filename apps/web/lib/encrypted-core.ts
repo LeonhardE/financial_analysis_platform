@@ -36,6 +36,16 @@ import {
   type PendingTask,
   type SealTaskArgs,
   type ResourceBindingMetadata,
+  type AgentAnchor,
+  type HelperPublicOffer,
+  type AgentRegistration,
+  type AgentGrantArgs,
+  type AgentGrantPacket,
+  type AgentApprovalPacket,
+  type AgentPreparationArgs,
+  type AgentPreparationPacket,
+  type AgentPreparationSource,
+  type AgentPendingKind,
 } from "./encrypted-types";
 export { CONTRACT };
 const utf8 = new TextEncoder();
@@ -716,6 +726,7 @@ export class VaultCore {
   private deviceSeal?: DeviceSeal;
   private pendingDevice?: { kind: string; operation: Json; baseDigest: string | null };
   private pendingEnvelope?: Json;
+  private pendingAgentRegistrations = new Map<string, AgentRegistration>();
   constructor(
     uid: string,
     private readonly now = () => Math.floor(Date.now() / 1000),
@@ -1243,6 +1254,1102 @@ export class VaultCore {
     if (!this.pin || !this.registry || !this.device || !this.vault) throw new VaultError("locked");
     cert(this.registry, this.device.sigId, "device_sig", this.now());
     return { registry: this.registry, device: this.device, vault: this.vault };
+  }
+  async publicAgentAnchor(args: {
+    connectionId: string;
+    agentPrincipalId: string;
+    taskId: string;
+  }): Promise<AgentAnchor> {
+    exact(args, ["connectionId", "agentPrincipalId", "taskId"]);
+    for (const value of Object.values(args)) validate("Identifier", value);
+    const { registry, vault } = this.ready();
+    return {
+      ownerSubject: await this.owner,
+      vaultId: vault.vaultId,
+      rootJwk: vault.rootJwk,
+      rootKeyId: vault.rootKeyId,
+      rootEpoch: registry.checkpoint.rootEpoch,
+      registrySequence: registry.checkpoint.registrySequence,
+      checkpointDigest: registry.digest,
+      ...args,
+    };
+  }
+  private async checkedAgentOffer(offer: HelperPublicOffer) {
+    bounded(offer, 16384);
+    exact(offer, [
+      "helperVersion",
+      "sessionId",
+      "generation",
+      "anchor",
+      "agentSigningPublicJwk",
+      "agentEncryptionPublicJwk",
+      "agentSigningKeyId",
+      "agentEncryptionKeyId",
+      "keyExportRejected",
+    ]);
+    const { registry, vault } = this.ready(),
+      a = offer.anchor;
+    exact(a, [
+      "ownerSubject",
+      "vaultId",
+      "rootJwk",
+      "rootKeyId",
+      "rootEpoch",
+      "registrySequence",
+      "checkpointDigest",
+      "connectionId",
+      "agentPrincipalId",
+      "taskId",
+    ]);
+    for (const field of [
+      "ownerSubject",
+      "vaultId",
+      "connectionId",
+      "agentPrincipalId",
+      "taskId",
+    ] as const)
+      validate("Identifier", a[field]);
+    validate("Identifier", offer.sessionId);
+    positive(offer.generation);
+    positive(a.registrySequence);
+    validate("Digest", a.checkpointDigest);
+    for (const jwk of [a.rootJwk, offer.agentSigningPublicJwk, offer.agentEncryptionPublicJwk])
+      validate("PublicJWK", jwk);
+    for (const id of [a.rootKeyId, offer.agentSigningKeyId, offer.agentEncryptionKeyId])
+      validate("KeyId", id);
+    const historical = vault.registryHistory.find(
+      (bundle) => parsed(unb64(bundle.checkpoint.payload)).registrySequence === a.registrySequence,
+    );
+    if (
+      offer.helperVersion !== "1.2.0" ||
+      offer.keyExportRejected !== true ||
+      a.ownerSubject !== (await this.owner) ||
+      a.vaultId !== vault.vaultId ||
+      a.rootKeyId !== vault.rootKeyId ||
+      !equal(a.rootJwk, vault.rootJwk) ||
+      a.rootEpoch !== registry.checkpoint.rootEpoch ||
+      !historical ||
+      (await sha(canonical(parsed(unb64(historical.checkpoint.payload))))) !== a.checkpointDigest ||
+      (await thumb(offer.agentSigningPublicJwk)) !== offer.agentSigningKeyId ||
+      (await thumb(offer.agentEncryptionPublicJwk)) !== offer.agentEncryptionKeyId ||
+      offer.agentSigningKeyId === offer.agentEncryptionKeyId ||
+      [vault.rootKeyId, ...registry.certificates.keys()].some(
+        (id) =>
+          [offer.agentSigningKeyId, offer.agentEncryptionKeyId].includes(id) &&
+          !registry.certificates.has(id),
+      )
+    )
+      throw new VaultError("binding_mismatch");
+    const old = [...registry.active]
+      .map((id) => registry.certificates.get(id)!)
+      .filter(
+        (c) => c.connectionId === a.connectionId && ["agent_sig", "agent_enc"].includes(c.role),
+      );
+    const epochs = ["agent_sig", "agent_enc"].map(
+      (role) =>
+        (registry.localEpochs.get([a.agentPrincipalId, role, a.connectionId].join("/")) ?? 0) + 1,
+    );
+    let registered = false,
+      registeredExpiresAt: number | null = null;
+    try {
+      const signing = cert(registry, offer.agentSigningKeyId, "agent_sig", this.now()),
+        encryption = cert(registry, offer.agentEncryptionKeyId, "agent_enc", this.now());
+      registered =
+        [signing, encryption].every(
+          (c) => c.connectionId === a.connectionId && c.principalId === a.agentPrincipalId,
+        ) && old.length === 2;
+      if (registered) registeredExpiresAt = Math.min(signing.expiresAt, encryption.expiresAt);
+    } catch (error) {
+      if (!(error instanceof VaultError)) throw error;
+    }
+    return {
+      offerFingerprint: await sha(canonical(offer)),
+      registrySequence: registry.checkpoint.registrySequence,
+      checkpointDigest: registry.digest,
+      existingConnectionKeyIds: old.map((c) => c.keyId).sort(),
+      registered,
+      registeredExpiresAt,
+      agentSigningKeyEpoch: epochs[0],
+      agentEncryptionKeyEpoch: epochs[1],
+    };
+  }
+  async inspectAgentOffer(args: { offer: HelperPublicOffer }) {
+    exact(args, ["offer"]);
+    return this.checkedAgentOffer(args.offer);
+  }
+  async prepareAgentRegistration(args: {
+    offer: HelperPublicOffer;
+    ttlSeconds: number;
+    replaceKeyIds?: string[];
+  }) {
+    exact(args, [
+      "offer",
+      "ttlSeconds",
+      ...(args.replaceKeyIds === undefined ? [] : ["replaceKeyIds"]),
+    ]);
+    const review = await this.checkedAgentOffer(args.offer),
+      { registry, vault } = this.ready();
+    if (!Number.isSafeInteger(args.ttlSeconds) || args.ttlSeconds < 60 || args.ttlSeconds > 3600)
+      throw new VaultError("invalid_data");
+    const replaced = args.replaceKeyIds ?? [];
+    if (!Array.isArray(replaced) || !equal(replaced, review.existingConnectionKeyIds))
+      throw new VaultError("replacement_review_required");
+    const identity = canonical({
+      offerFingerprint: review.offerFingerprint,
+      replaceKeyIds: replaced,
+      ttlSeconds: args.ttlSeconds,
+    });
+    const cached = this.pendingAgentRegistrations.get(identity);
+    if (
+      cached &&
+      cached.expectedVersion === vault.version &&
+      parsed(unb64(cached.registryBundle.checkpoint.payload)).previousDigest === registry.digest &&
+      cached.expiresAt > this.now()
+    )
+      return {
+        ...this.normalizedAgentPacket(cached),
+        localPending: await this.sealAgentLocal("registration", cached),
+      };
+    for (const id of [args.offer.agentSigningKeyId, args.offer.agentEncryptionKeyId])
+      if (registry.certificates.has(id)) throw new VaultError("agent_already_registered");
+    if (
+      vault.registryHistory.length >= 32 ||
+      registry.bundle.entries.length + 2 > 64 ||
+      registry.checkpoint.revokedKeyIds.length + replaced.length > 64 ||
+      this.pendingAgentRegistrations.size >= 16
+    )
+      throw new VaultError("device_limit");
+    const expiresAt = this.now() + args.ttlSeconds,
+      a = args.offer.anchor;
+    const entries = registry.bundle.entries.map((entry) => ({
+      ...entry,
+      active: replaced.includes(parsed(unb64(entry.certificate.payload)).keyId)
+        ? false
+        : entry.active,
+    }));
+    for (const [role, jwk, epoch] of [
+      ["agent_sig", args.offer.agentSigningPublicJwk, review.agentSigningKeyEpoch],
+      ["agent_enc", args.offer.agentEncryptionPublicJwk, review.agentEncryptionKeyEpoch],
+    ] as [string, Json, number][]) {
+      const value = {
+        artifactType: "key_certificate",
+        contractVersion: CONTRACT,
+        vaultId: vault.vaultId,
+        ownerSubject: await this.owner,
+        certificateId: randomId("cert_"),
+        keyId: await thumb(jwk),
+        role,
+        publicJwk: jwk,
+        principalId: a.agentPrincipalId,
+        connectionId: a.connectionId,
+        keyEpoch: epoch,
+        issuerKeyId: vault.rootKeyId,
+        notBefore: Math.max(0, this.now() - 5),
+        expiresAt,
+        capabilities: CAP[role],
+      };
+      validate("KeyCertificatePayload", value);
+      entries.push({ certificate: await sign(value, this.root!, vault.rootKeyId), active: true });
+    }
+    const bundle = await this.bundle(entries, registry),
+      checkpoint = parsed(unb64(bundle.checkpoint.payload));
+    checkpoint.revokedKeyIds = [...new Set([...checkpoint.revokedKeyIds, ...replaced])].sort();
+    bundle.checkpoint = await sign(checkpoint, this.root!, vault.rootKeyId);
+    await verifyRegistry(
+      bundle,
+      vault.rootJwk,
+      await this.owner,
+      vault.vaultId,
+      registry,
+      this.now(),
+    );
+    const packet: AgentRegistration = {
+      operationId: randomId(),
+      expectedVersion: vault.version,
+      registryBundle: bundle,
+      offer: args.offer,
+      offerFingerprint: review.offerFingerprint,
+      expiresAt,
+      replacedKeyIds: replaced,
+    };
+    this.pendingAgentRegistrations.set(identity, packet);
+    return {
+      ...this.normalizedAgentPacket(packet),
+      localPending: await this.sealAgentLocal("registration", packet),
+    };
+  }
+  private normalizedAgentPacket<
+    T extends AgentRegistration | AgentApprovalPacket | AgentPreparationPacket,
+  >(packet: T): T {
+    return parsed(utf8.encode(canonical(packet))) as T;
+  }
+  private async sealAgentLocal(
+    kind: AgentPendingKind,
+    packet: AgentRegistration | AgentApprovalPacket | AgentPreparationPacket,
+  ) {
+    const { vault } = this.ready();
+    if (!this.wrapping) throw new VaultError("locked");
+    const connectionId =
+      kind !== "preparation"
+        ? (packet as AgentRegistration | AgentApprovalPacket).offer.anchor.connectionId
+        : (packet as AgentPreparationPacket).connectionId;
+    const taskId =
+      kind !== "preparation"
+        ? (packet as AgentRegistration | AgentApprovalPacket).offer.anchor.taskId
+        : (packet as AgentPreparationPacket).taskId;
+    bounded(packet, 524288);
+    return seal(
+      this.wrapping,
+      {
+        profile: "folioview.agent-owner-outbox.v1",
+        ownerSubject: await this.owner,
+        vaultId: vault.vaultId,
+        rootKeyId: vault.rootKeyId,
+        kind,
+        connectionId,
+        taskId,
+      },
+      packet,
+    );
+  }
+  async openAgentPending(args: {
+    kind: AgentPendingKind;
+    record: Json;
+    connectionId: string;
+    taskId: string;
+  }) {
+    exact(args, ["kind", "record", "connectionId", "taskId"]);
+    const { vault } = this.ready();
+    if (!this.wrapping || !["registration", "approval", "preparation"].includes(args.kind))
+      throw new VaultError("locked");
+    const r = args.record;
+    exact(r, [
+      "profile",
+      "ownerSubject",
+      "vaultId",
+      "rootKeyId",
+      "kind",
+      "connectionId",
+      "taskId",
+      "iv",
+      "ciphertext",
+    ]);
+    if (
+      r.profile !== "folioview.agent-owner-outbox.v1" ||
+      r.ownerSubject !== (await this.owner) ||
+      r.vaultId !== vault.vaultId ||
+      r.rootKeyId !== vault.rootKeyId ||
+      r.kind !== args.kind ||
+      r.connectionId !== args.connectionId ||
+      r.taskId !== args.taskId
+    )
+      throw new VaultError("binding_mismatch");
+    const packet = await open(this.wrapping, r, 524288);
+    if (args.kind === "registration")
+      await this.validateAgentRegistration(packet as AgentRegistration);
+    else if (args.kind === "approval")
+      await this.validateAgentApproval(packet as AgentApprovalPacket);
+    else await this.validateAgentPreparation(packet as AgentPreparationPacket);
+    return packet;
+  }
+  async validateAgentRegistration(packet: AgentRegistration) {
+    exact(packet, [
+      "operationId",
+      "expectedVersion",
+      "registryBundle",
+      "offer",
+      "offerFingerprint",
+      "expiresAt",
+      "replacedKeyIds",
+    ]);
+    const review = await this.checkedAgentOffer(packet.offer),
+      { registry, vault } = this.ready();
+    validate("OperationIdentifier", packet.operationId);
+    positive(packet.expectedVersion);
+    positive(packet.expiresAt);
+    if (review.offerFingerprint !== packet.offerFingerprint || packet.expiresAt <= this.now())
+      throw new VaultError("stale_epoch");
+    const known = vault.registryHistory.some((b) => equal(b, packet.registryBundle));
+    const candidate = await verifyRegistry(
+      packet.registryBundle,
+      vault.rootJwk,
+      await this.owner,
+      vault.vaultId,
+      known ? undefined : registry,
+      this.now(),
+    );
+    if (
+      (!known && packet.expectedVersion !== vault.version) ||
+      candidate.checkpoint.keyEpoch !== registry.checkpoint.keyEpoch
+    )
+      throw new VaultError("registry_conflict");
+    for (const [id, role, jwk] of [
+      [packet.offer.agentSigningKeyId, "agent_sig", packet.offer.agentSigningPublicJwk],
+      [packet.offer.agentEncryptionKeyId, "agent_enc", packet.offer.agentEncryptionPublicJwk],
+    ]) {
+      const c = cert(known ? registry : candidate, id as string, role as string, this.now());
+      if (
+        c.connectionId !== packet.offer.anchor.connectionId ||
+        c.principalId !== packet.offer.anchor.agentPrincipalId ||
+        c.expiresAt !== packet.expiresAt ||
+        !equal(c.publicJwk, jwk)
+      )
+        throw new VaultError("binding_mismatch");
+    }
+    return packet;
+  }
+  private async checkedAgentGrant(signed: Signed) {
+    const { registry, vault } = this.ready();
+    const grant = parsed(unb64(signed.payload, 65536));
+    validate("AgentKeyGrantPayload", grant);
+    const author = cert(registry, grant.deviceSigningKeyId, "device_sig", this.now());
+    await verified(signed, author.publicJwk);
+    const historical = vault.registryHistory.find(
+      (bundle) =>
+        parsed(unb64(bundle.checkpoint.payload)).registrySequence === grant.registrySequence,
+    );
+    if (
+      !historical ||
+      (await sha(canonical(parsed(unb64(historical.checkpoint.payload))))) !==
+        grant.checkpointDigest
+    )
+      throw new VaultError("registry_conflict");
+    if (
+      !author.capabilities.includes("task_grant") ||
+      grant.ownerSubject !== (await this.owner) ||
+      grant.vaultId !== vault.vaultId ||
+      grant.keyEpoch !== registry.checkpoint.keyEpoch ||
+      grant.taskVersions.length !== 1 ||
+      grant.historyPolicy !== "selected" ||
+      !grant.capabilities.includes("decrypt_task") ||
+      (grant.resourceBindings.length > 0 && !grant.capabilities.includes("decrypt_resources")) ||
+      grant.notBefore > this.now() ||
+      grant.expiresAt <= this.now()
+    )
+      throw new VaultError("binding_mismatch");
+    const sig = cert(registry, grant.agentSigningKeyId, "agent_sig", this.now()),
+      enc = cert(registry, grant.agentEncryptionKeyId, "agent_enc", this.now());
+    if (
+      sig.connectionId !== grant.connectionId ||
+      enc.connectionId !== grant.connectionId ||
+      sig.principalId !== enc.principalId ||
+      sig.keyEpoch !== grant.agentSigningKeyEpoch ||
+      enc.keyEpoch !== grant.agentEncryptionKeyEpoch
+    )
+      throw new VaultError("binding_mismatch");
+    const recipients = grant.writebackRecipientKeyIds.map((id: string) =>
+      cert(registry, id, undefined, this.now()),
+    );
+    if (
+      recipients.length < 2 ||
+      recipients.length > 7 ||
+      !equal(grant.writebackRecipientKeyIds, [...new Set(grant.writebackRecipientKeyIds)].sort()) ||
+      !recipients.some((r: Json) => r.role === "device_enc") ||
+      !recipients.some((r: Json) => r.role === "recovery_enc") ||
+      recipients.some(
+        (r: Json) => r.connectionId !== null || !["device_enc", "recovery_enc"].includes(r.role),
+      ) ||
+      grant.notBefore <
+        Math.max(
+          author.notBefore,
+          sig.notBefore,
+          enc.notBefore,
+          ...recipients.map((r: Json) => r.notBefore),
+        ) ||
+      grant.expiresAt - grant.notBefore > 2592000 ||
+      grant.expiresAt >
+        Math.min(
+          author.expiresAt,
+          sig.expiresAt,
+          enc.expiresAt,
+          ...recipients.map((r: Json) => r.expiresAt),
+        )
+    )
+      throw new VaultError("binding_mismatch");
+    return {
+      grant,
+      recipients: [...recipients, enc].sort((a: Json, b: Json) => (a.keyId < b.keyId ? -1 : 1)),
+    };
+  }
+  async signAgentGrants(
+    args: AgentGrantArgs,
+  ): Promise<AgentApprovalPacket & { localPending: Json }> {
+    exact(args, ["authorization", "tasks", "offer"]);
+    bounded(args, 1048576);
+    const offer = await this.checkedAgentOffer(args.offer),
+      { registry, device, vault } = this.ready(),
+      a = args.authorization;
+    exact(a, [
+      "contractVersion",
+      "provider",
+      "status",
+      "clientId",
+      "scopes",
+      "connectionId",
+      "authorizationId",
+      "expiresAt",
+      "prepared",
+    ]);
+    const prepared = a.prepared;
+    exact(prepared, [
+      "taskIds",
+      "approvedScopes",
+      "tasks",
+      "authorizationCount",
+      "keyEpoch",
+      "registrySequence",
+      "checkpointDigest",
+      "authorizationExpiresAt",
+      "historyPolicy",
+    ]);
+    validate("Identifier", a.clientId);
+    validate("Identifier", a.authorizationId);
+    if (!Array.isArray(prepared.approvedScopes)) throw new VaultError("invalid_data");
+    const scopes = new Set(prepared.approvedScopes);
+    const allowed = [
+      "tasks:read",
+      "runs:create",
+      "runs:read",
+      "results:create",
+      "results:revise",
+      "receipts:read",
+      "watchlist:read",
+      "channel_follows:read",
+      "portfolio:read",
+    ];
+    if (
+      a.contractVersion !== CONTRACT ||
+      a.provider !== "muse" ||
+      a.status !== "pending" ||
+      a.connectionId !== args.offer.anchor.connectionId ||
+      !Array.isArray(a.scopes) ||
+      !a.scopes.every((s: string) => allowed.includes(s)) ||
+      !Array.isArray(prepared.approvedScopes) ||
+      !prepared.approvedScopes.length ||
+      scopes.size !== prepared.approvedScopes.length ||
+      !prepared.approvedScopes.every((s: string) => a.scopes.includes(s)) ||
+      !scopes.has("tasks:read") ||
+      prepared.historyPolicy !== "selected" ||
+      prepared.registrySequence !== registry.checkpoint.registrySequence ||
+      prepared.checkpointDigest !== registry.digest ||
+      prepared.keyEpoch !== registry.checkpoint.keyEpoch ||
+      !Array.isArray(args.tasks) ||
+      args.tasks.length !== 1 ||
+      args.tasks[0].metadata.taskId !== args.offer.anchor.taskId ||
+      !equal(
+        prepared.taskIds,
+        args.tasks.map((t) => t.metadata.taskId),
+      ) ||
+      !Array.isArray(prepared.tasks) ||
+      prepared.tasks.length !== args.tasks.length ||
+      !Number.isSafeInteger(prepared.authorizationExpiresAt) ||
+      prepared.authorizationExpiresAt <= this.now()
+    )
+      throw new VaultError("binding_mismatch");
+    const author = cert(registry, device.sigId, "device_sig", this.now());
+    if (!author.capabilities.includes("task_grant")) throw new VaultError("key_revoked");
+    const sig = cert(registry, args.offer.agentSigningKeyId, "agent_sig", this.now()),
+      enc = cert(registry, args.offer.agentEncryptionKeyId, "agent_enc", this.now());
+    if (
+      [sig, enc].some(
+        (c) =>
+          c.connectionId !== a.connectionId || c.principalId !== args.offer.anchor.agentPrincipalId,
+      )
+    )
+      throw new VaultError("binding_mismatch");
+    const recipients = this.taskSelection(registry, this.now()).recipients;
+    if (recipients.length > 7) throw new VaultError("recipient_limit");
+    const notBefore = Math.max(
+      this.now() - 5,
+      author.notBefore,
+      sig.notBefore,
+      enc.notBefore,
+      ...recipients.map((r) => r.notBefore),
+    );
+    const expiresAt = Math.min(
+      this.now() + 3600,
+      prepared.authorizationExpiresAt,
+      author.expiresAt,
+      sig.expiresAt,
+      enc.expiresAt,
+      ...recipients.map((r) => r.expiresAt),
+    );
+    if (expiresAt <= this.now()) throw new VaultError("key_revoked");
+    const signedGrants: Signed[] = [];
+    for (const [index, task] of args.tasks.entries()) {
+      await this.openTask(task);
+      const meta = task.metadata,
+        selected = prepared.tasks[index];
+      exact(selected, [
+        "taskId",
+        "taskVersion",
+        "executionEpoch",
+        "resourceBindings",
+        "grantId",
+        "grantEpoch",
+        "selectedResourceVersions",
+      ]);
+      if (
+        meta.status !== "active" ||
+        selected.taskId !== meta.taskId ||
+        selected.taskVersion !== meta.taskVersion ||
+        selected.executionEpoch !== meta.executionEpoch ||
+        !equal(selected.resourceBindings, meta.resourceBindings) ||
+        !Array.isArray(selected.selectedResourceVersions) ||
+        selected.selectedResourceVersions.length !== meta.resourceBindings.length
+      )
+        throw new VaultError("version_conflict");
+      const resourceBindings = meta.resourceBindings.map((binding, i) => {
+        const version = selected.selectedResourceVersions[i];
+        exact(version, ["ref", "revision", "sourceEpoch", "producerSnapshotId"]);
+        positive(version.revision);
+        if (
+          !equal(version.ref, binding.ref) ||
+          version.sourceEpoch !== binding.sourceEpoch ||
+          !scopes.has(
+            {
+              holdings: "portfolio:read",
+              watchlist: "watchlist:read",
+              channel_follows: "channel_follows:read",
+            }[binding.ref.kind],
+          )
+        )
+          throw new VaultError("binding_mismatch");
+        return { ...binding, versionAccess: "selected", selectedVersions: [version.revision] };
+      });
+      const capabilities = [
+        "decrypt_task",
+        ...(resourceBindings.length ? ["decrypt_resources"] : []),
+        ...(scopes.has("results:create") || scopes.has("results:revise") ? ["encrypt_result"] : []),
+      ];
+      if (resourceBindings.length && !(scopes.has("runs:create") || scopes.has("runs:read")))
+        throw new VaultError("binding_mismatch");
+      const grant = {
+        artifactType: "agent_key_grant",
+        contractVersion: CONTRACT,
+        vaultId: vault.vaultId,
+        ownerSubject: await this.owner,
+        authorizationId: a.authorizationId,
+        deviceSigningKeyId: device.sigId,
+        connectionId: a.connectionId,
+        taskId: meta.taskId,
+        taskVersions: [meta.taskVersion],
+        executionEpoch: meta.executionEpoch,
+        grantId: selected.grantId,
+        grantEpoch: selected.grantEpoch,
+        agentSigningKeyId: sig.keyId,
+        agentSigningKeyEpoch: sig.keyEpoch,
+        agentEncryptionKeyId: enc.keyId,
+        agentEncryptionKeyEpoch: enc.keyEpoch,
+        keyEpoch: registry.checkpoint.keyEpoch,
+        resourceBindings,
+        capabilities,
+        writebackRecipientKeyIds: recipients.map((r) => r.keyId),
+        historyPolicy: "selected",
+        notBefore,
+        expiresAt,
+        registrySequence: registry.checkpoint.registrySequence,
+        checkpointDigest: registry.digest,
+      };
+      validate("AgentKeyGrantPayload", grant);
+      signedGrants.push(await sign(grant, device.sig, device.sigId));
+    }
+    const packet: AgentApprovalPacket = {
+      operationId: randomId(),
+      authorization: a,
+      offer: args.offer,
+      signedGrants,
+      writebackRecipientKeyIds: recipients.map((r) => r.keyId),
+      offerFingerprint: offer.offerFingerprint,
+    };
+    return {
+      ...this.normalizedAgentPacket(packet),
+      localPending: await this.sealAgentLocal("approval", packet),
+    };
+  }
+  private async validateAgentApproval(packet: AgentApprovalPacket) {
+    exact(packet, [
+      "operationId",
+      "authorization",
+      "offer",
+      "signedGrants",
+      "writebackRecipientKeyIds",
+      "offerFingerprint",
+    ]);
+    bounded(packet, 131072);
+    validate("OperationIdentifier", packet.operationId);
+    const inspected = await this.checkedAgentOffer(packet.offer),
+      a = packet.authorization,
+      p = a.prepared;
+    exact(a, [
+      "contractVersion",
+      "provider",
+      "status",
+      "clientId",
+      "scopes",
+      "connectionId",
+      "authorizationId",
+      "expiresAt",
+      "prepared",
+    ]);
+    exact(p, [
+      "taskIds",
+      "approvedScopes",
+      "tasks",
+      "authorizationCount",
+      "keyEpoch",
+      "registrySequence",
+      "checkpointDigest",
+      "authorizationExpiresAt",
+      "historyPolicy",
+    ]);
+    if (
+      packet.offerFingerprint !== inspected.offerFingerprint ||
+      a.contractVersion !== CONTRACT ||
+      a.provider !== "muse" ||
+      a.status !== "pending" ||
+      a.connectionId !== packet.offer.anchor.connectionId ||
+      !Array.isArray(packet.signedGrants) ||
+      packet.signedGrants.length !== 1 ||
+      !Array.isArray(p.tasks) ||
+      p.tasks.length !== 1 ||
+      !equal(p.taskIds, [packet.offer.anchor.taskId])
+    )
+      throw new VaultError("binding_mismatch");
+    const { grant } = await this.checkedAgentGrant(packet.signedGrants[0]),
+      selected = p.tasks[0];
+    if (
+      grant.authorizationId !== a.authorizationId ||
+      grant.connectionId !== a.connectionId ||
+      grant.taskId !== packet.offer.anchor.taskId ||
+      !equal(grant.taskVersions, [selected.taskVersion]) ||
+      grant.executionEpoch !== selected.executionEpoch ||
+      grant.grantId !== selected.grantId ||
+      grant.grantEpoch !== selected.grantEpoch ||
+      grant.agentSigningKeyId !== packet.offer.agentSigningKeyId ||
+      grant.agentEncryptionKeyId !== packet.offer.agentEncryptionKeyId ||
+      grant.registrySequence !== p.registrySequence ||
+      grant.checkpointDigest !== p.checkpointDigest ||
+      grant.keyEpoch !== p.keyEpoch ||
+      grant.expiresAt > p.authorizationExpiresAt ||
+      !equal(grant.writebackRecipientKeyIds, packet.writebackRecipientKeyIds) ||
+      !equal(
+        grant.resourceBindings.map((b: Json) => ({ ref: b.ref, sourceEpoch: b.sourceEpoch })),
+        selected.resourceBindings,
+      )
+    )
+      throw new VaultError("binding_mismatch");
+    for (const [index, binding] of grant.resourceBindings.entries()) {
+      const version = selected.selectedResourceVersions[index];
+      if (
+        !version ||
+        !equal(version.ref, binding.ref) ||
+        version.sourceEpoch !== binding.sourceEpoch ||
+        !equal(binding.selectedVersions, [version.revision])
+      )
+        throw new VaultError("binding_mismatch");
+    }
+    return packet;
+  }
+  async sealAgentPreparation(args: AgentPreparationArgs) {
+    exact(args, ["intent", "task", "signedGrant", "sources"]);
+    bounded(args, 1048576);
+    const { registry, device, vault } = this.ready(),
+      { grant, recipients } = await this.checkedAgentGrant(args.signedGrant),
+      intent = args.intent;
+    const content = await this.openTask(args.task),
+      meta = args.task.metadata;
+    exact(intent, [
+      "contractVersion",
+      "profile",
+      "preparationId",
+      "objects",
+      "taskMetadata",
+      "connectionId",
+      "taskId",
+      "grantId",
+      "grantEpoch",
+      "registrySequence",
+      "checkpointDigest",
+      "taskDeliveryBase",
+      "status",
+    ]);
+    const preparationId =
+      "preparation_" +
+      (
+        await sha(
+          canonical([
+            grant.ownerSubject,
+            grant.connectionId,
+            grant.authorizationId,
+            grant.grantId,
+            grant.grantEpoch,
+            grant.taskId,
+            grant.taskVersions,
+          ]),
+        )
+      ).slice(0, 43);
+    if (
+      intent.contractVersion !== CONTRACT ||
+      intent.profile !== "folioview.agent-preparation.v1" ||
+      intent.status !== "staging" ||
+      intent.preparationId !== preparationId ||
+      intent.connectionId !== grant.connectionId ||
+      intent.taskId !== grant.taskId ||
+      meta.taskId !== grant.taskId ||
+      grant.taskVersions[0] !== meta.taskVersion ||
+      grant.executionEpoch !== meta.executionEpoch ||
+      intent.grantId !== grant.grantId ||
+      intent.grantEpoch !== grant.grantEpoch ||
+      intent.registrySequence !== registry.checkpoint.registrySequence ||
+      intent.checkpointDigest !== registry.digest ||
+      !equal(intent.taskMetadata, meta) ||
+      meta.status !== "active" ||
+      !Array.isArray(args.sources) ||
+      !equal(
+        meta.resourceBindings,
+        grant.resourceBindings.map((b: Json) => ({ ref: b.ref, sourceEpoch: b.sourceEpoch })),
+      ) ||
+      args.sources.length !== grant.resourceBindings.length ||
+      !Array.isArray(intent.objects) ||
+      intent.objects.length !== args.sources.length + 1
+    )
+      throw new VaultError("binding_mismatch");
+    exact(intent.taskDeliveryBase, ["deliveryRevision", "envelopeFingerprint"]);
+    positive(intent.taskDeliveryBase.deliveryRevision);
+    validate("Digest", intent.taskDeliveryBase.envelopeFingerprint);
+    if (
+      intent.taskDeliveryBase.deliveryRevision === 1 &&
+      intent.taskDeliveryBase.envelopeFingerprint !== meta.envelopeFingerprint
+    )
+      throw new VaultError("binding_mismatch");
+    const objects: AgentPreparationPacket["objects"] = [];
+    for (let index = 0; index < intent.objects.length; index++) {
+      const descriptor = intent.objects[index];
+      exact(descriptor, [
+        "objectId",
+        "objectType",
+        "revision",
+        "deliveryRevision",
+        "priorEnvelopeFingerprint",
+        "resourceRef",
+        "sourceRevision",
+        "sourceEpoch",
+        "producerSnapshotId",
+        "provenance",
+      ]);
+      let privateContent: Json = content,
+        binding: Json = this.taskBinding(meta.taskId, meta.taskVersion),
+        expectedRevision = meta.taskVersion,
+        operationType = "reshare_delivery";
+      if (index === 0) {
+        if (
+          descriptor.objectId !== meta.taskId ||
+          descriptor.objectType !== "task" ||
+          descriptor.revision !== meta.taskVersion ||
+          descriptor.deliveryRevision !== intent.taskDeliveryBase.deliveryRevision + 1 ||
+          descriptor.priorEnvelopeFingerprint !== intent.taskDeliveryBase.envelopeFingerprint ||
+          [
+            descriptor.resourceRef,
+            descriptor.sourceRevision,
+            descriptor.sourceEpoch,
+            descriptor.producerSnapshotId,
+          ].some((v) => v !== null) ||
+          descriptor.provenance !== "task_reshare"
+        )
+          throw new VaultError("binding_mismatch");
+      } else {
+        const resource = args.sources[index - 1],
+          approved = grant.resourceBindings[index - 1];
+        if (
+          !resource ||
+          !equal(resource.ref, approved.ref) ||
+          resource.sourceEpoch !== approved.sourceEpoch ||
+          !equal(approved.selectedVersions, [resource.revision]) ||
+          approved.versionAccess !== "selected"
+        )
+          throw new VaultError("binding_mismatch");
+        const id = "copy_" + (await sha(canonical([preparationId, resource.ref]))).slice(0, 43),
+          objectType = {
+            holdings: "holdings_snapshot",
+            watchlist: "watchlist_evidence",
+            channel_follows: "channel_follows_evidence",
+          }[resource.kind];
+        if (
+          resource.kind !== resource.ref.kind ||
+          descriptor.objectId !== id ||
+          descriptor.objectType !== objectType ||
+          descriptor.revision !== resource.revision ||
+          descriptor.deliveryRevision !== 1 ||
+          descriptor.priorEnvelopeFingerprint !== null ||
+          !equal(descriptor.resourceRef, resource.ref) ||
+          descriptor.sourceEpoch !== resource.sourceEpoch ||
+          descriptor.sourceRevision !== resource.revision ||
+          descriptor.producerSnapshotId !== null ||
+          descriptor.provenance !== "owner_attested_copy"
+        )
+          throw new VaultError("binding_mismatch");
+        privateContent = await this.agentResourceContent(resource, id);
+        binding = {
+          ...this.taskBinding("placeholder", 1),
+          taskId: null,
+          taskVersion: null,
+          resourceRef: resource.ref,
+          sourceRevision: resource.revision,
+          sourceEpoch: resource.sourceEpoch,
+        };
+        expectedRevision = resource.revision - 1;
+        operationType = resource.kind === "holdings" ? "commit_snapshot" : "commit_evidence";
+      }
+      if (typeof privateContent !== "object") throw new VaultError("invalid_data");
+      const operationId = randomId(),
+        context = {
+          contractVersion: CONTRACT,
+          profileId: "P1",
+          ownerSubject: await this.owner,
+          vaultId: vault.vaultId,
+          rootKeyId: vault.rootKeyId,
+          rootEpoch: registry.checkpoint.rootEpoch,
+          registrySequence: registry.checkpoint.registrySequence,
+          checkpointDigest: registry.digest,
+          keyEpoch: registry.checkpoint.keyEpoch,
+          objectId: descriptor.objectId,
+          objectType: descriptor.objectType,
+          revision: descriptor.revision,
+          deliveryRevision: descriptor.deliveryRevision,
+          priorEnvelopeFingerprint: descriptor.priorEnvelopeFingerprint,
+          expectedRevision,
+          stableOperationId: operationId,
+          operationType,
+          authorSigningKeyId: device.sigId,
+          binding,
+          resourceBindings: index === 0 ? meta.resourceBindings : [],
+          recipients: recipients.map((r: Json) => this.taskRecipient(r)),
+        };
+      validate("Context", context);
+      bounded(context, 16384);
+      const payload = {
+        privateSchemaVersion: 2,
+        objectId: descriptor.objectId,
+        objectType: descriptor.objectType,
+        revision: descriptor.revision,
+        binding,
+        payload: privateContent,
+      };
+      validate("PrivatePayload", payload);
+      bounded(payload, index === 0 ? 65536 : 196608);
+      const encryptor = new GeneralEncrypt(utf8.encode(canonical(payload)))
+        .setProtectedHeader(JWE_HEADER)
+        .setAdditionalAuthenticatedData(utf8.encode(canonical(context)));
+      for (const recipient of recipients)
+        encryptor
+          .addRecipient(await key(recipient.publicJwk))
+          .setUnprotectedHeader({ kid: recipient.keyId });
+      const envelope = {
+        contractVersion: CONTRACT,
+        signedObject: await sign(
+          { context, jwe: await encryptor.encrypt() },
+          device.sig,
+          device.sigId,
+          "fv-object+jws",
+        ),
+      };
+      validate("Carrier", envelope);
+      bounded(envelope, 524288);
+      const envelopeFingerprint = await signingFingerprint(envelope.signedObject);
+      objects.push({
+        objectId: descriptor.objectId,
+        operationId,
+        authorKeyId: device.sigId,
+        envelope,
+        envelopeFingerprint,
+      });
+    }
+    const packet: AgentPreparationPacket = {
+      preparationId,
+      connectionId: grant.connectionId,
+      taskId: meta.taskId,
+      registrySequence: registry.checkpoint.registrySequence,
+      checkpointDigest: registry.digest,
+      keyEpoch: registry.checkpoint.keyEpoch,
+      objects,
+      commit: {
+        operationId: randomId(),
+        body: {
+          contractVersion: CONTRACT,
+          objects: objects.map(({ objectId, envelopeFingerprint }) => ({
+            objectId,
+            envelopeFingerprint,
+          })),
+        },
+      },
+      deliveryPin: {
+        preparationId,
+        taskVersion: meta.taskVersion,
+        taskEnvelopeFingerprint: meta.envelopeFingerprint,
+        taskDeliveryFingerprint: objects[0].envelopeFingerprint,
+        objects: objects
+          .map(({ objectId, envelopeFingerprint }) => ({ objectId, envelopeFingerprint }))
+          .sort((a, b) => (a.objectId < b.objectId ? -1 : 1)),
+        deliveryRevision: intent.objects[0].deliveryRevision,
+        priorEnvelopeFingerprint: intent.taskDeliveryBase.envelopeFingerprint,
+        authorizationId: grant.authorizationId,
+        grantId: grant.grantId,
+        grantEpoch: grant.grantEpoch,
+        executionEpoch: grant.executionEpoch,
+      },
+    };
+    bounded(packet, 524288);
+    return {
+      ...this.normalizedAgentPacket(packet),
+      localPending: await this.sealAgentLocal("preparation", packet),
+    };
+  }
+  private async agentResourceContent(
+    source: AgentPreparationSource,
+    copyId: string,
+  ): Promise<Json> {
+    validate("ResourceRef", source.ref);
+    positive(source.revision);
+    positive(source.sourceEpoch);
+    if (source.kind === "holdings") {
+      exact(source, ["kind", "ref", "revision", "sourceEpoch", "snapshot"]);
+      if (
+        source.snapshot.receipt.revision !== source.revision ||
+        source.snapshot.receipt.sourceEpoch !== source.sourceEpoch ||
+        !equal(source.snapshot.receipt.resourceRef, source.ref)
+      )
+        throw new VaultError("binding_mismatch");
+      const value = await this.openSnapshot(source.snapshot, {
+        resourceRef: source.ref,
+        sourceEpoch: source.sourceEpoch,
+      });
+      return { ...value, data: { ...value.data, snapshotId: copyId } };
+    }
+    exact(source, [
+      "kind",
+      "ref",
+      "revision",
+      "sourceEpoch",
+      "fetchedAt",
+      "sourceAsOf",
+      "response",
+    ]);
+    exact(
+      source.response,
+      source.kind === "watchlist" ? ["items", "limit"] : ["revision", "items", "limit"],
+    );
+    if (
+      source.ref.sourceService !== "user" ||
+      !Array.isArray(source.response.items) ||
+      source.response.limit !== 50 ||
+      (source.kind === "channel_follows" && source.response.revision !== source.revision)
+    )
+      throw new VaultError("binding_mismatch");
+    const value = {
+      state: source.response.items.length ? "ready" : "empty",
+      coverage: { state: "complete", issues: [] },
+      sourceAsOf: source.sourceAsOf,
+      fetchedAt: source.fetchedAt,
+      freshness: source.sourceAsOf === null ? "unknown" : "fresh",
+      data:
+        source.kind === "watchlist"
+          ? { kind: "watchlist", items: source.response.items }
+          : { kind: "channel_follows", items: source.response.items, readableMaterialCount: 0 },
+    };
+    validate("ResourceContent", value);
+    bounded(value, 196608);
+    if (
+      utcSeconds(source.fetchedAt) > this.now() + 2 ||
+      (source.sourceAsOf !== null && utcSeconds(source.sourceAsOf) > this.now() + 2)
+    )
+      throw new VaultError("invalid_data");
+    const ids = source.response.items.map((item) =>
+      source.kind === "watchlist" ? item.symbol : item.followId,
+    );
+    if (new Set(ids).size !== ids.length) throw new VaultError("invalid_data");
+    return value;
+  }
+  async validateAgentPreparation(packet: AgentPreparationPacket) {
+    const { registry, device, vault } = this.ready();
+    exact(packet, [
+      "preparationId",
+      "connectionId",
+      "taskId",
+      "registrySequence",
+      "checkpointDigest",
+      "keyEpoch",
+      "objects",
+      "commit",
+      "deliveryPin",
+    ]);
+    for (const id of [packet.preparationId, packet.connectionId, packet.taskId])
+      validate("Identifier", id);
+    const history = vault.registryHistory.find(
+      (bundle) =>
+        parsed(unb64(bundle.checkpoint.payload)).registrySequence === packet.registrySequence,
+    );
+    if (
+      packet.keyEpoch !== registry.checkpoint.keyEpoch ||
+      !history ||
+      (await sha(canonical(parsed(unb64(history.checkpoint.payload))))) !==
+        packet.checkpointDigest ||
+      !Array.isArray(packet.objects) ||
+      packet.objects.length < 1 ||
+      packet.objects.length > 11
+    )
+      throw new VaultError("stale_epoch");
+    for (const item of packet.objects) {
+      exact(item, ["objectId", "operationId", "authorKeyId", "envelope", "envelopeFingerprint"]);
+      validate("Carrier", item.envelope);
+      validate("OperationIdentifier", item.operationId);
+      const author = cert(registry, item.authorKeyId, "device_sig", this.now());
+      const message = await verified(item.envelope.signedObject, author.publicJwk, "fv-object+jws");
+      validate("ObjectMessage", message);
+      for (const recipient of message.context.recipients) {
+        const current = cert(registry, recipient.keyId, undefined, this.now());
+        if (
+          !equal(recipient, this.taskRecipient(current)) ||
+          (current.role === "agent_enc"
+            ? current.connectionId !== packet.connectionId
+            : current.connectionId !== null ||
+              !["device_enc", "recovery_enc"].includes(current.role))
+        )
+          throw new VaultError("key_revoked");
+      }
+
+      if (
+        !author.capabilities.includes("object_write") ||
+        message.context.ownerSubject !== (await this.owner) ||
+        message.context.vaultId !== vault.vaultId ||
+        message.context.stableOperationId !== item.operationId ||
+        message.context.objectId !== item.objectId ||
+        message.context.authorSigningKeyId !== item.authorKeyId ||
+        message.context.checkpointDigest !== packet.checkpointDigest ||
+        message.context.registrySequence !== packet.registrySequence ||
+        message.context.keyEpoch !== registry.checkpoint.keyEpoch ||
+        (await signingFingerprint(item.envelope.signedObject)) !== item.envelopeFingerprint ||
+        !message.context.recipients.some(
+          (r: Json) => r.role === "agent_enc" && r.connectionId === packet.connectionId,
+        )
+      )
+        throw new VaultError("binding_mismatch");
+    }
+    validate("OperationIdentifier", packet.commit.operationId);
+    exact(packet.commit.body, ["contractVersion", "objects"]);
+    if (
+      packet.commit.body.contractVersion !== CONTRACT ||
+      !equal(
+        packet.commit.body.objects,
+        packet.objects.map(({ objectId, envelopeFingerprint }) => ({
+          objectId,
+          envelopeFingerprint,
+        })),
+      )
+    )
+      throw new VaultError("binding_mismatch");
+    void device;
+    return packet;
   }
   async signSource(sourceId: string) {
     const { registry, device, vault } = this.ready();

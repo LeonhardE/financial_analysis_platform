@@ -20,6 +20,13 @@ import {
 } from "firebase/auth";
 import { getBrowserAuth } from "@/lib/firebase-client";
 import { channelInputs, exact } from "@/lib/resource-library";
+import { loadAgentLinkConfiguration } from "@/lib/agent-link";
+import {
+  verifiedOwnerBridge,
+  validateConsentCommand,
+  type OwnerConsentBridge,
+  type ConsentOperation,
+} from "@/lib/owner-consent-bridge";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
 // An unset service origin keeps the current deployment usable during migration.
@@ -391,6 +398,13 @@ type AuthContextValue = AuthState & {
     sessionKey: string,
     options?: PrivateRequestOptions,
   ) => Promise<Response>;
+  requestAgentConsent: (
+    bridge: OwnerConsentBridge,
+    op: ConsentOperation,
+    json: unknown,
+    sessionKey: string,
+    signal?: AbortSignal,
+  ) => Promise<unknown>;
   signIn: () => Promise<void>;
   signOut: () => Promise<void>;
   retry: () => Promise<void>;
@@ -786,6 +800,70 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [],
   );
 
+  const requestAgentConsent = useCallback(
+    async (
+      bridge: OwnerConsentBridge,
+      op: ConsentOperation,
+      json: unknown,
+      sessionKey: string,
+      signal?: AbortSignal,
+    ) => {
+      // A fresh credential can reach only the source/origin/nonce-bound Hub owner port.
+      // Agent/helper ports and arbitrary callback functions are never accepted here.
+      validateConsentCommand(op, json);
+      if (
+        !verifiedOwnerBridge(bridge) ||
+        ownerConfigRef.current.status !== "ready" ||
+        !ownerConfigRef.current.flags.agentHub
+      )
+        throw new Error("Agent consent is not configured.");
+      const session = verifiedSessionRef.current;
+      const ownsSession = () =>
+        session !== null &&
+        session.key === sessionKey &&
+        verifiedSessionRef.current === session &&
+        firebaseUserRef.current === session.user &&
+        authRef.current?.currentUser?.uid === session.user.uid &&
+        !signingOutRef.current &&
+        !signal?.aborted &&
+        verifiedOwnerBridge(bridge) &&
+        ownerConfigRef.current.status === "ready" &&
+        ownerConfigRef.current.flags.agentHub;
+      const changed = () => {
+        const error = new Error("Your account session changed. Please try again.");
+        error.name = "SessionChangedError";
+        return error;
+      };
+      if (!session || !ownsSession()) throw changed();
+      const configuration = await loadAgentLinkConfiguration(signal);
+      if (!ownsSession()) throw changed();
+      if (!configuration.enabled || configuration.hubOrigin !== bridge.hubOrigin)
+        throw new Error("Agent consent is not configured.");
+      let token: string;
+      try {
+        token = await session.user.getIdToken();
+      } catch {
+        if (ownsSession()) {
+          ++generationRef.current;
+          verifiedSessionRef.current = null;
+          requestRef.current?.abort();
+          setState({
+            status: "error",
+            profile: null,
+            error: "Your session could not be verified. Sign out and sign in again.",
+            hasFirebaseUser: true,
+          });
+        }
+        throw changed();
+      }
+      if (!ownsSession()) throw changed();
+      const value = await bridge.request(op, json, token, signal);
+      if (!ownsSession()) throw changed();
+      return value;
+    },
+    [],
+  );
+
   const value = useMemo(
     () => ({
       ...state,
@@ -800,11 +878,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       sessionKey:
         state.status === "authenticated" ? (verifiedSessionRef.current?.key ?? null) : null,
       requestPrivate,
+      requestAgentConsent,
       signIn,
       signOut,
       retry,
     }),
-    [state, ownerConfig, requestPrivate, signIn, signOut, retry],
+    [state, ownerConfig, requestPrivate, requestAgentConsent, signIn, signOut, retry],
   );
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

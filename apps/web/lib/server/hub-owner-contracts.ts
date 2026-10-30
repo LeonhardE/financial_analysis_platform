@@ -250,7 +250,7 @@ export function hubResponse(path: string, method: string, body: unknown): boolea
       Array.isArray(body.items) &&
       body.items.length <= 32 &&
       Array.isArray(body.authorizationAttempts) &&
-      body.authorizationAttempts.length <= 32
+      body.authorizationAttempts.length <= 64
     );
   return fields(body, ["contractVersion", "connection"]) && record(body.connection);
 }

@@ -5,7 +5,7 @@ import { useTranslations } from "next-intl";
 import { AccountControls } from "@/components/AccountControls";
 import styles from "./WorkspaceSidebar.module.css";
 
-export type WorkspaceView = "markets" | "resources" | "tasks" | "inbox" | "settings";
+export type WorkspaceView = "markets" | "resources" | "tasks" | "agents" | "inbox" | "settings";
 
 function NavigationIcon({ view }: { view: WorkspaceView }) {
   return (
@@ -22,6 +22,11 @@ function NavigationIcon({ view }: { view: WorkspaceView }) {
         <>
           <path d="M4 19.5h16M5.5 15V9m6.5 6V4m6.5 11V7" />
           <path d="m3 7 5-3 5 3 7-5" />
+        </>
+      ) : view === "agents" ? (
+        <>
+          <rect x="4" y="7" width="16" height="13" rx="3" />
+          <path d="M12 3v4M8 12h.01M16 12h.01M8 16h8M2 12h2m16 0h2" />
         </>
       ) : view === "tasks" ? (
         <>
@@ -182,23 +187,25 @@ export function WorkspaceSidebar({
         </div>
         <div className={styles.bottom}>
           <nav className={styles.navigation} aria-label={t("nav.primary")}>
-            {(["markets", "resources", "tasks", "inbox", "settings"] as const).map((view) => (
-              <button
-                key={view}
-                type="button"
-                aria-label={t(`nav.${view}`)}
-                title={compact ? t(`nav.${view}`) : undefined}
-                aria-pressed={activeView === view}
-                className={styles.navItem}
-                onClick={() => {
-                  onNavigate(view);
-                  if (compactScreen) setMobileOpen(false);
-                }}
-              >
-                <NavigationIcon view={view} />
-                <span className={styles.label}>{t(`nav.${view}`)}</span>
-              </button>
-            ))}
+            {(["markets", "resources", "tasks", "agents", "inbox", "settings"] as const).map(
+              (view) => (
+                <button
+                  key={view}
+                  type="button"
+                  aria-label={t(`nav.${view}`)}
+                  title={compact ? t(`nav.${view}`) : undefined}
+                  aria-pressed={activeView === view}
+                  className={styles.navItem}
+                  onClick={() => {
+                    onNavigate(view);
+                    if (compactScreen) setMobileOpen(false);
+                  }}
+                >
+                  <NavigationIcon view={view} />
+                  <span className={styles.label}>{t(`nav.${view}`)}</span>
+                </button>
+              ),
+            )}
           </nav>
           <AccountControls collapsed={compact} />
         </div>

@@ -6,6 +6,7 @@ import { usePreferences } from "@/components/PreferencesProvider";
 import SettingsPanel from "@/components/SettingsPanel";
 import ResourcesPanel from "@/components/ResourcesPanel";
 import InboxPanel from "@/components/InboxPanel";
+import AgentsPanel from "@/components/AgentsPanel";
 import TasksPanel, { type TaskRequest } from "@/components/TasksPanel";
 import { useHoldingsWorkspace } from "@/components/useHoldingsWorkspace";
 import { localizeMessage } from "@/lib/ui-messages";
@@ -57,6 +58,10 @@ export default function Dashboard() {
   const [chartReload, setChartReload] = useState(0);
   const [activeView, setActiveView] = useState<WorkspaceView>("markets");
   const encryptedWorkspace = useHoldingsWorkspace();
+  useEffect(() => {
+    const query = new URLSearchParams(window.location.search);
+    if (query.has("agent_request") || query.has("agent_nonce")) setActiveView("agents");
+  }, []);
   const [taskRequest, setTaskRequest] = useState<TaskRequest | null>(null);
   const taskRequestSerial = useRef(0);
   useEffect(() => setTaskRequest(null), [encryptedWorkspace.owner]);
@@ -363,6 +368,9 @@ export default function Dashboard() {
             request={taskRequest?.owner === encryptedWorkspace.owner ? taskRequest : null}
             onRequestConsumed={() => setTaskRequest(null)}
           />
+        </div>
+        <div hidden={activeView !== "agents"}>
+          <AgentsPanel workspace={encryptedWorkspace} active={activeView === "agents"} />
         </div>
         <div hidden={activeView !== "inbox"}>
           <InboxPanel workspace={encryptedWorkspace} active={activeView === "inbox"} />

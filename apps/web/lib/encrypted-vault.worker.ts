@@ -43,6 +43,24 @@ scope.onmessage = (event) => {
           case "signResultState":
             result = await core.signResultState(args);
             break;
+          case "publicAgentAnchor":
+            result = await core.publicAgentAnchor(args);
+            break;
+          case "inspectAgentOffer":
+            result = await core.inspectAgentOffer(args);
+            break;
+          case "prepareAgentRegistration":
+            result = await core.prepareAgentRegistration(args);
+            break;
+          case "openAgentPending":
+            result = await core.openAgentPending(args);
+            break;
+          case "signAgentGrants":
+            result = await core.signAgentGrants(args);
+            break;
+          case "sealAgentPreparation":
+            result = await core.sealAgentPreparation(args);
+            break;
           case "signSource":
             result = await core.signSource(args.sourceId);
             break;

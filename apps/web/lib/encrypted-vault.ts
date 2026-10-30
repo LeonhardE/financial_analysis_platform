@@ -24,6 +24,15 @@ import {
   type PendingTask,
   type SealTaskArgs,
   type TaskOutboxSummary,
+  type AgentAnchor,
+  type HelperPublicOffer,
+  type AgentRegistration,
+  type AgentGrantArgs,
+  type AgentGrantPacket,
+  type AgentApprovalPacket,
+  type AgentPreparationArgs,
+  type AgentPreparationPacket,
+  type AgentPendingKind,
 } from "./encrypted-types";
 export type {
   Vault,
@@ -284,6 +293,276 @@ export class EncryptedVaultSession {
       result = await this.rpc("taskAuthority", { current });
     this.assert(g);
     return result;
+  }
+  async publicAgentAnchor(args: {
+    connectionId: string;
+    agentPrincipalId: string;
+    taskId: string;
+  }): Promise<AgentAnchor> {
+    const g = this.generation,
+      result = await this.rpc("publicAgentAnchor", args);
+    this.assert(g);
+    return result;
+  }
+  async inspectAgentOffer(args: { offer: HelperPublicOffer }) {
+    const g = this.generation,
+      result = await this.rpc("inspectAgentOffer", args);
+    this.assert(g);
+    return result as {
+      offerFingerprint: string;
+      registrySequence: number;
+      checkpointDigest: string;
+      existingConnectionKeyIds: string[];
+      registered: boolean;
+      registeredExpiresAt: number | null;
+      agentSigningKeyEpoch: number;
+      agentEncryptionKeyEpoch: number;
+    };
+  }
+  private sameAgentPublic(a: unknown, b: unknown) {
+    const ordered = (_key: string, value: any) =>
+      value && typeof value === "object" && !Array.isArray(value)
+        ? Object.fromEntries(
+            Object.keys(value)
+              .sort()
+              .map((key) => [key, value[key]]),
+          )
+        : value;
+    return JSON.stringify(a, ordered) === JSON.stringify(b, ordered);
+  }
+  private agentKey(kind: AgentPendingKind, connectionId: string, taskId: string) {
+    if (
+      !this.vaultId ||
+      ![connectionId, taskId].every((id) => /^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/.test(id))
+    )
+      throw new VaultError("invalid_data");
+    return this.owner + ":agent-" + kind + ":" + this.vaultId + ":" + connectionId + ":" + taskId;
+  }
+  private checkAgentRow(row: any, kind: AgentPendingKind, connectionId: string, taskId: string) {
+    if (
+      row &&
+      (row.ownerSubject !== this.owner ||
+        row.vaultId !== this.vaultId ||
+        row.kind !== kind ||
+        row.connectionId !== connectionId ||
+        row.taskId !== taskId ||
+        typeof row.pending?.operationId !== "string")
+    )
+      throw new VaultError("wrong_account");
+  }
+  async prepareAgentRegistration(args: {
+    offer: HelperPublicOffer;
+    ttlSeconds: number;
+    replaceKeyIds?: string[];
+  }): Promise<AgentRegistration> {
+    return this.serial(async () => {
+      const g = this.generation;
+      await this.started;
+      const connectionId = args.offer.anchor.connectionId,
+        taskId = args.offer.anchor.taskId,
+        key = this.agentKey("registration", connectionId, taskId),
+        row = await this.storage.get(key);
+      this.assert(g);
+      this.checkAgentRow(row, "registration", connectionId, taskId);
+      if (row) {
+        const current = await this.loadAgentRegistration(connectionId, taskId),
+          review = await this.inspectAgentOffer({ offer: args.offer });
+        this.assert(g);
+        if (current && current.offerFingerprint === review.offerFingerprint) return current;
+        throw new VaultError("pending_registration");
+      }
+      const { localPending, ...packet } = await this.rpc("prepareAgentRegistration", args);
+      this.assert(g);
+      if (
+        !(await this.storage.insert(key, {
+          ownerSubject: this.owner,
+          vaultId: this.vaultId,
+          kind: "registration",
+          connectionId,
+          taskId,
+          pending: { operationId: packet.operationId, record: localPending },
+        }))
+      )
+        throw new VaultError("pending_registration");
+      this.assert(g);
+      return packet;
+    });
+  }
+  async listAgentOutbox(): Promise<
+    { kind: AgentPendingKind; connectionId: string; taskId: string; operationId: string }[]
+  > {
+    const g = this.generation;
+    await this.started;
+    if (!this.vaultId) throw new VaultError("locked");
+    const output: {
+      kind: AgentPendingKind;
+      connectionId: string;
+      taskId: string;
+      operationId: string;
+    }[] = [];
+    for (const kind of ["registration", "approval", "preparation"] as const) {
+      const prefix = this.owner + ":agent-" + kind + ":" + this.vaultId + ":";
+      const rows = await this.storage.list(prefix);
+      this.assert(g);
+      if (rows.length > 80) throw new VaultError("invalid_data");
+      for (const { key, value } of rows) {
+        this.checkAgentRow(value, kind, value.connectionId, value.taskId);
+        if (key !== this.agentKey(kind, value.connectionId, value.taskId))
+          throw new VaultError("binding_mismatch");
+        output.push({
+          kind,
+          connectionId: value.connectionId,
+          taskId: value.taskId,
+          operationId: value.pending.operationId,
+        });
+      }
+    }
+    return output;
+  }
+  async loadAgentRegistration(
+    connectionId: string,
+    taskId: string,
+  ): Promise<AgentRegistration | null> {
+    return this.loadAgentPending(
+      "registration",
+      connectionId,
+      taskId,
+    ) as Promise<AgentRegistration | null>;
+  }
+  async loadAgentApproval(
+    connectionId: string,
+    taskId: string,
+  ): Promise<AgentApprovalPacket | null> {
+    return this.loadAgentPending(
+      "approval",
+      connectionId,
+      taskId,
+    ) as Promise<AgentApprovalPacket | null>;
+  }
+  async clearAgentApproval(connectionId: string, taskId: string, operationId: string) {
+    return this.clearAgentPending("approval", connectionId, taskId, operationId);
+  }
+  async loadAgentPreparation(
+    connectionId: string,
+    taskId: string,
+  ): Promise<AgentPreparationPacket | null> {
+    return this.loadAgentPending(
+      "preparation",
+      connectionId,
+      taskId,
+    ) as Promise<AgentPreparationPacket | null>;
+  }
+  private async loadAgentPending(kind: AgentPendingKind, connectionId: string, taskId: string) {
+    const g = this.generation;
+    await this.started;
+    const row = await this.storage.get(this.agentKey(kind, connectionId, taskId));
+    this.assert(g);
+    this.checkAgentRow(row, kind, connectionId, taskId);
+    if (!row) return null;
+    const packet = await this.rpc("openAgentPending", {
+      kind,
+      connectionId,
+      taskId,
+      record: row.pending.record,
+    });
+    this.assert(g);
+    const operationId = kind !== "preparation" ? packet.operationId : packet.commit.operationId;
+    if (operationId !== row.pending.operationId) throw new VaultError("binding_mismatch");
+    return packet;
+  }
+  async clearAgentRegistration(connectionId: string, taskId: string, operationId: string) {
+    return this.clearAgentPending("registration", connectionId, taskId, operationId);
+  }
+  async clearAgentPreparation(connectionId: string, taskId: string, operationId: string) {
+    return this.clearAgentPending("preparation", connectionId, taskId, operationId);
+  }
+  private async clearAgentPending(
+    kind: AgentPendingKind,
+    connectionId: string,
+    taskId: string,
+    operationId: string,
+  ) {
+    const g = this.generation;
+    return this.serial(async () => {
+      await this.started;
+      this.assert(g);
+      if (!/^[A-Za-z0-9_-]{22,128}$/.test(operationId)) throw new VaultError("invalid_data");
+      if (
+        !(await this.storage.removeOperation(
+          this.agentKey(kind, connectionId, taskId),
+          operationId,
+        ))
+      )
+        throw new VaultError("operation_conflict");
+      this.assert(g);
+    });
+  }
+  async signAgentGrants(args: AgentGrantArgs): Promise<AgentApprovalPacket> {
+    return this.serial(async () => {
+      const g = this.generation;
+      await this.started;
+      const connectionId = args.offer.anchor.connectionId,
+        taskId = args.offer.anchor.taskId,
+        key = this.agentKey("approval", connectionId, taskId),
+        row = await this.storage.get(key);
+      this.assert(g);
+      this.checkAgentRow(row, "approval", connectionId, taskId);
+      if (row) {
+        const packet = await this.loadAgentApproval(connectionId, taskId),
+          review = await this.inspectAgentOffer({ offer: args.offer });
+        this.assert(g);
+        if (
+          packet &&
+          packet.offerFingerprint === review.offerFingerprint &&
+          this.sameAgentPublic(packet.authorization, args.authorization)
+        )
+          return packet;
+        throw new VaultError("pending_approval");
+      }
+      const { localPending, ...packet } = await this.rpc("signAgentGrants", args);
+      this.assert(g);
+      if (
+        !(await this.storage.insert(key, {
+          ownerSubject: this.owner,
+          vaultId: this.vaultId,
+          kind: "approval",
+          connectionId,
+          taskId,
+          pending: { operationId: packet.operationId, record: localPending },
+        }))
+      )
+        throw new VaultError("pending_approval");
+      this.assert(g);
+      return packet;
+    });
+  }
+  async sealAgentPreparation(args: AgentPreparationArgs): Promise<AgentPreparationPacket> {
+    return this.serial(async () => {
+      const g = this.generation;
+      await this.started;
+      const connectionId = args.intent.connectionId,
+        taskId = args.intent.taskId,
+        key = this.agentKey("preparation", connectionId, taskId),
+        row = await this.storage.get(key);
+      this.assert(g);
+      this.checkAgentRow(row, "preparation", connectionId, taskId);
+      if (row) throw new VaultError("pending_preparation");
+      const { localPending, ...packet } = await this.rpc("sealAgentPreparation", args);
+      this.assert(g);
+      if (
+        !(await this.storage.insert(key, {
+          ownerSubject: this.owner,
+          vaultId: this.vaultId,
+          kind: "preparation",
+          connectionId,
+          taskId,
+          pending: { operationId: packet.commit.operationId, record: localPending },
+        }))
+      )
+        throw new VaultError("pending_preparation");
+      this.assert(g);
+      return packet;
+    });
   }
   private taskKey(kind: "draft" | "outbox", slot: string) {
     if (!this.vaultId || !/^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/.test(slot))

@@ -206,6 +206,23 @@ function harness({
       if (resultHold) await resultHold.promise;
       return { name: "PRIVATE_TASK" };
     }
+    async ownerAgentCall() {
+      resultOpens++;
+      if (resultHold) await resultHold.promise;
+      return { publicPacket: true };
+    }
+    async publicAgentAnchor() {
+      return this.ownerAgentCall();
+    }
+    async prepareAgentRegistration() {
+      return this.ownerAgentCall();
+    }
+    async signAgentGrants() {
+      return this.ownerAgentCall();
+    }
+    async sealAgentPreparation() {
+      return this.ownerAgentCall();
+    }
     async signResultState() {
       if (!resultCanWrite) throw { code: "key_revoked" };
       return {
@@ -1020,4 +1037,38 @@ test("task Worker wrappers fence late replies and reject captured prior unlock g
   assert.equal(Object.hasOwn(model, "worker"), false);
   assert.ok(h.requests.every((request) => request.service === "agent-hub"));
   h.unmount();
+});
+
+test("owner agent crypto wrappers reject late replies and captured methods across lock and account switches", async () => {
+  for (const method of [
+    "publicAgentAnchor",
+    "prepareAgentRegistration",
+    "signAgentGrants",
+    "sealAgentPreparation",
+  ]) {
+    for (const change of ["lock", "owner"]) {
+      const h = harness({ configured: false });
+      let model = await ready(h);
+      const unlocking = model.unlock({ forResults: true, enableState: true });
+      h.resolvePasskey();
+      await unlocking;
+      model = h.render();
+      const old = model,
+        gate = deferred();
+      h.holdResult(gate);
+      const pending = model[method]({});
+      await settle();
+      if (change === "lock") model.lock();
+      else
+        h.auth({ status: "authenticated", sessionKey: "owner_b:1", profile: { uid: "owner_b" } });
+      h.render();
+      gate.resolve();
+      await assert.rejects(pending);
+      const count = h.counts().resultOpens;
+      await assert.rejects(old[method]({}));
+      assert.equal(h.counts().resultOpens, count);
+      assert.ok(h.requests.every((request) => request.service === "agent-hub"));
+      h.unmount();
+    }
+  }
 });

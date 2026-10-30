@@ -1,0 +1,248 @@
+.card {
+  margin: 22px 0;
+  padding: 22px;
+  border: 1px solid var(--accent);
+  background: var(--panel);
+  border-radius: 11px;
+  min-width: 0;
+}
+.card header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 15px;
+  flex-wrap: wrap;
+}
+.card h2 {
+  margin: 5px 0 9px;
+  font-size: 19px;
+  font-weight: 550;
+  letter-spacing: -0.4px;
+}
+.card h3 {
+  font-size: 14px;
+  font-weight: 550;
+}
+.card h4 {
+  font-size: 12px;
+  font-weight: 550;
+}
+.card p {
+  font-size: 12px;
+  line-height: 1.8;
+  color: var(--muted);
+  margin: 8px 0;
+}
+.eyebrow {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 1.1px;
+  color: var(--muted);
+}
+.primary,
+.secondary,
+.textButton {
+  min-height: 36px;
+  font-size: 12px;
+  border-radius: 7px;
+  padding: 8px 13px;
+}
+.primary {
+  background: var(--accent);
+  border: 1px solid var(--accent);
+  color: #fff;
+}
+.secondary {
+  background: var(--raised);
+  border: 1px solid var(--border);
+  color: var(--text);
+}
+.textButton {
+  background: transparent;
+  border: 0;
+  color: var(--accent);
+}
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 14px;
+}
+.step {
+  border-top: 1px solid var(--border);
+  margin-top: 22px;
+  padding-top: 15px;
+}
+.metadata {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  font-size: 11px;
+  color: var(--muted);
+  padding: 14px 0;
+  overflow-wrap: anywhere;
+}
+.metadata strong {
+  color: var(--text);
+}
+.card label {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  font-size: 12px;
+  margin: 12px 0;
+  min-width: 0;
+}
+.card select,
+.card textarea {
+  width: 100%;
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid var(--border);
+  background: var(--raised);
+  color: var(--text);
+  border-radius: 7px;
+  font: inherit;
+  line-height: 1.6;
+}
+.card textarea {
+  resize: vertical;
+}
+.card input[type="checkbox"] {
+  accent-color: var(--accent);
+  flex-shrink: 0;
+}
+.card .check {
+  flex-direction: row;
+  align-items: flex-start;
+  line-height: 1.7;
+  gap: 10px;
+}
+.check input {
+  margin-top: 4px;
+}
+.card fieldset {
+  padding: 12px 16px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  margin: 18px 0;
+  min-width: 0;
+}
+.card legend {
+  padding: 0 6px;
+  font-size: 12px;
+}
+.preview,
+.keyReview,
+.pending {
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  padding: 16px;
+  margin: 15px 0;
+  overflow-wrap: anywhere;
+  font-size: 12px;
+  line-height: 1.7;
+}
+.preview p {
+  white-space: pre-wrap;
+}
+.card ul,
+.card ol {
+  padding-left: 21px;
+  font-size: 12px;
+  line-height: 1.8;
+}
+.card .warning {
+  padding: 12px 15px;
+  border: 1px solid var(--negative);
+  border-radius: 8px;
+  color: var(--negative);
+  font-size: 12px;
+  line-height: 1.8;
+}
+.card .warning p {
+  color: inherit;
+}
+.card .note {
+  font-size: 11px;
+}
+.unlock {
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  padding: 13px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin: 16px 0;
+}
+.manual {
+  margin: 18px 0;
+}
+.card summary {
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.8;
+}
+.card pre {
+  padding: 13px;
+  border-radius: 7px;
+  background: var(--raised);
+  font-size: 10px;
+  line-height: 1.6;
+  color: var(--muted);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 260px;
+  overflow: auto;
+}
+.card dl {
+  display: grid;
+  grid-template-columns: 130px minmax(0, 1fr);
+  gap: 12px;
+  font-size: 11px;
+}
+.card dt {
+  color: var(--muted);
+}
+.card dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.pending > span {
+  display: block;
+  color: var(--muted);
+  font-size: 10px;
+  margin-top: 6px;
+}
+.card code {
+  font-size: 10px;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 760px) {
+  .card {
+    padding: 17px 15px;
+  }
+  .card dl {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 7px;
+  }
+  .card dd {
+    margin-bottom: 9px;
+  }
+  .card fieldset {
+    padding: 10px;
+  }
+  .unlock {
+    padding: 12px;
+  }
+  .preview,
+  .keyReview,
+  .pending {
+    padding: 12px;
+  }
+}
