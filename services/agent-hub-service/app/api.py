@@ -31,6 +31,7 @@ from folioview_shared.service_identity import (
 from .fences import FenceService
 from .signing import get_signer, mint_authority_token, origin, token_configuration
 from .store import get_store
+from .vault_lifecycle import VaultLifecycleService
 from .vaults import VaultService
 
 owner_router = APIRouter(prefix="/api/v2/vaults", route_class=PrivateRoute)
@@ -72,9 +73,14 @@ def get_fence_service():
     return FenceService(get_store())
 
 
+def get_lifecycle_service():
+    return VaultLifecycleService(get_store())
+
+
 Owner = Annotated[object, Depends(require_owner)]
 Service = Annotated[VaultService, Depends(get_service)]
 Fences = Annotated[FenceService, Depends(get_fence_service)]
+Lifecycle = Annotated[VaultLifecycleService, Depends(get_lifecycle_service)]
 
 
 def transport(request, *, operation=False, author=False):
@@ -146,6 +152,78 @@ async def registry(vault_id: str, request: Request, user: Owner, service: Servic
         lambda: service.update_registry(
             user.uid, vault_id, value, request.headers["idempotency-key"]
         ),
+    )
+
+
+def _lifecycle_transport(request, *, operation=False):
+    transport(request, operation=operation)
+    # The only signer is the vault's pinned root, selected by the service.
+    if request.headers.getlist("x-folioview-author-key"):
+        raise ContractError("malformed_request")
+
+
+async def _lifecycle_read(request):
+    _invoke(lambda: _lifecycle_transport(request))
+    try:
+        async with asyncio.timeout(5):
+            async for chunk in request.stream():
+                if chunk:
+                    raise ContractError("malformed_request")
+    except (ContractError, TimeoutError):
+        raise HTTPException(400, {"code": "malformed_request"}) from None
+
+
+@owner_router.get("/{vault_id}/archive")
+async def archive_state(vault_id: str, request: Request, user: Owner, service: Lifecycle):
+    await _lifecycle_read(request)
+    return await run_in_threadpool(_invoke, lambda: service.state(user.uid, vault_id))
+
+
+@owner_router.put("/{vault_id}/archive")
+async def replace_archive(vault_id: str, request: Request, user: Owner, service: Lifecycle):
+    _invoke(lambda: _lifecycle_transport(request, operation=True))
+    value = await body(request, {"contractVersion", "archive", "command"}, max_bytes=65536)
+    return await run_in_threadpool(
+        _invoke,
+        lambda: service.replace_archive(
+            user.uid, vault_id, value, request.headers["idempotency-key"]
+        ),
+    )
+
+
+@owner_router.post("/{vault_id}/recovery-authorizations", status_code=201)
+async def authorize_recovery(vault_id: str, request: Request, user: Owner, service: Lifecycle):
+    _invoke(lambda: _lifecycle_transport(request, operation=True))
+    value = await body(request, {"contractVersion", "command"}, max_bytes=8192)
+    return await run_in_threadpool(
+        _invoke,
+        lambda: service.authorize_recovery(
+            user.uid, vault_id, value, request.headers["idempotency-key"]
+        ),
+    )
+
+
+@owner_router.post("/{vault_id}/recovery-authorizations/{authorization_id}/revoke")
+async def revoke_recovery(
+    vault_id: str, authorization_id: str, request: Request, user: Owner, service: Lifecycle
+):
+    _invoke(lambda: _lifecycle_transport(request, operation=True))
+    value = await body(request, {"contractVersion", "command"}, max_bytes=8192)
+    return await run_in_threadpool(
+        _invoke,
+        lambda: service.revoke_recovery(
+            user.uid, vault_id, authorization_id, value, request.headers["idempotency-key"]
+        ),
+    )
+
+
+@owner_router.get("/{vault_id}/archive-operations/{operation_id}")
+async def archive_receipt(
+    vault_id: str, operation_id: str, request: Request, user: Owner, service: Lifecycle
+):
+    await _lifecycle_read(request)
+    return await run_in_threadpool(
+        _invoke, lambda: service.receipt(user.uid, vault_id, operation_id)
     )
 
 
