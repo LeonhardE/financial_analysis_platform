@@ -84,7 +84,6 @@ class AgentHubBoundaryTests(unittest.TestCase):
                 ("POST", "/api/v2/inbox"),
                 ("GET", "/api/v2/inbox"),
                 ("GET", "/mcp"),
-                ("POST", "/mcp/v2"),
                 ("GET", "/oauth"),
                 ("GET", "/.well-known"),
                 ("GET", "/.well-known/oauth-protected-resource"),
@@ -106,6 +105,20 @@ class AgentHubBoundaryTests(unittest.TestCase):
                     self.assertEqual(response.headers["cache-control"], "no-store")
                     self.assertNotIn("synthetic-private-marker", response.text)
                     self.assertNotIn("synthetic-untrusted-token", response.text)
+
+    def test_mcp_disabled_without_configuration_and_needs_no_cloud(self):
+        from unittest.mock import patch
+
+        with (
+            patch.dict(os.environ, HUB_OAUTH_ENABLED="0", HUB_ENCRYPTED_ADAPTER_ENABLED="0"),
+            patch("app.mcp_transport.get_oauth_service", side_effect=AssertionError("cloud")),
+            TestClient(app) as client,
+        ):
+            response = client.post("/mcp/v2", json={"private": "synthetic-private-marker"})
+            self.assertEqual(response.status_code, 503)
+            self.assertEqual(response.json(), {"error": "authorization_unavailable"})
+            self.assertEqual(response.headers["cache-control"], "no-store")
+            self.assertEqual(client.get("/health").status_code, 200)
 
     def test_oauth_is_disabled_without_configuration_and_needs_no_cloud(self):
         from unittest.mock import patch

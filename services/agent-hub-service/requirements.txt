@@ -7,3 +7,5 @@ uvicorn[standard]>=0.34,<1.0
 httpx>=0.28,<1.0
 
 Authlib==1.9.1
+mcp==2.3.0
+mcp-types==2.3.0

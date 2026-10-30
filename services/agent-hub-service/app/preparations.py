@@ -291,7 +291,7 @@ class PreparationService:
             raise StoreUnavailable from None
         return row
 
-    def _authority(self, unit, uid, connection_id, task_id):
+    def _authority(self, unit, uid, connection_id, task_id, *, verify_original=True):
         owner = owner_key(uid)
         connection = unit.get(document_path("hub_oauth_connections", owner, connection_id))
         if (
@@ -321,7 +321,11 @@ class PreparationService:
             "metadata"
         ]
         # Validate the owner original against its retained original signing proof.
-        _response(unit, owner, vault, task_id, meta["taskVersion"])
+        # Metadata-only MCP enumeration needs current authority and committed
+        # descriptors, but deliberately does not retrieve the owner ciphertext.
+        # All content reads and publication retain the original verification.
+        if verify_original:
+            _response(unit, owner, vault, task_id, meta["taskVersion"])
         return connection, grant, vault, registry, meta
 
     def _tail(self, unit, owner, vault, meta):
