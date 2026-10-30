@@ -51,6 +51,10 @@ import {
   type DeviceChangeSummary,
   type VaultManagementSummary,
   type RecoveryVerification,
+  type VaultLifecycleState,
+  type VaultLifecyclePin,
+  type RecoveryKitExport,
+  type ArchiveChangePacket,
 } from "./encrypted-types";
 export { CONTRACT };
 const utf8 = new TextEncoder();
@@ -712,6 +716,9 @@ function checkedTaskDraft(value: TaskDraft) {
 }
 export class VaultCore {
   readonly owner: Promise<string>;
+  private lifecyclePin?: VaultLifecyclePin;
+  private recoveryMaster?: Json;
+  private archiveChange?: { packet: ArchiveChangePacket; candidate: Json | null };
   private wrapping?: CryptoKey;
   private root?: CryptoKey;
   private recovery?: CryptoKey;
@@ -745,6 +752,1025 @@ export class VaultCore {
     if (!uid || uid.length > 128) throw new VaultError("wrong_account");
     this.owner = sha(uid);
   }
+  /** Dedicated verified transition path; ordinary checkVault remains archive-strict. */
+  async verifyLifecycle(vault: Vault, state: VaultLifecycleState, prior?: VaultLifecyclePin) {
+    const owner = await this.owner;
+    if (
+      this.vault &&
+      (this.vault.vaultId !== vault.vaultId ||
+        this.vault.rootKeyId !== vault.rootKeyId ||
+        !equal(this.vault.rootJwk, vault.rootJwk))
+    )
+      throw new VaultError("untrusted_vault");
+    const old = this.vault;
+    let registry: Registry;
+    this.vault = undefined;
+    try {
+      registry = await this.checkVault(vault, this.pin);
+    } finally {
+      this.vault = old;
+    }
+    exact(state, [
+      "contractVersion",
+      "profile",
+      "vaultId",
+      "rootKeyId",
+      "vaultVersion",
+      "registrySequence",
+      "checkpointDigest",
+      "keyEpoch",
+      "lifecycleVersion",
+      "archiveRevision",
+      "archiveDigest",
+      "archive",
+      "pendingAuthorization",
+      "history",
+    ]);
+    bounded(state, 524288);
+    if (
+      state.profile !== "folioview.vault-lifecycle.v1" ||
+      state.contractVersion !== CONTRACT ||
+      state.vaultId !== vault.vaultId ||
+      state.rootKeyId !== vault.rootKeyId ||
+      state.vaultVersion !== vault.version ||
+      state.registrySequence !== registry.checkpoint.registrySequence ||
+      state.checkpointDigest !== registry.digest ||
+      state.keyEpoch !== registry.checkpoint.keyEpoch ||
+      !equal(state.archive, vault.archive) ||
+      !Array.isArray(state.history) ||
+      state.history.length > 32 ||
+      state.lifecycleVersion !== state.history.length
+    )
+      throw new VaultError("untrusted_lifecycle");
+    const archiveStates: { digest: string; revision: number }[] = [];
+    const fingerprints: string[] = [],
+      operations = new Set<string>(),
+      authIds = new Set<string>();
+    let digest = state.archiveDigest,
+      revision = 0,
+      pending: { payload: Json; command: Signed } | null = null,
+      acceptedAt = 0,
+      lastVault = 0,
+      lastRegistry = 0;
+    const digestValid = (v: unknown) => {
+      if (typeof v !== "string" || !/^[0-9a-f]{64}$/.test(v))
+        throw new VaultError("untrusted_lifecycle");
+    };
+    digestValid(digest);
+    const fence = ["expectedVaultVersion", "registrySequence", "checkpointDigest", "keyEpoch"];
+    for (let index = 0; index < state.history.length; index++) {
+      const item = state.history[index];
+      exact(item, ["command", "receipt"]);
+      bounded(item.command, 8192);
+      const p = await verified(item.command, vault.rootJwk);
+      const extras: Record<string, string[]> = {
+        archive_replace: ["mode", "newArchiveDigest", "authorizationId"],
+        recovery_authorize: ["authorizationId", "newArchiveDigest"],
+        recovery_revoke: ["authorizationId"],
+      };
+      if (!extras[p.action]) throw new VaultError("untrusted_lifecycle");
+      exact(p, [
+        "profile",
+        "contractVersion",
+        "action",
+        "ownerSubject",
+        "vaultId",
+        "rootKeyId",
+        "stableOperationId",
+        "expectedVaultVersion",
+        "expectedLifecycleVersion",
+        "expectedArchiveRevision",
+        "expectedArchiveDigest",
+        "registrySequence",
+        "checkpointDigest",
+        "keyEpoch",
+        "issuedAt",
+        "expiresAt",
+        ...extras[p.action],
+      ]);
+      if (
+        p.profile !== state.profile ||
+        p.contractVersion !== CONTRACT ||
+        p.ownerSubject !== owner ||
+        p.vaultId !== vault.vaultId ||
+        p.rootKeyId !== vault.rootKeyId
+      )
+        throw new VaultError("wrong_account");
+      validate("OperationIdentifier", p.stableOperationId);
+      for (const name of ["expectedVaultVersion", "registrySequence", "keyEpoch", "expiresAt"])
+        positive(p[name]);
+      for (const name of ["expectedLifecycleVersion", "expectedArchiveRevision", "issuedAt"])
+        positive(p[name], 0);
+      digestValid(p.expectedArchiveDigest);
+      digestValid(p.checkpointDigest);
+      if (index === 0) {
+        digest = p.expectedArchiveDigest;
+        archiveStates.push({ digest, revision });
+      }
+      const checkpoint = vault.registryHistory[p.registrySequence - 1];
+      if (
+        !checkpoint ||
+        p.expectedVaultVersion < lastVault ||
+        p.expectedVaultVersion > vault.version ||
+        p.registrySequence < lastRegistry ||
+        p.registrySequence > state.registrySequence ||
+        p.expectedLifecycleVersion !== index ||
+        p.expectedArchiveRevision !== revision ||
+        p.expectedArchiveDigest !== digest ||
+        operations.has(p.stableOperationId) ||
+        !(p.issuedAt < p.expiresAt && p.expiresAt <= p.issuedAt + 300)
+      )
+        throw new VaultError("untrusted_lifecycle");
+      const cp = parsed(unb64(checkpoint.checkpoint.payload));
+      if ((await sha(canonical(cp))) !== p.checkpointDigest || cp.keyEpoch !== p.keyEpoch)
+        throw new VaultError("untrusted_lifecycle");
+      const r = item.receipt;
+      exact(r, [
+        "profile",
+        "ownerSubject",
+        "vaultId",
+        "rootKeyId",
+        "operationId",
+        "action",
+        "lifecycleVersion",
+        "archiveRevision",
+        "archiveDigest",
+        "commandFingerprint",
+        "acceptedAt",
+      ]);
+      positive(r.acceptedAt, 0);
+      if (r.acceptedAt < acceptedAt || r.acceptedAt < p.issuedAt || r.acceptedAt >= p.expiresAt)
+        throw new VaultError("untrusted_lifecycle");
+      if (p.action !== "recovery_revoke") {
+        digestValid(p.newArchiveDigest);
+        if (p.newArchiveDigest === digest) throw new VaultError("untrusted_lifecycle");
+      }
+      if (p.action !== "archive_replace" || p.mode === "recovery")
+        validate("Identifier", p.authorizationId);
+      if (p.action === "recovery_authorize") {
+        if (
+          index >= 31 ||
+          authIds.has(p.authorizationId) ||
+          (pending && r.acceptedAt < pending.payload.expiresAt)
+        )
+          throw new VaultError("untrusted_lifecycle");
+        authIds.add(p.authorizationId);
+        pending = { payload: p, command: item.command };
+      } else if (p.action === "recovery_revoke") {
+        if (!pending || pending.payload.authorizationId !== p.authorizationId)
+          throw new VaultError("untrusted_lifecycle");
+        pending = null;
+      } else {
+        if (
+          !["rewrap", "passkey_change", "recovery"].includes(p.mode) ||
+          (p.mode !== "recovery" && p.authorizationId !== null)
+        )
+          throw new VaultError("untrusted_lifecycle");
+        if (p.mode === "recovery") {
+          const a = pending?.payload;
+          if (
+            !a ||
+            a.authorizationId !== p.authorizationId ||
+            a.newArchiveDigest !== p.newArchiveDigest ||
+            a.expectedArchiveRevision !== revision ||
+            a.expectedArchiveDigest !== digest ||
+            fence.some((k) => a[k] !== p[k]) ||
+            !(
+              a.issuedAt <= p.issuedAt &&
+              p.issuedAt <= r.acceptedAt &&
+              r.acceptedAt < a.expiresAt &&
+              p.expiresAt <= a.expiresAt
+            )
+          )
+            throw new VaultError("untrusted_lifecycle");
+        }
+        digest = p.newArchiveDigest;
+        revision++;
+        pending = null;
+      }
+      const fingerprint = await signingFingerprint(item.command);
+      if (
+        !equal(r, {
+          profile: state.profile,
+          ownerSubject: owner,
+          vaultId: vault.vaultId,
+          rootKeyId: vault.rootKeyId,
+          operationId: p.stableOperationId,
+          action: p.action,
+          lifecycleVersion: index + 1,
+          archiveRevision: revision,
+          archiveDigest: digest,
+          commandFingerprint: fingerprint,
+          acceptedAt: r.acceptedAt,
+        })
+      )
+        throw new VaultError("untrusted_lifecycle");
+      archiveStates.push({ digest, revision });
+      fingerprints.push(fingerprint);
+      operations.add(p.stableOperationId);
+      acceptedAt = r.acceptedAt;
+      lastVault = p.expectedVaultVersion;
+      lastRegistry = p.registrySequence;
+    }
+    if (
+      digest !== state.archiveDigest ||
+      revision !== state.archiveRevision ||
+      digest !== (await sha(canonical(vault.archive)))
+    )
+      throw new VaultError("untrusted_lifecycle");
+    let expectedPending: Json | null = null;
+    if (pending) {
+      const p = pending.payload;
+      const status =
+        this.now() >= p.expiresAt
+          ? "expired"
+          : fence.some(
+                (k) =>
+                  p[k] !==
+                  (
+                    {
+                      expectedVaultVersion: vault.version,
+                      registrySequence: state.registrySequence,
+                      checkpointDigest: state.checkpointDigest,
+                      keyEpoch: state.keyEpoch,
+                    } as Json
+                  )[k],
+              )
+            ? "stale"
+            : "active";
+      expectedPending = {
+        authorizationId: p.authorizationId,
+        newArchiveDigest: p.newArchiveDigest,
+        expiresAt: p.expiresAt,
+        status,
+        command: pending.command,
+      };
+    }
+    if (!equal(state.pendingAuthorization, expectedPending))
+      throw new VaultError("untrusted_lifecycle");
+    if (!archiveStates.length) archiveStates.push({ digest, revision });
+    const pin: VaultLifecyclePin = {
+      ownerSubject: owner,
+      vaultId: vault.vaultId,
+      rootKeyId: vault.rootKeyId,
+      lifecycleVersion: state.lifecycleVersion,
+      archiveRevision: revision,
+      archiveDigest: digest,
+      fingerprints,
+    };
+    for (const known of [this.lifecyclePin, prior]) {
+      if (!known) continue;
+      if (
+        known.ownerSubject !== owner ||
+        known.vaultId !== vault.vaultId ||
+        known.rootKeyId !== vault.rootKeyId ||
+        !Array.isArray(known.fingerprints) ||
+        known.fingerprints.length !== known.lifecycleVersion ||
+        known.lifecycleVersion > pin.lifecycleVersion ||
+        known.archiveRevision > revision ||
+        archiveStates[known.lifecycleVersion]?.digest !== known.archiveDigest ||
+        archiveStates[known.lifecycleVersion]?.revision !== known.archiveRevision ||
+        known.fingerprints.some((v, i) => v !== fingerprints[i]) ||
+        (known.lifecycleVersion === pin.lifecycleVersion && known.archiveDigest !== digest)
+      )
+        throw new VaultError("rollback_detected");
+    }
+    this.lifecyclePin = pin;
+    return pin;
+  }
+  async createRecoveryKit(
+    vault: Vault,
+    state: VaultLifecycleState,
+    prior?: VaultLifecyclePin,
+  ): Promise<RecoveryKitExport> {
+    if (!this.wrapping || !this.root || !this.recovery) throw new VaultError("locked");
+    const pin = await this.verifyLifecycle(vault, state, prior);
+    await this.checkVault(vault, this.pin);
+    const master = await open(this.wrapping, vault.archive);
+    const raw = crypto.getRandomValues(new Uint8Array(32));
+    try {
+      const code = b64(raw),
+        createdAt = this.now();
+      const k = await crypto.subtle.importKey("raw", raw as BufferSource, "AES-GCM", false, [
+        "encrypt",
+        "decrypt",
+      ]);
+      const envelope = await seal(
+        k,
+        {
+          profile: "folioview.independent-recovery.v1",
+          ownerSubject: await this.owner,
+          vaultId: vault.vaultId,
+          rootKeyId: vault.rootKeyId,
+          rootJwk: vault.rootJwk,
+          registryPin: this.pin ?? (await this.adoptVault(vault, this.registry!)).pin,
+          lifecyclePin: pin,
+          createdAt,
+        },
+        master,
+      );
+      if (!equal(await open(k, envelope), master)) throw new VaultError("crypto_failed");
+      return { file: canonical(envelope), code, createdAt };
+    } finally {
+      raw.fill(0);
+    }
+  }
+  async importRecoveryKit(
+    vault: Vault,
+    state: VaultLifecycleState,
+    file: string,
+    code: string,
+    prior?: VaultLifecyclePin,
+  ) {
+    if (
+      typeof file !== "string" ||
+      file.length > 65536 ||
+      typeof code !== "string" ||
+      code.length !== 43
+    )
+      throw new VaultError("invalid_recovery_kit");
+    const kit = parsed(utf8.encode(file), false);
+    exact(kit, [
+      "profile",
+      "ownerSubject",
+      "vaultId",
+      "rootKeyId",
+      "rootJwk",
+      "registryPin",
+      "lifecyclePin",
+      "createdAt",
+      "iv",
+      "ciphertext",
+    ]);
+    if (
+      kit.profile !== "folioview.independent-recovery.v1" ||
+      kit.ownerSubject !== (await this.owner) ||
+      kit.vaultId !== vault.vaultId ||
+      kit.rootKeyId !== vault.rootKeyId ||
+      !equal(kit.rootJwk, vault.rootJwk)
+    )
+      throw new VaultError("wrong_account");
+    positive(kit.createdAt, 0);
+    const raw = unb64(code, 32);
+    if (raw.length !== 32) throw new VaultError("invalid_recovery_kit");
+    let master: Json;
+    try {
+      const k = await crypto.subtle.importKey("raw", raw as BufferSource, "AES-GCM", false, [
+        "decrypt",
+      ]);
+      master = await open(k, kit);
+    } finally {
+      raw.fill(0);
+    }
+    exact(master, ["ownerSubject", "vaultId", "rootKeyId", "rootPrivateJwk", "recoveryPrivateJwk"]);
+    if (
+      master.ownerSubject !== (await this.owner) ||
+      master.vaultId !== vault.vaultId ||
+      master.rootKeyId !== vault.rootKeyId ||
+      (await thumb(master.rootPrivateJwk)) !== vault.rootKeyId
+    )
+      throw new VaultError("untrusted_vault");
+    this.root = await key(master.rootPrivateJwk, true, true);
+    this.recovery = await key(master.recoveryPrivateJwk, false, true);
+    this.recoveryJwk = pub(master.recoveryPrivateJwk);
+    this.pin = kit.registryPin;
+    this.lifecyclePin = kit.lifecyclePin;
+    await this.verifyLifecycle(vault, state, prior);
+    this.registry = await this.checkVault(vault, this.pin);
+    cert(this.registry, await thumb(this.recoveryJwk), "recovery_enc", this.now());
+    this.vault = vault;
+    this.recoveryMaster = master;
+    this.device = undefined;
+    this.deviceSeal = undefined;
+    this.wrapping = undefined;
+    return { needsDeviceRegistration: true };
+  }
+  private lifecycleCommand(
+    state: VaultLifecycleState,
+    action: string,
+    operationId: string,
+    extra: Json,
+  ) {
+    if (!this.vault) throw new VaultError("locked");
+    const issuedAt = this.now();
+    return {
+      profile: "folioview.vault-lifecycle.v1",
+      contractVersion: CONTRACT,
+      action,
+      ownerSubject: state.archive.ownerSubject,
+      vaultId: state.vaultId,
+      rootKeyId: state.rootKeyId,
+      stableOperationId: operationId,
+      expectedVaultVersion: state.vaultVersion,
+      expectedLifecycleVersion: state.lifecycleVersion,
+      expectedArchiveRevision: state.archiveRevision,
+      expectedArchiveDigest: state.archiveDigest,
+      registrySequence: state.registrySequence,
+      checkpointDigest: state.checkpointDigest,
+      keyEpoch: state.keyEpoch,
+      issuedAt,
+      expiresAt: issuedAt + 300,
+      ...extra,
+    };
+  }
+  async prepareArchiveChange(
+    vault: Vault,
+    state: VaultLifecycleState,
+    material: PasskeyMaterial,
+    mode: "passkey_change" | "recovery",
+    prior?: VaultLifecyclePin,
+  ) {
+    if (!this.root || !this.recovery || !["passkey_change", "recovery"].includes(mode))
+      throw new VaultError("locked");
+    await this.verifyLifecycle(vault, state, prior);
+    await this.checkVault(vault, this.pin);
+    if (
+      state.lifecycleVersion >= 31 ||
+      (state.pendingAuthorization &&
+        !(mode === "recovery" && state.pendingAuthorization.status === "expired"))
+    )
+      throw new VaultError("recovery_authorization_pending");
+    if (
+      material.credentialId === vault.archive.credentialId ||
+      material.prfSalt === vault.archive.prfSalt
+    )
+      throw new VaultError("invalid_replacement_passkey");
+    const master =
+      this.recoveryMaster ?? (this.wrapping ? await open(this.wrapping, vault.archive) : null);
+    if (!master) throw new VaultError("locked");
+    const nextWrapping = await aesMaterial(material);
+    const archive = (await seal(
+      nextWrapping,
+      {
+        ...archiveContext(vault.archive),
+        credentialId: material.credentialId,
+        prfSalt: material.prfSalt,
+      },
+      master,
+    )) as Archive;
+    checkArchive(archive, await this.owner);
+    if (!equal(await open(nextWrapping, archive), master)) throw new VaultError("crypto_failed");
+    let candidate: Json | null = null;
+    if (this.deviceSeal && this.wrapping) {
+      const plaintext = await open(this.wrapping, this.deviceSeal);
+      candidate = await seal(
+        nextWrapping,
+        {
+          ...archiveContext(this.deviceSeal),
+          credentialId: material.credentialId,
+          prfSalt: material.prfSalt,
+        },
+        plaintext,
+      );
+      if (!equal(await open(nextWrapping, candidate), plaintext))
+        throw new VaultError("crypto_failed");
+    }
+    const operationId = randomId(),
+      digest = await sha(canonical(archive));
+    let authorization: ArchiveChangePacket["authorization"];
+    let commandState = state;
+    if (mode === "recovery") {
+      const authOperation = randomId(),
+        authorizationId = randomId("recovery_");
+      const payload = this.lifecycleCommand(state, "recovery_authorize", authOperation, {
+        authorizationId,
+        newArchiveDigest: digest,
+      });
+      authorization = {
+        operationId: authOperation,
+        authorizationId,
+        command: await sign(payload, this.root, vault.rootKeyId),
+      };
+      commandState = { ...state, lifecycleVersion: state.lifecycleVersion + 1 };
+    }
+    const payload = this.lifecycleCommand(commandState, "archive_replace", operationId, {
+      mode,
+      newArchiveDigest: digest,
+      authorizationId: authorization?.authorizationId ?? null,
+    });
+    if (authorization) payload.expiresAt = parsed(unb64(authorization.command.payload)).expiresAt;
+    const packet: ArchiveChangePacket = {
+      operationId,
+      mode,
+      archive,
+      command: await sign(payload, this.root, vault.rootKeyId),
+      ...(authorization ? { authorization } : {}),
+    };
+    const context = {
+      profile: "folioview.archive-candidate.v1",
+      ownerSubject: await this.owner,
+      vaultId: vault.vaultId,
+      rootKeyId: vault.rootKeyId,
+      operationId,
+    };
+    const value = { packet, candidate };
+    const record = {
+      ...context,
+      packet,
+      next: await seal(
+        nextWrapping,
+        { ...context, credentialId: archive.credentialId, prfSalt: archive.prfSalt },
+        value,
+      ),
+      old: this.wrapping
+        ? await seal(
+            this.wrapping,
+            {
+              ...context,
+              credentialId: vault.archive.credentialId,
+              prfSalt: vault.archive.prfSalt,
+            },
+            value,
+          )
+        : null,
+    };
+    this.archiveChange = { packet, candidate };
+    return { packet, record };
+  }
+  async inspectArchiveChange(
+    vault: Vault,
+    state: VaultLifecycleState,
+    record: Json,
+    prior?: VaultLifecyclePin,
+  ) {
+    await this.verifyLifecycle(vault, state, prior);
+    exact(record, [
+      "profile",
+      "ownerSubject",
+      "vaultId",
+      "rootKeyId",
+      "operationId",
+      "packet",
+      "next",
+      "old",
+      ...(record.cancellation ? ["cancellation"] : []),
+    ]);
+    if (
+      record.profile !== "folioview.archive-candidate.v1" ||
+      record.ownerSubject !== (await this.owner) ||
+      record.vaultId !== vault.vaultId ||
+      record.rootKeyId !== vault.rootKeyId
+    )
+      throw new VaultError("wrong_account");
+    bounded(record, 262144);
+    const packet = record.packet;
+    exact(packet, [
+      "operationId",
+      "mode",
+      "archive",
+      "command",
+      ...(packet.authorization ? ["authorization"] : []),
+    ]);
+    if (
+      !["passkey_change", "recovery"].includes(packet.mode) ||
+      packet.operationId !== record.operationId
+    )
+      throw new VaultError("untrusted_lifecycle");
+    checkArchive(packet.archive, await this.owner);
+    bounded(packet.command, 8192);
+    const p = await verified(packet.command, vault.rootJwk);
+    exact(p, [
+      "profile",
+      "contractVersion",
+      "action",
+      "ownerSubject",
+      "vaultId",
+      "rootKeyId",
+      "stableOperationId",
+      "expectedVaultVersion",
+      "expectedLifecycleVersion",
+      "expectedArchiveRevision",
+      "expectedArchiveDigest",
+      "registrySequence",
+      "checkpointDigest",
+      "keyEpoch",
+      "issuedAt",
+      "expiresAt",
+      "mode",
+      "newArchiveDigest",
+      "authorizationId",
+    ]);
+    validate("OperationIdentifier", p.stableOperationId);
+    for (const field of ["expectedVaultVersion", "registrySequence", "keyEpoch", "expiresAt"])
+      positive(p[field]);
+    for (const field of ["expectedLifecycleVersion", "expectedArchiveRevision", "issuedAt"])
+      positive(p[field], 0);
+    if (
+      !/^[0-9a-f]{64}$/.test(p.expectedArchiveDigest) ||
+      !/^[0-9a-f]{64}$/.test(p.checkpointDigest) ||
+      !(p.issuedAt < p.expiresAt && p.expiresAt <= p.issuedAt + 300) ||
+      p.expectedLifecycleVersion > 32
+    )
+      throw new VaultError("untrusted_lifecycle");
+    const checkpoint = vault.registryHistory[p.registrySequence - 1];
+    if (
+      !checkpoint ||
+      p.expectedVaultVersion > vault.version ||
+      (await sha(canonical(parsed(unb64(checkpoint.checkpoint.payload))))) !== p.checkpointDigest ||
+      parsed(unb64(checkpoint.checkpoint.payload)).keyEpoch !== p.keyEpoch
+    )
+      throw new VaultError("untrusted_lifecycle");
+    if (
+      state.archiveDigest === p.expectedArchiveDigest &&
+      (packet.archive.credentialId === vault.archive.credentialId ||
+        packet.archive.prfSalt === vault.archive.prfSalt)
+    )
+      throw new VaultError("invalid_replacement_passkey");
+    if (
+      p.profile !== "folioview.vault-lifecycle.v1" ||
+      p.contractVersion !== CONTRACT ||
+      p.action !== "archive_replace" ||
+      p.mode !== packet.mode ||
+      p.ownerSubject !== (await this.owner) ||
+      p.vaultId !== vault.vaultId ||
+      p.rootKeyId !== vault.rootKeyId ||
+      p.stableOperationId !== packet.operationId ||
+      p.newArchiveDigest !== (await sha(canonical(packet.archive))) ||
+      packet.archive.vaultId !== vault.vaultId ||
+      packet.archive.rootKeyId !== vault.rootKeyId
+    )
+      throw new VaultError("untrusted_lifecycle");
+    if (packet.mode === "recovery") {
+      if (!packet.authorization) throw new VaultError("untrusted_lifecycle");
+      bounded(packet.authorization.command, 8192);
+      const a = await verified(packet.authorization.command, vault.rootJwk);
+      exact(packet.authorization, ["operationId", "authorizationId", "command"]);
+      exact(a, [
+        "profile",
+        "contractVersion",
+        "action",
+        "ownerSubject",
+        "vaultId",
+        "rootKeyId",
+        "stableOperationId",
+        "expectedVaultVersion",
+        "expectedLifecycleVersion",
+        "expectedArchiveRevision",
+        "expectedArchiveDigest",
+        "registrySequence",
+        "checkpointDigest",
+        "keyEpoch",
+        "issuedAt",
+        "expiresAt",
+        "authorizationId",
+        "newArchiveDigest",
+      ]);
+      validate("Identifier", a.authorizationId);
+      validate("OperationIdentifier", a.stableOperationId);
+      if (
+        !Number.isSafeInteger(a.issuedAt) ||
+        !Number.isSafeInteger(a.expiresAt) ||
+        a.issuedAt < 0 ||
+        a.issuedAt > p.issuedAt ||
+        a.expiresAt < p.expiresAt ||
+        a.expiresAt > a.issuedAt + 300
+      )
+        throw new VaultError("untrusted_lifecycle");
+      if (
+        a.action !== "recovery_authorize" ||
+        a.profile !== p.profile ||
+        a.contractVersion !== CONTRACT ||
+        a.ownerSubject !== p.ownerSubject ||
+        a.vaultId !== p.vaultId ||
+        a.rootKeyId !== p.rootKeyId ||
+        a.stableOperationId !== packet.authorization.operationId ||
+        a.authorizationId !== p.authorizationId ||
+        a.authorizationId !== packet.authorization.authorizationId ||
+        a.newArchiveDigest !== p.newArchiveDigest ||
+        a.expectedLifecycleVersion + 1 !== p.expectedLifecycleVersion ||
+        [
+          "expectedVaultVersion",
+          "expectedArchiveRevision",
+          "expectedArchiveDigest",
+          "registrySequence",
+          "checkpointDigest",
+          "keyEpoch",
+        ].some((k) => a[k] !== p[k])
+      )
+        throw new VaultError("untrusted_lifecycle");
+    } else if (packet.authorization || p.authorizationId !== null)
+      throw new VaultError("untrusted_lifecycle");
+    return {
+      archive: packet.archive as Archive,
+      operationId: packet.operationId as string,
+      mode: packet.mode as "passkey_change" | "recovery",
+    };
+  }
+  async getArchiveChange(
+    vault: Vault,
+    state: VaultLifecycleState,
+    record: Json,
+    material?: PasskeyMaterial,
+    prior?: VaultLifecyclePin,
+  ) {
+    await this.inspectArchiveChange(vault, state, record, prior);
+    if (
+      !record ||
+      record.profile !== "folioview.archive-candidate.v1" ||
+      record.ownerSubject !== (await this.owner) ||
+      record.vaultId !== vault.vaultId ||
+      record.rootKeyId !== vault.rootKeyId
+    )
+      throw new VaultError("wrong_account");
+    if (!material && this.archiveChange && equal(this.archiveChange.packet, record.packet))
+      return this.archiveChange.packet;
+    let wrapping = this.wrapping;
+    if (material) {
+      if (
+        ![record.next, record.old].some(
+          (e) => e && e.credentialId === material.credentialId && e.prfSalt === material.prfSalt,
+        )
+      )
+        throw new VaultError("unlock_failed");
+      wrapping = await aesMaterial(material);
+    }
+    if (!wrapping) throw new VaultError("locked");
+    let value: Json | undefined,
+      usedNext = false;
+    for (const seal of [record.next, record.old]) {
+      if (!seal) continue;
+      try {
+        value = await open(wrapping, seal, 196608);
+        usedNext = seal === record.next;
+        break;
+      } catch {
+        /* exact old/new material only */
+      }
+    }
+    if (
+      !value ||
+      !equal(value.packet, record.packet) ||
+      value.packet.operationId !== record.operationId
+    )
+      throw new VaultError("unlock_failed");
+    exact(value, ["packet", "candidate"]);
+    const p = await verified(value.packet.command, vault.rootJwk);
+    if (
+      p.action !== "archive_replace" ||
+      p.ownerSubject !== (await this.owner) ||
+      p.vaultId !== vault.vaultId ||
+      p.rootKeyId !== vault.rootKeyId ||
+      p.stableOperationId !== record.operationId ||
+      p.newArchiveDigest !== (await sha(canonical(value.packet.archive)))
+    )
+      throw new VaultError("untrusted_lifecycle");
+    // The new PRF can resume a recovery before the old cloud archive was replaced.
+    // Recover root only inside this Worker so an expired approval can be explicitly revoked.
+    const master = await open(wrapping, usedNext ? value.packet.archive : vault.archive);
+    exact(master, ["ownerSubject", "vaultId", "rootKeyId", "rootPrivateJwk", "recoveryPrivateJwk"]);
+    if (
+      master.ownerSubject !== (await this.owner) ||
+      master.vaultId !== vault.vaultId ||
+      master.rootKeyId !== vault.rootKeyId ||
+      (await thumb(master.rootPrivateJwk)) !== vault.rootKeyId
+    )
+      throw new VaultError("untrusted_vault");
+    this.root = await key(master.rootPrivateJwk, true, true);
+    this.recovery = await key(master.recoveryPrivateJwk, false, true);
+    this.recoveryJwk = pub(master.recoveryPrivateJwk);
+    this.recoveryMaster = master;
+    this.vault = vault;
+    this.registry = await this.checkVault(vault, this.pin);
+    this.archiveChange = { packet: value.packet, candidate: value.candidate };
+    return value.packet as ArchiveChangePacket;
+  }
+  async finishArchiveChange(
+    vault: Vault,
+    state: VaultLifecycleState,
+    operationId: string,
+    prior?: VaultLifecyclePin,
+  ) {
+    const pin = await this.verifyLifecycle(vault, state, prior),
+      change = this.archiveChange;
+    if (!change || change.packet.operationId !== operationId)
+      throw new VaultError("operation_conflict");
+    const found = state.history.find((i) => i.receipt.operationId === operationId);
+    if (
+      !found ||
+      (await signingFingerprint(found.command)) !==
+        (await signingFingerprint(change.packet.command))
+    )
+      throw new VaultError("archive_change_unknown");
+    const applied = equal(vault.archive, change.packet.archive);
+    // This does not install the old receipt's archive if a later replacement exists.
+    this.vault = vault;
+    const registry = await this.checkVault(vault, this.pin);
+    const record = await this.adoptVault(vault, registry);
+    record.device = applied && change.candidate ? change.candidate : undefined;
+    this.archiveChange = undefined;
+    return { pin, record, applied, needsDeviceRegistration: !change.candidate };
+  }
+  async prepareArchiveCancellation(
+    vault: Vault,
+    state: VaultLifecycleState,
+    record: Json,
+    prior?: VaultLifecyclePin,
+  ) {
+    await this.inspectArchiveChange(vault, state, record, prior);
+    if (!this.root) throw new VaultError("locked");
+    this.vault = vault;
+    const original = await verified(record.packet.command, vault.rootJwk);
+    if (state.history.some((i) => i.receipt.operationId === record.operationId))
+      throw new VaultError("archive_change_unknown");
+    if (record.cancellation) exact(record.cancellation, ["retained"]);
+    const source = record.cancellation?.retained ?? [];
+    if (!Array.isArray(source) || source.length > 16) throw new VaultError("archive_cancel_limit");
+    const retained: Json[] = [...source];
+    const decoded: Json[] = [];
+    for (const item of retained) {
+      exact(item, ["operationId", "action", "authorizationId", "command"]);
+      bounded(item.command, 8192);
+      const p = await verified(item.command, vault.rootJwk);
+      exact(p, [
+        "profile",
+        "contractVersion",
+        "action",
+        "ownerSubject",
+        "vaultId",
+        "rootKeyId",
+        "stableOperationId",
+        "expectedVaultVersion",
+        "expectedLifecycleVersion",
+        "expectedArchiveRevision",
+        "expectedArchiveDigest",
+        "registrySequence",
+        "checkpointDigest",
+        "keyEpoch",
+        "issuedAt",
+        "expiresAt",
+        "authorizationId",
+        ...(p.action === "recovery_authorize" ? ["newArchiveDigest"] : []),
+      ]);
+      for (const field of ["expectedVaultVersion", "registrySequence", "keyEpoch", "expiresAt"])
+        positive(p[field]);
+      for (const field of ["expectedLifecycleVersion", "expectedArchiveRevision", "issuedAt"])
+        positive(p[field], 0);
+      validate("OperationIdentifier", p.stableOperationId);
+      validate("Identifier", p.authorizationId);
+      if (
+        p.profile !== "folioview.vault-lifecycle.v1" ||
+        p.contractVersion !== CONTRACT ||
+        !(p.issuedAt < p.expiresAt && p.expiresAt <= p.issuedAt + 300) ||
+        (p.action === "recovery_authorize" &&
+          p.newArchiveDigest !== (await sha(canonical(record.packet.archive))))
+      )
+        throw new VaultError("untrusted_lifecycle");
+      if (
+        !["recovery_authorize", "recovery_revoke"].includes(p.action) ||
+        p.action !== item.action ||
+        p.ownerSubject !== (await this.owner) ||
+        p.vaultId !== vault.vaultId ||
+        p.rootKeyId !== vault.rootKeyId ||
+        p.stableOperationId !== item.operationId ||
+        p.authorizationId !== item.authorizationId
+      )
+        throw new VaultError("untrusted_lifecycle");
+      decoded.push(p);
+    }
+    for (const p of decoded) {
+      if (
+        p.action === "recovery_revoke" &&
+        p.authorizationId !== record.packet.authorization?.authorizationId &&
+        !decoded.some(
+          (a) => a.action === "recovery_authorize" && a.authorizationId === p.authorizationId,
+        )
+      )
+        throw new VaultError("untrusted_lifecycle");
+    }
+    const matchingPending =
+      state.pendingAuthorization &&
+      (state.pendingAuthorization.authorizationId ===
+        record.packet.authorization?.authorizationId ||
+        retained.some(
+          (i) =>
+            i.action === "recovery_authorize" &&
+            i.authorizationId === state.pendingAuthorization!.authorizationId,
+        ));
+    if (state.lifecycleVersion > original.expectedLifecycleVersion && !matchingPending)
+      return { packet: { commands: [] }, record: { ...record, cancellation: { retained } } };
+    if (state.pendingAuthorization && !matchingPending)
+      throw new VaultError("recovery_authorization_pending");
+    const live = (p: Json, version: number) =>
+      p.issuedAt <= this.now() &&
+      this.now() < p.expiresAt &&
+      p.expectedLifecycleVersion === version &&
+      p.expectedVaultVersion === state.vaultVersion &&
+      p.registrySequence === state.registrySequence &&
+      p.checkpointDigest === state.checkpointDigest &&
+      p.keyEpoch === state.keyEpoch &&
+      p.expectedArchiveRevision === state.archiveRevision &&
+      p.expectedArchiveDigest === state.archiveDigest;
+    let commands: Json[] = [];
+    if (matchingPending) {
+      const id = state.pendingAuthorization!.authorizationId;
+      const existing = decoded.findIndex(
+        (p) =>
+          p.action === "recovery_revoke" &&
+          p.authorizationId === id &&
+          live(p, state.lifecycleVersion),
+      );
+      if (existing >= 0) commands = [retained[existing]];
+      else {
+        if (state.lifecycleVersion >= 32) throw new VaultError("archive_cancel_limit");
+        const operationId = randomId(),
+          command = await sign(
+            this.lifecycleCommand(state, "recovery_revoke", operationId, { authorizationId: id }),
+            this.root,
+            vault.rootKeyId,
+          );
+        commands = [{ operationId, action: "recovery_revoke", authorizationId: id, command }];
+        retained.push(...commands);
+      }
+    } else if (state.lifecycleVersion <= original.expectedLifecycleVersion) {
+      const existing = decoded.findIndex(
+        (p) => p.action === "recovery_authorize" && live(p, state.lifecycleVersion),
+      );
+      if (existing >= 0) {
+        const a = retained[existing],
+          r = retained.find(
+            (i) => i.action === "recovery_revoke" && i.authorizationId === a.authorizationId,
+          );
+        if (!r) throw new VaultError("untrusted_lifecycle");
+        commands = [a, r];
+      } else {
+        if (state.lifecycleVersion > 30) throw new VaultError("archive_cancel_limit");
+        const authorizationId = randomId("cancel_"),
+          operationId = randomId(),
+          auth = this.lifecycleCommand(state, "recovery_authorize", operationId, {
+            authorizationId,
+            newArchiveDigest: await sha(canonical(record.packet.archive)),
+          });
+        const a = {
+            operationId,
+            action: "recovery_authorize",
+            authorizationId,
+            command: await sign(auth, this.root, vault.rootKeyId),
+          },
+          revokeOp = randomId(),
+          revoke = this.lifecycleCommand(
+            { ...state, lifecycleVersion: state.lifecycleVersion + 1 },
+            "recovery_revoke",
+            revokeOp,
+            { authorizationId },
+          );
+        revoke.expiresAt = auth.expiresAt;
+        commands = [
+          a,
+          {
+            operationId: revokeOp,
+            action: "recovery_revoke",
+            authorizationId,
+            command: await sign(revoke, this.root, vault.rootKeyId),
+          },
+        ];
+        retained.push(...commands);
+      }
+    }
+    if (retained.length > 16) throw new VaultError("archive_cancel_limit");
+    return { packet: { commands }, record: { ...record, cancellation: { retained } } };
+  }
+  async discardArchiveChange(
+    vault: Vault,
+    state: VaultLifecycleState,
+    record: Json,
+    operationId: string,
+    prior?: VaultLifecyclePin,
+  ) {
+    await this.inspectArchiveChange(vault, state, record, prior);
+    if (
+      record.operationId !== operationId ||
+      state.history.some((i) => i.receipt.operationId === operationId)
+    )
+      throw new VaultError("archive_change_unknown");
+    const p = await verified(record.packet.command, vault.rootJwk);
+    if (
+      state.lifecycleVersion <= p.expectedLifecycleVersion ||
+      (state.pendingAuthorization &&
+        state.pendingAuthorization.authorizationId === p.authorizationId)
+    )
+      throw new VaultError("archive_change_unknown");
+    this.archiveChange = undefined;
+    return { pin: this.lifecyclePin };
+  }
+  async revokeRecoveryAuthorization(
+    vault: Vault,
+    state: VaultLifecycleState,
+    prior?: VaultLifecyclePin,
+  ) {
+    if (!this.root) throw new VaultError("locked");
+    await this.verifyLifecycle(vault, state, prior);
+    await this.checkVault(vault, this.pin);
+    if (!state.pendingAuthorization) throw new VaultError("invalid_operation");
+    const operationId = randomId(),
+      authorizationId = state.pendingAuthorization.authorizationId;
+    const command = await sign(
+      this.lifecycleCommand(state, "recovery_revoke", operationId, { authorizationId }),
+      this.root,
+      vault.rootKeyId,
+    );
+    return { operationId, authorizationId, command };
+  }
+
   async beginCreate(material: PasskeyMaterial) {
     const owner = await this.owner;
     const vaultId = randomId("vault_");

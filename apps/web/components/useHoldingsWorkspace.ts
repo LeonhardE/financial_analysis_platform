@@ -13,6 +13,7 @@ import {
 import { EncryptedVaultSession } from "@/lib/encrypted-vault";
 import {
   createVaultPasskey,
+  replaceVaultPasskey,
   unlockVaultPasskey,
   type PasskeyMethod,
   type PasskeyOptions,
@@ -36,6 +37,8 @@ import type {
   Vault,
   VaultManagementSummary,
   DeviceChangePacket,
+  VaultLifecycleState,
+  ArchiveChangePacket,
 } from "@/lib/encrypted-types";
 
 const CONTRACT = "folioview.agent-workspace.v2.0";
@@ -52,6 +55,9 @@ type Busy =
   | "managing"
   | "verifying"
   | "enrolling"
+  | "changing-passkey"
+  | "exporting-recovery"
+  | "restoring-recovery"
   | null;
 type DeviceReview = {
   action: "revoke" | "rotate";
@@ -80,6 +86,18 @@ type State = {
   registrationForResults: boolean;
   recoveryCheck: { rootKeyId: string; registrySequence: number; checkedAt: string } | null;
   keyNotice: string;
+  recoveryExport: {
+    file: string;
+    code: string;
+    createdAt: string;
+    vaultId: string;
+    rootKeyId: string;
+  } | null;
+  archiveChange: {
+    operationId: string;
+    mode: "passkey_change" | "recovery";
+    state: "ready" | "applied" | "conflict";
+  } | null;
 };
 const empty: State = {
   owner: null,
@@ -102,6 +120,8 @@ const empty: State = {
   registrationForResults: false,
   recoveryCheck: null,
   keyNotice: "",
+  recoveryExport: null,
+  archiveChange: null,
 };
 class WorkspaceError extends Error {
   constructor(public readonly code: string) {
@@ -223,6 +243,7 @@ export function useHoldingsWorkspace() {
         notice: "",
         discardOperationId: null,
         keyNotice: "",
+        recoveryExport: null,
       }));
       const timeout = window.setTimeout(
         () => {
@@ -245,11 +266,16 @@ export function useHoldingsWorkspace() {
             needsDeviceApproval: false,
             recoveryCheck: null,
             keyNotice: "",
+            recoveryExport: null,
             canWriteState: false,
             error: "request_timeout",
           }));
         },
-        busy === "creating" || busy === "unlocking" || busy === "verifying" ? 120_000 : 60_000,
+        ["creating", "unlocking", "verifying", "changing-passkey", "restoring-recovery"].includes(
+          busy,
+        )
+          ? 180_000
+          : 60_000,
       );
       try {
         await action({ assertActive, signal: controller.signal });
@@ -264,6 +290,8 @@ export function useHoldingsWorkspace() {
             "registry_conflict",
             "wrong_account",
             "key_revoked",
+            "untrusted_lifecycle",
+            "archive_session_stale",
           ].includes(errorCode(error));
         if (discardKeys) terminate();
         setState((previous) => ({
@@ -279,6 +307,7 @@ export function useHoldingsWorkspace() {
                 needsDeviceApproval: false,
                 recoveryCheck: null,
                 canWriteState: false,
+                recoveryExport: null,
               }
             : {}),
           ...(busy === "reading" || busy === "saving" ? { content: null } : {}),
@@ -362,6 +391,16 @@ export function useHoldingsWorkspace() {
   const readCurrent = useCallback(
     async (signal: AbortSignal) =>
       aggregate(await api("agent-hub", "/api/v2/vaults/current", signal)),
+    [api],
+  );
+
+  const readLifecycle = useCallback(
+    async (vault: Vault, signal: AbortSignal) =>
+      (await api(
+        "agent-hub",
+        `/api/v2/vaults/${vault.vaultId}/archive`,
+        signal,
+      )) as VaultLifecycleState,
     [api],
   );
 
@@ -509,7 +548,9 @@ export function useHoldingsWorkspace() {
   const unlock = useCallback(
     (options?: { forResults?: boolean; enableState?: boolean; method?: PasskeyMethod }) =>
       perform("unlocking", async ({ assertActive, signal }) => {
-        const vault = stateRef.current.owner === owner ? stateRef.current.vault : null;
+        const fresh = await readCurrent(signal);
+        assertActive();
+        const vault = stateRef.current.owner === owner ? fresh.vault : null;
         if (!vault || !uid || !owner) throw new WorkspaceError("unlock_required");
         terminate();
         const instance = new EncryptedVaultSession(uid);
@@ -544,6 +585,43 @@ export function useHoldingsWorkspace() {
               }
             : await instance.unlock(vault, material);
           assertActive();
+          const lifecycle = await readLifecycle(vault, signal);
+          await instance.verifyLifecycle(vault, lifecycle);
+          assertActive();
+          const archiveChange = await instance.getArchiveChange(vault, lifecycle);
+          assertActive();
+          if (archiveChange) {
+            if (archiveChange.state === "applied") {
+              await instance.finishArchiveChange(
+                vault,
+                lifecycle,
+                archiveChange.packet.operationId,
+              );
+              assertActive();
+              terminate();
+              setState((previous) => ({
+                ...previous,
+                vault,
+                sources: fresh.sources,
+                phase: "locked",
+                archiveChange: null,
+                keyNotice: "archive_change_saved",
+              }));
+            } else {
+              setState((previous) => ({
+                ...previous,
+                vault,
+                sources: fresh.sources,
+                phase: "locked",
+                archiveChange: {
+                  operationId: archiveChange.packet.operationId,
+                  mode: archiveChange.packet.mode,
+                  state: archiveChange.state,
+                },
+              }));
+            }
+            return;
+          }
           if (result.needsDeviceRegistration) {
             const refreshed = await readCurrent(signal);
             assertActive();
@@ -593,7 +671,7 @@ export function useHoldingsWorkspace() {
           if (material.secret.byteLength) new Uint8Array(material.secret).fill(0);
         }
       }),
-    [api, owner, perform, readCurrent, readSaved, terminate, uid],
+    [api, owner, perform, readCurrent, readLifecycle, readSaved, terminate, uid],
   );
 
   const create = useCallback(
@@ -620,6 +698,7 @@ export function useHoldingsWorkspace() {
           assertActive();
           if (!result.vault) throw new WorkspaceError("invalid_response");
           await instance.acceptVault(result.vault);
+          await instance.verifyLifecycle(result.vault, await readLifecycle(result.vault, signal));
           const keyManagement = await instance.deviceManagement(result.vault);
           assertActive();
           setState((previous) => ({
@@ -639,7 +718,7 @@ export function useHoldingsWorkspace() {
           if (material.secret.byteLength) new Uint8Array(material.secret).fill(0);
         }
       }),
-    [api, owner, perform, readCurrent, terminate, uid],
+    [api, owner, perform, readCurrent, readLifecycle, terminate, uid],
   );
 
   const importFile = useCallback(
@@ -890,6 +969,7 @@ export function useHoldingsWorkspace() {
       needsDeviceApproval: false,
       recoveryCheck: null,
       keyNotice: "",
+      recoveryExport: null,
     }));
   }, [owner, terminate]);
 
@@ -1429,6 +1509,7 @@ export function useHoldingsWorkspace() {
           probe = new EncryptedVaultSession(uid);
           recoverySession.current = probe;
           await probe.unlockForResults(fresh.vault, material);
+          await probe.verifyLifecycle(fresh.vault, await readLifecycle(fresh.vault, signal));
           assertActive();
           assertKeySession(instance, managementGeneration);
           const proof = await probe.verifyRecovery(fresh.vault);
@@ -1465,8 +1546,377 @@ export function useHoldingsWorkspace() {
           if (recoverySession.current === probe) recoverySession.current = null;
         }
       }),
-    [assertKeySession, keySnapshot, liveSession, managementGeneration, perform, readCurrent, uid],
+    [
+      assertKeySession,
+      keySnapshot,
+      liveSession,
+      managementGeneration,
+      perform,
+      readCurrent,
+      readLifecycle,
+      uid,
+    ],
   );
+
+  const clearRecoveryExport = useCallback(() => {
+    if (ownerRef.current === owner) setState((previous) => ({ ...previous, recoveryExport: null }));
+  }, [owner]);
+
+  const exportRecoveryKit = useCallback(
+    () =>
+      perform("exporting-recovery", async ({ assertActive, signal }) => {
+        const instance = liveSession();
+        assertKeySession(instance, managementGeneration);
+        const fresh = await readCurrent(signal);
+        assertActive();
+        if (!fresh.vault) throw new WorkspaceError("invalid_response");
+        const lifecycle = await readLifecycle(fresh.vault, signal);
+        const kit = await instance.createRecoveryKit(fresh.vault, lifecycle);
+        assertActive();
+        assertKeySession(instance, managementGeneration);
+        setState((previous) => ({
+          ...previous,
+          recoveryExport: {
+            ...kit,
+            createdAt: new Date(kit.createdAt * 1000).toISOString(),
+            vaultId: fresh.vault!.vaultId,
+            rootKeyId: fresh.vault!.rootKeyId,
+          },
+        }));
+      }),
+    [assertKeySession, liveSession, managementGeneration, perform, readCurrent, readLifecycle],
+  );
+
+  // A receipt can recover the identity of an accepted request, but only verified
+  // current history may promote the retained candidate into the local key store.
+  const completeArchiveChange = useCallback(
+    async (
+      instance: EncryptedVaultSession,
+      vault: Vault,
+      packet: ArchiveChangePacket,
+      state: "ready" | "applied" | "conflict",
+      signal: AbortSignal,
+      assertActive: () => void,
+    ) => {
+      if (state === "conflict") throw new WorkspaceError("version_conflict");
+      if (state !== "applied") {
+        if (packet.authorization) {
+          await api(
+            "agent-hub",
+            `/api/v2/vaults/${vault.vaultId}/recovery-authorizations`,
+            signal,
+            {
+              method: "POST",
+              json: { contractVersion: CONTRACT, command: packet.authorization.command },
+              headers: { "Idempotency-Key": packet.authorization.operationId },
+            },
+          );
+          assertActive();
+        }
+        await api("agent-hub", `/api/v2/vaults/${vault.vaultId}/archive`, signal, {
+          method: "PUT",
+          json: { contractVersion: CONTRACT, archive: packet.archive, command: packet.command },
+          headers: { "Idempotency-Key": packet.operationId },
+        });
+        assertActive();
+      }
+      await api(
+        "agent-hub",
+        `/api/v2/vaults/${vault.vaultId}/archive-operations/${packet.operationId}`,
+        signal,
+      );
+      assertActive();
+      const saved = await readCurrent(signal);
+      assertActive();
+      if (!saved.vault) throw new WorkspaceError("invalid_response");
+      const lifecycle = await readLifecycle(saved.vault, signal);
+      assertActive();
+      await instance.finishArchiveChange(saved.vault, lifecycle, packet.operationId);
+      assertActive();
+      terminate();
+      setState((previous) => ({
+        ...empty,
+        owner,
+        busy: previous.busy,
+        vault: saved.vault,
+        sources: saved.sources,
+        phase: "locked",
+        keyNotice: "archive_change_saved",
+      }));
+    },
+    [api, owner, readCurrent, readLifecycle, terminate],
+  );
+
+  const changePasskey = useCallback(
+    (method: PasskeyMethod = "local") =>
+      perform("changing-passkey", async ({ assertActive, signal }) => {
+        if (!uid) throw new WorkspaceError("unlock_required");
+        const instance = liveSession();
+        assertKeySession(instance, managementGeneration);
+        const fresh = await readCurrent(signal);
+        assertActive();
+        if (!fresh.vault) throw new WorkspaceError("invalid_response");
+        const lifecycle = await readLifecycle(fresh.vault, signal);
+        await instance.verifyLifecycle(fresh.vault, lifecycle);
+        assertActive();
+        if (lifecycle.lifecycleVersion >= 31) throw new WorkspaceError("archive_cancel_limit");
+        if (lifecycle.pendingAuthorization)
+          throw new WorkspaceError("recovery_authorization_pending");
+        const material = await replaceVaultPasskey(uid, fresh.vault.archive, { method, signal });
+        try {
+          assertActive();
+          assertKeySession(instance, managementGeneration);
+          const packet = await instance.prepareArchiveChange(
+            fresh.vault,
+            lifecycle,
+            material,
+            "passkey_change",
+          );
+          assertActive();
+          ++vaultGeneration.current;
+          setState((previous) => ({
+            ...previous,
+            preview: null,
+            content: null,
+            recoveryExport: null,
+            phase: "locked",
+            canWriteState: false,
+            archiveChange: { operationId: packet.operationId, mode: packet.mode, state: "ready" },
+          }));
+          await completeArchiveChange(instance, fresh.vault, packet, "ready", signal, assertActive);
+        } finally {
+          if (material.secret.byteLength) new Uint8Array(material.secret).fill(0);
+        }
+      }),
+    [
+      assertKeySession,
+      completeArchiveChange,
+      liveSession,
+      managementGeneration,
+      perform,
+      readCurrent,
+      readLifecycle,
+      uid,
+    ],
+  );
+
+  const recoverWithKit = useCallback(
+    (file: string, code: string, method: PasskeyMethod = "local") =>
+      perform("restoring-recovery", async ({ assertActive, signal }) => {
+        if (!uid || !owner || !["locked", "needs-device"].includes(stateRef.current.phase))
+          throw new WorkspaceError("invalid_operation");
+        if (file.length > 131_072 || code.length > 128) throw new WorkspaceError("invalid_data");
+        terminate();
+        const instance = new EncryptedVaultSession(uid);
+        recoverySession.current = instance;
+        try {
+          const fresh = await readCurrent(signal);
+          assertActive();
+          if (!fresh.vault) throw new WorkspaceError("invalid_response");
+          const lifecycle = await readLifecycle(fresh.vault, signal);
+          await instance.importRecoveryKit(fresh.vault, lifecycle, file, code);
+          file = "";
+          code = "";
+          assertActive();
+          if (lifecycle.lifecycleVersion >= 31) throw new WorkspaceError("archive_cancel_limit");
+          if (lifecycle.pendingAuthorization && lifecycle.pendingAuthorization.status !== "expired")
+            throw new WorkspaceError("recovery_authorization_pending");
+          const material = await replaceVaultPasskey(uid, fresh.vault.archive, { method, signal });
+          try {
+            assertActive();
+            const packet = await instance.prepareArchiveChange(
+              fresh.vault,
+              lifecycle,
+              material,
+              "recovery",
+            );
+            assertActive();
+            // Retain this Worker for exact-request recovery if the network outcome
+            // is unknown. It never exposes a normal decrypted workspace here.
+            recoverySession.current = null;
+            session.current = { owner, instance };
+            ++vaultGeneration.current;
+            setState((previous) => ({
+              ...previous,
+              recoveryExport: null,
+              preview: null,
+              content: null,
+              phase: "locked",
+              canWriteState: false,
+              archiveChange: { operationId: packet.operationId, mode: packet.mode, state: "ready" },
+            }));
+            await completeArchiveChange(
+              instance,
+              fresh.vault,
+              packet,
+              "ready",
+              signal,
+              assertActive,
+            );
+          } finally {
+            if (material.secret.byteLength) new Uint8Array(material.secret).fill(0);
+          }
+        } finally {
+          file = "";
+          code = "";
+          if (recoverySession.current === instance) {
+            instance.lock();
+            recoverySession.current = null;
+          }
+        }
+      }),
+    [completeArchiveChange, owner, perform, readCurrent, readLifecycle, terminate, uid],
+  );
+
+  const inspectArchiveChange = useCallback(
+    (submit: boolean) =>
+      perform("recovering", async ({ assertActive, signal }) => {
+        const instance = liveSession();
+        const fresh = await readCurrent(signal);
+        assertActive();
+        if (!fresh.vault) throw new WorkspaceError("invalid_response");
+        const lifecycle = await readLifecycle(fresh.vault, signal);
+        const pending = await instance.getArchiveChange(fresh.vault, lifecycle);
+        assertActive();
+        if (!pending) throw new WorkspaceError("invalid_operation");
+        await api(
+          "agent-hub",
+          `/api/v2/vaults/${fresh.vault.vaultId}/archive-operations/${pending.packet.operationId}`,
+          signal,
+          { allowMissing: true },
+        );
+        assertActive();
+        setState((previous) => ({
+          ...previous,
+          archiveChange: {
+            operationId: pending.packet.operationId,
+            mode: pending.packet.mode,
+            state: pending.state,
+          },
+        }));
+        if (submit || pending.state === "applied")
+          await completeArchiveChange(
+            instance,
+            fresh.vault,
+            pending.packet,
+            pending.state,
+            signal,
+            assertActive,
+          );
+      }),
+    [api, completeArchiveChange, liveSession, perform, readCurrent, readLifecycle],
+  );
+
+  const resumeArchiveWithNewPasskey = useCallback(
+    (method: PasskeyMethod = "local") =>
+      perform("unlocking", async ({ assertActive, signal }) => {
+        if (!uid || !owner || stateRef.current.phase !== "locked")
+          throw new WorkspaceError("invalid_operation");
+        terminate();
+        const instance = new EncryptedVaultSession(uid);
+        session.current = { owner, instance };
+        const fresh = await readCurrent(signal);
+        assertActive();
+        if (!fresh.vault) throw new WorkspaceError("invalid_response");
+        const lifecycle = await readLifecycle(fresh.vault, signal);
+        const offer = await instance.inspectArchiveChange(fresh.vault, lifecycle);
+        assertActive();
+        if (!offer) throw new WorkspaceError("archive_change_missing");
+        const material = await unlockVaultPasskey(offer.archive, { method, signal });
+        try {
+          assertActive();
+          const pending = await instance.getArchiveChange(fresh.vault, lifecycle, material);
+          assertActive();
+          if (!pending || pending.packet.operationId !== offer.operationId)
+            throw new WorkspaceError("operation_conflict");
+          setState((previous) => ({
+            ...previous,
+            archiveChange: {
+              operationId: pending.packet.operationId,
+              mode: pending.packet.mode,
+              state: pending.state,
+            },
+          }));
+          await completeArchiveChange(
+            instance,
+            fresh.vault,
+            pending.packet,
+            pending.state,
+            signal,
+            assertActive,
+          );
+        } finally {
+          if (material.secret.byteLength) new Uint8Array(material.secret).fill(0);
+        }
+      }),
+    [completeArchiveChange, owner, perform, readCurrent, readLifecycle, terminate, uid],
+  );
+
+  const cancelArchiveChange = useCallback(
+    () =>
+      perform("recovering", async ({ assertActive, signal }) => {
+        const instance = liveSession();
+        const fresh = await readCurrent(signal);
+        assertActive();
+        if (!fresh.vault) throw new WorkspaceError("invalid_response");
+        const lifecycle = await readLifecycle(fresh.vault, signal);
+        const pending = await instance.getArchiveChange(fresh.vault, lifecycle);
+        assertActive();
+        if (!pending) throw new WorkspaceError("archive_change_missing");
+        if (pending.state === "applied") {
+          await completeArchiveChange(
+            instance,
+            fresh.vault,
+            pending.packet,
+            pending.state,
+            signal,
+            assertActive,
+          );
+          return;
+        }
+        const cancellation = await instance.prepareArchiveCancellation(fresh.vault, lifecycle);
+        assertActive();
+        for (const command of cancellation.commands) {
+          const path =
+            command.action === "recovery_authorize"
+              ? `/api/v2/vaults/${fresh.vault.vaultId}/recovery-authorizations`
+              : `/api/v2/vaults/${fresh.vault.vaultId}/recovery-authorizations/${command.authorizationId}/revoke`;
+          await api("agent-hub", path, signal, {
+            method: "POST",
+            json: { contractVersion: CONTRACT, command: command.command },
+            headers: { "Idempotency-Key": command.operationId },
+          });
+          assertActive();
+        }
+        const saved = await readCurrent(signal);
+        assertActive();
+        if (!saved.vault) throw new WorkspaceError("invalid_response");
+        const state = await readLifecycle(saved.vault, signal);
+        await instance.discardArchiveChange(saved.vault, state, pending.packet.operationId);
+        assertActive();
+        terminate();
+        setState((previous) => ({
+          ...empty,
+          owner,
+          busy: previous.busy,
+          vault: saved.vault,
+          sources: saved.sources,
+          phase: "locked",
+          keyNotice: "archive_change_cancelled",
+        }));
+      }),
+    [
+      api,
+      completeArchiveChange,
+      liveSession,
+      owner,
+      perform,
+      readCurrent,
+      readLifecycle,
+      terminate,
+    ],
+  );
+
   const visible = owner && configured && state.owner === owner ? state : { ...empty, owner };
   return {
     ...visible,
@@ -1488,6 +1938,18 @@ export function useHoldingsWorkspace() {
     configured: holdingsConfigured,
     vaultConfigured: configured,
     vaultGeneration: vaultGeneration.current,
+    recoveryExport: ["unlocked", "needs-device"].includes(visible.phase)
+      ? visible.recoveryExport
+      : null,
+    exportRecoveryKit,
+    clearRecoveryExport,
+    changePasskey,
+    recoverWithKit,
+    refreshArchiveChange: () => inspectArchiveChange(false),
+    confirmArchiveChange: () => inspectArchiveChange(true),
+    resumeArchiveWithNewPasskey,
+    cancelArchiveChange,
+    cancelRecovery: lock,
     openResult,
     signResultState,
     refreshVault,

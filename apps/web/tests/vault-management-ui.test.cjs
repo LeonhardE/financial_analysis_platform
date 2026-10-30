@@ -81,6 +81,8 @@ function fixture(changes = {}) {
     deviceChange: null,
     needsDeviceApproval: false,
     recoveryCheck: null,
+    recoveryExport: null,
+    archiveChange: null,
     ...Object.fromEntries(
       [
         "signIn",
@@ -94,6 +96,15 @@ function fixture(changes = {}) {
         "confirmDeviceRegistration",
         "cancelOperation",
         "verifyRecovery",
+        "exportRecoveryKit",
+        "clearRecoveryExport",
+        "changePasskey",
+        "recoverWithKit",
+        "refreshArchiveChange",
+        "confirmArchiveChange",
+        "cancelRecovery",
+        "resumeArchiveWithNewPasskey",
+        "cancelArchiveChange",
       ].map((name) => [name, (...args) => calls.push([name, ...args])]),
     ),
     ...changes,
@@ -127,7 +138,12 @@ function render(f, { locale = "en", component = "panel", mode = "unlock", unlock
     },
   };
   const help = load("PasskeyHelp", imports);
-  const panel = load("VaultManagementPanel", { ...imports, "./PasskeyHelp": help });
+  const recovery = load("VaultRecoveryPanel", imports);
+  const panel = load("VaultManagementPanel", {
+    ...imports,
+    "./PasskeyHelp": help,
+    "./VaultRecoveryPanel": recovery,
+  });
   const settings = load("SettingsPanel", {
     ...imports,
     "./SettingsPanel.module.css": { __esModule: true, default: {} },
@@ -285,7 +301,7 @@ test("uncertain signed packets expose only exact replay/check, applied packets r
   }
 });
 
-test("recovery check is the original Passkey only, not an independent backup/reset, and a stale proof is hidden", () => {
+test("current library Passkey check remains distinct from the new independent recovery kit, and a stale proof is hidden", () => {
   const f = fixture();
   f.workspace.recoveryCheck = {
     rootKeyId: "root_synthetic_A",
@@ -293,20 +309,21 @@ test("recovery check is the original Passkey only, not an independent backup/res
     checkedAt: "2026-10-30T12:00:00Z",
   };
   let view = render(f);
-  assert.ok(view.html.includes("no separate recovery kit or Passkey replacement/reset"));
+  assert.ok(view.html.includes("Independent recovery requires an encrypted recovery file"));
+  assert.ok(view.html.includes("Create independent recovery kit"));
   assert.ok(view.html.includes("not proof of an independent backup"));
   assert.ok(
     view.html.includes("Recovery recipient certificate") && view.html.includes("does not renew"),
   );
-  button(view, "Check the original Passkey on this device").onClick();
-  button(view, "Check the original Passkey elsewhere").onClick();
+  button(view, "Check the current library Passkey on this device").onClick();
+  button(view, "Check the current library Passkey elsewhere").onClick();
   assert.deepEqual(f.calls, [["verifyRecovery"], ["verifyRecovery", "other"]]);
   f.workspace.recoveryCheck.registrySequence = 2;
   view = render(f);
   assert.ok(!view.html.includes("decrypted this archive successfully at"));
   f.workspace.keyManagement.recovery.active = false;
   view = render(f);
-  assert.equal(button(view, "Check the original Passkey on this device").disabled, true);
+  assert.equal(button(view, "Check the current library Passkey on this device").disabled, true);
   assert.ok(view.html.includes("cannot confirm current recovery capability"));
 });
 
@@ -316,7 +333,7 @@ test("Passkey alternatives are explicit user actions and preserve the requested 
   const view = render(f, { component: "help", unlockOptions: options });
   assert.ok(view.html.includes("Bluetooth") && view.html.includes("not an automatic retry"));
   assert.equal(f.calls.length, 0);
-  button(view, "Use the original Passkey there").onClick();
+  button(view, "Use the current library Passkey there").onClick();
   assert.deepEqual(JSON.parse(JSON.stringify(f.calls)), [
     ["unlock", { ...options, method: "other" }],
   ]);
@@ -338,7 +355,7 @@ test("new-device approval is explicit, ordinary unlock paths are absent, and can
   const view = render(f, { component: "help" });
   assert.ok(view.html.includes("not yet registered to write"));
   assert.ok(view.html.includes("cannot prove") && view.html.includes("root_synthetic_A"));
-  assert.ok(!view.html.includes("Use the original Passkey there"));
+  assert.ok(!view.html.includes("Use the current library Passkey there"));
   assert.equal(f.calls.length, 0);
   button(view, "Cancel and lock").onClick();
   assert.deepEqual(f.calls, [["lock"]]);

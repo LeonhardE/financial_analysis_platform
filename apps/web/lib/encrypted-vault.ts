@@ -36,6 +36,10 @@ import {
   type VaultManagementSummary,
   type DeviceChangePacket,
   type RecoveryVerification,
+  type VaultLifecycleState,
+  type VaultLifecyclePin,
+  type RecoveryKitExport,
+  type ArchiveChangePacket,
 } from "./encrypted-types";
 export type {
   Vault,
@@ -62,6 +66,10 @@ export type {
   SealTaskArgs,
   ResourceBindingMetadata,
   TaskOutboxSummary,
+  VaultLifecycleState,
+  VaultLifecyclePin,
+  RecoveryKitExport,
+  ArchiveChangePacket,
 } from "./encrypted-types";
 export { VaultError };
 type Bootstrap = {
@@ -135,7 +143,7 @@ export class EncryptedVaultSession {
   private assert(generation: number) {
     if (this.closed || generation !== this.generation) throw new VaultError("locked");
   }
-  private async local(vaultId: string) {
+  private async local(vaultId: string, archive?: Archive) {
     const g = this.generation;
     await this.started;
     const record = await this.storage.get(this.owner + ":device:" + vaultId),
@@ -146,9 +154,16 @@ export class EncryptedVaultSession {
     if (record && record.ownerSubject !== this.owner) throw new VaultError("wrong_account");
     if (pin && pin.ownerSubject !== this.owner) throw new VaultError("wrong_account");
     if (pending && pending.ownerSubject !== this.owner) throw new VaultError("wrong_account");
+    // A replacement made on another browser may leave a seal tied to the old PRF.
+    // Retain it on disk, but never try to interpret it as the newly verified device.
+    const staleSeal =
+      archive &&
+      record?.device &&
+      (record.device.credentialId !== archive.credentialId ||
+        record.device.prfSalt !== archive.prfSalt);
     return {
       pin: pin ?? undefined,
-      device: record?.device,
+      device: staleSeal ? undefined : record?.device,
       pending: pending?.pending,
       ...(change ? { deviceChange: change.pending.record } : {}),
     };
@@ -173,6 +188,11 @@ export class EncryptedVaultSession {
         [material.secret],
       );
       this.assert(g);
+      this.storage.setArchiveContext?.(
+        this.owner,
+        result.archive.credentialId,
+        result.archive.prfSalt,
+      );
       if (
         !(await this.storage.stageDevice(
           this.owner + ":pending-device:" + result.vaultId,
@@ -194,7 +214,12 @@ export class EncryptedVaultSession {
   ): Promise<{ needsDeviceRegistration: boolean }> {
     try {
       const g = this.generation;
-      const local = await this.local(vault.vaultId);
+      const local = await this.local(vault.vaultId, vault.archive);
+      this.storage.setArchiveContext?.(
+        this.owner,
+        vault.archive.credentialId,
+        vault.archive.prfSalt,
+      );
       const value = await this.rpc("unlock", { vault, material, local }, [material.secret]);
       this.assert(g);
       this.vaultId = vault.vaultId;
@@ -233,7 +258,12 @@ export class EncryptedVaultSession {
   ): Promise<{ canWriteState: boolean }> {
     try {
       const g = this.generation;
-      const local = await this.local(vault.vaultId);
+      const local = await this.local(vault.vaultId, vault.archive);
+      this.storage.setArchiveContext?.(
+        this.owner,
+        vault.archive.credentialId,
+        vault.archive.prfSalt,
+      );
       const result = await this.rpc("unlockForResults", { vault, material, local }, [
         material.secret,
       ]);
@@ -257,6 +287,243 @@ export class EncryptedVaultSession {
     this.assert(g);
     this.vaultId = vault.vaultId;
     return { canWriteState };
+  }
+  private async lifecycleLocal(vault: Vault) {
+    const g = this.generation;
+    await this.started;
+    const pin = await this.storage.get(this.owner + ":lifecycle");
+    this.assert(g);
+    if (
+      pin &&
+      (pin.ownerSubject !== this.owner ||
+        pin.vaultId !== vault.vaultId ||
+        pin.rootKeyId !== vault.rootKeyId)
+    )
+      throw new VaultError("wrong_account");
+    return pin as VaultLifecyclePin | undefined;
+  }
+  async verifyLifecycle(vault: Vault, state: VaultLifecycleState): Promise<VaultLifecyclePin> {
+    const g = this.generation,
+      prior = await this.lifecycleLocal(vault);
+    try {
+      const pin = await this.rpc("verifyLifecycle", { vault, state, prior });
+      this.assert(g);
+      if (!this.storage.commitLifecycle) throw new VaultError("storage_unavailable");
+      await this.storage.commitLifecycle(this.owner, pin, vault.archive);
+      this.assert(g);
+      return pin;
+    } catch (error) {
+      this.lock();
+      throw error;
+    }
+  }
+  async createRecoveryKit(vault: Vault, state: VaultLifecycleState): Promise<RecoveryKitExport> {
+    await this.verifyLifecycle(vault, state);
+    const g = this.generation,
+      prior = await this.lifecycleLocal(vault);
+    const result = await this.rpc("createRecoveryKit", { vault, state, prior });
+    this.assert(g);
+    return result;
+  }
+  async importRecoveryKit(
+    vault: Vault,
+    state: VaultLifecycleState,
+    file: string,
+    code: string,
+  ): Promise<{ needsDeviceRegistration: boolean }> {
+    const g = this.generation,
+      prior = await this.lifecycleLocal(vault);
+    try {
+      const result = await this.rpc("importRecoveryKit", { vault, state, file, code, prior });
+      this.assert(g);
+      this.vaultId = vault.vaultId;
+      this.storage.setArchiveContext?.(
+        this.owner,
+        vault.archive.credentialId,
+        vault.archive.prfSalt,
+      );
+      await this.verifyLifecycle(vault, state);
+      this.assert(g);
+      return result;
+    } catch (error) {
+      this.lock();
+      throw error;
+    }
+  }
+  async prepareArchiveChange(
+    vault: Vault,
+    state: VaultLifecycleState,
+    material: PasskeyMaterial,
+    mode: "passkey_change" | "recovery",
+  ): Promise<ArchiveChangePacket> {
+    return this.serial(async () => {
+      try {
+        const g = this.generation,
+          prior = await this.lifecycleLocal(vault);
+        if (!this.storage.stageArchiveChange) throw new VaultError("storage_unavailable");
+        const { packet, record } = await this.rpc(
+          "prepareArchiveChange",
+          { vault, state, material, mode, prior },
+          [material.secret],
+        );
+        this.assert(g);
+        if (!(await this.storage.stageArchiveChange(this.owner, record)))
+          throw new VaultError("archive_change_pending");
+        this.assert(g);
+        return packet;
+      } finally {
+        if (material.secret.byteLength) new Uint8Array(material.secret).fill(0);
+      }
+    });
+  }
+  async inspectArchiveChange(
+    vault: Vault,
+    state: VaultLifecycleState,
+  ): Promise<{
+    archive: Archive;
+    operationId: string;
+    mode: "passkey_change" | "recovery";
+  } | null> {
+    await this.verifyLifecycle(vault, state);
+    const g = this.generation,
+      prior = await this.lifecycleLocal(vault),
+      record = await this.storage.get(this.owner + ":archive-change");
+    this.assert(g);
+    if (!record) return null;
+    const result = await this.rpc("inspectArchiveChange", { vault, state, record, prior });
+    this.assert(g);
+    return result;
+  }
+  async prepareArchiveCancellation(
+    vault: Vault,
+    state: VaultLifecycleState,
+  ): Promise<{
+    commands: {
+      operationId: string;
+      action: "recovery_authorize" | "recovery_revoke";
+      authorizationId: string;
+      command: import("./encrypted-types").Signed;
+    }[];
+  }> {
+    return this.serial(async () => {
+      await this.verifyLifecycle(vault, state);
+      const g = this.generation,
+        prior = await this.lifecycleLocal(vault),
+        previous = await this.storage.get(this.owner + ":archive-change");
+      this.assert(g);
+      if (!previous || !this.storage.updateArchiveChange)
+        throw new VaultError("archive_change_unknown");
+      const result = await this.rpc("prepareArchiveCancellation", {
+        vault,
+        state,
+        record: previous,
+        prior,
+      });
+      this.assert(g);
+      await this.storage.updateArchiveChange(this.owner, result.record, previous);
+      this.assert(g);
+      return result.packet;
+    });
+  }
+  async discardArchiveChange(
+    vault: Vault,
+    state: VaultLifecycleState,
+    operationId: string,
+  ): Promise<void> {
+    const g = this.generation,
+      prior = await this.lifecycleLocal(vault),
+      record = await this.storage.get(this.owner + ":archive-change");
+    this.assert(g);
+    if (!record || !this.storage.discardArchiveChange)
+      throw new VaultError("archive_change_unknown");
+    const result = await this.rpc("discardArchiveChange", {
+      vault,
+      state,
+      record,
+      operationId,
+      prior,
+    });
+    this.assert(g);
+    await this.storage.discardArchiveChange(this.owner, result.pin, vault.archive, operationId);
+    this.assert(g);
+  }
+  async getArchiveChange(
+    vault: Vault,
+    state: VaultLifecycleState,
+    material?: PasskeyMaterial,
+  ): Promise<{ packet: ArchiveChangePacket; state: "ready" | "applied" | "conflict" } | null> {
+    try {
+      await this.verifyLifecycle(vault, state);
+      const g = this.generation,
+        prior = await this.lifecycleLocal(vault),
+        record = await this.storage.get(this.owner + ":archive-change");
+      this.assert(g);
+      if (!record) return null;
+      const packet = await this.rpc(
+        "getArchiveChange",
+        { vault, state, record, material, prior },
+        material ? [material.secret] : [],
+      );
+      this.assert(g);
+      const payload = JSON.parse(
+        atob(packet.command.payload.replace(/-/g, "+").replace(/_/g, "/")),
+      );
+      const present = state.history.some((i) => i.receipt.operationId === packet.operationId);
+      const stillValid =
+        Number.isSafeInteger(payload.expiresAt) &&
+        payload.expiresAt > Math.floor(Date.now() / 1000);
+      const sameFence =
+        state.vaultVersion === payload.expectedVaultVersion &&
+        state.registrySequence === payload.registrySequence &&
+        state.checkpointDigest === payload.checkpointDigest &&
+        state.keyEpoch === payload.keyEpoch;
+      const phase = present
+        ? "applied"
+        : stillValid &&
+            sameFence &&
+            (state.lifecycleVersion === payload.expectedLifecycleVersion ||
+              (packet.authorization &&
+                state.lifecycleVersion === payload.expectedLifecycleVersion - 1))
+          ? "ready"
+          : "conflict";
+      return { packet, state: phase };
+    } finally {
+      if (material?.secret.byteLength) new Uint8Array(material.secret).fill(0);
+    }
+  }
+  async finishArchiveChange(
+    vault: Vault,
+    state: VaultLifecycleState,
+    operationId: string,
+  ): Promise<{ applied: boolean; needsDeviceRegistration: boolean }> {
+    return this.serial(async () => {
+      const g = this.generation,
+        prior = await this.lifecycleLocal(vault);
+      const result = await this.rpc("finishArchiveChange", { vault, state, operationId, prior });
+      this.assert(g);
+      if (!this.storage.finishArchiveChange) throw new VaultError("storage_unavailable");
+      await this.storage.finishArchiveChange(
+        this.owner,
+        result.pin,
+        vault.archive,
+        result.record,
+        operationId,
+      );
+      this.assert(g);
+      this.lock();
+      return { applied: result.applied, needsDeviceRegistration: result.needsDeviceRegistration };
+    });
+  }
+  async revokeRecoveryAuthorization(vault: Vault, state: VaultLifecycleState) {
+    const g = this.generation,
+      prior = await this.lifecycleLocal(vault),
+      result = await this.rpc("revokeRecoveryAuthorization", { vault, state, prior });
+    this.assert(g);
+    return result as {
+      operationId: string;
+      authorizationId: string;
+      command: import("./encrypted-types").Signed;
+    };
   }
   async openResult(args: OpenResultArgs): Promise<ResultContent> {
     const g = this.generation;

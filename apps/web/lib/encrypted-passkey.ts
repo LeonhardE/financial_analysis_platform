@@ -186,9 +186,10 @@ async function read(
     erasePrf(prf);
   }
 }
-export async function createVaultPasskey(
+async function createPasskey(
   uid: string,
   options: PasskeyOptions = {},
+  replacement = false,
 ): Promise<PasskeyMaterial> {
   active(options.signal);
   supported();
@@ -196,7 +197,12 @@ export async function createVaultPasskey(
   let prf: PrfOutput | undefined;
   try {
     const salt = crypto.getRandomValues(new Uint8Array(32));
-    const userId = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(uid));
+    // A replacement must not overwrite the old discoverable credential before
+    // the archive update is confirmed. Owner binding lives in the encrypted
+    // archive; this opaque handle identifies this credential, not the login.
+    const userId = replacement
+      ? crypto.getRandomValues(new Uint8Array(32)).buffer
+      : await crypto.subtle.digest("SHA-256", new TextEncoder().encode(uid));
     active(options.signal);
     const publicKey: PublicKeyCredentialCreationOptions & { hints: string[] } = {
       challenge: crypto.getRandomValues(new Uint8Array(32)),
@@ -242,6 +248,40 @@ export async function createVaultPasskey(
     cancelled(e);
   } finally {
     erasePrf(prf);
+  }
+}
+export async function createVaultPasskey(
+  uid: string,
+  options: PasskeyOptions = {},
+): Promise<PasskeyMaterial> {
+  return createPasskey(uid, options);
+}
+
+/** Create alongside the old key, then prove that the new PRF is retrievable. */
+export async function replaceVaultPasskey(
+  uid: string,
+  archive: Archive,
+  options: PasskeyOptions = {},
+): Promise<PasskeyMaterial> {
+  const made = await createPasskey(uid, options, true);
+  let checked: PasskeyMaterial | undefined;
+  try {
+    active(options.signal);
+    if (made.credentialId === archive.credentialId || made.prfSalt === archive.prfSalt)
+      throw new VaultError("invalid_operation");
+    checked = await read(made.credentialId, made.prfSalt, options);
+    active(options.signal);
+    const left = new Uint8Array(made.secret),
+      right = new Uint8Array(checked.secret);
+    let difference = left.length ^ right.length;
+    for (let index = 0; index < left.length; ++index) difference |= left[index] ^ right[index];
+    if (difference) throw new VaultError("unlock_failed");
+    const result = checked;
+    checked = undefined;
+    return result;
+  } finally {
+    erase(made.secret);
+    erase(checked?.secret);
   }
 }
 export async function unlockVaultPasskey(

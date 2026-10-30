@@ -162,7 +162,25 @@ function harness({
   let registrationPrepares = 0;
   let loseRegistrationRead = false;
   let loseNextCurrent = false;
+  let archivePacket = null;
+  let archiveApplied = false;
+  let archiveFailure = null;
+  let archivePrepares = 0;
+  let archiveFinishes = 0;
+  let recoveryImports = 0;
+  let recoveryExports = 0;
+  let replacementCalls = 0;
+  let recoveryImportHold = null;
+  let recoveryExportHold = null;
+  let replacementHold = null;
+  let archiveLifecycle = 0;
+  let archiveOriginalFence = 0;
+  let archiveAuthorized = false;
+  let cancellationCommands = null;
+  let cancellationFailure = null;
+  let archiveDiscards = 0;
   const passkeyOptions = [];
+  const passkeyArchives = [];
   let managementFault = null;
   const management = () => ({
     vaultId: "vault_a",
@@ -343,6 +361,128 @@ function harness({
         verifiedAt: 1000,
       };
     }
+    async verifyLifecycle() {
+      if (this.locked) throw { code: "locked" };
+    }
+    async createRecoveryKit() {
+      if (this.locked) throw { code: "locked" };
+      recoveryExports++;
+      if (recoveryExportHold) await recoveryExportHold.promise;
+      return {
+        file: '{"ciphertext":"SYNTHETIC_ENCRYPTED_KIT"}',
+        code: "R".repeat(43),
+        createdAt: 1793386800,
+      };
+    }
+    async importRecoveryKit(_vault, _lifecycle, file, code) {
+      recoveryImports++;
+      if (recoveryImportHold) await recoveryImportHold.promise;
+      if (this.locked) throw { code: "locked" };
+      if (file !== '{"ciphertext":"SYNTHETIC_ENCRYPTED_KIT"}' || code !== "R".repeat(43))
+        throw { code: "unlock_failed" };
+    }
+    async prepareArchiveChange(_vault, _lifecycle, material, mode) {
+      if (this.locked) throw { code: "locked" };
+      archivePrepares++;
+      archiveOriginalFence = mode === "recovery" ? archiveLifecycle + 1 : archiveLifecycle;
+      archivePacket ??= {
+        operationId: "archive_original_operation",
+        mode,
+        archive: {
+          ...remoteVault.archive,
+          credentialId: material.credentialId,
+          prfSalt: material.prfSalt,
+          ciphertext: "SYNTHETIC_NEW_CIPHER",
+        },
+        command: {
+          protected: "public_signed_root",
+          payload: "opaque_bound_digest",
+          signature: "public_signature",
+        },
+        ...(mode === "recovery"
+          ? {
+              authorization: {
+                operationId: "authorization_original_operation",
+                command: {
+                  protected: "public_root",
+                  payload: "opaque_bound_approval",
+                  signature: "public_signature",
+                },
+              },
+            }
+          : {}),
+      };
+      return archivePacket;
+    }
+    async getArchiveChange() {
+      if (this.locked) throw { code: "locked" };
+      return archivePacket
+        ? {
+            packet: archivePacket,
+            state: archiveApplied
+              ? "applied"
+              : archiveLifecycle > archiveOriginalFence
+                ? "conflict"
+                : "ready",
+          }
+        : null;
+    }
+    async inspectArchiveChange() {
+      return archivePacket
+        ? {
+            operationId: archivePacket.operationId,
+            mode: archivePacket.mode,
+            archive: archivePacket.archive,
+          }
+        : null;
+    }
+    async finishArchiveChange(_vault, _lifecycle, operationId) {
+      if (this.locked || !archiveApplied || operationId !== archivePacket?.operationId)
+        throw { code: "archive_change_pending" };
+      archiveFinishes++;
+      if (archivePacket.mode === "recovery") deviceRegistered = false;
+      archivePacket = null;
+    }
+    async prepareArchiveCancellation() {
+      if (this.locked || !archivePacket) throw { code: "locked" };
+      if (archiveApplied) throw { code: "archive_change_unknown" };
+      if (archiveLifecycle > archiveOriginalFence && !archiveAuthorized) return { commands: [] };
+      cancellationCommands ??= [
+        {
+          operationId: "cancel_authorize_original",
+          action: "recovery_authorize",
+          authorizationId: "cancel_authorization_original",
+          command: {
+            protected: "public_root",
+            payload: "bound_cancel_approval",
+            signature: "signature",
+          },
+        },
+        {
+          operationId: "cancel_revoke_original",
+          action: "recovery_revoke",
+          authorizationId: "cancel_authorization_original",
+          command: {
+            protected: "public_root",
+            payload: "bound_cancel_revoke",
+            signature: "signature",
+          },
+        },
+      ];
+      return { commands: archiveAuthorized ? cancellationCommands.slice(1) : cancellationCommands };
+    }
+    async discardArchiveChange(_vault, _lifecycle, operationId) {
+      if (
+        this.locked ||
+        archiveApplied ||
+        archiveLifecycle <= archiveOriginalFence ||
+        archiveAuthorized ||
+        operationId !== archivePacket?.operationId
+      )
+        throw { code: "archive_change_unknown" };
+      archiveDiscards++;
+      archivePacket = null;
+    }
     async signSource(sourceId) {
       creates++;
       return {
@@ -402,6 +542,74 @@ function harness({
     if (route === "/api/v2/vaults") {
       remoteVault = vault;
       return new Response(JSON.stringify({ contractVersion: CONTRACT, vault }));
+    }
+    if (route === "/api/v2/vaults/vault_a/archive") {
+      if (options.method === "PUT") {
+        if (archiveFailure !== "before") {
+          archiveApplied = true;
+          archiveLifecycle++;
+          remoteVault = { ...remoteVault, archive: options.json.archive };
+        }
+        if (archiveFailure) throw { code: "service_unavailable" };
+        return new Response(
+          JSON.stringify({
+            contractVersion: CONTRACT,
+            profile: "folioview.vault-lifecycle.v1",
+            receipt: { operationId: options.headers["Idempotency-Key"] },
+          }),
+        );
+      }
+      return new Response(
+        JSON.stringify({
+          contractVersion: CONTRACT,
+          profile: "folioview.vault-lifecycle.v1",
+          vaultId: remoteVault.vaultId,
+          rootKeyId: remoteVault.rootKeyId,
+          archive: remoteVault.archive,
+          lifecycleVersion: archiveLifecycle,
+        }),
+      );
+    }
+    if (route === "/api/v2/vaults/vault_a/recovery-authorizations") {
+      if (!archiveAuthorized) archiveLifecycle++;
+      archiveAuthorized = true;
+      return new Response(
+        JSON.stringify({
+          contractVersion: CONTRACT,
+          profile: "folioview.vault-lifecycle.v1",
+          receipt: { operationId: options.headers["Idempotency-Key"] },
+        }),
+      );
+    }
+    if (route.includes("/recovery-authorizations/") && route.endsWith("/revoke")) {
+      if (cancellationFailure === "before") throw { code: "service_unavailable" };
+      if (archiveAuthorized) archiveLifecycle++;
+      archiveAuthorized = false;
+      if (cancellationFailure === "after") throw { code: "service_unavailable" };
+      return new Response(
+        JSON.stringify({
+          contractVersion: CONTRACT,
+          profile: "folioview.vault-lifecycle.v1",
+          receipt: { operationId: options.headers["Idempotency-Key"] },
+        }),
+      );
+    }
+    if (route.startsWith("/api/v2/vaults/vault_a/archive-operations/")) {
+      if (archiveApplied)
+        return new Response(
+          JSON.stringify({
+            contractVersion: CONTRACT,
+            profile: "folioview.vault-lifecycle.v1",
+            receipt: { operationId: route.split("/").at(-1) },
+          }),
+        );
+      return new Response(
+        JSON.stringify({
+          contractVersion: CONTRACT,
+          error: { code: "not_found", retryable: false, requestId: "synthetic_request" },
+        }),
+        { status: 404 },
+      );
     }
     if (route === "/api/v2/vaults/vault_a/registry") {
       if (devicePacket) {
@@ -565,10 +773,17 @@ function harness({
         passkeyOptions.push(options);
         return passkey.promise;
       },
-      unlockVaultPasskey: async (_archive, options) => {
+      unlockVaultPasskey: async (archive, options) => {
         passkeyCalls++;
         passkeyOptions.push(options);
+        passkeyArchives.push(archive);
         return passkey.promise;
+      },
+      replaceVaultPasskey: async (_uid, _archive, options) => {
+        replacementCalls++;
+        passkeyOptions.push(options);
+        if (replacementHold) return replacementHold.promise;
+        return { credentialId: "new_credential", prfSalt: "new_salt", secret: new ArrayBuffer(32) };
       },
     },
   });
@@ -642,6 +857,12 @@ function harness({
       deviceDiscards,
       recoveryVerifications,
       registrationPrepares,
+      archivePrepares,
+      archiveFinishes,
+      recoveryImports,
+      recoveryExports,
+      replacementCalls,
+      archiveDiscards,
     }),
     holdResult(next) {
       resultHold = next;
@@ -656,6 +877,7 @@ function harness({
       forcedHead = value;
     },
     passkeyOptions,
+    passkeyArchives,
     managementFault(value) {
       managementFault = value;
     },
@@ -664,6 +886,21 @@ function harness({
     },
     registryFailure(value) {
       registryFailure = value;
+    },
+    archiveFailure(value) {
+      archiveFailure = value;
+    },
+    cancellationFailure(value) {
+      cancellationFailure = value;
+    },
+    holdRecoveryImport(value) {
+      recoveryImportHold = value;
+    },
+    holdRecoveryExport(value) {
+      recoveryExportHold = value;
+    },
+    holdReplacement(value) {
+      replacementHold = value;
     },
     deviceConflict() {
       deviceConflict = true;
@@ -685,6 +922,296 @@ async function unlocked(h) {
   return h.render();
 }
 const file = { size: 10, text: async () => "private CSV that must never reach HTTP" };
+
+test("Passkey replacement saves only a root-signed encrypted archive and recovers a lost committed reply without recreating credentials", async () => {
+  const h = harness();
+  const original = await unlocked(h),
+    generation = original.vaultGeneration;
+  h.archiveFailure("after");
+  await original.changePasskey();
+  let model = h.render();
+  assert.equal(model.phase, "locked");
+  assert.equal(model.content, null);
+  assert.equal(model.archiveChange.operationId, "archive_original_operation");
+  assert.ok(model.vaultGeneration > generation);
+  assert.equal(h.counts().replacementCalls, 1);
+  assert.equal(h.counts().archivePrepares, 1);
+  const writes = () =>
+    h.requests.filter((row) => row.route.endsWith("/archive") && row.options.method === "PUT");
+  assert.equal(writes().length, 1);
+  assert.equal(writes()[0].options.headers["Idempotency-Key"], "archive_original_operation");
+  assert.equal(writes()[0].options.headers["X-FolioView-Author-Key"], undefined);
+  assert.ok(!JSON.stringify(writes()[0]).includes("PRIVATE_SENTINEL"));
+  h.archiveFailure(null);
+  await model.refreshArchiveChange();
+  model = h.render();
+  assert.equal(model.archiveChange, null);
+  assert.equal(model.keyNotice, "archive_change_saved");
+  assert.equal(model.phase, "locked");
+  assert.equal(h.counts().archiveFinishes, 1);
+  assert.equal(
+    writes().length,
+    1,
+    "A confirmed original operation only recovers its receipt/state",
+  );
+  assert.equal(h.counts().replacementCalls, 1);
+  assert.equal(h.counts().archivePrepares, 1);
+  assert.ok(h.instances.every((instance) => instance.locked));
+  h.unmount();
+});
+
+test("an archive update with an unknown uncommitted outcome replays identical ciphertext, command and operation", async () => {
+  const h = harness();
+  await unlocked(h);
+  h.archiveFailure("before");
+  await h.render().changePasskey("other");
+  assert.equal(h.render().archiveChange.state, "ready");
+  h.archiveFailure(null);
+  await h.render().confirmArchiveChange();
+  const writes = h.requests.filter(
+    (row) => row.route.endsWith("/archive") && row.options.method === "PUT",
+  );
+  assert.equal(writes.length, 2);
+  assert.equal(JSON.stringify(writes[0].options.json), JSON.stringify(writes[1].options.json));
+  assert.equal(
+    writes[0].options.headers["Idempotency-Key"],
+    writes[1].options.headers["Idempotency-Key"],
+  );
+  assert.equal(h.counts().replacementCalls, 1);
+  assert.equal(h.counts().archivePrepares, 1);
+  assert.equal(h.render().archiveChange, null);
+  assert.equal(h.passkeyOptions.at(-1).method, "other");
+  h.unmount();
+});
+
+test("independent kit recovery works while locked without the old Passkey and requires separate browser registration afterward", async () => {
+  const h = harness();
+  await ready(h);
+  await h.render().recoverWithKit('{"ciphertext":"SYNTHETIC_ENCRYPTED_KIT"}', "R".repeat(43));
+  let model = h.render();
+  assert.equal(h.counts().recoveryImports, 1);
+  assert.equal(h.counts().passkeyCalls, 0, "Recovery must not request the missing old credential");
+  assert.equal(h.counts().replacementCalls, 1);
+  assert.equal(model.phase, "locked");
+  assert.equal(model.keyNotice, "archive_change_saved");
+  const writes = h.requests.filter((row) => ["PUT", "POST"].includes(row.options.method));
+  assert.deepEqual(
+    writes.map((row) => row.route),
+    ["/api/v2/vaults/vault_a/recovery-authorizations", "/api/v2/vaults/vault_a/archive"],
+  );
+  for (const row of writes) {
+    assert.ok(row.options.headers["Idempotency-Key"]);
+    assert.equal(row.options.headers["X-FolioView-Author-Key"], undefined);
+    assert.ok(!JSON.stringify(row.options.json).includes("R".repeat(43)));
+    assert.ok(!JSON.stringify(row.options.json).includes("SYNTHETIC_ENCRYPTED_KIT"));
+  }
+  const job = model.unlock({ forResults: true, enableState: true });
+  h.resolvePasskey();
+  await job;
+  model = h.render();
+  assert.equal(model.phase, "needs-device");
+  assert.equal(model.needsDeviceApproval, true);
+  assert.equal(h.counts().registrationPrepares, 0);
+  assert.ok(!h.requests.some((row) => row.route.endsWith("/registry")));
+  h.unmount();
+});
+
+test("a wrong independent recovery code never creates a Passkey or submits recovery authority", async () => {
+  const h = harness();
+  await ready(h);
+  await h.render().recoverWithKit('{"ciphertext":"SYNTHETIC_ENCRYPTED_KIT"}', "wrong-code");
+  assert.equal(h.render().error, "unlock_failed");
+  assert.equal(h.counts().replacementCalls, 0);
+  assert.ok(!h.requests.some((row) => ["PUT", "POST"].includes(row.options.method)));
+  assert.ok(h.instances.every((instance) => instance.locked));
+  h.unmount();
+});
+
+test("a locked fresh Worker resumes a staged recovery with the new Passkey even while the server archive is still old", async () => {
+  const h = harness();
+  await ready(h);
+  h.archiveFailure("before");
+  await h.render().recoverWithKit('{"ciphertext":"SYNTHETIC_ENCRYPTED_KIT"}', "R".repeat(43));
+  assert.equal(h.render().archiveChange.mode, "recovery");
+  const originalWorker = h.instances.at(-1);
+  h.render().lock();
+  assert.equal(originalWorker.locked, true);
+  assert.equal(
+    h.render().archiveChange.operationId,
+    "archive_original_operation",
+    "A public pending-operation summary may survive locking",
+  );
+  h.archiveFailure(null);
+  const job = h.render().resumeArchiveWithNewPasskey();
+  await settle();
+  assert.equal(h.passkeyArchives.at(-1).credentialId, "new_credential");
+  assert.equal(h.passkeyArchives.at(-1).prfSalt, "new_salt");
+  h.resolvePasskey();
+  await job;
+  assert.equal(h.render().keyNotice, "archive_change_saved");
+  assert.equal(h.render().archiveChange, null);
+  assert.equal(h.counts().recoveryImports, 1);
+  assert.equal(h.counts().replacementCalls, 1);
+  assert.equal(h.counts().archivePrepares, 1);
+  assert.equal(h.counts().archiveFinishes, 1);
+  const writes = h.requests.filter(
+    (row) => row.route.endsWith("/archive") && row.options.method === "PUT",
+  );
+  assert.equal(writes.length, 2);
+  assert.equal(JSON.stringify(writes[0].options.json), JSON.stringify(writes[1].options.json));
+  assert.ok(h.instances.every((instance) => instance.locked));
+  h.unmount();
+});
+
+test("safe cancellation establishes an authorization/revocation fence before discarding an unknown archive candidate", async () => {
+  const h = harness();
+  const original = await unlocked(h),
+    originalArchive = JSON.stringify(original.vault.archive);
+  h.archiveFailure("before");
+  await original.changePasskey();
+  assert.equal(h.counts().archiveDiscards, 0);
+  await h.render().cancelArchiveChange();
+  const model = h.render(),
+    controls = h.requests.filter(
+      (row) => row.options.method === "POST" && row.route.includes("recovery-authorizations"),
+    );
+  assert.deepEqual(
+    controls.map((row) => row.route),
+    [
+      "/api/v2/vaults/vault_a/recovery-authorizations",
+      "/api/v2/vaults/vault_a/recovery-authorizations/cancel_authorization_original/revoke",
+    ],
+  );
+  assert.deepEqual(
+    controls.map((row) => row.options.headers["Idempotency-Key"]),
+    ["cancel_authorize_original", "cancel_revoke_original"],
+  );
+  assert.equal(h.counts().archiveDiscards, 1);
+  assert.equal(h.counts().archiveFinishes, 0);
+  assert.equal(h.counts().archivePrepares, 1);
+  assert.equal(model.archiveChange, null);
+  assert.equal(model.phase, "locked");
+  assert.equal(model.keyNotice, "archive_change_cancelled");
+  assert.equal(JSON.stringify(model.vault.archive), originalArchive);
+  assert.equal(
+    h.requests.filter((row) => row.options.method === "PUT" && row.route.endsWith("/archive"))
+      .length,
+    1,
+    "Cancellation never writes another archive",
+  );
+  assert.ok(h.instances.every((instance) => instance.locked));
+  h.unmount();
+});
+
+test("lost cancellation replies retain the original archive candidate until fresh state proves a completed fence", async () => {
+  for (const failure of ["before", "after"]) {
+    const h = harness();
+    await unlocked(h);
+    h.archiveFailure("before");
+    await h.render().changePasskey();
+    h.cancellationFailure(failure);
+    await h.render().cancelArchiveChange();
+    assert.equal(h.counts().archiveDiscards, 0);
+    assert.equal(h.render().archiveChange.operationId, "archive_original_operation");
+    h.cancellationFailure(null);
+    await h.render().cancelArchiveChange();
+    assert.equal(h.counts().archiveDiscards, 1);
+    assert.equal(h.render().keyNotice, "archive_change_cancelled");
+    const revoke = h.requests.filter((row) => row.route.endsWith("/revoke"));
+    assert.equal(revoke.length, failure === "before" ? 2 : 1);
+    if (revoke.length === 2) {
+      assert.equal(JSON.stringify(revoke[0].options.json), JSON.stringify(revoke[1].options.json));
+      assert.equal(
+        revoke[0].options.headers["Idempotency-Key"],
+        revoke[1].options.headers["Idempotency-Key"],
+      );
+    }
+    assert.equal(
+      h.requests.filter((row) => row.route.endsWith("/recovery-authorizations")).length,
+      1,
+    );
+    assert.equal(h.counts().replacementCalls, 1);
+    h.unmount();
+  }
+});
+
+test("canceling a candidate already confirmed as applied adopts that update instead of discarding its active keys", async () => {
+  const h = harness();
+  await unlocked(h);
+  h.archiveFailure("after");
+  await h.render().changePasskey();
+  await h.render().cancelArchiveChange();
+  assert.equal(h.counts().archiveDiscards, 0);
+  assert.equal(h.counts().archiveFinishes, 1);
+  assert.equal(h.render().keyNotice, "archive_change_saved");
+  assert.ok(!h.requests.some((row) => row.route.includes("recovery-authorizations")));
+  h.unmount();
+});
+
+test("exported recovery codes disappear on lock, logout and same-render account change; late exports cannot restore them", async () => {
+  for (const transition of ["lock", "logout", "switch", "late-lock"]) {
+    const h = harness();
+    await unlocked(h);
+    let job;
+    const gate = deferred();
+    if (transition === "late-lock") h.holdRecoveryExport(gate);
+    job = h.render().exportRecoveryKit();
+    if (transition === "late-lock") await settle();
+    else await job;
+    if (transition !== "late-lock") assert.equal(h.render().recoveryExport.code, "R".repeat(43));
+    if (["lock", "late-lock"].includes(transition)) h.render().lock();
+    else
+      h.auth(
+        transition === "logout"
+          ? { status: "anonymous", sessionKey: null, profile: null }
+          : { status: "authenticated", sessionKey: "owner_b:1", profile: { uid: "owner_b" } },
+      );
+    assert.equal(h.render({ flush: false }).recoveryExport, null);
+    h.render();
+    gate.resolve();
+    await job;
+    assert.equal(h.render().recoveryExport, null);
+    assert.ok(h.instances.every((instance) => instance.locked));
+    h.unmount();
+  }
+});
+
+test("late kit imports and native replacement responses are fenced by lock, logout and owner changes", async () => {
+  for (const stage of ["import", "passkey"]) {
+    for (const transition of ["lock", "logout", "switch"]) {
+      const h = harness(),
+        gate = deferred();
+      await ready(h);
+      if (stage === "import") h.holdRecoveryImport(gate);
+      else h.holdReplacement(gate);
+      const job = h
+        .render()
+        .recoverWithKit('{"ciphertext":"SYNTHETIC_ENCRYPTED_KIT"}', "R".repeat(43));
+      await settle();
+      if (transition === "lock") h.render().lock();
+      else
+        h.auth(
+          transition === "logout"
+            ? { status: "anonymous", sessionKey: null, profile: null }
+            : { status: "authenticated", sessionKey: "owner_b:1", profile: { uid: "owner_b" } },
+        );
+      h.render();
+      const secret = new Uint8Array(32).fill(19);
+      gate.resolve(
+        stage === "passkey"
+          ? { credentialId: "late_new", prfSalt: "late_salt", secret: secret.buffer }
+          : undefined,
+      );
+      await job;
+      assert.equal(h.counts().archivePrepares, 0);
+      assert.equal(h.counts().replacementCalls, stage === "passkey" ? 1 : 0);
+      assert.ok(!h.requests.some((row) => ["PUT", "POST"].includes(row.options.method)));
+      assert.ok(h.instances.every((instance) => instance.locked));
+      if (stage === "passkey") assert.ok(secret.every((byte) => byte === 0));
+      h.unmount();
+    }
+  }
+});
 
 test("new-device cancellation never uploads public keys or authorizes the browser implicitly", async () => {
   const h = harness({ needsDeviceRegistration: true });

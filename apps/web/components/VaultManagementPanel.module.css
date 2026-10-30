@@ -167,6 +167,33 @@
   margin-top: 24px;
   padding-top: 20px;
 }
+.recoveryForm {
+  display: grid;
+  gap: 8px;
+  margin: 14px 0;
+}
+.recoveryLabel {
+  color: var(--text);
+  display: block;
+  font-size: 12px;
+  margin-top: 8px;
+}
+.recoveryInput {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+  min-height: 38px;
+  padding: 9px 10px;
+  width: 100%;
+}
+.recoverySteps {
+  display: grid;
+  gap: 14px;
+  padding-left: 22px;
+}
 @media (max-width: 700px) {
   .panel {
     padding: 18px 16px;
