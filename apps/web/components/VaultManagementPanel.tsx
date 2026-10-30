@@ -3,6 +3,7 @@
 import { useLocale, useTranslations } from "next-intl";
 import type { HoldingsWorkspace } from "./useHoldingsWorkspace";
 import { PasskeyHelp } from "./PasskeyHelp";
+import VaultRecoveryPanel from "./VaultRecoveryPanel";
 import styles from "./VaultManagementPanel.module.css";
 
 const ERRORS = new Set([
@@ -23,6 +24,17 @@ const ERRORS = new Set([
   "storage_unavailable",
   "service_unavailable",
   "request_timeout",
+  "archive_local_pending",
+  "archive_change_pending",
+  "archive_session_stale",
+  "invalid_replacement_passkey",
+  "recovery_authorization_pending",
+  "archive_change_unknown",
+  "untrusted_lifecycle",
+  "invalid_recovery_kit",
+  "archive_change_missing",
+  "archive_cancellation_capacity",
+  "archive_cancel_limit",
 ]);
 
 export default function VaultManagementPanel({ workspace }: { workspace: HoldingsWorkspace }) {
@@ -351,6 +363,7 @@ export default function VaultManagementPanel({ workspace }: { workspace: Holding
       {unlocked && workspace.keyNotice && t.has(`notices.${workspace.keyNotice}`) && (
         <p role="status">{t(`notices.${workspace.keyNotice}`)}</p>
       )}
+      <VaultRecoveryPanel workspace={workspace} />
       <div className={styles.recovery}>
         <h3>{t("recoveryTitle")}</h3>
         <p>{t("recoveryHelp")}</p>

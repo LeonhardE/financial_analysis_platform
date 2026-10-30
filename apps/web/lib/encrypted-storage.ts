@@ -1,6 +1,18 @@
 /** Browser-owned ciphertext and public pins only; every shared mutation is atomic. */
 import { VaultError } from "./encrypted-types";
 export interface EncryptedStorage {
+  setArchiveContext?(owner: string, credentialId: string, prfSalt: string): void;
+  commitLifecycle?(owner: string, pin: any, archive: any): Promise<void>;
+  stageArchiveChange?(owner: string, record: any): Promise<boolean>;
+  finishArchiveChange?(
+    owner: string,
+    pin: any,
+    archive: any,
+    record: any,
+    operationId: string,
+  ): Promise<void>;
+  discardArchiveChange?(owner: string, pin: any, archive: any, operationId: string): Promise<void>;
+  updateArchiveChange?(owner: string, record: any, previous: any): Promise<void>;
   get(key: string): Promise<any>;
   put(key: string, value: any): Promise<void>;
   remove(key: string): Promise<void>;
@@ -42,6 +54,213 @@ export function assertPinAdvance(current: any, record: any) {
 }
 export class BrowserEncryptedStorage implements EncryptedStorage {
   private database?: Promise<IDBDatabase>;
+  private archiveContext?: { owner: string; credentialId: string; prfSalt: string };
+  setArchiveContext(owner: string, credentialId: string, prfSalt: string) {
+    this.archiveContext = { owner, credentialId, prfSalt };
+  }
+  private guarded<T>(
+    key: string,
+    action: (s: IDBObjectStore, done: (v: T) => void, fail: (e: unknown) => void) => void,
+  ): Promise<T> {
+    return this.atomic<T>((s, done, fail) => {
+      const context = this.archiveContext;
+      if (!context || !key.startsWith(context.owner + ":")) {
+        action(s, done, fail);
+        return;
+      }
+      const pending = s.get(context.owner + ":archive-change");
+      pending.onsuccess = () => {
+        if (pending.result) {
+          fail(new VaultError("archive_change_pending"));
+          return;
+        }
+        const binding = s.get(context.owner + ":archive-binding");
+        binding.onsuccess = () => {
+          if (
+            binding.result &&
+            (binding.result.credentialId !== context.credentialId ||
+              binding.result.prfSalt !== context.prfSalt)
+          ) {
+            fail(new VaultError("archive_session_stale"));
+            return;
+          }
+          action(s, done, fail);
+        };
+      };
+    });
+  }
+  private lifecycleAdvance(current: any, pin: any) {
+    if (
+      !pin ||
+      !Array.isArray(pin.fingerprints) ||
+      pin.fingerprints.length !== pin.lifecycleVersion
+    )
+      throw new VaultError("untrusted_lifecycle");
+    if (
+      current &&
+      (current.ownerSubject !== pin.ownerSubject ||
+        current.vaultId !== pin.vaultId ||
+        current.rootKeyId !== pin.rootKeyId ||
+        current.lifecycleVersion > pin.lifecycleVersion ||
+        current.archiveRevision > pin.archiveRevision ||
+        current.fingerprints.some((v: string, i: number) => v !== pin.fingerprints[i]) ||
+        (current.lifecycleVersion === pin.lifecycleVersion &&
+          current.archiveDigest !== pin.archiveDigest))
+    )
+      throw new VaultError("rollback_detected");
+  }
+  commitLifecycle(owner: string, pin: any, archive: any) {
+    return this.atomic<void>((s, done, fail) => {
+      const req = s.get(owner + ":lifecycle");
+      req.onsuccess = () => {
+        try {
+          if (pin.ownerSubject !== owner || archive.ownerSubject !== owner)
+            throw new VaultError("wrong_account");
+          this.lifecycleAdvance(req.result, pin);
+          s.put(pin, owner + ":lifecycle");
+          // A known archive may advance during a pending operation; its outbox remains intact.
+          s.put(
+            { credentialId: archive.credentialId, prfSalt: archive.prfSalt },
+            owner + ":archive-binding",
+          );
+          done();
+        } catch (e) {
+          fail(e);
+        }
+      };
+    });
+  }
+  stageArchiveChange(owner: string, record: any) {
+    return this.atomic<boolean>((s, done, fail) => {
+      if (record.ownerSubject !== owner) {
+        fail(new VaultError("wrong_account"));
+        return;
+      }
+      const current = s.get(owner + ":archive-change");
+      current.onsuccess = () => {
+        if (current.result) {
+          done(same(current.result, record));
+          return;
+        }
+        const context = this.archiveContext,
+          binding = s.get(owner + ":archive-binding");
+        binding.onsuccess = () => {
+          if (
+            context &&
+            binding.result &&
+            (binding.result.credentialId !== context.credentialId ||
+              binding.result.prfSalt !== context.prfSalt)
+          ) {
+            fail(new VaultError("archive_session_stale"));
+            return;
+          }
+          const cursor = s.openCursor(IDBKeyRange.bound(owner + ":", owner + ":\uffff"));
+          let blocked = false;
+          cursor.onsuccess = () => {
+            const row = cursor.result;
+            if (row) {
+              const key = String(row.key),
+                v = row.value;
+              if (
+                key.includes(":pending-device:") ||
+                key.includes(":device-change:") ||
+                key.includes(":agent-registration:") ||
+                key.includes(":agent-approval:") ||
+                key.includes(":agent-preparation:") ||
+                (key.includes(":task-draft:") && !v.deleted)
+              )
+                blocked = true;
+              row.continue();
+            } else if (blocked) fail(new VaultError("archive_local_pending"));
+            else {
+              s.put(record, owner + ":archive-change");
+              done(true);
+            }
+          };
+        };
+      };
+    });
+  }
+  finishArchiveChange(owner: string, pin: any, archive: any, record: any, operationId: string) {
+    return this.atomic<void>((s, done, fail) => {
+      const pending = s.get(owner + ":archive-change");
+      pending.onsuccess = () => {
+        if (pending.result?.operationId !== operationId) {
+          fail(new VaultError("operation_conflict"));
+          return;
+        }
+        const current = s.get(owner + ":lifecycle");
+        current.onsuccess = () => {
+          try {
+            this.lifecycleAdvance(current.result, pin);
+            const pinRead = s.get(owner + ":pin");
+            pinRead.onsuccess = () => {
+              try {
+                assertPinAdvance(pinRead.result, record);
+                if (record.device)
+                  s.put(
+                    { ownerSubject: owner, device: record.device },
+                    owner + ":device:" + pin.vaultId,
+                  );
+                else s.delete(owner + ":device:" + pin.vaultId);
+                s.put(record.pin, owner + ":pin");
+                s.put(pin, owner + ":lifecycle");
+                s.put(
+                  { credentialId: archive.credentialId, prfSalt: archive.prfSalt },
+                  owner + ":archive-binding",
+                );
+                s.delete(owner + ":archive-change");
+                done();
+              } catch (e) {
+                fail(e);
+              }
+            };
+          } catch (e) {
+            fail(e);
+          }
+        };
+      };
+    });
+  }
+  discardArchiveChange(owner: string, pin: any, archive: any, operationId: string) {
+    return this.atomic<void>((s, done, fail) => {
+      const pending = s.get(owner + ":archive-change");
+      pending.onsuccess = () => {
+        if (pending.result?.operationId !== operationId) {
+          fail(new VaultError("operation_conflict"));
+          return;
+        }
+        const current = s.get(owner + ":lifecycle");
+        current.onsuccess = () => {
+          try {
+            this.lifecycleAdvance(current.result, pin);
+            s.put(pin, owner + ":lifecycle");
+            s.put(
+              { credentialId: archive.credentialId, prfSalt: archive.prfSalt },
+              owner + ":archive-binding",
+            );
+            s.delete(owner + ":archive-change");
+            done();
+          } catch (e) {
+            fail(e);
+          }
+        };
+      };
+    });
+  }
+  updateArchiveChange(owner: string, record: any, previous: any) {
+    return this.atomic<void>((s, done, fail) => {
+      const req = s.get(owner + ":archive-change");
+      req.onsuccess = () => {
+        if (record.ownerSubject !== owner || !same(req.result, previous)) {
+          fail(new VaultError("operation_conflict"));
+          return;
+        }
+        s.put(record, owner + ":archive-change");
+        done();
+      };
+    });
+  }
   private open() {
     if (typeof indexedDB === "undefined") throw new VaultError("storage_unavailable");
     return (this.database ??= new Promise<IDBDatabase>((resolve, reject) => {
@@ -100,7 +319,7 @@ export class BrowserEncryptedStorage implements EncryptedStorage {
     });
   }
   async put(key: string, value: any) {
-    await this.atomic<void>((s, done) => {
+    await this.guarded<void>(key, (s, done) => {
       s.put(value, key);
       done();
     });
@@ -125,7 +344,7 @@ export class BrowserEncryptedStorage implements EncryptedStorage {
     });
   }
   compareTaskRecord(key: string, value: any, expectedRevision: number) {
-    return this.atomic<boolean>((s, done, fail) => {
+    return this.guarded<boolean>(key, (s, done, fail) => {
       if (
         !Number.isSafeInteger(expectedRevision) ||
         expectedRevision < 0 ||
@@ -146,13 +365,13 @@ export class BrowserEncryptedStorage implements EncryptedStorage {
     });
   }
   async remove(key: string) {
-    await this.atomic<void>((s, done) => {
+    await this.guarded<void>(key, (s, done) => {
       s.delete(key);
       done();
     });
   }
   insert(key: string, value: any) {
-    return this.atomic<boolean>((s, done) => {
+    return this.guarded<boolean>(key, (s, done) => {
       const req = s.get(key);
       req.onsuccess = () => {
         if (req.result !== undefined) {
@@ -165,7 +384,7 @@ export class BrowserEncryptedStorage implements EncryptedStorage {
     });
   }
   removeOperation(key: string, operationId: string) {
-    return this.atomic<boolean>((s, done) => {
+    return this.guarded<boolean>(key, (s, done) => {
       const req = s.get(key);
       req.onsuccess = () => {
         if (req.result === undefined) {
@@ -182,7 +401,7 @@ export class BrowserEncryptedStorage implements EncryptedStorage {
     });
   }
   stageDevice(key: string, record: any, expected: any, blockedByKey?: string) {
-    return this.atomic<boolean>((s, done) => {
+    return this.guarded<boolean>(key, (s, done) => {
       const stage = () => {
         const req = s.get(key);
         req.onsuccess = () => {
@@ -202,7 +421,7 @@ export class BrowserEncryptedStorage implements EncryptedStorage {
     });
   }
   async commitVault(owner: string, record: any) {
-    await this.atomic<void>((s, done, fail) => {
+    await this.guarded<void>(owner + ":pin", (s, done, fail) => {
       const pinKey = owner + ":pin",
         pendingKey = owner + ":pending-device:" + record.pin.vaultId;
       const req = s.get(pinKey);

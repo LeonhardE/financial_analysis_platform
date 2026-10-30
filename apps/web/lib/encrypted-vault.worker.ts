@@ -19,6 +19,75 @@ scope.onmessage = (event) => {
       } else {
         if (!core) throw new VaultError("locked");
         switch (method) {
+          case "verifyLifecycle":
+            result = await core.verifyLifecycle(args.vault, args.state, args.prior);
+            break;
+          case "createRecoveryKit":
+            result = await core.createRecoveryKit(args.vault, args.state, args.prior);
+            break;
+          case "importRecoveryKit":
+            result = await core.importRecoveryKit(
+              args.vault,
+              args.state,
+              args.file,
+              args.code,
+              args.prior,
+            );
+            break;
+          case "prepareArchiveChange":
+            result = await core.prepareArchiveChange(
+              args.vault,
+              args.state,
+              args.material,
+              args.mode,
+              args.prior,
+            );
+            break;
+          case "inspectArchiveChange":
+            result = await core.inspectArchiveChange(
+              args.vault,
+              args.state,
+              args.record,
+              args.prior,
+            );
+            break;
+          case "prepareArchiveCancellation":
+            result = await core.prepareArchiveCancellation(
+              args.vault,
+              args.state,
+              args.record,
+              args.prior,
+            );
+            break;
+          case "discardArchiveChange":
+            result = await core.discardArchiveChange(
+              args.vault,
+              args.state,
+              args.record,
+              args.operationId,
+              args.prior,
+            );
+            break;
+          case "getArchiveChange":
+            result = await core.getArchiveChange(
+              args.vault,
+              args.state,
+              args.record,
+              args.material,
+              args.prior,
+            );
+            break;
+          case "finishArchiveChange":
+            result = await core.finishArchiveChange(
+              args.vault,
+              args.state,
+              args.operationId,
+              args.prior,
+            );
+            break;
+          case "revokeRecoveryAuthorization":
+            result = await core.revokeRecoveryAuthorization(args.vault, args.state, args.prior);
+            break;
           case "beginCreate":
             result = await core.beginCreate(args.material);
             break;

@@ -119,6 +119,60 @@ function harness({
 }
 const zero = (value) => assert.ok(new Uint8Array(value).every((n) => n === 0));
 
+test("replacement keeps the old credential intact and verifies the exact new credential with the same PRF", async () => {
+  const h = harness(),
+    id = new Uint8Array(32).fill(91).buffer;
+  const created = secret(41),
+    checked = secret(41);
+  h.native.create = async () => credential({ id, first: created });
+  h.native.get = async () => credential({ id, first: checked });
+  const result = await h.replaceVaultPasskey("synthetic_owner_A", archive());
+  assert.equal(h.calls.length, 2);
+  const creation = h.calls[0].options.publicKey;
+  assert.notDeepEqual(
+    Buffer.from(creation.user.id),
+    Buffer.from(
+      await crypto.subtle.digest("SHA-256", new TextEncoder().encode("synthetic_owner_A")),
+    ),
+  );
+  assert.equal(creation.excludeCredentials, undefined);
+  assert.equal(creation.authenticatorSelection.authenticatorAttachment, "platform");
+  assert.deepEqual(
+    Buffer.from(h.calls[1].options.publicKey.allowCredentials[0].id),
+    Buffer.from(id),
+  );
+  assert.equal(result.credentialId, encoded(id));
+  assert.ok(new Uint8Array(result.secret).every((n) => n === 41));
+  zero(created);
+  zero(checked);
+});
+
+test("replacement rejects reused credentials, inconsistent PRF and cancelled confirmation without retaining native secrets", async () => {
+  const same = harness(),
+    first = secret();
+  same.native.create = async () => credential({ first });
+  await assert.rejects(same.replaceVaultPasskey("owner", archive()), { code: "invalid_operation" });
+  zero(first);
+  assert.equal(same.calls.length, 1);
+  const h = harness(),
+    id = new Uint8Array(32).fill(88).buffer;
+  const created = secret(1),
+    checked = secret(2);
+  h.native.create = async () => credential({ id, first: created });
+  h.native.get = async () => credential({ id, first: checked });
+  await assert.rejects(h.replaceVaultPasskey("owner", archive()), { code: "unlock_failed" });
+  zero(created);
+  zero(checked);
+  const cancelled = harness(),
+    material = secret(3);
+  cancelled.native.create = async () => credential({ id, first: material });
+  cancelled.native.get = async () => null;
+  await assert.rejects(cancelled.replaceVaultPasskey("owner", archive()), {
+    code: "passkey_cancelled",
+  });
+  zero(material);
+});
+
 test("creation defaults to local platform UV/PRF without exporting the credential or retaining the native PRF buffers", async () => {
   const h = harness(),
     first = secret(),

@@ -1,6 +1,6 @@
 import "server-only";
 
-import { hubResponse } from "./hub-owner-contracts";
+import { hubResponse, vaultLifecycleArchive, vaultLifecycleCommand } from "./hub-owner-contracts";
 
 import {
   CONTRACT,
@@ -33,6 +33,8 @@ type Rule = {
     | "read"
     | "bootstrap"
     | "registry"
+    | "archive"
+    | "lifecycle-control"
     | "control"
     | "small"
     | "task-create"
@@ -43,6 +45,7 @@ type Rule = {
   max: number;
   operation?: boolean;
   author?: boolean;
+  vaultId?: string;
   query?: Record<string, "limit" | "cursor" | "filter" | "id" | "revision" | "delivery">;
 };
 type Config = { origin: string; project: string };
@@ -116,6 +119,20 @@ function route(request: Request): { path: string; rule: Rule } {
     new RegExp(`^/api/v2/agent-connections/${ID}/tasks/${ID}/preparation-intent$`).test(path)
   )
     rule = { kind: "read", max: 0 };
+  else if (
+    get &&
+    new RegExp(`^/api/v2/vaults/${ID}/(?:archive|archive-operations/[A-Za-z0-9_-]{22,128})$`).test(
+      path,
+    )
+  )
+    rule = { kind: "read", max: 0 };
+  else if (request.method === "PUT" && new RegExp(`^/api/v2/vaults/${ID}/archive$`).test(path))
+    rule = { kind: "archive", max: 65536, operation: true, vaultId: path.split("/")[4] };
+  else if (
+    request.method === "POST" &&
+    new RegExp(`^/api/v2/vaults/${ID}/recovery-authorizations(?:/${ID}/revoke)?$`).test(path)
+  )
+    rule = { kind: "lifecycle-control", max: 8192, operation: true };
   else if (request.method === "POST" && path === "/api/v2/vaults")
     rule = { kind: "bootstrap", max: 589824, operation: true };
   else if (request.method === "PUT" && new RegExp(`^/api/v2/vaults/${ID}/registry$`).test(path))
@@ -186,13 +203,21 @@ function binding(value: unknown) {
   );
 }
 
-function validBody(body: unknown, kind: Rule["kind"]) {
+function validBody(body: unknown, kind: Rule["kind"], vaultId?: string) {
   if (!record(body) || body.contractVersion !== CONTRACT) return false;
   switch (kind) {
     case "small":
       return fields(body, ["contractVersion"]);
     case "control":
       return fields(body, ["contractVersion", "command"]) && signedObject(body.command);
+    case "lifecycle-control":
+      return fields(body, ["contractVersion", "command"]) && vaultLifecycleCommand(body.command);
+    case "archive":
+      return (
+        fields(body, ["contractVersion", "archive", "command"]) &&
+        vaultLifecycleArchive(body.archive, vaultId) &&
+        vaultLifecycleCommand(body.command)
+      );
     case "stage":
       return fields(body, ["contractVersion", "envelope"]) && carrier(body.envelope);
     case "registry":
@@ -306,7 +331,7 @@ async function transport(request: Request, rule: Rule, signal: AbortSignal) {
   if (rule.kind === "read") return { headers, raw: undefined, token: auth.slice(7) };
   if (request.headers.get("content-type")?.split(";", 1)[0].toLowerCase() !== "application/json")
     fail("unsupported_media_type");
-  if (!validBody(json(raw), rule.kind)) fail();
+  if (!validBody(json(raw), rule.kind, rule.vaultId)) fail();
   headers.set("Content-Type", "application/json");
   return { headers, raw, token: auth.slice(7) };
 }

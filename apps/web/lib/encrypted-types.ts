@@ -331,6 +331,44 @@ export type AgentPreparationPacket = {
   deliveryPin: Json;
 };
 export type AgentPendingKind = "registration" | "approval" | "preparation";
+/** Hub-owned root lifecycle profile; private recovery material never appears here. */
+export type VaultLifecycleState = {
+  contractVersion: string;
+  profile: "folioview.vault-lifecycle.v1";
+  vaultId: string;
+  rootKeyId: string;
+  vaultVersion: number;
+  registrySequence: number;
+  checkpointDigest: string;
+  keyEpoch: number;
+  lifecycleVersion: number;
+  archiveRevision: number;
+  archiveDigest: string;
+  archive: Archive;
+  pendingAuthorization: Json | null;
+  history: { command: Signed; receipt: Json }[];
+};
+export type VaultLifecyclePin = {
+  ownerSubject: string;
+  vaultId: string;
+  rootKeyId: string;
+  lifecycleVersion: number;
+  archiveRevision: number;
+  archiveDigest: string;
+  fingerprints: string[];
+};
+export type RecoveryKitExport = {
+  file: string;
+  code: string;
+  createdAt: number;
+};
+export type ArchiveChangePacket = {
+  operationId: string;
+  mode: "passkey_change" | "recovery";
+  archive: Archive;
+  command: Signed;
+  authorization?: { operationId: string; authorizationId: string; command: Signed };
+};
 export class VaultError extends Error {
   constructor(public readonly code: string) {
     super(code);

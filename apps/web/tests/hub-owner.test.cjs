@@ -74,6 +74,59 @@ const DESCRIPTOR = {
 };
 const STAGE = "/api/v2/agent-connections/connection_A/tasks/task_A/preparation/objects/task_A";
 const VAULT = { contractVersion: CONTRACT, vault: null, sources: [] };
+const LIFECYCLE = "folioview.vault-lifecycle.v1";
+const ARCHIVE = {
+  profile: "folioview.passkey-vault.v1",
+  ownerSubject: "a".repeat(64),
+  vaultId: "vault_A",
+  rootKeyId: AUTHOR,
+  credentialId: Buffer.from("synthetic_credential").toString("base64url"),
+  prfSalt: Buffer.alloc(32, 1).toString("base64url"),
+  iv: Buffer.alloc(12, 2).toString("base64url"),
+  ciphertext: Buffer.alloc(64, 3).toString("base64url"),
+};
+function lifecycleReceipt(action = "archive_replace", extra = {}) {
+  return {
+    profile: LIFECYCLE,
+    ownerSubject: ARCHIVE.ownerSubject,
+    vaultId: ARCHIVE.vaultId,
+    rootKeyId: AUTHOR,
+    operationId: OP,
+    action,
+    lifecycleVersion: 1,
+    archiveRevision: action === "archive_replace" ? 1 : 0,
+    archiveDigest: "b".repeat(64),
+    commandFingerprint: "c".repeat(64),
+    acceptedAt: NOW / 1000,
+    ...extra,
+  };
+}
+function lifecycleAck(action = "archive_replace", extra = {}) {
+  return {
+    contractVersion: CONTRACT,
+    profile: LIFECYCLE,
+    receipt: lifecycleReceipt(action, extra),
+  };
+}
+function lifecycleState(extra = {}) {
+  return {
+    contractVersion: CONTRACT,
+    profile: LIFECYCLE,
+    vaultId: ARCHIVE.vaultId,
+    rootKeyId: AUTHOR,
+    vaultVersion: 1,
+    registrySequence: 1,
+    checkpointDigest: "d".repeat(64),
+    keyEpoch: 1,
+    lifecycleVersion: 0,
+    archiveRevision: 0,
+    archiveDigest: "b".repeat(64),
+    archive: ARCHIVE,
+    pendingAuthorization: null,
+    history: [],
+    ...extra,
+  };
+}
 let api, caps, common, jose, privateKey, jwk, tokenA;
 
 function compile(name, imports) {
@@ -709,4 +762,272 @@ test("connection attempt count matches the existing bounded 64-attempt producer"
     503,
     "authorization_unavailable",
   );
+});
+
+test("vault lifecycle uses only its named owner routes and preserves original operation bytes", async () => {
+  const base = "/api/v2/vaults/vault_A";
+  const authorization = lifecycleReceipt("recovery_authorize");
+  const pending = {
+    authorizationId: "authorization_A",
+    newArchiveDigest: "e".repeat(64),
+    expiresAt: NOW / 1000 + 120,
+    status: "active",
+    command: SIGNED,
+  };
+  for (const [route, method, json, result, status] of [
+    [base + "/archive", "GET", undefined, lifecycleState(), 200],
+    [
+      base + "/archive",
+      "GET",
+      undefined,
+      lifecycleState({
+        lifecycleVersion: 1,
+        pendingAuthorization: pending,
+        history: [{ command: SIGNED, receipt: authorization }],
+      }),
+      200,
+    ],
+    [base + "/archive-operations/" + OP, "GET", undefined, lifecycleAck(), 200],
+    [
+      base + "/archive",
+      "PUT",
+      { contractVersion: CONTRACT, archive: ARCHIVE, command: SIGNED },
+      lifecycleAck(),
+      200,
+    ],
+    [
+      base + "/recovery-authorizations",
+      "POST",
+      { contractVersion: CONTRACT, command: SIGNED },
+      lifecycleAck("recovery_authorize"),
+      201,
+    ],
+    [
+      base + "/recovery-authorizations/authorization_A/revoke",
+      "POST",
+      { contractVersion: CONTRACT, command: SIGNED },
+      lifecycleAck("recovery_revoke"),
+      200,
+    ],
+  ]) {
+    const h = harness({ upstream: () => response(result, status) });
+    const raw = json && JSON.stringify(json, null, 2);
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const reply = await h.proxy(
+        request(route, {
+          method,
+          raw,
+          headers: {
+            ...(method === "GET" ? {} : { "Idempotency-Key": OP }),
+            Cookie: "local=never-forwarded",
+            "X-FolioView-Owner": "never-forwarded",
+            Origin: SITE,
+          },
+        }),
+      );
+      assert.equal(reply.status, status, route + (await reply.clone().text()));
+      assert.equal(reply.headers.get("cache-control"), "no-store");
+      assert.equal(await reply.text(), JSON.stringify(result));
+    }
+    assert.equal(h.hub().length, 2);
+    for (const call of h.hub()) {
+      assert.equal(call.url, ORIGIN + route);
+      assert.equal(call.init.headers.get("authorization"), "Bearer " + tokenA);
+      assert.equal(call.init.headers.get("x-folioview-contract"), CONTRACT);
+      assert.equal(call.init.headers.get("x-folioview-author-key"), null);
+      assert.equal(call.init.headers.get("cookie"), null);
+      assert.equal(call.init.headers.get("x-folioview-owner"), null);
+      assert.equal(call.init.headers.get("origin"), null);
+      assert.equal(call.init.credentials, "omit");
+      assert.equal(
+        call.init.body === undefined ? undefined : new TextDecoder().decode(call.init.body),
+        raw,
+      );
+    }
+  }
+});
+
+test("lifecycle requests reject selectors, author overrides, malformed ciphertext and command budgets before upstream", async () => {
+  const base = "/api/v2/vaults/vault_A";
+  const body = { contractVersion: CONTRACT, archive: ARCHIVE, command: SIGNED };
+  const controls = { contractVersion: CONTRACT, command: SIGNED };
+  for (const [route, options, status = 400, code = "malformed_request"] of [
+    [base + "/archive?owner=other", {}, 400, "unsupported_query"],
+    [base + "/archive?", {}, 400, "unsupported_query"],
+    [base + "/archive-operations/short", {}],
+    [base + "/archive-operations/" + OP + "/extra", {}],
+    [base + "/archive", { method: "POST", json: body }],
+    [base + "/recovery-authorizations", { method: "GET" }],
+    [base + "/recovery-authorizations/authorization_A", { method: "DELETE" }],
+    [base + "/archive", { method: "PUT", json: body }],
+    [base + "/archive", { method: "PUT", json: body, headers: write }],
+    [
+      base + "/archive",
+      {
+        method: "PUT",
+        json: { ...body, privateKey: "PRIVATE_CANARY" },
+        headers: { "Idempotency-Key": OP },
+      },
+    ],
+    ...[
+      { ...ARCHIVE, vaultId: "vault_B" },
+      { ...ARCHIVE, plaintext: "PRIVATE_CANARY" },
+      { ...ARCHIVE, ownerSubject: "not-a-hash" },
+      { ...ARCHIVE, rootKeyId: "A".repeat(42) + "B" },
+      { ...ARCHIVE, credentialId: "" },
+      { ...ARCHIVE, credentialId: Buffer.alloc(1537).toString("base64url") },
+      { ...ARCHIVE, prfSalt: "A".repeat(42) + "B" },
+      { ...ARCHIVE, iv: Buffer.alloc(11).toString("base64url") },
+      { ...ARCHIVE, ciphertext: Buffer.alloc(15).toString("base64url") },
+    ].map((archive) => [
+      base + "/archive",
+      { method: "PUT", json: { ...body, archive }, headers: { "Idempotency-Key": OP } },
+    ]),
+    [
+      base + "/archive",
+      {
+        method: "PUT",
+        json: { ...body, command: { ...SIGNED, payload: "A".repeat(8200) } },
+        headers: { "Idempotency-Key": OP },
+      },
+    ],
+    [
+      base + "/archive",
+      { method: "PUT", raw: " ".repeat(65537), headers: { "Idempotency-Key": OP } },
+      413,
+      "payload_too_large",
+    ],
+    [
+      base + "/recovery-authorizations",
+      {
+        method: "POST",
+        json: { ...controls, ownerSubject: ARCHIVE.ownerSubject },
+        headers: { "Idempotency-Key": OP },
+      },
+    ],
+    [
+      base + "/recovery-authorizations/authorization_A/revoke",
+      { method: "POST", json: controls, headers: write },
+    ],
+    [
+      base + "/recovery-authorizations",
+      { method: "POST", raw: " ".repeat(8193), headers: { "Idempotency-Key": OP } },
+      413,
+      "payload_too_large",
+    ],
+  ]) {
+    const h = harness();
+    await error(await h.proxy(request(route, options)), status, code);
+    assert.equal(h.calls.length, 0, route);
+  }
+});
+
+test("lifecycle responses are closed, bounded, bound to their route and never accept legacy aggregates as receipts", async () => {
+  const base = "/api/v2/vaults/vault_A";
+  const receipt = lifecycleReceipt();
+  const state = lifecycleState({
+    lifecycleVersion: 1,
+    archiveRevision: 1,
+    history: [{ command: SIGNED, receipt }],
+  });
+  for (const [route, method, body] of [
+    [base + "/archive", "GET", VAULT],
+    [base + "/archive", "GET", { ...state, plaintext: "PRIVATE_CANARY" }],
+    [base + "/archive", "GET", { ...state, vaultId: "vault_B" }],
+    [base + "/archive", "GET", { ...state, archive: { ...ARCHIVE, rootKeyId: "B".repeat(43) } }],
+    [base + "/archive", "GET", { ...state, lifecycleVersion: true }],
+    [base + "/archive", "GET", { ...state, lifecycleVersion: 2 }],
+    [base + "/archive", "GET", { ...state, archiveRevision: 2 }],
+    [
+      base + "/archive",
+      "GET",
+      {
+        ...state,
+        history: [{ command: SIGNED, receipt: { ...receipt, privateKey: "PRIVATE_CANARY" } }],
+      },
+    ],
+    [
+      base + "/archive",
+      "GET",
+      {
+        ...state,
+        history: [{ command: SIGNED, receipt: { ...receipt, ownerSubject: "e".repeat(64) } }],
+      },
+    ],
+    [
+      base + "/archive",
+      "GET",
+      {
+        ...state,
+        history: [{ command: SIGNED, receipt: { ...receipt, archiveDigest: "e".repeat(64) } }],
+      },
+    ],
+    [
+      base + "/archive",
+      "GET",
+      { ...state, lifecycleVersion: 33, history: Array(33).fill({ command: SIGNED, receipt }) },
+    ],
+    [
+      base + "/archive",
+      "GET",
+      {
+        ...state,
+        pendingAuthorization: {
+          authorizationId: "authorization_A",
+          newArchiveDigest: "e".repeat(64),
+          expiresAt: 1,
+          status: "approved",
+          command: SIGNED,
+        },
+      },
+    ],
+    [
+      base + "/archive-operations/" + OP,
+      "GET",
+      lifecycleAck("archive_replace", { operationId: OP + "other" }),
+    ],
+    [
+      base + "/archive-operations/" + OP,
+      "GET",
+      lifecycleAck("archive_replace", { vaultId: "vault_B" }),
+    ],
+    [
+      base + "/archive-operations/" + OP,
+      "GET",
+      lifecycleAck("archive_replace", { lifecycleVersion: 33 }),
+    ],
+    [
+      base + "/archive-operations/" + OP,
+      "GET",
+      { ...lifecycleAck(), privateKey: "PRIVATE_CANARY" },
+    ],
+    [base + "/archive", "PUT", lifecycleAck("recovery_authorize")],
+    [base + "/recovery-authorizations", "POST", lifecycleAck("archive_replace")],
+    [
+      base + "/recovery-authorizations/authorization_A/revoke",
+      "POST",
+      lifecycleAck("recovery_authorize"),
+    ],
+  ]) {
+    const h = harness({ upstream: () => response(body) });
+    const reply = await h.proxy(
+      request(route, {
+        method,
+        ...(method === "GET"
+          ? {}
+          : {
+              json: {
+                contractVersion: CONTRACT,
+                ...(method === "PUT" ? { archive: ARCHIVE } : {}),
+                command: SIGNED,
+              },
+              headers: { "Idempotency-Key": OP },
+            }),
+      }),
+    );
+    const raw = await reply.clone().text();
+    await error(reply, 503, "authorization_unavailable");
+    assert.ok(!raw.includes("PRIVATE_CANARY"));
+    assert.equal(h.hub().length, 1);
+  }
 });

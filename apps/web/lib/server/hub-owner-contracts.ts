@@ -36,6 +36,182 @@ const date = (v: unknown) =>
   /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d{1,6})?Z$/.test(v) &&
   Number.isFinite(Date.parse(v));
 const nullable = (v: unknown, test: (v: unknown) => boolean) => v === null || test(v);
+const LIFECYCLE = "folioview.vault-lifecycle.v1";
+const operation = (v: unknown) => typeof v === "string" && /^[A-Za-z0-9_-]{22,128}$/.test(v);
+const actions = ["archive_replace", "recovery_authorize", "recovery_revoke"];
+const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
+
+function binary(value: unknown, minimum: number, maximum: number) {
+  if (typeof value !== "string" || !/^[A-Za-z0-9_-]+$/.test(value)) return false;
+  const remainder = value.length % 4;
+  const last = alphabet.indexOf(value.at(-1)!);
+  const size = Math.floor((value.length * 6) / 8);
+  return (
+    remainder !== 1 &&
+    (remainder !== 2 || last % 16 === 0) &&
+    (remainder !== 3 || last % 4 === 0) &&
+    minimum <= size &&
+    size <= maximum
+  );
+}
+
+// Transport validation stays structural. Only the trusted Worker accepts root
+// signatures, history transitions and the archive's encrypted private material.
+export function vaultLifecycleCommand(value: unknown) {
+  return (
+    record(value) &&
+    signedObject(value) &&
+    JSON.stringify(value).length <= 8192 &&
+    binary(value.protected, 1, 8192) &&
+    binary(value.payload, 1, 8192) &&
+    binary(value.signature, 64, 64)
+  );
+}
+
+export function vaultLifecycleArchive(value: unknown, vaultId?: string) {
+  return (
+    fields(value, [
+      "profile",
+      "ownerSubject",
+      "vaultId",
+      "rootKeyId",
+      "credentialId",
+      "prfSalt",
+      "iv",
+      "ciphertext",
+    ]) &&
+    value.profile === "folioview.passkey-vault.v1" &&
+    digest(value.ownerSubject) &&
+    id(value.vaultId) &&
+    (vaultId === undefined || value.vaultId === vaultId) &&
+    binary(value.rootKeyId, 32, 32) &&
+    binary(value.credentialId, 1, 1536) &&
+    binary(value.prfSalt, 32, 32) &&
+    binary(value.iv, 12, 12) &&
+    binary(value.ciphertext, 16, 24576)
+  );
+}
+
+function lifecycleReceipt(value: unknown, vaultId: string) {
+  return (
+    fields(value, [
+      "profile",
+      "ownerSubject",
+      "vaultId",
+      "rootKeyId",
+      "operationId",
+      "action",
+      "lifecycleVersion",
+      "archiveRevision",
+      "archiveDigest",
+      "commandFingerprint",
+      "acceptedAt",
+    ]) &&
+    value.profile === LIFECYCLE &&
+    digest(value.ownerSubject) &&
+    value.vaultId === vaultId &&
+    binary(value.rootKeyId, 32, 32) &&
+    operation(value.operationId) &&
+    actions.includes(value.action as string) &&
+    integer(value.lifecycleVersion, 1) &&
+    (value.lifecycleVersion as number) <= 32 &&
+    integer(value.archiveRevision, 0) &&
+    (value.archiveRevision as number) <= (value.lifecycleVersion as number) &&
+    (value.action !== "archive_replace" || (value.archiveRevision as number) >= 1) &&
+    digest(value.archiveDigest) &&
+    digest(value.commandFingerprint) &&
+    integer(value.acceptedAt, 0)
+  );
+}
+
+function lifecycleState(value: unknown, vaultId: string) {
+  if (
+    !fields(value, [
+      "contractVersion",
+      "profile",
+      "vaultId",
+      "rootKeyId",
+      "vaultVersion",
+      "registrySequence",
+      "checkpointDigest",
+      "keyEpoch",
+      "lifecycleVersion",
+      "archiveRevision",
+      "archiveDigest",
+      "archive",
+      "pendingAuthorization",
+      "history",
+    ]) ||
+    value.contractVersion !== CONTRACT ||
+    value.profile !== LIFECYCLE ||
+    value.vaultId !== vaultId ||
+    !binary(value.rootKeyId, 32, 32) ||
+    !integer(value.vaultVersion, 1) ||
+    !integer(value.registrySequence, 1) ||
+    (value.registrySequence as number) > 32 ||
+    !digest(value.checkpointDigest) ||
+    !integer(value.keyEpoch, 1) ||
+    !integer(value.lifecycleVersion, 0) ||
+    (value.lifecycleVersion as number) > 32 ||
+    !integer(value.archiveRevision, 0) ||
+    (value.archiveRevision as number) > (value.lifecycleVersion as number) ||
+    !digest(value.archiveDigest) ||
+    !vaultLifecycleArchive(value.archive, vaultId) ||
+    !record(value.archive) ||
+    value.archive.rootKeyId !== value.rootKeyId ||
+    !Array.isArray(value.history) ||
+    value.history.length !== value.lifecycleVersion
+  )
+    return false;
+  const rootKeyId = value.rootKeyId,
+    ownerSubject = value.archive.ownerSubject;
+  if (
+    !value.history.every(
+      (item, index) =>
+        fields(item, ["command", "receipt"]) &&
+        vaultLifecycleCommand(item.command) &&
+        lifecycleReceipt(item.receipt, vaultId) &&
+        record(item.receipt) &&
+        item.receipt.ownerSubject === ownerSubject &&
+        item.receipt.rootKeyId === rootKeyId &&
+        item.receipt.lifecycleVersion === index + 1,
+    )
+  )
+    return false;
+  const last = value.history.at(-1)?.receipt;
+  if (
+    last &&
+    (last.archiveRevision !== value.archiveRevision || last.archiveDigest !== value.archiveDigest)
+  )
+    return false;
+  const pending = value.pendingAuthorization;
+  return (
+    pending === null ||
+    (fields(pending, ["authorizationId", "newArchiveDigest", "expiresAt", "status", "command"]) &&
+      id(pending.authorizationId) &&
+      digest(pending.newArchiveDigest) &&
+      integer(pending.expiresAt, 1) &&
+      ["active", "expired", "stale"].includes(pending.status as string) &&
+      vaultLifecycleCommand(pending.command))
+  );
+}
+
+function lifecycleAcknowledgement(
+  value: unknown,
+  vaultId: string,
+  operationId?: string,
+  action?: string,
+) {
+  return (
+    fields(value, ["contractVersion", "profile", "receipt"]) &&
+    value.contractVersion === CONTRACT &&
+    value.profile === LIFECYCLE &&
+    lifecycleReceipt(value.receipt, vaultId) &&
+    record(value.receipt) &&
+    (operationId === undefined || value.receipt.operationId === operationId) &&
+    (action === undefined || value.receipt.action === action)
+  );
+}
 const descriptorFields = [
   "objectId",
   "objectType",
@@ -118,6 +294,32 @@ export function hubResponse(path: string, method: string, body: unknown): boolea
   if (method === "PATCH" && /^\/api\/v2\/results\/[^/]+\/state$/.test(path))
     return formal("ResultMetadata", body);
   if (!record(body) || body.contractVersion !== CONTRACT) return false;
+  const lifecyclePath =
+    /^\/api\/v2\/vaults\/([A-Za-z0-9][A-Za-z0-9_-]{0,127})\/(archive|archive-operations\/([A-Za-z0-9_-]{22,128})|recovery-authorizations(?:\/[A-Za-z0-9][A-Za-z0-9_-]{0,127}\/revoke)?)$/.exec(
+      path,
+    );
+  if (lifecyclePath) {
+    if (method === "GET" && lifecyclePath[2] === "archive")
+      return lifecycleState(body, lifecyclePath[1]);
+    if (
+      (method === "GET" && lifecyclePath[3]) ||
+      (method === "PUT" && lifecyclePath[2] === "archive") ||
+      (method === "POST" && lifecyclePath[2].startsWith("recovery-authorizations"))
+    )
+      return lifecycleAcknowledgement(
+        body,
+        lifecyclePath[1],
+        lifecyclePath[3],
+        method === "GET"
+          ? undefined
+          : method === "PUT"
+            ? "archive_replace"
+            : path.endsWith("/revoke")
+              ? "recovery_revoke"
+              : "recovery_authorize",
+      );
+    return false;
+  }
   if (path === "/api/v2/tasks" && method === "GET") return formal("TaskMetadataPage", body);
   if (path.startsWith("/api/v2/tasks")) return formal("EncryptedTask", body);
   if (path === "/api/v2/results/counts")
