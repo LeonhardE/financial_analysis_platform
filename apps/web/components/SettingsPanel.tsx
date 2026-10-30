@@ -4,6 +4,8 @@ import { useTranslations } from "next-intl";
 import { useEffect, useRef, useState } from "react";
 import { usePreferences } from "@/components/PreferencesProvider";
 import type { Preferences } from "@/lib/preferences";
+import type { HoldingsWorkspace } from "./useHoldingsWorkspace";
+import VaultManagementPanel from "./VaultManagementPanel";
 import styles from "./SettingsPanel.module.css";
 
 function SelectChevron() {
@@ -14,7 +16,7 @@ function SelectChevron() {
   );
 }
 
-export default function SettingsPanel() {
+export default function SettingsPanel({ workspace }: { workspace?: HoldingsWorkspace } = {}) {
   const t = useTranslations("settings");
   const { preferences, authenticated, loading, saving, status, error, updatePreferences, retry } =
     usePreferences();
@@ -150,6 +152,7 @@ export default function SettingsPanel() {
           <span>{t("saved")}</span>
         </div>
       )}
+      {workspace && <VaultManagementPanel workspace={workspace} />}
     </section>
   );
 }

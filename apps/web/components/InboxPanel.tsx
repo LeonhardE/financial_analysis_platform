@@ -13,6 +13,7 @@ import {
   type InboxResultLink,
 } from "@/lib/inbox-link";
 import styles from "./InboxPanel.module.css";
+import { PasskeyHelp } from "./PasskeyHelp";
 
 const FILTERS = ["all", "unread", "starred", "archived"] as const;
 const ERRORS = new Set([
@@ -53,7 +54,11 @@ export function InboxView({
   const locale = useLocale();
   const [copyConfirm, setCopyConfirm] = useState(false);
   const [copyNotice, setCopyNotice] = useState<"copied" | "copyFailed" | "">("");
-  const unlocked = model.unlocked && workspace.phase === "unlocked" && workspace.authenticated;
+  const unlocked =
+    model.unlocked &&
+    workspace.phase === "unlocked" &&
+    workspace.authenticated &&
+    !workspace.needsDeviceApproval;
   const selected = unlocked ? model.selected : null;
   const selectedLink =
     selected && inboxResultHref(selected.metadata.resultId, selected.metadata.revision);
@@ -150,10 +155,15 @@ export function InboxView({
                     {t(workspace.phase === "needs-vault" ? "createTitle" : "unlockTitle")}
                   </strong>
                   <p>{t(workspace.phase === "needs-vault" ? "createHelp" : "unlockHelp")}</p>
+                  <PasskeyHelp
+                    workspace={workspace}
+                    mode={workspace.phase === "needs-vault" ? "create" : "unlock"}
+                    unlockOptions={{ forResults: true }}
+                  />
                 </div>
                 <button
                   className={styles.primary}
-                  disabled={busy}
+                  disabled={Boolean(busy || workspace.needsDeviceApproval)}
                   onClick={() =>
                     void (workspace.phase === "needs-vault"
                       ? workspace.create()
@@ -174,9 +184,13 @@ export function InboxView({
           {unlocked && !model.canWriteState && (
             <div className={styles.unlock}>
               <p>{t("readOnlyHelp")}</p>
+              <PasskeyHelp
+                workspace={workspace}
+                unlockOptions={{ forResults: true, enableState: true }}
+              />
               <button
                 className={styles.secondary}
-                disabled={busy}
+                disabled={Boolean(busy || workspace.needsDeviceApproval)}
                 onClick={() => void workspace.unlock({ forResults: true, enableState: true })}
               >
                 {t("enableChanges")}
@@ -563,6 +577,7 @@ export default function InboxPanel({
       !linked ||
       ownerChanged.current ||
       !workspace.owner ||
+      workspace.needsDeviceApproval ||
       !workspace.authenticated ||
       workspace.phase !== "unlocked"
     )

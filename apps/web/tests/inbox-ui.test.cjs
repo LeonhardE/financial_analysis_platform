@@ -219,6 +219,7 @@ function render(
     },
     "./useInbox": { useInbox: () => state.model },
     "./SafeReportMarkdown": markdown,
+    "./PasskeyHelp": { PasskeyHelp: () => null },
     "@/lib/inbox-link": load(
       transformSync(readFileSync(path.resolve(components, "../lib/inbox-link.ts"), "utf8"), {
         filename: "inbox-link.ts",

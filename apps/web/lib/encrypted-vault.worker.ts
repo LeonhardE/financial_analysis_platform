@@ -29,7 +29,25 @@ scope.onmessage = (event) => {
             result = await core.unlockForResults(args.vault, args.material, args.local);
             break;
           case "prepareDeviceRegistration":
-            result = await core.prepareDeviceRegistration(args.vault);
+            result = await core.prepareDeviceRegistration(args.vault, args.options);
+            break;
+          case "deviceManagement":
+            result = await core.deviceManagement(args.vault, args.record);
+            break;
+          case "prepareDeviceChange":
+            result = await core.prepareDeviceChange(args);
+            break;
+          case "loadDeviceChange":
+            result = await core.loadDeviceChange(args.vault, args.record);
+            break;
+          case "acceptDeviceChange":
+            result = await core.acceptDeviceChange(args.vault, args.record);
+            break;
+          case "discardDeviceChange":
+            result = await core.discardDeviceChange(args.vault, args.record, args.operationId);
+            break;
+          case "verifyRecovery":
+            result = await core.verifyRecovery(args.vault);
             break;
           case "acceptVault":
             result = await core.acceptVault(args.vault);

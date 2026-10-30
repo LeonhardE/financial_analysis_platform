@@ -6,6 +6,7 @@ import type { HoldingsWorkspace } from "./useHoldingsWorkspace";
 import type { AgentConsentModel } from "./useAgentConsent";
 import type { AgentScope } from "@/lib/agent-connections";
 import styles from "./AgentConsentCard.module.css";
+import { PasskeyHelp } from "./PasskeyHelp";
 
 export function AgentConsentCard({
   workspace,
@@ -20,11 +21,14 @@ export function AgentConsentCard({
     sourceModel.owner === workspace.owner &&
     workspace.authenticated &&
     workspace.phase === "unlocked" &&
+    !workspace.needsDeviceApproval &&
     sourceModel.unlocked;
   const model = privateVisible
     ? sourceModel
     : {
         ...sourceModel,
+        unlocked: false,
+        canWrite: false,
         selected: null,
         content: null,
         setupCard: null,
@@ -134,9 +138,14 @@ export function AgentConsentCard({
           {!model.unlocked && (
             <div className={styles.unlock}>
               <p>{t(workspace.phase === "needs-vault" ? "createHelp" : "unlockHelp")}</p>
+              <PasskeyHelp
+                workspace={workspace}
+                mode={workspace.phase === "needs-vault" ? "create" : "unlock"}
+                unlockOptions={{ forResults: true, enableState: true }}
+              />
               <button
                 className={styles.secondary}
-                disabled={busy}
+                disabled={Boolean(busy || workspace.needsDeviceApproval)}
                 onClick={() =>
                   void (workspace.phase === "needs-vault"
                     ? workspace.create()
@@ -150,9 +159,13 @@ export function AgentConsentCard({
           {model.unlocked && !model.canWrite && (
             <div className={styles.unlock}>
               <p>{t("enableHelp")}</p>
+              <PasskeyHelp
+                workspace={workspace}
+                unlockOptions={{ forResults: true, enableState: true }}
+              />
               <button
                 className={styles.secondary}
-                disabled={busy}
+                disabled={Boolean(busy || workspace.needsDeviceApproval)}
                 onClick={() => void workspace.unlock({ forResults: true, enableState: true })}
               >
                 {t("enableChanges")}

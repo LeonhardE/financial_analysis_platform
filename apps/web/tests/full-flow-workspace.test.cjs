@@ -356,6 +356,7 @@ function flow({ hash = "", search = "", owner = "A:1", locked = false, hidden = 
       "./SafeReportMarkdown": { SafeReportMarkdown: () => null, reportLink: () => false },
       "@/lib/inbox-link": links,
       "./InboxPanel.module.css": { __esModule: true, default: {} },
+      "./PasskeyHelp": { PasskeyHelp: () => null },
     },
     { window, document },
   ).default;

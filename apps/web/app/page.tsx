@@ -362,7 +362,7 @@ export default function Dashboard() {
       <WorkspaceSidebar activeView={activeView} onNavigate={navigate} />
       {!pickerOpen && activeView === "markets" && <WatchlistNotification watchlist={watchlist} />}
       <main className="workspace-content" id="workspace-content">
-        {activeView === "settings" && <SettingsPanel />}
+        {activeView === "settings" && <SettingsPanel workspace={encryptedWorkspace} />}
         <div hidden={activeView !== "resources"}>
           <ResourcesPanel
             active={activeView === "resources"}

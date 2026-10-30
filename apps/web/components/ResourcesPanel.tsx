@@ -7,6 +7,7 @@ import type { HoldingsResourceContent } from "@/lib/holdings-csv";
 import styles from "./ResourcesPanel.module.css";
 import ResourceLibrary from "./ResourceLibrary";
 import type { ResourceSelection } from "@/lib/resource-library";
+import { PasskeyHelp } from "./PasskeyHelp";
 
 const GUIDE =
   "https://help.wealthsimple.com/hc/en-ca/articles/35654428540571-Request-a-custom-statement";
@@ -92,6 +93,7 @@ function Workspace({ model }: { model: HoldingsWorkspace }) {
     model.authenticated &&
     model.configured &&
     model.phase === "unlocked" &&
+    !model.needsDeviceApproval &&
     !busy &&
     !model.hasPending;
   const errorKey = `errors.${model.error}`;
@@ -131,23 +133,25 @@ function Workspace({ model }: { model: HoldingsWorkspace }) {
       ) : model.phase === "needs-vault" ? (
         <div className={styles.start}>
           <p>{t("createHelp")}</p>
+          <PasskeyHelp workspace={model} mode="create" />
           <button
             className={styles.primary}
             type="button"
-            disabled={busy}
+            disabled={Boolean(busy || model.needsDeviceApproval)}
             onClick={() => void model.create()}
           >
             {t(model.busy === "creating" ? "creating" : "create")}
           </button>
           <p className={styles.note}>{t("passkeyHelp")}</p>
         </div>
-      ) : model.phase === "locked" ? (
+      ) : model.phase === "locked" || model.needsDeviceApproval ? (
         <div className={styles.start}>
           <p>{t("unlockHelp")}</p>
+          <PasskeyHelp workspace={model} />
           <button
             className={styles.primary}
             type="button"
-            disabled={busy}
+            disabled={Boolean(busy || model.needsDeviceApproval)}
             onClick={() => void model.unlock()}
           >
             {t(model.busy === "unlocking" ? "unlocking" : "unlock")}

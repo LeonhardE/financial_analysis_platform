@@ -150,6 +150,62 @@ function harness({
   let resultHold = null;
   let readOnlyUnlocks = 0;
   let strictUnlocks = 0;
+  let deviceRegistered = !needsDeviceRegistration;
+  let devicePacket = null;
+  let deviceApplied = false;
+  let deviceConflict = false;
+  let registryFailure = null;
+  let devicePrepares = 0;
+  let deviceAccepts = 0;
+  let deviceDiscards = 0;
+  let recoveryVerifications = 0;
+  let registrationPrepares = 0;
+  let loseRegistrationRead = false;
+  let loseNextCurrent = false;
+  const passkeyOptions = [];
+  let managementFault = null;
+  const management = () => ({
+    vaultId: "vault_a",
+    rootKeyId: "synthetic",
+    registrySequence: remoteVault?.version ?? 1,
+    checkpointDigest: `checkpoint_${remoteVault?.version ?? 1}`,
+    keyEpoch: 1,
+    currentDeviceId: deviceRegistered
+      ? deviceApplied && devicePacket?.action === "rotate"
+        ? "device_new"
+        : "device_a"
+      : null,
+    canManage: deviceRegistered && resultCanWrite,
+    devices: [
+      {
+        deviceId: "device_a",
+        signingKeyId: "signing_a",
+        encryptionKeyId: "encryption_a",
+        current: true,
+        active: true,
+        notBefore: 1000,
+        expiresAt: 9999999999,
+      },
+      {
+        deviceId: "device_b",
+        signingKeyId: "signing_b",
+        encryptionKeyId: "encryption_b",
+        current: false,
+        active: true,
+        notBefore: 1000,
+        expiresAt: 9999999999,
+      },
+    ],
+    pendingChange: devicePacket
+      ? {
+          operationId: devicePacket.operationId,
+          action: devicePacket.action,
+          deviceId: devicePacket.deviceId,
+          newDeviceId: devicePacket.newDeviceId,
+          state: deviceConflict ? "conflict" : deviceApplied ? "applied" : "ready",
+        }
+      : null,
+  });
   let index = 0;
   let dirty = false;
   const cells = [];
@@ -180,15 +236,15 @@ function harness({
     }
     async unlock() {
       strictUnlocks++;
-      return { needsDeviceRegistration };
+      return { needsDeviceRegistration: !deviceRegistered };
     }
     async unlockForResults() {
       readOnlyUnlocks++;
-      return { canWriteState: resultCanWrite };
+      return { canWriteState: resultCanWrite && deviceRegistered };
     }
     async acceptResultVault() {
       if (this.locked) throw { code: "locked" };
-      return { canWriteState: resultCanWrite };
+      return { canWriteState: resultCanWrite && deviceRegistered };
     }
     async openResult() {
       resultOpens++;
@@ -235,7 +291,57 @@ function harness({
       if (this.locked) throw { code: "locked" };
     }
     async prepareDeviceRegistration() {
+      registrationPrepares++;
       return { operationId: "device_operation", expectedVersion: 1, registryBundle: {} };
+    }
+    async deviceManagement() {
+      if (this.locked) throw { code: "locked" };
+      if (managementFault) throw { code: managementFault };
+      return management();
+    }
+    async loadDeviceChange() {
+      if (this.locked) throw { code: "locked" };
+      return devicePacket;
+    }
+    async prepareDeviceChange({ action, deviceId }) {
+      if (this.locked) throw { code: "locked" };
+      devicePrepares++;
+      devicePacket ??= {
+        operationId: `device_change_operation_${devicePrepares}`,
+        expectedVersion: remoteVault.version,
+        registryBundle: { synthetic: true },
+        action,
+        deviceId,
+        replacedKeyIds: ["signing_a", "encryption_a"],
+        newDeviceId: action === "rotate" ? "device_new" : null,
+        newKeyIds: action === "rotate" ? ["new_signing", "new_encryption"] : [],
+      };
+      return devicePacket;
+    }
+    async acceptDeviceChange() {
+      if (this.locked || !deviceApplied) throw { code: "device_change_pending" };
+      deviceAccepts++;
+      devicePacket = null;
+      return management();
+    }
+    async discardDeviceChange(_vault, operationId) {
+      if (this.locked || !deviceConflict || operationId !== devicePacket?.operationId)
+        throw { code: "device_change_pending" };
+      deviceDiscards++;
+      devicePacket = null;
+    }
+    async verifyRecovery() {
+      if (this.locked) throw { code: "locked" };
+      if (resultHold) await resultHold.promise;
+      recoveryVerifications++;
+      return {
+        vaultId: "vault_a",
+        rootKeyId: "synthetic",
+        registrySequence: remoteVault.version,
+        recoveryKeyId: "recovery_synthetic",
+        checkpointDigest: `checkpoint_${remoteVault.version}`,
+        verifiedAt: 1000,
+      };
     }
     async signSource(sourceId) {
       creates++;
@@ -285,6 +391,10 @@ function harness({
     requests.push({ service, route, owner, options });
     if (route === "/api/v2/vaults/current") {
       if (getCurrentHold) return getCurrentHold.promise;
+      if (loseNextCurrent) {
+        loseNextCurrent = false;
+        return new Response("{}", { status: 503 });
+      }
       return new Response(
         JSON.stringify({ contractVersion: CONTRACT, vault: remoteVault, sources }),
       );
@@ -293,8 +403,20 @@ function harness({
       remoteVault = vault;
       return new Response(JSON.stringify({ contractVersion: CONTRACT, vault }));
     }
-    if (route === "/api/v2/vaults/vault_a/registry")
+    if (route === "/api/v2/vaults/vault_a/registry") {
+      if (devicePacket) {
+        if (registryFailure !== "before") {
+          deviceApplied = true;
+          remoteVault = { ...remoteVault, version: remoteVault.version + 1 };
+        }
+        if (registryFailure) throw { code: "service_unavailable" };
+      } else {
+        deviceRegistered = true;
+        remoteVault = { ...remoteVault, version: remoteVault.version + 1 };
+        if (loseRegistrationRead) loseNextCurrent = true;
+      }
       return new Response(JSON.stringify({ contractVersion: CONTRACT }));
+    }
     if (route.endsWith("/authority-token"))
       return new Response(
         JSON.stringify({
@@ -438,12 +560,14 @@ function harness({
     },
     "@/lib/encrypted-vault": { EncryptedVaultSession: Session },
     "@/lib/encrypted-passkey": {
-      createVaultPasskey: async () => {
+      createVaultPasskey: async (_uid, options) => {
         passkeyCalls++;
+        passkeyOptions.push(options);
         return passkey.promise;
       },
-      unlockVaultPasskey: async () => {
+      unlockVaultPasskey: async (_archive, options) => {
         passkeyCalls++;
+        passkeyOptions.push(options);
         return passkey.promise;
       },
     },
@@ -513,6 +637,11 @@ function harness({
       resultOpens,
       readOnlyUnlocks,
       strictUnlocks,
+      devicePrepares,
+      deviceAccepts,
+      deviceDiscards,
+      recoveryVerifications,
+      registrationPrepares,
     }),
     holdResult(next) {
       resultHold = next;
@@ -525,6 +654,20 @@ function harness({
     },
     forceHead(value) {
       forcedHead = value;
+    },
+    passkeyOptions,
+    managementFault(value) {
+      managementFault = value;
+    },
+    loseRegistrationRead() {
+      loseRegistrationRead = true;
+    },
+    registryFailure(value) {
+      registryFailure = value;
+    },
+    deviceConflict() {
+      deviceConflict = true;
+      remoteVault = { ...remoteVault, version: remoteVault.version + 1 };
     },
     unmount: () => cells.forEach((cell) => cell.cleanup?.()),
   };
@@ -542,6 +685,274 @@ async function unlocked(h) {
   return h.render();
 }
 const file = { size: 10, text: async () => "private CSV that must never reach HTTP" };
+
+test("new-device cancellation never uploads public keys or authorizes the browser implicitly", async () => {
+  const h = harness({ needsDeviceRegistration: true });
+  await ready(h);
+  const job = h.render().unlock();
+  h.resolvePasskey();
+  await job;
+  let model = h.render();
+  assert.equal(model.phase, "needs-device");
+  assert.equal(model.needsDeviceApproval, true);
+  const staleConfirm = model.confirmDeviceRegistration;
+  model.cancelOperation();
+  await staleConfirm();
+  model = h.render();
+  assert.equal(model.phase, "locked");
+  assert.equal(model.keyManagement, null);
+  assert.equal(model.needsDeviceApproval, false);
+  assert.ok(h.instances.every((instance) => instance.locked));
+  assert.equal(h.requests.filter((row) => row.options.method === "PUT").length, 0);
+  h.unmount();
+});
+
+test("explicit alternate Passkey choices pass the same cancellable operation signal without fallback", async () => {
+  for (const create of [true, false]) {
+    const h = harness({ hasVault: !create, hasSource: false });
+    await ready(h);
+    const model = h.render();
+    const job = create ? model.create({ method: "other" }) : model.unlock({ method: "other" });
+    await settle();
+    assert.equal(h.passkeyOptions.length, 1);
+    assert.equal(h.passkeyOptions[0].method, "other");
+    assert.equal(h.passkeyOptions[0].signal.aborted, false);
+    h.render().cancelOperation();
+    assert.equal(h.passkeyOptions[0].signal.aborted, true);
+    h.resolvePasskey();
+    await job;
+    assert.equal(h.counts().passkeyCalls, 1);
+    assert.ok(
+      !h.requests.some((row) => row.options.method === "PUT" || row.options.method === "POST"),
+    );
+    assert.ok(h.instances.every((instance) => instance.locked));
+    h.unmount();
+  }
+});
+
+test("device review generates no candidate until confirmation and confirmed changes invalidate consumer generations", async () => {
+  const h = harness();
+  let model = await unlocked(h);
+  const generation = model.vaultGeneration;
+  await model.reviewDeviceChange("rotate", "device_a");
+  model = h.render();
+  assert.equal(model.deviceReview.deviceId, "device_a");
+  assert.equal(h.counts().devicePrepares, 0);
+  assert.ok(!h.requests.some((row) => row.options.method === "PUT"));
+  await model.discardDeviceChange();
+  assert.equal(h.render().deviceReview, null);
+  assert.equal(h.counts().devicePrepares, 0);
+  await h.render().reviewDeviceChange("rotate", "device_a");
+  await h.render().confirmDeviceChange();
+  model = h.render();
+  assert.equal(h.counts().devicePrepares, 1);
+  assert.equal(h.counts().deviceAccepts, 1);
+  assert.equal(model.deviceChange, null);
+  assert.ok(model.vaultGeneration > generation);
+  assert.equal(model.keyNotice, "device_change_saved");
+  assert.equal(model.notice, "", "A key change must not masquerade as holdings saved");
+  assert.equal(model.content, null);
+  const [write] = h.requests.filter((row) => row.options.method === "PUT");
+  assert.deepEqual(Object.keys(write.options.json).sort(), [
+    "contractVersion",
+    "expectedVersion",
+    "registryBundle",
+  ]);
+  assert.equal(write.options.headers["Idempotency-Key"], "device_change_operation_1");
+  h.unmount();
+});
+
+test("a changed directory or a captured confirmation cannot authorize a different device review", async () => {
+  for (const transition of ["directory", "selection"]) {
+    const h = harness();
+    let model = await unlocked(h);
+    await model.reviewDeviceChange("rotate", "device_a");
+    model = h.render();
+    const stale = model.confirmDeviceChange;
+    if (transition === "directory") h.deviceConflict();
+    else {
+      await model.reviewDeviceChange("revoke", "device_b");
+      h.render();
+    }
+    await stale();
+    model = h.render();
+    assert.equal(model.error, "version_conflict");
+    assert.equal(h.counts().devicePrepares, 0);
+    assert.ok(!h.requests.some((row) => row.options.method === "PUT"));
+    h.unmount();
+  }
+});
+
+test("a lost registry acknowledgement recovers the applied candidate without a second PUT or new signature", async () => {
+  const h = harness();
+  let model = await unlocked(h);
+  await model.reviewDeviceChange("rotate", "device_a");
+  h.registryFailure("lost-after-apply");
+  await h.render().confirmDeviceChange();
+  model = h.render();
+  assert.equal(model.error, "service_unavailable");
+  const original = JSON.stringify(model.deviceChange);
+  assert.equal(h.counts().deviceAccepts, 0);
+  await model.refreshKeyManagement();
+  model = h.render();
+  assert.equal(model.keyManagement.pendingChange.state, "applied");
+  assert.equal(JSON.stringify(model.deviceChange), original);
+  await model.confirmDeviceChange();
+  model = h.render();
+  assert.equal(model.deviceChange, null);
+  assert.equal(h.counts().devicePrepares, 1);
+  assert.equal(h.counts().deviceAccepts, 1);
+  assert.equal(h.requests.filter((row) => row.options.method === "PUT").length, 1);
+  h.unmount();
+});
+
+test("ready registry operations retain candidate keys and explicitly replay the exact original bytes", async () => {
+  const h = harness();
+  await unlocked(h);
+  await h.render().reviewDeviceChange("rotate", "device_a");
+  h.registryFailure("before");
+  await h.render().confirmDeviceChange();
+  let model = h.render();
+  const original = JSON.stringify(model.deviceChange);
+  await model.discardDeviceChange();
+  model = h.render();
+  assert.equal(model.error, "device_change_pending");
+  assert.equal(JSON.stringify(model.deviceChange), original);
+  assert.equal(h.counts().deviceDiscards, 0);
+  h.registryFailure(null);
+  await model.confirmDeviceChange();
+  model = h.render();
+  assert.equal(model.deviceChange, null);
+  const writes = h.requests.filter((row) => row.options.method === "PUT");
+  assert.equal(writes.length, 2);
+  assert.equal(JSON.stringify(writes[0].options.json), JSON.stringify(writes[1].options.json));
+  assert.equal(
+    writes[0].options.headers["Idempotency-Key"],
+    writes[1].options.headers["Idempotency-Key"],
+  );
+  assert.equal(h.counts().devicePrepares, 1);
+  h.unmount();
+});
+
+test("discard is allowed only after a higher authoritative version fences an unapplied old operation", async () => {
+  const h = harness();
+  await unlocked(h);
+  await h.render().reviewDeviceChange("revoke", "device_b");
+  h.registryFailure("before");
+  await h.render().confirmDeviceChange();
+  h.render();
+  h.deviceConflict();
+  await h.render().refreshKeyManagement();
+  let model = h.render();
+  assert.equal(model.keyManagement.pendingChange.state, "conflict");
+  await model.discardDeviceChange();
+  model = h.render();
+  assert.equal(model.deviceChange, null);
+  assert.equal(h.counts().deviceDiscards, 1);
+  assert.equal(h.requests.filter((row) => row.options.method === "PUT").length, 1);
+  h.unmount();
+});
+
+test("recovery checks use a separate short-lived read-only Worker and never register or mutate a directory", async () => {
+  const h = harness();
+  let model = await unlocked(h);
+  const original = h.instances[0];
+  const before = h.requests.length;
+  await model.verifyRecovery("other");
+  model = h.render();
+  assert.equal(model.recoveryCheck.rootKeyId, "synthetic");
+  assert.equal(model.keyNotice, "recovery_verified");
+  assert.equal(h.counts().recoveryVerifications, 1);
+  assert.equal(h.instances.length, 2);
+  assert.equal(original.locked, false);
+  assert.equal(h.instances[1].locked, true);
+  assert.equal(h.passkeyOptions.at(-1).method, "other");
+  assert.ok(h.requests.slice(before).every((row) => !row.options.method));
+  h.unmount();
+});
+
+test("late recovery proofs and captured management callbacks cannot survive lock or account changes", async () => {
+  for (const transition of ["lock", "switch"]) {
+    const h = harness();
+    let model = await unlocked(h);
+    const held = deferred();
+    h.holdResult(held);
+    const checking = model.verifyRecovery();
+    await settle();
+    const staleReview = model.reviewDeviceChange;
+    if (transition === "lock") h.render().lock();
+    else h.auth({ status: "authenticated", sessionKey: "owner_b:2", profile: { uid: "owner_b" } });
+    model = h.render();
+    held.resolve();
+    await checking;
+    await staleReview("rotate", "device_a");
+    model = h.render();
+    assert.equal(model.recoveryCheck, null);
+    assert.equal(model.keyManagement, null);
+    assert.equal(model.deviceChange, null);
+    assert.equal(h.counts().devicePrepares, 0);
+    assert.ok(h.instances.every((instance) => instance.locked));
+    h.unmount();
+  }
+});
+
+test("a current Passkey recovery proof advances displayed directory facts without implicitly enabling state changes", async () => {
+  const h = harness({ resultCanWrite: false });
+  await ready(h);
+  const unlock = h.render().unlock({ forResults: true });
+  h.resolvePasskey();
+  await unlock;
+  h.render();
+  h.deviceConflict();
+  await h.render().verifyRecovery();
+  const model = h.render();
+  assert.equal(model.keyManagement.registrySequence, 2);
+  assert.equal(model.recoveryCheck.registrySequence, 2);
+  assert.equal(model.canWriteState, false);
+  assert.equal(h.requests.filter((row) => row.options.method === "PUT").length, 0);
+  h.unmount();
+});
+
+test("a management trust or high-water failure locks all private consumers instead of leaving an unlocked badge", async () => {
+  for (const error of ["rollback_detected", "registry_conflict", "key_revoked"]) {
+    const h = harness();
+    let model = await unlocked(h);
+    const generation = model.vaultGeneration;
+    h.managementFault(error);
+    await model.refreshKeyManagement();
+    model = h.render();
+    assert.equal(model.phase, "locked");
+    assert.equal(model.keyManagement, null);
+    assert.equal(model.recoveryCheck, null);
+    assert.equal(model.canWriteState, false);
+    assert.ok(model.vaultGeneration > generation);
+    assert.ok(h.instances.every((instance) => instance.locked));
+    h.unmount();
+  }
+});
+
+test("same-session device enrollment recovers a committed registration after the follow-up read is lost", async () => {
+  const h = harness({ configured: false, needsDeviceRegistration: true });
+  await ready(h);
+  const unlock = h.render().unlock({ forResults: true, enableState: true });
+  h.resolvePasskey();
+  await unlock;
+  h.render();
+  h.loseRegistrationRead();
+  await h.render().confirmDeviceRegistration();
+  let model = h.render();
+  assert.equal(model.phase, "needs-device");
+  assert.equal(model.error, "service_unavailable");
+  assert.equal(h.counts().registrationPrepares, 1);
+  await model.confirmDeviceRegistration();
+  model = h.render();
+  assert.equal(model.phase, "unlocked");
+  assert.equal(model.needsDeviceApproval, false);
+  assert.equal(model.canWriteState, true);
+  assert.equal(h.counts().registrationPrepares, 1, "Never mint or re-sign a second registration");
+  assert.equal(h.requests.filter((row) => row.options.method === "PUT").length, 1);
+  h.unmount();
+});
 
 test("configured owner unlocks, previews locally, saves only ciphertext and verifies receipt", async () => {
   const h = harness();
@@ -969,17 +1380,24 @@ test("Hub-only Inbox unlock reuses one Passkey worker without Portfolio or impli
   h.unmount();
 });
 
-test("explicit Inbox device enablement uses existing strict registration without a Portfolio dependency", async () => {
+test("new Inbox device enablement pauses for explicit review before strict registration without Portfolio", async () => {
   const h = harness({ configured: false, needsDeviceRegistration: true });
   let model = await ready(h);
   const unlocking = model.unlock({ forResults: true, enableState: true });
   h.resolvePasskey();
   await unlocking;
   model = h.render();
+  assert.equal(model.phase, "needs-device");
+  assert.equal(model.needsDeviceApproval, true);
+  assert.equal(model.canWriteState, false);
+  assert.equal(h.requests.filter((request) => request.route.endsWith("/registry")).length, 0);
+  await model.confirmDeviceRegistration();
+  model = h.render();
   assert.equal(model.phase, "unlocked");
+  assert.equal(model.needsDeviceApproval, false);
   assert.equal(model.canWriteState, true);
-  assert.equal(h.counts().strictUnlocks, 1);
-  assert.equal(h.counts().readOnlyUnlocks, 0);
+  assert.equal(h.counts().strictUnlocks, 0);
+  assert.equal(h.counts().readOnlyUnlocks, 1);
   assert.equal(h.requests.filter((request) => request.route.endsWith("/registry")).length, 1);
   assert.ok(h.requests.every((request) => request.service === "agent-hub"));
   h.unmount();

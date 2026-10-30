@@ -24,6 +24,7 @@ function render(model, locale = "en") {
   const messages = require(`../messages/${locale}.json`);
   const imports = {
     react: React,
+    "./PasskeyHelp": { PasskeyHelp: () => null },
     "./ResourceLibrary": { __esModule: true, default: ({ children }) => children },
     "react/jsx-runtime": jsxRuntime,
     "next-intl": {

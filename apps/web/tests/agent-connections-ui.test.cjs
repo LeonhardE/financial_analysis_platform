@@ -69,6 +69,7 @@ function render(name, props, locale = "en", buttons = []) {
       __esModule: true,
       default: new Proxy({}, { get: (_, key) => key }),
     },
+    "./PasskeyHelp": { PasskeyHelp: () => null },
     "./AgentConsentCard.module.css": {
       __esModule: true,
       default: new Proxy({}, { get: (_, key) => key }),

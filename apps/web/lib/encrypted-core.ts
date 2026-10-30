@@ -46,6 +46,11 @@ import {
   type AgentPreparationPacket,
   type AgentPreparationSource,
   type AgentPendingKind,
+  type VaultDevice,
+  type DeviceChangePacket,
+  type DeviceChangeSummary,
+  type VaultManagementSummary,
+  type RecoveryVerification,
 } from "./encrypted-types";
 export { CONTRACT };
 const utf8 = new TextEncoder();
@@ -727,6 +732,12 @@ export class VaultCore {
   private pendingDevice?: { kind: string; operation: Json; baseDigest: string | null };
   private pendingEnvelope?: Json;
   private pendingAgentRegistrations = new Map<string, AgentRegistration>();
+  private deviceChange?: {
+    packet: DeviceChangePacket;
+    candidate: DeviceSeal | null;
+    baseDigest: string;
+    record: Json;
+  };
   constructor(
     uid: string,
     private readonly now = () => Math.floor(Date.now() / 1000),
@@ -821,7 +832,7 @@ export class VaultCore {
     this.pendingDevice = { kind, operation, baseDigest };
     return this.pendingEnvelope;
   }
-  private async loadDevice(d: DeviceSeal) {
+  private async readDevice(d: DeviceSeal) {
     if (!this.vault || !this.wrapping) throw new VaultError("locked");
     const vault = this.vault;
     if (
@@ -841,7 +852,7 @@ export class VaultCore {
       (await thumb(m.encryptionPrivateJwk)) !== d.encryptionKeyId
     )
       throw new VaultError("invalid_data");
-    this.device = {
+    return {
       deviceId: m.deviceId,
       sig: await key(m.signingPrivateJwk, true, true),
       enc: await key(m.encryptionPrivateJwk, false, true),
@@ -850,15 +861,18 @@ export class VaultCore {
       sigId: d.signingKeyId,
       encId: d.encryptionKeyId,
     };
+  }
+  private async loadDevice(d: DeviceSeal) {
+    this.device = await this.readDevice(d);
     this.deviceSeal = d;
   }
 
-  private async newDevice() {
+  private async makeDevice() {
     if (!this.vault || !this.wrapping) throw new VaultError("locked");
     const sig = await makeKey(true),
       enc = await makeKey();
     const deviceId = randomId("device_");
-    this.device = {
+    const device = {
       deviceId,
       sig: await key(sig.privateJwk, true, true),
       enc: await key(enc.privateJwk, false, true),
@@ -867,7 +881,7 @@ export class VaultCore {
       sigId: sig.keyId,
       encId: enc.keyId,
     };
-    this.deviceSeal = await seal(
+    const deviceSeal = await seal(
       this.wrapping,
       {
         profile: "folioview.device-keystore.v1",
@@ -882,6 +896,12 @@ export class VaultCore {
       },
       { deviceId, signingPrivateJwk: sig.privateJwk, encryptionPrivateJwk: enc.privateJwk },
     );
+    return { device, deviceSeal };
+  }
+  private async newDevice() {
+    const next = await this.makeDevice();
+    this.device = next.device;
+    this.deviceSeal = next.deviceSeal;
   }
   private async certificate(role: string, jwk: Json, principalId: string) {
     if (!this.vault || !this.root) throw new VaultError("locked");
@@ -1000,7 +1020,7 @@ export class VaultCore {
   async unlock(
     vault: Vault,
     material: PasskeyMaterial,
-    local?: { pin?: Pin; device?: DeviceSeal; pending?: Json },
+    local?: { pin?: Pin; device?: DeviceSeal; pending?: Json; deviceChange?: Json },
   ) {
     const owner = await this.owner;
     checkArchive(vault.archive, owner);
@@ -1027,86 +1047,18 @@ export class VaultCore {
     this.pin = local?.pin;
     const recovery = cert(this.registry, await thumb(this.recoveryJwk), "recovery_enc", this.now());
     if (recovery.role !== "recovery_enc") throw new VaultError("untrusted_vault");
-    if (local?.pending) {
-      const e = local.pending;
-      exact(e, [
-        "profile",
-        "ownerSubject",
-        "vaultId",
-        "rootKeyId",
-        "credentialId",
-        "prfSalt",
-        "kind",
-        "iv",
-        "ciphertext",
-      ]);
-      if (
-        e.profile !== "folioview.pending-device.v1" ||
-        e.ownerSubject !== owner ||
-        e.vaultId !== vault.vaultId ||
-        e.rootKeyId !== vault.rootKeyId ||
-        e.credentialId !== vault.archive.credentialId ||
-        e.prfSalt !== vault.archive.prfSalt ||
-        !["bootstrap", "registration"].includes(e.kind)
-      )
-        throw new VaultError("wrong_account");
-      const value = await open(this.wrapping, e, 262144);
-      exact(value, ["device", "operation", "baseDigest"]);
-      await this.loadDevice(value.device);
-      const pendingRegistry = await verifyRegistry(
-        value.operation.registryBundle,
-        vault.rootJwk,
-        owner,
-        vault.vaultId,
-        undefined,
-        this.now(),
-      );
-      cert(pendingRegistry, this.device!.sigId, "device_sig", this.now());
-      cert(pendingRegistry, this.device!.encId, "device_enc", this.now());
-      if (
-        e.kind === "bootstrap" &&
-        (!equal(value.operation.archive, vault.archive) ||
-          value.operation.rootKeyId !== vault.rootKeyId ||
-          value.operation.vaultId !== vault.vaultId)
-      )
-        throw new VaultError("untrusted_vault");
-      if (
-        e.kind === "registration" &&
-        pendingRegistry.checkpoint.previousDigest !== value.baseDigest
-      )
-        throw new VaultError("registry_conflict");
-      this.pendingEnvelope = e;
-      this.pendingDevice = {
-        kind: e.kind,
-        operation: value.operation,
-        baseDigest: value.baseDigest,
-      };
-      const sig = this.registry.certificates.has(this.device!.sigId),
-        enc = this.registry.certificates.has(this.device!.encId);
-      if (sig && enc) {
+    if (local?.deviceChange) {
+      if (local.pending) throw new VaultError("pending_registration");
+      const change = await this.readDeviceChange(local.deviceChange, vault, this.registry);
+      this.deviceChange = change;
+      if (this.deviceChangeState(change, vault, this.registry) === "applied" && change.candidate) {
+        await this.loadDevice(change.candidate);
         cert(this.registry, this.device!.sigId, "device_sig", this.now());
         cert(this.registry, this.device!.encId, "device_enc", this.now());
         return { needsDeviceRegistration: false };
       }
-      const everSeen = vault.registryHistory.some((b) =>
-        b.entries.some((entry) =>
-          [this.device!.sigId, this.device!.encId].includes(
-            parsed(unb64(entry.certificate.payload)).keyId,
-          ),
-        ),
-      );
-      if (
-        sig ||
-        enc ||
-        e.kind === "bootstrap" ||
-        everSeen ||
-        this.registry.checkpoint.revokedKeyIds.some((id: string) =>
-          [this.device!.sigId, this.device!.encId].includes(id),
-        )
-      )
-        throw new VaultError("key_revoked");
-      return { needsDeviceRegistration: true };
     }
+    if (local?.pending) return this.restorePendingDevice(vault, local.pending);
     if (local?.device) {
       await this.loadDevice(local.device);
       cert(this.registry, this.device!.sigId, "device_sig", this.now());
@@ -1116,8 +1068,94 @@ export class VaultCore {
     return { needsDeviceRegistration: true };
   }
 
-  async prepareDeviceRegistration(vault: Vault) {
+  private async restorePendingDevice(vault: Vault, e: Json) {
+    if (!this.registry || !this.wrapping) throw new VaultError("locked");
+    const owner = await this.owner,
+      registry = this.registry;
+    exact(e, [
+      "profile",
+      "ownerSubject",
+      "vaultId",
+      "rootKeyId",
+      "credentialId",
+      "prfSalt",
+      "kind",
+      "iv",
+      "ciphertext",
+    ]);
+    if (
+      e.profile !== "folioview.pending-device.v1" ||
+      e.ownerSubject !== owner ||
+      e.vaultId !== vault.vaultId ||
+      e.rootKeyId !== vault.rootKeyId ||
+      e.credentialId !== vault.archive.credentialId ||
+      e.prfSalt !== vault.archive.prfSalt ||
+      !["bootstrap", "registration"].includes(e.kind)
+    )
+      throw new VaultError("wrong_account");
+    const value = await open(this.wrapping, e, 262144);
+    exact(value, ["device", "operation", "baseDigest"]);
+    await this.loadDevice(value.device);
+    const pendingRegistry = await verifyRegistry(
+      value.operation.registryBundle,
+      vault.rootJwk,
+      owner,
+      vault.vaultId,
+      undefined,
+      this.now(),
+    );
+    cert(pendingRegistry, this.device!.sigId, "device_sig", this.now());
+    cert(pendingRegistry, this.device!.encId, "device_enc", this.now());
+    if (
+      e.kind === "bootstrap" &&
+      (!equal(value.operation.archive, vault.archive) ||
+        value.operation.rootKeyId !== vault.rootKeyId ||
+        value.operation.vaultId !== vault.vaultId)
+    )
+      throw new VaultError("untrusted_vault");
+    if (e.kind === "registration" && pendingRegistry.checkpoint.previousDigest !== value.baseDigest)
+      throw new VaultError("registry_conflict");
+    this.pendingEnvelope = e;
+    this.pendingDevice = {
+      kind: e.kind,
+      operation: value.operation,
+      baseDigest: value.baseDigest,
+    };
+    const sig = registry.certificates.has(this.device!.sigId),
+      enc = registry.certificates.has(this.device!.encId);
+    if (sig && enc) {
+      cert(registry, this.device!.sigId, "device_sig", this.now());
+      cert(registry, this.device!.encId, "device_enc", this.now());
+      return { needsDeviceRegistration: false };
+    }
+    const everSeen = vault.registryHistory.some((b) =>
+      b.entries.some((entry) =>
+        [this.device!.sigId, this.device!.encId].includes(
+          parsed(unb64(entry.certificate.payload)).keyId,
+        ),
+      ),
+    );
+    if (
+      sig ||
+      enc ||
+      e.kind === "bootstrap" ||
+      everSeen ||
+      registry.checkpoint.revokedKeyIds.some((id: string) =>
+        [this.device!.sigId, this.device!.encId].includes(id),
+      )
+    )
+      throw new VaultError("key_revoked");
+    return { needsDeviceRegistration: true };
+  }
+
+  async prepareDeviceRegistration(vault: Vault, options?: { replaceInactive?: boolean }) {
+    if (options !== undefined) {
+      exact(options, options.replaceInactive === undefined ? [] : ["replaceInactive"]);
+      if (options.replaceInactive !== undefined && typeof options.replaceInactive !== "boolean")
+        throw new VaultError("invalid_data");
+    }
     if (!this.wrapping || !this.root || !this.vault) throw new VaultError("locked");
+    if (this.deviceChange) throw new VaultError("device_change_pending");
     this.registry = await this.checkVault(vault, this.pin);
     this.vault = vault;
     if (
@@ -1137,6 +1175,40 @@ export class VaultCore {
         localPending: this.pendingEnvelope,
         previousPending: this.pendingEnvelope,
       };
+    if (this.device) {
+      let eligible = true;
+      try {
+        const author = cert(this.registry, this.device.sigId, "device_sig", this.now());
+        cert(this.registry, this.device.encId, "device_enc", this.now());
+        eligible =
+          author.capabilities.includes("object_write") &&
+          author.capabilities.includes("control_write");
+      } catch {
+        eligible = false;
+      }
+      if (eligible) throw new VaultError("device_unavailable");
+      const known = vault.registryHistory.some((b) =>
+        b.entries.some((e) =>
+          [this.device!.sigId, this.device!.encId].includes(
+            parsed(unb64(e.certificate.payload)).keyId,
+          ),
+        ),
+      );
+      if (!eligible && !(this.pendingDevice?.kind === "registration" && !known)) {
+        if (options?.replaceInactive !== true) throw new VaultError("key_revoked");
+        if (
+          this.pendingDevice &&
+          !vault.registryHistory.some((b) => equal(b, this.pendingDevice!.operation.registryBundle))
+        )
+          throw new VaultError("pending_registration");
+        // An explicit owner confirmation creates a different identity; it never
+        // reactivates the revoked key, old certificate or prior agent grant.
+        this.device = undefined;
+        this.deviceSeal = undefined;
+        this.pendingDevice = undefined;
+        this.pendingEnvelope = undefined;
+      }
+    }
     if (!this.device) await this.newDevice();
     const previousPending = this.pendingEnvelope ?? null;
     const cached =
@@ -1182,7 +1254,7 @@ export class VaultCore {
   async unlockForResults(
     vault: Vault,
     material: PasskeyMaterial,
-    local?: { pin?: Pin; device?: DeviceSeal },
+    local?: { pin?: Pin; device?: DeviceSeal; pending?: Json; deviceChange?: Json },
   ) {
     const owner = await this.owner;
     checkArchive(vault.archive, owner);
@@ -1209,8 +1281,502 @@ export class VaultCore {
     this.pin = local?.pin ?? this.pin;
     this.device = undefined;
     this.deviceSeal = undefined;
-    if (local?.device) await this.loadDevice(local.device);
+    if (local?.pending) {
+      if (local.deviceChange) throw new VaultError("pending_registration");
+      try {
+        await this.restorePendingDevice(vault, local.pending);
+      } catch (error) {
+        if (!(error instanceof VaultError) || error.code !== "key_revoked") throw error;
+        // Read-only recovery does not grant the retained revoked device rights.
+      }
+    } else if (local?.deviceChange) {
+      const change = await this.readDeviceChange(local.deviceChange, vault, this.registry);
+      this.deviceChange = change;
+      if (this.deviceChangeState(change, vault, this.registry) === "applied" && change.candidate) {
+        const next = await this.readDevice(change.candidate);
+        try {
+          cert(this.registry, next.sigId, "device_sig", this.now());
+          cert(this.registry, next.encId, "device_enc", this.now());
+          this.device = next;
+          this.deviceSeal = change.candidate;
+        } catch {
+          // A later revocation cannot be revived by a retained candidate.
+          if (local.device) await this.loadDevice(local.device);
+        }
+      } else if (local?.device) await this.loadDevice(local.device);
+    } else if (local?.device) await this.loadDevice(local.device);
     return { canWriteState: this.resultStateAvailable() };
+  }
+  private deviceChangeState(
+    change: NonNullable<VaultCore["deviceChange"]>,
+    vault: Vault,
+    registry: Registry,
+  ): DeviceChangeSummary["state"] {
+    if (vault.registryHistory.some((b) => equal(b, change.packet.registryBundle))) return "applied";
+    return vault.version === change.packet.expectedVersion && registry.digest === change.baseDigest
+      ? "ready"
+      : "conflict";
+  }
+  private deviceRows(registry: Registry): VaultDevice[] {
+    const groups = new Map<string, { sig?: Json; enc?: Json }>();
+    for (const c of registry.certificates.values()) {
+      if (c.connectionId !== null || !["device_sig", "device_enc"].includes(c.role)) continue;
+      const group = groups.get(c.principalId) ?? {};
+      const role = c.role === "device_sig" ? "sig" : "enc";
+      if (!group[role] || group[role]!.keyEpoch < c.keyEpoch) group[role] = c;
+      groups.set(c.principalId, group);
+    }
+    return [...groups]
+      .map(([deviceId, group]) => {
+        if (!group.sig || !group.enc) throw new VaultError("invalid_registry");
+        let active = true;
+        try {
+          cert(registry, group.sig.keyId, "device_sig", this.now());
+          cert(registry, group.enc.keyId, "device_enc", this.now());
+        } catch {
+          active = false;
+        }
+        return {
+          deviceId,
+          signingKeyId: group.sig.keyId,
+          encryptionKeyId: group.enc.keyId,
+          current: this.device?.deviceId === deviceId,
+          active,
+          notBefore: Math.max(group.sig.notBefore, group.enc.notBefore),
+          expiresAt: Math.min(group.sig.expiresAt, group.enc.expiresAt),
+        };
+      })
+      .sort((a, b) => a.deviceId.localeCompare(b.deviceId));
+  }
+  private async managementSummary(
+    vault: Vault,
+    registry: Registry,
+  ): Promise<VaultManagementSummary> {
+    let canManage = Boolean(this.root && this.wrapping && this.device);
+    try {
+      if (!this.device) throw new VaultError("device_required");
+      const signer = cert(registry, this.device.sigId, "device_sig", this.now());
+      cert(registry, this.device.encId, "device_enc", this.now());
+      canManage &&=
+        signer.capabilities.includes("object_write") &&
+        signer.capabilities.includes("control_write");
+    } catch {
+      canManage = false;
+    }
+    const recoveryId = this.recoveryJwk ? await thumb(this.recoveryJwk) : null;
+    const recoveryCert = recoveryId ? registry.certificates.get(recoveryId) : undefined;
+    let recovery: VaultManagementSummary["recovery"] = null;
+    if (recoveryCert?.role === "recovery_enc" && recoveryCert.connectionId === null) {
+      let active = true;
+      try {
+        cert(registry, recoveryCert.keyId, "recovery_enc", this.now());
+      } catch {
+        active = false;
+      }
+      recovery = {
+        keyId: recoveryCert.keyId,
+        notBefore: recoveryCert.notBefore,
+        expiresAt: recoveryCert.expiresAt,
+        active,
+      };
+    }
+    const change = this.deviceChange;
+    return {
+      vaultId: vault.vaultId,
+      rootKeyId: vault.rootKeyId,
+      registrySequence: registry.checkpoint.registrySequence,
+      checkpointDigest: registry.digest,
+      keyEpoch: registry.checkpoint.keyEpoch,
+      currentDeviceId: this.device?.deviceId ?? null,
+      canManage,
+      devices: this.deviceRows(registry),
+      recovery,
+      pendingChange: change
+        ? {
+            operationId: change.packet.operationId,
+            action: change.packet.action,
+            deviceId: change.packet.deviceId,
+            newDeviceId: change.packet.newDeviceId,
+            state: this.deviceChangeState(change, vault, registry),
+          }
+        : null,
+    };
+  }
+  private async readDeviceChange(record: Json, vault: Vault, registry: Registry) {
+    if (!this.wrapping || !this.root) throw new VaultError("locked");
+    bounded(record, 393216);
+    exact(record, [
+      "profile",
+      "ownerSubject",
+      "vaultId",
+      "rootKeyId",
+      "credentialId",
+      "prfSalt",
+      "iv",
+      "ciphertext",
+    ]);
+    if (
+      record.profile !== "folioview.device-change-outbox.v1" ||
+      record.ownerSubject !== (await this.owner) ||
+      record.vaultId !== vault.vaultId ||
+      record.rootKeyId !== vault.rootKeyId ||
+      record.credentialId !== vault.archive.credentialId ||
+      record.prfSalt !== vault.archive.prfSalt
+    )
+      throw new VaultError("wrong_account");
+    const value = await open(this.wrapping, record, 262144);
+    exact(value, ["packet", "candidate", "baseDigest"]);
+    const packet = value.packet as DeviceChangePacket;
+    exact(packet, [
+      "operationId",
+      "expectedVersion",
+      "registryBundle",
+      "action",
+      "deviceId",
+      "replacedKeyIds",
+      "newDeviceId",
+      "newKeyIds",
+    ]);
+    validate("OperationIdentifier", packet.operationId);
+    validate("Identifier", packet.deviceId);
+    validate("Digest", value.baseDigest);
+    positive(packet.expectedVersion);
+    if (
+      !["revoke", "rotate"].includes(packet.action) ||
+      !Array.isArray(packet.replacedKeyIds) ||
+      packet.replacedKeyIds.length !== 2 ||
+      !equal(packet.replacedKeyIds, [...new Set(packet.replacedKeyIds)].sort()) ||
+      !Array.isArray(packet.newKeyIds) ||
+      !equal(packet.newKeyIds, [...new Set(packet.newKeyIds)].sort())
+    )
+      throw new VaultError("invalid_data");
+    packet.replacedKeyIds.forEach((id) => validate("KeyId", id));
+    packet.newKeyIds.forEach((id) => validate("KeyId", id));
+    let base: Registry | undefined;
+    for (const bundle of vault.registryHistory) {
+      base = await verifyRegistry(
+        bundle,
+        vault.rootJwk,
+        await this.owner,
+        vault.vaultId,
+        base,
+        this.now(),
+      );
+      if (base.digest === value.baseDigest) break;
+    }
+    if (!base || base.digest !== value.baseDigest) throw new VaultError("registry_conflict");
+    const next = await verifyRegistry(
+      packet.registryBundle,
+      vault.rootJwk,
+      await this.owner,
+      vault.vaultId,
+      base,
+      this.now(),
+    );
+    if (
+      next.checkpoint.registrySequence !== base.checkpoint.registrySequence + 1 ||
+      next.checkpoint.keyEpoch !== base.checkpoint.keyEpoch
+    )
+      throw new VaultError("registry_conflict");
+    const target = this.deviceRows(base).find((d) => d.deviceId === packet.deviceId);
+    if (
+      !target ||
+      !equal(packet.replacedKeyIds, [target.signingKeyId, target.encryptionKeyId].sort())
+    )
+      throw new VaultError("binding_mismatch");
+    const added = next.bundle.entries.filter(
+      (e) => !base!.certificates.has(parsed(unb64(e.certificate.payload)).keyId),
+    );
+    if (packet.action === "revoke") {
+      if (
+        packet.newDeviceId !== null ||
+        packet.newKeyIds.length ||
+        value.candidate !== null ||
+        added.length
+      )
+        throw new VaultError("binding_mismatch");
+    } else {
+      validate("Identifier", packet.newDeviceId);
+      if (
+        packet.newDeviceId === packet.deviceId ||
+        packet.newKeyIds.length !== 2 ||
+        added.length !== 2 ||
+        !value.candidate
+      )
+        throw new VaultError("binding_mismatch");
+      const candidate = await this.readDevice(value.candidate);
+      if (
+        candidate.deviceId !== packet.newDeviceId ||
+        !equal([candidate.sigId, candidate.encId].sort(), packet.newKeyIds)
+      )
+        throw new VaultError("binding_mismatch");
+      for (const [id, role] of [
+        [candidate.sigId, "device_sig"],
+        [candidate.encId, "device_enc"],
+      ]) {
+        const c = next.certificates.get(id);
+        if (
+          !c ||
+          c.principalId !== candidate.deviceId ||
+          c.role !== role ||
+          c.connectionId !== null ||
+          !next.active.has(id)
+        )
+          throw new VaultError("binding_mismatch");
+      }
+    }
+    const expectedEntries = [
+      ...base.bundle.entries.map((e) => ({
+        ...e,
+        active: packet.replacedKeyIds.includes(parsed(unb64(e.certificate.payload)).keyId)
+          ? false
+          : e.active,
+      })),
+      ...added,
+    ];
+    if (
+      !equal(next.bundle.entries, expectedEntries) ||
+      !equal(
+        next.checkpoint.revokedKeyIds,
+        [...new Set([...base.checkpoint.revokedKeyIds, ...packet.replacedKeyIds])].sort(),
+      )
+    )
+      throw new VaultError("binding_mismatch");
+    return {
+      packet,
+      candidate: value.candidate as DeviceSeal | null,
+      baseDigest: value.baseDigest as string,
+      record,
+    };
+  }
+  async deviceManagement(vault: Vault, record?: Json) {
+    if (!this.root || !this.wrapping) throw new VaultError("locked");
+    const registry = await this.checkVault(vault, this.pin);
+    this.vault = vault;
+    this.deviceChange = record ? await this.readDeviceChange(record, vault, registry) : undefined;
+    const accepted = await this.adoptVault(vault, registry);
+    return { summary: await this.managementSummary(vault, registry), record: accepted };
+  }
+  async prepareDeviceChange(args: { vault: Vault; action: "revoke" | "rotate"; deviceId: string }) {
+    exact(args, ["vault", "action", "deviceId"]);
+    validate("Identifier", args.deviceId);
+    if (!["revoke", "rotate"].includes(args.action)) throw new VaultError("invalid_data");
+    const registry = await this.checkVault(args.vault, this.pin);
+    this.vault = args.vault;
+    this.registry = registry;
+    const { device, vault } = this.ready();
+    const author = cert(registry, device.sigId, "device_sig", this.now());
+    cert(registry, device.encId, "device_enc", this.now());
+    if (
+      !author.capabilities.includes("object_write") ||
+      !author.capabilities.includes("control_write")
+    )
+      throw new VaultError("key_revoked");
+    if (this.deviceChange) throw new VaultError("device_change_pending");
+    const target = this.deviceRows(registry).find((d) => d.deviceId === args.deviceId);
+    if (!target?.active || (args.action === "rotate") !== (args.deviceId === device.deviceId))
+      throw new VaultError("device_unavailable");
+    if (
+      vault.registryHistory.length >= 32 ||
+      registry.bundle.entries.length + (args.action === "rotate" ? 2 : 0) > 64 ||
+      registry.checkpoint.revokedKeyIds.length + 2 > 64
+    )
+      throw new VaultError("device_limit");
+    const replacedKeyIds = [target.signingKeyId, target.encryptionKeyId].sort();
+    const entries = registry.bundle.entries.map((e) => ({
+      ...e,
+      active: replacedKeyIds.includes(parsed(unb64(e.certificate.payload)).keyId)
+        ? false
+        : e.active,
+    }));
+    let candidate: DeviceSeal | null = null,
+      newDeviceId: string | null = null;
+    const newKeyIds: string[] = [];
+    if (args.action === "rotate") {
+      const next = await this.makeDevice();
+      candidate = next.deviceSeal;
+      newDeviceId = next.device.deviceId;
+      for (const [role, jwk] of [
+        ["device_sig", next.device.sigJwk],
+        ["device_enc", next.device.encJwk],
+      ] as [string, Json][]) {
+        const certificate = await this.certificate(role, jwk, newDeviceId);
+        entries.push({ certificate, active: true });
+        newKeyIds.push(parsed(unb64(certificate.payload)).keyId);
+      }
+      newKeyIds.sort();
+    }
+    const bundle = await this.bundle(entries, registry),
+      checkpoint = parsed(unb64(bundle.checkpoint.payload));
+    checkpoint.revokedKeyIds = [
+      ...new Set([...checkpoint.revokedKeyIds, ...replacedKeyIds]),
+    ].sort();
+    bundle.checkpoint = await sign(checkpoint, this.root!, vault.rootKeyId);
+    const next = await verifyRegistry(
+      bundle,
+      vault.rootJwk,
+      await this.owner,
+      vault.vaultId,
+      registry,
+      this.now(),
+    );
+    const active = [...next.active]
+      .map((id) => {
+        try {
+          return cert(next, id, undefined, this.now());
+        } catch {
+          return null;
+        }
+      })
+      .filter(Boolean) as Json[];
+    const writers = active.filter(
+      (c) => c.role === "device_sig" && c.capabilities.includes("object_write"),
+    );
+    const recipients = active.filter((c) => ["device_enc", "recovery_enc"].includes(c.role));
+    if (
+      !writers.length ||
+      writers.length > 8 ||
+      recipients.length < 2 ||
+      recipients.length > 8 ||
+      !recipients.some((c) => c.role === "device_enc") ||
+      !recipients.some((c) => c.role === "recovery_enc")
+    )
+      throw new VaultError("device_limit");
+    const packet = parsed(
+      utf8.encode(
+        canonical({
+          operationId: randomId(),
+          expectedVersion: vault.version,
+          registryBundle: bundle,
+          action: args.action,
+          deviceId: args.deviceId,
+          replacedKeyIds,
+          newDeviceId,
+          newKeyIds,
+        }),
+      ),
+    ) as DeviceChangePacket;
+    const value = { packet, candidate, baseDigest: registry.digest };
+    bounded(value, 196608);
+    const record = await seal(
+      this.wrapping!,
+      {
+        profile: "folioview.device-change-outbox.v1",
+        ownerSubject: await this.owner,
+        vaultId: vault.vaultId,
+        rootKeyId: vault.rootKeyId,
+        credentialId: vault.archive.credentialId,
+        prfSalt: vault.archive.prfSalt,
+      },
+      value,
+    );
+    this.deviceChange = { ...value, record };
+    return { ...packet, localPending: record };
+  }
+  async loadDeviceChange(vault: Vault, record: Json) {
+    const registry = await this.checkVault(vault, this.pin);
+    this.vault = vault;
+    const change = await this.readDeviceChange(record, vault, registry);
+    this.deviceChange = change;
+    return change.packet;
+  }
+  async acceptDeviceChange(vault: Vault, record: Json) {
+    const registry = await this.checkVault(vault, this.pin);
+    this.vault = vault;
+    const change = await this.readDeviceChange(record, vault, registry);
+    if (this.deviceChangeState(change, vault, registry) !== "applied")
+      throw new VaultError("device_change_conflict");
+    if (change.candidate) {
+      const candidate = await this.readDevice(change.candidate);
+      // A later directory may already revoke/expire the accepted candidate.
+      // Keeping its sealed local identity completes acknowledgement, not a
+      // registration or permission grant; ready()/state signing still reject it.
+      this.device = candidate;
+      this.deviceSeal = change.candidate;
+    }
+    const accepted = await this.adoptVault(vault, registry);
+    // An already-applied candidate may now be inactive. Explicitly completing
+    // acknowledgement persists that identity without granting it permissions.
+    if (change.candidate) {
+      accepted.device = change.candidate;
+      accepted.deviceReplacementKeyIds = change.packet.replacedKeyIds;
+    }
+    this.deviceChange = undefined;
+    return {
+      summary: await this.managementSummary(vault, registry),
+      record: accepted,
+      operationId: change.packet.operationId,
+    };
+  }
+  async discardDeviceChange(vault: Vault, record: Json, operationId: string) {
+    const registry = await this.checkVault(vault, this.pin);
+    this.vault = vault;
+    const change = await this.readDeviceChange(record, vault, registry);
+    // An equal-version read cannot prove a timed-out POST will never commit.
+    if (
+      change.packet.operationId !== operationId ||
+      this.deviceChangeState(change, vault, registry) !== "conflict" ||
+      vault.version <= change.packet.expectedVersion
+    )
+      throw new VaultError("device_change_pending");
+    this.deviceChange = undefined;
+    return { operationId };
+  }
+  async verifyRecovery(vault: Vault): Promise<RecoveryVerification> {
+    if (!this.root || !this.recovery || !this.recoveryJwk) throw new VaultError("locked");
+    const registry = await this.checkVault(vault, this.pin),
+      recoveryKeyId = await thumb(this.recoveryJwk);
+    cert(registry, recoveryKeyId, "recovery_enc", this.now());
+    const challenge = crypto.getRandomValues(new Uint8Array(32));
+    let left: Uint8Array | undefined, right: Uint8Array | undefined;
+    try {
+      const signature = await crypto.subtle.sign(
+        { name: "ECDSA", hash: "SHA-256" },
+        this.root,
+        challenge,
+      );
+      if (
+        !(await crypto.subtle.verify(
+          { name: "ECDSA", hash: "SHA-256" },
+          await key(vault.rootJwk, true),
+          signature,
+          challenge,
+        ))
+      )
+        throw new VaultError("untrusted_vault");
+      const ephemeral = await crypto.subtle.generateKey(
+        { name: "ECDH", namedCurve: "P-256" },
+        false,
+        ["deriveBits"],
+      );
+      left = new Uint8Array(
+        await crypto.subtle.deriveBits(
+          { name: "ECDH", public: await key(this.recoveryJwk) },
+          ephemeral.privateKey,
+          256,
+        ),
+      );
+      right = new Uint8Array(
+        await crypto.subtle.deriveBits(
+          { name: "ECDH", public: ephemeral.publicKey },
+          this.recovery,
+          256,
+        ),
+      );
+      if (!equal([...left], [...right])) throw new VaultError("untrusted_vault");
+      return {
+        vaultId: vault.vaultId,
+        rootKeyId: vault.rootKeyId,
+        recoveryKeyId,
+        registrySequence: registry.checkpoint.registrySequence,
+        checkpointDigest: registry.digest,
+        verifiedAt: this.now(),
+      };
+    } finally {
+      challenge.fill(0);
+      left?.fill(0);
+      right?.fill(0);
+    }
   }
   private resultStateAvailable() {
     if (!this.registry || !this.device) return false;
@@ -1243,11 +1809,33 @@ export class VaultCore {
         keyEpoch: cp.keyEpoch,
       });
     }
+    let device = this.deviceSeal;
+    try {
+      if (!this.device) throw new VaultError("device_required");
+      cert(registry, this.device.sigId, "device_sig", this.now());
+      cert(registry, this.device.encId, "device_enc", this.now());
+    } catch {
+      // Another live tab may have promoted a new sealed candidate already.
+      // Public/history refreshes must never overwrite it with this stale key.
+      device = undefined;
+    }
+    const change = this.deviceChange;
     return {
       pin: this.pin,
-      device: this.deviceSeal,
+      device,
       history,
-      pending: this.pendingEnvelope ?? null,
+      pending:
+        this.pendingDevice &&
+        vault.registryHistory.some((b) => equal(b, this.pendingDevice!.operation.registryBundle))
+          ? (this.pendingEnvelope ?? null)
+          : null,
+      deviceReplacementKeyIds:
+        device &&
+        change?.candidate &&
+        this.deviceChangeState(change, vault, registry) === "applied" &&
+        this.device?.deviceId === change.packet.newDeviceId
+          ? change.packet.replacedKeyIds
+          : undefined,
     };
   }
   private ready() {

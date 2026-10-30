@@ -50,6 +50,48 @@ are distinct and locally sealed, and runtime private key handles are nonextracta
 usable copy of the protecting Passkey can make the existing library unrecoverable by the platform.
 Provider support and synchronization must be tested on each supported browser/device combination.
 
+## Keys, recovery checks and devices
+
+Settings adds owner-scoped key and device management, using the same unlocked workspace as
+Resources, Tasks, Agents and Inbox. Default Passkey creation explicitly prefers this device;
+phone/security-key use requires a separate action after the proximity/Bluetooth explanation.
+Unlock still requests the exact original credential. Browser capability hints are not proof that
+a particular authenticator supports PRF. Cancellation aborts the operation and erases late native
+PRF outputs. Unsupported creation can leave an unused system Passkey; the app cannot delete
+operating-system credentials on the user's behalf.
+
+A new or explicitly reauthorized browser first unlocks read-only, then asks for approval before
+uploading new device public keys. Existing local keys that were revoked are never reactivated.
+Explicit reauthorization creates a new principal/key pair; possession of the protecting Passkey
+still carries root authority, so removing a device key is not revoking the Passkey or physically
+removing another computer. The public trust/checkpoint view preserves the original pin checks and
+does not claim that a first browser can prove a globally latest directory from a server alone.
+
+The verified directory shows paired device fingerprints, validity and the fixed recovery
+recipient's eligibility. Owners may review and revoke another device or rotate this browser's
+operational keys. Final confirmation seals the candidate and original root-signed registry packet
+locally before the fixed existing Hub PUT. Uncertain outcomes retain those exact bytes; only an
+explicit action replays them. A same-version read cannot justify discarding a possibly in-flight
+operation. A later authoritative version that excludes the proposal permits conflict cleanup;
+an applied proposal saves the matching candidate before clearing its outbox. Concurrent enrollment
+and device changes share atomic storage fences, and stale tabs cannot overwrite the promoted seal.
+
+Device changes retain old history and do not silently rewrite agent grants. A grant with a
+revoked writeback recipient can require explicit new consent. History may remain readable through
+retained recovery material, without granting new write authority or promising recall of plaintext.
+
+The recovery check invokes the original Passkey in a short-lived separate Worker, verifies the
+archive, current root/recovery keys and their actual signing/ECDH use, and returns public facts
+only. It neither registers a device nor exports a key. It is **not** independent recovery after
+losing all usable copies of that Passkey. The current Hub archive is immutable: replacing the
+protecting Passkey, independent recovery-kit import, archive reset and full root/recovery renewal
+need producer lifecycle contracts and remain unimplemented. Rewrapping an archive would also not
+revoke an already exposed root; that requires a separate rekey/history policy.
+
+All management state and late requests are fenced by owner, capability and vault generation.
+Trust failures lock private consumers. Local synthetic tests do not replace physical Passkey,
+password-manager synchronization, real cross-device or production acceptance.
+
 The privacy model trusts the published frontend implementation. Database, backup, log and backend
 operators do not receive user content keys or plaintext holdings. It does not claim to prevent
 an actively malicious replacement frontend from stealing data after the user unlocks it.
