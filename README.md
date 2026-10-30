@@ -247,6 +247,44 @@ routing tests remain lightweight common checks; the required **Quality checks** 
 results, including documentation-only PRs. See the
 [CI impact rules](infra/gcp/README.md#ci-target-selection) for shared tooling and infrastructure paths.
 
+## Signed contributions and merges
+
+Follow [the commit conventions](AGENTS.md) and sign new commits with a key registered to your
+GitHub account. Author names, email addresses and coauthor trailers are metadata; they do not
+replace a cryptographic signature. GitHub's **Verified** status and successful CI are separate
+requirements.
+
+For SSH signing, keep a dedicated, passphrase-protected private key outside the checkout and load
+it into your SSH agent. Register only its public key in GitHub's **SSH and GPG keys** settings,
+selecting **Signing Key**. The committer email must be verified on that account. Configure the
+checkout locally, replacing the example paths with your own public key and allowed-signers file:
+
+```bash
+git config --local gpg.format ssh
+git config --local user.signingkey /path/to/signing_key.pub
+git config --local commit.gpgsign true
+git config --local gpg.ssh.allowedSignersFile /path/to/allowed_signers
+```
+
+The allowed-signers file binds your email principal to the public key and enables local signature
+verification; GitHub performs its own verification against the key registered to your account.
+Keep keys and machine-specific configuration out of commits. If your agent is empty after a
+restart, reload the signing key before committing. On macOS, a passphrase saved in Keychain can
+be loaded with `ssh-add --apple-use-keychain /path/to/signing_key`. Leave signing enabled so a
+missing key fails the commit rather than producing an unsigned fallback.
+
+Before merging, run `git verify-commit HEAD`, confirm the pushed commit is **Verified** on GitHub,
+and wait for the selected CI checks for that exact head. GitHub squash merge produces a new
+GitHub-signed final commit rather than retaining the original SSH signature. Before confirming,
+review both the author name and email, the scoped Conventional Commit title and the coauthor
+trailer; selecting an email alone does not establish the literal author name. GitHub
+rebase-and-merge rewrites commits without signing them. Verify the final merged commit's
+signature, author, message and tree as well. An administrator's rule exemption does not make an
+unsigned commit Verified.
+
+See GitHub's [signature verification guide](https://docs.github.com/en/authentication/managing-commit-signature-verification/about-commit-signature-verification)
+and [signed-commit protection rules](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-protected-branches/about-protected-branches#require-signed-commits).
+
 ## Cloud Run deployment and migration
 
 The [Terraform target workflow](infra/gcp/terraform/README.md) defines private remote state and
