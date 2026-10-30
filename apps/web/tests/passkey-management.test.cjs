@@ -336,11 +336,15 @@ test("already canceled operations and unknown method values never reach native c
 test("a browser ignoring create abort cannot publish a late PRF result or fall back to another prompt", async () => {
   const h = harness(),
     answer = deferred(),
+    entered = deferred(),
     controller = new AbortController();
-  h.native.create = () => answer.promise;
+  h.native.create = () => {
+    entered.resolve();
+    return answer.promise;
+  };
   const pending = h.createVaultPasskey("synthetic_owner_A", { signal: controller.signal });
   const rejected = assert.rejects(pending, { code: "passkey_cancelled" });
-  await tick();
+  await entered.promise;
   assert.equal(h.calls.length, 1);
   controller.abort();
   await rejected;
@@ -356,11 +360,15 @@ test("a browser ignoring create abort cannot publish a late PRF result or fall b
 test("a browser ignoring assertion abort cannot publish or retain a late decryption result", async () => {
   const h = harness(),
     answer = deferred(),
+    entered = deferred(),
     controller = new AbortController();
-  h.native.get = () => answer.promise;
+  h.native.get = () => {
+    entered.resolve();
+    return answer.promise;
+  };
   const pending = h.unlockVaultPasskey(archive(), { signal: controller.signal });
   const rejected = assert.rejects(pending, { code: "passkey_cancelled" });
-  await tick();
+  await entered.promise;
   controller.abort();
   await rejected;
   const first = secret(71),
