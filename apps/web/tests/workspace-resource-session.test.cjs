@@ -76,6 +76,7 @@ test("Market, Resources, Tasks and Inbox reuse one mounted encrypted owner works
     },
     "@/components/SettingsPanel": { __esModule: true, default: () => null },
     "@/components/ResourcesPanel": { __esModule: true, default: ResourcePanel },
+    "@/components/AgentsPanel": { __esModule: true, default: () => null },
     "@/components/TasksPanel": { __esModule: true, default: TasksPanel },
     "@/components/InboxPanel": { __esModule: true, default: InboxPanel },
     "@/components/useHoldingsWorkspace": {

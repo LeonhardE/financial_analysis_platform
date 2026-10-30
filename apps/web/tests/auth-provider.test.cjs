@@ -5,6 +5,13 @@ const test = require("node:test");
 const vm = require("node:vm");
 const { transformSync } = require("next/dist/build/swc");
 const { contracts: resourceContracts } = require("./resource-library-helpers.cjs");
+const {
+  contracts: connectionContracts,
+  compile: compileAgent,
+} = require("./agent-connections-helpers.cjs");
+const ownerBridgeCommands = compileAgent("../lib/owner-consent-bridge.ts", {
+  "./agent-connections": connectionContracts,
+});
 
 // Exercise the actual provider's asynchronous SDK/API boundary without a browser or
 // an extra test framework. React rendering and Firebase are isolated at imports.
@@ -57,6 +64,11 @@ function mountProvider({
   fetchOwnerConfig = async () => configResponse(),
   env = {},
   hostname = "folioview.example.test",
+  fetchLinkConfig = async () => ({
+    schemaVersion: 1,
+    enabled: true,
+    hubOrigin: "https://agent-hub-api-123456789.northamerica-northeast2.run.app",
+  }),
 } = {}) {
   let observer;
   let observerError;
@@ -128,6 +140,11 @@ function mountProvider({
     "firebase/auth": firebase,
     "@/lib/firebase-client": { getBrowserAuth: () => auth },
     "@/lib/resource-library": resourceContracts,
+    "@/lib/agent-link": { loadAgentLinkConfiguration: fetchLinkConfig },
+    "@/lib/owner-consent-bridge": {
+      validateConsentCommand: ownerBridgeCommands.validateConsentCommand,
+      verifiedOwnerBridge: (bridge) => bridge?.testVerifiedOwnerBridge === true && bridge.isLive(),
+    },
   };
   vm.runInNewContext(code, {
     module,
@@ -1552,5 +1569,139 @@ test("manual follows permits only fixed User GET and bounded CAS PUT before obta
   for (const [service, route, options] of cases)
     await assert.rejects(h.actions.requestPrivate(service, route, "a:1", options));
   assert.equal(tokens, 2, "invalid route/body never requests an SDK token");
+  h.unmount();
+});
+
+test("owner consent uses only a verified fixed Hub bridge and a fresh raw credential after body checks", async () => {
+  const h = mountProvider({ fetchOwnerConfig: async () => configResponse(true, true) });
+  let tokens = 0;
+  h.emitUser({
+    uid: "a",
+    getIdToken: async () => {
+      tokens++;
+      return "RAW.JWT.fixture";
+    },
+  });
+  await settle();
+  const calls = [],
+    bridge = {
+      testVerifiedOwnerBridge: true,
+      hubOrigin: "https://agent-hub-api-123456789.northamerica-northeast2.run.app",
+      isLive: () => true,
+      async request(...args) {
+        calls.push(args);
+        return { recorded: true };
+      },
+    };
+  const key = h.actions.sessionKey,
+    before = tokens;
+  await h.actions.requestAgentConsent(
+    bridge,
+    "claim",
+    { contractVersion: "folioview.agent-workspace.v2.0" },
+    key,
+  );
+  assert.equal(tokens, before + 1);
+  assert.equal(calls[0][2], "RAW.JWT.fixture");
+  assert.equal(calls[0][0], "claim");
+  await assert.rejects(
+    h.actions.requestAgentConsent(
+      { ...bridge, testVerifiedOwnerBridge: false },
+      "claim",
+      { contractVersion: "folioview.agent-workspace.v2.0" },
+      key,
+    ),
+  );
+  await assert.rejects(
+    h.actions.requestAgentConsent(
+      bridge,
+      "decision",
+      { contractVersion: "folioview.agent-workspace.v2.0", decision: "approve", signedGrants: [] },
+      key,
+    ),
+  );
+  await assert.rejects(
+    h.actions.requestAgentConsent(
+      bridge,
+      "claim",
+      { contractVersion: "folioview.agent-workspace.v2.0", privateKey: "CANARY" },
+      key,
+    ),
+  );
+  assert.equal(tokens, before + 1);
+  assert.equal(calls.length, 1);
+  h.unmount();
+});
+test("owner consent never retrieves or sends a credential to a different configured Hub origin", async () => {
+  const h = mountProvider({
+    fetchOwnerConfig: async () => configResponse(true, true),
+    fetchLinkConfig: async () => ({
+      schemaVersion: 1,
+      enabled: true,
+      hubOrigin: "https://agent-hub-api-987654321.northamerica-northeast2.run.app",
+    }),
+  });
+  let tokens = 0,
+    calls = 0;
+  h.emitUser({
+    uid: "a",
+    getIdToken: async () => {
+      tokens++;
+      return "RAW.JWT.fixture";
+    },
+  });
+  await settle();
+  const before = tokens,
+    bridge = {
+      testVerifiedOwnerBridge: true,
+      hubOrigin: "https://agent-hub-api-123456789.northamerica-northeast2.run.app",
+      isLive: () => true,
+      request: async () => calls++,
+    };
+  await assert.rejects(
+    h.actions.requestAgentConsent(
+      bridge,
+      "claim",
+      { contractVersion: "folioview.agent-workspace.v2.0" },
+      h.actions.sessionKey,
+    ),
+  );
+  assert.equal(tokens, before);
+  assert.equal(calls, 0);
+  h.unmount();
+});
+test("a delayed owner-consent token cannot cross account changes or a closed browser port", async () => {
+  const h = mountProvider({
+    fetchOwnerConfig: async () => configResponse(true, true),
+    fetchProfile: async (_url, init) =>
+      profileResponse(init.headers.Authorization.includes("b") ? "b" : "a"),
+  });
+  const token = deferred();
+  let wait = false,
+    live = true,
+    sends = 0;
+  const a = { uid: "a", getIdToken: async () => (wait ? token.promise : "RAW.a.fixture") };
+  h.emitUser(a);
+  await settle();
+  wait = true;
+  const bridge = {
+    testVerifiedOwnerBridge: true,
+    hubOrigin: "https://agent-hub-api-123456789.northamerica-northeast2.run.app",
+    isLive: () => live,
+    request: async () => sends++,
+  };
+  const pending = h.actions.requestAgentConsent(
+    bridge,
+    "claim",
+    { contractVersion: "folioview.agent-workspace.v2.0" },
+    h.actions.sessionKey,
+  );
+  await settle();
+  h.emitUser({ uid: "b", getIdToken: async () => "RAW.b.fixture" });
+  await settle();
+  live = false;
+  token.resolve("RAW.old.fixture");
+  await assert.rejects(pending, { name: "SessionChangedError" });
+  assert.equal(sends, 0);
   h.unmount();
 });

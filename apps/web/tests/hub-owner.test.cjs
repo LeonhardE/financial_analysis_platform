@@ -679,3 +679,34 @@ test("owner rate bound is per UID and independent of Portfolio", async () => {
   );
   assert.equal(h.hub().length, 31);
 });
+
+test("connection attempt count matches the existing bounded 64-attempt producer", async () => {
+  for (const count of [33, 64]) {
+    const h = harness({
+      upstream: () =>
+        response({
+          contractVersion: CONTRACT,
+          items: [],
+          authorizationAttempts: Array.from({ length: count }, (_, index) => ({
+            requestId: `request_${index}`,
+          })),
+        }),
+    });
+    assert.equal((await h.proxy(request("/api/v2/agent-connections"))).status, 200);
+  }
+  const h = harness({
+    upstream: () =>
+      response({
+        contractVersion: CONTRACT,
+        items: [],
+        authorizationAttempts: Array.from({ length: 65 }, (_, index) => ({
+          requestId: `request_${index}`,
+        })),
+      }),
+  });
+  await error(
+    await h.proxy(request("/api/v2/agent-connections")),
+    503,
+    "authorization_unavailable",
+  );
+});

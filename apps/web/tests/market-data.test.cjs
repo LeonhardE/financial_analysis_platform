@@ -295,6 +295,7 @@ function renderDashboard({
     },
     "@/components/SettingsPanel": { default: () => null },
     "@/components/ResourcesPanel": { __esModule: true, default: () => null },
+    "@/components/AgentsPanel": { __esModule: true, default: () => null },
     "@/components/TasksPanel": { __esModule: true, default: () => null },
     "@/components/InboxPanel": { __esModule: true, default: () => null },
     "@/components/useHoldingsWorkspace": { useHoldingsWorkspace: () => ({}) },

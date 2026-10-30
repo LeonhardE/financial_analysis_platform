@@ -193,6 +193,97 @@ export type SealTaskArgs = {
   current: EncryptedTask | null;
   taskId?: string;
 };
+export type AgentAnchor = {
+  ownerSubject: string;
+  vaultId: string;
+  rootJwk: Json;
+  rootKeyId: string;
+  rootEpoch: number;
+  registrySequence: number;
+  checkpointDigest: string;
+  connectionId: string;
+  agentPrincipalId: string;
+  taskId: string;
+};
+export type HelperPublicOffer = {
+  helperVersion: "1.2.0";
+  sessionId: string;
+  generation: number;
+  anchor: AgentAnchor;
+  agentSigningPublicJwk: Json;
+  agentEncryptionPublicJwk: Json;
+  agentSigningKeyId: string;
+  agentEncryptionKeyId: string;
+  keyExportRejected: true;
+};
+export type AgentRegistration = {
+  operationId: string;
+  expectedVersion: number;
+  registryBundle: RegistryBundle;
+  offer: HelperPublicOffer;
+  offerFingerprint: string;
+  expiresAt: number;
+  replacedKeyIds: string[];
+};
+export type AgentGrantArgs = {
+  authorization: Json;
+  tasks: EncryptedTask[];
+  offer: HelperPublicOffer;
+};
+export type AgentGrantPacket = {
+  signedGrants: Signed[];
+  writebackRecipientKeyIds: string[];
+  offerFingerprint: string;
+};
+export type AgentApprovalPacket = AgentGrantPacket & {
+  operationId: string;
+  authorization: Json;
+  offer: HelperPublicOffer;
+};
+export type AgentPreparationSource =
+  | {
+      kind: "holdings";
+      ref: Source["resourceRef"];
+      sourceEpoch: number;
+      revision: number;
+      snapshot: SnapshotResponse;
+    }
+  | {
+      kind: "watchlist" | "channel_follows";
+      ref: ResourceBindingMetadata["ref"];
+      sourceEpoch: number;
+      revision: number;
+      fetchedAt: string;
+      sourceAsOf: string | null;
+      response: { revision?: number; items: Json[]; limit: number };
+    };
+export type AgentPreparationArgs = {
+  intent: Json;
+  task: EncryptedTask;
+  signedGrant: Signed;
+  sources: AgentPreparationSource[];
+};
+export type AgentPreparationPacket = {
+  preparationId: string;
+  connectionId: string;
+  taskId: string;
+  registrySequence: number;
+  checkpointDigest: string;
+  keyEpoch: number;
+  objects: {
+    objectId: string;
+    operationId: string;
+    authorKeyId: string;
+    envelope: Json;
+    envelopeFingerprint: string;
+  }[];
+  commit: {
+    operationId: string;
+    body: { contractVersion: string; objects: { objectId: string; envelopeFingerprint: string }[] };
+  };
+  deliveryPin: Json;
+};
+export type AgentPendingKind = "registration" | "approval" | "preparation";
 export class VaultError extends Error {
   constructor(public readonly code: string) {
     super(code);

@@ -140,7 +140,8 @@ original operation facts, not an implicit refresh of newer state.
 
 All `/api/v2/agent-authorizations/...` browser-flow endpoints remain excluded: the existing Hub
 protocol requires its own exact issuer Origin and `fv_oauth_flow` cookie. Web does not copy that
-cookie, forge a Hub Origin or infer user approval. Actual consent handoff remains WEB-006 work.
+cookie, forge a Hub Origin or infer user approval. The separate owner-consent handoff is described
+below.
 OAuth, MCP, agent REST, discovery/JWKS, internal and helper URLs are never exposed through this
 owner forwarder. Stripping browser-supplied identity/delegation headers does not make public Hub
 private; its application authorization must also hold for direct clients.
@@ -239,3 +240,56 @@ revalidated against the current catalogue, and requires a separate explicit star
 Unreviewed local drafts block edits and transitions until restored or explicitly discarded.
 Recovered operations cannot delete a retained draft merely because its task ID matches; only a
 reviewed current save clears its associated exact draft revision, and explicit discard uses CAS.
+
+## Muse connections and owner consent
+
+Agents is an additional bottom-sidebar view; Markets remains the default. Muse is the enabled
+provider, with ChatGPT, Gemini and Claude visibly unavailable. The view lists owner-scoped
+connection metadata, selected immutable task versions, independent API/content-grant facts and
+authorization attempts. Revoke requires a fresh review and owner check. A lost response reloads
+authoritative metadata rather than automatically sending another revocation. Revocation stops
+future platform access; it cannot remove material already retained by a third party.
+
+Consent uses two separate fixed protocols. The Hub's same-origin consent shell keeps its OAuth
+flow cookie and origin checks, then opens the existing Web origin for Google owner verification
+and Passkey use. The Web validates its known Hub origin, actual opener, one-use nonce and request
+before accepting a MessagePort; it then severs the opener reference. Only claim, encrypted
+preparation and decision are allowed. A fresh owner token travels on that private consent port
+for each operation, never through the model, helper port, URL or persistent browser storage. The
+owner BFF still excludes cookie-bound authorization endpoints. The no-store agent-link metadata
+endpoint derives its destination from the existing validated `FOLIOVIEW_HUB_ORIGIN`; no new cloud
+configuration is needed.
+
+The foreground helper has a separate public-only port with initialize, confirm-delivery, status
+and lock operations. The client pins the reviewed Worker release independently, inspects the
+public offer, shows fingerprints and requires explicit review of replacement keys. A public
+setup card and public offer support assisted use in another browser without copying private keys
+or tokens. This helper profile binds one task per connection. OAuth access and content decryption
+are reviewed separately, with explicit scopes, immutable task/source versions, recipient key
+epochs and independent delivery fingerprints. An active connection alone does not prove an
+agent received keys, decrypted data or ran a model.
+
+Registration precedes the authorization snapshot. The shared Passkey Worker signs certificates
+and content grants, authenticates source data and encrypts task/resource copies. Holdings use
+their exact producer snapshot; User watchlist/follows copies require before/after catalogue
+stability checks and remain owner-attested copies. The watchlist response has no independent
+producer revision proof, and unknown source-as-of remains unknown. Source or registry changes
+require a new review instead of silently changing an approved input.
+
+Registration, approval and preparation retries are PRF-sealed in IndexedDB and bound to the
+owner/vault/task. Registration and ciphertext retries reload the original operation and exact
+bytes, use optimistic versions and preserve the record on conflict. OAuth decision is sent once:
+if its acknowledgement is lost, recovery reconciles the original sealed approval against fresh
+connection/grant metadata and resumes delivery without resending approval. Recovery also works
+from a normal Web URL after signing in and unlocking. Prepared copies are confirmed against
+fresh committed metadata before the independent helper delivery pin is accepted; manual-helper
+recovery requires explicit confirmation that the original helper still holds those keys.
+
+Private content is masked on lock, logout, account or unlock-generation changes, navigation and
+hidden pages, and late work is fenced. An initialized paired helper receives a public status
+heartbeat while its owner workspace remains unlocked; an abandoned owner port expires at the
+helper. Closing or locking that helper ends its memory keys. Locking the library does not revoke
+an independent manual helper or agent authorization; use explicit connection revocation to stop
+future service access. No unattended schedule or remote Muse execution is claimed by this UI.
+Real browser/Google/Passkey/Muse acceptance and cloud enablement remain separate from these
+synthetic controller, cryptographic and producer/consumer protocol checks.

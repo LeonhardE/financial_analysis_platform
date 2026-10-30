@@ -23,6 +23,11 @@ import type {
   TaskContent,
   TaskDraft,
   ResourceBindingMetadata,
+  AgentAnchor,
+  HelperPublicOffer,
+  AgentRegistration,
+  AgentGrantArgs,
+  AgentPreparationArgs,
   Vault,
 } from "@/lib/encrypted-types";
 
@@ -904,6 +909,63 @@ export function useHoldingsWorkspace() {
     [taskCall],
   );
 
+  const listAgentOutbox = useCallback(
+    () => taskCall((instance) => instance.listAgentOutbox()),
+    [taskCall],
+  );
+  const publicAgentAnchor = useCallback(
+    (args: { connectionId: string; agentPrincipalId: string; taskId: string }) =>
+      taskCall((instance) => instance.publicAgentAnchor(args)),
+    [taskCall],
+  );
+  const inspectAgentOffer = useCallback(
+    (args: { offer: HelperPublicOffer }) =>
+      taskCall((instance) => instance.inspectAgentOffer(args)),
+    [taskCall],
+  );
+  const prepareAgentRegistration = useCallback(
+    (args: { offer: HelperPublicOffer; ttlSeconds: number; replaceKeyIds?: string[] }) =>
+      taskCall((instance) => instance.prepareAgentRegistration(args)),
+    [taskCall],
+  );
+  const loadAgentRegistration = useCallback(
+    (connectionId: string, taskId: string) =>
+      taskCall((instance) => instance.loadAgentRegistration(connectionId, taskId)),
+    [taskCall],
+  );
+  const clearAgentRegistration = useCallback(
+    (connectionId: string, taskId: string, operationId: string) =>
+      taskCall((instance) => instance.clearAgentRegistration(connectionId, taskId, operationId)),
+    [taskCall],
+  );
+  const loadAgentApproval = useCallback(
+    (connectionId: string, taskId: string) =>
+      taskCall((instance) => instance.loadAgentApproval(connectionId, taskId)),
+    [taskCall],
+  );
+  const clearAgentApproval = useCallback(
+    (connectionId: string, taskId: string, operationId: string) =>
+      taskCall((instance) => instance.clearAgentApproval(connectionId, taskId, operationId)),
+    [taskCall],
+  );
+  const signAgentGrants = useCallback(
+    (args: AgentGrantArgs) => taskCall((instance) => instance.signAgentGrants(args)),
+    [taskCall],
+  );
+  const sealAgentPreparation = useCallback(
+    (args: AgentPreparationArgs) => taskCall((instance) => instance.sealAgentPreparation(args)),
+    [taskCall],
+  );
+  const loadAgentPreparation = useCallback(
+    (connectionId: string, taskId: string) =>
+      taskCall((instance) => instance.loadAgentPreparation(connectionId, taskId)),
+    [taskCall],
+  );
+  const clearAgentPreparation = useCallback(
+    (connectionId: string, taskId: string, operationId: string) =>
+      taskCall((instance) => instance.clearAgentPreparation(connectionId, taskId, operationId)),
+    [taskCall],
+  );
   const visible = owner && configured && state.owner === owner ? state : { ...empty, owner };
   return {
     ...visible,
@@ -919,6 +981,18 @@ export function useHoldingsWorkspace() {
     signResultState,
     refreshVault,
     openTask,
+    listAgentOutbox,
+    publicAgentAnchor,
+    inspectAgentOffer,
+    prepareAgentRegistration,
+    loadAgentRegistration,
+    clearAgentRegistration,
+    loadAgentApproval,
+    clearAgentApproval,
+    signAgentGrants,
+    sealAgentPreparation,
+    loadAgentPreparation,
+    clearAgentPreparation,
     taskAuthority,
     sealTask,
     transitionTask,
