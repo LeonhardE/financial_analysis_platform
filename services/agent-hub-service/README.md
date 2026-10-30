@@ -46,6 +46,11 @@ The separate [vault lifecycle API](VAULT_LIFECYCLE.md) adds root-signed opaque a
 Passkey-change intent, bounded recovery approval/revocation and immutable operation receipts.
 It keeps this legacy response shape and the existing directory/source version unchanged.
 
+The [owner key renewal API](KEY_RENEWALS.md) atomically accepts root-approved successor
+device/recovery certificates and a client-encrypted archive, with original receipt recovery.
+Certificates remain immutable; renewal advances local key generations under the same pinned
+root. Web keyring retention and renewal UX are separate consumer work.
+
 Bootstrap and registry writes return `{contractVersion,vault,sources}`. An exact operation replay
 returns the current verified aggregate, never an old directory or archive replacement; these are
 not immutable historical response receipts. Source-create replay returns its stable source.

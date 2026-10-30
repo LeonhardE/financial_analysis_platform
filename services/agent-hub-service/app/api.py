@@ -29,6 +29,7 @@ from folioview_shared.service_identity import (
 )
 
 from .fences import FenceService
+from .key_renewals import VaultKeyRenewalService
 from .signing import get_signer, mint_authority_token, origin, token_configuration
 from .store import get_store
 from .vault_lifecycle import VaultLifecycleService
@@ -77,10 +78,15 @@ def get_lifecycle_service():
     return VaultLifecycleService(get_store())
 
 
+def get_key_renewal_service():
+    return VaultKeyRenewalService(get_store())
+
+
 Owner = Annotated[object, Depends(require_owner)]
 Service = Annotated[VaultService, Depends(get_service)]
 Fences = Annotated[FenceService, Depends(get_fence_service)]
 Lifecycle = Annotated[VaultLifecycleService, Depends(get_lifecycle_service)]
+KeyRenewal = Annotated[VaultKeyRenewalService, Depends(get_key_renewal_service)]
 
 
 def transport(request, *, operation=False, author=False):
@@ -222,6 +228,57 @@ async def archive_receipt(
     vault_id: str, operation_id: str, request: Request, user: Owner, service: Lifecycle
 ):
     await _lifecycle_read(request)
+    return await run_in_threadpool(
+        _invoke, lambda: service.receipt(user.uid, vault_id, operation_id)
+    )
+
+
+def _key_renewal_transport(request, *, operation=False):
+    transport(request, operation=operation)
+    if (
+        request.headers.getlist("x-folioview-author-key")
+        or request.headers.getlist("x-folioview-authority-delegation")
+        or (not operation and request.headers.getlist("idempotency-key"))
+    ):
+        raise ContractError("malformed_request")
+
+
+async def _key_renewal_read(request):
+    _invoke(lambda: _key_renewal_transport(request))
+    try:
+        async with asyncio.timeout(5):
+            async for chunk in request.stream():
+                if chunk:
+                    raise ContractError("malformed_request")
+    except (ContractError, TimeoutError):
+        raise HTTPException(400, {"code": "malformed_request"}) from None
+
+
+@owner_router.get("/{vault_id}/key-renewal-state")
+async def key_renewal_state(vault_id: str, request: Request, user: Owner, service: KeyRenewal):
+    await _key_renewal_read(request)
+    return await run_in_threadpool(_invoke, lambda: service.state(user.uid, vault_id))
+
+
+@owner_router.post("/{vault_id}/key-renewals", status_code=201)
+async def renew_owner_keys(vault_id: str, request: Request, user: Owner, service: KeyRenewal):
+    _invoke(lambda: _key_renewal_transport(request, operation=True))
+    value = await body(
+        request,
+        {"contractVersion", "registryBundle", "archive", "command", "archiveCommand"},
+        max_bytes=MAX_HTTP_WRITE_BYTES,
+    )
+    return await run_in_threadpool(
+        _invoke,
+        lambda: service.renew(user.uid, vault_id, value, request.headers["idempotency-key"]),
+    )
+
+
+@owner_router.get("/{vault_id}/key-renewal-operations/{operation_id}")
+async def key_renewal_receipt(
+    vault_id: str, operation_id: str, request: Request, user: Owner, service: KeyRenewal
+):
+    await _key_renewal_read(request)
     return await run_in_threadpool(
         _invoke, lambda: service.receipt(user.uid, vault_id, operation_id)
     )
