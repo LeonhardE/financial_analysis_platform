@@ -15,6 +15,15 @@ import {
   type ResultMetadata,
   type ResultStateChanges,
   type ResultStatePacket,
+  type TaskContent,
+  type TaskDraft,
+  type TaskDraftSummary,
+  type TaskDraftRecord,
+  type TaskAction,
+  type EncryptedTask,
+  type PendingTask,
+  type SealTaskArgs,
+  type TaskOutboxSummary,
 } from "./encrypted-types";
 export type {
   Vault,
@@ -30,6 +39,17 @@ export type {
   OpenResultArgs,
   ResultStateChanges,
   ResultStatePacket,
+  TaskContent,
+  TaskDraft,
+  TaskDraftSummary,
+  TaskDraftRecord,
+  TaskAction,
+  EncryptedTask,
+  TaskMetadata,
+  PendingTask,
+  SealTaskArgs,
+  ResourceBindingMetadata,
+  TaskOutboxSummary,
 } from "./encrypted-types";
 export { VaultError };
 type Bootstrap = {
@@ -246,6 +266,267 @@ export class EncryptedVaultSession {
     sourceId: string,
   ): Promise<{ operationId: string; command: Json; authorKeyId: string }> {
     return this.rpc("signSource", { sourceId });
+  }
+  async openTask(task: EncryptedTask): Promise<TaskContent> {
+    const g = this.generation,
+      result = await this.rpc("openTask", { task });
+    this.assert(g);
+    return result;
+  }
+  async taskAuthority(current?: EncryptedTask | null): Promise<{
+    keyEpoch: number;
+    registrySequence: number;
+    checkpointDigest: string;
+    recipientKeyIds: string[];
+    previousRecipientKeyIds?: string[];
+  }> {
+    const g = this.generation,
+      result = await this.rpc("taskAuthority", { current });
+    this.assert(g);
+    return result;
+  }
+  private taskKey(kind: "draft" | "outbox", slot: string) {
+    if (!this.vaultId || !/^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/.test(slot))
+      throw new VaultError("invalid_data");
+    return this.owner + ":task-" + kind + ":" + this.vaultId + ":" + slot;
+  }
+  private checkTaskRow(row: any, slot: string, kind: "draft" | "outbox") {
+    if (
+      row &&
+      (row.ownerSubject !== this.owner ||
+        row.vaultId !== this.vaultId ||
+        row.slot !== slot ||
+        row.kind !== kind ||
+        !Number.isSafeInteger(row.revision) ||
+        row.revision < 1)
+    )
+      throw new VaultError("wrong_account");
+  }
+  private serial<T>(action: () => Promise<T>): Promise<T> {
+    const job = this.saving.then(action);
+    this.saving = job.then(
+      () => undefined,
+      () => undefined,
+    );
+    return job;
+  }
+  private async prepareTaskOperation(
+    method: "sealTask" | "transitionTask",
+    args: SealTaskArgs | { current: EncryptedTask; action: TaskAction },
+  ): Promise<PendingTask> {
+    return this.serial(async () => {
+      const g = this.generation;
+      await this.started;
+      const taskId =
+        args.current?.metadata.taskId ??
+        ("taskId" in args ? args.taskId : undefined) ??
+        "task_" + crypto.randomUUID().replace(/-/g, "");
+      const key = this.taskKey("outbox", taskId),
+        row = await this.storage.get(key);
+      this.assert(g);
+      this.checkTaskRow(row, taskId, "outbox");
+      if (row && !row.deleted) throw new VaultError("pending_upload");
+      const value = await this.rpc(method, method === "sealTask" ? { ...args, taskId } : args);
+      this.assert(g);
+      if (
+        !(await this.storage.compareTaskRecord(
+          key,
+          {
+            ownerSubject: this.owner,
+            vaultId: this.vaultId,
+            slot: taskId,
+            kind: "outbox",
+            revision: (row?.revision ?? 0) + 1,
+            pending: value,
+          },
+          row?.revision ?? 0,
+        ))
+      )
+        throw new VaultError("pending_upload");
+      this.assert(g);
+      return value;
+    });
+  }
+  sealTask(args: SealTaskArgs): Promise<PendingTask> {
+    return this.prepareTaskOperation("sealTask", args);
+  }
+  transitionTask(args: { current: EncryptedTask; action: TaskAction }): Promise<PendingTask> {
+    return this.prepareTaskOperation("transitionTask", args);
+  }
+  async validateTaskPending(pending: PendingTask): Promise<PendingTask> {
+    const g = this.generation,
+      result = await this.rpc("validateTaskPending", { pending });
+    this.assert(g);
+    return result;
+  }
+  async loadTaskOutbox(taskId: string): Promise<PendingTask | null> {
+    const g = this.generation;
+    await this.started;
+    const row = await this.storage.get(this.taskKey("outbox", taskId));
+    this.assert(g);
+    this.checkTaskRow(row, taskId, "outbox");
+    if (!row || row.deleted) return null;
+    if (row.pending?.taskId !== taskId) throw new VaultError("binding_mismatch");
+    return this.validateTaskPending(row.pending);
+  }
+  async listTaskOutbox(): Promise<TaskOutboxSummary[]> {
+    const g = this.generation;
+    await this.started;
+    const prefix = this.taskKey("outbox", "prefix").slice(0, -6),
+      rows = await this.storage.list(prefix);
+    this.assert(g);
+    return rows
+      .filter(({ value }) => !value.deleted)
+      .map(({ key, value }) => {
+        const taskId = key.slice(prefix.length);
+        this.checkTaskRow(value, taskId, "outbox");
+        if (value.pending?.taskId !== taskId) throw new VaultError("binding_mismatch");
+        const p = value.pending;
+        return {
+          taskId,
+          operationId: p.operationId,
+          mode: p.mode,
+          keyEpoch: p.keyEpoch,
+          expectedVersion: p.body.expectedVersion,
+        };
+      });
+  }
+  async clearTaskOutbox(taskId: string, operationId: string): Promise<void> {
+    return this.serial(async () => {
+      const g = this.generation;
+      await this.started;
+      const key = this.taskKey("outbox", taskId),
+        row = await this.storage.get(key);
+      this.assert(g);
+      this.checkTaskRow(row, taskId, "outbox");
+      if (!row || row.deleted) return;
+      if (
+        row.pending?.operationId !== operationId ||
+        !(await this.storage.compareTaskRecord(
+          key,
+          {
+            ownerSubject: this.owner,
+            vaultId: this.vaultId,
+            slot: taskId,
+            kind: "outbox",
+            revision: row.revision + 1,
+            deleted: true,
+          },
+          row.revision,
+        ))
+      )
+        throw new VaultError("operation_conflict");
+      this.assert(g);
+    });
+  }
+  async saveTaskDraft(args: {
+    slot: string;
+    expectedRevision: number;
+    baseVersion: number;
+    taskId: string;
+    draft: TaskDraft;
+  }): Promise<TaskDraftSummary> {
+    return this.serial(async () => {
+      const g = this.generation;
+      await this.started;
+      const key = this.taskKey("draft", args.slot),
+        row = await this.storage.get(key);
+      this.assert(g);
+      this.checkTaskRow(row, args.slot, "draft");
+      const currentRevision = row?.revision ?? 0;
+      if (
+        args.expectedRevision !== currentRevision &&
+        !(args.expectedRevision === 0 && row?.deleted)
+      )
+        throw new VaultError("draft_conflict");
+      const summary = {
+        slot: args.slot,
+        revision: currentRevision + 1,
+        baseVersion: args.baseVersion,
+        taskId: args.taskId,
+      };
+      const sealed = await this.rpc("sealDraft", { ...summary, draft: args.draft });
+      this.assert(g);
+      if (
+        !(await this.storage.compareTaskRecord(
+          key,
+          {
+            ownerSubject: this.owner,
+            vaultId: this.vaultId,
+            slot: args.slot,
+            kind: "draft",
+            revision: summary.revision,
+            sealed,
+          },
+          currentRevision,
+        ))
+      )
+        throw new VaultError("draft_conflict");
+      this.assert(g);
+      return summary;
+    });
+  }
+  async loadTaskDraft(slot: string): Promise<TaskDraftRecord | null> {
+    const g = this.generation;
+    await this.started;
+    const row = await this.storage.get(this.taskKey("draft", slot));
+    this.assert(g);
+    this.checkTaskRow(row, slot, "draft");
+    if (!row || row.deleted) return null;
+    if (row.sealed?.slot !== slot || row.sealed.revision !== row.revision)
+      throw new VaultError("binding_mismatch");
+    const result = await this.rpc("openDraft", { record: row.sealed });
+    this.assert(g);
+    return result;
+  }
+  async listTaskDrafts(): Promise<TaskDraftSummary[]> {
+    const g = this.generation;
+    await this.started;
+    const prefix = this.taskKey("draft", "prefix").slice(0, -6),
+      rows = await this.storage.list(prefix);
+    this.assert(g);
+    return rows
+      .filter(({ value }) => !value.deleted)
+      .map(({ key, value }) => {
+        const slot = key.slice(prefix.length);
+        this.checkTaskRow(value, slot, "draft");
+        if (value.sealed?.slot !== slot || value.sealed.revision !== value.revision)
+          throw new VaultError("binding_mismatch");
+        return {
+          slot,
+          revision: value.revision,
+          baseVersion: value.sealed.baseVersion,
+          taskId: value.sealed.taskId,
+        };
+      });
+  }
+  async clearTaskDraft(slot: string, expectedRevision: number): Promise<void> {
+    return this.serial(async () => {
+      const g = this.generation;
+      await this.started;
+      const key = this.taskKey("draft", slot),
+        row = await this.storage.get(key);
+      this.assert(g);
+      this.checkTaskRow(row, slot, "draft");
+      if (!row || row.deleted) return;
+      if (
+        row.revision !== expectedRevision ||
+        !(await this.storage.compareTaskRecord(
+          key,
+          {
+            ownerSubject: this.owner,
+            vaultId: this.vaultId,
+            slot,
+            kind: "draft",
+            revision: row.revision + 1,
+            deleted: true,
+          },
+          row.revision,
+        ))
+      )
+        throw new VaultError("draft_conflict");
+      this.assert(g);
+    });
   }
   async sealSnapshot(args: {
     content: Json;

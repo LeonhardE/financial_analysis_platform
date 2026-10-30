@@ -188,7 +188,7 @@ input versions stay attached to the selected historical report, without claiming
 considered or the platform verified the analysis. Existing published-client trust limitations apply.
 
 No cloud setting, IAM grant, database or resource is enabled by this UI change. The remaining
-connection consent/controller, task editor and production acceptance work keep their own scope.
+connection consent/controller and production acceptance work keep their own scope.
 
 ## Validation
 
@@ -199,3 +199,43 @@ owner/session races, exact replay/receipt recovery, and React text escaping. The
 interoperability case runs when the repository Python environment is available and otherwise
 explicitly skips; pure browser-crypto tests remain mandatory. Physical Passkey providers and real
 Google login are separate device acceptance, not claimed by synthetic mocks.
+
+## Private task editor
+
+Tasks is an additional bottom-sidebar view; Markets remains the default. It uses the same owner
+workspace and Passkey Worker as Resources and Inbox, with Hub-only capability support. Brief and
+custom templates edit private goals, output sections, language and delivery expectations on the
+device. The existing unified catalogue supplies holdings, watchlist and YouTube references; a
+watchlist task needs no broker connection. A selected source is discovery metadata, not evidence
+that agent-encrypted inputs are already prepared or access has been granted.
+
+Drafts, including incomplete rules, are PRF-sealed in IndexedDB with owner, vault, task and base
+version binding and atomic cross-tab revision checks. The server receives only the existing signed
+envelope, opaque bindings and approved metadata. Local preview checks resource requirements and
+rule semantics before explicit save. Source scope, key epoch and recipient changes receive
+separate confirmation from ordinary edits. New writes use the current registered device and
+exact owner device/recovery recipients; saving never silently expands an agent grant.
+
+Task versions are immutable. Explicit pause/resume/archive produces a newly signed encrypted
+version and transition intent. Historical views verify the selected chain and writer at the
+original time; a historical read does not enable current writes. On conflict the encrypted draft
+remains, and the user can explicitly rebase it against a verified current head. A lost response
+retains the original signed ciphertext operation durably; recovery resends that exact packet.
+Stale keys refuse replay. A verified original acknowledgement is followed by a verified current
+head before success is displayed; later failed refresh retains the retry packet and draft.
+
+Lock, logout, hidden pages and owner/generation changes mask private editor state and invalidate
+late work. No task plaintext, private key, PRF output or bearer token is written to URLs, localStorage
+or logs. The published-client trust limits described above still apply: an operator able to
+replace the client could change the code delivered to a user.
+
+Expected delivery is a local time-zone-aware hint, not a provider schedule or evidence of a missed
+run. Saving does not configure Muse, run a model or expose private rules through Config. Handoff
+only copies an opaque task ID on explicit action; actual connection consent remains separate.
+No cloud configuration, database migration or new resources are part of this change.
+
+Resource cards can hand an opaque source reference and epoch to Tasks. The request is owner-scoped,
+revalidated against the current catalogue, and requires a separate explicit start after unlock.
+Unreviewed local drafts block edits and transitions until restored or explicitly discarded.
+Recovered operations cannot delete a retained draft merely because its task ID matches; only a
+reviewed current save clears its associated exact draft revision, and explicit discard uses CAS.

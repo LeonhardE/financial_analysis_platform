@@ -8,6 +8,8 @@ export interface EncryptedStorage {
   removeOperation(key: string, operationId: string): Promise<boolean>;
   stageDevice(key: string, record: any, expected: any): Promise<boolean>;
   commitVault(owner: string, record: any): Promise<void>;
+  list(prefix: string): Promise<{ key: string; value: any }[]>;
+  compareTaskRecord(key: string, value: any, expectedRevision: number): Promise<boolean>;
 }
 const same = (a: any, b: any) => JSON.stringify(a) === JSON.stringify(b);
 export function assertPinAdvance(current: any, record: any) {
@@ -101,6 +103,46 @@ export class BrowserEncryptedStorage implements EncryptedStorage {
     await this.atomic<void>((s, done) => {
       s.put(value, key);
       done();
+    });
+  }
+  async list(prefix: string) {
+    const db = await this.open();
+    return new Promise<{ key: string; value: any }[]>((resolve, reject) => {
+      const tx = db.transaction("records", "readonly"),
+        rows: { key: string; value: any }[] = [];
+      const req = tx
+        .objectStore("records")
+        .openCursor(IDBKeyRange.bound(prefix, prefix + "\uffff"));
+      req.onsuccess = () => {
+        const cursor = req.result;
+        if (cursor) {
+          rows.push({ key: String(cursor.key), value: cursor.value });
+          cursor.continue();
+        }
+      };
+      tx.oncomplete = () => resolve(rows);
+      tx.onabort = tx.onerror = () => reject(new VaultError("storage_unavailable"));
+    });
+  }
+  compareTaskRecord(key: string, value: any, expectedRevision: number) {
+    return this.atomic<boolean>((s, done, fail) => {
+      if (
+        !Number.isSafeInteger(expectedRevision) ||
+        expectedRevision < 0 ||
+        value?.revision !== expectedRevision + 1
+      ) {
+        fail(new VaultError("operation_conflict"));
+        return;
+      }
+      const req = s.get(key);
+      req.onsuccess = () => {
+        if ((req.result?.revision ?? 0) !== expectedRevision) {
+          done(false);
+          return;
+        }
+        s.put(value, key);
+        done(true);
+      };
     });
   }
   async remove(key: string) {

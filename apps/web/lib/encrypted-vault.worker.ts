@@ -46,6 +46,27 @@ scope.onmessage = (event) => {
           case "signSource":
             result = await core.signSource(args.sourceId);
             break;
+          case "openTask":
+            result = await core.openTask(args.task);
+            break;
+          case "taskAuthority":
+            result = await core.taskAuthority(args.current);
+            break;
+          case "sealTask":
+            result = await core.sealTask(args);
+            break;
+          case "transitionTask":
+            result = await core.transitionTask(args);
+            break;
+          case "validateTaskPending":
+            result = await core.validateTaskPending(args.pending);
+            break;
+          case "sealDraft":
+            result = await core.sealDraft(args);
+            break;
+          case "openDraft":
+            result = await core.openDraft(args.record);
+            break;
           case "sealSnapshot":
             result = await core.sealSnapshot(args);
             break;

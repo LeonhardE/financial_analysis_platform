@@ -106,6 +106,93 @@ export type OpenResultArgs = {
 };
 export type ResultStateChanges = Partial<Pick<ResultMetadata, "read" | "starred" | "archived">>;
 export type ResultStatePacket = { operationId: string; authorKeyId: string; command: Signed };
+export type ResourceBindingMetadata = {
+  ref: {
+    kind: "holdings" | "watchlist" | "channel_follows";
+    sourceService: "portfolio" | "user";
+    resourceId: string;
+    incarnation: string;
+  };
+  sourceEpoch: number;
+};
+export type TaskContent = {
+  name: string;
+  template: "brief" | "custom";
+  goal: string;
+  inputPolicy: { allowPartial: boolean; allowUnknownAsOf: boolean; maxFetchedAgeSeconds: number };
+  outputSpec: {
+    label: string;
+    sections: { sectionId: string; title: string; instructions: string }[];
+    language: "zh" | "en";
+    verbosity: "concise" | "standard";
+  };
+  deliveryExpectation: null | {
+    cadence: "daily" | "weekdays" | "weekly";
+    localTime: string;
+    timeZone: string;
+    graceMinutes: number;
+    weekday?: number;
+  };
+};
+export type TaskMetadata = {
+  contractVersion: string;
+  vaultId: string;
+  taskId: string;
+  taskVersion: number;
+  executionEpoch: number;
+  status: "active" | "paused" | "archived";
+  resourceBindings: ResourceBindingMetadata[];
+  objectRevision: number;
+  deliveryRevision: number;
+  envelopeFingerprint: string;
+  keyEpoch: number;
+  createdAt: string;
+  updatedAt: string;
+};
+export type EncryptedTask = {
+  contractVersion: string;
+  metadata: TaskMetadata;
+  signedObject: Signed;
+  keyProofs: { checkpoint: Signed; certificates: Signed[] };
+};
+export type TaskAction = "pause" | "resume" | "archive";
+export type PendingTask = {
+  taskId: string;
+  operationId: string;
+  authorKeyId: string;
+  mode: "create" | "update" | "transition";
+  body: {
+    contractVersion: string;
+    expectedVersion: number;
+    resourceBindings: ResourceBindingMetadata[];
+    envelope: { contractVersion: string; signedObject: Signed };
+    taskId?: string;
+    transitionIntent?: Signed;
+  };
+  envelopeFingerprint: string;
+  keyEpoch: number;
+  registrySequence: number;
+  checkpointDigest: string;
+};
+/** Incomplete forms use the same closed fields; blank strings and -1 integers are permitted locally. */
+export type TaskDraft = { content: TaskContent; resourceBindings: ResourceBindingMetadata[] };
+export type TaskDraftSummary = {
+  slot: string;
+  revision: number;
+  baseVersion: number;
+  taskId: string;
+};
+export type TaskDraftRecord = TaskDraftSummary & { draft: TaskDraft };
+export type TaskOutboxSummary = Pick<
+  PendingTask,
+  "taskId" | "operationId" | "mode" | "keyEpoch"
+> & { expectedVersion: number };
+export type SealTaskArgs = {
+  content: TaskContent;
+  resourceBindings: ResourceBindingMetadata[];
+  current: EncryptedTask | null;
+  taskId?: string;
+};
 export class VaultError extends Error {
   constructor(public readonly code: string) {
     super(code);

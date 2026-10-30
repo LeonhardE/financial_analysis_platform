@@ -27,6 +27,15 @@ import {
   type ResultMetadata,
   type ResultStateChanges,
   type ResultStatePacket,
+  type TaskContent,
+  type TaskDraft,
+  type TaskDraftSummary,
+  type TaskDraftRecord,
+  type TaskAction,
+  type EncryptedTask,
+  type PendingTask,
+  type SealTaskArgs,
+  type ResourceBindingMetadata,
 } from "./encrypted-types";
 export { CONTRACT };
 const utf8 = new TextEncoder();
@@ -605,6 +614,86 @@ function checkedResultContent(value: unknown): ResultContent {
     if (citation.publishedAt !== null) utcSeconds(citation.publishedAt);
   }
   return content;
+}
+function taskBindings(value: ResourceBindingMetadata[]) {
+  if (!Array.isArray(value) || value.length > 10) throw new VaultError("invalid_data");
+  const refs = new Set<string>();
+  for (const item of value) {
+    validate("ResourceBindingMetadata", item);
+    if (
+      item.ref.sourceService !== (item.ref.kind === "holdings" ? "portfolio" : "user") ||
+      refs.has(canonical(item.ref))
+    )
+      throw new VaultError("invalid_data");
+    refs.add(canonical(item.ref));
+  }
+  return value;
+}
+function checkedTaskContent(value: TaskContent, resources: ResourceBindingMetadata[]) {
+  validate("TaskContent", value);
+  taskBindings(resources);
+  if (
+    (value.template === "brief" && !resources.length) ||
+    new Set(value.outputSpec.sections.map((s) => s.sectionId)).size !==
+      value.outputSpec.sections.length
+  )
+    throw new VaultError("invalid_data");
+  return value;
+}
+function checkedTaskDraft(value: TaskDraft) {
+  exact(value, ["content", "resourceBindings"]);
+  taskBindings(value.resourceBindings);
+  const c = value.content;
+  exact(c, ["name", "template", "goal", "inputPolicy", "outputSpec", "deliveryExpectation"]);
+  const string = (v: unknown, max: number) => {
+    if (typeof v !== "string" || v.length > max) throw new VaultError("invalid_data");
+  };
+  const integer = (v: unknown, max: number) => {
+    if (!Number.isSafeInteger(v) || (v as number) < -1 || (v as number) > max)
+      throw new VaultError("invalid_data");
+  };
+  string(c.name, 80);
+  string(c.goal, 2000);
+  if (!["brief", "custom"].includes(c.template)) throw new VaultError("invalid_data");
+  exact(c.inputPolicy, ["allowPartial", "allowUnknownAsOf", "maxFetchedAgeSeconds"]);
+  if (
+    typeof c.inputPolicy.allowPartial !== "boolean" ||
+    typeof c.inputPolicy.allowUnknownAsOf !== "boolean"
+  )
+    throw new VaultError("invalid_data");
+  integer(c.inputPolicy.maxFetchedAgeSeconds, 604800);
+  exact(c.outputSpec, ["label", "sections", "language", "verbosity"]);
+  string(c.outputSpec.label, 40);
+  if (
+    !["zh", "en"].includes(c.outputSpec.language) ||
+    !["concise", "standard"].includes(c.outputSpec.verbosity) ||
+    !Array.isArray(c.outputSpec.sections) ||
+    c.outputSpec.sections.length > 8
+  )
+    throw new VaultError("invalid_data");
+  for (const section of c.outputSpec.sections) {
+    exact(section, ["sectionId", "title", "instructions"]);
+    string(section.sectionId, 128);
+    string(section.title, 120);
+    string(section.instructions, 1000);
+  }
+  if (c.deliveryExpectation !== null) {
+    const e = c.deliveryExpectation;
+    exact(e, [
+      "cadence",
+      "localTime",
+      "timeZone",
+      "graceMinutes",
+      ...(e.weekday === undefined ? [] : ["weekday"]),
+    ]);
+    if (!["daily", "weekdays", "weekly"].includes(e.cadence)) throw new VaultError("invalid_data");
+    string(e.localTime, 5);
+    string(e.timeZone, 80);
+    integer(e.graceMinutes, 1440);
+    if (e.weekday !== undefined) integer(e.weekday, 6);
+  }
+  bounded(value, 65536);
+  return value;
 }
 export class VaultCore {
   readonly owner: Promise<string>;
@@ -1626,6 +1715,522 @@ export class VaultCore {
     } finally {
       plaintext?.fill(0);
     }
+  }
+  private taskBinding(taskId: string, taskVersion: number) {
+    return {
+      taskId,
+      taskVersion,
+      runId: null,
+      manifestId: null,
+      taskEnvelopeFingerprint: null,
+      manifestFingerprint: null,
+      connectionId: null,
+      grantId: null,
+      grantEpoch: null,
+      executionEpoch: null,
+      resourceRef: null,
+      sourceRevision: null,
+      sourceEpoch: null,
+    };
+  }
+  private taskSelection(registry: Registry, now: number) {
+    const eligible: Json[] = [];
+    for (const id of [...registry.active].sort()) {
+      try {
+        const c = cert(registry, id, undefined, now);
+        if (c.connectionId === null) eligible.push(c);
+      } catch (error) {
+        if (!(error instanceof VaultError) || error.code !== "key_revoked") throw error;
+      }
+    }
+    const writers = eligible.filter(
+      (c) => c.role === "device_sig" && c.capabilities.includes("object_write"),
+    );
+    const recipients = eligible.filter((c) => ["device_enc", "recovery_enc"].includes(c.role));
+    if (
+      writers.length < 1 ||
+      writers.length > 8 ||
+      recipients.length < 2 ||
+      recipients.length > 8 ||
+      !recipients.some((c) => c.role === "device_enc") ||
+      !recipients.some((c) => c.role === "recovery_enc")
+    )
+      throw new VaultError("invalid_registry");
+    return { writers, recipients };
+  }
+  private taskRecipient(c: Json) {
+    return {
+      keyId: c.keyId,
+      role: c.role,
+      principalId: c.principalId,
+      connectionId: c.connectionId,
+      keyEpoch: c.keyEpoch,
+    };
+  }
+  private taskJwe(message: Json, recipients: Json[]) {
+    const jwe = message.jwe;
+    exact(jwe, ["protected", "recipients", "iv", "ciphertext", "tag", "aad"]);
+    resultRequire(
+      equal(parsed(unb64(jwe.protected, 1024), false), JWE_HEADER) &&
+        jwe.aad === b64(utf8.encode(canonical(message.context))) &&
+        Array.isArray(jwe.recipients) &&
+        jwe.recipients.length === recipients.length &&
+        unb64(jwe.iv, 12).length === 12 &&
+        unb64(jwe.tag, 16).length === 16,
+    );
+    for (let i = 0; i < recipients.length; i++) {
+      const item = jwe.recipients[i];
+      exact(item, ["header", "encrypted_key"]);
+      exact(item.header, ["kid", "epk"]);
+      resultRequire(
+        item.header.kid === recipients[i].keyId && unb64(item.encrypted_key, 40).length === 40,
+      );
+      validate("PublicJWK", item.header.epk);
+    }
+    return jwe;
+  }
+  async taskAuthority(current?: EncryptedTask | null) {
+    const { registry, device } = this.ready();
+    const { writers, recipients } = this.taskSelection(registry, this.now());
+    resultRequire(writers.some((c) => c.keyId === device.sigId));
+    let previousRecipientKeyIds: string[] | undefined;
+    if (current) {
+      await this.openTask(current);
+      previousRecipientKeyIds = parsed(
+        unb64(current.signedObject.payload, 524288),
+      ).context.recipients.map((r: Json) => r.keyId);
+    }
+    return {
+      keyEpoch: registry.checkpoint.keyEpoch,
+      registrySequence: registry.checkpoint.registrySequence,
+      checkpointDigest: registry.digest,
+      recipientKeyIds: recipients.map((c) => c.keyId),
+      ...(previousRecipientKeyIds ? { previousRecipientKeyIds } : {}),
+    };
+  }
+  async openTask(task: EncryptedTask): Promise<TaskContent> {
+    if (!this.pin || !this.vault || !this.recovery || !this.recoveryJwk)
+      throw new VaultError("locked");
+    bounded(task, 1048576);
+    validate("EncryptedTask", task);
+    const vault = this.vault,
+      owner = await this.owner,
+      m = task.metadata;
+    const written = Math.floor(utcSeconds(m.updatedAt));
+    resultRequire(
+      written >= 0 &&
+        written <= this.now() &&
+        utcSeconds(m.createdAt) >= 0 &&
+        Math.floor(utcSeconds(m.createdAt)) <= written &&
+        m.vaultId === vault.vaultId &&
+        m.taskVersion === m.objectRevision &&
+        m.deliveryRevision === 1 &&
+        task.contractVersion === CONTRACT,
+    );
+    const matching = vault.registryHistory
+      .map((b, i) => ({ b, i }))
+      .filter(({ b }) =>
+        equal(task.keyProofs, {
+          checkpoint: b.checkpoint,
+          certificates: b.entries.map((v) => v.certificate),
+        }),
+      );
+    resultRequire(matching.length === 1);
+    let registry: Registry | undefined;
+    for (let i = 0; i <= matching[0].i; i++) {
+      registry = await verifyRegistry(
+        vault.registryHistory[i],
+        vault.rootJwk,
+        owner,
+        vault.vaultId,
+        registry,
+        written,
+      );
+      resultRequire(registry.checkpoint.registrySequence === i + 1);
+    }
+    const historical = registry!,
+      { writers, recipients } = this.taskSelection(historical, written);
+    const raw = parsed(unb64(task.signedObject.payload, 524288));
+    validate("ObjectMessage", raw);
+    const author = cert(historical, raw.context.authorSigningKeyId, "device_sig", written);
+    resultRequire(writers.some((w) => w.keyId === author.keyId));
+    const message = await verified(task.signedObject, author.publicJwk, "fv-object+jws");
+    validate("ObjectMessage", message);
+    const c = message.context;
+    validate("Context", c);
+    resultRequire(
+      c.contractVersion === CONTRACT &&
+        c.profileId === "P1" &&
+        c.ownerSubject === owner &&
+        c.vaultId === vault.vaultId &&
+        c.rootKeyId === this.pin.rootKeyId &&
+        c.rootEpoch === 1 &&
+        c.registrySequence === historical.checkpoint.registrySequence &&
+        c.checkpointDigest === historical.digest &&
+        c.keyEpoch === historical.checkpoint.keyEpoch &&
+        c.keyEpoch === m.keyEpoch &&
+        c.objectType === "task" &&
+        c.objectId === m.taskId &&
+        c.revision === m.taskVersion &&
+        c.expectedRevision === m.taskVersion - 1 &&
+        c.deliveryRevision === 1 &&
+        c.priorEnvelopeFingerprint === null &&
+        c.authorSigningKeyId === author.keyId &&
+        (m.taskVersion === 1
+          ? c.operationType === "create_task"
+          : ["update_task", "transition_task"].includes(c.operationType)) &&
+        equal(c.binding, this.taskBinding(m.taskId, m.taskVersion)) &&
+        equal(c.resourceBindings, taskBindings(m.resourceBindings)) &&
+        equal(
+          c.recipients,
+          recipients.map((r) => this.taskRecipient(r)),
+        ) &&
+        (await signingFingerprint(task.signedObject)) === m.envelopeFingerprint,
+    );
+    const jwe = this.taskJwe(message, recipients),
+      recoveryId = await thumb(this.recoveryJwk);
+    const selected =
+      this.device && recipients.some((r) => r.keyId === this.device!.encId)
+        ? this.device.enc
+        : recipients.some((r) => r.keyId === recoveryId)
+          ? this.recovery
+          : undefined;
+    if (!selected) throw new VaultError("missing_key");
+    let plaintext: Uint8Array | undefined;
+    try {
+      const opened = await generalDecrypt(jwe, selected, {
+        keyManagementAlgorithms: ["ECDH-ES+A256KW"],
+        contentEncryptionAlgorithms: ["A256GCM"],
+      });
+      plaintext = opened.plaintext;
+      resultRequire(
+        equal(
+          Array.from(opened.additionalAuthenticatedData ?? []),
+          Array.from(utf8.encode(canonical(c))),
+        ),
+      );
+      const payload = parsed(plaintext);
+      bounded(payload, 65536);
+      validate("PrivatePayload", payload);
+      resultRequire(
+        payload.objectId === c.objectId &&
+          payload.objectType === "task" &&
+          payload.revision === c.revision &&
+          equal(payload.binding, c.binding),
+      );
+      return checkedTaskContent(payload.payload, m.resourceBindings);
+    } catch (error) {
+      if (error instanceof VaultError) throw error;
+      throw new VaultError("decryption_failed");
+    } finally {
+      plaintext?.fill(0);
+    }
+  }
+  private async prepareTask(args: SealTaskArgs, action?: TaskAction): Promise<PendingTask> {
+    const { registry, device, vault } = this.ready(),
+      { writers, recipients } = this.taskSelection(registry, this.now());
+    const author = cert(registry, device.sigId, "device_sig", this.now());
+    resultRequire(
+      writers.some((w) => w.keyId === device.sigId) &&
+        (!action || author.capabilities.includes("control_write")),
+    );
+    if (args.current) {
+      await this.openTask(args.current);
+      if (args.current.metadata.status === "archived") throw new VaultError("version_conflict");
+    }
+    const resources = taskBindings(args.resourceBindings),
+      content = checkedTaskContent(args.content, resources);
+    const taskId = args.current?.metadata.taskId ?? args.taskId ?? randomId("task_");
+    validate("Identifier", taskId);
+    if (args.taskId !== undefined && args.taskId !== taskId)
+      throw new VaultError("binding_mismatch");
+    const previous = args.current?.metadata,
+      expectedVersion = previous?.taskVersion ?? 0,
+      version = expectedVersion + 1;
+    const allowed: Record<string, TaskAction[]> = {
+      active: ["pause", "archive"],
+      paused: ["resume", "archive"],
+      archived: [],
+    };
+    if (
+      action &&
+      (!previous ||
+        !allowed[previous.status].includes(action) ||
+        !equal(resources, previous.resourceBindings))
+    )
+      throw new VaultError("version_conflict");
+    const operationId = randomId(),
+      mode = action ? "transition" : previous ? "update" : "create";
+    const context = {
+      contractVersion: CONTRACT,
+      profileId: "P1",
+      ownerSubject: await this.owner,
+      vaultId: vault.vaultId,
+      rootKeyId: vault.rootKeyId,
+      rootEpoch: registry.checkpoint.rootEpoch,
+      registrySequence: registry.checkpoint.registrySequence,
+      checkpointDigest: registry.digest,
+      keyEpoch: registry.checkpoint.keyEpoch,
+      objectId: taskId,
+      objectType: "task",
+      revision: version,
+      deliveryRevision: 1,
+      priorEnvelopeFingerprint: null,
+      expectedRevision: expectedVersion,
+      stableOperationId: operationId,
+      operationType: action ? "transition_task" : previous ? "update_task" : "create_task",
+      authorSigningKeyId: device.sigId,
+      binding: this.taskBinding(taskId, version),
+      resourceBindings: resources,
+      recipients: recipients.map((r) => this.taskRecipient(r)),
+    };
+    validate("Context", context);
+    bounded(context, 16384);
+    const payload = {
+      privateSchemaVersion: 2,
+      objectId: taskId,
+      objectType: "task",
+      revision: version,
+      binding: context.binding,
+      payload: content,
+    };
+    validate("PrivatePayload", payload);
+    bounded(payload, 65536);
+    const encryptor = new GeneralEncrypt(utf8.encode(canonical(payload)))
+      .setProtectedHeader(JWE_HEADER)
+      .setAdditionalAuthenticatedData(utf8.encode(canonical(context)));
+    for (const r of recipients)
+      encryptor.addRecipient(await key(r.publicJwk)).setUnprotectedHeader({ kid: r.keyId });
+    const envelope = {
+      contractVersion: CONTRACT,
+      signedObject: await sign(
+        { context, jwe: await encryptor.encrypt() },
+        device.sig,
+        device.sigId,
+        "fv-object+jws",
+      ),
+    };
+    validate("Carrier", envelope);
+    bounded(envelope, 524288);
+    const fingerprint = await signingFingerprint(envelope.signedObject);
+    let transitionIntent: Signed | undefined;
+    if (action && previous) {
+      const intent = {
+        artifactType: "task_transition_intent",
+        contractVersion: CONTRACT,
+        vaultId: vault.vaultId,
+        ownerSubject: await this.owner,
+        stableOperationId: operationId,
+        taskId,
+        action,
+        expectedVersion,
+        nextTaskVersion: version,
+        nextExecutionEpoch:
+          previous.executionEpoch +
+          Number(
+            ["pause", "archive"].includes(action) ||
+              previous.keyEpoch !== registry.checkpoint.keyEpoch,
+          ),
+        nextEnvelopeFingerprint: fingerprint,
+        registrySequence: registry.checkpoint.registrySequence,
+        checkpointDigest: registry.digest,
+        keyEpoch: registry.checkpoint.keyEpoch,
+      };
+      validate("TaskTransitionIntentPayload", intent);
+      transitionIntent = await sign(intent, device.sig, device.sigId);
+    }
+    const body = {
+      contractVersion: CONTRACT,
+      expectedVersion,
+      resourceBindings: resources,
+      envelope,
+      ...(mode === "create" ? { taskId } : {}),
+      ...(transitionIntent ? { transitionIntent } : {}),
+    };
+    bounded(body, 589824);
+    return {
+      taskId,
+      operationId,
+      authorKeyId: device.sigId,
+      mode,
+      body,
+      envelopeFingerprint: fingerprint,
+      keyEpoch: registry.checkpoint.keyEpoch,
+      registrySequence: registry.checkpoint.registrySequence,
+      checkpointDigest: registry.digest,
+    };
+  }
+  async sealTask(args: SealTaskArgs) {
+    exact(args, [
+      "content",
+      "resourceBindings",
+      "current",
+      ...(args.taskId === undefined ? [] : ["taskId"]),
+    ]);
+    return this.prepareTask(args);
+  }
+  async transitionTask(args: { current: EncryptedTask; action: TaskAction }) {
+    exact(args, ["current", "action"]);
+    const content = await this.openTask(args.current);
+    return this.prepareTask(
+      { content, resourceBindings: args.current.metadata.resourceBindings, current: args.current },
+      args.action,
+    );
+  }
+  async validateTaskPending(pending: PendingTask) {
+    const { registry, vault } = this.ready(),
+      { writers, recipients } = this.taskSelection(registry, this.now());
+    exact(pending, [
+      "taskId",
+      "operationId",
+      "authorKeyId",
+      "mode",
+      "body",
+      "envelopeFingerprint",
+      "keyEpoch",
+      "registrySequence",
+      "checkpointDigest",
+    ]);
+    validate("Identifier", pending.taskId);
+    validate("OperationIdentifier", pending.operationId);
+    if (!["create", "update", "transition"].includes(pending.mode))
+      throw new VaultError("invalid_data");
+    const p = pending.body;
+    exact(p, [
+      "contractVersion",
+      "expectedVersion",
+      "resourceBindings",
+      "envelope",
+      ...(pending.mode === "create" ? ["taskId"] : []),
+      ...(pending.mode === "transition" ? ["transitionIntent"] : []),
+    ]);
+    bounded(p, 589824);
+    positive(p.expectedVersion, 0);
+    taskBindings(p.resourceBindings);
+    validate("Carrier", p.envelope);
+    resultRequire(
+      p.contractVersion === CONTRACT &&
+        (pending.mode === "create") === (p.expectedVersion === 0) &&
+        (pending.mode !== "create" || p.taskId === pending.taskId),
+    );
+    if (
+      pending.keyEpoch !== registry.checkpoint.keyEpoch ||
+      pending.registrySequence !== registry.checkpoint.registrySequence ||
+      pending.checkpointDigest !== registry.digest
+    )
+      throw new VaultError("stale_epoch");
+    const author = cert(registry, pending.authorKeyId, "device_sig", this.now());
+    resultRequire(writers.some((w) => w.keyId === author.keyId));
+    const message = await verified(p.envelope.signedObject, author.publicJwk, "fv-object+jws");
+    validate("ObjectMessage", message);
+    const c = message.context;
+    validate("Context", c);
+    resultRequire(
+      c.ownerSubject === (await this.owner) &&
+        c.vaultId === vault.vaultId &&
+        c.rootKeyId === vault.rootKeyId &&
+        c.rootEpoch === 1 &&
+        c.contractVersion === CONTRACT &&
+        c.profileId === "P1" &&
+        c.keyEpoch === pending.keyEpoch &&
+        c.registrySequence === pending.registrySequence &&
+        c.checkpointDigest === pending.checkpointDigest &&
+        c.objectType === "task" &&
+        c.objectId === pending.taskId &&
+        c.revision === p.expectedVersion + 1 &&
+        c.expectedRevision === p.expectedVersion &&
+        c.deliveryRevision === 1 &&
+        c.priorEnvelopeFingerprint === null &&
+        c.stableOperationId === pending.operationId &&
+        c.authorSigningKeyId === author.keyId &&
+        c.operationType ===
+          { create: "create_task", update: "update_task", transition: "transition_task" }[
+            pending.mode
+          ] &&
+        equal(c.binding, this.taskBinding(pending.taskId, c.revision)) &&
+        equal(c.resourceBindings, p.resourceBindings) &&
+        equal(
+          c.recipients,
+          recipients.map((r) => this.taskRecipient(r)),
+        ) &&
+        (await signingFingerprint(p.envelope.signedObject)) === pending.envelopeFingerprint,
+    );
+    this.taskJwe(message, recipients);
+    if (pending.mode === "transition") {
+      resultRequire(author.capabilities.includes("control_write"));
+      const intent = await verified(p.transitionIntent!, author.publicJwk);
+      validate("TaskTransitionIntentPayload", intent);
+      for (const [name, value] of Object.entries({
+        ownerSubject: await this.owner,
+        vaultId: vault.vaultId,
+        taskId: pending.taskId,
+        stableOperationId: pending.operationId,
+        expectedVersion: p.expectedVersion,
+        nextTaskVersion: c.revision,
+        nextEnvelopeFingerprint: pending.envelopeFingerprint,
+        keyEpoch: pending.keyEpoch,
+        registrySequence: pending.registrySequence,
+        checkpointDigest: pending.checkpointDigest,
+      }))
+        resultRequire(intent[name] === value);
+    }
+    return pending;
+  }
+  async sealDraft(args: TaskDraftSummary & { draft: TaskDraft }): Promise<Json> {
+    if (!this.wrapping || !this.vault || !this.pin) throw new VaultError("locked");
+    exact(args, ["slot", "revision", "baseVersion", "taskId", "draft"]);
+    positive(args.revision);
+    positive(args.baseVersion, 0);
+    validate("Identifier", args.taskId);
+    if (args.slot !== "new" && args.slot !== args.taskId) throw new VaultError("binding_mismatch");
+    checkedTaskDraft(args.draft);
+    return seal(
+      this.wrapping,
+      {
+        profile: "folioview.task-draft.v1",
+        ownerSubject: await this.owner,
+        vaultId: this.vault.vaultId,
+        rootKeyId: this.pin.rootKeyId,
+        slot: args.slot,
+        revision: args.revision,
+        baseVersion: args.baseVersion,
+        taskId: args.taskId,
+      },
+      args.draft,
+    );
+  }
+  async openDraft(record: Json): Promise<TaskDraftRecord> {
+    if (!this.wrapping || !this.vault || !this.pin) throw new VaultError("locked");
+    exact(record, [
+      "profile",
+      "ownerSubject",
+      "vaultId",
+      "rootKeyId",
+      "slot",
+      "revision",
+      "baseVersion",
+      "taskId",
+      "iv",
+      "ciphertext",
+    ]);
+    resultRequire(
+      record.profile === "folioview.task-draft.v1" &&
+        record.ownerSubject === (await this.owner) &&
+        record.vaultId === this.vault.vaultId &&
+        record.rootKeyId === this.pin.rootKeyId,
+    );
+    positive(record.revision);
+    positive(record.baseVersion, 0);
+    validate("Identifier", record.taskId);
+    resultRequire(record.slot === "new" || record.slot === record.taskId);
+    const draft = checkedTaskDraft(await open(this.wrapping, record, 65552));
+    return {
+      slot: record.slot,
+      revision: record.revision,
+      baseVersion: record.baseVersion,
+      taskId: record.taskId,
+      draft,
+    };
   }
   async validatePending(pending: PendingSnapshot) {
     const { registry, vault } = this.ready();
