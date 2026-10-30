@@ -5,10 +5,12 @@ import { useLocale, useTranslations } from "next-intl";
 import { usePreferences } from "@/components/PreferencesProvider";
 import SettingsPanel from "@/components/SettingsPanel";
 import ResourcesPanel from "@/components/ResourcesPanel";
+import InboxPanel from "@/components/InboxPanel";
+import { useHoldingsWorkspace } from "@/components/useHoldingsWorkspace";
 import { localizeMessage } from "@/lib/ui-messages";
 import { CandlestickChart } from "@/components/CandlestickChart";
 import { InstrumentMetrics } from "@/components/InstrumentMetrics";
-import { WorkspaceSidebar } from "@/components/WorkspaceSidebar";
+import { WorkspaceSidebar, type WorkspaceView } from "@/components/WorkspaceSidebar";
 import { useCachedMarketResource } from "@/components/useCachedMarketResource";
 import { useMarketResource } from "@/components/useMarketResource";
 import { PersonalWatchlist, WatchlistAction } from "@/components/PersonalWatchlist";
@@ -52,7 +54,8 @@ export default function Dashboard() {
   const [pickerTab, setPickerTab] = useState<"markets" | "watchlist">("markets");
   const [overviewReload, setOverviewReload] = useState(0);
   const [chartReload, setChartReload] = useState(0);
-  const [activeView, setActiveView] = useState<"markets" | "resources" | "settings">("markets");
+  const [activeView, setActiveView] = useState<WorkspaceView>("markets");
+  const encryptedWorkspace = useHoldingsWorkspace();
   const [pickerOpen, setPickerOpen] = useState(false);
   const [desktopPickerVisible, setDesktopPickerVisible] = useState(false);
   useEffect(() => {
@@ -332,11 +335,15 @@ export default function Dashboard() {
         {activeView === "settings" && <SettingsPanel />}
         <div hidden={activeView !== "resources"}>
           <ResourcesPanel
+            workspace={encryptedWorkspace}
             onOpenWatchlist={() => {
               setPickerTab("watchlist");
               setActiveView("markets");
             }}
           />
+        </div>
+        <div hidden={activeView !== "inbox"}>
+          <InboxPanel workspace={encryptedWorkspace} active={activeView === "inbox"} />
         </div>
         <div className="market-view" hidden={activeView !== "markets"}>
           <section className="index-strip" aria-label={t("market.indices")}>

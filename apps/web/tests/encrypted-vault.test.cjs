@@ -762,6 +762,69 @@ test("uncommitted registration retries preserve exact operation, and conflict re
   bad.lock();
 });
 
+test("readonly historical pin commits preserve another tab's sealed device and pending enrollment", async () => {
+  const fake = require("fake-indexeddb");
+  const previous = Object.getOwnPropertyDescriptor(globalThis, "indexedDB");
+  Object.defineProperty(globalThis, "indexedDB", {
+    configurable: true,
+    value: new fake.IDBFactory(),
+  });
+  const writer = new nativeStorage.BrowserEncryptedStorage(),
+    reader = new nativeStorage.BrowserEncryptedStorage();
+  const owner = "synthetic_readonly_owner",
+    vaultId = "synthetic_readonly_vault";
+  const pin = {
+    ownerSubject: owner,
+    vaultId,
+    rootKeyId: "synthetic_root",
+    registrySequence: 1,
+    checkpointDigest: "a".repeat(64),
+    keyEpoch: 1,
+  };
+  const nextPin = { ...pin, registrySequence: 2, checkpointDigest: "b".repeat(64) };
+  const history = [pin, nextPin];
+  const sealed = { ciphertext: "synthetic_sealed_device_from_another_tab", iv: "synthetic_iv" };
+  try {
+    // The reader's Worker was unlocked before the other tab registered its device.
+    const readonly = { pin: nextPin, history, device: undefined, pending: null };
+    await writer.commitVault(owner, {
+      pin,
+      history: [pin],
+      device: { ciphertext: "old_sealed_device" },
+    });
+    await writer.commitVault(owner, { pin: nextPin, history, device: sealed });
+    await writer.stageDevice(
+      owner + ":pending-device:" + vaultId,
+      { ownerSubject: owner, pending: { operationId: "synthetic_pending_next" } },
+      null,
+    );
+    await reader.commitVault(owner, readonly);
+    assert.equal(
+      JSON.stringify(await reader.get(owner + ":device:" + vaultId)),
+      JSON.stringify({ ownerSubject: owner, device: sealed }),
+    );
+    assert.equal(JSON.stringify(await reader.get(owner + ":pin")), JSON.stringify(nextPin));
+    assert.equal(
+      (await reader.get(owner + ":pending-device:" + vaultId)).pending.operationId,
+      "synthetic_pending_next",
+    );
+    await assert.rejects(reader.commitVault(owner, { pin, history: [pin] }), /rollback_detected/);
+    assert.equal(
+      (await reader.get(owner + ":device:" + vaultId)).device.ciphertext,
+      sealed.ciphertext,
+    );
+    await reader.commitVault("synthetic_other_owner", {
+      pin: { ...pin, ownerSubject: "synthetic_other_owner" },
+      history: [{ ...pin, ownerSubject: "synthetic_other_owner" }],
+    });
+    assert.equal(await reader.get("synthetic_other_owner:device:" + vaultId), null);
+  } finally {
+    for (const storage of [writer, reader]) if (storage.database) (await storage.database).close();
+    if (previous) Object.defineProperty(globalThis, "indexedDB", previous);
+    else delete globalThis.indexedDB;
+  }
+});
+
 test("native IndexedDB transactions keep one outbox winner, compare-delete exact operations and reject stale/forked pin commits", async () => {
   const fake = require("fake-indexeddb");
   const previous = Object.getOwnPropertyDescriptor(globalThis, "indexedDB");

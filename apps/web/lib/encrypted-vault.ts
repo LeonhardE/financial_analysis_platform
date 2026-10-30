@@ -10,6 +10,11 @@ import {
   type Json,
   type Archive,
   type RegistryBundle,
+  type OpenResultArgs,
+  type ResultContent,
+  type ResultMetadata,
+  type ResultStateChanges,
+  type ResultStatePacket,
 } from "./encrypted-types";
 export type {
   Vault,
@@ -19,6 +24,12 @@ export type {
   PendingSnapshot,
   SnapshotResponse,
   ResourceContent,
+  ResultMetadata,
+  ResultContent,
+  ResultEvidence,
+  OpenResultArgs,
+  ResultStateChanges,
+  ResultStatePacket,
 } from "./encrypted-types";
 export { VaultError };
 type Bootstrap = {
@@ -169,6 +180,52 @@ export class EncryptedVaultSession {
       ))
     )
       throw new VaultError("pending_registration");
+    this.assert(g);
+    return result;
+  }
+  async unlockForResults(
+    vault: Vault,
+    material: PasskeyMaterial,
+  ): Promise<{ canWriteState: boolean }> {
+    try {
+      const g = this.generation;
+      const local = await this.local(vault.vaultId);
+      const result = await this.rpc("unlockForResults", { vault, material, local }, [
+        material.secret,
+      ]);
+      this.assert(g);
+      this.vaultId = vault.vaultId;
+      return result;
+    } finally {
+      if (material.secret.byteLength) new Uint8Array(material.secret).fill(0);
+    }
+  }
+  async acceptResultVault(vault: Vault): Promise<{ canWriteState: boolean }> {
+    const g = this.generation;
+    const { canWriteState, ...record } = await this.rpc("acceptResultVault", { vault });
+    this.assert(g);
+    try {
+      await this.storage.commitVault(this.owner, record);
+    } catch (error) {
+      this.lock();
+      throw error;
+    }
+    this.assert(g);
+    this.vaultId = vault.vaultId;
+    return { canWriteState };
+  }
+  async openResult(args: OpenResultArgs): Promise<ResultContent> {
+    const g = this.generation;
+    const result = await this.rpc("openResult", args);
+    this.assert(g);
+    return result;
+  }
+  async signResultState(args: {
+    metadata: ResultMetadata;
+    changes: ResultStateChanges;
+  }): Promise<ResultStatePacket> {
+    const g = this.generation;
+    const result = await this.rpc("signResultState", args);
     this.assert(g);
     return result;
   }

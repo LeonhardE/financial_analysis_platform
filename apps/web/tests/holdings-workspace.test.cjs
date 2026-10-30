@@ -116,6 +116,8 @@ function harness({
   hubConfigured = true,
   hasVault = true,
   hasSource = true,
+  resultCanWrite = true,
+  needsDeviceRegistration = false,
 } = {}) {
   const requests = [];
   const instances = [];
@@ -144,6 +146,10 @@ function harness({
   let latestSnapshot = null;
   let forcedHead = null;
   let opens = 0;
+  let resultOpens = 0;
+  let resultHold = null;
+  let readOnlyUnlocks = 0;
+  let strictUnlocks = 0;
   let index = 0;
   let dirty = false;
   const cells = [];
@@ -173,7 +179,35 @@ function harness({
       };
     }
     async unlock() {
-      return { needsDeviceRegistration: false };
+      strictUnlocks++;
+      return { needsDeviceRegistration };
+    }
+    async unlockForResults() {
+      readOnlyUnlocks++;
+      return { canWriteState: resultCanWrite };
+    }
+    async acceptResultVault() {
+      if (this.locked) throw { code: "locked" };
+      return { canWriteState: resultCanWrite };
+    }
+    async openResult() {
+      resultOpens++;
+      if (resultHold) await resultHold.promise;
+      return {
+        title: "PRIVATE_RESULT",
+        summary: "Private",
+        sections: [],
+        citations: [],
+        limitations: [],
+      };
+    }
+    async signResultState() {
+      if (!resultCanWrite) throw { code: "key_revoked" };
+      return {
+        operationId: "state_operation",
+        authorKeyId: "author",
+        command: { protected: "opaque", payload: "opaque", signature: "opaque" },
+      };
     }
     async acceptVault() {
       if (this.locked) throw { code: "locked" };
@@ -237,6 +271,8 @@ function harness({
       remoteVault = vault;
       return new Response(JSON.stringify({ contractVersion: CONTRACT, vault }));
     }
+    if (route === "/api/v2/vaults/vault_a/registry")
+      return new Response(JSON.stringify({ contractVersion: CONTRACT }));
     if (route.endsWith("/authority-token"))
       return new Response(
         JSON.stringify({
@@ -447,7 +483,18 @@ function harness({
     rejectPasskey(code) {
       passkey.reject({ code });
     },
-    counts: () => ({ seals, passkeyCalls, creates, opens }),
+    counts: () => ({
+      seals,
+      passkeyCalls,
+      creates,
+      opens,
+      resultOpens,
+      readOnlyUnlocks,
+      strictUnlocks,
+    }),
+    holdResult(next) {
+      resultHold = next;
+    },
     swapSnapshot(value) {
       snapshotSwap = value;
     },
@@ -615,7 +662,7 @@ test("lock drops plaintext, cancels work, terminates the worker and requires unl
 });
 
 test("missing origins and unsupported passkeys never fall back to plaintext uploads", async () => {
-  const closed = harness({ configured: false });
+  const closed = harness({ configured: false, hubConfigured: false });
   const model = await ready(closed);
   await model.create();
   await model.unlock();
@@ -759,11 +806,11 @@ test("unverified recovery receipts never clear the exact encrypted retry packet"
   h.unmount();
 });
 
-test("reactive Portfolio availability enables loading only after capabilities and immediately hides a disabled workspace", async () => {
+test("Portfolio availability gates holdings while the shared Hub vault remains available", async () => {
   const h = harness({ configured: false });
   let model = await ready(h);
   assert.equal(model.configured, false);
-  assert.equal(h.requests.length, 0);
+  assert.ok(h.requests.every((request) => request.service === "agent-hub"));
   h.configured(true);
   model = await unlocked(h);
   await model.importFile(file);
@@ -872,6 +919,72 @@ test("late Hub vault response body cannot restore a switched or logged-out owner
     assert.equal(model.preview, null);
     assert.equal(model.content, null);
     assert.ok(h.instances.every((instance) => instance.locked));
+    h.unmount();
+  }
+});
+
+test("Hub-only Inbox unlock reuses one Passkey worker without Portfolio or implicit device registration", async () => {
+  const h = harness({ configured: false, resultCanWrite: false });
+  let model = await ready(h);
+  assert.equal(model.configured, false);
+  assert.equal(model.vaultConfigured, true);
+  const unlocking = model.unlock({ forResults: true });
+  h.resolvePasskey();
+  await unlocking;
+  model = h.render();
+  assert.equal(model.phase, "unlocked");
+  assert.equal(model.canWriteState, false);
+  assert.equal(h.instances.length, 1);
+  assert.equal(h.counts().readOnlyUnlocks, 1);
+  assert.equal(h.counts().strictUnlocks, 0);
+  assert.ok(h.requests.every((request) => request.service === "agent-hub"));
+  assert.ok(!h.requests.some((request) => request.route.endsWith("/registry")));
+  const value = await model.openResult({});
+  assert.equal(value.title, "PRIVATE_RESULT");
+  assert.equal(h.counts().resultOpens, 1);
+  await model.refreshVault(new AbortController().signal);
+  assert.equal(h.instances.length, 1);
+  h.unmount();
+});
+
+test("explicit Inbox device enablement uses existing strict registration without a Portfolio dependency", async () => {
+  const h = harness({ configured: false, needsDeviceRegistration: true });
+  let model = await ready(h);
+  const unlocking = model.unlock({ forResults: true, enableState: true });
+  h.resolvePasskey();
+  await unlocking;
+  model = h.render();
+  assert.equal(model.phase, "unlocked");
+  assert.equal(model.canWriteState, true);
+  assert.equal(h.counts().strictUnlocks, 1);
+  assert.equal(h.counts().readOnlyUnlocks, 0);
+  assert.equal(h.requests.filter((request) => request.route.endsWith("/registry")).length, 1);
+  assert.ok(h.requests.every((request) => request.service === "agent-hub"));
+  h.unmount();
+});
+
+test("late shared result decryption and captured private methods cannot cross lock or owner changes", async () => {
+  for (const transition of ["lock", "switch"]) {
+    const h = harness();
+    let model = await ready(h);
+    const unlocking = model.unlock({ forResults: true });
+    h.resolvePasskey();
+    await unlocking;
+    model = h.render();
+    const old = model,
+      gate = deferred();
+    h.holdResult(gate);
+    const opening = model.openResult({});
+    await settle();
+    if (transition === "lock") model.lock();
+    else h.auth({ status: "authenticated", sessionKey: "owner_b:1", profile: { uid: "owner_b" } });
+    model = h.render();
+    gate.resolve();
+    await assert.rejects(opening);
+    const opens = h.counts().resultOpens;
+    await assert.rejects(old.openResult({}));
+    assert.equal(h.counts().resultOpens, opens);
+    assert.equal(model.content, null);
     h.unmount();
   }
 });

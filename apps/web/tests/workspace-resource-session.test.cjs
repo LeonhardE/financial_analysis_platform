@@ -39,10 +39,13 @@ function find(tree, predicate, trail = [], parent = null) {
   return find(tree.props?.children, predicate, [...trail, "children"], tree);
 }
 
-test("Market and Resources navigation preserves the same mounted resource owner session", () => {
+test("Market, Resources and Inbox reuse one mounted encrypted owner workspace", () => {
   const cells = [];
   let index = 0;
   const ResourcePanel = () => null;
+  const InboxPanel = () => null;
+  const sharedWorkspace = { lock() {} };
+  let workspaceCalls = 0;
   const Sidebar = () => null;
   const noData = () => ({ data: null, loading: false, hasSettled: true, error: "" });
   const jsx = (type, props, key) => ({ type, props, key });
@@ -72,6 +75,13 @@ test("Market and Resources navigation preserves the same mounted resource owner 
     },
     "@/components/SettingsPanel": { __esModule: true, default: () => null },
     "@/components/ResourcesPanel": { __esModule: true, default: ResourcePanel },
+    "@/components/InboxPanel": { __esModule: true, default: InboxPanel },
+    "@/components/useHoldingsWorkspace": {
+      useHoldingsWorkspace: () => {
+        workspaceCalls++;
+        return sharedWorkspace;
+      },
+    },
     "@/lib/ui-messages": { localizeMessage: (message) => message ?? "" },
     "@/components/CandlestickChart": { CandlestickChart: () => null },
     "@/components/InstrumentMetrics": { InstrumentMetrics: () => null },
@@ -96,6 +106,8 @@ test("Market and Resources navigation preserves the same mounted resource owner 
   assert.equal(sidebar.props.activeView, "markets");
   const first = find(tree, (node) => node.type === ResourcePanel);
   assert.ok(first);
+  assert.equal(workspaceCalls, 1);
+  assert.equal(first.tree.props.workspace, sharedWorkspace);
   assert.equal(first.parent.props.hidden, true);
   sidebar.props.onNavigate("resources");
   tree = render();
@@ -104,6 +116,14 @@ test("Market and Resources navigation preserves the same mounted resource owner 
   assert.deepEqual(active.trail, first.trail);
   assert.equal(active.tree.type, first.tree.type);
   assert.equal(active.tree.key, first.tree.key);
+  sidebar = find(tree, (node) => node.type === Sidebar).tree;
+  sidebar.props.onNavigate("inbox");
+  tree = render();
+  const inbox = find(tree, (node) => node.type === InboxPanel);
+  assert.equal(inbox.tree.props.workspace, sharedWorkspace);
+  assert.equal(inbox.tree.props.active, true);
+  assert.equal(inbox.parent.props.hidden, false);
+  assert.deepEqual(find(tree, (node) => node.type === ResourcePanel).trail, first.trail);
   sidebar = find(tree, (node) => node.type === Sidebar).tree;
   sidebar.props.onNavigate("markets");
   tree = render();

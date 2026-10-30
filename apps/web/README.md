@@ -124,6 +124,45 @@ contract headers, rejects arbitrary destinations and identity-header overrides, 
 responses when an account changes. Bodies, bearer/delegation tokens, PRF output and private keys
 are not placed in URLs, localStorage, analytics or error messages.
 
+## Private agent Inbox
+
+Inbox is an additional bottom-sidebar view; Markets remains the default. Resources and Inbox
+share one mounted owner workspace, Passkey unlock and terminated-on-lock crypto Worker. Inbox
+needs only the independent Hub capability, so it works without a configured Portfolio target.
+Sign out, account changes, lock and lost capabilities hide private content in the same render,
+clear the search/decryption cache and invalidate late network bodies, crypto replies and actions.
+
+Lists, counts and history contain bounded approved metadata. Opening a result locally verifies
+the pinned root, full selected registry chain, signed agent grant, original Run/manifest, receipt,
+carrier, recipient and AEAD before returning private content. Historical verification uses the
+selected acceptance time and retained recovery keys; later key/agent expiry does not rewrite
+history. A narrow historical unlock does not authorize current state writes. A new device can
+use the existing Passkey enrollment flow to enable changes, including on a Hub-only instance.
+
+Read, star and archive are logical result state across revisions. A latest successful authenticated
+opening can mark its exact body read; opening an old revision does not mark the latest report read.
+Writes use the current device and directory, a signed stateVersion CAS and a fresh stable operation.
+There is no automatic write retry or replacement signing after conflict. A lost response retains
+the original in-memory packet for explicit replay; the original acknowledgement is confirmed
+against fresh metadata before displaying current flags. Lock/logout discards that local retry;
+the next owner read retrieves the authoritative logical state.
+
+The visible Inbox polls metadata once per minute only while active and visible. It loads at most
+100 metadata rows,32 historical revisions and20 exact authenticated decrypted deliveries. Search
+only covers opened reports in the currently loaded view; no private text or plaintext index reaches
+the backend, URLs, logs or persistent browser storage. Counts are server snapshots from the last
+refresh. Navigation back from a detail preserves list filters and scroll. A changed cursor requires
+refresh rather than mixing snapshots or silently re-running old state commands.
+
+The report viewer renders a small React-text Markdown subset with no HTML parsing, images or
+automatic linked-page fetching. Links require credential-free HTTPS; citation/model conclusions
+remain agent provided. Clipboard export requires a separate explicit plaintext warning. Frozen
+input versions stay attached to the selected historical report, without claiming every input was
+considered or the platform verified the analysis. Existing published-client trust limitations apply.
+
+No cloud setting, IAM grant, database or resource is enabled by this UI change. The remaining
+connection consent/controller, task editor and production acceptance work keep their own scope.
+
 ## Validation
 
 Run `npm run test:web`, `npm run typecheck:web`, `npm run build:web` and root `npm run check`.

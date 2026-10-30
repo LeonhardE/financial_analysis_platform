@@ -255,6 +255,10 @@ test("resources are reachable from bottom navigation while Markets remains the d
   tree = sidebar.render();
   assert.equal(button(tree, "Resources").props["aria-pressed"], true);
   assert.equal(button(tree, "Markets").props["aria-pressed"], false);
+  button(tree, "Inbox").props.onClick();
+  tree = sidebar.render();
+  assert.equal(button(tree, "Inbox").props["aria-pressed"], true);
+  assert.equal(button(tree, "Resources").props["aria-pressed"], false);
   button(tree, "Markets").props.onClick();
   tree = sidebar.render();
   assert.equal(button(tree, "Markets").props["aria-pressed"], true);
