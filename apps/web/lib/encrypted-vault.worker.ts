@@ -25,11 +25,23 @@ scope.onmessage = (event) => {
           case "unlock":
             result = await core.unlock(args.vault, args.material, args.local);
             break;
+          case "unlockForResults":
+            result = await core.unlockForResults(args.vault, args.material, args.local);
+            break;
           case "prepareDeviceRegistration":
             result = await core.prepareDeviceRegistration(args.vault);
             break;
           case "acceptVault":
             result = await core.acceptVault(args.vault);
+            break;
+          case "acceptResultVault":
+            result = await core.acceptResultVault(args.vault);
+            break;
+          case "openResult":
+            result = await core.openResult(args);
+            break;
+          case "signResultState":
+            result = await core.signResultState(args);
             break;
           case "signSource":
             result = await core.signSource(args.sourceId);

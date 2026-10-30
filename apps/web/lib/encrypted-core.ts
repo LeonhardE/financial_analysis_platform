@@ -22,6 +22,11 @@ import {
   type PasskeyMaterial,
   type PendingSnapshot,
   type SnapshotResponse,
+  type OpenResultArgs,
+  type ResultContent,
+  type ResultMetadata,
+  type ResultStateChanges,
+  type ResultStatePacket,
 } from "./encrypted-types";
 export { CONTRACT };
 const utf8 = new TextEncoder();
@@ -514,6 +519,93 @@ async function open(k: CryptoKey, envelope: Json, maximum = 32768) {
     throw new VaultError("unlock_failed");
   }
 }
+function resultRequire(value: unknown) {
+  if (!value) throw new VaultError("binding_mismatch");
+}
+function utcSeconds(value: unknown) {
+  if (
+    typeof value !== "string" ||
+    !/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d{1,6})?Z$/.test(value) ||
+    !Number.isFinite(Date.parse(value)) ||
+    new Date(value).toISOString().slice(0, 19) !== value.slice(0, 19)
+  )
+    throw new VaultError("invalid_data");
+  return Date.parse(value) / 1000;
+}
+function safeResultUrl(value: string) {
+  if (/[\s\\\x00-\x1f]/.test(value)) return false;
+  try {
+    const u = new URL(value);
+    return (
+      u.protocol === "https:" &&
+      Boolean(u.hostname) &&
+      !u.username &&
+      !u.password &&
+      (!u.port || u.port === "443")
+    );
+  } catch {
+    return false;
+  }
+}
+function resultMarkdown(value: string) {
+  const named: Record<string, string> = {
+    amp: "&",
+    lt: "<",
+    gt: ">",
+    quot: '"',
+    apos: "'",
+    colon: ":",
+    tab: "\t",
+    newline: "\n",
+  };
+  // Decode only characters relevant to this input guard. An ordinary query
+  // parameter such as &two=2, or harmless text such as &copy;, is not an error.
+  // Legacy amp/lt/gt/quot may omit their semicolon; the other named forms may
+  // not. The renderer displays text rather than decoding HTML entities.
+  const entities = /&(#x[0-9a-f]+|#\d+|amp|lt|gt|quot|(?:apos|colon|tab|newline)(?=;));?/gi;
+  let text = value;
+  for (let count = 0; count < 4; count++) {
+    const decoded = text.replace(entities, (_, code: string) => {
+      if (code[0] !== "#") return named[code.toLowerCase()];
+      const point = /^#x/i.test(code) ? parseInt(code.slice(2), 16) : Number(code.slice(1));
+      if (
+        !Number.isSafeInteger(point) ||
+        point <= 0 ||
+        point > 0x10ffff ||
+        (point >= 0xd800 && point <= 0xdfff)
+      )
+        throw new VaultError("unsafe_content");
+      return String.fromCodePoint(point);
+    });
+    if (decoded === text) break;
+    text = decoded;
+    if (count === 3 && text.match(entities)) throw new VaultError("unsafe_content");
+  }
+  if (/<\s*(?:\/?[A-Za-z][A-Za-z0-9-]*(?:\s|\/?>)|!|\?)/.test(text) || /!\s*\[/.test(text))
+    throw new VaultError("unsafe_content");
+  const urls = [
+    ...[...text.matchAll(/\]\(\s*(<[^>]+>|[^\s)]+)/g)].map((m) => m[1]),
+    ...[...text.matchAll(/^\s*\[[^\]]+\]:\s*(\S+)/gm)].map((m) => m[1]),
+    ...[...text.matchAll(/<([^<>\s]+:[^<>\s]*)>/g)].map((m) => m[1]),
+  ];
+  if (urls.some((url) => !safeResultUrl(url.replace(/^<|>$/g, ""))))
+    throw new VaultError("unsafe_content");
+}
+function checkedResultContent(value: unknown): ResultContent {
+  validate("ResultContent", value);
+  const content = value as ResultContent;
+  if (
+    new Set(content.sections.map((v) => v.sectionId)).size !== content.sections.length ||
+    new Set(content.citations.map((v) => v.citationId)).size !== content.citations.length
+  )
+    throw new VaultError("invalid_data");
+  for (const section of content.sections) resultMarkdown(section.markdown);
+  for (const citation of content.citations) {
+    if (!safeResultUrl(citation.url)) throw new VaultError("unsafe_content");
+    if (citation.publishedAt !== null) utcSeconds(citation.publishedAt);
+  }
+  return content;
+}
 export class VaultCore {
   readonly owner: Promise<string>;
   private wrapping?: CryptoKey;
@@ -979,6 +1071,58 @@ export class VaultCore {
     if (!this.device || !this.deviceSeal) throw new VaultError("device_required");
     cert(registry, this.device.sigId, "device_sig", this.now());
     cert(registry, this.device.encId, "device_enc", this.now());
+    return this.adoptVault(vault, registry);
+  }
+  /** Owner history is authenticated at acceptance time, not a new key-authorized write. */
+  async acceptResultVault(vault: Vault) {
+    if (!this.root || !this.recovery || !this.recoveryJwk) throw new VaultError("locked");
+    const record = await this.adoptVault(vault, await this.checkVault(vault, this.pin));
+    return { ...record, canWriteState: this.resultStateAvailable() };
+  }
+  async unlockForResults(
+    vault: Vault,
+    material: PasskeyMaterial,
+    local?: { pin?: Pin; device?: DeviceSeal },
+  ) {
+    const owner = await this.owner;
+    checkArchive(vault.archive, owner);
+    if (
+      material.credentialId !== vault.archive.credentialId ||
+      material.prfSalt !== vault.archive.prfSalt
+    )
+      throw new VaultError("unlock_failed");
+    this.wrapping = await aesMaterial(material);
+    const master = await open(this.wrapping, vault.archive);
+    exact(master, ["ownerSubject", "vaultId", "rootKeyId", "rootPrivateJwk", "recoveryPrivateJwk"]);
+    if (
+      master.ownerSubject !== owner ||
+      master.vaultId !== vault.vaultId ||
+      master.rootKeyId !== vault.rootKeyId ||
+      (await thumb(master.rootPrivateJwk)) !== master.rootKeyId
+    )
+      throw new VaultError("untrusted_vault");
+    this.root = await key(master.rootPrivateJwk, true, true);
+    this.recovery = await key(master.recoveryPrivateJwk, false, true);
+    this.recoveryJwk = pub(master.recoveryPrivateJwk);
+    this.registry = await this.checkVault(vault, local?.pin ?? this.pin);
+    this.vault = vault;
+    this.pin = local?.pin ?? this.pin;
+    this.device = undefined;
+    this.deviceSeal = undefined;
+    if (local?.device) await this.loadDevice(local.device);
+    return { canWriteState: this.resultStateAvailable() };
+  }
+  private resultStateAvailable() {
+    if (!this.registry || !this.device) return false;
+    try {
+      return cert(this.registry, this.device.sigId, "device_sig", this.now()).capabilities.includes(
+        "control_write",
+      );
+    } catch {
+      return false;
+    }
+  }
+  private async adoptVault(vault: Vault, registry: Registry) {
     this.registry = registry;
     this.vault = vault;
     const cp = registry.checkpoint;
@@ -1035,6 +1179,453 @@ export class VaultCore {
       command: await sign(command, device.sig, device.sigId),
       authorKeyId: device.sigId,
     };
+  }
+  async signResultState(args: {
+    metadata: ResultMetadata;
+    changes: ResultStateChanges;
+  }): Promise<ResultStatePacket> {
+    const { registry, device, vault } = this.ready();
+    if (
+      !cert(registry, device.sigId, "device_sig", this.now()).capabilities.includes("control_write")
+    )
+      throw new VaultError("key_revoked");
+    validate("ResultMetadata", args.metadata);
+    const changes = args.changes;
+    if (
+      !changes ||
+      typeof changes !== "object" ||
+      Array.isArray(changes) ||
+      !Object.keys(changes).length ||
+      Object.keys(changes).some((k) => !["read", "starred", "archived"].includes(k)) ||
+      Object.values(changes).some((v) => typeof v !== "boolean")
+    )
+      throw new VaultError("invalid_data");
+    const operationId = randomId();
+    const command = {
+      artifactType: "control_command",
+      contractVersion: CONTRACT,
+      vaultId: vault.vaultId,
+      ownerSubject: await this.owner,
+      stableOperationId: operationId,
+      action: "result_state_update",
+      targetId: args.metadata.resultId,
+      expectedVersion: args.metadata.stateVersion,
+      expectedSourceEpoch: null,
+      registrySequence: registry.checkpoint.registrySequence,
+      checkpointDigest: registry.digest,
+      keyEpoch: registry.checkpoint.keyEpoch,
+      parameters: { ...changes },
+    };
+    validate("ControlCommandPayload", command);
+    return {
+      operationId,
+      authorKeyId: device.sigId,
+      command: await sign(command, device.sig, device.sigId),
+    };
+  }
+  async openResult(args: OpenResultArgs): Promise<ResultContent> {
+    if (!this.pin || !this.vault || !this.registry || !this.recovery || !this.recoveryJwk)
+      throw new VaultError("locked");
+    exact(args, ["result", "evidence", "registryBundles"]);
+    const { result, evidence: e, registryBundles } = args,
+      vault = this.vault;
+    bounded(result, 1048576);
+    bounded(e, 1048576);
+    bounded(registryBundles, 4198400);
+    validate("EncryptedResult", result);
+    exact(e, [
+      "contractVersion",
+      "profile",
+      "run",
+      "manifest",
+      "manifestFingerprint",
+      "receipt",
+      "agentKeyGrant",
+      "authorizationExpiresAt",
+      "provenance",
+      "authorProof",
+      "registryProofs",
+    ]);
+    resultRequire(
+      e.contractVersion === CONTRACT && e.profile === "folioview.owner-result-evidence.v1",
+    );
+    validate("RunDescriptor", e.run);
+    validate("ManifestDescriptor", e.manifest);
+    validate("ResultReceipt", e.receipt);
+    validate("SignedObject", e.agentKeyGrant);
+    exact(e.authorProof, ["registrySequence", "verifiedAt"]);
+    positive(e.authorizationExpiresAt);
+    const accepted = Math.floor(utcSeconds(e.receipt.receivedAt));
+    resultRequire(e.authorProof.verifiedAt === accepted && accepted <= this.now());
+    resultRequire(
+      Array.isArray(registryBundles) &&
+        registryBundles.length >= 1 &&
+        registryBundles.length <= 32 &&
+        Array.isArray(e.registryProofs) &&
+        e.registryProofs.length === registryBundles.length &&
+        e.authorProof.registrySequence === registryBundles.length,
+    );
+    const history = new Map<number, Registry>();
+    let historical: Registry | undefined;
+    for (let i = 0; i < registryBundles.length; i++) {
+      historical = await verifyRegistry(
+        registryBundles[i],
+        vault.rootJwk,
+        await this.owner,
+        vault.vaultId,
+        historical,
+        accepted,
+      );
+      const descriptor = e.registryProofs[i];
+      exact(descriptor, ["registrySequence", "checkpointDigest", "path"]);
+      resultRequire(
+        historical.checkpoint.registrySequence === i + 1 &&
+          descriptor.registrySequence === i + 1 &&
+          descriptor.checkpointDigest === historical.digest &&
+          descriptor.path ===
+            `/api/v2/results/${result.metadata.resultId}/revisions/${result.metadata.revision}/registries/${i + 1}` &&
+          vault.registryHistory[i] &&
+          equal(vault.registryHistory[i].checkpoint, registryBundles[i].checkpoint),
+      );
+      history.set(i + 1, historical);
+    }
+    const registry = historical!;
+    resultRequire(
+      equal(result.keyProofs, {
+        checkpoint: registry.bundle.checkpoint,
+        certificates: registry.bundle.entries.map((v) => v.certificate),
+      }),
+    );
+    const grantHeader = parsed(unb64(e.agentKeyGrant.protected, 1024), false);
+    const grantDevice = cert(registry, grantHeader.kid, "device_sig", accepted);
+    resultRequire(
+      grantDevice.connectionId === null && grantDevice.capabilities.includes("task_grant"),
+    );
+    const grant = await verified(e.agentKeyGrant, grantDevice.publicJwk);
+    validate("AgentKeyGrantPayload", grant);
+    const owner = await this.owner;
+    const reference = (value: Json) =>
+      value.ownerSubject === owner &&
+      value.vaultId === vault.vaultId &&
+      value.keyEpoch === registry.checkpoint.keyEpoch &&
+      history.get(value.registrySequence)?.digest === value.checkpointDigest &&
+      history.get(value.registrySequence)?.checkpoint.keyEpoch === value.keyEpoch;
+    resultRequire(
+      reference(grant) &&
+        grant.deviceSigningKeyId === grantDevice.keyId &&
+        grant.capabilities.includes("encrypt_result") &&
+        grant.capabilities.includes("decrypt_task") &&
+        equal(
+          grant.taskVersions,
+          [...grant.taskVersions].sort((a, b) => a - b),
+        ) &&
+        grant.notBefore <= accepted &&
+        accepted < grant.expiresAt &&
+        grant.expiresAt - grant.notBefore <= 2592000,
+    );
+    const agent = cert(registry, grant.agentSigningKeyId, "agent_sig", accepted),
+      encryption = cert(registry, grant.agentEncryptionKeyId, "agent_enc", accepted);
+    resultRequire(
+      agent.connectionId === grant.connectionId &&
+        encryption.connectionId === grant.connectionId &&
+        agent.principalId === encryption.principalId &&
+        agent.keyId !== encryption.keyId &&
+        agent.keyEpoch === grant.agentSigningKeyEpoch &&
+        encryption.keyEpoch === grant.agentEncryptionKeyEpoch &&
+        agent.capabilities.includes("result_write") &&
+        agent.capabilities.includes("run_request") &&
+        grant.notBefore >= Math.max(grantDevice.notBefore, agent.notBefore, encryption.notBefore) &&
+        grant.expiresAt <=
+          Math.min(
+            e.authorizationExpiresAt,
+            grantDevice.expiresAt,
+            agent.expiresAt,
+            encryption.expiresAt,
+          ),
+    );
+    const recipientIds = grant.writebackRecipientKeyIds as string[];
+    resultRequire(equal(recipientIds, [...new Set(recipientIds)].sort()));
+    const recipients = recipientIds.map((id) => cert(registry, id, undefined, accepted));
+    resultRequire(
+      recipients.every(
+        (v) =>
+          ["device_enc", "recovery_enc"].includes(v.role) &&
+          v.connectionId === null &&
+          grant.notBefore >= v.notBefore &&
+          grant.expiresAt <= v.expiresAt,
+      ) &&
+        recipients.some((v) => v.role === "device_enc") &&
+        recipients.some((v) => v.role === "recovery_enc"),
+    );
+    const refs = (grant.resourceBindings as Json[]).map((v) => canonical(v.ref));
+    resultRequire(
+      new Set(refs).size === refs.length &&
+        grant.resourceBindings.every((v: Json) =>
+          equal(
+            v.selectedVersions,
+            [...v.selectedVersions].sort((a, b) => a - b),
+          ),
+        ),
+    );
+
+    const run = e.run,
+      manifest = e.manifest,
+      meta = result.metadata;
+    bounded(manifest, 262144);
+    resultRequire(
+      run.vaultId === vault.vaultId &&
+        ["ready", "submitted"].includes(run.state) &&
+        run.initialResultId === meta.resultId &&
+        grant.taskVersions.includes(run.taskVersion) &&
+        meta.revision <= 32 &&
+        meta.deliveryRevision === 1,
+    );
+    for (const name of [
+      "taskId",
+      "connectionId",
+      "authorizationId",
+      "grantId",
+      "grantEpoch",
+      "executionEpoch",
+      "keyEpoch",
+    ])
+      resultRequire(run[name] === grant[name]);
+    for (const name of ["taskId", "taskVersion", "runId", "connectionId", "manifestId", "keyEpoch"])
+      resultRequire(meta[name as keyof ResultMetadata] === run[name]);
+    for (const name of [
+      "vaultId",
+      "runId",
+      "taskId",
+      "taskVersion",
+      "connectionId",
+      "grantId",
+      "grantEpoch",
+      "executionEpoch",
+      "keyEpoch",
+      "beginIntentFingerprint",
+      "manifestId",
+    ])
+      resultRequire(manifest[name] === run[name]);
+    const lifetime = (v: Json) => {
+      const created = utcSeconds(v.createdAt),
+        expires = utcSeconds(v.expiresAt);
+      resultRequire(
+        created <= accepted &&
+          accepted < expires &&
+          expires > created &&
+          expires - created <= 7200 &&
+          created >= grant.notBefore &&
+          expires <= grant.expiresAt,
+      );
+      return { created, expires };
+    };
+    const rt = lifetime(run),
+      mt = lifetime(manifest);
+    resultRequire(
+      mt.created >= rt.created &&
+        mt.expires <= rt.expires &&
+        manifest.taskEnvelope.objectId === run.taskId &&
+        manifest.taskEnvelope.revision === run.taskVersion &&
+        manifest.taskEnvelope.keyEpoch === run.keyEpoch,
+    );
+    resultRequire(e.manifestFingerprint === (await sha(canonical(manifest))));
+    const intent = await verified(manifest.signedBeginIntent, agent.publicJwk);
+    validate("BeginRunIntentPayload", intent);
+    resultRequire(
+      reference(intent) &&
+        intent.expectedTaskVersion === run.taskVersion &&
+        intent.taskEnvelopeFingerprint === manifest.taskEnvelope.envelopeFingerprint &&
+        (await signingFingerprint(manifest.signedBeginIntent)) === run.beginIntentFingerprint,
+    );
+    for (const name of [
+      "taskId",
+      "connectionId",
+      "authorizationId",
+      "grantId",
+      "grantEpoch",
+      "executionEpoch",
+    ])
+      resultRequire(intent[name] === grant[name]);
+    const namespace = [
+      owner,
+      vault.vaultId,
+      grant.connectionId,
+      grant.authorizationId,
+      grant.grantId,
+      grant.grantEpoch,
+      grant.taskId,
+      intent.stableOperationId,
+      run.beginIntentFingerprint,
+    ];
+    for (const [field, prefix, domain] of [
+      ["runId", "run_", "run"],
+      ["manifestId", "manifest_", "manifest"],
+      ["initialResultId", "result_", "result"],
+    ])
+      resultRequire(
+        run[field] ===
+          prefix + (await sha(canonical([`folioview.${domain}-allocation.v1`, ...namespace]))),
+      );
+    const selected = manifest.entries.map((v: Json) => ({
+      ref: v.ref,
+      revision: v.revision,
+      sourceEpoch: v.sourceEpoch,
+      envelopeFingerprint: v.envelopeFingerprint,
+    }));
+    resultRequire(
+      equal(selected, intent.resourceVersions) &&
+        new Set(manifest.entries.map((v: Json) => canonical(v.ref))).size ===
+          manifest.entries.length &&
+        (!manifest.entries.length || grant.capabilities.includes("decrypt_resources")),
+    );
+    for (const entry of manifest.entries) {
+      const binding = grant.resourceBindings.find((v: Json) => equal(v.ref, entry.ref));
+      resultRequire(
+        binding &&
+          entry.sourceEpoch === binding.sourceEpoch &&
+          entry.keyEpoch === run.keyEpoch &&
+          entry.objectType ===
+            {
+              holdings: "holdings_snapshot",
+              watchlist: "watchlist_evidence",
+              channel_follows: "channel_follows_evidence",
+            }[entry.ref.kind as string] &&
+          (binding.versionAccess !== "selected" ||
+            binding.selectedVersions.includes(entry.revision)),
+      );
+    }
+    const expectedBinding = {
+      taskId: run.taskId,
+      taskVersion: run.taskVersion,
+      runId: run.runId,
+      manifestId: run.manifestId,
+      taskEnvelopeFingerprint: manifest.taskEnvelope.envelopeFingerprint,
+      manifestFingerprint: e.manifestFingerprint,
+      connectionId: run.connectionId,
+      grantId: run.grantId,
+      grantEpoch: run.grantEpoch,
+      executionEpoch: run.executionEpoch,
+      resourceRef: null,
+      sourceRevision: null,
+      sourceEpoch: null,
+    };
+    const message = await verified(result.signedObject, agent.publicJwk, "fv-object+jws");
+    validate("ObjectMessage", message);
+    const c = message.context;
+    validate("Context", c);
+    resultRequire(
+      reference(c) &&
+        c.rootKeyId === vault.rootKeyId &&
+        c.rootEpoch === 1 &&
+        c.objectId === meta.resultId &&
+        c.objectType === "result_revision" &&
+        c.revision === meta.revision &&
+        c.deliveryRevision === 1 &&
+        c.priorEnvelopeFingerprint === null &&
+        c.expectedRevision === c.revision - 1 &&
+        c.operationType === (c.revision === 1 ? "submit_result" : "revise_result") &&
+        c.authorSigningKeyId === agent.keyId &&
+        equal(c.binding, expectedBinding) &&
+        equal(c.resourceBindings, []) &&
+        equal(
+          c.recipients,
+          recipients.map((v) => ({
+            keyId: v.keyId,
+            role: v.role,
+            principalId: v.principalId,
+            connectionId: v.connectionId,
+            keyEpoch: v.keyEpoch,
+          })),
+        ),
+    );
+    const fingerprint = await signingFingerprint(result.signedObject);
+    resultRequire(fingerprint === meta.envelopeFingerprint);
+    const receipt = e.receipt;
+    for (const [name, value] of Object.entries({
+      vaultId: vault.vaultId,
+      resultId: c.objectId,
+      runId: run.runId,
+      taskId: run.taskId,
+      revision: c.revision,
+      deliveryRevision: c.deliveryRevision,
+      stableOperationId: c.stableOperationId,
+      envelopeFingerprint: fingerprint,
+      resultPath: `/results/${c.objectId}?revision=${c.revision}`,
+    }))
+      resultRequire(receipt[name] === value);
+    exact(e.provenance, [
+      "kind",
+      "provider",
+      "clientId",
+      "connectionId",
+      "authorizationId",
+      "agentPrincipalId",
+    ]);
+    resultRequire(
+      e.provenance.kind === "authorized_connection_submission" &&
+        e.provenance.provider === "muse" &&
+        e.provenance.connectionId === grant.connectionId &&
+        e.provenance.authorizationId === grant.authorizationId &&
+        e.provenance.agentPrincipalId === agent.principalId,
+    );
+    validate("Identifier", e.provenance.clientId);
+    const jwe = message.jwe;
+    exact(jwe, ["protected", "recipients", "iv", "ciphertext", "tag", "aad"]);
+    resultRequire(
+      equal(parsed(unb64(jwe.protected, 1024), false), JWE_HEADER) &&
+        jwe.aad === b64(utf8.encode(canonical(c))) &&
+        Array.isArray(jwe.recipients) &&
+        jwe.recipients.length === recipients.length &&
+        unb64(jwe.iv, 12).length === 12 &&
+        unb64(jwe.tag, 16).length === 16,
+    );
+    for (let i = 0; i < jwe.recipients.length; i++) {
+      const recipient = jwe.recipients[i];
+      exact(recipient, ["header", "encrypted_key"]);
+      exact(recipient.header, ["kid", "epk"]);
+      resultRequire(
+        recipient.header.kid === recipientIds[i] &&
+          unb64(recipient.encrypted_key, 40).length === 40,
+      );
+      validate("PublicJWK", recipient.header.epk);
+    }
+    const recoveryId = await thumb(this.recoveryJwk);
+    const selectedKey =
+      this.device && recipientIds.includes(this.device.encId)
+        ? this.device.enc
+        : recipientIds.includes(recoveryId)
+          ? this.recovery
+          : null;
+    if (!selectedKey) throw new VaultError("missing_key");
+    let plaintext: Uint8Array | undefined;
+    try {
+      const opened = await generalDecrypt(jwe, selectedKey, {
+        keyManagementAlgorithms: ["ECDH-ES+A256KW"],
+        contentEncryptionAlgorithms: ["A256GCM"],
+      });
+      plaintext = opened.plaintext;
+      resultRequire(
+        equal(
+          Array.from(opened.additionalAuthenticatedData ?? []),
+          Array.from(utf8.encode(canonical(c))),
+        ),
+      );
+      const payload = parsed(plaintext);
+      bounded(payload, 196608);
+      validate("PrivatePayload", payload);
+      resultRequire(
+        payload.objectId === c.objectId &&
+          payload.objectType === c.objectType &&
+          payload.revision === c.revision &&
+          equal(payload.binding, c.binding),
+      );
+      return checkedResultContent(payload.payload);
+    } catch (error) {
+      if (error instanceof VaultError) throw error;
+      throw new VaultError("decryption_failed");
+    } finally {
+      plaintext?.fill(0);
+    }
   }
   async validatePending(pending: PendingSnapshot) {
     const { registry, vault } = this.ready();

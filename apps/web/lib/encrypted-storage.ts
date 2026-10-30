@@ -162,10 +162,13 @@ export class BrowserEncryptedStorage implements EncryptedStorage {
         try {
           if (record.pin.ownerSubject !== owner) throw new VaultError("wrong_account");
           assertPinAdvance(req.result, record);
-          s.put(
-            { ownerSubject: owner, device: record.device },
-            owner + ":device:" + record.pin.vaultId,
-          );
+          // A historical-only reader may not have a device. Its public pin update
+          // must not erase a sealed device enrolled concurrently by another tab.
+          if (record.device !== undefined)
+            s.put(
+              { ownerSubject: owner, device: record.device },
+              owner + ":device:" + record.pin.vaultId,
+            );
           s.put(record.pin, pinKey);
           const pending = s.get(pendingKey);
           pending.onsuccess = () => {

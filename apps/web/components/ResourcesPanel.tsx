@@ -401,9 +401,14 @@ function Workspace({ model }: { model: HoldingsWorkspace }) {
     </>
   );
 }
-export default function ResourcesPanel({ onOpenWatchlist }: { onOpenWatchlist?: () => void }) {
+function ResourcesView({
+  model,
+  onOpenWatchlist,
+}: {
+  model: HoldingsWorkspace;
+  onOpenWatchlist?: () => void;
+}) {
   const t = useTranslations("resources");
-  const model = useHoldingsWorkspace();
   return (
     <section className={styles.panel} aria-labelledby="resources-title">
       <header className={styles.heading}>
@@ -468,5 +473,24 @@ export default function ResourcesPanel({ onOpenWatchlist }: { onOpenWatchlist?: 
         </aside>
       </div>
     </section>
+  );
+}
+
+function IndependentResources({ onOpenWatchlist }: { onOpenWatchlist?: () => void }) {
+  const model = useHoldingsWorkspace();
+  return <ResourcesView model={model} onOpenWatchlist={onOpenWatchlist} />;
+}
+
+export default function ResourcesPanel({
+  workspace,
+  onOpenWatchlist,
+}: {
+  workspace?: HoldingsWorkspace;
+  onOpenWatchlist?: () => void;
+}) {
+  return workspace ? (
+    <ResourcesView model={workspace} onOpenWatchlist={onOpenWatchlist} />
+  ) : (
+    <IndependentResources onOpenWatchlist={onOpenWatchlist} />
   );
 }

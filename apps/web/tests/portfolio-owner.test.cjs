@@ -774,6 +774,9 @@ test("caller cancellation fences a pending upstream response without waiting for
 test("per-owner concurrency denial cannot release another live slot and independent owners remain usable", async () => {
   const pending = [];
   const h = harness({
+    // This case holds requests to test admission, rather than elapsed time. Use
+    // the production ceiling so concurrent crypto/build workers cannot expire it.
+    deadlineMs: 12000,
     upstream: () => {
       const reply = deferred();
       pending.push(reply);
@@ -789,17 +792,20 @@ test("per-owner concurrency denial cannot release another live slot and independ
   const independent = h.proxy(request(SOURCE, { token: tokenB }));
   await waitFor(() => pending.length === 5);
   pending[0].resolve(jsonResponse());
-  assert.equal((await running[0]).status, 200);
+  // Signature verification can finish in a different order under concurrent
+  // crypto tests. The first upstream request need not belong to running[0].
+  assert.equal((await Promise.race(running)).status, 200);
   const replacement = h.proxy(request());
   await waitFor(() => pending.length === 6);
   pending.slice(1).forEach((reply) => reply.resolve(jsonResponse()));
-  const results = await Promise.all([...running.slice(1), independent, replacement]);
+  const results = await Promise.all([...running, independent, replacement]);
   assert.ok(results.every((response) => response.status === 200));
 });
 
 test("factory global concurrency is bounded at16 and slots are released after requests finish", async () => {
   const pending = [];
   const h = harness({
+    deadlineMs: 12000,
     upstream: () => {
       const reply = deferred();
       pending.push(reply);

@@ -12,7 +12,14 @@ import {
 } from "@/lib/holdings-csv";
 import { EncryptedVaultSession } from "@/lib/encrypted-vault";
 import { createVaultPasskey, unlockVaultPasskey } from "@/lib/encrypted-passkey";
-import type { PendingSnapshot, Source, Vault } from "@/lib/encrypted-types";
+import type {
+  OpenResultArgs,
+  PendingSnapshot,
+  ResultMetadata,
+  ResultStateChanges,
+  Source,
+  Vault,
+} from "@/lib/encrypted-types";
 
 const CONTRACT = "folioview.agent-workspace.v2.0";
 const contractHeaders = { "X-FolioView-Contract": CONTRACT };
@@ -32,6 +39,7 @@ type State = {
   error: string;
   errorRow: number | null;
   notice: string;
+  canWriteState: boolean;
 };
 const empty: State = {
   owner: null,
@@ -46,6 +54,7 @@ const empty: State = {
   error: "",
   errorRow: null,
   notice: "",
+  canWriteState: false,
 };
 class WorkspaceError extends Error {
   constructor(public readonly code: string) {
@@ -108,7 +117,10 @@ export function useHoldingsWorkspace() {
   const auth = useAuth();
   const owner = auth.status === "authenticated" && auth.profile ? auth.sessionKey : null;
   const uid = owner ? auth.profile!.uid : null;
-  const configured = auth.portfolioConfigured && auth.agentHubConfigured;
+  const configured = auth.agentHubConfigured;
+  const holdingsConfigured = auth.portfolioConfigured && configured;
+  const capabilitiesRef = useRef({ hub: configured, portfolio: auth.portfolioConfigured });
+  capabilitiesRef.current = { hub: configured, portfolio: auth.portfolioConfigured };
   const ownerRef = useRef(owner);
   ownerRef.current = owner;
   const [state, setState] = useState<State>(empty);
@@ -118,8 +130,10 @@ export function useHoldingsWorkspace() {
   const current = useRef<{ serial: number; controller: AbortController } | null>(null);
   const session = useRef<{ owner: string; instance: EncryptedVaultSession } | null>(null);
   const pending = useRef<PendingSnapshot | null>(null);
+  const vaultGeneration = useRef(0);
 
   const terminate = useCallback(() => {
+    ++vaultGeneration.current;
     session.current?.instance.lock();
     session.current = null;
     pending.current = null;
@@ -267,7 +281,12 @@ export function useHoldingsWorkspace() {
   );
 
   const liveSession = useCallback(() => {
-    if (!owner || ownerRef.current !== owner || session.current?.owner !== owner)
+    if (
+      !owner ||
+      ownerRef.current !== owner ||
+      !capabilitiesRef.current.hub ||
+      session.current?.owner !== owner
+    )
       throw new WorkspaceError("unlock_required");
     return session.current.instance;
   }, [owner]);
@@ -301,6 +320,7 @@ export function useHoldingsWorkspace() {
 
   const readSaved = useCallback(
     async (source: Source, signal: AbortSignal, assertActive: () => void) => {
+      if (!capabilitiesRef.current.portfolio) throw new WorkspaceError("service_unavailable");
       await sync(source, signal);
       const metadata = await api(
         "portfolio",
@@ -399,10 +419,10 @@ export function useHoldingsWorkspace() {
       current.current = null;
       terminate();
     };
-  }, [owner, configured, reload, terminate]);
+  }, [owner, configured, auth.portfolioConfigured, reload, terminate]);
 
   const unlock = useCallback(
-    () =>
+    (options?: { forResults?: boolean; enableState?: boolean }) =>
       perform("unlocking", async ({ assertActive, signal }) => {
         const vault = stateRef.current.owner === owner ? stateRef.current.vault : null;
         if (!vault || !uid || !owner) throw new WorkspaceError("unlock_required");
@@ -412,7 +432,10 @@ export function useHoldingsWorkspace() {
         const material = await unlockVaultPasskey(vault.archive);
         try {
           assertActive();
-          const result = await instance.unlock(vault, material);
+          const readOnly = options?.forResults && !options.enableState;
+          const result = readOnly
+            ? (await instance.unlockForResults(vault, material), { needsDeviceRegistration: false })
+            : await instance.unlock(vault, material);
           assertActive();
           if (result.needsDeviceRegistration) {
             const update = await instance.prepareDeviceRegistration(vault);
@@ -430,15 +453,18 @@ export function useHoldingsWorkspace() {
           const refreshed = await readCurrent(signal);
           assertActive();
           if (!refreshed.vault) throw new WorkspaceError("invalid_response");
-          await instance.acceptVault(refreshed.vault);
+          const resultAccess = readOnly ? await instance.acceptResultVault(refreshed.vault) : null;
+          if (!readOnly) await instance.acceptVault(refreshed.vault);
           assertActive();
           setState((previous) => ({
             ...previous,
             phase: "unlocked",
             vault: refreshed.vault,
             sources: refreshed.sources,
+            canWriteState: readOnly ? Boolean(resultAccess?.canWriteState) : true,
           }));
-          if (refreshed.sources[0]) await readSaved(refreshed.sources[0], signal, assertActive);
+          if (!options?.forResults && capabilitiesRef.current.portfolio && refreshed.sources[0])
+            await readSaved(refreshed.sources[0], signal, assertActive);
         } finally {
           if (material.secret.byteLength) new Uint8Array(material.secret).fill(0);
         }
@@ -477,6 +503,7 @@ export function useHoldingsWorkspace() {
             vault: result.vault,
             sources: result.sources,
             notice: "vault_created",
+            canWriteState: true,
           }));
         } finally {
           if (material.secret.byteLength) new Uint8Array(material.secret).fill(0);
@@ -488,6 +515,7 @@ export function useHoldingsWorkspace() {
   const importFile = useCallback(
     (file: File) =>
       perform("parsing", async ({ assertActive }) => {
+        if (!capabilitiesRef.current.portfolio) throw new WorkspaceError("service_unavailable");
         liveSession();
         if (file.size > HOLDINGS_CSV_MAX_BYTES) throw new HoldingsCsvError("file_too_large");
         const text = await file.text();
@@ -528,6 +556,7 @@ export function useHoldingsWorkspace() {
   const save = useCallback(
     () =>
       perform("saving", async ({ assertActive, signal }) => {
+        if (!capabilitiesRef.current.portfolio) throw new WorkspaceError("service_unavailable");
         const instance = liveSession();
         const currentState = stateRef.current;
         if (currentState.owner !== owner || !currentState.vault)
@@ -709,6 +738,7 @@ export function useHoldingsWorkspace() {
   );
 
   const lock = useCallback(() => {
+    if (ownerRef.current !== owner) return;
     ++serial.current;
     current.current?.controller.abort();
     current.current = null;
@@ -723,15 +753,88 @@ export function useHoldingsWorkspace() {
       phase: previous.vault ? "locked" : "needs-vault",
       error: "",
       notice: "",
+      canWriteState: false,
     }));
-  }, [terminate]);
+  }, [owner, terminate]);
+
+  const assertInboxSession = useCallback(
+    (instance: EncryptedVaultSession, generation: number) => {
+      if (
+        !owner ||
+        ownerRef.current !== owner ||
+        !capabilitiesRef.current.hub ||
+        session.current?.instance !== instance ||
+        vaultGeneration.current !== generation ||
+        stateRef.current.owner !== owner ||
+        stateRef.current.phase !== "unlocked"
+      )
+        throw new WorkspaceError("unlock_required");
+    },
+    [owner],
+  );
+
+  const refreshVault = useCallback(
+    async (signal: AbortSignal, forState = false): Promise<Vault> => {
+      const instance = liveSession(),
+        generation = vaultGeneration.current;
+      assertInboxSession(instance, generation);
+      const refreshed = await readCurrent(signal);
+      assertInboxSession(instance, generation);
+      if (signal.aborted || !refreshed.vault) throw new WorkspaceError("invalid_response");
+      const access = forState
+        ? (await instance.acceptVault(refreshed.vault), { canWriteState: true })
+        : await instance.acceptResultVault(refreshed.vault);
+      assertInboxSession(instance, generation);
+      if (signal.aborted) throw new WorkspaceError("cancelled");
+      setState((previous) => ({
+        ...previous,
+        vault: refreshed.vault,
+        sources: refreshed.sources,
+        canWriteState: access.canWriteState,
+      }));
+      return refreshed.vault;
+    },
+    [assertInboxSession, liveSession, readCurrent],
+  );
+
+  const openResult = useCallback(
+    async (args: OpenResultArgs) => {
+      const instance = liveSession(),
+        generation = vaultGeneration.current;
+      assertInboxSession(instance, generation);
+      const value = await instance.openResult(args);
+      assertInboxSession(instance, generation);
+      return value;
+    },
+    [assertInboxSession, liveSession],
+  );
+
+  const signResultState = useCallback(
+    async (args: { metadata: ResultMetadata; changes: ResultStateChanges }) => {
+      const instance = liveSession(),
+        generation = vaultGeneration.current;
+      assertInboxSession(instance, generation);
+      const value = await instance.signResultState(args);
+      assertInboxSession(instance, generation);
+      return value;
+    },
+    [assertInboxSession, liveSession],
+  );
 
   const visible = owner && configured && state.owner === owner ? state : { ...empty, owner };
   return {
     ...visible,
+    content: holdingsConfigured ? visible.content : null,
+    preview: holdingsConfigured ? visible.preview : null,
+    canWriteState: visible.phase === "unlocked" && visible.canWriteState,
     authenticated: Boolean(owner),
     authStatus: auth.status,
-    configured,
+    configured: holdingsConfigured,
+    vaultConfigured: configured,
+    vaultGeneration: vaultGeneration.current,
+    openResult,
+    signResultState,
+    refreshVault,
     signIn: auth.signIn,
     create,
     unlock,
