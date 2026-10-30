@@ -44,8 +44,8 @@ async function settle() {
   await new Promise((resolve) => setImmediate(resolve));
 }
 
-function configResponse(portfolio = true) {
-  return new Response(JSON.stringify({ schemaVersion: 1, flags: { portfolio, agentHub: false } }), {
+function configResponse(portfolio = true, agentHub = false) {
+  return new Response(JSON.stringify({ schemaVersion: 1, flags: { portfolio, agentHub } }), {
     headers: { "Content-Type": "application/json" },
   });
 }
@@ -137,6 +137,7 @@ function mountProvider({
     process: { env },
     AbortController,
     URL,
+    URLSearchParams,
     TextEncoder,
     TextDecoder,
     window: {
@@ -617,7 +618,10 @@ function operationHeaders(extra = {}) {
 }
 
 test("encrypted requests use only explicit services, fixed version, closed methods and no redirects", async () => {
-  const harness = mountProvider({ env: encryptedEnv });
+  const harness = mountProvider({
+    env: encryptedEnv,
+    fetchOwnerConfig: async () => configResponse(true, true),
+  });
   harness.emitUser(user("a"));
   await settle();
   const entries = [
@@ -699,9 +703,7 @@ test("encrypted requests use only explicit services, fixed version, closed metho
     const [url, request] = harness.requests.at(-1);
     assert.equal(
       url,
-      (service === "portfolio"
-        ? "/api/private/portfolio"
-        : encryptedEnv.NEXT_PUBLIC_AGENT_HUB_API_BASE_URL) + path,
+      (service === "portfolio" ? "/api/private/portfolio" : "/api/private/agent-hub") + path,
     );
     assert.equal(request.headers["X-FolioView-Contract"], version);
     assert.equal(request.headers.Authorization, "Bearer test-token-a");
@@ -748,7 +750,10 @@ test("disabled proxy never falls back to direct Portfolio, Market or forwards a 
 
 test("encrypted routes reject header overrides, duplicates, wrong methods, unknown bodies and URLs before token retrieval", async () => {
   let tokens = 0;
-  const harness = mountProvider({ env: encryptedEnv });
+  const harness = mountProvider({
+    env: encryptedEnv,
+    fetchOwnerConfig: async () => configResponse(true, true),
+  });
   harness.emitUser({
     uid: "a",
     getIdToken: async () => {
@@ -862,7 +867,7 @@ test("missing, invalid, oversized and future owner configuration disables Portfo
     () => configResponse(false),
     () => json({ schemaVersion: 2, flags: { portfolio: true, agentHub: false } }),
     () => json({ schemaVersion: 1, flags: { portfolio: "true", agentHub: false } }),
-    () => json({ schemaVersion: 1, flags: { portfolio: true, agentHub: true } }),
+    () => json({ schemaVersion: 1, flags: { portfolio: true, agentHub: "true" } }),
     () =>
       json({ schemaVersion: 1, flags: { portfolio: true, agentHub: false, upstream: "private" } }),
     () =>
@@ -1083,4 +1088,391 @@ test("Portfolio 401 invalidates the active session and invalid mutation shapes n
   assert.equal(h.state().status, "error");
   assert.equal(h.state().profile, null);
   assert.equal(tokens, 2);
+});
+
+test("Hub capability is independent and production never falls back to its legacy remote origin", async () => {
+  for (const [portfolio, agentHub] of [
+    [true, false],
+    [false, true],
+    [false, false],
+  ]) {
+    let tokens = 0;
+    const h = mountProvider({
+      env: encryptedEnv,
+      fetchOwnerConfig: async () => configResponse(portfolio, agentHub),
+    });
+    h.emitUser({ uid: "a", getIdToken: async () => `test-token-${++tokens}` });
+    await settle();
+    assert.equal(h.actions.portfolioConfigured, portfolio);
+    assert.equal(h.actions.agentHubConfigured, agentHub);
+    assert.equal(h.actions.ownerCapabilities.agentHub, agentHub);
+    for (const [service, path, enabled] of [
+      ["portfolio", "/api/v2/holdings/sources/source_A", portfolio],
+      ["agent-hub", "/api/v2/vaults/current", agentHub],
+    ]) {
+      const before = tokens;
+      if (enabled) {
+        await h.actions.requestPrivate(service, path, "a:1");
+        assert.equal(h.requests.at(-1)[0], `/api/private/${service}${path}`);
+        assert.equal(tokens, before + 1);
+      } else {
+        await assert.rejects(h.actions.requestPrivate(service, path, "a:1"), /not configured/);
+        assert.equal(tokens, before);
+      }
+    }
+    assert.ok(h.requests.every(([url]) => !url.startsWith("https://hub.example.test")));
+    h.unmount();
+  }
+  const pending = deferred();
+  const h = mountProvider({ fetchOwnerConfig: () => pending.promise, env: encryptedEnv });
+  h.emitUser(user("a"));
+  await settle();
+  assert.equal(h.state().status, "authenticated");
+  await assert.rejects(
+    h.actions.requestPrivate("agent-hub", "/api/v2/vaults/current", "a:1"),
+    /not configured/,
+  );
+  assert.equal(h.requests.length, 1);
+  pending.resolve(configResponse(false, true));
+  await settle();
+  assert.equal(h.actions.agentHubConfigured, true);
+  h.unmount();
+});
+
+test("Hub owner catalogue, tasks, Inbox, connections and preparation use only closed same-origin routes", async () => {
+  const h = mountProvider({
+    fetchOwnerConfig: async () => configResponse(true, true),
+    env: encryptedEnv,
+  });
+  h.emitUser(user("a"));
+  await settle();
+  const cursor = "A".repeat(32);
+  const signedHeaders = operationHeaders({ "X-FolioView-Author-Key": author });
+  const versioned = {
+    contractVersion: version,
+    expectedVersion: 1,
+    resourceBindings: [],
+    envelope: {},
+  };
+  const entries = [
+    ["/api/v2/resources/catalogue", {}],
+    ["/api/v2/tasks?" + new URLSearchParams({ limit: "50", cursor }), {}],
+    ["/api/v2/tasks/task_A", {}],
+    ["/api/v2/tasks/task_A/versions/50", {}],
+    ["/api/v2/results?limit=50&cursor=" + cursor + "&filter=unread&taskId=task_A", {}],
+    ["/api/v2/results/counts?taskId=task_A", {}],
+    ["/api/v2/results/result_A?revision=32&deliveryRevision=1", {}],
+    ["/api/v2/results/result_A?deliveryRevision=9007199254740991", {}],
+    ["/api/v2/results/result_A/revisions?limit=1&cursor=" + cursor, {}],
+    ["/api/v2/results/result_A/revisions/32/evidence", {}],
+    ["/api/v2/results/result_A/revisions/32/registries/32", {}],
+    ["/api/v2/agent-connections", {}],
+    ["/api/v2/agent-connections/connection_A/tasks/task_A/preparation-intent", {}],
+    [
+      "/api/v2/tasks",
+      { method: "POST", json: { ...versioned, taskId: "task_A" }, headers: signedHeaders },
+    ],
+    ["/api/v2/tasks/task_A", { method: "PUT", json: versioned, headers: signedHeaders }],
+    [
+      "/api/v2/tasks/task_A/transitions",
+      { method: "POST", json: { ...versioned, transitionIntent: {} }, headers: signedHeaders },
+    ],
+    [
+      "/api/v2/results/result_A/state",
+      { method: "PATCH", json: { contractVersion: version, command: {} }, headers: signedHeaders },
+    ],
+    [
+      "/api/v2/agent-connections/connection_A/revoke",
+      { method: "POST", json: { contractVersion: version } },
+    ],
+    [
+      "/api/v2/agent-connections/connection_A/grants/grant_A/revoke",
+      { method: "POST", json: { contractVersion: version } },
+    ],
+    [
+      "/api/v2/agent-connections/connection_A/tasks/task_A/preparation/objects/object_A",
+      { method: "PUT", json: { contractVersion: version, envelope: {} }, headers: signedHeaders },
+    ],
+    [
+      "/api/v2/agent-connections/connection_A/tasks/task_A/preparation/commit",
+      {
+        method: "POST",
+        json: {
+          contractVersion: version,
+          objects: [{ objectId: "object_A", envelopeFingerprint: author }],
+        },
+        headers: operationHeaders(),
+      },
+    ],
+  ];
+  for (const [path, options] of entries) {
+    await h.actions.requestPrivate("agent-hub", path, "a:1", options);
+    const [url, sent] = h.requests.at(-1);
+    assert.equal(url, "/api/private/agent-hub" + path);
+    assert.equal(sent.method, options.method ?? "GET");
+    assert.equal(sent.headers.Authorization, "Bearer test-token-a");
+    assert.equal(sent.headers["X-FolioView-Contract"], version);
+    assert.equal(sent.headers["X-Serverless-Authorization"], undefined);
+    assert.equal(sent.credentials, "omit");
+    assert.equal(sent.cache, "no-store");
+    assert.equal(sent.redirect, "error");
+    if (options.json) assert.equal(sent.body, JSON.stringify(options.json));
+  }
+  h.unmount();
+});
+
+test("Hub owner queries reject duplicate, unknown, malformed and out-of-range values before retrieving a token", async () => {
+  let tokens = 0;
+  const h = mountProvider({ fetchOwnerConfig: async () => configResponse(false, true) });
+  h.emitUser({ uid: "a", getIdToken: async () => `test-token-${++tokens}` });
+  await settle();
+  for (const path of [
+    "/api/v2/tasks?ownerUid=b",
+    "/api/v2/tasks?limit=1&limit=2",
+    "/api/v2/tasks?limit=0",
+    "/api/v2/tasks?limit=51",
+    "/api/v2/tasks?limit=01",
+    "/api/v2/tasks?cursor=",
+    "/api/v2/tasks?cursor=" + "A".repeat(2049),
+    "/api/v2/tasks?cursor=%",
+    "/api/v2/tasks?cursor=%2F",
+    "/api/v2/tasks?",
+    "/api/v2/tasks?&",
+    "/api/v2/tasks?limit=1&",
+    "/api/v2/tasks/task_A?limit=1",
+    "/api/v2/results?filter=everything",
+    "/api/v2/results?taskId=owner%2Ftask",
+    "/api/v2/results?cursor=a&cursor=b",
+    "/api/v2/results/counts?limit=1",
+    "/api/v2/results/counts?taskId=a&taskId=b",
+    "/api/v2/results/result_A?revision=33",
+    "/api/v2/results/result_A?revision=01",
+    "/api/v2/results/result_A?deliveryRevision=0",
+    "/api/v2/results/result_A?deliveryRevision=9007199254740992",
+    "/api/v2/results/result_A/revisions/33/evidence",
+    "/api/v2/results/result_A/revisions/1/registries/33",
+    "/api/v2/tasks/task_A/versions/51",
+    "/api/v2/tasks/task_A/versions/01",
+    "/api/v2/vaults/current?owner=a",
+    "/api/v2/resources/catalogue?kind=holdings",
+    "/api/v2/tasks/%41",
+    "/api/v2/tasks/task_A#fragment",
+  ])
+    await assert.rejects(h.actions.requestPrivate("agent-hub", path, "a:1"), /Invalid private API/);
+  assert.equal(tokens, 1);
+  assert.equal(h.requests.length, 1);
+  h.unmount();
+});
+
+test("Hub owner rejects authorization flow, agent protocols, internal/helper paths and header/body bypasses", async () => {
+  let tokens = 0;
+  const h = mountProvider({ fetchOwnerConfig: async () => configResponse(false, true) });
+  h.emitUser({ uid: "a", getIdToken: async () => `test-token-${++tokens}` });
+  await settle();
+  const state = "/api/v2/results/result_A/state";
+  const good = {
+    method: "PATCH",
+    json: { contractVersion: version, command: {} },
+    headers: operationHeaders({ "X-FolioView-Author-Key": author }),
+  };
+  const attempts = [
+    ["/api/v2/agent-authorizations/request_A", {}],
+    ...["claim", "prepare", "prepare-encrypted", "decision"].map((action) => [
+      "/api/v2/agent-authorizations/request_A/" + action,
+      { method: "POST", json: { contractVersion: version } },
+    ]),
+    ["/oauth/token", { method: "POST" }],
+    ["/mcp/v2", { method: "POST" }],
+    ["/.well-known/jwks.json", {}],
+    ["/internal/v2/source-fences", { method: "POST" }],
+    ["/agent/v2/helper/worker.js", {}],
+    ["/agent/v2/tasks/task_A", {}],
+    ["https://evil.test/api/v2/tasks", {}],
+    ["//evil.test/api/v2/tasks", {}],
+    [state, { ...good, method: "PUT" }],
+    [state, { ...good, json: { ...good.json, ownerUid: "b" } }],
+    [state, { ...good, headers: operationHeaders() }],
+    [
+      state,
+      { ...good, headers: { ...good.headers, "X-Serverless-Authorization": "Bearer forged" } },
+    ],
+    [state, { ...good, headers: { ...good.headers, "X-FolioView-Delegation": "forged" } }],
+    [state, { ...good, headers: { ...good.headers, Origin: "https://evil.test" } }],
+    [state, { ...good, headers: { ...good.headers, Cookie: "fv_oauth_flow=forged" } }],
+    ["/api/v2/resources/catalogue", { json: { contractVersion: version } }],
+    [
+      "/api/v2/tasks",
+      {
+        method: "POST",
+        json: { contractVersion: version, expectedVersion: 0, resourceBindings: [], envelope: {} },
+        headers: good.headers,
+      },
+    ],
+    [
+      "/api/v2/agent-connections/connection_A/revoke",
+      { method: "POST", json: { contractVersion: version }, headers: good.headers },
+    ],
+    [
+      "/api/v2/agent-connections/connection_A/tasks/task_A/preparation/commit",
+      { method: "POST", json: { contractVersion: version, objects: [] }, headers: good.headers },
+    ],
+  ];
+  for (const [path, options] of attempts)
+    await assert.rejects(
+      h.actions.requestPrivate("agent-hub", path, "a:1", options),
+      /Invalid private API/,
+    );
+  assert.equal(tokens, 1);
+  assert.equal(h.requests.length, 1);
+  h.unmount();
+});
+
+test("Hub owner write budgets reject oversized state, source control, commit and task bodies before token access", async () => {
+  let tokens = 0;
+  const h = mountProvider({ fetchOwnerConfig: async () => configResponse(false, true) });
+  h.emitUser({ uid: "a", getIdToken: async () => `test-token-${++tokens}` });
+  await settle();
+  const headers = operationHeaders({ "X-FolioView-Author-Key": author });
+  for (const [path, method, json, selectedHeaders] of [
+    [
+      "/api/v2/results/result_A/state",
+      "PATCH",
+      { contractVersion: version, command: "A".repeat(65536) },
+      headers,
+    ],
+    [
+      "/api/v2/vaults/vault_A/holdings-sources/source_A",
+      "POST",
+      { contractVersion: version, command: "A".repeat(66560) },
+      headers,
+    ],
+    [
+      "/api/v2/agent-connections/connection_A/tasks/task_A/preparation/commit",
+      "POST",
+      { contractVersion: version, objects: ["A".repeat(8192)] },
+      operationHeaders(),
+    ],
+    [
+      "/api/v2/tasks",
+      "POST",
+      {
+        contractVersion: version,
+        taskId: "task_A",
+        expectedVersion: 0,
+        resourceBindings: [],
+        envelope: "A".repeat(589824),
+      },
+      headers,
+    ],
+  ])
+    await assert.rejects(
+      h.actions.requestPrivate("agent-hub", path, "a:1", {
+        method,
+        json,
+        headers: selectedHeaders,
+      }),
+      /Invalid private API/,
+    );
+  assert.equal(tokens, 1);
+  assert.equal(h.requests.length, 1);
+  h.unmount();
+});
+
+test("Hub proxy preserves pending-token account switch, logout, cancellation and late401 fences", async () => {
+  for (const transition of ["switch", "logout", "abort"]) {
+    const token = deferred();
+    let attempts = 0;
+    const h = mountProvider({
+      fetchOwnerConfig: async () => configResponse(false, true),
+      fetchProfile: async (_url, options) =>
+        profileResponse(options.headers.Authorization.endsWith("-b") ? "b" : "a"),
+    });
+    h.emitUser({
+      uid: "a",
+      getIdToken: () => (++attempts === 1 ? Promise.resolve("test-token-a") : token.promise),
+    });
+    await settle();
+    const controller = new AbortController();
+    const pending = h.actions.requestPrivate("agent-hub", "/api/v2/results/result_A", "a:1", {
+      signal: controller.signal,
+    });
+    const rejected = assert.rejects(pending, /account session changed/);
+    if (transition === "switch") h.emitUser(user("b"));
+    if (transition === "logout") await h.actions.signOut();
+    if (transition === "abort") controller.abort();
+    await settle();
+    token.resolve("late-test-token-a");
+    await rejected;
+    assert.ok(h.requests.every(([url]) => url.endsWith("/api/v1/me")));
+    h.unmount();
+  }
+  const reply = deferred();
+  const h = mountProvider({
+    fetchOwnerConfig: async () => configResponse(false, true),
+    fetchProfile: async (url, options) =>
+      url.endsWith("/api/v1/me")
+        ? profileResponse(options.headers.Authorization.endsWith("-b") ? "b" : "a")
+        : reply.promise,
+  });
+  h.emitUser(user("a"));
+  await settle();
+  const pending = h.actions.requestPrivate("agent-hub", "/api/v2/results/result_A", "a:1");
+  const rejected = assert.rejects(pending, /account session changed/);
+  await settle();
+  h.emitUser(user("b"));
+  await settle();
+  reply.resolve({ ok: false, status: 401 });
+  await rejected;
+  assert.equal(h.state().profile.uid, "b");
+  h.unmount();
+});
+
+test("Hub active401 invalidates identity while infrastructure503 preserves the owner", async () => {
+  for (const status of [503, 401]) {
+    const h = mountProvider({
+      fetchOwnerConfig: async () => configResponse(false, true),
+      fetchProfile: async (url) =>
+        url.endsWith("/api/v1/me") ? profileResponse("a") : { ok: false, status },
+    });
+    h.emitUser(user("a"));
+    await settle();
+    const pending = h.actions.requestPrivate("agent-hub", "/api/v2/resources/catalogue", "a:1");
+    if (status === 401) {
+      await assert.rejects(pending, /account session changed/);
+      assert.equal(h.state().profile, null);
+    } else {
+      assert.equal((await pending).status, 503);
+      assert.equal(h.state().profile.uid, "a");
+    }
+    h.unmount();
+  }
+});
+
+test("Hub legacy direct transport exists only for explicit development loopback testing", async () => {
+  for (const [mode, hostname, origin, enabled] of [
+    ["development", "localhost", "http://127.0.0.1:8788", true],
+    ["development", "127.0.0.1", "https://localhost:8788", true],
+    ["production", "localhost", "http://localhost:8788", false],
+    ["development", "folioview.example.test", "http://localhost:8788", false],
+    ["development", "localhost", "https://hub.example.test", false],
+    ["development", "localhost", "http://localhost.evil.test:8788", false],
+  ]) {
+    const h = mountProvider({
+      fetchOwnerConfig: async () => configResponse(false, false),
+      hostname,
+      env: { NODE_ENV: mode, NEXT_PUBLIC_AGENT_HUB_API_BASE_URL: origin },
+    });
+    h.emitUser(user("a"));
+    await settle();
+    assert.equal(h.actions.agentHubConfigured, enabled);
+    if (enabled) {
+      await h.actions.requestPrivate("agent-hub", "/api/v2/vaults/current", "a:1");
+      assert.equal(h.requests.at(-1)[0], origin + "/api/v2/vaults/current");
+    } else
+      await assert.rejects(
+        h.actions.requestPrivate("agent-hub", "/api/v2/vaults/current", "a:1"),
+        /not configured/,
+      );
+    h.unmount();
+  }
 });

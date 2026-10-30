@@ -26,7 +26,7 @@ const USER_API_BASE_URL = process.env.NEXT_PUBLIC_USER_API_BASE_URL || API_BASE_
 const CONFIG_API_BASE_URL = process.env.NEXT_PUBLIC_CONFIG_API_BASE_URL || API_BASE_URL;
 
 export type PrivateService = "user" | "config" | "portfolio" | "agent-hub";
-type PrivateMethod = "GET" | "PUT" | "DELETE" | "POST";
+type PrivateMethod = "GET" | "PUT" | "DELETE" | "POST" | "PATCH";
 type PrivateRequestOptions = {
   method?: PrivateMethod;
   signal?: AbortSignal;
@@ -54,23 +54,18 @@ function encryptedOrigin(service: "portfolio" | "agent-hub"): string | null {
   }
 }
 
-// Hub keeps its existing direct transport until its separate forwarding slice.
-export function isPrivateServiceConfigured(service: "agent-hub"): boolean {
-  return encryptedOrigin(service) !== null;
-}
-
-function developmentPortfolioOrigin(): string | null {
+function developmentEncryptedOrigin(service: "portfolio" | "agent-hub"): string | null {
   if (
     process.env.NODE_ENV !== "development" ||
     typeof window === "undefined" ||
     !["localhost", "127.0.0.1"].includes(window.location.hostname)
   )
     return null;
-  const origin = encryptedOrigin("portfolio");
+  const origin = encryptedOrigin(service);
   return origin && ["localhost", "127.0.0.1"].includes(new URL(origin).hostname) ? origin : null;
 }
 
-export type OwnerCapabilities = Readonly<{ portfolio: boolean; agentHub: false }>;
+export type OwnerCapabilities = Readonly<{ portfolio: boolean; agentHub: boolean }>;
 export type OwnerConfigStatus = "loading" | "ready" | "unavailable";
 type OwnerConfig = { status: OwnerConfigStatus; flags: OwnerCapabilities };
 const disabledCapabilities: OwnerCapabilities = { portfolio: false, agentHub: false };
@@ -128,54 +123,183 @@ async function readOwnerCapabilities(
     Array.isArray(flags) ||
     Object.keys(flags).sort().join("|") !== "agentHub|portfolio" ||
     typeof (flags as Record<string, unknown>).portfolio !== "boolean" ||
-    (flags as Record<string, unknown>).agentHub !== false
+    typeof (flags as Record<string, unknown>).agentHub !== "boolean"
   )
     throw new Error("Invalid owner configuration");
-  return { portfolio: (flags as Record<string, unknown>).portfolio as boolean, agentHub: false };
+  return {
+    portfolio: (flags as Record<string, unknown>).portfolio as boolean,
+    agentHub: (flags as Record<string, unknown>).agentHub as boolean,
+  };
 }
 
 type EncryptedRule = {
-  method: "GET" | "POST" | "PUT";
+  method: "GET" | "POST" | "PUT" | "PATCH";
   keys?: string[];
   idempotent?: boolean;
   author?: boolean;
   authority?: boolean;
+  maxBytes?: number;
 };
-function encryptedRule(service: "portfolio" | "agent-hub", path: string): EncryptedRule | null {
+function hubOwnerRule(path: string, method: PrivateMethod): EncryptedRule | null {
+  if (path.length > 8192 || /[\\#]/.test(path)) return null;
+  const parts = path.split("?");
+  if (parts.length > 2 || /%/.test(parts[0])) return null;
+  const pathname = parts[0];
   const id = "[A-Za-z0-9][A-Za-z0-9_-]{0,127}";
-  if (service === "agent-hub") {
-    if (path === "/api/v2/vaults/current") return { method: "GET" };
-    if (path === "/api/v2/vaults")
-      return {
-        method: "POST",
-        keys: ["contractVersion", "vaultId", "rootJwk", "rootKeyId", "registryBundle", "archive"],
-        idempotent: true,
-      };
-    if (path === "/api/v2/vaults/current/authority-token")
-      return { method: "POST", keys: ["contractVersion"] };
-    if (new RegExp(`^/api/v2/vaults/${id}/registry$`).test(path))
-      return {
-        method: "PUT",
-        keys: ["contractVersion", "expectedVersion", "registryBundle"],
-        idempotent: true,
-      };
-    if (new RegExp(`^/api/v2/vaults/${id}/holdings-sources/${id}$`).test(path))
-      return {
-        method: "POST",
-        keys: ["contractVersion", "command"],
-        idempotent: true,
-        author: true,
-      };
-  } else {
+  const matches = (pattern: string) => new RegExp(`^${pattern}$`).test(pathname);
+  let queryKeys: string[] = [];
+  let rule: EncryptedRule | null = null;
+  if (method === "GET") {
     if (
-      new RegExp(
-        `^/api/v2/holdings/sources/${id}(?:/latest|/snapshots/${id}|/operations/${id}|/mutations/${id})?$`,
-      ).test(path)
+      [
+        "/api/v2/vaults/current",
+        "/api/v2/resources/catalogue",
+        "/api/v2/agent-connections",
+      ].includes(pathname) ||
+      matches(`/api/v2/agent-connections/${id}/tasks/${id}/preparation-intent`)
     )
-      return { method: "GET" };
-    if (new RegExp(`^/api/v2/holdings/sources/${id}/authority-sync$`).test(path))
-      return { method: "POST", keys: ["contractVersion"], authority: true };
+      rule = { method };
+    else if (pathname === "/api/v2/tasks") {
+      queryKeys = ["limit", "cursor"];
+      rule = { method };
+    } else if (matches(`/api/v2/tasks/${id}`)) rule = { method };
+    else if (matches(`/api/v2/tasks/${id}/versions/(?:[1-9]|[1-4][0-9]|50)`)) rule = { method };
+    else if (pathname === "/api/v2/results") {
+      queryKeys = ["limit", "cursor", "filter", "taskId"];
+      rule = { method };
+    } else if (pathname === "/api/v2/results/counts") {
+      queryKeys = ["taskId"];
+      rule = { method };
+    } else if (matches(`/api/v2/results/${id}`)) {
+      queryKeys = ["revision", "deliveryRevision"];
+      rule = { method };
+    } else if (matches(`/api/v2/results/${id}/revisions`)) {
+      queryKeys = ["limit", "cursor"];
+      rule = { method };
+    } else if (
+      matches(
+        `/api/v2/results/${id}/revisions/(?:[1-9]|[12][0-9]|3[0-2])/(?:evidence|registries/(?:[1-9]|[12][0-9]|3[0-2]))`,
+      )
+    )
+      rule = { method };
+  } else if (method === "POST" && pathname === "/api/v2/vaults") {
+    rule = {
+      method,
+      keys: ["contractVersion", "vaultId", "rootJwk", "rootKeyId", "registryBundle", "archive"],
+      idempotent: true,
+    };
+  } else if (method === "PUT" && matches(`/api/v2/vaults/${id}/registry`)) {
+    rule = {
+      method,
+      keys: ["contractVersion", "expectedVersion", "registryBundle"],
+      idempotent: true,
+    };
+  } else if (method === "POST" && matches(`/api/v2/vaults/${id}/holdings-sources/${id}`)) {
+    rule = {
+      method,
+      keys: ["contractVersion", "command"],
+      idempotent: true,
+      author: true,
+      maxBytes: 66560,
+    };
+  } else if (
+    method === "POST" &&
+    (pathname === "/api/v2/vaults/current/authority-token" ||
+      matches(`/api/v2/agent-connections/${id}/(?:revoke|grants/${id}/revoke)`))
+  ) {
+    rule = { method, keys: ["contractVersion"], maxBytes: 1024 };
+  } else if (method === "POST" && pathname === "/api/v2/tasks") {
+    rule = {
+      method,
+      keys: ["contractVersion", "taskId", "expectedVersion", "resourceBindings", "envelope"],
+      idempotent: true,
+      author: true,
+    };
+  } else if (method === "PUT" && matches(`/api/v2/tasks/${id}`)) {
+    rule = {
+      method,
+      keys: ["contractVersion", "expectedVersion", "resourceBindings", "envelope"],
+      idempotent: true,
+      author: true,
+    };
+  } else if (method === "POST" && matches(`/api/v2/tasks/${id}/transitions`)) {
+    rule = {
+      method,
+      keys: [
+        "contractVersion",
+        "expectedVersion",
+        "resourceBindings",
+        "envelope",
+        "transitionIntent",
+      ],
+      idempotent: true,
+      author: true,
+    };
+  } else if (method === "PATCH" && matches(`/api/v2/results/${id}/state`)) {
+    rule = {
+      method,
+      keys: ["contractVersion", "command"],
+      idempotent: true,
+      author: true,
+      maxBytes: 65536,
+    };
+  } else if (
+    method === "PUT" &&
+    matches(`/api/v2/agent-connections/${id}/tasks/${id}/preparation/objects/${id}`)
+  ) {
+    rule = { method, keys: ["contractVersion", "envelope"], idempotent: true, author: true };
+  } else if (
+    method === "POST" &&
+    matches(`/api/v2/agent-connections/${id}/tasks/${id}/preparation/commit`)
+  ) {
+    rule = { method, keys: ["contractVersion", "objects"], idempotent: true, maxBytes: 8192 };
   }
+  if (!rule) return null;
+  if (parts.length === 2) {
+    const raw = parts[1];
+    if (
+      !raw ||
+      /%(?![0-9A-Fa-f]{2})/.test(raw) ||
+      raw.split("&").some((pair) => !pair || !pair.includes("="))
+    )
+      return null;
+    const seen = new Set<string>();
+    for (const [name, value] of new URLSearchParams(raw)) {
+      if (!queryKeys.includes(name) || seen.has(name)) return null;
+      seen.add(name);
+      if (name === "cursor") {
+        if (!/^[A-Za-z0-9_-]{1,2048}$/.test(value)) return null;
+      } else if (name === "filter") {
+        if (!["all", "unread", "starred", "archived"].includes(value)) return null;
+      } else if (name === "taskId") {
+        if (!new RegExp(`^${id}$`).test(value)) return null;
+      } else {
+        const max =
+          name === "deliveryRevision" ? Number.MAX_SAFE_INTEGER : name === "revision" ? 32 : 50;
+        const number = Number(value);
+        if (!/^[1-9][0-9]*$/.test(value) || !Number.isSafeInteger(number) || number > max)
+          return null;
+      }
+    }
+  }
+  return rule;
+}
+
+function encryptedRule(
+  service: "portfolio" | "agent-hub",
+  path: string,
+  method: PrivateMethod,
+): EncryptedRule | null {
+  if (service === "agent-hub") return hubOwnerRule(path, method);
+  const id = "[A-Za-z0-9][A-Za-z0-9_-]{0,127}";
+  if (
+    new RegExp(
+      `^/api/v2/holdings/sources/${id}(?:/latest|/snapshots/${id}|/operations/${id}|/mutations/${id})?$`,
+    ).test(path)
+  )
+    return { method: "GET" };
+  if (new RegExp(`^/api/v2/holdings/sources/${id}/authority-sync$`).test(path))
+    return { method: "POST", keys: ["contractVersion"], authority: true };
   return null;
 }
 
@@ -258,6 +382,7 @@ type AuthContextValue = AuthState & {
   ownerConfigStatus: OwnerConfigStatus;
   ownerCapabilities: OwnerCapabilities;
   portfolioConfigured: boolean;
+  agentHubConfigured: boolean;
   sessionKey: string | null;
   requestPrivate: (
     service: PrivateService,
@@ -520,8 +645,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const method = options.method ?? "GET";
       let origin: string;
       let contractHeaders: Record<string, string> = {};
+      let maxBodyBytes = 589824;
       if (service === "portfolio" || service === "agent-hub") {
-        let rule = encryptedRule(service, path);
+        let rule = encryptedRule(service, path, method);
         if (
           service === "portfolio" &&
           method === "POST" &&
@@ -550,15 +676,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           };
         }
         if (!rule) throw new Error("Invalid private API path");
+        const capability = service === "portfolio" ? "portfolio" : "agentHub";
         const configured =
-          service === "portfolio"
-            ? ownerConfigRef.current.status === "ready" && ownerConfigRef.current.flags.portfolio
+          ownerConfigRef.current.status === "ready" && ownerConfigRef.current.flags[capability]
+            ? service === "portfolio"
               ? "/api/private/portfolio"
-              : developmentPortfolioOrigin()
-            : encryptedOrigin(service);
+              : "/api/private/agent-hub"
+            : developmentEncryptedOrigin(service);
         if (!configured) throw new Error("Encrypted workspace is not configured.");
         origin = configured;
         contractHeaders = encryptedRequestHeaders(rule, options);
+        maxBodyBytes = rule.maxBytes ?? 589824;
       } else {
         const preferencesPath = path === "/api/v1/preferences";
         const watchlistPath =
@@ -583,7 +711,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (
         (service === "portfolio" || service === "agent-hub") &&
         body !== undefined &&
-        new TextEncoder().encode(body).byteLength > 589824
+        new TextEncoder().encode(body).byteLength > maxBodyBytes
       )
         throw new Error("Invalid private API request");
       const session = verifiedSessionRef.current;
@@ -652,7 +780,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       ownerCapabilities: ownerConfig.flags,
       portfolioConfigured:
         (ownerConfig.status === "ready" && ownerConfig.flags.portfolio) ||
-        developmentPortfolioOrigin() !== null,
+        developmentEncryptedOrigin("portfolio") !== null,
+      agentHubConfigured:
+        (ownerConfig.status === "ready" && ownerConfig.flags.agentHub) ||
+        developmentEncryptedOrigin("agent-hub") !== null,
       sessionKey:
         state.status === "authenticated" ? (verifiedSessionRef.current?.key ?? null) : null,
       requestPrivate,
