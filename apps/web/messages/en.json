@@ -434,6 +434,7 @@
     "archive": "Archive",
     "unarchive": "Restore to inbox",
     "copy": "Copy report",
+    "resultLink": "Link to this revision",
     "copyWarning": "Copying exports the decrypted report as plain text to your clipboard. Other apps may be able to read it.",
     "confirmCopy": "Copy plain text",
     "cancel": "Cancel",

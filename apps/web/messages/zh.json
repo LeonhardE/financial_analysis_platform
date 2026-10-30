@@ -434,6 +434,7 @@
     "archive": "归档",
     "unarchive": "移回收件箱",
     "copy": "复制报告",
+    "resultLink": "此修订的链接",
     "copyWarning": "复制会将解密后的报告以明文放入剪贴板，其他应用可能读取这些内容。",
     "confirmCopy": "复制明文",
     "cancel": "取消",

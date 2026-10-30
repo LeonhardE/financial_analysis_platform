@@ -19,6 +19,7 @@ import { PersonalWatchlist, WatchlistAction } from "@/components/PersonalWatchli
 import { useWatchlist } from "@/components/useWatchlist";
 import { useWatchlistQuotes } from "@/components/useWatchlistQuotes";
 import { WatchlistNotification } from "@/components/WatchlistNotification";
+import { clearInboxResultLink, isAgentConsentHandoff, readInboxResultLink } from "@/lib/inbox-link";
 import {
   CHART_RANGES,
   DEFAULT_INSTRUMENTS,
@@ -59,9 +60,29 @@ export default function Dashboard() {
   const [activeView, setActiveView] = useState<WorkspaceView>("markets");
   const encryptedWorkspace = useHoldingsWorkspace();
   useEffect(() => {
-    const query = new URLSearchParams(window.location.search);
-    if (query.has("agent_request") || query.has("agent_nonce")) setActiveView("agents");
+    const route = () => {
+      if (isAgentConsentHandoff(window.location.search)) setActiveView("agents");
+      else if (readInboxResultLink(window.location.hash)) setActiveView("inbox");
+      else setActiveView("markets");
+    };
+    route();
+    window.addEventListener("hashchange", route);
+    window.addEventListener("popstate", route);
+    return () => {
+      window.removeEventListener("hashchange", route);
+      window.removeEventListener("popstate", route);
+    };
   }, []);
+  const linkedOwner = useRef<string | null>(null);
+  useEffect(() => {
+    if (linkedOwner.current && linkedOwner.current !== encryptedWorkspace.owner)
+      clearInboxResultLink();
+    linkedOwner.current = encryptedWorkspace.owner;
+  }, [encryptedWorkspace.owner]);
+  const navigate = (view: WorkspaceView) => {
+    if (view !== "inbox") clearInboxResultLink();
+    setActiveView(view);
+  };
   const [taskRequest, setTaskRequest] = useState<TaskRequest | null>(null);
   const taskRequestSerial = useRef(0);
   useEffect(() => setTaskRequest(null), [encryptedWorkspace.owner]);
@@ -338,7 +359,7 @@ export default function Dashboard() {
           {t("nav.skip")}
         </a>
       )}
-      <WorkspaceSidebar activeView={activeView} onNavigate={setActiveView} />
+      <WorkspaceSidebar activeView={activeView} onNavigate={navigate} />
       {!pickerOpen && activeView === "markets" && <WatchlistNotification watchlist={watchlist} />}
       <main className="workspace-content" id="workspace-content">
         {activeView === "settings" && <SettingsPanel />}
@@ -352,12 +373,12 @@ export default function Dashboard() {
                 binding,
                 nonce: ++taskRequestSerial.current,
               });
-              setActiveView("tasks");
+              navigate("tasks");
             }}
             workspace={encryptedWorkspace}
             onOpenWatchlist={() => {
               setPickerTab("watchlist");
-              setActiveView("markets");
+              navigate("markets");
             }}
           />
         </div>
