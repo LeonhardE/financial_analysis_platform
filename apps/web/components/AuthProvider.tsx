@@ -147,6 +147,7 @@ type EncryptedRule = {
   author?: boolean;
   authority?: boolean;
   maxBytes?: number;
+  rootCommand?: boolean;
 };
 function hubOwnerRule(path: string, method: PrivateMethod): EncryptedRule | null {
   if (path.length > 8192 || /[\\#]/.test(path)) return null;
@@ -164,7 +165,9 @@ function hubOwnerRule(path: string, method: PrivateMethod): EncryptedRule | null
         "/api/v2/resources/catalogue",
         "/api/v2/agent-connections",
       ].includes(pathname) ||
-      matches(`/api/v2/agent-connections/${id}/tasks/${id}/preparation-intent`)
+      matches(`/api/v2/agent-connections/${id}/tasks/${id}/preparation-intent`) ||
+      matches(`/api/v2/vaults/${id}/archive`) ||
+      matches(`/api/v2/vaults/${id}/archive-operations/${id}`)
     )
       rule = { method };
     else if (pathname === "/api/v2/tasks") {
@@ -201,6 +204,25 @@ function hubOwnerRule(path: string, method: PrivateMethod): EncryptedRule | null
       method,
       keys: ["contractVersion", "expectedVersion", "registryBundle"],
       idempotent: true,
+    };
+  } else if (method === "PUT" && matches(`/api/v2/vaults/${id}/archive`)) {
+    rule = {
+      method,
+      keys: ["contractVersion", "archive", "command"],
+      idempotent: true,
+      maxBytes: 65536,
+      rootCommand: true,
+    };
+  } else if (
+    method === "POST" &&
+    matches(`/api/v2/vaults/${id}/recovery-authorizations(?:/${id}/revoke)?`)
+  ) {
+    rule = {
+      method,
+      keys: ["contractVersion", "command"],
+      idempotent: true,
+      maxBytes: 8192,
+      rootCommand: true,
     };
   } else if (method === "POST" && matches(`/api/v2/vaults/${id}/holdings-sources/${id}`)) {
     rule = {
@@ -329,6 +351,17 @@ function encryptedRequestHeaders(
     )
       throw new Error("Invalid private API request");
   } else if (options.json !== undefined) throw new Error("Invalid private API request");
+  if (rule.rootCommand) {
+    const command = (options.json as Record<string, unknown>).command;
+    if (
+      !exact(command, ["protected", "payload", "signature"]) ||
+      !Object.values(command).every(
+        (value) => typeof value === "string" && /^[A-Za-z0-9_-]+$/.test(value),
+      ) ||
+      new TextEncoder().encode(JSON.stringify(command)).byteLength > 8192
+    )
+      throw new Error("Invalid private API request");
+  }
   const headers: Record<string, string> = { "X-FolioView-Contract": CONTRACT };
   const allowed: Record<string, string> = { "x-folioview-contract": "X-FolioView-Contract" };
   if (rule.idempotent) allowed["idempotency-key"] = "Idempotency-Key";

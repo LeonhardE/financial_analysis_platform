@@ -1240,6 +1240,239 @@ test("Hub owner catalogue, tasks, Inbox, connections and preparation use only cl
   h.unmount();
 });
 
+test("real crypto lifecycle packets pass the actual provider boundary for BFF and local native acceptance", async () => {
+  const { createHarness, createOwner, decoded } = require("./full-flow-crypto-fixture.cjs");
+  const crypto = await createHarness();
+  try {
+    const owner = await createOwner(crypto, "a");
+    const checkpoint = decoded(owner.vault.registryHistory.at(-1).checkpoint);
+    const state = {
+      contractVersion: version,
+      profile: "folioview.vault-lifecycle.v1",
+      vaultId: owner.vault.vaultId,
+      rootKeyId: owner.vault.rootKeyId,
+      vaultVersion: owner.vault.version,
+      registrySequence: checkpoint.registrySequence,
+      checkpointDigest: await crypto.core.sha(crypto.core.canonical(checkpoint)),
+      keyEpoch: checkpoint.keyEpoch,
+      lifecycleVersion: 0,
+      archiveRevision: 0,
+      archiveDigest: await crypto.core.sha(crypto.core.canonical(owner.vault.archive)),
+      archive: owner.vault.archive,
+      pendingAuthorization: null,
+      history: [],
+    };
+    const made = await owner.session.prepareArchiveChange(
+      owner.vault,
+      state,
+      {
+        credentialId: crypto.core.b64(new TextEncoder().encode("synthetic-replacement")),
+        prfSalt: crypto.core.b64(new Uint8Array(32).fill(22)),
+        secret: new Uint8Array(32).fill(33).buffer,
+      },
+      "passkey_change",
+    );
+    const cancel = await owner.session.prepareArchiveCancellation(owner.vault, state, made.record);
+    const [authorize, revoke] = cancel.packet.commands;
+    const prefix = `/api/v2/vaults/${owner.vault.vaultId}`;
+    const entries = [
+      [prefix + "/archive", {}],
+      [prefix + `/archive-operations/${made.packet.operationId}`, {}],
+      [
+        prefix + "/archive",
+        {
+          method: "PUT",
+          json: {
+            contractVersion: version,
+            archive: made.packet.archive,
+            command: made.packet.command,
+          },
+          headers: { "Idempotency-Key": made.packet.operationId },
+        },
+      ],
+      [
+        prefix + "/recovery-authorizations",
+        {
+          method: "POST",
+          json: { contractVersion: version, command: authorize.command },
+          headers: { "Idempotency-Key": authorize.operationId },
+        },
+      ],
+      [
+        prefix + `/recovery-authorizations/${revoke.authorizationId}/revoke`,
+        {
+          method: "POST",
+          json: { contractVersion: version, command: revoke.command },
+          headers: { "Idempotency-Key": revoke.operationId },
+        },
+      ],
+    ];
+    for (const local of [false, true]) {
+      const h = mountProvider({
+        hostname: local ? "localhost" : "folioview.example.test",
+        env: local
+          ? { NODE_ENV: "development", NEXT_PUBLIC_AGENT_HUB_API_BASE_URL: "http://localhost:8769" }
+          : encryptedEnv,
+        fetchOwnerConfig: async () => configResponse(false, !local),
+      });
+      h.emitUser(user("a"));
+      await settle();
+      for (const [path, options] of entries) {
+        await h.actions.requestPrivate("agent-hub", path, "a:1", options);
+        const [url, sent] = h.requests.at(-1);
+        assert.equal(url, (local ? "http://localhost:8769" : "/api/private/agent-hub") + path);
+        assert.equal(sent.method, options.method ?? "GET");
+        assert.equal(sent.headers.Authorization, "Bearer test-token-a");
+        assert.equal(sent.headers["X-FolioView-Author-Key"], undefined);
+        assert.equal(sent.headers["X-FolioView-Authority-Delegation"], undefined);
+        assert.equal(sent.credentials, "omit");
+        assert.equal(sent.cache, "no-store");
+        assert.equal(sent.redirect, "error");
+        assert.equal(
+          sent.body,
+          options.json === undefined ? undefined : JSON.stringify(options.json),
+        );
+      }
+      assert.equal(h.requests.length, entries.length + 1);
+      h.unmount();
+    }
+  } finally {
+    await crypto.close();
+  }
+});
+
+test("lifecycle admission rejects alternate routes, queries, device-author overrides and open bodies before token retrieval", async () => {
+  let tokens = 0;
+  const h = mountProvider({ fetchOwnerConfig: async () => configResponse(false, true) });
+  h.emitUser({ uid: "a", getIdToken: async () => `test-token-${++tokens}` });
+  await settle();
+  const prefix = "/api/v2/vaults/vault_A";
+  const command = { protected: "e30", payload: "e30", signature: "AA" };
+  const write = {
+    method: "PUT",
+    json: { contractVersion: version, archive: {}, command },
+    headers: operationHeaders(),
+  };
+  const authorization = {
+    method: "POST",
+    json: { contractVersion: version, command },
+    headers: operationHeaders(),
+  };
+  const paths = [
+    prefix + "/archive",
+    prefix + "/archive-operations/operation_A",
+    prefix + "/recovery-authorizations",
+    prefix + "/recovery-authorizations/authorization_A/revoke",
+  ];
+  const attempts = [
+    ...paths.flatMap((path) => [
+      [
+        path + "?ownerUid=b",
+        path.includes("recovery-authorizations")
+          ? authorization
+          : path.endsWith("archive")
+            ? write
+            : {},
+      ],
+      [
+        path + "?",
+        path.includes("recovery-authorizations")
+          ? authorization
+          : path.endsWith("archive")
+            ? write
+            : {},
+      ],
+    ]),
+    [prefix + "/archive", { method: "POST", ...{ json: write.json, headers: write.headers } }],
+    [
+      prefix + "/archive",
+      { ...write, headers: operationHeaders({ "X-FolioView-Author-Key": author }) },
+    ],
+    [prefix + "/archive", { ...write, headers: {} }],
+    [prefix + "/archive", { ...write, json: { ...write.json, ownerSubject: "another-owner" } }],
+    [prefix + "/archive", { ...write, json: { contractVersion: version, archive: {} } }],
+    [prefix + "/archive", { ...write, json: { ...write.json, command: { ...command, jwk: {} } } }],
+    [
+      prefix + "/archive",
+      { ...write, json: { ...write.json, command: { ...command, signature: "not/base64" } } },
+    ],
+    [prefix + "/archive", { json: { contractVersion: version } }],
+    [prefix + "/archive", { headers: operationHeaders() }],
+    [
+      prefix + "/archive-operations/operation_A",
+      { method: "PUT", json: authorization.json, headers: operationHeaders() },
+    ],
+    [prefix + "/archive-operations/operation_A", { headers: { "X-FolioView-Author-Key": author } }],
+    [prefix + "/recovery-authorizations", {}],
+    [
+      prefix + "/recovery-authorizations",
+      { ...authorization, headers: operationHeaders({ "X-FolioView-Author-Key": author }) },
+    ],
+    [
+      prefix + "/recovery-authorizations/authorization_A/revoke",
+      { ...authorization, json: { ...authorization.json, authorizationId: "body-selected" } },
+    ],
+    [
+      prefix + "/recovery-authorizations/authorization_A/revoke",
+      {
+        ...authorization,
+        headers: { ...authorization.headers, "X-Serverless-Authorization": "Bearer forged" },
+      },
+    ],
+    [prefix + "/recovery-authorizations/authorization_A", authorization],
+    [prefix + "/archive/extra", write],
+    ["/api/v2/vaults/%76ault_A/archive", {}],
+    ["https://evil.test" + prefix + "/archive", {}],
+    [prefix + "/archive", { ...write, method: "DELETE" }],
+  ];
+  for (const [path, options] of attempts)
+    await assert.rejects(
+      h.actions.requestPrivate("agent-hub", path, "a:1", options),
+      /Invalid private API/,
+    );
+  assert.equal(tokens, 1);
+  assert.equal(h.requests.length, 1);
+  h.unmount();
+});
+
+test("lifecycle archive and authorization budgets are enforced independently before credential access", async () => {
+  let tokens = 0;
+  const h = mountProvider({ fetchOwnerConfig: async () => configResponse(false, true) });
+  h.emitUser({ uid: "a", getIdToken: async () => `test-token-${++tokens}` });
+  await settle();
+  const prefix = "/api/v2/vaults/vault_A";
+  const command = { protected: "AA", payload: "AA", signature: "AA" };
+  const nearCommand = { ...command, payload: "A".repeat(8100) };
+  const authorization = { contractVersion: version, command: nearCommand };
+  assert.ok(new TextEncoder().encode(JSON.stringify(nearCommand)).byteLength <= 8192);
+  assert.ok(new TextEncoder().encode(JSON.stringify(authorization)).byteLength > 8192);
+  for (const [path, method, json] of [
+    [
+      prefix + "/archive",
+      "PUT",
+      { contractVersion: version, archive: { ciphertext: "A".repeat(65536) }, command },
+    ],
+    [
+      prefix + "/archive",
+      "PUT",
+      { contractVersion: version, archive: {}, command: { ...command, payload: "A".repeat(8192) } },
+    ],
+    [prefix + "/recovery-authorizations", "POST", authorization],
+    [prefix + "/recovery-authorizations/authorization_A/revoke", "POST", authorization],
+  ])
+    await assert.rejects(
+      h.actions.requestPrivate("agent-hub", path, "a:1", {
+        method,
+        json,
+        headers: operationHeaders(),
+      }),
+      /Invalid private API/,
+    );
+  assert.equal(tokens, 1);
+  assert.equal(h.requests.length, 1);
+  h.unmount();
+});
+
 test("Hub owner queries reject duplicate, unknown, malformed and out-of-range values before retrieving a token", async () => {
   let tokens = 0;
   const h = mountProvider({ fetchOwnerConfig: async () => configResponse(false, true) });
