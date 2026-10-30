@@ -6,6 +6,7 @@ import { usePreferences } from "@/components/PreferencesProvider";
 import SettingsPanel from "@/components/SettingsPanel";
 import ResourcesPanel from "@/components/ResourcesPanel";
 import InboxPanel from "@/components/InboxPanel";
+import TasksPanel, { type TaskRequest } from "@/components/TasksPanel";
 import { useHoldingsWorkspace } from "@/components/useHoldingsWorkspace";
 import { localizeMessage } from "@/lib/ui-messages";
 import { CandlestickChart } from "@/components/CandlestickChart";
@@ -56,6 +57,9 @@ export default function Dashboard() {
   const [chartReload, setChartReload] = useState(0);
   const [activeView, setActiveView] = useState<WorkspaceView>("markets");
   const encryptedWorkspace = useHoldingsWorkspace();
+  const [taskRequest, setTaskRequest] = useState<TaskRequest | null>(null);
+  const taskRequestSerial = useRef(0);
+  useEffect(() => setTaskRequest(null), [encryptedWorkspace.owner]);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [desktopPickerVisible, setDesktopPickerVisible] = useState(false);
   useEffect(() => {
@@ -336,11 +340,28 @@ export default function Dashboard() {
         <div hidden={activeView !== "resources"}>
           <ResourcesPanel
             active={activeView === "resources"}
+            onCreateTask={(binding) => {
+              if (!encryptedWorkspace.authenticated || !encryptedWorkspace.owner) return;
+              setTaskRequest({
+                owner: encryptedWorkspace.owner,
+                binding,
+                nonce: ++taskRequestSerial.current,
+              });
+              setActiveView("tasks");
+            }}
             workspace={encryptedWorkspace}
             onOpenWatchlist={() => {
               setPickerTab("watchlist");
               setActiveView("markets");
             }}
+          />
+        </div>
+        <div hidden={activeView !== "tasks"}>
+          <TasksPanel
+            workspace={encryptedWorkspace}
+            active={activeView === "tasks"}
+            request={taskRequest?.owner === encryptedWorkspace.owner ? taskRequest : null}
+            onRequestConsumed={() => setTaskRequest(null)}
           />
         </div>
         <div hidden={activeView !== "inbox"}>

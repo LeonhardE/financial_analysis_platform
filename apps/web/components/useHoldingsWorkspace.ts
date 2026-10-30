@@ -18,6 +18,11 @@ import type {
   ResultMetadata,
   ResultStateChanges,
   Source,
+  EncryptedTask,
+  PendingTask,
+  TaskContent,
+  TaskDraft,
+  ResourceBindingMetadata,
   Vault,
 } from "@/lib/encrypted-types";
 
@@ -821,6 +826,84 @@ export function useHoldingsWorkspace() {
     [assertInboxSession, liveSession],
   );
 
+  // Tasks share the existing owner-fenced Worker. Callers receive role-bound
+  // operations, never a Worker handle, unwrapped key or another account's session.
+  const taskGeneration = vaultGeneration.current;
+  const taskCall = useCallback(
+    async <T>(action: (instance: EncryptedVaultSession) => Promise<T>) => {
+      if (taskGeneration !== vaultGeneration.current) throw new WorkspaceError("unlock_required");
+      const instance = liveSession(),
+        generation = vaultGeneration.current;
+      assertInboxSession(instance, generation);
+      const value = await action(instance);
+      assertInboxSession(instance, generation);
+      return value;
+    },
+    [assertInboxSession, liveSession, taskGeneration],
+  );
+  const openTask = useCallback(
+    (task: EncryptedTask) => taskCall((instance) => instance.openTask(task)),
+    [taskCall],
+  );
+  const taskAuthority = useCallback(
+    (current: EncryptedTask | null) => taskCall((instance) => instance.taskAuthority(current)),
+    [taskCall],
+  );
+  const sealTask = useCallback(
+    (args: {
+      content: TaskContent;
+      resourceBindings: ResourceBindingMetadata[];
+      current: EncryptedTask | null;
+      taskId?: string;
+    }) => taskCall((instance) => instance.sealTask(args)),
+    [taskCall],
+  );
+  const transitionTask = useCallback(
+    (args: { current: EncryptedTask; action: "pause" | "resume" | "archive" }) =>
+      taskCall((instance) => instance.transitionTask(args)),
+    [taskCall],
+  );
+  const listTaskDrafts = useCallback(
+    () => taskCall((instance) => instance.listTaskDrafts()),
+    [taskCall],
+  );
+  const loadTaskDraft = useCallback(
+    (slot: string) => taskCall((instance) => instance.loadTaskDraft(slot)),
+    [taskCall],
+  );
+  const saveTaskDraft = useCallback(
+    (args: {
+      slot: string;
+      expectedRevision: number;
+      baseVersion: number;
+      taskId: string;
+      draft: TaskDraft;
+    }) => taskCall((instance) => instance.saveTaskDraft(args)),
+    [taskCall],
+  );
+  const clearTaskDraft = useCallback(
+    (slot: string, expectedRevision: number) =>
+      taskCall((instance) => instance.clearTaskDraft(slot, expectedRevision)),
+    [taskCall],
+  );
+  const listTaskOutbox = useCallback(
+    () => taskCall((instance) => instance.listTaskOutbox()),
+    [taskCall],
+  );
+  const loadTaskOutbox = useCallback(
+    (taskId: string) => taskCall((instance) => instance.loadTaskOutbox(taskId)),
+    [taskCall],
+  );
+  const validateTaskPending = useCallback(
+    (packet: PendingTask) => taskCall((instance) => instance.validateTaskPending(packet)),
+    [taskCall],
+  );
+  const clearTaskOutbox = useCallback(
+    (taskId: string, operationId: string) =>
+      taskCall((instance) => instance.clearTaskOutbox(taskId, operationId)),
+    [taskCall],
+  );
+
   const visible = owner && configured && state.owner === owner ? state : { ...empty, owner };
   return {
     ...visible,
@@ -835,6 +918,18 @@ export function useHoldingsWorkspace() {
     openResult,
     signResultState,
     refreshVault,
+    openTask,
+    taskAuthority,
+    sealTask,
+    transitionTask,
+    listTaskDrafts,
+    loadTaskDraft,
+    saveTaskDraft,
+    clearTaskDraft,
+    listTaskOutbox,
+    loadTaskOutbox,
+    validateTaskPending,
+    clearTaskOutbox,
     signIn: auth.signIn,
     create,
     unlock,

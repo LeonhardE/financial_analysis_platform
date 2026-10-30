@@ -201,6 +201,11 @@ function harness({
         limitations: [],
       };
     }
+    async openTask() {
+      resultOpens++;
+      if (resultHold) await resultHold.promise;
+      return { name: "PRIVATE_TASK" };
+    }
     async signResultState() {
       if (!resultCanWrite) throw { code: "key_revoked" };
       return {
@@ -987,4 +992,32 @@ test("late shared result decryption and captured private methods cannot cross lo
     assert.equal(model.content, null);
     h.unmount();
   }
+});
+
+test("task Worker wrappers fence late replies and reject captured prior unlock generations", async () => {
+  const h = harness({ configured: false });
+  let model = await ready(h);
+  const unlocking = model.unlock({ forResults: true, enableState: true });
+  h.resolvePasskey();
+  await unlocking;
+  model = h.render();
+  const old = model,
+    gate = deferred();
+  h.holdResult(gate);
+  const opening = model.openTask({});
+  await settle();
+  model.lock();
+  h.render();
+  gate.resolve();
+  await assert.rejects(opening);
+  const again = h.render().unlock({ forResults: true, enableState: true });
+  await again;
+  model = h.render();
+  assert.equal(model.phase, "unlocked");
+  const count = h.counts().resultOpens;
+  await assert.rejects(old.openTask({}));
+  assert.equal(h.counts().resultOpens, count);
+  assert.equal(Object.hasOwn(model, "worker"), false);
+  assert.ok(h.requests.every((request) => request.service === "agent-hub"));
+  h.unmount();
 });
