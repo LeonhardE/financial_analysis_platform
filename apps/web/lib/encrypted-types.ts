@@ -50,6 +50,53 @@ export type PendingSnapshot = {
   source: Source;
 };
 export type PasskeyMaterial = { credentialId: string; prfSalt: string; secret: ArrayBuffer };
+/** Public management facts; private device candidates remain PRF-sealed in the Worker. */
+export type VaultDevice = {
+  deviceId: string;
+  signingKeyId: string;
+  encryptionKeyId: string;
+  current: boolean;
+  active: boolean;
+  notBefore: number;
+  expiresAt: number;
+};
+export type DeviceChangePacket = {
+  operationId: string;
+  expectedVersion: number;
+  registryBundle: RegistryBundle;
+  action: "revoke" | "rotate";
+  deviceId: string;
+  replacedKeyIds: string[];
+  newDeviceId: string | null;
+  newKeyIds: string[];
+};
+export type DeviceChangeSummary = {
+  operationId: string;
+  action: "revoke" | "rotate";
+  deviceId: string;
+  newDeviceId: string | null;
+  state: "ready" | "applied" | "conflict";
+};
+export type VaultManagementSummary = {
+  vaultId: string;
+  rootKeyId: string;
+  registrySequence: number;
+  checkpointDigest: string;
+  keyEpoch: number;
+  currentDeviceId: string | null;
+  canManage: boolean;
+  devices: VaultDevice[];
+  pendingChange: DeviceChangeSummary | null;
+  recovery: { keyId: string; notBefore: number; expiresAt: number; active: boolean } | null;
+};
+export type RecoveryVerification = {
+  vaultId: string;
+  rootKeyId: string;
+  recoveryKeyId: string;
+  registrySequence: number;
+  checkpointDigest: string;
+  verifiedAt: number;
+};
 export type ResultMetadata = {
   resultId: string;
   taskId: string;

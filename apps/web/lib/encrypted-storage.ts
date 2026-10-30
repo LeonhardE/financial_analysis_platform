@@ -6,7 +6,7 @@ export interface EncryptedStorage {
   remove(key: string): Promise<void>;
   insert(key: string, value: any): Promise<boolean>;
   removeOperation(key: string, operationId: string): Promise<boolean>;
-  stageDevice(key: string, record: any, expected: any): Promise<boolean>;
+  stageDevice(key: string, record: any, expected: any, blockedByKey?: string): Promise<boolean>;
   commitVault(owner: string, record: any): Promise<void>;
   list(prefix: string): Promise<{ key: string; value: any }[]>;
   compareTaskRecord(key: string, value: any, expectedRevision: number): Promise<boolean>;
@@ -181,18 +181,24 @@ export class BrowserEncryptedStorage implements EncryptedStorage {
       };
     });
   }
-  stageDevice(key: string, record: any, expected: any) {
+  stageDevice(key: string, record: any, expected: any, blockedByKey?: string) {
     return this.atomic<boolean>((s, done) => {
-      const req = s.get(key);
-      req.onsuccess = () => {
-        const current = req.result?.pending ?? null;
-        if (!same(current, expected ?? null) && !same(current, record.pending)) {
-          done(false);
-          return;
-        }
-        s.put(record, key);
-        done(true);
+      const stage = () => {
+        const req = s.get(key);
+        req.onsuccess = () => {
+          const current = req.result?.pending ?? null;
+          if (!same(current, expected ?? null) && !same(current, record.pending)) {
+            done(false);
+            return;
+          }
+          s.put(record, key);
+          done(true);
+        };
       };
+      if (blockedByKey) {
+        const blocked = s.get(blockedByKey);
+        blocked.onsuccess = () => (blocked.result === undefined ? stage() : done(false));
+      } else stage();
     });
   }
   async commitVault(owner: string, record: any) {
@@ -204,20 +210,44 @@ export class BrowserEncryptedStorage implements EncryptedStorage {
         try {
           if (record.pin.ownerSubject !== owner) throw new VaultError("wrong_account");
           assertPinAdvance(req.result, record);
-          // A historical-only reader may not have a device. Its public pin update
-          // must not erase a sealed device enrolled concurrently by another tab.
-          if (record.device !== undefined)
-            s.put(
-              { ownerSubject: owner, device: record.device },
-              owner + ":device:" + record.pin.vaultId,
-            );
-          s.put(record.pin, pinKey);
-          const pending = s.get(pendingKey);
-          pending.onsuccess = () => {
-            if (record.pending && same(pending.result?.pending, record.pending))
-              s.delete(pendingKey);
-            done();
+          const commit = () => {
+            // Historical reads only advance public pins. Explicit promotion is
+            // separately fenced against another tab's different local device.
+            if (record.device !== undefined)
+              s.put(
+                { ownerSubject: owner, device: record.device },
+                owner + ":device:" + record.pin.vaultId,
+              );
+            s.put(record.pin, pinKey);
+            const pending = s.get(pendingKey);
+            pending.onsuccess = () => {
+              if (record.pending && same(pending.result?.pending, record.pending))
+                s.delete(pendingKey);
+              done();
+            };
           };
+          if (record.device !== undefined && record.deviceReplacementKeyIds !== undefined) {
+            const ids = record.deviceReplacementKeyIds;
+            if (
+              !Array.isArray(ids) ||
+              ids.length !== 2 ||
+              ids.some((id: unknown) => typeof id !== "string")
+            )
+              throw new VaultError("operation_conflict");
+            const existing = s.get(owner + ":device:" + record.pin.vaultId);
+            existing.onsuccess = () => {
+              const old = existing.result?.device;
+              if (
+                old &&
+                !same(old, record.device) &&
+                !same([old.signingKeyId, old.encryptionKeyId].sort(), [...ids].sort())
+              ) {
+                fail(new VaultError("operation_conflict"));
+                return;
+              }
+              commit();
+            };
+          } else commit();
         } catch (e) {
           fail(e);
         }

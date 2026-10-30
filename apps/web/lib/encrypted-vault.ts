@@ -33,6 +33,9 @@ import {
   type AgentPreparationArgs,
   type AgentPreparationPacket,
   type AgentPendingKind,
+  type VaultManagementSummary,
+  type DeviceChangePacket,
+  type RecoveryVerification,
 } from "./encrypted-types";
 export type {
   Vault,
@@ -138,11 +141,17 @@ export class EncryptedVaultSession {
     const record = await this.storage.get(this.owner + ":device:" + vaultId),
       pin = await this.storage.get(this.owner + ":pin");
     const pending = await this.storage.get(this.owner + ":pending-device:" + vaultId);
+    const change = await this.deviceChangeRow(vaultId);
     this.assert(g);
     if (record && record.ownerSubject !== this.owner) throw new VaultError("wrong_account");
     if (pin && pin.ownerSubject !== this.owner) throw new VaultError("wrong_account");
     if (pending && pending.ownerSubject !== this.owner) throw new VaultError("wrong_account");
-    return { pin: pin ?? undefined, device: record?.device, pending: pending?.pending };
+    return {
+      pin: pin ?? undefined,
+      device: record?.device,
+      pending: pending?.pending,
+      ...(change ? { deviceChange: change.pending.record } : {}),
+    };
   }
   async prepareCreate(): Promise<void> {
     const g = this.generation;
@@ -194,11 +203,16 @@ export class EncryptedVaultSession {
       if (material.secret.byteLength) new Uint8Array(material.secret).fill(0);
     }
   }
-  async prepareDeviceRegistration(vault: Vault): Promise<Registration> {
+  async prepareDeviceRegistration(
+    vault: Vault,
+    options?: { replaceInactive?: boolean },
+  ): Promise<Registration> {
     const g = this.generation;
+    if (await this.deviceChangeRow(vault.vaultId)) throw new VaultError("device_change_pending");
+    this.assert(g);
     const { localPending, previousPending, ...result } = await this.rpc(
       "prepareDeviceRegistration",
-      { vault },
+      { vault, options },
     );
     this.assert(g);
     if (
@@ -206,6 +220,7 @@ export class EncryptedVaultSession {
         this.owner + ":pending-device:" + vault.vaultId,
         { ownerSubject: this.owner, pending: localPending },
         previousPending,
+        this.deviceChangeKey(vault.vaultId),
       ))
     )
       throw new VaultError("pending_registration");
@@ -257,6 +272,136 @@ export class EncryptedVaultSession {
     const result = await this.rpc("signResultState", args);
     this.assert(g);
     return result;
+  }
+  private deviceChangeKey(vaultId: string) {
+    if (
+      !vaultId ||
+      vaultId.length > 128 ||
+      !/^[A-Za-z0-9]/.test(vaultId) ||
+      /[^A-Za-z0-9_-]/.test(vaultId)
+    )
+      throw new VaultError("invalid_data");
+    return this.owner + ":device-change:" + vaultId;
+  }
+  private async deviceChangeRow(vaultId: string) {
+    const g = this.generation;
+    await this.started;
+    this.assert(g);
+    const row = await this.storage.get(this.deviceChangeKey(vaultId));
+    this.assert(g);
+    if (
+      row &&
+      (row.ownerSubject !== this.owner ||
+        row.vaultId !== vaultId ||
+        typeof row.pending?.operationId !== "string" ||
+        !row.pending.record)
+    )
+      throw new VaultError("wrong_account");
+    return row;
+  }
+  async deviceManagement(vault: Vault): Promise<VaultManagementSummary> {
+    const g = this.generation;
+    return this.serial(async () => {
+      const row = await this.deviceChangeRow(vault.vaultId);
+      this.assert(g);
+      const result = await this.rpc("deviceManagement", { vault, record: row?.pending.record });
+      this.assert(g);
+      try {
+        await this.storage.commitVault(this.owner, result.record);
+      } catch (error) {
+        this.lock();
+        throw error;
+      }
+      this.assert(g);
+      this.vaultId = vault.vaultId;
+      return result.summary;
+    });
+  }
+  async prepareDeviceChange(args: {
+    vault: Vault;
+    action: "revoke" | "rotate";
+    deviceId: string;
+  }): Promise<DeviceChangePacket> {
+    const g = this.generation;
+    return this.serial(async () => {
+      const row = await this.deviceChangeRow(args.vault.vaultId);
+      this.assert(g);
+      if (row) throw new VaultError("device_change_pending");
+      const { localPending, ...packet } = await this.rpc("prepareDeviceChange", args);
+      this.assert(g);
+      if (
+        !(await this.storage.stageDevice(
+          this.deviceChangeKey(args.vault.vaultId),
+          {
+            ownerSubject: this.owner,
+            vaultId: args.vault.vaultId,
+            pending: { operationId: packet.operationId, record: localPending },
+          },
+          null,
+          this.owner + ":pending-device:" + args.vault.vaultId,
+        ))
+      )
+        throw new VaultError("device_change_pending");
+      this.assert(g);
+      return packet;
+    });
+  }
+  async loadDeviceChange(vault: Vault): Promise<DeviceChangePacket | null> {
+    const g = this.generation;
+    const row = await this.deviceChangeRow(vault.vaultId);
+    this.assert(g);
+    if (!row) return null;
+    const packet = await this.rpc("loadDeviceChange", { vault, record: row.pending.record });
+    this.assert(g);
+    if (packet.operationId !== row.pending.operationId) throw new VaultError("binding_mismatch");
+    return packet;
+  }
+  async acceptDeviceChange(vault: Vault): Promise<VaultManagementSummary> {
+    const g = this.generation;
+    return this.serial(async () => {
+      const row = await this.deviceChangeRow(vault.vaultId);
+      this.assert(g);
+      if (!row) throw new VaultError("device_change_pending");
+      const result = await this.rpc("acceptDeviceChange", { vault, record: row.pending.record });
+      this.assert(g);
+      if (result.operationId !== row.pending.operationId) throw new VaultError("binding_mismatch");
+      try {
+        await this.storage.commitVault(this.owner, result.record);
+        this.assert(g);
+        if (
+          !(await this.storage.removeOperation(
+            this.deviceChangeKey(vault.vaultId),
+            result.operationId,
+          ))
+        )
+          throw new VaultError("operation_conflict");
+      } catch (error) {
+        this.lock();
+        throw error;
+      }
+      this.assert(g);
+      return result.summary;
+    });
+  }
+  async discardDeviceChange(vault: Vault, operationId: string): Promise<void> {
+    const g = this.generation;
+    return this.serial(async () => {
+      const row = await this.deviceChangeRow(vault.vaultId);
+      this.assert(g);
+      if (!row || row.pending.operationId !== operationId)
+        throw new VaultError("operation_conflict");
+      await this.rpc("discardDeviceChange", { vault, record: row.pending.record, operationId });
+      this.assert(g);
+      if (!(await this.storage.removeOperation(this.deviceChangeKey(vault.vaultId), operationId)))
+        throw new VaultError("operation_conflict");
+      this.assert(g);
+    });
+  }
+  async verifyRecovery(vault: Vault): Promise<RecoveryVerification> {
+    const g = this.generation,
+      proof = await this.rpc("verifyRecovery", { vault });
+    this.assert(g);
+    return proof;
   }
   async acceptVault(vault: Vault): Promise<void> {
     const g = this.generation;

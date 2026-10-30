@@ -121,6 +121,7 @@ function render(f = fixture(), locale = "en", capture = []) {
   const imports = {
     react: React,
     "react/jsx-runtime": { ...runtime, jsx: jsx("jsx"), jsxs: jsx("jsxs") },
+    "./PasskeyHelp": { PasskeyHelp: () => null },
     "next-intl": {
       useLocale: () => locale,
       useTranslations: (namespace) =>

@@ -11,7 +11,12 @@ import {
   type HoldingsResourceContent,
 } from "@/lib/holdings-csv";
 import { EncryptedVaultSession } from "@/lib/encrypted-vault";
-import { createVaultPasskey, unlockVaultPasskey } from "@/lib/encrypted-passkey";
+import {
+  createVaultPasskey,
+  unlockVaultPasskey,
+  type PasskeyMethod,
+  type PasskeyOptions,
+} from "@/lib/encrypted-passkey";
 import type {
   OpenResultArgs,
   PendingSnapshot,
@@ -29,13 +34,31 @@ import type {
   AgentGrantArgs,
   AgentPreparationArgs,
   Vault,
+  VaultManagementSummary,
+  DeviceChangePacket,
 } from "@/lib/encrypted-types";
 
 const CONTRACT = "folioview.agent-workspace.v2.0";
 const contractHeaders = { "X-FolioView-Contract": CONTRACT };
-type Phase = "checking" | "needs-vault" | "locked" | "unlocked";
+type Phase = "checking" | "needs-vault" | "locked" | "needs-device" | "unlocked";
 type Busy =
-  "loading" | "creating" | "unlocking" | "parsing" | "saving" | "reading" | "recovering" | null;
+  | "loading"
+  | "creating"
+  | "unlocking"
+  | "parsing"
+  | "saving"
+  | "reading"
+  | "recovering"
+  | "managing"
+  | "verifying"
+  | "enrolling"
+  | null;
+type DeviceReview = {
+  action: "revoke" | "rotate";
+  deviceId: string;
+  registrySequence: number;
+  checkpointDigest: string;
+};
 type State = {
   owner: string | null;
   phase: Phase;
@@ -50,6 +73,13 @@ type State = {
   errorRow: number | null;
   notice: string;
   canWriteState: boolean;
+  keyManagement: VaultManagementSummary | null;
+  deviceReview: DeviceReview | null;
+  deviceChange: DeviceChangePacket | null;
+  needsDeviceApproval: boolean;
+  registrationForResults: boolean;
+  recoveryCheck: { rootKeyId: string; registrySequence: number; checkedAt: string } | null;
+  keyNotice: string;
 };
 const empty: State = {
   owner: null,
@@ -65,6 +95,13 @@ const empty: State = {
   errorRow: null,
   notice: "",
   canWriteState: false,
+  keyManagement: null,
+  deviceReview: null,
+  deviceChange: null,
+  needsDeviceApproval: false,
+  registrationForResults: false,
+  recoveryCheck: null,
+  keyNotice: "",
 };
 class WorkspaceError extends Error {
   constructor(public readonly code: string) {
@@ -141,10 +178,13 @@ export function useHoldingsWorkspace() {
   const session = useRef<{ owner: string; instance: EncryptedVaultSession } | null>(null);
   const pending = useRef<PendingSnapshot | null>(null);
   const vaultGeneration = useRef(0);
+  const recoverySession = useRef<EncryptedVaultSession | null>(null);
 
   const terminate = useCallback(() => {
     ++vaultGeneration.current;
     session.current?.instance.lock();
+    recoverySession.current?.lock();
+    recoverySession.current = null;
     session.current = null;
     pending.current = null;
   }, []);
@@ -154,12 +194,23 @@ export function useHoldingsWorkspace() {
       busy: Exclude<Busy, null>,
       action: (context: { assertActive: () => void; signal: AbortSignal }) => Promise<void>,
     ) => {
-      if (!owner || !uid || ownerRef.current !== owner || current.current || !configured) return;
+      if (
+        !owner ||
+        !uid ||
+        ownerRef.current !== owner ||
+        current.current ||
+        !configured ||
+        !capabilitiesRef.current.hub
+      )
+        return;
       const controller = new AbortController();
       const call = { serial: ++serial.current, controller };
       current.current = call;
       const owns = () =>
-        ownerRef.current === owner && serial.current === call.serial && !controller.signal.aborted;
+        ownerRef.current === owner &&
+        capabilitiesRef.current.hub &&
+        serial.current === call.serial &&
+        !controller.signal.aborted;
       const assertActive = () => {
         if (!owns()) throw new WorkspaceError("cancelled");
       };
@@ -171,6 +222,7 @@ export function useHoldingsWorkspace() {
         errorRow: null,
         notice: "",
         discardOperationId: null,
+        keyNotice: "",
       }));
       const timeout = window.setTimeout(
         () => {
@@ -187,23 +239,46 @@ export function useHoldingsWorkspace() {
             content: null,
             hasPending: false,
             discardOperationId: null,
+            keyManagement: null,
+            deviceReview: null,
+            deviceChange: null,
+            needsDeviceApproval: false,
+            recoveryCheck: null,
+            keyNotice: "",
+            canWriteState: false,
             error: "request_timeout",
           }));
         },
-        busy === "creating" || busy === "unlocking" ? 120_000 : 60_000,
+        busy === "creating" || busy === "unlocking" || busy === "verifying" ? 120_000 : 60_000,
       );
       try {
         await action({ assertActive, signal: controller.signal });
       } catch (error) {
         if (!owns()) return;
-        if (busy === "creating" || busy === "unlocking") terminate();
+        const discardKeys =
+          busy === "creating" ||
+          busy === "unlocking" ||
+          [
+            "untrusted_vault",
+            "rollback_detected",
+            "registry_conflict",
+            "wrong_account",
+            "key_revoked",
+          ].includes(errorCode(error));
+        if (discardKeys) terminate();
         setState((previous) => ({
           ...previous,
-          ...(busy === "creating" || busy === "unlocking"
+          ...(discardKeys
             ? {
                 phase: previous.vault ? ("locked" as const) : ("needs-vault" as const),
                 content: null,
                 preview: null,
+                keyManagement: null,
+                deviceReview: null,
+                deviceChange: null,
+                needsDeviceApproval: false,
+                recoveryCheck: null,
+                canWriteState: false,
               }
             : {}),
           ...(busy === "reading" || busy === "saving" ? { content: null } : {}),
@@ -432,39 +507,73 @@ export function useHoldingsWorkspace() {
   }, [owner, configured, auth.portfolioConfigured, reload, terminate]);
 
   const unlock = useCallback(
-    (options?: { forResults?: boolean; enableState?: boolean }) =>
+    (options?: { forResults?: boolean; enableState?: boolean; method?: PasskeyMethod }) =>
       perform("unlocking", async ({ assertActive, signal }) => {
         const vault = stateRef.current.owner === owner ? stateRef.current.vault : null;
         if (!vault || !uid || !owner) throw new WorkspaceError("unlock_required");
         terminate();
         const instance = new EncryptedVaultSession(uid);
         session.current = { owner, instance };
-        const material = await unlockVaultPasskey(vault.archive);
+        setState((previous) => ({
+          ...previous,
+          phase: "locked",
+          content: null,
+          preview: null,
+          keyManagement: null,
+          deviceReview: null,
+          deviceChange: null,
+          recoveryCheck: null,
+          needsDeviceApproval: false,
+          canWriteState: false,
+        }));
+        const material = await unlockVaultPasskey(vault.archive, {
+          method: options?.method,
+          signal,
+        });
         try {
           assertActive();
-          const readOnly = options?.forResults && !options.enableState;
+          const readOnly = Boolean(options?.forResults);
+          const historicalAccess = readOnly
+            ? await instance.unlockForResults(vault, material)
+            : null;
           const result = readOnly
-            ? (await instance.unlockForResults(vault, material), { needsDeviceRegistration: false })
+            ? {
+                needsDeviceRegistration: Boolean(
+                  options?.enableState && !historicalAccess?.canWriteState,
+                ),
+              }
             : await instance.unlock(vault, material);
           assertActive();
           if (result.needsDeviceRegistration) {
-            const update = await instance.prepareDeviceRegistration(vault);
+            const refreshed = await readCurrent(signal);
             assertActive();
-            await api("agent-hub", `/api/v2/vaults/${vault.vaultId}/registry`, signal, {
-              method: "PUT",
-              json: {
-                contractVersion: CONTRACT,
-                expectedVersion: update.expectedVersion,
-                registryBundle: update.registryBundle,
-              },
-              headers: { "Idempotency-Key": update.operationId },
-            });
+            if (!refreshed.vault) throw new WorkspaceError("invalid_response");
+            await instance.acceptResultVault(refreshed.vault);
+            const deviceChange = await instance.loadDeviceChange(refreshed.vault);
+            const keyManagement = await instance.deviceManagement(refreshed.vault);
+            assertActive();
+            setState((previous) => ({
+              ...previous,
+              phase: deviceChange ? "unlocked" : "needs-device",
+              needsDeviceApproval: !deviceChange,
+              registrationForResults: Boolean(options?.forResults),
+              canWriteState: false,
+              vault: refreshed.vault,
+              sources: refreshed.sources,
+              keyManagement,
+              deviceReview: null,
+              deviceChange,
+              recoveryCheck: null,
+            }));
+            return;
           }
           const refreshed = await readCurrent(signal);
           assertActive();
           if (!refreshed.vault) throw new WorkspaceError("invalid_response");
           const resultAccess = readOnly ? await instance.acceptResultVault(refreshed.vault) : null;
           if (!readOnly) await instance.acceptVault(refreshed.vault);
+          const keyManagement = await instance.deviceManagement(refreshed.vault);
+          const deviceChange = await instance.loadDeviceChange(refreshed.vault);
           assertActive();
           setState((previous) => ({
             ...previous,
@@ -472,6 +581,11 @@ export function useHoldingsWorkspace() {
             vault: refreshed.vault,
             sources: refreshed.sources,
             canWriteState: readOnly ? Boolean(resultAccess?.canWriteState) : true,
+            keyManagement,
+            deviceChange,
+            deviceReview: null,
+            needsDeviceApproval: false,
+            recoveryCheck: null,
           }));
           if (!options?.forResults && capabilitiesRef.current.portfolio && refreshed.sources[0])
             await readSaved(refreshed.sources[0], signal, assertActive);
@@ -483,7 +597,7 @@ export function useHoldingsWorkspace() {
   );
 
   const create = useCallback(
-    () =>
+    (options?: Pick<PasskeyOptions, "method">) =>
       perform("creating", async ({ assertActive, signal }) => {
         if (!uid || !owner || stateRef.current.vault) throw new WorkspaceError("version_conflict");
         terminate();
@@ -491,7 +605,7 @@ export function useHoldingsWorkspace() {
         session.current = { owner, instance };
         await instance.prepareCreate();
         assertActive();
-        const material = await createVaultPasskey(uid);
+        const material = await createVaultPasskey(uid, { method: options?.method, signal });
         try {
           assertActive();
           const prepared = await instance.beginCreate(material);
@@ -506,6 +620,7 @@ export function useHoldingsWorkspace() {
           assertActive();
           if (!result.vault) throw new WorkspaceError("invalid_response");
           await instance.acceptVault(result.vault);
+          const keyManagement = await instance.deviceManagement(result.vault);
           assertActive();
           setState((previous) => ({
             ...previous,
@@ -514,6 +629,11 @@ export function useHoldingsWorkspace() {
             sources: result.sources,
             notice: "vault_created",
             canWriteState: true,
+            keyManagement,
+            deviceChange: null,
+            deviceReview: null,
+            needsDeviceApproval: false,
+            recoveryCheck: null,
           }));
         } finally {
           if (material.secret.byteLength) new Uint8Array(material.secret).fill(0);
@@ -764,6 +884,12 @@ export function useHoldingsWorkspace() {
       error: "",
       notice: "",
       canWriteState: false,
+      keyManagement: null,
+      deviceReview: null,
+      deviceChange: null,
+      needsDeviceApproval: false,
+      recoveryCheck: null,
+      keyNotice: "",
     }));
   }, [owner, terminate]);
 
@@ -966,12 +1092,397 @@ export function useHoldingsWorkspace() {
       taskCall((instance) => instance.clearAgentPreparation(connectionId, taskId, operationId)),
     [taskCall],
   );
+  const managementGeneration = vaultGeneration.current;
+  const assertKeySession = useCallback(
+    (instance: EncryptedVaultSession, generation: number) => {
+      if (
+        !owner ||
+        ownerRef.current !== owner ||
+        !capabilitiesRef.current.hub ||
+        session.current?.instance !== instance ||
+        vaultGeneration.current !== generation ||
+        stateRef.current.owner !== owner ||
+        !["unlocked", "needs-device"].includes(stateRef.current.phase)
+      )
+        throw new WorkspaceError("unlock_required");
+    },
+    [owner],
+  );
+  const keySnapshot = useCallback(async (instance: EncryptedVaultSession, vault: Vault) => {
+    const deviceChange = await instance.loadDeviceChange(vault);
+    const keyManagement = await instance.deviceManagement(vault);
+    return { keyManagement, deviceChange };
+  }, []);
+  const refreshKeyManagement = useCallback(
+    () =>
+      perform("managing", async ({ assertActive, signal }) => {
+        const instance = liveSession();
+        assertKeySession(instance, managementGeneration);
+        const fresh = await readCurrent(signal);
+        assertActive();
+        assertKeySession(instance, managementGeneration);
+        if (!fresh.vault) throw new WorkspaceError("invalid_response");
+        const next = await keySnapshot(instance, fresh.vault);
+        assertActive();
+        assertKeySession(instance, managementGeneration);
+        setState((previous) => ({
+          ...previous,
+          ...next,
+          vault: fresh.vault,
+          sources: fresh.sources,
+          deviceReview: null,
+          recoveryCheck: null,
+        }));
+      }),
+    [assertKeySession, keySnapshot, liveSession, managementGeneration, perform, readCurrent],
+  );
+  const reviewDeviceChange = useCallback(
+    async (action: "revoke" | "rotate", deviceId: string) => {
+      try {
+        const instance = liveSession();
+        assertKeySession(instance, managementGeneration);
+        if (current.current) return;
+        const summary = stateRef.current.keyManagement;
+        if (!summary?.canManage || stateRef.current.deviceChange)
+          throw new WorkspaceError("device_change_pending");
+        const target = summary.devices.find((device) => device.deviceId === deviceId);
+        if (
+          !target?.active ||
+          (action === "rotate" ? !target.current : action !== "revoke" || target.current)
+        )
+          throw new WorkspaceError("invalid_operation");
+        // This is only a public review. Generate and seal candidate keys after the
+        // final confirmation, so cancelling a review has no pending network effect.
+        setState((previous) => ({
+          ...previous,
+          deviceReview: {
+            action,
+            deviceId,
+            registrySequence: summary.registrySequence,
+            checkpointDigest: summary.checkpointDigest,
+          },
+          error: "",
+          keyNotice: "",
+        }));
+      } catch (error) {
+        if (ownerRef.current === owner && managementGeneration === vaultGeneration.current)
+          setState((previous) => ({ ...previous, error: errorCode(error) }));
+      }
+    },
+    [assertKeySession, liveSession, managementGeneration, owner],
+  );
+  const reviewedDeviceChange = state.deviceReview;
+  const reviewedOperationId = state.deviceChange?.operationId ?? null;
+  const enrollmentCheckpoint = state.keyManagement?.checkpointDigest ?? null;
+  const confirmDeviceChange = useCallback(
+    () =>
+      perform("managing", async ({ assertActive, signal }) => {
+        const instance = liveSession();
+        assertKeySession(instance, managementGeneration);
+        if (
+          stateRef.current.deviceReview !== reviewedDeviceChange ||
+          (stateRef.current.deviceChange?.operationId ?? null) !== reviewedOperationId
+        )
+          throw new WorkspaceError("version_conflict");
+        const review = reviewedDeviceChange;
+        const fresh = await readCurrent(signal);
+        assertActive();
+        assertKeySession(instance, managementGeneration);
+        if (!fresh.vault) throw new WorkspaceError("invalid_response");
+        let next = await keySnapshot(instance, fresh.vault);
+        assertActive();
+        assertKeySession(instance, managementGeneration);
+        let packet = next.deviceChange;
+        if (packet && next.keyManagement.pendingChange?.state === "conflict") {
+          setState((previous) => ({
+            ...previous,
+            ...next,
+            vault: fresh.vault,
+            deviceReview: null,
+          }));
+          throw new WorkspaceError("version_conflict");
+        }
+        if (!packet) {
+          if (!review || !next.keyManagement.canManage)
+            throw new WorkspaceError("invalid_operation");
+          if (
+            review.registrySequence !== next.keyManagement.registrySequence ||
+            review.checkpointDigest !== next.keyManagement.checkpointDigest
+          ) {
+            setState((previous) => ({
+              ...previous,
+              ...next,
+              vault: fresh.vault,
+              deviceReview: null,
+            }));
+            throw new WorkspaceError("version_conflict");
+          }
+          packet = await instance.prepareDeviceChange({
+            vault: fresh.vault,
+            action: review.action,
+            deviceId: review.deviceId,
+          });
+          assertActive();
+          assertKeySession(instance, managementGeneration);
+          next = await keySnapshot(instance, fresh.vault);
+          assertActive();
+          assertKeySession(instance, managementGeneration);
+          setState((previous) => ({
+            ...previous,
+            ...next,
+            deviceChange: packet,
+            deviceReview: null,
+          }));
+        }
+        if (next.keyManagement.pendingChange?.state !== "applied") {
+          await api("agent-hub", `/api/v2/vaults/${fresh.vault.vaultId}/registry`, signal, {
+            method: "PUT",
+            json: {
+              contractVersion: CONTRACT,
+              expectedVersion: packet.expectedVersion,
+              registryBundle: packet.registryBundle,
+            },
+            headers: { "Idempotency-Key": packet.operationId },
+          });
+        }
+        assertActive();
+        assertKeySession(instance, managementGeneration);
+        const saved = await readCurrent(signal);
+        assertActive();
+        assertKeySession(instance, managementGeneration);
+        if (!saved.vault) throw new WorkspaceError("invalid_response");
+        const keyManagement = await instance.acceptDeviceChange(saved.vault);
+        assertActive();
+        assertKeySession(instance, managementGeneration);
+        // Every private consumer must recheck its generation after changing the
+        // current device. Old agent grants retain their original recipients.
+        ++vaultGeneration.current;
+        setState((previous) => ({
+          ...previous,
+          vault: saved.vault,
+          sources: saved.sources,
+          keyManagement,
+          deviceChange: null,
+          deviceReview: null,
+          recoveryCheck: null,
+          preview: null,
+          content: null,
+          canWriteState: keyManagement.canManage,
+          keyNotice: "device_change_saved",
+          notice: "",
+          error: "",
+        }));
+      }),
+    [
+      api,
+      assertKeySession,
+      keySnapshot,
+      liveSession,
+      managementGeneration,
+      perform,
+      readCurrent,
+      reviewedDeviceChange,
+      reviewedOperationId,
+    ],
+  );
+  const discardDeviceChange = useCallback(
+    () =>
+      perform("managing", async ({ assertActive, signal }) => {
+        const instance = liveSession();
+        assertKeySession(instance, managementGeneration);
+        if (
+          stateRef.current.deviceReview !== reviewedDeviceChange ||
+          (stateRef.current.deviceChange?.operationId ?? null) !== reviewedOperationId
+        )
+          throw new WorkspaceError("version_conflict");
+        if (!stateRef.current.deviceChange) {
+          setState((previous) => ({ ...previous, deviceReview: null, error: "" }));
+          return;
+        }
+        const fresh = await readCurrent(signal);
+        assertActive();
+        assertKeySession(instance, managementGeneration);
+        if (!fresh.vault) throw new WorkspaceError("invalid_response");
+        const before = await keySnapshot(instance, fresh.vault);
+        assertActive();
+        assertKeySession(instance, managementGeneration);
+        if (!before.deviceChange || before.keyManagement.pendingChange?.state !== "conflict")
+          throw new WorkspaceError("device_change_pending");
+        await instance.discardDeviceChange(fresh.vault, before.deviceChange.operationId);
+        assertActive();
+        assertKeySession(instance, managementGeneration);
+        const next = await keySnapshot(instance, fresh.vault);
+        assertActive();
+        assertKeySession(instance, managementGeneration);
+        setState((previous) => ({
+          ...previous,
+          ...next,
+          vault: fresh.vault,
+          deviceReview: null,
+          keyNotice: "device_change_discarded",
+          notice: "",
+        }));
+      }),
+    [
+      assertKeySession,
+      keySnapshot,
+      liveSession,
+      managementGeneration,
+      perform,
+      readCurrent,
+      reviewedDeviceChange,
+      reviewedOperationId,
+    ],
+  );
+  const confirmDeviceRegistration = useCallback(
+    () =>
+      perform("enrolling", async ({ assertActive, signal }) => {
+        const instance = liveSession();
+        assertKeySession(instance, managementGeneration);
+        const before = stateRef.current;
+        if (!before.needsDeviceApproval || before.phase !== "needs-device" || !before.keyManagement)
+          throw new WorkspaceError("invalid_operation");
+        if (before.keyManagement.checkpointDigest !== enrollmentCheckpoint)
+          throw new WorkspaceError("version_conflict");
+        const fresh = await readCurrent(signal);
+        assertActive();
+        assertKeySession(instance, managementGeneration);
+        if (!fresh.vault) throw new WorkspaceError("invalid_response");
+        const keyManagement = await instance.deviceManagement(fresh.vault);
+        assertActive();
+        assertKeySession(instance, managementGeneration);
+        let saved = fresh;
+        // A previously confirmed registration can commit even if its reply or
+        // following GET was lost. A verified eligible local pair is its own
+        // recovery fact; do not mint another pair or append duplicate certificates.
+        if (!keyManagement.canManage) {
+          if (
+            keyManagement.registrySequence !== before.keyManagement.registrySequence ||
+            keyManagement.checkpointDigest !== before.keyManagement.checkpointDigest
+          ) {
+            setState((previous) => ({ ...previous, vault: fresh.vault, keyManagement }));
+            throw new WorkspaceError("version_conflict");
+          }
+          const update = await instance.prepareDeviceRegistration(fresh.vault, {
+            replaceInactive: true,
+          });
+          assertActive();
+          assertKeySession(instance, managementGeneration);
+          await api("agent-hub", `/api/v2/vaults/${fresh.vault.vaultId}/registry`, signal, {
+            method: "PUT",
+            json: {
+              contractVersion: CONTRACT,
+              expectedVersion: update.expectedVersion,
+              registryBundle: update.registryBundle,
+            },
+            headers: { "Idempotency-Key": update.operationId },
+          });
+          saved = await readCurrent(signal);
+        }
+        assertActive();
+        assertKeySession(instance, managementGeneration);
+        if (!saved.vault) throw new WorkspaceError("invalid_response");
+        await instance.acceptVault(saved.vault);
+        const next = await keySnapshot(instance, saved.vault);
+        assertActive();
+        assertKeySession(instance, managementGeneration);
+        ++vaultGeneration.current;
+        setState((previous) => ({
+          ...previous,
+          ...next,
+          phase: "unlocked",
+          vault: saved.vault,
+          sources: saved.sources,
+          needsDeviceApproval: false,
+          canWriteState: next.keyManagement.canManage,
+          recoveryCheck: null,
+          keyNotice: "device_registered",
+          notice: "",
+          error: "",
+        }));
+      }),
+    [
+      api,
+      assertKeySession,
+      keySnapshot,
+      liveSession,
+      managementGeneration,
+      perform,
+      readCurrent,
+      enrollmentCheckpoint,
+    ],
+  );
+  const verifyRecovery = useCallback(
+    (method: PasskeyMethod = "local") =>
+      perform("verifying", async ({ assertActive, signal }) => {
+        const instance = liveSession();
+        assertKeySession(instance, managementGeneration);
+        const fresh = await readCurrent(signal);
+        assertActive();
+        assertKeySession(instance, managementGeneration);
+        if (!fresh.vault || !uid) throw new WorkspaceError("invalid_response");
+        const material = await unlockVaultPasskey(fresh.vault.archive, { method, signal });
+        let probe: EncryptedVaultSession | null = null;
+        try {
+          assertActive();
+          assertKeySession(instance, managementGeneration);
+          probe = new EncryptedVaultSession(uid);
+          recoverySession.current = probe;
+          await probe.unlockForResults(fresh.vault, material);
+          assertActive();
+          assertKeySession(instance, managementGeneration);
+          const proof = await probe.verifyRecovery(fresh.vault);
+          assertActive();
+          assertKeySession(instance, managementGeneration);
+          const snapshot = await keySnapshot(instance, fresh.vault);
+          assertActive();
+          assertKeySession(instance, managementGeneration);
+          if (
+            proof.vaultId !== fresh.vault.vaultId ||
+            proof.rootKeyId !== snapshot.keyManagement.rootKeyId ||
+            proof.registrySequence !== snapshot.keyManagement.registrySequence ||
+            proof.checkpointDigest !== snapshot.keyManagement.checkpointDigest
+          )
+            throw new WorkspaceError("binding_mismatch");
+          setState((previous) => ({
+            ...previous,
+            ...snapshot,
+            vault: fresh.vault,
+            sources: fresh.sources,
+            canWriteState: previous.canWriteState && snapshot.keyManagement.canManage,
+            recoveryCheck: {
+              rootKeyId: proof.rootKeyId,
+              registrySequence: proof.registrySequence,
+              checkedAt: new Date().toISOString(),
+            },
+            keyNotice: "recovery_verified",
+            notice: "",
+            error: "",
+          }));
+        } finally {
+          if (material.secret.byteLength) new Uint8Array(material.secret).fill(0);
+          probe?.lock();
+          if (recoverySession.current === probe) recoverySession.current = null;
+        }
+      }),
+    [assertKeySession, keySnapshot, liveSession, managementGeneration, perform, readCurrent, uid],
+  );
   const visible = owner && configured && state.owner === owner ? state : { ...empty, owner };
   return {
     ...visible,
     content: holdingsConfigured ? visible.content : null,
     preview: holdingsConfigured ? visible.preview : null,
     canWriteState: visible.phase === "unlocked" && visible.canWriteState,
+    keyManagement: ["unlocked", "needs-device"].includes(visible.phase)
+      ? visible.keyManagement
+      : null,
+    deviceReview: visible.phase === "unlocked" ? visible.deviceReview : null,
+    deviceChange: ["unlocked", "needs-device"].includes(visible.phase)
+      ? visible.deviceChange
+      : null,
+    recoveryCheck: ["unlocked", "needs-device"].includes(visible.phase)
+      ? visible.recoveryCheck
+      : null,
     authenticated: Boolean(owner),
     authStatus: auth.status,
     configured: holdingsConfigured,
@@ -1008,6 +1519,13 @@ export function useHoldingsWorkspace() {
     create,
     unlock,
     lock,
+    cancelOperation: lock,
+    refreshKeyManagement,
+    reviewDeviceChange,
+    confirmDeviceChange,
+    discardDeviceChange,
+    confirmDeviceRegistration,
+    verifyRecovery,
     reload,
     importFile,
     selectAccounts,

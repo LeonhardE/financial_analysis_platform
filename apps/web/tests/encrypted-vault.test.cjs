@@ -516,6 +516,7 @@ test("Passkey helpers require UV and supported PRF without serializing credentia
   const raw = crypto.getRandomValues(new Uint8Array(32)).buffer;
   const secret = crypto.getRandomValues(new Uint8Array(32));
   const credential = () => ({
+    type: "public-key",
     rawId: raw,
     response: { authenticatorData: auth(), getAuthenticatorData: auth },
     getClientExtensionResults: () => ({

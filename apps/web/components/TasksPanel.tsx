@@ -8,6 +8,7 @@ import type { ResourceBindingMetadata, TaskContent } from "@/lib/encrypted-types
 import { defaultTask } from "@/lib/task-forms";
 import { bindingKey } from "@/lib/task-types";
 import styles from "./TasksPanel.module.css";
+import { PasskeyHelp } from "./PasskeyHelp";
 
 export type TaskSeed = ResourceBindingMetadata;
 export type TaskRequest = { owner: string; binding: TaskSeed; nonce: number };
@@ -30,6 +31,7 @@ export function TasksView({
     model.unlocked &&
     workspace.authenticated &&
     workspace.phase === "unlocked" &&
+    !workspace.needsDeviceApproval &&
     model.owner === workspace.owner;
   const form = unlocked ? model.form : null;
   const selected = unlocked ? model.selected : null;
@@ -148,10 +150,15 @@ export function TasksView({
                     {t(workspace.phase === "needs-vault" ? "createTitle" : "unlockTitle")}
                   </strong>
                   <p>{t(workspace.phase === "needs-vault" ? "createHelp" : "unlockHelp")}</p>
+                  <PasskeyHelp
+                    workspace={workspace}
+                    mode={workspace.phase === "needs-vault" ? "create" : "unlock"}
+                    unlockOptions={{ forResults: true, enableState: true }}
+                  />
                 </div>
                 <button
                   className={styles.primary}
-                  disabled={busy}
+                  disabled={Boolean(busy || workspace.needsDeviceApproval)}
                   onClick={() =>
                     void (workspace.phase === "needs-vault"
                       ? workspace.create()
@@ -166,9 +173,13 @@ export function TasksView({
           {unlocked && !model.canWrite && (
             <div className={styles.banner}>
               <p>{t("readOnlyHelp")}</p>
+              <PasskeyHelp
+                workspace={workspace}
+                unlockOptions={{ forResults: true, enableState: true }}
+              />
               <button
                 className={styles.secondary}
-                disabled={busy}
+                disabled={Boolean(busy || workspace.needsDeviceApproval)}
                 onClick={() => void workspace.unlock({ forResults: true, enableState: true })}
               >
                 {t("enableChanges")}
