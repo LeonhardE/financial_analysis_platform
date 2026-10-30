@@ -86,6 +86,11 @@ test("Market, Resources, Tasks and Inbox reuse one mounted encrypted owner works
       },
     },
     "@/lib/ui-messages": { localizeMessage: (message) => message ?? "" },
+    "@/lib/inbox-link": {
+      clearInboxResultLink() {},
+      isAgentConsentHandoff: () => false,
+      readInboxResultLink: () => null,
+    },
     "@/components/CandlestickChart": { CandlestickChart: () => null },
     "@/components/InstrumentMetrics": { InstrumentMetrics: () => null },
     "@/components/WorkspaceSidebar": { WorkspaceSidebar: Sidebar },

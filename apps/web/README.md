@@ -188,8 +188,37 @@ remain agent provided. Clipboard export requires a separate explicit plaintext w
 input versions stay attached to the selected historical report, without claiming every input was
 considered or the platform verified the analysis. Existing published-client trust limitations apply.
 
-No cloud setting, IAM grant, database or resource is enabled by this UI change. The remaining
-connection consent/controller and production acceptance work keep their own scope.
+Result and revision bookmarks use the closed fragment
+`#inbox/result/<resultId>[/revisions/<revision>]`. They contain opaque protocol identifiers only,
+never report text, owner identifiers or credentials, and fragments are not sent to the Web server.
+Opening a link still requires the current owner's login, unlocked workspace and the normal
+receipt/grant/ciphertext verification. An explicit revision preserves historical reading without
+marking the latest report read. A pending locked link waits for unlock; signing out or switching
+accounts clears the previous session's navigation intent. Muse consent handoffs take precedence.
+
+No cloud setting, IAM grant, database or resource is enabled by this UI change. Real remote Muse
+host attachment, production activation and device acceptance keep their existing scope.
+
+## Full journey regression
+
+`npm run test:web` includes three complementary synthetic integration layers:
+
+- `full-flow-crypto.test.cjs` runs the real CSV parser, both task templates, three resource types,
+  owner grants, released helper, frozen Run, encrypted reports/revisions and owner decryption.
+  It checks cross-owner/agent isolation, explicit CSV limitations, revocation, original ciphertext
+  replay and Passkey-material restoration using actual WebCrypto. Passkey input and producer
+  metadata are fixtures, not a device authenticator or a live provider.
+- `full-flow-boundaries.test.cjs` joins the real AuthProvider, Next route exports and both owner
+  forwarders with signed synthetic Firebase tokens and controlled upstream responses. It checks
+  identity separation, exact signed bytes, fault recovery and disabled capabilities. It does not
+  replace authoritative backend ownership checks or production Cloud Run IAM acceptance.
+- `full-flow-workspace.test.cjs` exercises cross-view navigation, result links, session masking
+  and Market behavior with real page/Inbox logic and explicit browser/network test facades.
+
+The fixtures are test-only and introduce no demo authentication mode, production bypass, model
+call, brokerage synchronization, new service or cloud configuration. Existing backend integration
+tests remain part of the root check. Native browser/device, real Muse and production acceptance
+are recorded separately from these synthetic checks.
 
 ## Validation
 

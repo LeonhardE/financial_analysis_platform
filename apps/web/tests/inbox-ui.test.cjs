@@ -219,6 +219,14 @@ function render(
     },
     "./useInbox": { useInbox: () => state.model },
     "./SafeReportMarkdown": markdown,
+    "@/lib/inbox-link": load(
+      transformSync(readFileSync(path.resolve(components, "../lib/inbox-link.ts"), "utf8"), {
+        filename: "inbox-link.ts",
+        jsc: { parser: { syntax: "typescript" }, target: "es2022" },
+        module: { type: "commonjs" },
+      }).code,
+      {},
+    ),
     "./InboxPanel.module.css": {
       __esModule: true,
       default: new Proxy({}, { get: (_object, name) => "inbox_" + String(name) }),
@@ -275,6 +283,8 @@ test("unlocked English and Chinese views display original revision evidence, lim
     assert.ok(html.includes(catalogs[locale].inbox.searchScope));
     assert.ok(html.includes(catalogs[locale].inbox.evidenceHelp));
     assert.ok(html.includes(catalogs[locale].inbox.frozenHelp));
+    assert.match(html, /href="\/#inbox\/result\/result_synthetic_A\/revisions\/2"/);
+    assert.ok(html.includes(catalogs[locale].inbox.resultLink));
     assert.ok(!html.includes("Copy plain text"));
     assert.ok(!html.includes("复制明文"));
   }
@@ -294,6 +304,27 @@ test("historical revisions retain explicit historical context and current logica
   assert.ok(html.includes("Unstar"));
   assert.match(html, /aria-label="Revision history"/);
   assert.match(html, /aria-pressed="true"/);
+  assert.match(html, /href="\/#inbox\/result\/result_synthetic_A\/revisions\/1"/);
+});
+
+test("a revision permalink starts at the canonical root without inheriting an old OAuth handoff query", () => {
+  const html = render(fixture());
+  const href = /href="(\/#inbox\/result\/result_synthetic_A\/revisions\/2)"/.exec(html)?.[1];
+  assert.ok(href);
+  const previous = new URL(
+    "https://owner.synthetic.test/?agent_request=request_old&agent_nonce=nonce_old",
+  );
+  const linked = new URL(href, previous);
+  assert.equal(linked.pathname, "/");
+  assert.equal(linked.search, "");
+  assert.equal(linked.hash, "#inbox/result/result_synthetic_A/revisions/2");
+  assert.ok(!linked.href.includes("request_old"));
+  assert.ok(!linked.href.includes("nonce_old"));
+  const ordinary = new URL(href, "https://owner.synthetic.test/");
+  assert.equal(
+    ordinary.origin + ordinary.pathname + ordinary.search,
+    "https://owner.synthetic.test/",
+  );
 });
 
 test("result fields and unsupported Markdown remain React text; dangerous URLs cannot become navigation", () => {

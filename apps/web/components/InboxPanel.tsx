@@ -5,6 +5,13 @@ import { useLocale, useTranslations } from "next-intl";
 import type { HoldingsWorkspace } from "./useHoldingsWorkspace";
 import { useInbox, type InboxModel } from "./useInbox";
 import { SafeReportMarkdown, reportLink } from "./SafeReportMarkdown";
+import {
+  clearInboxResultLink,
+  inboxResultHref,
+  isAgentConsentHandoff,
+  readInboxResultLink,
+  type InboxResultLink,
+} from "@/lib/inbox-link";
 import styles from "./InboxPanel.module.css";
 
 const FILTERS = ["all", "unread", "starred", "archived"] as const;
@@ -48,6 +55,8 @@ export function InboxView({
   const [copyNotice, setCopyNotice] = useState<"copied" | "copyFailed" | "">("");
   const unlocked = model.unlocked && workspace.phase === "unlocked" && workspace.authenticated;
   const selected = unlocked ? model.selected : null;
+  const selectedLink =
+    selected && inboxResultHref(selected.metadata.resultId, selected.metadata.revision);
   const selection = `${workspace.owner}:${workspace.vaultGeneration}:${selected?.metadata.resultId}:${selected?.metadata.revision}`;
   const currentSelection = useRef(selection);
   currentSelection.current = selection;
@@ -353,6 +362,12 @@ export function InboxView({
                   <button className={styles.textButton} onClick={() => setCopyConfirm(true)}>
                     {t("copy")}
                   </button>
+                  <a
+                    className={styles.textButton}
+                    href={selectedLink ? `/${selectedLink}` : undefined}
+                  >
+                    {t("resultLink")}
+                  </a>
                 </div>
                 <p className={styles.scope}>{t("stateScope")}</p>
                 {copyConfirm && (
@@ -511,5 +526,92 @@ export default function InboxPanel({
   active: boolean;
 }) {
   const model = useInbox(workspace, { active });
-  return <InboxView workspace={workspace} model={model} />;
+  const [linked, setLinked] = useState<InboxResultLink | null>(null);
+  const attempted = useRef<string | null>(null);
+  const linkedOwner = useRef<string | null>(null);
+  const ownerChanged = useRef(false);
+  const liveOwner = useRef(workspace.owner);
+  liveOwner.current = workspace.owner;
+  if (linkedOwner.current && linkedOwner.current !== workspace.owner) ownerChanged.current = true;
+  if (!linkedOwner.current && workspace.owner) linkedOwner.current = workspace.owner;
+  useEffect(() => {
+    const route = () => {
+      const value = isAgentConsentHandoff(window.location.search)
+        ? null
+        : readInboxResultLink(window.location.hash);
+      attempted.current = null;
+      ownerChanged.current = false;
+      linkedOwner.current = liveOwner.current;
+      setLinked(value);
+    };
+    route();
+    window.addEventListener("hashchange", route);
+    window.addEventListener("popstate", route);
+    return () => {
+      window.removeEventListener("hashchange", route);
+      window.removeEventListener("popstate", route);
+    };
+  }, []);
+  useEffect(() => {
+    if (!active || document.visibilityState === "hidden" || !model.unlocked) {
+      // Inactive/hidden operations are cancelled by useInbox. Preserve the
+      // public navigation intent and try once when the same page is usable.
+      attempted.current = null;
+      return;
+    }
+    if (
+      !linked ||
+      ownerChanged.current ||
+      !workspace.owner ||
+      !workspace.authenticated ||
+      workspace.phase !== "unlocked"
+    )
+      return;
+    const current = readInboxResultLink(window.location.hash);
+    if (
+      !current ||
+      current.resultId !== linked.resultId ||
+      current.revision !== linked.revision ||
+      isAgentConsentHandoff(window.location.search)
+    )
+      return;
+    // A link is a lookup request, never authority. useInbox still verifies the
+    // current owner, vault generation, ciphertext, evidence and recipient keys.
+    const key = `${workspace.owner}:${workspace.vaultGeneration}:${linked.resultId}:${linked.revision ?? "latest"}`;
+    if (attempted.current === key) return;
+    attempted.current = key;
+    if (
+      model.selected?.metadata.resultId === linked.resultId &&
+      (linked.revision === undefined || model.selected.metadata.revision === linked.revision)
+    )
+      return;
+    void model.openResult(linked.resultId, linked.revision);
+  }, [linked, active, model, workspace]);
+  const clearLink = () => {
+    clearInboxResultLink();
+    setLinked(null);
+    attempted.current = null;
+  };
+  return (
+    <InboxView
+      workspace={workspace}
+      model={{
+        ...model,
+        reload: (options) => {
+          // An explicit refresh may retry a failed linked lookup; rerenders
+          // and poll responses must never turn a 404 into a retry loop.
+          attempted.current = null;
+          return model.reload(options);
+        },
+        openResult: (resultId, revision) => {
+          clearLink();
+          return model.openResult(resultId, revision);
+        },
+        closeDetail: () => {
+          clearLink();
+          model.closeDetail();
+        },
+      }}
+    />
+  );
 }
