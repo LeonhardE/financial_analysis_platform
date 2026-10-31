@@ -1,6 +1,6 @@
 # Agent Hub encrypted vaults, tasks and delegated authorization
 
-The build-only Hub stores one opaque, passkey-sealed vault archive and its root-signed public
+The Agent Hub stores one opaque, passkey-sealed vault archive and its root-signed public
 key directory per verified Google owner. It owns up to ten public holdings-source references.
 Portfolio holds the encrypted snapshots; Hub never receives CSV, positions, account labels,
 content keys, passkey PRF output or private JWKs. The owner resource catalogue composes only existing
@@ -73,6 +73,34 @@ accepted plaintext fields. Archive replacement requires the verified Google owne
 from the existing pinned root; recovery cannot reconstruct that root from Google login. There is
 no platform recovery private key, archive reset, second vault, root rotation or server decryption.
 New Passkey ceremonies and independent recovery-kit UX remain client responsibilities.
+
+## Owner connections and rollout capabilities
+
+`GET /api/v2/agent-connections` and the existing connection/grant revoke routes use an
+owner-only management service. They require the same verified Google owner and exact v2
+contract header even when Muse OAuth and the encrypted adapter are disabled. Their response
+shapes, authorization-attempt history, owner isolation and revocation semantics remain unchanged.
+Turning off new OAuth issuance does not hide existing connections or prevent their owner from
+revoking them. Storage or identity-verification failures remain real errors, not empty lists.
+
+`GET /api/v2/agent-capabilities` uses the same owner authentication and contract transport, with
+no query selectors. Its closed, no-store response contains exactly:
+
+```json
+{
+  "contractVersion": "folioview.agent-workspace.v2.0",
+  "profile": "folioview.owner-agent-capabilities.v1",
+  "ownerConnections": true,
+  "museConnectionEnabled": false
+}
+```
+
+`ownerConnections` identifies the independent management capability, not storage health.
+`museConnectionEnabled` is true only when both existing `HUB_OAUTH_ENABLED` and
+`HUB_ENCRYPTED_ADAPTER_ENABLED` equal `1` and preregistered OAuth configuration validates.
+This signal does not create storage/issuer clients, expose OAuth configuration or secrets, or
+prove actual remote Muse interoperability. OAuth/MCP/agent requests retain their original
+explicit fail-closed gates; Web consumes this profile separately from ordinary owner availability.
 
 ## Owner resource discovery
 
@@ -468,19 +496,20 @@ writer marker tests the original transaction guard; separate result and Inbox su
 the implemented APIs, historical decryption proofs and owner isolation. Tests do not use cloud credentials,
 real broker data, a live KMS signer or an authentication bypass environment setting.
 
-## Build-only delivery
+## Guarded existing-service delivery
 
-The source registry keeps this target `build_only`. Its existing Cloud Build configuration
-publishes an image and invokes the shared release helper with `_DEPLOY_SERVICE=false`; it refuses
-an attempted deployment override. The container runs as UID 10001 with access logging disabled.
-Its health smoke check runs with networking disabled and removes its test container.
+The source registry permits `existing` service image releases through the unchanged shared
+release helper. `_DEPLOY_SERVICE` still defaults to `false` in the build configuration; actual
+image deployment requires a separately reviewed administrator trigger opt-in and exact
+existing-service/runtime permissions. Catalog eligibility alone does not activate deployment,
+ordinary Terraform execution, public invocation or Muse OAuth/adapter gates.
 
-No Cloud Run service, database, KMS key, IAM grant or trigger is created here. INF-006 and explicit
-future trust/configuration approval still govern any cloud activation. Owner task CRUD and the
-disabled OAuth foundation, encrypted preparations, formal Runs, encrypted result writes and owner
-Inbox APIs and the MCP protocol adapter are implemented locally/build-only.
-Trusted consumer UI/controller, the Web Inbox interface and broker access remain separate consumers;
-this change does not activate those consumers or any production endpoint.
+The container runs as UID 10001 with access logging disabled. Its health smoke check runs with
+networking disabled and removes its test container. Application code creates no Cloud Run service,
+database, KMS key, IAM grant or trigger. INF-006 and subsequent target-scoped configuration govern
+those resources. Owner task CRUD, OAuth, encrypted preparations, formal Runs, result writeback,
+Inbox and MCP retain their respective authentication and rollout boundaries. Trusted consumers,
+real remote Muse and broker integration remain separate acceptance scopes.
 
 ## Foreground controller code stage
 

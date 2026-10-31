@@ -9,6 +9,7 @@ from urllib.parse import urlsplit
 
 from authlib.oauth2.rfc6749.models import ClientMixin
 
+from folioview_shared.encrypted.constants import CONTRACT_VERSION
 from folioview_shared.encrypted.errors import ContractError
 from folioview_shared.encrypted.jsonutil import strict_json_loads
 
@@ -164,3 +165,22 @@ class OAuthConfig:
             )
         except (ValueError, TypeError, KeyError, ContractError):
             raise ContractError("authorization_unavailable") from None
+
+
+def owner_agent_capabilities():
+    """Configuration capability only; does not probe storage or prove Muse interop."""
+    enabled = False
+    if all(
+        os.getenv(flag) == "1" for flag in ("HUB_OAUTH_ENABLED", "HUB_ENCRYPTED_ADAPTER_ENABLED")
+    ):
+        try:
+            OAuthConfig.environment()
+            enabled = True
+        except ContractError:
+            pass
+    return {
+        "contractVersion": CONTRACT_VERSION,
+        "profile": "folioview.owner-agent-capabilities.v1",
+        "ownerConnections": True,
+        "museConnectionEnabled": enabled,
+    }

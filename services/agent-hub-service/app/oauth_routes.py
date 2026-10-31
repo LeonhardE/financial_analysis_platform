@@ -19,7 +19,8 @@ from folioview_shared.encrypted.errors import ContractError
 from folioview_shared.http import PrivateRoute
 
 from .api import Owner, _invoke, body, transport
-from .oauth import OAuthFailure, get_oauth_service
+from .oauth import OAuthFailure, get_oauth_service, get_owner_connection_service
+from .oauth_config import owner_agent_capabilities
 from .store import StoreUnavailable
 
 COOKIE = "fv_oauth_flow"
@@ -88,6 +89,7 @@ router = APIRouter(route_class=OAuthRoute)
 owner_router = APIRouter(route_class=PrivateRoute)
 agent_router = APIRouter(prefix="/agent/v2", route_class=OAuthRoute)
 Service = Annotated[object, Depends(get_oauth_service)]
+OwnerConnections = Annotated[object, Depends(get_owner_connection_service)]
 
 
 def _pairs(raw, allowed):
@@ -263,14 +265,22 @@ async def decide(request_id: str, request: Request, user: Owner, service: Servic
     return response
 
 
+@owner_router.get("/api/v2/agent-capabilities")
+async def agent_capabilities(request: Request, user: Owner):
+    _invoke(lambda: transport(request))
+    return owner_agent_capabilities()
+
+
 @owner_router.get("/api/v2/agent-connections")
-async def connections(request: Request, user: Owner, service: Service):
+async def connections(request: Request, user: Owner, service: OwnerConnections):
     _invoke(lambda: transport(request))
     return await run_in_threadpool(_invoke, lambda: service.connections(user.uid))
 
 
 @owner_router.post("/api/v2/agent-connections/{connection_id}/revoke")
-async def revoke_connection(connection_id: str, request: Request, user: Owner, service: Service):
+async def revoke_connection(
+    connection_id: str, request: Request, user: Owner, service: OwnerConnections
+):
     await body(request, {"contractVersion"})
     return await run_in_threadpool(
         _invoke, lambda: service.revoke_connection(user.uid, connection_id)
@@ -279,7 +289,7 @@ async def revoke_connection(connection_id: str, request: Request, user: Owner, s
 
 @owner_router.post("/api/v2/agent-connections/{connection_id}/grants/{grant_id}/revoke")
 async def revoke_grant(
-    connection_id: str, grant_id: str, request: Request, user: Owner, service: Service
+    connection_id: str, grant_id: str, request: Request, user: Owner, service: OwnerConnections
 ):
     await body(request, {"contractVersion"})
     return await run_in_threadpool(

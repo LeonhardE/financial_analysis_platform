@@ -7,7 +7,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from app.api import require_owner
-from app.oauth import OAuthFailure, get_oauth_service
+from app.oauth import OAuthFailure, get_oauth_service, get_owner_connection_service
 from app.oauth_routes import COOKIE, agent_router, owner_router, router
 from folioview_shared.encrypted.constants import CONTRACT_VERSION
 
@@ -82,6 +82,7 @@ class OAuthTransportTests(unittest.TestCase):
         self.app.include_router(owner_router)
         self.app.include_router(agent_router)
         self.app.dependency_overrides[get_oauth_service] = lambda: self.service
+        self.app.dependency_overrides[get_owner_connection_service] = lambda: self.service
         self.app.dependency_overrides[require_owner] = lambda: SimpleNamespace(uid="verified_A")
         self.client = TestClient(self.app, base_url=ISSUER, follow_redirects=False)
         self.addCleanup(self.client.close)
@@ -362,6 +363,7 @@ class OAuthProductionAppTests(unittest.TestCase):
         )
         self.app = app
         self.app.dependency_overrides[get_oauth_service] = lambda: self.service
+        self.app.dependency_overrides[get_owner_connection_service] = lambda: self.service
         self.addCleanup(self.app.dependency_overrides.clear)
         self.client = TestClient(self.app, base_url=ISSUER, follow_redirects=False)
         self.addCleanup(self.client.close)
