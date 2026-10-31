@@ -103,6 +103,7 @@
   min-height: 44px;
   padding: 10px 12px;
   text-align: left;
+  text-decoration: none;
   width: 100%;
 }
 .navItem svg {
@@ -114,7 +115,7 @@
   background: var(--raised);
   color: var(--text);
 }
-.navItem[aria-pressed="true"] {
+.navItem[aria-current="page"] {
   background: color-mix(in srgb, var(--accent) 16%, transparent);
   color: var(--accent);
 }

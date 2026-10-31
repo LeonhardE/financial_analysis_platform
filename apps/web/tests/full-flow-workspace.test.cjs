@@ -362,9 +362,17 @@ function flow({ hash = "", search = "", owner = "A:1", locked = false, hidden = 
   ).default;
   const noData = () => ({ data: null, loading: false, hasSettled: true, error: "" });
   const Dashboard = compile(
-    "../app/page.tsx",
+    "../components/WorkspaceShell.tsx",
     {
       react: pageHooks.react,
+      "next/navigation": {
+        usePathname: () => location.pathname,
+        useRouter: () => ({
+          push: (href) => window.history.replaceState(null, "", href),
+          replace: (href) => window.history.replaceState(null, "", href),
+        }),
+      },
+      "@/lib/workspace-routes": compile("../lib/workspace-routes.ts"),
       "react/jsx-runtime": { jsx, jsxs: jsx },
       "next-intl": { useLocale: () => "en", useTranslations: () => (key) => key },
       "@/components/PreferencesProvider": {

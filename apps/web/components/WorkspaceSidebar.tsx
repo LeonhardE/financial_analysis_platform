@@ -1,11 +1,13 @@
 "use client";
 
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
+import Link from "next/link";
+import { workspaceHref, type WorkspaceView } from "@/lib/workspace-routes";
 import { useTranslations } from "next-intl";
 import { AccountControls } from "@/components/AccountControls";
 import styles from "./WorkspaceSidebar.module.css";
 
-export type WorkspaceView = "markets" | "resources" | "tasks" | "agents" | "inbox" | "settings";
+export type { WorkspaceView } from "@/lib/workspace-routes";
 
 function NavigationIcon({ view }: { view: WorkspaceView }) {
   return (
@@ -140,9 +142,20 @@ export function WorkspaceSidebar({
         onKeyDown={handleKeyDown}
       >
         <div className={styles.brandArea}>
-          <a
+          <Link
             className={styles.brand}
-            href="/"
+            href="/market"
+            onClick={(event) => {
+              if (
+                event.button === 0 &&
+                !event.metaKey &&
+                !event.ctrlKey &&
+                !event.shiftKey &&
+                !event.altKey &&
+                compactScreen
+              )
+                setMobileOpen(false);
+            }}
             aria-label={t("nav.home")}
             title={compact ? "FolioView" : undefined}
           >
@@ -153,7 +166,7 @@ export function WorkspaceSidebar({
             <strong className={styles.label}>
               Folio<span>View</span>
             </strong>
-          </a>
+          </Link>
           <p className={`${styles.slogan} ${styles.label}`}>{t("nav.workspace")}</p>
           <button
             ref={toggle}
@@ -189,21 +202,30 @@ export function WorkspaceSidebar({
           <nav className={styles.navigation} aria-label={t("nav.primary")}>
             {(["markets", "resources", "tasks", "agents", "inbox", "settings"] as const).map(
               (view) => (
-                <button
+                <Link
                   key={view}
-                  type="button"
+                  href={workspaceHref(view)}
                   aria-label={t(`nav.${view}`)}
                   title={compact ? t(`nav.${view}`) : undefined}
-                  aria-pressed={activeView === view}
+                  aria-current={activeView === view ? "page" : undefined}
                   className={styles.navItem}
-                  onClick={() => {
+                  onClick={(event) => {
+                    if (
+                      event.button !== 0 ||
+                      event.metaKey ||
+                      event.ctrlKey ||
+                      event.shiftKey ||
+                      event.altKey
+                    )
+                      return;
+                    event.preventDefault();
                     onNavigate(view);
                     if (compactScreen) setMobileOpen(false);
                   }}
                 >
                   <NavigationIcon view={view} />
                   <span className={styles.label}>{t(`nav.${view}`)}</span>
-                </button>
+                </Link>
               ),
             )}
           </nav>

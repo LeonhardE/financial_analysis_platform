@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import { workspaceHref, workspaceView } from "@/lib/workspace-routes";
 import { useLocale, useTranslations } from "next-intl";
 import { usePreferences } from "@/components/PreferencesProvider";
 import SettingsPanel from "@/components/SettingsPanel";
@@ -47,7 +49,7 @@ function SearchIcon() {
   );
 }
 
-export default function Dashboard() {
+export default function WorkspaceShell() {
   const t = useTranslations();
   const locale = useLocale();
   const { preferences, resolvedTheme } = usePreferences();
@@ -57,13 +59,19 @@ export default function Dashboard() {
   const [pickerTab, setPickerTab] = useState<"markets" | "watchlist">("markets");
   const [overviewReload, setOverviewReload] = useState(0);
   const [chartReload, setChartReload] = useState(0);
-  const [activeView, setActiveView] = useState<WorkspaceView>("markets");
+  const pathname = usePathname();
+  const router = useRouter();
+  const activeView = workspaceView(pathname) ?? "markets";
   const encryptedWorkspace = useHoldingsWorkspace();
   useEffect(() => {
     const route = () => {
-      if (isAgentConsentHandoff(window.location.search)) setActiveView("agents");
-      else if (readInboxResultLink(window.location.hash)) setActiveView("inbox");
-      else setActiveView("markets");
+      const target = isAgentConsentHandoff(window.location.search)
+        ? "/agents"
+        : readInboxResultLink(window.location.hash)
+          ? "/inbox"
+          : null;
+      if (target && target !== pathname)
+        router.replace(target + window.location.search + window.location.hash, { scroll: false });
     };
     route();
     window.addEventListener("hashchange", route);
@@ -72,7 +80,7 @@ export default function Dashboard() {
       window.removeEventListener("hashchange", route);
       window.removeEventListener("popstate", route);
     };
-  }, []);
+  }, [pathname, router]);
   const linkedOwner = useRef<string | null>(null);
   useEffect(() => {
     if (linkedOwner.current && linkedOwner.current !== encryptedWorkspace.owner)
@@ -81,7 +89,7 @@ export default function Dashboard() {
   }, [encryptedWorkspace.owner]);
   const navigate = (view: WorkspaceView) => {
     if (view !== "inbox") clearInboxResultLink();
-    setActiveView(view);
+    router.push(workspaceHref(view), { scroll: false });
   };
   const [taskRequest, setTaskRequest] = useState<TaskRequest | null>(null);
   const taskRequestSerial = useRef(0);
