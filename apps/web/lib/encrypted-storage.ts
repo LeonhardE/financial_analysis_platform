@@ -32,12 +32,25 @@ export interface EncryptedStorage {
   remove(key: string): Promise<void>;
   insert(key: string, value: any): Promise<boolean>;
   removeOperation(key: string, operationId: string): Promise<boolean>;
+  reconcileHoldingsOutbox?(key: string, expected: any, signal?: AbortSignal): Promise<boolean>;
   stageDevice(key: string, record: any, expected: any, blockedByKey?: string): Promise<boolean>;
   commitVault(owner: string, record: any): Promise<void>;
   list(prefix: string): Promise<{ key: string; value: any }[]>;
   compareTaskRecord(key: string, value: any, expectedRevision: number): Promise<boolean>;
 }
 const same = (a: any, b: any) => JSON.stringify(a) === JSON.stringify(b);
+// Unlike serialization equality, preserve every own field when comparing a saved row.
+export const sameEncryptedRecord = (a: any, b: any): boolean => {
+  if (Object.is(a, b)) return true;
+  if (!a || !b || typeof a !== "object" || typeof b !== "object") return false;
+  if (Array.isArray(a) !== Array.isArray(b)) return false;
+  if (Array.isArray(a) && a.length !== b.length) return false;
+  const keys = Object.keys(a);
+  return (
+    keys.length === Object.keys(b).length &&
+    keys.every((key) => Object.hasOwn(b, key) && sameEncryptedRecord(a[key], b[key]))
+  );
+};
 const archiveBinding = (archive: any) => ({
   credentialId: archive.credentialId,
   prfSalt: archive.prfSalt,
@@ -90,6 +103,7 @@ export class BrowserEncryptedStorage implements EncryptedStorage {
   private guarded<T>(
     key: string,
     action: (s: IDBObjectStore, done: (v: T) => void, fail: (e: unknown) => void) => void,
+    signal?: AbortSignal,
   ): Promise<T> {
     return this.atomic<T>((s, done, fail) => {
       const context = this.archiveContext;
@@ -116,7 +130,7 @@ export class BrowserEncryptedStorage implements EncryptedStorage {
           action(s, done, fail);
         };
       };
-    });
+    }, signal);
   }
   private lifecycleAdvance(current: any, pin: any) {
     if (
@@ -437,6 +451,7 @@ export class BrowserEncryptedStorage implements EncryptedStorage {
   }
   private async atomic<T>(
     action: (store: IDBObjectStore, done: (v: T) => void, fail: (e: unknown) => void) => void,
+    signal?: AbortSignal,
   ): Promise<T> {
     const db = await this.open();
     return new Promise<T>((resolve, reject) => {
@@ -447,9 +462,29 @@ export class BrowserEncryptedStorage implements EncryptedStorage {
         error = e;
         tx.abort();
       };
-      tx.oncomplete = () => resolve(result);
-      tx.onabort = tx.onerror = () =>
+      const abort = () => {
+        try {
+          fail(new VaultError("locked"));
+        } catch (failure) {
+          // Completion may precede delivery of oncomplete. A finished transaction
+          // cannot be rolled back; let its existing handlers settle normally.
+          if (!(failure instanceof Error) || failure.name !== "InvalidStateError") throw failure;
+        }
+      };
+      const cleanup = () => signal?.removeEventListener("abort", abort);
+      tx.oncomplete = () => {
+        cleanup();
+        resolve(result);
+      };
+      tx.onabort = tx.onerror = () => {
+        cleanup();
         reject(error instanceof VaultError ? error : new VaultError("storage_unavailable"));
+      };
+      if (signal?.aborted) {
+        abort();
+        return;
+      }
+      signal?.addEventListener("abort", abort, { once: true });
       try {
         action(
           tx.objectStore("records"),
@@ -557,6 +592,47 @@ export class BrowserEncryptedStorage implements EncryptedStorage {
         done(true);
       };
     });
+  }
+  reconcileHoldingsOutbox(key: string, expected: any, signal?: AbortSignal) {
+    const context = this.archiveContext,
+      source = expected?.pending?.source?.resourceRef;
+    if (
+      !context ||
+      expected?.ownerSubject !== context.owner ||
+      typeof expected?.vaultId !== "string" ||
+      !expected.vaultId ||
+      source?.kind !== "holdings" ||
+      source.sourceService !== "portfolio" ||
+      typeof source.resourceId !== "string" ||
+      !/^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/.test(source.resourceId) ||
+      key !== context.owner + ":outbox:" + source.resourceId ||
+      Object.keys(expected).length !== 3 ||
+      !Object.hasOwn(expected, "pending")
+    )
+      return Promise.reject(new VaultError("wrong_account"));
+    return this.guarded<boolean>(
+      key,
+      (s, done, fail) => {
+        const req = s.get(key);
+        req.onsuccess = () => {
+          try {
+            if (this.archiveContext !== context) {
+              fail(new VaultError("archive_session_stale"));
+              return;
+            }
+            if (!sameEncryptedRecord(req.result, expected)) {
+              done(false);
+              return;
+            }
+            s.delete(key);
+            done(true);
+          } catch (error) {
+            fail(error);
+          }
+        };
+      },
+      signal,
+    );
   }
   stageDevice(key: string, record: any, expected: any, blockedByKey?: string) {
     return this.guarded<boolean>(key, (s, done) => {

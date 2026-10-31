@@ -35,6 +35,8 @@ function harness(changes = {}, locale = "en") {
   const workspace = {
     authenticated: true,
     vaultConfigured: true,
+    configured: true,
+    renewalHoldings: null,
     owner: "owner_A:1",
     vaultGeneration: 1,
     vault: { vaultId: summary.vaultId, rootKeyId: summary.rootKeyId },
@@ -48,6 +50,8 @@ function harness(changes = {}, locale = "en") {
     deviceChange: null,
     ...Object.fromEntries(
       [
+        "reviewRenewalHoldings",
+        "confirmRenewalHoldings",
         "reviewKeyRenewal",
         "confirmKeyRenewal",
         "refreshKeyRenewal",
@@ -288,4 +292,59 @@ test("successful renewal asks for a new independent kit while keeping the old on
     );
     assert.deepEqual(f.calls, []);
   }
+});
+
+test("holdings reconciliation needs a verified saved review and a separate explicit confirmation in both languages", () => {
+  for (const locale of ["en", "zh"]) {
+    const f = harness({ phase: "renewal-only" }, locale);
+    f.workspace.keyRenewal = f.summary;
+    f.view();
+    const check = locale === "en" ? "Check pending holdings upload" : "检查未决持仓上传";
+    f.button(check).onClick();
+    assert.deepEqual(f.calls, [["reviewRenewalHoldings"]]);
+    f.workspace.renewalHoldings = {
+      sourceId: "holdings_A",
+      operationId: "SYNTHETIC_ORIGINAL",
+      status: "unknown",
+    };
+    const unknown = f.view();
+    assert(
+      unknown.includes(locale === "en" ? "does not prove the upload failed" : "不代表上传失败"),
+    );
+    assert(!unknown.includes(locale === "en" ? "Confirm saved upload" : "确认已保存并清理"));
+    assert.equal(
+      f.button(locale === "en" ? "Confirm and renew keys" : "确认并续期密钥").disabled,
+      true,
+    );
+    f.workspace.renewalHoldings.status = "saved";
+    const saved = f.view();
+    assert(
+      saved.includes(
+        locale === "en" ? "saved snapshot will stay on the server" : "已保存快照将保留",
+      ),
+    );
+    assert.deepEqual(f.calls, [["reviewRenewalHoldings"]]);
+    f.button(
+      locale === "en"
+        ? "Confirm saved upload and clear local retry copy"
+        : "确认已保存并清理本机重试副本",
+    ).onClick();
+    assert.deepEqual(f.calls.at(-1), ["confirmRenewalHoldings"]);
+    f.button(locale === "en" ? "Keep original upload and lock" : "保留原上传并锁定").onClick();
+    assert.deepEqual(f.calls.at(-1), ["lock"]);
+  }
+});
+
+test("holdings checks are hidden outside a configured renewal-only review and unavailable during a staged renewal", () => {
+  for (const config of [{ configured: false }, { phase: "locked" }, { authenticated: false }]) {
+    const f = harness({ phase: "renewal-only", ...config });
+    f.workspace.keyRenewal = f.summary;
+    assert(!f.view().includes("Check pending holdings upload"));
+  }
+  const f = harness({ phase: "renewal-only" });
+  f.workspace.keyRenewal = {
+    ...f.summary,
+    pending: { operationId: "renew_A", state: "ready", expiresAt: 1200 },
+  };
+  assert(!f.view().includes("Check pending holdings upload"));
 });

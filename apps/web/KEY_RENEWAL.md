@@ -62,10 +62,17 @@ or promoting keys after lock, logout or account change.
 
 - Renewal needs this browser's previously registered device identity. A clean browser does not
   silently adopt another device's identity. Separate enrollment/recovery remains explicit.
-- Resolve pending holdings/task uploads and device/agent/archive changes before renewing. Drafts
-  remain encrypted and can stay. If certificates already expired while uploads are unresolved,
-  this version preserves them and pauses renewal; it does not provide an expired-upload resolution
-  UI or silently discard possibly accepted work.
+- Resolve pending uploads and device/agent/archive changes before renewing. Drafts stay encrypted.
+  The renewal review can check a holdings upload after its certificates expire: authenticated GETs
+  read the original operation receipt and exact saved snapshot, then the Worker verifies owner,
+  source, operation, complete carrier and root-trusted historical proofs at the saved time.
+  Review does not decrypt or delete anything. A separate confirmation rereads the evidence and
+  atomically clears only the unchanged local retry row. The saved snapshot stays on the server.
+  Lock, account changes, competing archive/renewal changes and packet replacements fence cleanup.
+  Missing receipts/snapshots and unknown results preserve the original packet and block renewal;
+  a 404 is not a cancellation fence. This path never resubmits, resigns or re-encrypts an upload.
+  Task uploads still require separate recovery support. Sources no longer returned by the current
+  owner catalogue remain blocked rather than being recreated or silently discarded.
 - Agent grants are not automatically reauthorized. Changed/revoked recipient keys can require
   fresh explicit consent.
 - Root replacement, reset/delete, pruning history and historical content rekey remain separately

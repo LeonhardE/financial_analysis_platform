@@ -172,10 +172,61 @@ export default function VaultKeyRenewalPanel({ workspace }: { workspace: Holding
                 )}
               </dl>
               {summary.reason && <p role="status">{t(`reasons.${summary.reason}`)}</p>}
+              {workspace.configured && (
+                <div className={styles.callout} role="group" aria-label={t("holdingsTitle")}>
+                  <h4>{t("holdingsTitle")}</h4>
+                  <p>{t("holdingsHelp")}</p>
+                  {workspace.keyNotice === "renewal_holdings_none" && (
+                    <p role="status">{t("holdingsNone")}</p>
+                  )}
+                  {workspace.keyNotice === "renewal_holdings_reconciled" && (
+                    <p role="status">{t("holdingsReconciled")}</p>
+                  )}
+                  {workspace.renewalHoldings && (
+                    <>
+                      <p role="status">
+                        {t(
+                          workspace.renewalHoldings.status === "saved"
+                            ? "holdingsSaved"
+                            : "holdingsUnknown",
+                        )}
+                      </p>
+                      <p>
+                        {t("operation")}: <code>{workspace.renewalHoldings.operationId}</code>
+                      </p>
+                    </>
+                  )}
+                  <div className={styles.actions}>
+                    <button
+                      type="button"
+                      className={styles.secondary}
+                      disabled={busy}
+                      onClick={() => void workspace.reviewRenewalHoldings()}
+                    >
+                      {t("holdingsCheck")}
+                    </button>
+                    {workspace.renewalHoldings?.status === "saved" && (
+                      <button
+                        type="button"
+                        className={styles.primary}
+                        disabled={busy}
+                        onClick={() => void workspace.confirmRenewalHoldings()}
+                      >
+                        {t("holdingsConfirm")}
+                      </button>
+                    )}
+                    {workspace.renewalHoldings && (
+                      <button type="button" className={styles.secondary} onClick={workspace.lock}>
+                        {t("holdingsKeep")}
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
               <button
                 type="button"
                 className={styles.primary}
-                disabled={busy || !summary.canRenew}
+                disabled={busy || !summary.canRenew || Boolean(workspace.renewalHoldings)}
                 onClick={() => void workspace.confirmKeyRenewal()}
               >
                 {t("confirm")}
