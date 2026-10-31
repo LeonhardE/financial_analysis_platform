@@ -35,7 +35,9 @@ variable "agent_hub_public_connector_enabled" {
 }
 
 locals {
-  agent_hub_artifact_repository = jsondecode(var.deployment_configs["repo"]).artifactRepository
+  # Invalid projections are rejected by the existing blocking input/registry
+  # validation. Do not preempt that validation while this target is inactive.
+  agent_hub_artifact_repository = try(jsondecode(local.repo_deployment_config).artifactRepository, "")
   agent_hub_execution_enabled   = var.agent_hub_provisioning_stage != "none" || local.execution_registry.targets["agent-hub"].enabled
   agent_hub_service_enabled     = var.agent_hub_provisioning_stage == "service" || local.execution_registry.targets["agent-hub"].enabled
   agent_hub_runtime_email       = "${var.agent_hub_runtime_account_id}@${var.project_id}.iam.gserviceaccount.com"

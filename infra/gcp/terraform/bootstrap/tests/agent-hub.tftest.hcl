@@ -402,3 +402,21 @@ run "reject_public_connector_before_business_resources_exist" {
   }
   expect_failures = [var.agent_hub_public_connector_enabled]
 }
+
+run "inactive_hub_preserves_missing_repo_projection_rejection" {
+  command = plan
+  variables {
+    deployment_configs = {
+      for name, config in var.deployment_configs : name => config if name != "repo"
+    }
+  }
+  expect_failures = [var.project_id, var.region]
+}
+
+run "inactive_hub_preserves_malformed_repo_projection_rejection" {
+  command = plan
+  variables {
+    deployment_configs = merge(var.deployment_configs, { repo = "not-json" })
+  }
+  expect_failures = [var.project_id, var.region]
+}
