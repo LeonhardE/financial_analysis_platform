@@ -1,10 +1,37 @@
-# Agent Hub first-provision preparation (INF-006)
+# Agent Hub infrastructure and guarded image delivery
 
-This target remains **disabled**, with `agent_hub_provisioning_stage = "none"` and
-image release `build_only`. Merging this preparation does not create a service,
-database, API enablement, key, identity, trigger, Rules release or public IAM grant.
-The current application contains encrypted owner APIs, OAuth, helper/MCP, tasks,
-Runs and results. A successful image health test is not their production acceptance.
+The ordinary Terraform pipeline remains **disabled**, using `inactive-v1`.
+Administrator `agent_hub_provisioning_stage` defaults to `none`, so merging its
+configuration creates no service, database, API, identity or public invocation.
+For a provisioned instance, retain its reviewed `service` stage rather than
+resetting protected resources to `none`. OAuth/adapter gates remain independent.
+The application contains encrypted owner APIs, OAuth, helper/MCP, tasks, Runs and
+results; image health alone does not establish their production acceptance.
+
+## Existing-service image release
+
+The explicit administrator-only `agent_hub_image_deployment_enabled` defaults to
+`false`. False retains build-only trigger behavior and grants no image-deployment
+rights, including when the service stage already exists. The ordinary closed
+profile compiler cannot emit or enable this override.
+
+Setting it to `true` requires a retained `agent_hub_provisioning_stage="service"`
+and a complete reviewed bootstrap plan after the existing service/runtime exist.
+The separate repository target catalog must already permit existing-service image
+release. This flag sets the dedicated trigger's `_DEPLOY_SERVICE` and grants its
+`fa-agent-hub-build` identity only:
+
+- The existing get/update configuration role on `agent-hub-api` alone.
+- `roles/iam.serviceAccountUser` on the selected Hub runtime alone.
+- The existing project build-metadata read role, whose only permission is
+  `cloudbuild.builds.get`, for the unchanged release provenance checks.
+
+No service create/delete, IAM administration, new identity, data/content/key access,
+public invoker or normal Terraform pipeline activation is added. The trigger waits
+for these three explicit bindings before image deployment. Its release helper
+retains exact source/build/digest and existing service UID checks. Both
+`agent_hub_preparation.image_deployment` and the compatible `image_deploys` output
+reflect this opt-in. Preserve other targets' already-applied stages in every plan.
 
 ## Explicit configuration
 
@@ -82,15 +109,16 @@ metadata and asynchronous-operation checks remain required after actual creation
 See the [Firestore method permissions](https://docs.cloud.google.com/firestore/native/docs/audit-logging#getfield)
 and [provider 7.28.0 field implementation](https://github.com/hashicorp/terraform-provider-google/blob/v7.28.0/google/services/firestore/resource_firestore_field.go).
 
-## Public connector is a separate decision
+## Public invocation is a separate decision
 
-The business root grants no invoker IAM. First creation remains private with no
-public/caller invoker grants. A later administrator service-stage plan can
+The business root grants no invoker IAM. A new instance starts private with no
+public/caller invoker grants. A separate administrator service-stage plan can
 explicitly set `agent_hub_public_connector_enabled=true` to add only this service's
 `allUsers` invoker tuple. That flag does not enable OAuth/adapter, approve an agent,
 change application authentication or give normal target execution IAM rights.
-Review the matching application configuration and real OAuth/consumer acceptance
-before any public activation. Hub owner/internal routes still require their exact
+Review the application authentication and routing of the selected public surface.
+Owner entry/JWKS reachability does not open Muse; real OAuth/consumer acceptance
+remains necessary before its independent gates are enabled. Hub owner/internal routes require their exact
 Firebase/workload/delegation checks; URL naming, CORS or Web forwarding is not an
 authorization boundary. The Web owner BFF and public agent protocol stay distinct.
 
@@ -99,11 +127,11 @@ authorization boundary. The Web owner BFF and public agent protocol stay distinc
 Use the pinned Terraform 1.16.7/provider 7.28.0 lockfile. Native tests are mock
 `plan` only and never run the configuration provisioner. Review complete default,
 execution and service bootstrap plans, plus a full business first-create plan.
-Because the real Hub state bucket does not exist, an isolated local-backend copy
-with empty state can preview business creation; it is not adoption or a reusable
+For a new instance whose Hub state bucket does not yet exist, an isolated local-backend
+copy with empty state can preview business creation; it is not adoption or a reusable
 approved production plan. Regenerate against the real backend after execution.
 
-The current build-only artifact is a **candidate**, not first-provision approval.
+The pinned historical build-only artifact is a **candidate**, not first-provision approval.
 Its reviewed digest, exact released-main source and official build reference are
 pinned in [image-candidate.json](image-candidate.json); compose the full image
 reference with the selected deployment project/region/repository. This manifest

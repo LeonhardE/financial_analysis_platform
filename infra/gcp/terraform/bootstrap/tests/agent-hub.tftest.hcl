@@ -11,6 +11,33 @@ mock_provider "google" {
   }
 }
 
+# Only computed identifiers are mocked; configured target names/permissions remain real.
+override_resource {
+  target          = google_project_iam_custom_role.agent_hub["service_configuration"]
+  override_during = plan
+  values = {
+    name = "projects/financial-analysis-512202/roles/folioviewAgentHubServiceConfiguration"
+  }
+}
+
+override_resource {
+  target          = google_project_iam_custom_role.build_metadata
+  override_during = plan
+  values = {
+    name = "projects/financial-analysis-512202/roles/folioviewTerraformBuildMetadata"
+  }
+}
+
+override_resource {
+  target          = module.agent_hub_build_identity[0].google_service_account.this
+  override_during = plan
+  values = {
+    id     = "projects/financial-analysis-512202/serviceAccounts/fa-agent-hub-build@financial-analysis-512202.iam.gserviceaccount.com"
+    email  = "fa-agent-hub-build@financial-analysis-512202.iam.gserviceaccount.com"
+    member = "serviceAccount:fa-agent-hub-build@financial-analysis-512202.iam.gserviceaccount.com"
+  }
+}
+
 override_resource {
   target = module.market_image_release.google_cloudbuild_trigger.this
   values = {
@@ -280,6 +307,11 @@ run "agent_hub_preparation_is_inert_by_default" {
   assert {
     condition = (
       var.agent_hub_provisioning_stage == "none" &&
+      !var.agent_hub_image_deployment_enabled &&
+      !output.agent_hub_preparation.image_deployment &&
+      length(google_cloud_run_v2_service_iam_member.agent_hub_image_configuration) == 0 &&
+      length(google_service_account_iam_member.agent_hub_image_runtime) == 0 &&
+      length(google_project_iam_member.agent_hub_image_build_metadata) == 0 &&
       !local.execution_registry.targets["agent-hub"].enabled &&
       local.execution_registry.targets["agent-hub"].deployment_source == "inactive-v1" &&
       !contains(keys(var.deployment_configs), "agent-hub") &&
@@ -315,6 +347,10 @@ run "agent_hub_execution_precedes_business_resources" {
       length(google_project_iam_member.agent_hub_owner_auth) == 0 &&
       length(google_cloud_run_v2_service_iam_member.agent_hub_public_connector) == 0 &&
       module.agent_hub_image_release[0].name == "build-agent-hub-api" &&
+      !output.agent_hub_preparation.image_deployment &&
+      length(google_cloud_run_v2_service_iam_member.agent_hub_image_configuration) == 0 &&
+      length(google_service_account_iam_member.agent_hub_image_runtime) == 0 &&
+      length(google_project_iam_member.agent_hub_image_build_metadata) == 0 &&
       google_artifact_registry_repository_iam_member.agent_hub_build_images[0].repository == jsondecode(var.deployment_configs["repo"]).artifactRepository &&
       length(google_cloud_run_v2_service_iam_member.agent_hub_execution) == 0 &&
       length(module.agent_hub_database_access) == 0 &&
@@ -419,4 +455,69 @@ run "inactive_hub_preserves_malformed_repo_projection_rejection" {
     deployment_configs = merge(var.deployment_configs, { repo = "not-json" })
   }
   expect_failures = [var.project_id, var.region]
+}
+
+
+run "agent_hub_retained_service_has_no_image_rights_by_default" {
+  command = plan
+  variables { agent_hub_provisioning_stage = "service" }
+  assert {
+    condition = (
+      output.agent_hub_preparation.stage == "service" &&
+      !output.agent_hub_preparation.image_deployment &&
+      !output.agent_hub_preparation.image_deploys &&
+      !output.agent_hub_preparation.pipeline_enabled &&
+      length(google_cloud_run_v2_service_iam_member.agent_hub_image_configuration) == 0 &&
+      length(google_service_account_iam_member.agent_hub_image_runtime) == 0 &&
+      length(google_project_iam_member.agent_hub_image_build_metadata) == 0
+    )
+    error_message = "Retaining Hub service-stage ownership must not silently enable image deployment or add publisher permissions."
+  }
+}
+
+run "agent_hub_image_release_is_exact_and_independent_of_normal_pipeline" {
+  command = plan
+  variables {
+    agent_hub_provisioning_stage       = "service"
+    agent_hub_image_deployment_enabled = true
+  }
+  assert {
+    condition = (
+      output.agent_hub_preparation.stage == "service" &&
+      output.agent_hub_preparation.image_deployment &&
+      output.agent_hub_preparation.image_deploys &&
+      !output.agent_hub_preparation.pipeline_enabled &&
+      length(google_cloud_run_v2_service_iam_member.agent_hub_image_configuration) == 1 &&
+      length(google_service_account_iam_member.agent_hub_image_runtime) == 1 &&
+      length(google_project_iam_member.agent_hub_image_build_metadata) == 1 &&
+      google_cloud_run_v2_service_iam_member.agent_hub_image_configuration[0].name == "agent-hub-api" &&
+      module.agent_hub_build_identity[0].member == "serviceAccount:fa-agent-hub-build@financial-analysis-512202.iam.gserviceaccount.com" &&
+      google_cloud_run_v2_service_iam_member.agent_hub_image_configuration[0].member == module.agent_hub_build_identity[0].member &&
+      google_cloud_run_v2_service_iam_member.agent_hub_image_configuration[0].role == google_project_iam_custom_role.agent_hub["service_configuration"].name &&
+      toset(google_project_iam_custom_role.agent_hub["service_configuration"].permissions) == toset(["run.services.get", "run.services.update"]) &&
+      google_service_account_iam_member.agent_hub_image_runtime[0].service_account_id == local.agent_hub_runtime_resource &&
+      google_service_account_iam_member.agent_hub_image_runtime[0].role == "roles/iam.serviceAccountUser" &&
+      google_service_account_iam_member.agent_hub_image_runtime[0].member == module.agent_hub_build_identity[0].member &&
+      google_project_iam_member.agent_hub_image_build_metadata[0].role == google_project_iam_custom_role.build_metadata.name &&
+      toset(google_project_iam_custom_role.build_metadata.permissions) == toset(["cloudbuild.builds.get"]) &&
+      google_project_iam_member.agent_hub_image_build_metadata[0].member == module.agent_hub_build_identity[0].member &&
+      length(google_cloud_run_v2_service_iam_member.agent_hub_public_connector) == 0
+    )
+    error_message = "Image opt-in must grant only exact existing-service configuration, its runtime attachment and existing build metadata read; it cannot activate the normal pipeline or public invocation."
+  }
+}
+
+run "agent_hub_image_release_rejects_none_stage" {
+  command = plan
+  variables { agent_hub_image_deployment_enabled = true }
+  expect_failures = [var.agent_hub_image_deployment_enabled]
+}
+
+run "agent_hub_image_release_rejects_execution_stage" {
+  command = plan
+  variables {
+    agent_hub_provisioning_stage       = "execution"
+    agent_hub_image_deployment_enabled = true
+  }
+  expect_failures = [var.agent_hub_image_deployment_enabled]
 }
