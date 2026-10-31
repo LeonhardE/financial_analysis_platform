@@ -1,5 +1,5 @@
-# Build and publish only. Preserve the existing private Portfolio service.
-# The shared release helper also rejects deployment while release_mode=build_only.
+# Build and publish by default. A separately reviewed administrator trigger may
+# enable guarded image updates to the existing private Portfolio service.
 steps:
   - name: gcr.io/cloud-builders/docker
     args:

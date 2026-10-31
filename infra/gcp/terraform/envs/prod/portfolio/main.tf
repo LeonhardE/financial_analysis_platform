@@ -2,12 +2,15 @@ locals {
   project_id  = var.deployment.project_id
   region      = var.deployment.region
   database_id = "portfolio"
-  environment = {
+  hub_trust_environment = var.hub_trust == null ? {} : (
+    alltrue([for value in values(var.hub_trust) : value == ""]) ? {} : var.hub_trust
+  )
+  environment = merge({
     FIREBASE_PROJECT_ID     = local.project_id
     FIRESTORE_DATABASE      = local.database_id
     PORTFOLIO_STORE_BACKEND = "firestore"
     CORS_ORIGINS            = var.deployment.web_origin
-  }
+  }, local.hub_trust_environment)
 }
 
 provider "google" {

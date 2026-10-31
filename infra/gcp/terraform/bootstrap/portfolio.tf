@@ -12,12 +12,24 @@ variable "portfolio_provisioning_stage" {
   }
 }
 
+variable "portfolio_image_deployment_enabled" {
+  description = "Explicit administrator opt-in to the existing Portfolio image release, only after service-stage review. False preserves build-only triggers and grants no image deployer rights."
+  type        = bool
+  default     = false
+  nullable    = false
+  validation {
+    condition     = !var.portfolio_image_deployment_enabled || var.portfolio_provisioning_stage == "service"
+    error_message = "Image deployment needs an explicitly retained Portfolio service stage and a complete reviewed administrator plan."
+  }
+}
+
 locals {
   portfolio_execution_enabled = local.execution_registry.targets.portfolio.enabled || var.portfolio_provisioning_stage != "none"
   portfolio_service_enabled   = local.execution_registry.targets.portfolio.enabled || var.portfolio_provisioning_stage == "service"
   portfolio_deployment        = local.portfolio_execution_enabled ? jsondecode(var.deployment_configs["portfolio"]) : null
   portfolio_runtime           = local.portfolio_service_enabled ? "projects/${var.project_id}/serviceAccounts/${local.portfolio_deployment.inputs.runtime_account_id}@${var.project_id}.iam.gserviceaccount.com" : null
   portfolio_runtime_email     = local.portfolio_service_enabled ? "${local.portfolio_deployment.inputs.runtime_account_id}@${var.project_id}.iam.gserviceaccount.com" : null
+  portfolio_invokers          = local.portfolio_service_enabled ? try(local.portfolio_deployment.portfolioHubTrust.configuration.invokerServiceAccounts, {}) : {}
 }
 
 module "portfolio_build_identity" {
@@ -27,7 +39,7 @@ module "portfolio_build_identity" {
   project_id   = var.project_id
   account_id   = "fa-portfolio-build"
   display_name = "FolioView Portfolio image build"
-  description  = "Build-only Portfolio image publisher; no Cloud Run deployment or content access."
+  description  = "Portfolio image publisher; service-only deployment is separately gated, with no content access."
 }
 
 resource "google_project_iam_member" "portfolio_build_logging" {
@@ -67,9 +79,15 @@ module "portfolio_image_release" {
   ]
   substitutions  = { _REPOSITORY = local.portfolio_deployment.artifactRepository }
   disabled       = false
-  deploy_enabled = false
+  deploy_enabled = var.portfolio_image_deployment_enabled
 
-  depends_on = [google_project_iam_member.portfolio_build_logging, google_artifact_registry_repository_iam_member.portfolio_build_images]
+  depends_on = [
+    google_project_iam_member.portfolio_build_logging,
+    google_artifact_registry_repository_iam_member.portfolio_build_images,
+    google_project_iam_member.portfolio_image_build_metadata,
+    google_cloud_run_v2_service_iam_member.portfolio_image_configuration,
+    google_service_account_iam_member.portfolio_image_runtime,
+  ]
 }
 
 # The service stage may only follow administrator creation of the business root.
@@ -168,11 +186,12 @@ resource "google_project_iam_custom_role" "portfolio_database_metadata" {
   project     = var.project_id
   role_id     = "folioviewPortfolioDatabaseMetadata"
   title       = "FolioView Portfolio database metadata"
-  permissions = ["datastore.databases.getMetadata"]
+  permissions = ["datastore.databases.getMetadata", "datastore.indexes.get"]
 }
 
 # No entity/content or DB create/delete permission is added to plan/apply.
-# Index/TTL permissions follow the actual POR-002 schema, in a separate change.
+# Exact Portfolio field metadata/update supports the implemented opaque-field
+# exemptions. No TTL is configured and no index creation/deletion is granted.
 resource "google_project_iam_custom_role" "portfolio_database_configuration" {
   count   = local.portfolio_service_enabled ? 1 : 0
   project = var.project_id
@@ -181,6 +200,8 @@ resource "google_project_iam_custom_role" "portfolio_database_configuration" {
   permissions = [
     "datastore.databases.getMetadata",
     "datastore.databases.update",
+    "datastore.indexes.get",
+    "datastore.indexes.update",
     # The provider polls the resulting database operation after PATCH.
     "datastore.operations.get",
   ]
@@ -248,7 +269,7 @@ output "portfolio_preparation" {
     execution_enabled = local.portfolio_execution_enabled
     service_enabled   = local.portfolio_service_enabled
     pipeline_enabled  = local.execution_registry.targets.portfolio.enabled
-    image_deployment  = false
+    image_deployment  = var.portfolio_image_deployment_enabled
   }
 
   precondition {
@@ -257,4 +278,74 @@ output "portfolio_preparation" {
     )
     error_message = "Retain Portfolio's inventoried build-trigger UUID; never substitute a new trigger."
   }
+}
+
+# Service IAM remains owned by this Portfolio administrative target. Web can
+# forward owner credentials but is deliberately absent from Hub internal trust.
+resource "google_cloud_run_v2_service_iam_member" "portfolio_invoker" {
+  for_each = local.portfolio_invokers
+
+  project  = var.project_id
+  location = var.region
+  name     = "portfolio-api"
+  role     = "roles/run.invoker"
+  member   = "serviceAccount:${each.value}"
+
+  lifecycle {
+    precondition {
+      condition = (
+        contains(["web", "hub"], each.key) &&
+        can(regex("^[a-z][a-z0-9-]{4,28}[a-z0-9]@${var.project_id}\\.iam\\.gserviceaccount\\.com$", each.value)) &&
+        each.value != local.portfolio_runtime_email &&
+        length(distinct(values(local.portfolio_invokers))) == length(local.portfolio_invokers) &&
+        try(each.value == (each.key == "web" ? "${local.portfolio_deployment.portfolioHubTrust.configuration.webRuntimeAccountId}@${var.project_id}.iam.gserviceaccount.com" : "${local.portfolio_deployment.portfolioHubTrust.hubDeployment.inputs.runtime_account_id}@${var.project_id}.iam.gserviceaccount.com"), false)
+      )
+      error_message = "Only exact distinct same-project Web/Hub runtime invokers from the reviewed Portfolio contract are allowed."
+    }
+  }
+}
+
+# Reuse the existing service-scoped get/update-only custom role. The image
+# publisher cannot create/delete services, administer IAM, or read user data.
+resource "google_cloud_run_v2_service_iam_member" "portfolio_image_configuration" {
+  count    = local.portfolio_service_enabled && var.portfolio_image_deployment_enabled ? 1 : 0
+  project  = var.project_id
+  location = var.region
+  name     = "portfolio-api"
+  role     = google_project_iam_custom_role.portfolio_service_configuration[0].name
+  member   = module.portfolio_build_identity[0].member
+}
+
+resource "google_service_account_iam_member" "portfolio_image_runtime" {
+  count              = local.portfolio_service_enabled && var.portfolio_image_deployment_enabled ? 1 : 0
+  service_account_id = local.portfolio_runtime
+  role               = "roles/iam.serviceAccountUser"
+  member             = module.portfolio_build_identity[0].member
+}
+
+# Firebase Admin checks revocation through a bounded user lookup. No user listing,
+# user management, token signing or content/data permission is added.
+resource "google_project_iam_custom_role" "portfolio_owner_auth_lookup" {
+  count       = local.portfolio_service_enabled ? 1 : 0
+  project     = var.project_id
+  role_id     = "folioviewPortfolioOwnerAuthLookup"
+  title       = "FolioView Portfolio owner auth lookup"
+  permissions = ["firebaseauth.users.get"]
+}
+
+resource "google_project_iam_member" "portfolio_owner_auth" {
+  count   = local.portfolio_service_enabled ? 1 : 0
+  project = var.project_id
+  role    = google_project_iam_custom_role.portfolio_owner_auth_lookup[0].name
+  member  = "serviceAccount:${local.portfolio_runtime_email}"
+}
+
+# The unchanged release helper verifies its own producing build before PATCH.
+# The existing foundation role reads build/trigger metadata and cannot queue,
+# approve or change builds, access user data, or impersonate another identity.
+resource "google_project_iam_member" "portfolio_image_build_metadata" {
+  count   = local.portfolio_service_enabled && var.portfolio_image_deployment_enabled ? 1 : 0
+  project = var.project_id
+  role    = google_project_iam_custom_role.build_metadata.name
+  member  = module.portfolio_build_identity[0].member
 }

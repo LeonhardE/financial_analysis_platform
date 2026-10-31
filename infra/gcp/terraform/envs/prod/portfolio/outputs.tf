@@ -29,7 +29,7 @@ output "deployment_contract" {
     bootstrap_image    = var.deployment.creation_image
     secret_references  = {}
     runtime_iam_owner  = "administrator-bootstrap"
-    release_mode       = "build_only"
+    release_mode       = "existing_service_separately_gated"
     client_rules_owner = "administrator-bootstrap-service-stage"
   }
 }

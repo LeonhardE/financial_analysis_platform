@@ -70,7 +70,7 @@ run "adopt_existing_private_portfolio_and_preserve_service_cap" {
       output.deployment_contract.environment.CORS_ORIGINS == "https://web.alpha.example.invalid" &&
       output.deployment_contract.environment.PORTFOLIO_STORE_BACKEND == "firestore" &&
       length(output.deployment_contract.secret_references) == 0 &&
-      output.deployment_contract.release_mode == "build_only"
+      output.deployment_contract.release_mode == "existing_service_separately_gated"
     )
     error_message = "The Portfolio root must retain its existing service identity, runtime, private invocation mode, and service-wide instance cap."
   }

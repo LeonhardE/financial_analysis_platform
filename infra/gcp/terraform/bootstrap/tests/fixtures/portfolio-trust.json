@@ -1,0 +1,81 @@
+{
+  "adoption": {
+    "applyTriggerId": "f259d6ae-f933-54ad-ab36-0025a746e81f",
+    "buildTriggerId": "bfe780e3-430e-5eba-9915-7932a8fb77fd",
+    "planTriggerId": "2a3d96bd-e6e4-50f1-ad91-cb7390a0b6a7",
+    "serviceUid": "4cda4ed5-233c-59e3-9a55-04a8b61f6c1c"
+  },
+  "artifactRepository": "financial-analysis",
+  "inputs": {
+    "artifact_repository": "financial-analysis",
+    "creation_image": "northamerica-northeast2-docker.pkg.dev/financial-analysis-512202/financial-analysis/portfolio-api@sha256:93932b8af2887ac39d17bfec040f213416d8a1e8b2547b71c3aa9dedbab535cf",
+    "existing_service_uid": "4cda4ed5-233c-59e3-9a55-04a8b61f6c1c",
+    "project_id": "financial-analysis-512202",
+    "region": "northamerica-northeast2",
+    "runtime_account_id": "fa-portfolio-runtime",
+    "web_origin": "https://market-web-630815932903.northamerica-northeast2.run.app"
+  },
+  "instanceId": "bootstrap-fixture",
+  "portfolioHubTrust": {
+    "configuration": {
+      "environment": {
+        "PORTFOLIO_DELEGATION_AUDIENCE": "https://portfolio-api-630815932903.northamerica-northeast2.run.app/internal/v2",
+        "PORTFOLIO_DELEGATION_ISSUER": "https://agent-hub-api-630815932903.northamerica-northeast2.run.app",
+        "PORTFOLIO_HUB_AUTHORITY_ORIGIN": "https://agent-hub-api-630815932903.northamerica-northeast2.run.app",
+        "PORTFOLIO_SERVICE_AUDIENCE": "https://portfolio-api-630815932903.northamerica-northeast2.run.app",
+        "PORTFOLIO_TRUSTED_HUB_CALLERS": "{\"123456789012345678901\":\"fa-agent-hub-runtime@financial-analysis-512202.iam.gserviceaccount.com\"}"
+      },
+      "hubDeploymentSha256": "f7de6b970a93e514cb7daa4c87853c3db67069da2bbe11c5010c24e6a7cb02bc",
+      "hubSubject": "123456789012345678901",
+      "instanceId": "bootstrap-fixture",
+      "invokerServiceAccounts": {
+        "hub": "fa-agent-hub-runtime@financial-analysis-512202.iam.gserviceaccount.com",
+        "web": "fa-web-runtime@financial-analysis-512202.iam.gserviceaccount.com"
+      },
+      "portfolioDeploymentSha256": "8f33ec2530aa99db4baad9a311c8180c862b3cb27850c0b8df2b5176600b830c",
+      "schemaVersion": 1,
+      "target": "portfolio",
+      "webRuntimeAccountId": "fa-web-runtime"
+    },
+    "hubDeployment": {
+      "adoption": {
+        "applyTriggerId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+        "buildTriggerId": "88888888-8888-4888-8888-888888888888",
+        "planTriggerId": "99999999-9999-4999-8999-999999999999",
+        "serviceUid": "77777777-7777-4777-8777-777777777777"
+      },
+      "artifactRepository": "financial-analysis",
+      "inputs": {
+        "artifact_repository": "financial-analysis",
+        "creation_image": "northamerica-northeast2-docker.pkg.dev/financial-analysis-512202/financial-analysis/agent-hub-api@sha256:93932b8af2887ac39d17bfec040f213416d8a1e8b2547b71c3aa9dedbab535cf",
+        "existing_service_uid": "77777777-7777-4777-8777-777777777777",
+        "project_id": "financial-analysis-512202",
+        "region": "northamerica-northeast2",
+        "runtime_account_id": "fa-agent-hub-runtime"
+      },
+      "instanceId": "bootstrap-fixture",
+      "project": {
+        "id": "financial-analysis-512202",
+        "number": "630815932903"
+      },
+      "region": "northamerica-northeast2",
+      "schemaVersion": 1,
+      "source": {
+        "repositoryResource": "projects/financial-analysis-512202/locations/northamerica-northeast2/connections/financial-analysis-github/repositories/financial-analysis",
+        "repositoryUrl": "https://github.com/LeonhardE/financial_analysis_platform.git"
+      },
+      "target": "agent-hub"
+    }
+  },
+  "project": {
+    "id": "financial-analysis-512202",
+    "number": "630815932903"
+  },
+  "region": "northamerica-northeast2",
+  "schemaVersion": 1,
+  "source": {
+    "repositoryResource": "projects/financial-analysis-512202/locations/northamerica-northeast2/connections/financial-analysis-github/repositories/financial-analysis",
+    "repositoryUrl": "https://github.com/LeonhardE/financial_analysis_platform.git"
+  },
+  "target": "portfolio"
+}
