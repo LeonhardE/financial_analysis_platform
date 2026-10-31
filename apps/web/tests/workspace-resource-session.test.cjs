@@ -47,10 +47,21 @@ test("Market, Resources, Tasks and Inbox reuse one mounted encrypted owner works
   const TasksPanel = () => null;
   const sharedWorkspace = { lock() {}, owner: "session_A", authenticated: true };
   let workspaceCalls = 0;
+  let pathname = "/";
+  const router = {
+    push: (href) => {
+      pathname = href;
+    },
+    replace: (href) => {
+      pathname = href;
+    },
+  };
   const Sidebar = () => null;
   const noData = () => ({ data: null, loading: false, hasSettled: true, error: "" });
   const jsx = (type, props, key) => ({ type, props, key });
-  const module = compile("../app/page.tsx", {
+  const module = compile("../components/WorkspaceShell.tsx", {
+    "next/navigation": { usePathname: () => pathname, useRouter: () => router },
+    "@/lib/workspace-routes": compile("../lib/workspace-routes.ts", {}),
     react: {
       useState(initial) {
         const slot = index++;
@@ -118,6 +129,7 @@ test("Market, Resources, Tasks and Inbox reuse one mounted encrypted owner works
   assert.equal(first.tree.props.workspace, sharedWorkspace);
   assert.equal(first.parent.props.hidden, true);
   sidebar.props.onNavigate("resources");
+  assert.equal(pathname, "/resources");
   tree = render();
   const active = find(tree, (node) => node.type === ResourcePanel);
   assert.equal(active.parent.props.hidden, false);
@@ -164,6 +176,33 @@ test("Market, Resources, Tasks and Inbox reuse one mounted encrypted owner works
   sharedWorkspace.owner = "session_B";
   tree = render();
   assert.equal(find(tree, (node) => node.type === TasksPanel).tree.props.request, null);
+  for (const [url, view] of [
+    ["/", "markets"],
+    ["/market", "markets"],
+    ["/resources", "resources"],
+    ["/tasks", "tasks"],
+    ["/agents", "agents"],
+    ["/inbox", "inbox"],
+    ["/settings", "settings"],
+  ]) {
+    pathname = url;
+    tree = render();
+    assert.equal(find(tree, (node) => node.type === Sidebar).tree.props.activeView, view);
+    const persistent = find(tree, (node) => node.type === ResourcePanel);
+    assert.equal(persistent.tree.props.workspace, sharedWorkspace);
+    assert.deepEqual(persistent.trail, first.trail);
+  }
+  pathname = "/resources";
+  sharedWorkspace.authenticated = false;
+  tree = render();
+  assert.equal(find(tree, (node) => node.type === Sidebar).tree.props.activeView, "resources");
+  sharedWorkspace.authenticated = true;
+  tree = render();
+  assert.equal(
+    find(tree, (node) => node.type === Sidebar).tree.props.activeView,
+    "resources",
+    "Completing login retains the selected path",
+  );
   // Stable component type/key/position keeps its private Worker alive within the app session.
   // Lock/logout isolation is exercised against the hook in holdings-workspace.test.cjs.
 });

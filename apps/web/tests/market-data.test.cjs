@@ -271,7 +271,9 @@ function renderDashboard({
   };
   const quoteLibrary = compile("../lib/market-quotes.ts", {});
   let stateIndex = 0;
-  const { default: Dashboard } = compile("../app/page.tsx", {
+  const { default: Dashboard } = compile("../components/WorkspaceShell.tsx", {
+    "next/navigation": { usePathname: () => "/", useRouter: () => ({ push() {}, replace() {} }) },
+    "@/lib/workspace-routes": compile("../lib/workspace-routes.ts", {}),
     react: {
       useEffect: () => {},
       useState: (initial) => {

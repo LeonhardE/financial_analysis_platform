@@ -142,10 +142,12 @@ test("pending renewal is encrypted, authenticated, owner-root bound and survives
     device: f.local.device,
   });
   assert.deepEqual((await fresh.getKeyRenewal(f.vault, state, c.record)).packet, c.packet);
+  const changedCiphertext = Buffer.from(c.record.ciphertext, "base64url");
+  changedCiphertext[0] ^= 1;
   for (const r of [
     { ...c.record, operationId: "different_operation_0001" },
     { ...c.record, rootKeyId: "x".repeat(43) },
-    { ...c.record, ciphertext: c.record.ciphertext.slice(0, -1) + "A" },
+    { ...c.record, ciphertext: changedCiphertext.toString("base64url") },
   ])
     await assert.rejects(fresh.getKeyRenewal(f.vault, state, r));
   const other = await createOwner(h, "other_synthetic_owner");

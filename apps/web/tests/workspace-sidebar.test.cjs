@@ -68,6 +68,10 @@ function mountSidebar({ mobile = false } = {}) {
       },
     },
     "react/jsx-runtime": jsxRuntime,
+    "next/link": { __esModule: true, default: "a" },
+    "@/lib/workspace-routes": {
+      workspaceHref: (view) => (view === "markets" ? "/market" : "/" + view),
+    },
     "next-intl": {
       useTranslations: () => createTranslator({ locale: "en", messages: english }),
     },
@@ -137,7 +141,7 @@ function mountSidebar({ mobile = false } = {}) {
 const button = (tree, label) => {
   const matches = nodes(
     tree,
-    (node) => node.type === "button" && node.props["aria-label"] === label,
+    (node) => (node.type === "button" || node.type === "a") && node.props["aria-label"] === label,
   );
   assert.equal(matches.length, 1, `Expected one ${label} button`);
   return matches[0];
@@ -148,31 +152,31 @@ test("the sidebar starts collapsed and keeps named navigation actions when expan
   let tree = sidebar.render();
   assert.equal(tree.props["data-collapsed"], true);
   assert.equal(button(tree, "Expand sidebar").props["aria-expanded"], false);
-  assert.equal(button(tree, "Markets").props["aria-pressed"], true);
+  assert.equal(button(tree, "Markets").props["aria-current"], "page");
   assert.equal(button(tree, "Settings").props.title, "Settings");
   assert.match(renderToStaticMarkup(tree), /aria-hidden="true"/);
   assert.match(renderToStaticMarkup(tree), /data-account-collapsed="true"/);
-  button(tree, "Expand sidebar").props.onClick();
+  button(tree, "Expand sidebar").props.onClick({ button: 0, preventDefault() {} });
   tree = sidebar.render();
   assert.equal(tree.props["data-collapsed"], false);
   assert.equal(button(tree, "Collapse sidebar").props["aria-expanded"], true);
   assert.match(renderToStaticMarkup(tree), /data-account-collapsed="false"/);
-  button(tree, "Settings").props.onClick();
+  button(tree, "Settings").props.onClick({ button: 0, preventDefault() {} });
   tree = sidebar.render();
   assert.deepEqual(sidebar.navigations, ["settings"]);
-  assert.equal(button(tree, "Settings").props["aria-pressed"], true);
-  assert.equal(button(tree, "Markets").props["aria-pressed"], false);
+  assert.equal(button(tree, "Settings").props["aria-current"], "page");
+  assert.equal(button(tree, "Markets").props["aria-current"], undefined);
   assert.equal(tree.props["data-collapsed"], false);
-  button(tree, "Collapse sidebar").props.onClick();
+  button(tree, "Collapse sidebar").props.onClick({ button: 0, preventDefault() {} });
   tree = sidebar.render();
   assert.equal(tree.props["data-collapsed"], true);
   assert.equal(button(tree, "Expand sidebar").props["aria-expanded"], false);
-  assert.equal(button(tree, "Settings").props["aria-pressed"], true);
+  assert.equal(button(tree, "Settings").props["aria-current"], "page");
   assert.equal(button(tree, "Settings").props.title, "Settings");
-  button(tree, "Markets").props.onClick();
+  button(tree, "Markets").props.onClick({ button: 0, preventDefault() {} });
   tree = sidebar.render();
   assert.deepEqual(sidebar.navigations, ["settings", "markets"]);
-  assert.equal(button(tree, "Markets").props["aria-pressed"], true);
+  assert.equal(button(tree, "Markets").props["aria-current"], "page");
   assert.equal(tree.props["data-collapsed"], true);
   sidebar.unmount();
 });
@@ -181,7 +185,7 @@ test("mobile expansion isolates content and closing with Escape restores focus a
   const sidebar = mountSidebar({ mobile: true });
   let tree = sidebar.render();
   assert.equal(tree.props["data-collapsed"], true);
-  button(tree, "Expand sidebar").props.onClick();
+  button(tree, "Expand sidebar").props.onClick({ button: 0, preventDefault() {} });
   tree = sidebar.render();
   assert.equal(tree.props["data-mobile-open"], true);
   assert.equal(sidebar.attributes.has("inert"), true);
@@ -220,7 +224,7 @@ test("mobile expansion isolates content and closing with Escape restores focus a
 test("resizing out of mobile mode closes an open overlay and restores the page", () => {
   const sidebar = mountSidebar({ mobile: true });
   let tree = sidebar.render();
-  button(tree, "Expand sidebar").props.onClick();
+  button(tree, "Expand sidebar").props.onClick({ button: 0, preventDefault() {} });
   sidebar.render();
   assert.equal(sidebar.attributes.has("inert"), true);
   sidebar.resize(false);
@@ -235,13 +239,13 @@ test("resizing out of mobile mode closes an open overlay and restores the page",
 test("navigating from an expanded mobile sidebar closes the overlay and releases content", () => {
   const sidebar = mountSidebar({ mobile: true });
   let tree = sidebar.render();
-  button(tree, "Expand sidebar").props.onClick();
+  button(tree, "Expand sidebar").props.onClick({ button: 0, preventDefault() {} });
   tree = sidebar.render();
-  button(tree, "Settings").props.onClick();
+  button(tree, "Settings").props.onClick({ button: 0, preventDefault() {} });
   tree = sidebar.render();
   assert.deepEqual(sidebar.navigations, ["settings"]);
   assert.equal(tree.props["data-mobile-open"], false);
-  assert.equal(button(tree, "Settings").props["aria-pressed"], true);
+  assert.equal(button(tree, "Settings").props["aria-current"], "page");
   assert.equal(sidebar.attributes.has("inert"), false);
   assert.equal(sidebar.document.body.style.overflow, "auto");
   sidebar.unmount();
@@ -250,17 +254,51 @@ test("navigating from an expanded mobile sidebar closes the overlay and releases
 test("resources are reachable from bottom navigation while Markets remains the default", () => {
   const sidebar = mountSidebar();
   let tree = sidebar.render();
-  assert.equal(button(tree, "Markets").props["aria-pressed"], true);
-  button(tree, "Resources").props.onClick();
+  assert.equal(button(tree, "Markets").props["aria-current"], "page");
+  button(tree, "Resources").props.onClick({ button: 0, preventDefault() {} });
   tree = sidebar.render();
-  assert.equal(button(tree, "Resources").props["aria-pressed"], true);
-  assert.equal(button(tree, "Markets").props["aria-pressed"], false);
-  button(tree, "Inbox").props.onClick();
+  assert.equal(button(tree, "Resources").props["aria-current"], "page");
+  assert.equal(button(tree, "Markets").props["aria-current"], undefined);
+  button(tree, "Inbox").props.onClick({ button: 0, preventDefault() {} });
   tree = sidebar.render();
-  assert.equal(button(tree, "Inbox").props["aria-pressed"], true);
-  assert.equal(button(tree, "Resources").props["aria-pressed"], false);
-  button(tree, "Markets").props.onClick();
+  assert.equal(button(tree, "Inbox").props["aria-current"], "page");
+  assert.equal(button(tree, "Resources").props["aria-current"], undefined);
+  button(tree, "Markets").props.onClick({ button: 0, preventDefault() {} });
   tree = sidebar.render();
-  assert.equal(button(tree, "Markets").props["aria-pressed"], true);
+  assert.equal(button(tree, "Markets").props["aria-current"], "page");
+  sidebar.unmount();
+});
+
+test("workspace navigation exposes canonical links and retains native modified-click behavior", () => {
+  const sidebar = mountSidebar();
+  const tree = sidebar.render();
+  for (const [label, href] of [
+    ["Markets", "/market"],
+    ["Resources", "/resources"],
+    ["Tasks", "/tasks"],
+    ["Agents", "/agents"],
+    ["Inbox", "/inbox"],
+    ["Settings", "/settings"],
+  ]) {
+    const control = button(tree, label);
+    assert.equal(control.type, "a");
+    assert.equal(control.props.href, href);
+    let prevented = false;
+    control.props.onClick({
+      button: 0,
+      metaKey: true,
+      preventDefault() {
+        prevented = true;
+      },
+    });
+    control.props.onClick({
+      button: 1,
+      preventDefault() {
+        prevented = true;
+      },
+    });
+    assert.equal(prevented, false);
+  }
+  assert.deepEqual(sidebar.navigations, []);
   sidebar.unmount();
 });

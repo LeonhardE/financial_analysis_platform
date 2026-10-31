@@ -5,6 +5,23 @@ sidebar. Resources adds a Wealthsimple holdings CSV import with client-side encr
 explicit account/coverage preview. Robinhood and Interactive Brokers remain disabled future
 adapters; a transaction ledger is not treated as a current holdings snapshot.
 
+## Workspace routes
+
+`/` and `/market` both open Market. Resources, Tasks, Agents, Inbox and Settings have their own
+`/resources`, `/tasks`, `/agents`, `/inbox` and `/settings` pages. Sidebar links support ordinary
+navigation, copied/bookmarked URLs and opening another tab. Direct loads and refresh stay on the
+selected page; unknown paths return the normal 404 rather than becoming Market.
+
+The `(workspace)` layout keeps one `WorkspaceShell` mounted across these pages. It owns the
+existing encrypted workspace and Market selection state, so internal navigation preserves the
+current Worker/session. A full refresh still requires unlocking as before. Logout, owner changes,
+lock and leaving the workspace retain the existing key-disposal rules; remembering a route does
+not persist private key material or replace owner authentication.
+
+Legacy `#inbox/result/...` links normalize to `/inbox` while retaining the fragment. Existing
+`agent_request`/`agent_nonce` handoffs normalize to `/agents` while retaining the query; this
+handoff keeps its prior precedence over an Inbox fragment. Login stays on the selected path.
+
 ## Resource library
 
 Resources presents holdings, the existing Market watchlist, and a manually maintained YouTube
