@@ -28,8 +28,9 @@ accepted. This input alone does not grant authority to create a missing service.
   grants. Its Web runtime, Artifact Registry reference and image-trigger UUID
   come from `deployment_configs["web"]`. It does not adopt the shared build SA.
 - All nine browser-public Firebase/API substitutions come from that projection's
-  restricted `build` object. No new build key, runtime environment, private key,
-  Firebase provider or browser database permission is introduced. Optional
+  restricted `build` object. No new public build key, private key, Firebase provider
+  or browser database permission is introduced. The optional fixed server-only
+  owner environment is described below. Optional
   User/Config origins retain their existing migration behavior; a usable Market
   API origin is still required for the actual Web image build.
 
@@ -93,3 +94,37 @@ Bootstrap tests check all nine selected build values and reject unexpected keys
 or a mixed build region. Mocks use no backend, credentials or GCP API calls.
 The frontend source contains no author-instance fallback; localhost development
 and explicit combined-API migration routing are unchanged, with no UI change.
+
+## INF-009 managed owner environment consumer
+
+The Web-only `web-owner.consumer.json` marker opts into `web-owner.v1` after the
+independent repo foundation. The nullable `owner_environment` map accepts exactly
+six nonsecret server fields. Null preserves the old empty environment. Explicit
+Portfolio and Hub booleans operate independently; disabled upstreams must be
+empty, enabled settings require this Firebase project and canonical numbered Run
+origins/audiences in the selected region. Both enabled origins must identify the
+same project number. Unknown/partial maps, stale disabled endpoints, wrong
+projects/audiences and alternate origins fail validation.
+
+Use `compile-web-owner-deployment` with an explicitly selected private profile.
+Review its unchanged server/public sidecars, complete managed projection and
+hashes. Update only Web's two managed trigger pins in a complete administrator
+plan. The nine existing public build values and retained image trigger must stay
+identical; no new public substitution or workload credential is introduced.
+
+After independently verifying Portfolio's private invocation, current image,
+revocation lookup and opaque-field policy, and Hub's owner/JWKS reachability,
+review the complete managed Web plan. Only the existing guarded configuration
+controller may be replaced to apply the six server fields. Preserve the native
+service UID, keyless runtime, public invocation mode, service-wide maximum two,
+revision scaling and release-owned image/traffic. Use the exact saved plan and
+native approval; old source/configuration plans cannot be reused.
+
+The browser already reads independent capabilities from the no-store
+`/api/private/owner-config` endpoint. Compare its real response with the public
+sidecar and verify the actual Firebase/API build provenance separately. Exercise
+same-origin owner paths and anonymous Market after configuration/image release;
+server environment alone is not browser acceptance. Portfolio stays IAM private;
+Web receives only its separately reviewed service invoker, with no Firestore,
+KMS, Secret, Firebase user-directory or token-creator grants. Muse OAuth/adapter
+activation remains separate from owner forwarding.
