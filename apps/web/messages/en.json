@@ -878,12 +878,20 @@
       "session_expired": "Sign in again to continue.",
       "insufficient_scope": "This session cannot perform that action.",
       "request_timeout": "The request timed out. Check current status before trying again.",
-      "request_failed": "The request could not be completed.",
+      "request_failed": "The request did not complete. Refresh and try again.",
       "outcome_unknown": "The revocation may have reached the server. Check the latest status before another action.",
       "not_found": "This connection or grant was not found.",
       "version_conflict": "The authorization changed. Refresh and review it again.",
       "review_required": "Permissions changed while you were reviewing. Check the updated details and confirm again."
-    }
+    },
+    "notEnabledTitle": "Muse connections are not enabled yet",
+    "notEnabledHelp": "You can still view and revoke existing connections. New Muse connections will open when the integration is ready.",
+    "checkingAvailability": "Checking connection availability…",
+    "checkingAvailabilityHelp": "Connection management and new-connection availability are checked separately.",
+    "availabilityFailedTitle": "Could not check Muse connection availability",
+    "availabilityFailedHelp": "Try refreshing. Your existing connection list loads separately; new connection authorization is currently unavailable.",
+    "noConnectionsDisabledHelp": "There are no authorized connections. New connections are not enabled yet.",
+    "attemptsUnavailable": "Connection attempts could not be loaded. Refresh and try again."
   },
   "agentConsent": {
     "eyebrow": "Connection approval",

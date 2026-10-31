@@ -138,6 +138,13 @@ function harness({ transport, openTask, active = true, configured = true } = {})
     const custom = transport && (await transport(call));
     if (custom !== undefined) return custom;
     if (route === "/api/v2/agent-connections") return response(list(items));
+    if (route === "/api/v2/agent-capabilities")
+      return response({
+        contractVersion: CONTRACT,
+        profile: "folioview.owner-agent-capabilities.v1",
+        ownerConnections: true,
+        museConnectionEnabled: true,
+      });
     if (route.includes("/revoke")) {
       const conn = items.find((item) => route.includes(`/${item.connectionId}/`));
       const id = /\/grants\/([^/]+)/.exec(route)?.[1];

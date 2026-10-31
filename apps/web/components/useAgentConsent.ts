@@ -210,6 +210,7 @@ export function useAgentConsent(
   configuration: AgentLinkConfiguration | null,
   handoff: ConsentHandoff | null,
   active: boolean,
+  connectionEnabled = true,
 ) {
   const auth = useAuth(),
     owner = auth.status === "authenticated" && auth.profile ? auth.sessionKey : null;
@@ -225,8 +226,28 @@ export function useAgentConsent(
   const [state, setState] = useState<State>(() => initial(owner));
   const current = useRef(state);
   current.current = state;
-  const live = useRef({ owner, scope, active, visible, configured, workspace, configuration });
-  live.current = { owner, scope, active, visible, configured, workspace, configuration };
+  // Rollout revalidation may pause new steps without replacing the trusted
+  // destination or tearing down an existing draft, bridge or sealed outbox.
+  const live = useRef({
+    owner,
+    scope,
+    active,
+    visible,
+    configured,
+    workspace,
+    configuration,
+    connectionEnabled,
+  });
+  live.current = {
+    owner,
+    scope,
+    active,
+    visible,
+    configured,
+    workspace,
+    configuration,
+    connectionEnabled,
+  };
   const ownerBridge = useRef<OwnerConsentBridge | null>(null),
     helper = useRef<HelperOwnerBridge | null>(null),
     jobs = useRef(new Set<AbortController>()),
@@ -298,7 +319,8 @@ export function useAgentConsent(
       action: (context: Context) => Promise<void>,
       allowHidden = false,
     ) => {
-      if (job.current || !owner || live.current.owner !== owner) return;
+      if (job.current || !owner || live.current.owner !== owner || !live.current.connectionEnabled)
+        return;
       const token = {};
       job.current = token;
       update((previous) => ({ ...previous, busy: true, error: "", notice: "" }));
@@ -588,6 +610,7 @@ export function useAgentConsent(
       !scope ||
       live.current.scope !== scope ||
       !live.current.configuration?.hubOrigin ||
+      !live.current.connectionEnabled ||
       job.current
     )
       return Promise.resolve();
@@ -1446,7 +1469,7 @@ export function useAgentConsent(
     configured,
     unlocked: Boolean(scope),
     hasHandoff: Boolean(handoff),
-    canWrite: Boolean(scope && workspace.canWriteState),
+    canWrite: Boolean(scope && workspace.canWriteState && connectionEnabled),
     claim,
     selectTask,
     selectScopes,

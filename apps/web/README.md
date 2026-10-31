@@ -391,3 +391,18 @@ an independent manual helper or agent authorization; use explicit connection rev
 future service access. No unattended schedule or remote Muse execution is claimed by this UI.
 Real browser/Google/Passkey/Muse acceptance and cloud enablement remain separate from these
 synthetic controller, cryptographic and producer/consumer protocol checks.
+
+### Owner connection management and Muse availability
+
+The Agent page reads `/api/v2/agent-capabilities` through the same authenticated,
+fixed Hub owner bridge as its connection list. This closed, non-sensitive profile
+separates owner management from the existing Muse OAuth/adapter rollout gates. A
+configured Hub destination alone does not enable new Muse connections or prove
+real provider interoperability.
+
+Connection history and capabilities load independently, including their deadlines,
+errors and account fences. A failed or slow capability request cannot discard a
+successful owner list or prevent its explicit revocation controls. Only a
+successful empty list renders the empty state; real list failures remain retryable
+errors. Disabled or unverified new-connection availability suppresses MCP address
+copying and consent entry while retaining owner history.

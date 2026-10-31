@@ -165,12 +165,13 @@ function hubOwnerRule(path: string, method: PrivateMethod): EncryptedRule | null
         "/api/v2/vaults/current",
         "/api/v2/resources/catalogue",
         "/api/v2/agent-connections",
+        "/api/v2/agent-capabilities",
       ].includes(pathname) ||
       matches(`/api/v2/agent-connections/${id}/tasks/${id}/preparation-intent`) ||
       matches(`/api/v2/vaults/${id}/key-renewal-state`) ||
       matches(`/api/v2/vaults/${id}/key-renewal-operations/[A-Za-z0-9_-]{22,128}`) ||
       matches(`/api/v2/vaults/${id}/archive`) ||
-      matches(`/api/v2/vaults/${id}/archive-operations/${id}`)
+      matches(`/api/v2/vaults/${id}/archive-operations/[A-Za-z0-9_-]{22,128}`)
     )
       rule = { method };
     else if (pathname === "/api/v2/tasks") {

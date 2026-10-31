@@ -37,6 +37,8 @@ function harness({
     phase = "unlocked",
     vaultGeneration = 1,
     configured = true,
+    connectionEnabled,
+    helperOpenCount = 0,
     index = 0,
     dirty = false,
     mounted = true,
@@ -504,6 +506,7 @@ function harness({
         HELPER_VERSION: "1.2.0",
         HELPER_WORKER_SHA256: "9".repeat(64),
         openHelperOwnerBridge: async () => {
+          helperOpenCount++;
           helperLive = true;
           return helper;
         },
@@ -518,7 +521,7 @@ function harness({
     do {
       index = 0;
       dirty = false;
-      output = useAgentConsent(workspace, configuration, handoff, active);
+      output = useAgentConsent(workspace, configuration, handoff, active, connectionEnabled);
       if (flush)
         for (const entry of effects.splice(0)) {
           cells[entry.slot]?.cleanup?.();
@@ -547,6 +550,8 @@ function harness({
     descriptorAcks,
     packet: () => packet,
     helper: () => helperLive,
+    helperOpenings: () => helperOpenCount,
+    connectionGate: (value) => (connectionEnabled = value),
     owner: (value) => (owner = value),
     active: (value) => (active = value),
     capability: (value) => (configured = value),
@@ -735,5 +740,87 @@ test("account switches and late private decryption cannot restore old-owner cons
   m = await h.drain();
   assert.equal(m.content, null);
   assert.equal(m.owner, "owner_B:2");
+  h.unmount();
+});
+
+test("rollout revalidation preserves an existing paired consent draft and pauses new steps", async () => {
+  const h = harness();
+  let m = await h.throughGrant({ paired: true });
+  assert.equal(m.stage, "grant");
+  assert.equal(m.grantConfirmed, true);
+  assert.equal(h.helper(), true);
+  const draft = clone({
+    authorization: m.authorization,
+    selected: m.selected,
+    signedGrant: m.signedGrant,
+  });
+  const counts = [h.ownerCalls.length, h.requests.length, h.cryptoCalls.length, h.helperOpenings()];
+  h.connectionGate(false);
+  m = h.render();
+  assert.equal(m.canWrite, false);
+  assert.equal(m.grantConfirmed, true);
+  assert.equal(m.stage, "grant");
+  assert.deepEqual(
+    clone({ authorization: m.authorization, selected: m.selected, signedGrant: m.signedGrant }),
+    draft,
+  );
+  assert.equal(h.helper(), true);
+  await m.claim();
+  await m.prepareGrant();
+  await m.approve();
+  await m.pairHelper();
+  m = await h.drain();
+  assert.deepEqual(
+    [h.ownerCalls.length, h.requests.length, h.cryptoCalls.length, h.helperOpenings()],
+    counts,
+  );
+  assert.equal(h.helper(), true);
+  h.connectionGate(true);
+  m = h.render();
+  assert.equal(m.canWrite, true);
+  assert.equal(m.grantConfirmed, true);
+  await m.approve();
+  m = await h.drain();
+  assert.equal(m.stage, "approved");
+  assert.equal(h.ownerCalls.filter((call) => call.op === "decision").length, 1);
+  h.owner("owner_B:2");
+  m = h.render({ flush: false });
+  assert.equal(m.authorization, null);
+  assert.equal(m.selected, null);
+  assert.equal(m.signedGrant, null);
+  m = await h.drain();
+  assert.equal(m.owner, "owner_B:2");
+  assert.equal(h.helper(), false);
+  h.unmount();
+});
+
+test("rollout revalidation retains original pending approval and resumes without another signature or write", async () => {
+  const h = harness({ lostDecision: true });
+  let m = await h.throughGrant();
+  await m.approve();
+  m = await h.drain();
+  assert.equal(m.error, "outcome_unknown");
+  const original = clone(h.saved.get("approval"));
+  const pending = m.outbox.find((row) => row.kind === "approval");
+  assert.ok(pending);
+  h.connectionGate(false);
+  m = h.render();
+  assert.equal(m.decisionSent, true);
+  assert.equal(m.error, "outcome_unknown");
+  assert.ok(m.outbox.some((row) => row.kind === "approval"));
+  await m.recover(pending);
+  await m.discardPending(pending);
+  m = await h.drain();
+  assert.deepEqual(clone(h.saved.get("approval")), original);
+  assert.equal(h.ownerCalls.filter((call) => call.op === "decision").length, 1);
+  assert.equal(h.cryptoCalls.filter((call) => call === "sign").length, 1);
+  h.connectionGate(true);
+  m = h.render();
+  await m.recover(pending);
+  m = await h.drain();
+  assert.equal(m.stage, "approved");
+  assert.equal(h.ownerCalls.filter((call) => call.op === "decision").length, 1);
+  assert.equal(h.cryptoCalls.filter((call) => call === "sign").length, 1);
+  assert.deepEqual(clone(h.saved.get("approval")), original);
   h.unmount();
 });

@@ -65,6 +65,17 @@ export const exact = (value: unknown, names: string[]): value is Record<string, 
   object(value) &&
   Object.keys(value).length === names.length &&
   names.every((name) => Object.hasOwn(value, name));
+export function readAgentCapabilities(value: unknown): { museConnectionEnabled: boolean } {
+  if (
+    !exact(value, ["contractVersion", "profile", "ownerConnections", "museConnectionEnabled"]) ||
+    value.contractVersion !== CONNECTION_CONTRACT ||
+    value.profile !== "folioview.owner-agent-capabilities.v1" ||
+    value.ownerConnections !== true ||
+    typeof value.museConnectionEnabled !== "boolean"
+  )
+    throw new ConnectionError("invalid_response");
+  return { museConnectionEnabled: value.museConnectionEnabled };
+}
 export const identifier = (value: unknown): value is string =>
   typeof value === "string" && /^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/.test(value);
 const integer = (value: unknown, min = 1, max = Number.MAX_SAFE_INTEGER) =>

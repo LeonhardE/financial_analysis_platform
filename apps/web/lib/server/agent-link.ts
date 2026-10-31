@@ -1,7 +1,7 @@
 import "server-only";
 import { hubConfiguration } from "./hub-owner";
 
-/** Public protocol destination only; the existing owner capability profile stays unchanged. */
+/** A configured destination is not proof that Muse connection issuance is enabled. */
 export function agentLinkConfiguration(env: NodeJS.ProcessEnv = process.env) {
   const configuration = hubConfiguration(env);
   return {

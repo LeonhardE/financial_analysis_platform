@@ -10,6 +10,7 @@ import {
   ConnectionError,
   connectionError,
   readConnectionList,
+  readAgentCapabilities,
   readRevocation,
   type AgentConnection,
   type AuthorizationAttempt,
@@ -21,6 +22,10 @@ type State = {
   loading: boolean;
   busy: boolean;
   error: string;
+  connectionsLoaded: boolean;
+  capabilitiesLoading: boolean;
+  museConnectionEnabled: boolean | null;
+  capabilityError: string;
   notice: string;
   items: AgentConnection[];
   attempts: AuthorizationAttempt[];
@@ -35,6 +40,10 @@ const initial = (owner: string | null = null): State => ({
   loading: false,
   busy: false,
   error: "",
+  connectionsLoaded: false,
+  capabilitiesLoading: false,
+  museConnectionEnabled: null,
+  capabilityError: "",
   notice: "",
   items: [],
   attempts: [],
@@ -209,28 +218,55 @@ export function useAgentConnections(workspace: HoldingsWorkspace, { active }: { 
       return;
     const request = ++serial.current;
     reviewed.current = null;
-    update((previous) => ({ ...previous, loading: true, error: "", confirmation: null }));
-    try {
-      await operation(false, async (context) => {
-        const list = await readLatest(context);
-        context.assert();
-        if (request !== serial.current) return;
-        update((previous) => ({
-          ...previous,
-          items: list.items,
-          attempts: list.authorizationAttempts,
-          selectedId: list.items.some((item) => item.connectionId === previous.selectedId)
-            ? previous.selectedId
-            : null,
-          uncertain: false,
-        }));
+    update((previous) => ({
+      ...previous,
+      loading: true,
+      capabilitiesLoading: true,
+      error: "",
+      confirmation: null,
+      capabilityError: "",
+      museConnectionEnabled: null,
+    }));
+    const connections = operation(false, async (context) => {
+      const list = await readLatest(context);
+      context.assert();
+      if (request !== serial.current) return;
+      update((previous) => ({
+        ...previous,
+        items: list.items,
+        attempts: list.authorizationAttempts,
+        connectionsLoaded: true,
+        selectedId: list.items.some((item) => item.connectionId === previous.selectedId)
+          ? previous.selectedId
+          : null,
+        uncertain: false,
+      }));
+    })
+      .catch((error) => {
+        if (request === serial.current) fail(error);
+      })
+      .finally(() => {
+        if (request === serial.current) update((previous) => ({ ...previous, loading: false }));
       });
-    } catch (error) {
-      if (request === serial.current) fail(error);
-    } finally {
-      if (request === serial.current) update((previous) => ({ ...previous, loading: false }));
-    }
-  }, [owner, configured, active, visible, operation, readLatest, update, fail]);
+    const capabilities = operation(false, async (context) => {
+      const capability = readAgentCapabilities(await api("/api/v2/agent-capabilities", context));
+      context.assert();
+      if (request !== serial.current) return;
+      update((previous) => ({
+        ...previous,
+        museConnectionEnabled: capability.museConnectionEnabled,
+      }));
+    })
+      .catch((error) => {
+        if (request === serial.current && connectionError(error) !== "cancelled")
+          update((previous) => ({ ...previous, capabilityError: connectionError(error) }));
+      })
+      .finally(() => {
+        if (request === serial.current)
+          update((previous) => ({ ...previous, capabilitiesLoading: false }));
+      });
+    await Promise.allSettled([connections, capabilities]);
+  }, [owner, configured, active, visible, operation, readLatest, api, update, fail]);
   const select = useCallback(
     (connectionId: string) => {
       if (
@@ -430,6 +466,7 @@ export function useAgentConnections(workspace: HoldingsWorkspace, { active }: { 
       ...(previous.owner === owner ? previous : initial(owner)),
       owner,
       loading: false,
+      capabilitiesLoading: false,
       busy: false,
       confirmation: null,
       privateTask: null,
@@ -461,6 +498,16 @@ export function useAgentConnections(workspace: HoldingsWorkspace, { active }: { 
     owner,
     configured,
     authenticated: Boolean(owner),
+    // Availability is public configuration, not private view content. Preserve the
+    // same-owner operation gate while display data is hidden for helper focus.
+    museConnectionOperationsEnabled: Boolean(
+      owner &&
+      state.owner === owner &&
+      configured &&
+      !state.capabilitiesLoading &&
+      !state.capabilityError &&
+      state.museConnectionEnabled === true,
+    ),
     unlocked: Boolean(scope),
     selected: display.items.find((row) => row.connectionId === display.selectedId) ?? null,
     privateTask: privateVisible ? display.privateTask : null,

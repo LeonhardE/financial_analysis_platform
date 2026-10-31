@@ -644,6 +644,13 @@ export function hubResponse(
       body.objects.length <= 11 &&
       body.objects.every((v) => descriptor(v, true))
     );
+  if (path === "/api/v2/agent-capabilities")
+    return (
+      fields(body, ["contractVersion", "profile", "ownerConnections", "museConnectionEnabled"]) &&
+      body.profile === "folioview.owner-agent-capabilities.v1" &&
+      body.ownerConnections === true &&
+      typeof body.museConnectionEnabled === "boolean"
+    );
   if (path === "/api/v2/agent-connections")
     return (
       fields(body, ["contractVersion", "items", "authorizationAttempts"]) &&
