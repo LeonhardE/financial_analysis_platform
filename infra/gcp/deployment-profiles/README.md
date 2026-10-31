@@ -7,8 +7,9 @@ an ambient gcloud project, the working directory, or a production default.
 The existing repo, Market, User, Config, Web and Portfolio consumers now use the explicit
 `trigger-v1` contract below. Their production catalog contains static registration only; an
 operator's selected instance reaches remote execution through the existing managed triggers.
-Portfolio remains disabled for normal execution and build-only for image publication. Uncreated
-Hub uses the disabled `inactive-v1` marker, which cannot run a normal plan/apply. The producer
+Portfolio remains disabled for normal execution and build-only for image publication. Hub
+retains the disabled `inactive-v1` normal-pipeline marker; actual provisioning status does not
+authorize a normal plan/apply. The producer
 itself does not update triggers, activate targets, remove adoption guards or install cloud resources.
 
 ## Local use
@@ -316,3 +317,102 @@ and prove an existing policy is not modified. They perform no cloud calls or Ter
 The owner-configuration suite additionally checks pre-change target/input digests, v1/v2 default
 compatibility, independent flags, missing Hub, exact server/public hash binding, hostile metadata,
 fixed environment fields, private CLI output and unchanged active-consumer inputs.
+
+## INF-007 User/Hub trust configuration foundation
+
+[Profile v3](profile-v3.schema.json) retains the v2 `webOwnerApis` fields and adds exactly
+`userHubTrust: {"enabled": false, "hubSubject": null}`. The [v3 example](example-v3.profile.json)
+is synthetic and disabled. V1/v2 profiles continue to load unchanged and default to no User/Hub
+trust. Changing v3 trust settings does not change existing `compile`, `render`, Web-owner outputs,
+managed trigger substitutions, Terraform variables, pipeline activation or release modes.
+
+Use the new command only after the selected profile records an adopted User instance. Enabling
+trust also requires an adopted Hub and its actual `service` provisioning stage:
+
+```sh
+python3 infra/gcp/deployment_profile.py compile-user-hub-trust \
+  --profile .deployment/profile.json \
+  --output-dir .deployment/user-hub-trust-review
+```
+
+This writes the trust document plus a self-contained `deployment-config.candidate.json`,
+`terraform-inputs.candidate.json`, `trigger-substitutions.candidate.json` and `manifest.json`,
+using the same private output permissions and no-overwrite behavior as other candidates. Stdout
+contains the redacted manifest; `approval=not_requested` and `productionActivation=false` are
+invariant. None of these candidates is installed into a trigger or automatically loaded by
+Terraform. A subsequent **User-only** PR must explicitly adopt the consumption contract.
+
+### Identity and origin binding
+
+Enabling `userHubTrust` requires one explicit, canonical numeric `hubSubject`, supplied as a
+string with 1–128 digits and no leading zero. This is the Hub runtime service account's Google
+OIDC `sub`/unique ID, **not** the project number or account email. It is not inferred from ambient
+credentials, a token, or the runtime account name. Offline validation cannot prove this ID belongs
+to the selected account; later live identity inventory and signed-token acceptance must prove it.
+Disabled trust requires `hubSubject=null`, no Hub hash and four empty environment values.
+
+Enabled candidates derive the four existing User producer settings:
+
+| Setting                    | Derivation                                                                             |
+| -------------------------- | -------------------------------------------------------------------------------------- |
+| `USER_SERVICE_AUDIENCE`    | Selected canonical numbered User Run origin                                            |
+| `USER_DELEGATION_AUDIENCE` | That origin plus `/internal/v2`                                                        |
+| `USER_DELEGATION_ISSUER`   | Selected canonical numbered Hub Run origin                                             |
+| `USER_TRUSTED_HUB_CALLERS` | Canonical JSON mapping of the one pinned Hub subject to the selected Hub runtime email |
+
+The initial contract supports canonical numbered Run origins for User and Hub. Custom audience
+or issuer aliases need a separately reviewed extension; there is no arbitrary origin/JWKS/env
+map. The existing verifier derives `/.well-known/jwks.json` from the issuer. No bearer, private
+key, service-account key, owner identifier, database/KMS grant or IAM policy is in this document.
+
+### Future consumer contract
+
+[user-hub-trust.schema.json](user-hub-trust.schema.json) defines the closed seven-field envelope.
+`userDeploymentSha256` binds the unchanged selected User deployment; `hubDeploymentSha256` binds
+the selected Hub deployment when enabled. The future parser requires both selected target
+projections for enabled trust, matching instance/project/region/source/repository, distinct
+service/runtime identities and the derived four-value environment. It rejects stale deployment
+hashes, a foreign target, changed caller email, issuer or audiences, extra fields and mixed modes.
+
+`parse_user_hub_trust(data, instance=..., hub_instance=..., expected_sha256=...)` additionally
+requires bounded canonical ASCII JSON, no duplicate fields/non-JSON constants, and an independent
+trusted configuration SHA-256. Pass file bytes with only the writer's terminal newline removed.
+The expected hash must come from the reviewed configuration channel, not the untrusted candidate
+or its adjacent manifest. A checksum binds bytes; it does not confer approval or prove identity.
+
+### Explicit managed projection and consumer opt-in
+
+The generated managed projection retains the existing `schemaVersion=1` envelope, base User
+`inputs` and source/adoption anchors. Only User may carry the new closed `userHubTrust` extension,
+which contains exactly `configuration` (the versioned trust document) and `hubDeployment` (the
+selected legacy Hub identity projection, or null when disabled). The full projection stays within
+the existing canonical 4000-byte cap and is pinned by the ordinary `_DEPLOYMENT_SHA256`. Its
+`terraform_inputs` result has the original `deployment` plus the explicit `hub_trust` variable.
+The Hub projection is an identity/source anchor, not a migration of Hub's inactive pipeline.
+
+Legacy `compile`/`render` never emit this extension, including for profile v3. The explicit new
+command is required. The normal pipeline also rejects any extended User projection until the
+selected User source has a bounded, closed `user-hub-trust.consumer.json` opt-in file:
+
+```json
+{
+  "schemaVersion": 1,
+  "target": "user",
+  "trustContract": "user-hub-trust.v1",
+  "terraformVariable": "hub_trust"
+}
+```
+
+The later User-only PR must add this marker, declare the typed `hub_trust` variable and consume
+its four settings. This foundation does not add the marker to User or alter its Terraform root.
+The guard prevents a plan from appearing successful merely because Terraform ignored an
+undeclared trust variable. The marker is included in the existing configuration source hash;
+managed trigger metadata, derived variable bytes and saved-plan provenance still bind the full
+selected projection. Duplicate/extra fields, wrong contract/version/target, oversized or symlink
+markers fail before Terraform initialization. Old User projections need no marker.
+
+This foundation does not resolve private-Hub JWKS reachability, configure Hub source origins,
+activate OAuth/agent endpoints, grant invoker access or deploy User. Those remain separately
+reviewed Hub and User target changes. Normal typed Hub pipeline migration is also separate.
+The existing repo plan trigger watches the producer source; a merge can run the existing plan
+check, but this PR changes no trigger or apply policy and performs no apply/deployment.

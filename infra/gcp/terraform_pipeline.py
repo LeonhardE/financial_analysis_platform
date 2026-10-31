@@ -154,6 +154,35 @@ def instance_target(instance):
     }
 
 
+def require_user_hub_trust_consumer(directory):
+    """Explicit source opt-in prevents Terraform ignoring an undeclared trust variable."""
+    marker = directory / "user-hub-trust.consumer.json"
+    message = "User source has not adopted the reviewed User/Hub trust contract."
+    try:
+        require(marker.is_file() and not marker.is_symlink(), message)
+        with marker.open("rb") as source:
+            data = source.read(513)
+        require(0 < len(data) <= 512, message)
+        value = json.loads(
+            data.decode("utf-8"),
+            object_pairs_hook=deployments.unique_pairs,
+            parse_constant=deployments.reject_constant,
+        )
+        require(type(value) is dict and type(value.get("schemaVersion")) is int, message)
+        require(
+            value
+            == {
+                "schemaVersion": 1,
+                "target": "user",
+                "trustContract": "user-hub-trust.v1",
+                "terraformVariable": "hub_trust",
+            },
+            message,
+        )
+    except (OSError, ValueError, TypeError, RecursionError):
+        raise RuntimeError(message) from None
+
+
 def registry(root, target, instance=None):
     policy = json.loads((root / POLICY).read_text())
     require(isinstance(policy, dict), "Pipeline policy must be an object.")
@@ -303,6 +332,8 @@ def registry(root, target, instance=None):
         require(
             re.fullmatch(r"prod/[a-z][a-z0-9-]*", selected["state_prefix"]), "Invalid state prefix."
         )
+    if instance is not None and "userHubTrust" in instance:
+        require_user_hub_trust_consumer(directory)
     return policy, selected, directory
 
 
