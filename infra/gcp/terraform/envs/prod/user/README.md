@@ -52,7 +52,8 @@ service; the guarded configuration controller owns runtime configuration while i
 release markers and traffic remain release-owned. Preserve revision scaling `0..12`, service-wide
 maximum `1`, existing concurrency/timeout/memory, the same `(default)` database, exact database IAM
 condition, private-route authentication, revoked-token checks and no-store responses. Changing the
-instance inputs does not enable Hub workload/delegation trust; those settings remain closed.
+instance inputs alone does not enable Hub workload/delegation trust; the optional reviewed
+trust contract below is separately selected.
 
 The existing image publisher and runtime Firestore/Firebase metadata grants remain owned by
 `bootstrap/user.tf`. User's Datastore User grant is restricted to `(default)` using the shared
@@ -84,3 +85,46 @@ not access a real account, state backend or cloud service. Runtime tests separat
 Firebase authentication, owner isolation, the bounded credential-free Market client, emulator
 rejection and disabled Hub trust. Full repository checks and a complete production no-change plan
 remain required when integrating the target with the shared execution foundation.
+
+## INF-007 explicit User/Hub trust consumer
+
+This User-only root now opts into `user-hub-trust.v1` through the closed
+`user-hub-trust.consumer.json` marker. The optional `hub_trust` variable is a fixed four-key string
+map. Null (the legacy default) and four empty values produce the exact prior environment, with no
+Hub settings or permissions added. Partial settings, unknown keys, wrong issuer/audiences, an
+unbounded/noncanonical caller map, multiple callers, a self/foreign-project runtime or noncanonical
+numeric caller subject fail validation.
+
+For an explicitly selected adopted User and Hub, use the repo foundation's opt-in command:
+
+```sh
+python3 infra/gcp/deployment_profile.py compile-user-hub-trust \
+  --profile /absolute/private/production.profile.json \
+  --output-dir /absolute/private/user-hub-trust-review
+```
+
+The reviewed v3 profile pins the actual Hub service-account numeric unique ID. The compiler
+derives the fixed User/Hub numbered Run audiences/issuer and the selected same-project Hub runtime
+email. The managed `deployment-config.candidate.json` carries the self-contained trust extension;
+its `terraform-inputs.candidate.json` supplies `deployment` plus `hub_trust`. The usual independent
+managed-trigger hash, selected instance/source and saved-plan gates bind both. Candidate generation
+is not authorization to update either trigger or runtime. Keep operator inputs and plans local.
+
+The four consumed variables are `USER_SERVICE_AUDIENCE`, `USER_DELEGATION_AUDIENCE`,
+`USER_DELEGATION_ISSUER` and `USER_TRUSTED_HUB_CALLERS`. This contract uses one caller and canonical
+numbered Run origins; JWKS stays fixed at the issuer's `/.well-known/jwks.json`. It adds no arbitrary
+environment/JWKS endpoint, content-decryption permission, database grant, runtime identity or IAM
+policy. Existing Firebase owner verification, public invocation mode, `(default)` storage, resource
+addresses, UID guard and cost limits remain unchanged.
+
+A trust-enabling plan may replace only the existing guarded configuration controller to set these
+four nonsecret environment values. Review its complete source/state-backed plan independently of
+image release; native service replacement, IAM/database changes or an unrelated diff is a stop
+condition. Bootstrap's User-only trigger metadata migration is also reviewed separately before the
+User plan uses the new projection. Old saved plans cannot be reused after source/input changes.
+
+The producer already implements workload-plus-delegation verification and remains unavailable when
+trust is absent/invalid. Synthetic mock plans prove configuration behavior; actual positive and
+negative caller/delegation smoke requires the Hub issuer/JWKS to be reachable and its sources
+configured through separate Hub work. This source change alone does not complete INF-007 live
+acceptance or enable OAuth/agents.

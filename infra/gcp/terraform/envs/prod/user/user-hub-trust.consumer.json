@@ -1,0 +1,6 @@
+{
+  "schemaVersion": 1,
+  "target": "user",
+  "trustContract": "user-hub-trust.v1",
+  "terraformVariable": "hub_trust"
+}
