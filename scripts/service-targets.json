@@ -7,7 +7,7 @@
       "directory": "services/agent-hub-service",
       "service": "agent-hub-api",
       "cloudbuild": "infra/gcp/cloudbuild.agent-hub.yaml",
-      "release_mode": "build_only"
+      "release_mode": "existing"
     },
     {
       "id": "market-data-service",
