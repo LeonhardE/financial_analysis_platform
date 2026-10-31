@@ -296,6 +296,15 @@ test("named owner reads preserve Firebase and strip cookies, identity, delegatio
   for (const [route, body] of [
     ["/api/v2/vaults/current", VAULT],
     [
+      "/api/v2/agent-capabilities",
+      {
+        contractVersion: CONTRACT,
+        profile: "folioview.owner-agent-capabilities.v1",
+        ownerConnections: true,
+        museConnectionEnabled: false,
+      },
+    ],
+    [
       "/api/v2/tasks?limit=1&cursor=abc_DEF",
       { contractVersion: CONTRACT, items: [], nextCursor: null },
     ],
@@ -1099,4 +1108,38 @@ test("lifecycle responses are closed, bounded, bound to their route and never ac
     assert.ok(!raw.includes("PRIVATE_CANARY"));
     assert.equal(h.hub().length, 1);
   }
+});
+
+test("capabilities are read-only, closed and do not forward private fields or false rollout claims", async () => {
+  const base = {
+    contractVersion: CONTRACT,
+    profile: "folioview.owner-agent-capabilities.v1",
+    ownerConnections: true,
+    museConnectionEnabled: false,
+  };
+  for (const patch of [
+    { museConnectionEnabled: "true" },
+    { ownerConnections: false },
+    { profile: "other" },
+    { secret: "PRIVATE_CANARY" },
+  ]) {
+    const h = harness({ upstream: () => response({ ...base, ...patch }) });
+    const r = await h.proxy(request("/api/v2/agent-capabilities"));
+    await error(r, 503, "authorization_unavailable");
+  }
+  for (const req of [
+    request("/api/v2/agent-capabilities", { method: "POST", json: { contractVersion: CONTRACT } }),
+    request("/api/v2/agent-capabilities?enabled=true"),
+  ]) {
+    const h = harness();
+    const r = await h.proxy(req);
+    assert.equal(r.status, 400);
+    assert.equal(h.calls.length, 0);
+  }
+  const h = harness({ upstream: () => response(base, 201) });
+  await error(
+    await h.proxy(request("/api/v2/agent-capabilities")),
+    503,
+    "authorization_unavailable",
+  );
 });

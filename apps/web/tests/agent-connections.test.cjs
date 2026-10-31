@@ -107,3 +107,29 @@ test("public agent-link configuration has only a validated fixed Hub origin and 
     hubOrigin: null,
   });
 });
+
+test("owner capability profile accepts only the bounded producer booleans", () => {
+  const base = {
+    contractVersion: contracts.CONNECTION_CONTRACT,
+    profile: "folioview.owner-agent-capabilities.v1",
+    ownerConnections: true,
+    museConnectionEnabled: false,
+  };
+  for (const enabled of [false, true])
+    assert.equal(
+      contracts.readAgentCapabilities({ ...base, museConnectionEnabled: enabled })
+        .museConnectionEnabled,
+      enabled,
+    );
+  for (const patch of [
+    { museConnectionEnabled: "true" },
+    { ownerConnections: false },
+    { profile: "other" },
+    { privateKey: "CANARY" },
+    { contractVersion: "other" },
+  ])
+    assert.throws(
+      () => contracts.readAgentCapabilities({ ...base, ...patch }),
+      (error) => error.code === "invalid_response",
+    );
+});

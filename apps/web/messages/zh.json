@@ -878,12 +878,20 @@
       "session_expired": "请重新登录。",
       "insufficient_scope": "当前会话无权执行此操作。",
       "request_timeout": "请求超时，重试前请检查当前状态。",
-      "request_failed": "请求未完成。",
+      "request_failed": "请求未完成，请刷新后重试。",
       "outcome_unknown": "撤销请求可能已到达服务器，执行其他操作前请检查最新状态。",
       "not_found": "未找到此连接或授权。",
       "version_conflict": "授权发生变化，请刷新并重新检查。",
       "review_required": "审核期间权限发生变化，请检查最新详情并再次确认。"
-    }
+    },
+    "notEnabledTitle": "Muse 连接尚未开放",
+    "notEnabledHelp": "当前可以查看和撤销已有连接；新增 Muse 连接会在接入就绪后开放。",
+    "checkingAvailability": "正在检查连接入口…",
+    "checkingAvailabilityHelp": "连接管理与新增连接的开放状态分别检查。",
+    "availabilityFailedTitle": "暂时无法确认 Muse 连接状态",
+    "availabilityFailedHelp": "请尝试刷新。已有连接列表会单独加载；当前不会提供新的连接授权入口。",
+    "noConnectionsDisabledHelp": "当前没有已授权连接。新增连接尚未开放。",
+    "attemptsUnavailable": "连接尝试暂时无法读取，请刷新重试。"
   },
   "agentConsent": {
     "eyebrow": "连接授权",

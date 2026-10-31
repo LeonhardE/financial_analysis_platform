@@ -30,6 +30,10 @@ const workspace = (patch = {}) => ({
 const model = (patch = {}) => ({
   owner: "session_A",
   configured: true,
+  connectionsLoaded: true,
+  capabilitiesLoading: false,
+  museConnectionEnabled: true,
+  capabilityError: "",
   authenticated: true,
   unlocked: true,
   items: [connection()],
@@ -50,12 +54,14 @@ const model = (patch = {}) => ({
   cancelRevoke: noop,
   ...patch,
 });
-function render(name, props, locale = "en", buttons = []) {
+function render(name, props, locale = "en", buttons = [], consentWrappers = []) {
   const jsx =
     (method) =>
     (type, properties, ...rest) => {
       if (type === "button") buttons.push(properties);
-      return jsxRuntime[method](type, properties, ...rest);
+      const element = jsxRuntime[method](type, properties, ...rest);
+      if (type === "div" && Object.hasOwn(properties, "inert")) consentWrappers.push(element);
+      return element;
     };
   const imports = {
     react: React,
@@ -278,4 +284,87 @@ test("approval recovery never offers another decision and unknown helper keys do
   assert.match(recoveredWithoutHandoff, /original_encryption_key/);
   assert.match(recoveredWithoutHandoff, /original_offer_fingerprint/);
   assert.doesNotMatch(recoveredWithoutHandoff, /Review this request/);
+});
+
+test("disabled Muse has a neutral rollout message and keeps successful owner history/revocation", () => {
+  for (const locale of ["en", "zh"]) {
+    const html = render(
+      "AgentsPanel",
+      { workspace: workspace(), model: model({ museConnectionEnabled: false }), configuration },
+      locale,
+    );
+    assert.ok(html.includes(catalogs[locale].agents.notEnabledTitle));
+    assert.ok(!html.includes('role="alert"'));
+    assert.ok(!html.includes("/mcp/v2"));
+    assert.ok(html.includes(catalogs[locale].agents.revokeConnection));
+    const empty = render(
+      "AgentsPanel",
+      {
+        workspace: workspace(),
+        model: model({ museConnectionEnabled: false, items: [], selected: null }),
+        configuration,
+      },
+      locale,
+    );
+    assert.ok(empty.includes(catalogs[locale].agents.noConnections));
+    assert.ok(empty.includes(catalogs[locale].agents.noConnectionsDisabledHelp));
+  }
+});
+
+test("failed or not-yet-loaded owner lists never assert that no connections exist", () => {
+  for (const patch of [
+    { error: "request_failed", connectionsLoaded: false },
+    { connectionsLoaded: false, museConnectionEnabled: null, capabilitiesLoading: true },
+  ]) {
+    const html = render("AgentsPanel", {
+      workspace: workspace(),
+      model: model({ ...patch, items: [], selected: null }),
+      configuration,
+    });
+    assert.ok(!html.includes(catalogs.en.agents.noConnections));
+    assert.ok(!html.includes(catalogs.en.agents.noAttempts));
+    if (patch.error) {
+      assert.ok(html.includes('role="alert"'));
+      assert.ok(html.includes(catalogs.en.agents.checkLatest));
+    }
+  }
+});
+
+test("consent stays mounted behind a hidden inert owner-keyed wrapper during capability revalidation", () => {
+  const consent = React.createElement("input", { defaultValue: "UNIMPORTED_OFFER_DRAFT" });
+  for (const enabled of [true, null, false]) {
+    const wrappers = [];
+    const html = render(
+      "AgentsPanel",
+      {
+        workspace: workspace(),
+        model: model({ museConnectionEnabled: enabled }),
+        configuration,
+        consent,
+      },
+      "en",
+      [],
+      wrappers,
+    );
+    assert.equal(wrappers.length, 1);
+    assert.equal(wrappers[0].key, "session_A");
+    assert.equal(wrappers[0].props.hidden, enabled !== true);
+    assert.equal(wrappers[0].props.inert, enabled !== true);
+    assert.equal(wrappers[0].props.children, consent);
+    assert.ok(html.includes("UNIMPORTED_OFFER_DRAFT"));
+  }
+  const switched = [];
+  render(
+    "AgentsPanel",
+    {
+      workspace: workspace({ owner: "session_B" }),
+      model: model({ owner: "session_B", museConnectionEnabled: null }),
+      configuration,
+      consent,
+    },
+    "en",
+    [],
+    switched,
+  );
+  assert.equal(switched[0].key, "session_B");
 });

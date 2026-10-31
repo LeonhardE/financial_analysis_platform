@@ -712,6 +712,9 @@ test("encrypted requests use only explicit services, fixed version, closed metho
   await settle();
   const entries = [
     ["agent-hub", "/api/v2/vaults/current", {}],
+    ["agent-hub", "/api/v2/agent-capabilities", {}],
+    ["agent-hub", "/api/v2/vaults/vault_A/archive-operations/" + "_".repeat(22), {}],
+    ["agent-hub", "/api/v2/vaults/vault_A/archive-operations/" + "-".repeat(22), {}],
     [
       "agent-hub",
       "/api/v2/vaults",
@@ -1599,7 +1602,7 @@ test("lifecycle admission rejects alternate routes, queries, device-author overr
   };
   const paths = [
     prefix + "/archive",
-    prefix + "/archive-operations/operation_A",
+    prefix + "/archive-operations/" + operation,
     prefix + "/recovery-authorizations",
     prefix + "/recovery-authorizations/authorization_A/revoke",
   ];
@@ -1638,10 +1641,13 @@ test("lifecycle admission rejects alternate routes, queries, device-author overr
     [prefix + "/archive", { json: { contractVersion: version } }],
     [prefix + "/archive", { headers: operationHeaders() }],
     [
-      prefix + "/archive-operations/operation_A",
+      prefix + "/archive-operations/" + operation,
       { method: "PUT", json: authorization.json, headers: operationHeaders() },
     ],
-    [prefix + "/archive-operations/operation_A", { headers: { "X-FolioView-Author-Key": author } }],
+    [
+      prefix + "/archive-operations/" + operation,
+      { headers: { "X-FolioView-Author-Key": author } },
+    ],
     [prefix + "/recovery-authorizations", {}],
     [
       prefix + "/recovery-authorizations",

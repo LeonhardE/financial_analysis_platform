@@ -48,7 +48,12 @@ export function AgentsView({
       : "—";
   const short = (value: string) =>
     value.length > 24 ? `${value.slice(0, 12)}…${value.slice(-6)}` : value;
-  const mcp = configuration.data?.enabled ? `${configuration.data.hubOrigin}/mcp/v2` : null;
+  const mcp =
+    !model.capabilitiesLoading &&
+    model.museConnectionEnabled === true &&
+    configuration.data?.enabled
+      ? `${configuration.data.hubOrigin}/mcp/v2`
+      : null;
   const copy = async () => {
     const owner = model.owner;
     if (!mcp || !owner) return;
@@ -115,30 +120,59 @@ export function AgentsView({
         </div>
       ) : (
         <>
-          <details className={styles.setup}>
-            <summary>{t("setupTitle")}</summary>
-            <p>{t("setupHelp")}</p>
-            <ol>
-              <li>{t("setupSteps.add")}</li>
-              <li>{t("setupSteps.approve")}</li>
-              <li>{t("setupSteps.foreground")}</li>
-            </ol>
-            {configuration.loading ? (
-              <p role="status">{t("loading")}</p>
-            ) : mcp ? (
-              <div className={styles.address}>
-                <code>{mcp}</code>
-                <button className={styles.secondary} onClick={() => void copy()}>
-                  {t("copyAddress")}
-                </button>
-                {copyNotice && <span role="status">{t("copied")}</span>}
-              </div>
-            ) : (
-              <p>{t("addressUnavailable")}</p>
-            )}
-            <p className={styles.note}>{t("setupNoSchedule")}</p>
-          </details>
-          {consent}
+          {model.museConnectionEnabled === true ? (
+            <details className={styles.setup}>
+              <summary>{t("setupTitle")}</summary>
+              <p>{t("setupHelp")}</p>
+              <ol>
+                <li>{t("setupSteps.add")}</li>
+                <li>{t("setupSteps.approve")}</li>
+                <li>{t("setupSteps.foreground")}</li>
+              </ol>
+              {configuration.loading ? (
+                <p role="status">{t("loading")}</p>
+              ) : mcp ? (
+                <div className={styles.address}>
+                  <code>{mcp}</code>
+                  <button className={styles.secondary} onClick={() => void copy()}>
+                    {t("copyAddress")}
+                  </button>
+                  {copyNotice && <span role="status">{t("copied")}</span>}
+                </div>
+              ) : (
+                <p>{t("addressUnavailable")}</p>
+              )}
+              <p className={styles.note}>{t("setupNoSchedule")}</p>
+            </details>
+          ) : (
+            <div className={styles.setup} role={model.capabilityError ? "alert" : "status"}>
+              <strong>
+                {t(
+                  model.capabilityError
+                    ? "availabilityFailedTitle"
+                    : model.museConnectionEnabled === false
+                      ? "notEnabledTitle"
+                      : "checkingAvailability",
+                )}
+              </strong>
+              <p>
+                {t(
+                  model.capabilityError
+                    ? "availabilityFailedHelp"
+                    : model.museConnectionEnabled === false
+                      ? "notEnabledHelp"
+                      : "checkingAvailabilityHelp",
+                )}
+              </p>
+            </div>
+          )}
+          <div
+            key={model.owner}
+            hidden={model.museConnectionEnabled !== true}
+            inert={model.museConnectionEnabled !== true}
+          >
+            {consent}
+          </div>
           {model.error && (
             <div className={styles.warning} role="alert">
               <strong>{t("attention")}</strong>
@@ -149,15 +183,13 @@ export function AgentsView({
                     : "errors.request_failed",
                 )}
               </p>
-              {model.uncertain && (
-                <button
-                  className={styles.secondary}
-                  disabled={model.busy}
-                  onClick={() => void model.reload()}
-                >
-                  {t("checkLatest")}
-                </button>
-              )}
+              <button
+                className={styles.secondary}
+                disabled={model.busy || model.loading}
+                onClick={() => void model.reload()}
+              >
+                {t("checkLatest")}
+              </button>
             </div>
           )}
           {model.notice === "revoked" && (
@@ -169,12 +201,21 @@ export function AgentsView({
             <aside className={styles.listColumn}>
               <h2>{t("connections")}</h2>
               {model.loading && <p role="status">{t("loading")}</p>}
-              {!model.loading && model.items.length === 0 && (
-                <div className={styles.empty}>
-                  <h3>{t("noConnections")}</h3>
-                  <p>{t("noConnectionsHelp")}</p>
-                </div>
-              )}
+              {!model.loading &&
+                !model.error &&
+                model.connectionsLoaded &&
+                model.items.length === 0 && (
+                  <div className={styles.empty}>
+                    <h3>{t("noConnections")}</h3>
+                    <p>
+                      {t(
+                        model.museConnectionEnabled === true
+                          ? "noConnectionsHelp"
+                          : "noConnectionsDisabledHelp",
+                      )}
+                    </p>
+                  </div>
+                )}
               {model.items.map((connection, index) => (
                 <button
                   key={connection.connectionId}
@@ -359,7 +400,15 @@ export function AgentsView({
           <details className={styles.attempts}>
             <summary>{t("attempts")}</summary>
             {model.attempts.length === 0 ? (
-              <p>{t("noAttempts")}</p>
+              <p>
+                {t(
+                  model.loading
+                    ? "loading"
+                    : model.connectionsLoaded && !model.error
+                      ? "noAttempts"
+                      : "attemptsUnavailable",
+                )}
+              </p>
             ) : (
               <ul>
                 {model.attempts.map((attempt) => (
@@ -396,7 +445,13 @@ export default function AgentsPanel({
       setInvalidHandoff(true);
     }
   }, []);
-  const consent = useAgentConsent(workspace, configuration.data, handoff, active);
+  const consent = useAgentConsent(
+    workspace,
+    configuration.data,
+    handoff,
+    active,
+    model.museConnectionOperationsEnabled,
+  );
   return (
     <AgentsView
       workspace={workspace}

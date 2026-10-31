@@ -175,3 +175,155 @@ test("a stalled revocation clears busy at deadline and leaves outcome uncertain 
   await h.drain();
   h.unmount();
 });
+
+test("disabled Muse issuance keeps owner history and revocation independently usable", async () => {
+  const h = harness({
+    transport: ({ route }) =>
+      route === "/api/v2/agent-capabilities"
+        ? response({
+            contractVersion: CONTRACT,
+            profile: "folioview.owner-agent-capabilities.v1",
+            ownerConnections: true,
+            museConnectionEnabled: false,
+          })
+        : undefined,
+  });
+  let model = await h.ready();
+  assert.equal(model.connectionsLoaded, true);
+  assert.equal(model.museConnectionEnabled, false);
+  assert.equal(model.error, "");
+  model.reviewRevoke({ connectionId: "connection_A", grantId: null });
+  await h.render().revoke();
+  model = await h.drain();
+  assert.equal(model.items[0].status, "revoked");
+  assert.equal(model.museConnectionEnabled, false);
+  h.unmount();
+});
+
+test("capability timeout never delays an independently successful owner list or revocation", async () => {
+  const stalled = deferred();
+  const h = harness({
+    transport: ({ route }) =>
+      route === "/api/v2/agent-capabilities" ? stalled.promise : undefined,
+  });
+  let model = await h.ready();
+  assert.equal(model.connectionsLoaded, true);
+  assert.equal(model.loading, false);
+  assert.equal(model.capabilitiesLoading, true);
+  assert.equal(model.items.length, 2);
+  model.reviewRevoke({ connectionId: "connection_A", grantId: null });
+  await h.render().revoke();
+  model = await h.drain();
+  assert.equal(model.items[0].status, "revoked");
+  for (const callback of [...h.timers.values()]) callback();
+  model = await h.drain();
+  assert.equal(model.capabilitiesLoading, false);
+  assert.equal(model.capabilityError, "request_timeout");
+  assert.equal(model.error, "");
+  assert.equal(model.items.length, 2);
+  stalled.resolve(
+    response({
+      contractVersion: CONTRACT,
+      profile: "folioview.owner-agent-capabilities.v1",
+      ownerConnections: true,
+      museConnectionEnabled: true,
+    }),
+  );
+  model = await h.drain();
+  assert.equal(model.museConnectionEnabled, null);
+  h.unmount();
+});
+
+test("real list failures and unavailable or malformed capability signals stay distinct", async () => {
+  for (const faulty of ["list", "capability", "malformed"]) {
+    const h = harness({
+      transport: ({ route }) => {
+        if (
+          (faulty === "list" && route === "/api/v2/agent-connections") ||
+          (faulty === "capability" && route === "/api/v2/agent-capabilities")
+        )
+          return Response.json({}, { status: 503 });
+        if (faulty === "malformed" && route === "/api/v2/agent-capabilities")
+          return response({
+            contractVersion: CONTRACT,
+            profile: "folioview.owner-agent-capabilities.v1",
+            ownerConnections: true,
+            museConnectionEnabled: "true",
+            privateCanary: "PRIVATE_CANARY",
+          });
+      },
+    });
+    const model = await h.ready();
+    assert.equal(model.error, faulty === "list" ? "request_failed" : "");
+    assert.equal(model.connectionsLoaded, faulty !== "list");
+    assert.equal(
+      model.capabilityError,
+      faulty === "list" ? "" : faulty === "malformed" ? "invalid_response" : "request_failed",
+    );
+    assert.equal(model.museConnectionEnabled, faulty === "list" ? true : null);
+    assert.ok(!JSON.stringify(model).includes("PRIVATE_CANARY"));
+    h.unmount();
+  }
+});
+
+test("a late prior-owner capability cannot restore a new-connection entry for the next owner", async () => {
+  const stalled = deferred();
+  let first = true;
+  const h = harness({
+    transport: ({ route }) => {
+      if (route === "/api/v2/agent-capabilities" && first) {
+        first = false;
+        return stalled.promise;
+      }
+    },
+  });
+  await h.ready();
+  h.owner("owner_B:2");
+  h.render();
+  await h.drain();
+  stalled.resolve(
+    response({
+      contractVersion: CONTRACT,
+      profile: "folioview.owner-agent-capabilities.v1",
+      ownerConnections: true,
+      museConnectionEnabled: false,
+    }),
+  );
+  const model = await h.drain();
+  assert.equal(model.owner, "owner_B:2");
+  assert.equal(model.museConnectionEnabled, true);
+  h.unmount();
+});
+
+test("the same-owner operation gate survives hidden display masking but pauses on real reload and owner change", async () => {
+  const h = harness();
+  let model = await h.ready();
+  assert.equal(model.museConnectionOperationsEnabled, true);
+  h.visibility(false);
+  model = h.render();
+  assert.equal(model.items.length, 0);
+  assert.equal(model.museConnectionEnabled, null);
+  assert.equal(model.museConnectionOperationsEnabled, true);
+  h.active(false);
+  model = h.render();
+  assert.equal(model.museConnectionOperationsEnabled, true);
+  h.visibility(true);
+  h.active(true);
+  model = await h.drain();
+  const checking = model.reload();
+  model = h.render();
+  assert.equal(model.museConnectionOperationsEnabled, false);
+  await checking;
+  model = await h.drain();
+  assert.equal(model.museConnectionOperationsEnabled, true);
+  h.owner("owner_B:2");
+  model = h.render({ flush: false });
+  assert.equal(model.museConnectionOperationsEnabled, false);
+  h.render();
+  model = await h.drain();
+  assert.equal(model.museConnectionOperationsEnabled, true);
+  h.capability(false);
+  model = h.render({ flush: false });
+  assert.equal(model.museConnectionOperationsEnabled, false);
+  h.unmount();
+});

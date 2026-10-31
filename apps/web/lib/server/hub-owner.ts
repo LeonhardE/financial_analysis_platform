@@ -89,11 +89,18 @@ function route(request: Request): { path: string; rule: Rule } {
   let rule: Rule | undefined;
   if (
     get &&
-    ["/api/v2/vaults/current", "/api/v2/resources/catalogue", "/api/v2/agent-connections"].includes(
-      path,
-    )
+    [
+      "/api/v2/vaults/current",
+      "/api/v2/resources/catalogue",
+      "/api/v2/agent-connections",
+      "/api/v2/agent-capabilities",
+    ].includes(path)
   )
-    rule = { kind: "read", max: 0 };
+    rule = {
+      kind: "read",
+      max: 0,
+      responseStatus: path === "/api/v2/agent-capabilities" ? 200 : undefined,
+    };
   else if (get && path === "/api/v2/tasks")
     rule = { kind: "read", max: 0, query: { limit: "limit", cursor: "cursor" } };
   else if (
