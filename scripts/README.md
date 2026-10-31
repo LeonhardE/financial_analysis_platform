@@ -55,6 +55,12 @@ own infrastructure first provision. It is a release-policy declaration, not a
 provisioning permission or proof that a service exists. Runtime publication
 still fails on Cloud Run404 and never creates the missing service.
 
+Agent Hub has completed its separately reviewed first provisioning and is registered
+for existing-service image release. Its administrator trigger still defaults to
+build-only until a separate Hub-only deployment opt-in and exact service/runtime
+permissions are reviewed. Registration does not enable OAuth, the encrypted adapter
+or normal Terraform execution.
+
 ## Dynamic CI and local tests
 
 ```sh
