@@ -12,6 +12,17 @@ variable "agent_hub_provisioning_stage" {
   }
 }
 
+variable "agent_hub_image_deployment_enabled" {
+  description = "Explicit administrator opt-in to the existing Hub image release after service-stage review. False preserves build-only triggers and grants no image deployer rights."
+  type        = bool
+  default     = false
+  nullable    = false
+  validation {
+    condition     = !var.agent_hub_image_deployment_enabled || var.agent_hub_provisioning_stage == "service"
+    error_message = "Image deployment needs an explicitly retained Hub service stage and a complete reviewed administrator plan."
+  }
+}
+
 variable "agent_hub_runtime_account_id" {
   description = "Hub's explicit custom runtime account ID; must match its separately reviewed business-root deployment inputs."
   type        = string
@@ -94,7 +105,8 @@ locals {
   } : {}
 }
 
-# Keyless build identity has no runtime attachment, Run, user-data or key rights.
+# Keyless image publishing; attaching the existing runtime and updating its one
+# service require a separate service-stage opt-in. No content/key access.
 module "agent_hub_build_identity" {
   count  = local.agent_hub_execution_enabled ? 1 : 0
   source = "../modules/service-identity"
@@ -102,7 +114,7 @@ module "agent_hub_build_identity" {
   project_id   = var.project_id
   account_id   = "fa-agent-hub-build"
   display_name = "FolioView Agent Hub image build"
-  description  = "Build-only Agent Hub images; no runtime impersonation or deployment permission."
+  description  = "Agent Hub image publisher; service-only deployment is separately gated, with no content access."
 }
 
 resource "google_project_iam_member" "agent_hub_build_logging" {
@@ -137,11 +149,14 @@ module "agent_hub_image_release" {
   ]
   substitutions  = { _REPOSITORY = local.agent_hub_artifact_repository }
   disabled       = false
-  deploy_enabled = false
+  deploy_enabled = var.agent_hub_image_deployment_enabled
 
   depends_on = [
     google_project_iam_member.agent_hub_build_logging,
     google_artifact_registry_repository_iam_member.agent_hub_build_images,
+    google_project_iam_member.agent_hub_image_build_metadata,
+    google_cloud_run_v2_service_iam_member.agent_hub_image_configuration,
+    google_service_account_iam_member.agent_hub_image_runtime,
   ]
 }
 
@@ -215,7 +230,8 @@ output "agent_hub_preparation" {
   value = {
     stage              = var.agent_hub_provisioning_stage
     pipeline_enabled   = local.execution_registry.targets["agent-hub"].enabled
-    image_deploys      = false
+    image_deploys      = var.agent_hub_image_deployment_enabled
+    image_deployment   = var.agent_hub_image_deployment_enabled
     database_id        = "agent-hub"
     runtime_identity   = local.agent_hub_runtime_email
     application_status = "current encrypted owner APIs; private first creation, OAuth/adapter explicitly disabled until separate acceptance"
@@ -324,4 +340,32 @@ resource "google_cloud_run_v2_service_iam_member" "agent_hub_public_connector" {
   name     = "agent-hub-api"
   role     = "roles/run.invoker"
   member   = "allUsers"
+}
+
+
+# Reuse the get/update-only service role on this single existing Run service.
+# The image publisher cannot create/delete services, administer IAM or read data.
+resource "google_cloud_run_v2_service_iam_member" "agent_hub_image_configuration" {
+  count    = local.agent_hub_service_enabled && var.agent_hub_image_deployment_enabled ? 1 : 0
+  project  = var.project_id
+  location = var.region
+  name     = "agent-hub-api"
+  role     = google_project_iam_custom_role.agent_hub["service_configuration"].name
+  member   = module.agent_hub_build_identity[0].member
+}
+
+resource "google_service_account_iam_member" "agent_hub_image_runtime" {
+  count              = local.agent_hub_service_enabled && var.agent_hub_image_deployment_enabled ? 1 : 0
+  service_account_id = local.agent_hub_runtime_resource
+  role               = "roles/iam.serviceAccountUser"
+  member             = module.agent_hub_build_identity[0].member
+}
+
+# The unchanged release helper reads only its own producing build metadata.
+# It cannot queue/approve/change builds or impersonate other service accounts.
+resource "google_project_iam_member" "agent_hub_image_build_metadata" {
+  count   = local.agent_hub_service_enabled && var.agent_hub_image_deployment_enabled ? 1 : 0
+  project = var.project_id
+  role    = google_project_iam_custom_role.build_metadata.name
+  member  = module.agent_hub_build_identity[0].member
 }
