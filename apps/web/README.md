@@ -83,10 +83,12 @@ retained recovery material, without granting new write authority or promising re
 The recovery check invokes the original Passkey in a short-lived separate Worker, verifies the
 archive, current root/recovery keys and their actual signing/ECDH use, and returns public facts
 only. It neither registers a device nor exports a key. It is **not** independent recovery after
-losing all usable copies of that Passkey. The current Hub archive is immutable: replacing the
-protecting Passkey, independent recovery-kit import, archive reset and full root/recovery renewal
-need producer lifecycle contracts and remain unimplemented. Rewrapping an archive would also not
-revoke an already exposed root; that requires a separate rekey/history policy.
+losing all usable copies of that Passkey. The separate recovery flow supports an independently
+stored encrypted recovery kit and explicit Passkey replacement through the released Hub lifecycle
+contracts. [Operational key renewal](KEY_RENEWAL.md) adds an encrypted historical keyring and a
+restricted unlock path after certificate expiry. Export a fresh recovery kit after renewal;
+older kits cannot recover newer private keys. Root replacement, archive reset/delete and historical
+rekey remain separately scoped. Rewrapping does not revoke an already exposed root.
 
 All management state and late requests are fenced by owner, capability and vault generation.
 Trust failures lock private consumers. Local synthetic tests do not replace physical Passkey,

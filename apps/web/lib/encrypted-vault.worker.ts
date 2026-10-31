@@ -19,8 +19,52 @@ scope.onmessage = (event) => {
       } else {
         if (!core) throw new VaultError("locked");
         switch (method) {
+          case "unlockForKeyRenewal":
+            result = await core.unlockForKeyRenewal(args.vault, args.material, args.local);
+            break;
+          case "inspectKeyRenewal":
+            result = await core.inspectKeyRenewal(args.vault, args.state, args.record, args.prior);
+            break;
+          case "prepareKeyRenewal":
+            result = await core.prepareKeyRenewal(args.vault, args.state, args.prior);
+            break;
+          case "getKeyRenewal":
+            result = await core.getKeyRenewal(args.vault, args.state, args.record, args.prior);
+            break;
+          case "finishKeyRenewal":
+            result = await core.finishKeyRenewal(
+              args.vault,
+              args.state,
+              args.record,
+              args.receipt,
+              args.prior,
+            );
+            break;
+          case "prepareKeyRenewalCancellation":
+            result = await core.prepareKeyRenewalCancellation(
+              args.vault,
+              args.state,
+              args.record,
+              args.prior,
+            );
+            break;
+          case "discardKeyRenewal":
+            result = await core.discardKeyRenewal(
+              args.vault,
+              args.state,
+              args.record,
+              args.operationId,
+              args.prior,
+            );
+            break;
           case "verifyLifecycle":
-            result = await core.verifyLifecycle(args.vault, args.state, args.prior);
+            {
+              const pin = await core.verifyLifecycle(args.vault, args.state, args.prior);
+              result =
+                args.includeRegistryPin === true
+                  ? { pin, record: await core.verifiedVaultPin(args.vault) }
+                  : pin;
+            }
             break;
           case "createRecoveryKit":
             result = await core.createRecoveryKit(args.vault, args.state, args.prior);

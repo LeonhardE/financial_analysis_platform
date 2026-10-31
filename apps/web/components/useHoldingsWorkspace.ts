@@ -39,11 +39,13 @@ import type {
   DeviceChangePacket,
   VaultLifecycleState,
   ArchiveChangePacket,
+  KeyRenewalSummary,
+  KeyRenewalPacket,
 } from "@/lib/encrypted-types";
 
 const CONTRACT = "folioview.agent-workspace.v2.0";
 const contractHeaders = { "X-FolioView-Contract": CONTRACT };
-type Phase = "checking" | "needs-vault" | "locked" | "needs-device" | "unlocked";
+type Phase = "checking" | "needs-vault" | "locked" | "needs-device" | "unlocked" | "renewal-only";
 type Busy =
   | "loading"
   | "creating"
@@ -58,6 +60,9 @@ type Busy =
   | "changing-passkey"
   | "exporting-recovery"
   | "restoring-recovery"
+  | "reviewing-renewal"
+  | "renewing-keys"
+  | "cancelling-renewal"
   | null;
 type DeviceReview = {
   action: "revoke" | "rotate";
@@ -98,6 +103,9 @@ type State = {
     mode: "passkey_change" | "recovery";
     state: "ready" | "applied" | "conflict";
   } | null;
+  keyRenewal: KeyRenewalSummary | null;
+  keyRenewalCancellation: boolean;
+  keyRenewalFailure: boolean;
 };
 const empty: State = {
   owner: null,
@@ -122,6 +130,9 @@ const empty: State = {
   keyNotice: "",
   recoveryExport: null,
   archiveChange: null,
+  keyRenewal: null,
+  keyRenewalCancellation: false,
+  keyRenewalFailure: false,
 };
 class WorkspaceError extends Error {
   constructor(public readonly code: string) {
@@ -244,6 +255,7 @@ export function useHoldingsWorkspace() {
         discardOperationId: null,
         keyNotice: "",
         recoveryExport: null,
+        keyRenewalFailure: false,
       }));
       const timeout = window.setTimeout(
         () => {
@@ -267,13 +279,23 @@ export function useHoldingsWorkspace() {
             recoveryCheck: null,
             keyNotice: "",
             recoveryExport: null,
+            keyRenewal: null,
+            keyRenewalCancellation: false,
+            keyRenewalFailure:
+              previous.phase === "renewal-only" ||
+              ["reviewing-renewal", "renewing-keys", "cancelling-renewal"].includes(busy),
             canWriteState: false,
             error: "request_timeout",
           }));
         },
-        ["creating", "unlocking", "verifying", "changing-passkey", "restoring-recovery"].includes(
-          busy,
-        )
+        [
+          "creating",
+          "unlocking",
+          "verifying",
+          "changing-passkey",
+          "restoring-recovery",
+          "reviewing-renewal",
+        ].includes(busy)
           ? 180_000
           : 60_000,
       );
@@ -284,6 +306,7 @@ export function useHoldingsWorkspace() {
         const discardKeys =
           busy === "creating" ||
           busy === "unlocking" ||
+          busy === "reviewing-renewal" ||
           [
             "untrusted_vault",
             "rollback_detected",
@@ -308,10 +331,16 @@ export function useHoldingsWorkspace() {
                 recoveryCheck: null,
                 canWriteState: false,
                 recoveryExport: null,
+                keyRenewal: null,
+                keyRenewalCancellation: false,
               }
             : {}),
           ...(busy === "reading" || busy === "saving" ? { content: null } : {}),
           error: errorCode(error),
+          keyRenewalFailure:
+            previous.phase === "renewal-only" ||
+            errorCode(error).startsWith("key_renewal_") ||
+            ["reviewing-renewal", "renewing-keys", "cancelling-renewal"].includes(busy),
           errorRow: error instanceof HoldingsCsvError ? error.row : null,
         }));
       } finally {
@@ -404,16 +433,20 @@ export function useHoldingsWorkspace() {
     [api],
   );
 
-  const liveSession = useCallback(() => {
-    if (
-      !owner ||
-      ownerRef.current !== owner ||
-      !capabilitiesRef.current.hub ||
-      session.current?.owner !== owner
-    )
-      throw new WorkspaceError("unlock_required");
-    return session.current.instance;
-  }, [owner]);
+  const liveSession = useCallback(
+    (allowRenewal = false) => {
+      if (
+        !owner ||
+        ownerRef.current !== owner ||
+        !capabilitiesRef.current.hub ||
+        session.current?.owner !== owner ||
+        (stateRef.current.phase === "renewal-only" && !allowRenewal)
+      )
+        throw new WorkspaceError("unlock_required");
+      return session.current.instance;
+    },
+    [owner],
+  );
 
   const sync = useCallback(
     async (source: Source, signal: AbortSignal) => {
@@ -444,6 +477,7 @@ export function useHoldingsWorkspace() {
 
   const readSaved = useCallback(
     async (source: Source, signal: AbortSignal, assertActive: () => void) => {
+      const instance = liveSession();
       if (!capabilitiesRef.current.portfolio) throw new WorkspaceError("service_unavailable");
       await sync(source, signal);
       const metadata = await api(
@@ -460,7 +494,6 @@ export function useHoldingsWorkspace() {
         (metadata.revision as number) < 0
       )
         throw new WorkspaceError("invalid_response");
-      const instance = liveSession();
       const recovered = await instance.loadOutbox(source.resourceRef.resourceId);
       assertActive();
       pending.current = recovered;
@@ -548,6 +581,7 @@ export function useHoldingsWorkspace() {
   const unlock = useCallback(
     (options?: { forResults?: boolean; enableState?: boolean; method?: PasskeyMethod }) =>
       perform("unlocking", async ({ assertActive, signal }) => {
+        if (stateRef.current.phase === "renewal-only") throw new WorkspaceError("key_renewal_only");
         const fresh = await readCurrent(signal);
         assertActive();
         const vault = stateRef.current.owner === owner ? fresh.vault : null;
@@ -970,6 +1004,9 @@ export function useHoldingsWorkspace() {
       recoveryCheck: null,
       keyNotice: "",
       recoveryExport: null,
+      keyRenewal: null,
+      keyRenewalCancellation: false,
+      keyRenewalFailure: false,
     }));
   }, [owner, terminate]);
 
@@ -1917,6 +1954,360 @@ export function useHoldingsWorkspace() {
     ],
   );
 
+  const readRenewalContext = useCallback(
+    async (signal: AbortSignal, assertActive: () => void) => {
+      const fresh = await readCurrent(signal);
+      assertActive();
+      if (!fresh.vault) throw new WorkspaceError("invalid_response");
+      const lifecycle = await readLifecycle(fresh.vault, signal);
+      assertActive();
+      return { ...fresh, vault: fresh.vault, lifecycle };
+    },
+    [readCurrent, readLifecycle],
+  );
+
+  const reviewKeyRenewal = useCallback(
+    (method: PasskeyMethod = "local") =>
+      perform("reviewing-renewal", async ({ assertActive, signal }) => {
+        if (!uid || !owner) throw new WorkspaceError("unlock_required");
+        terminate();
+        setState({ ...empty, owner, phase: "locked", busy: "reviewing-renewal" });
+        const fresh = await readRenewalContext(signal, assertActive);
+        const instance = new EncryptedVaultSession(uid);
+        session.current = { owner, instance };
+        setState((previous) => ({
+          ...previous,
+          vault: fresh.vault,
+          sources: fresh.sources,
+          phase: "renewal-only",
+        }));
+        const material = await unlockVaultPasskey(fresh.vault.archive, { method, signal });
+        try {
+          assertActive();
+          await instance.unlockForKeyRenewal(fresh.vault, material);
+          assertActive();
+          const summary = await instance.inspectKeyRenewal(fresh.vault, fresh.lifecycle);
+          assertActive();
+          const candidate = await instance.getKeyRenewal(fresh.vault, fresh.lifecycle);
+          assertActive();
+          setState((previous) => ({
+            ...previous,
+            keyRenewal: summary,
+            keyRenewalCancellation: Boolean(candidate?.cancellation),
+          }));
+        } finally {
+          if (material.secret.byteLength) new Uint8Array(material.secret).fill(0);
+        }
+      }),
+    [owner, perform, readRenewalContext, terminate, uid],
+  );
+
+  const lockRenewalView = useCallback(
+    (fresh: { vault: Vault; sources: Source[] }, notice = "") => {
+      terminate();
+      setState((previous) => ({
+        ...empty,
+        owner,
+        busy: previous.busy,
+        vault: fresh.vault,
+        sources: fresh.sources,
+        phase: "locked",
+        keyNotice: notice,
+      }));
+    },
+    [owner, terminate],
+  );
+
+  const completeKeyRenewal = useCallback(
+    async (
+      instance: EncryptedVaultSession,
+      vault: Vault,
+      packet: KeyRenewalPacket,
+      pendingState: "ready" | "applied" | "conflict",
+      submit: boolean,
+      signal: AbortSignal,
+      assertActive: () => void,
+    ) => {
+      let receipt = await api(
+        "agent-hub",
+        `/api/v2/vaults/${vault.vaultId}/key-renewal-operations/${packet.operationId}`,
+        signal,
+        { allowMissing: true },
+      );
+      assertActive();
+      if (receipt === null) {
+        if (!submit) return false;
+        if (pendingState !== "ready") throw new WorkspaceError("key_renewal_conflict");
+        await api("agent-hub", `/api/v2/vaults/${vault.vaultId}/key-renewals`, signal, {
+          method: "POST",
+          json: packet.body,
+          headers: { "Idempotency-Key": packet.operationId },
+        });
+        assertActive();
+        receipt = await api(
+          "agent-hub",
+          `/api/v2/vaults/${vault.vaultId}/key-renewal-operations/${packet.operationId}`,
+          signal,
+        );
+        assertActive();
+      }
+      const saved = await readRenewalContext(signal, assertActive);
+      try {
+        await instance.finishKeyRenewal(saved.vault, saved.lifecycle, receipt, packet.operationId);
+        assertActive();
+      } catch (error) {
+        assertActive();
+        lockRenewalView(saved);
+        throw error;
+      }
+      lockRenewalView(saved, "key_renewal_saved");
+      return true;
+    },
+    [api, lockRenewalView, readRenewalContext],
+  );
+
+  const renewalGeneration = vaultGeneration.current;
+  const reviewedRenewal = state.keyRenewal;
+  const assertRenewal = useCallback(() => {
+    if (
+      renewalGeneration !== vaultGeneration.current ||
+      stateRef.current.phase !== "renewal-only" ||
+      stateRef.current.keyRenewal !== reviewedRenewal
+    )
+      throw new WorkspaceError("key_renewal_only");
+    return liveSession(true);
+  }, [liveSession, renewalGeneration, reviewedRenewal]);
+
+  const refreshKeyRenewal = useCallback(
+    () =>
+      perform("recovering", async ({ assertActive, signal }) => {
+        const instance = assertRenewal();
+        const fresh = await readRenewalContext(signal, assertActive);
+        const candidate = await instance.getKeyRenewal(fresh.vault, fresh.lifecycle);
+        assertActive();
+        const summary = await instance.inspectKeyRenewal(fresh.vault, fresh.lifecycle);
+        assertActive();
+        setState((previous) => ({
+          ...previous,
+          vault: fresh.vault,
+          sources: fresh.sources,
+          keyRenewal: summary,
+          keyRenewalCancellation: Boolean(candidate?.cancellation),
+        }));
+        if (candidate)
+          await completeKeyRenewal(
+            instance,
+            fresh.vault,
+            candidate.packet,
+            candidate.state,
+            false,
+            signal,
+            assertActive,
+          );
+      }),
+    [assertRenewal, completeKeyRenewal, perform, readRenewalContext],
+  );
+
+  const confirmKeyRenewal = useCallback(
+    () =>
+      perform("renewing-keys", async ({ assertActive, signal }) => {
+        const instance = assertRenewal();
+        const fresh = await readRenewalContext(signal, assertActive);
+        const summary = await instance.inspectKeyRenewal(fresh.vault, fresh.lifecycle);
+        assertActive();
+        let candidate = await instance.getKeyRenewal(fresh.vault, fresh.lifecycle);
+        assertActive();
+        if (candidate?.cancellation) throw new WorkspaceError("key_renewal_cancel_pending");
+        if (candidate) {
+          if (candidate.packet.operationId !== reviewedRenewal?.pending?.operationId)
+            throw new WorkspaceError("key_renewal_pending");
+        } else {
+          if (reviewedRenewal?.pending) throw new WorkspaceError("key_renewal_missing");
+          if (
+            !summary.canRenew ||
+            summary.registrySequence !== reviewedRenewal?.registrySequence ||
+            summary.checkpointDigest !== reviewedRenewal.checkpointDigest
+          )
+            throw new WorkspaceError("key_renewal_conflict");
+          let packet: KeyRenewalPacket;
+          try {
+            packet = await instance.prepareKeyRenewal(fresh.vault, fresh.lifecycle);
+            assertActive();
+          } catch (error) {
+            assertActive();
+            lockRenewalView(fresh);
+            throw error;
+          }
+          candidate = { packet, state: "ready" };
+        }
+        const pendingSummary = await instance.inspectKeyRenewal(fresh.vault, fresh.lifecycle);
+        assertActive();
+        setState((previous) => ({
+          ...previous,
+          vault: fresh.vault,
+          sources: fresh.sources,
+          keyRenewal: pendingSummary,
+          keyRenewalCancellation: false,
+        }));
+        await completeKeyRenewal(
+          instance,
+          fresh.vault,
+          candidate.packet,
+          candidate.state,
+          true,
+          signal,
+          assertActive,
+        );
+      }),
+    [
+      assertRenewal,
+      completeKeyRenewal,
+      lockRenewalView,
+      perform,
+      readRenewalContext,
+      reviewedRenewal,
+    ],
+  );
+
+  const clearKeyRenewal = useCallback(
+    async (
+      instance: EncryptedVaultSession,
+      fresh: Awaited<ReturnType<typeof readRenewalContext>>,
+      operationId: string,
+      assertActive: () => void,
+    ) => {
+      try {
+        await instance.discardKeyRenewal(fresh.vault, fresh.lifecycle, operationId);
+        assertActive();
+      } catch (error) {
+        assertActive();
+        lockRenewalView(fresh);
+        throw error;
+      }
+      lockRenewalView(fresh, "key_renewal_cancelled");
+    },
+    [lockRenewalView],
+  );
+
+  const discardKeyRenewal = useCallback(
+    () =>
+      perform("cancelling-renewal", async ({ assertActive, signal }) => {
+        const instance = assertRenewal();
+        const fresh = await readRenewalContext(signal, assertActive);
+        const candidate = await instance.getKeyRenewal(fresh.vault, fresh.lifecycle);
+        assertActive();
+        if (!candidate || candidate.packet.operationId !== reviewedRenewal?.pending?.operationId)
+          throw new WorkspaceError("key_renewal_missing");
+        if (
+          await completeKeyRenewal(
+            instance,
+            fresh.vault,
+            candidate.packet,
+            candidate.state,
+            false,
+            signal,
+            assertActive,
+          )
+        )
+          return;
+        if (candidate.state !== "conflict") throw new WorkspaceError("key_renewal_pending");
+        await clearKeyRenewal(instance, fresh, candidate.packet.operationId, assertActive);
+      }),
+    [
+      assertRenewal,
+      clearKeyRenewal,
+      completeKeyRenewal,
+      perform,
+      readRenewalContext,
+      reviewedRenewal,
+    ],
+  );
+
+  const cancelKeyRenewal = useCallback(
+    () =>
+      perform("cancelling-renewal", async ({ assertActive, signal }) => {
+        const instance = assertRenewal();
+        let fresh = await readRenewalContext(signal, assertActive);
+        const candidate = await instance.getKeyRenewal(fresh.vault, fresh.lifecycle);
+        assertActive();
+        if (!candidate || candidate.packet.operationId !== reviewedRenewal?.pending?.operationId)
+          throw new WorkspaceError("key_renewal_missing");
+        if (
+          await completeKeyRenewal(
+            instance,
+            fresh.vault,
+            candidate.packet,
+            candidate.state,
+            false,
+            signal,
+            assertActive,
+          )
+        )
+          return;
+        if (candidate.state === "conflict") {
+          await clearKeyRenewal(instance, fresh, candidate.packet.operationId, assertActive);
+          return;
+        }
+        const cancellation = await instance.prepareKeyRenewalCancellation(
+          fresh.vault,
+          fresh.lifecycle,
+        );
+        assertActive();
+        setState((previous) => ({ ...previous, keyRenewalCancellation: true }));
+        let failure: unknown;
+        try {
+          await api("agent-hub", `/api/v2/vaults/${fresh.vault.vaultId}/archive`, signal, {
+            method: "PUT",
+            json: cancellation.body,
+            headers: { "Idempotency-Key": cancellation.operationId },
+          });
+        } catch (error) {
+          failure = error;
+        }
+        assertActive();
+        fresh = await readRenewalContext(signal, assertActive);
+        const outcome = await instance.getKeyRenewal(fresh.vault, fresh.lifecycle);
+        assertActive();
+        if (!outcome || outcome.packet.operationId !== candidate.packet.operationId)
+          throw new WorkspaceError("key_renewal_missing");
+        const summary = await instance.inspectKeyRenewal(fresh.vault, fresh.lifecycle);
+        assertActive();
+        setState((previous) => ({
+          ...previous,
+          vault: fresh.vault,
+          sources: fresh.sources,
+          keyRenewal: summary,
+          keyRenewalCancellation: Boolean(outcome.cancellation),
+        }));
+        if (
+          await completeKeyRenewal(
+            instance,
+            fresh.vault,
+            outcome.packet,
+            outcome.state,
+            false,
+            signal,
+            assertActive,
+          )
+        )
+          return;
+        if (outcome.state === "conflict") {
+          await clearKeyRenewal(instance, fresh, outcome.packet.operationId, assertActive);
+          return;
+        }
+        throw failure ?? new WorkspaceError("key_renewal_cancel_pending");
+      }),
+    [
+      api,
+      assertRenewal,
+      clearKeyRenewal,
+      completeKeyRenewal,
+      perform,
+      readRenewalContext,
+      reviewedRenewal,
+    ],
+  );
+
   const visible = owner && configured && state.owner === owner ? state : { ...empty, owner };
   return {
     ...visible,
@@ -1941,6 +2332,13 @@ export function useHoldingsWorkspace() {
     recoveryExport: ["unlocked", "needs-device"].includes(visible.phase)
       ? visible.recoveryExport
       : null,
+    keyRenewal: visible.phase === "renewal-only" ? visible.keyRenewal : null,
+    keyRenewalCancellation: visible.phase === "renewal-only" && visible.keyRenewalCancellation,
+    reviewKeyRenewal,
+    refreshKeyRenewal,
+    confirmKeyRenewal,
+    cancelKeyRenewal,
+    discardKeyRenewal,
     exportRecoveryKit,
     clearRecoveryExport,
     changePasskey,

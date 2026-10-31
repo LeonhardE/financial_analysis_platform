@@ -139,10 +139,12 @@ function render(f, { locale = "en", component = "panel", mode = "unlock", unlock
   };
   const help = load("PasskeyHelp", imports);
   const recovery = load("VaultRecoveryPanel", imports);
+  const renewal = load("VaultKeyRenewalPanel", imports);
   const panel = load("VaultManagementPanel", {
     ...imports,
     "./PasskeyHelp": help,
     "./VaultRecoveryPanel": recovery,
+    "./VaultKeyRenewalPanel": renewal,
   });
   const settings = load("SettingsPanel", {
     ...imports,

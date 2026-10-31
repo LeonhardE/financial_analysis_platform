@@ -266,7 +266,12 @@ test("cross-tab archive fence blocks pending private writes and after promotion 
       a = new storageModule.BrowserEncryptedStorage(),
       b = new storageModule.BrowserEncryptedStorage();
     for (const store of [a, b])
-      store.setArchiveContext(f.owner, f.vault.archive.credentialId, f.vault.archive.prfSalt);
+      store.setArchiveContext(
+        f.owner,
+        f.vault.archive.credentialId,
+        f.vault.archive.prfSalt,
+        f.vault.archive.iv,
+      );
     await a.commitVault(f.owner, f.local);
     await a.commitLifecycle(f.owner, pin, f.vault.archive);
     const c = await f.session.prepareArchiveChange(f.vault, s, replacement()(), "passkey_change");
@@ -298,7 +303,12 @@ test("archive change refuses unresolved draft/device/agent records and keeps eve
     const f = await createOwner(h),
       s = await state(f),
       a = new storageModule.BrowserEncryptedStorage();
-    a.setArchiveContext(f.owner, f.vault.archive.credentialId, f.vault.archive.prfSalt);
+    a.setArchiveContext(
+      f.owner,
+      f.vault.archive.credentialId,
+      f.vault.archive.prfSalt,
+      f.vault.archive.iv,
+    );
     const c = await f.session.prepareArchiveChange(f.vault, s, replacement()(), "passkey_change");
     for (const key of [
       f.owner + ":task-draft:" + f.vault.vaultId + ":main",

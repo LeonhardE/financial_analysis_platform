@@ -144,6 +144,13 @@ function Workspace({ model }: { model: HoldingsWorkspace }) {
           </button>
           <p className={styles.note}>{t("passkeyHelp")}</p>
         </div>
+      ) : model.phase === "renewal-only" ? (
+        <div className={styles.start} role="status">
+          <p>{t("renewalOnly")}</p>
+          <button type="button" className={styles.secondary} onClick={model.lock}>
+            {t("lock")}
+          </button>
+        </div>
       ) : model.phase === "locked" || model.needsDeviceApproval ? (
         <div className={styles.start}>
           <p>{t("unlockHelp")}</p>

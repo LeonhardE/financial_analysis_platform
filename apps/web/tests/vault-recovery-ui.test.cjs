@@ -178,6 +178,19 @@ test("recovery is explicit and localized; merely rendering never prompts, export
   }
 });
 
+test("a recovery kit from before renewal shows a localized refusal without starting another recovery", () => {
+  for (const locale of ["en", "zh"]) {
+    const f = harness({ phase: "locked", error: "stale_recovery_kit" }, locale);
+    const html = f.view();
+    assert.ok(
+      html.includes(locale === "en" ? "currently eligible recovery key" : "当前有效的恢复密钥"),
+    );
+    assert.ok(html.includes(locale === "en" ? "Use the latest recovery kit" : "请使用最新恢复包"));
+    assert.deepEqual(f.calls, []);
+    f.unmount();
+  }
+});
+
 test("Passkey replacement first presents a review; phone/security-key choice stays explicit", () => {
   const f = harness();
   f.view();

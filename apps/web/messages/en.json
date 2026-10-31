@@ -340,7 +340,10 @@
       "invalid_account_selection": "Keep at least one available account selected.",
       "crypto_unavailable": "Secure browser encryption is unavailable. Use a secure supported browser.",
       "too_many_exclusions": "Too many rows are unsupported for one import.",
-      "untrusted_vault": "The library identity differs from this device’s record. Opening or replacing it was blocked. Check your account and reload the library status."
+      "untrusted_vault": "The library identity differs from this device’s record. Opening or replacing it was blocked. Check your account and reload the library status.",
+      "key_renewal_pending": "This browser has a pending encrypted key renewal. Open Settings → Library keys and devices to recover its original receipt.",
+      "key_renewal_only": "Only key renewal is open. Finish it in Settings, or lock this session first.",
+      "key_revoked": "A required key is expired or revoked. Review Library keys and devices in Settings. Eligible expired keys can be renewed; revoked keys require another trusted device or recovery."
     },
     "warnings": {
       "generic": "Some imported information needs review.",
@@ -371,7 +374,8 @@
     "discardHelp": "No saved receipt was returned. Discard only this device’s retry packet? A request already sent may still be saved later. This will not delete any cloud snapshot or history. Choose the CSV again for a new import.",
     "keepPending": "Keep encrypted retry",
     "confirmDiscard": "Discard local retry",
-    "importScope": "Saves selected accounts, securities, quantities, currencies, reported values and verified cash. Unit prices, book costs, returns and the report date are not retained yet. The original CSV is not uploaded."
+    "importScope": "Saves selected accounts, securities, quantities, currencies, reported values and verified cash. Unit prices, book costs, returns and the report date are not retained yet. The original CSV is not uploaded.",
+    "renewalOnly": "Only key renewal is open. Finish it in Settings, or lock this session before opening resources."
   },
   "inbox": {
     "eyebrow": "YOUR AGENT RESULTS",
@@ -1096,7 +1100,7 @@
       "unlock_failed": "The library could not be decrypted and verified. Check the current Passkey or the matching recovery file and code. No replacement library was created.",
       "unlock_required": "Unlock your library before managing keys.",
       "wrong_account": "The key material does not belong to the current account.",
-      "key_revoked": "Required keys are no longer authorized for this action. Revoking device keys does not revoke the library Passkey.",
+      "key_revoked": "Required keys are no longer authorized for this action. Revoking device keys does not revoke the library Passkey. For expired certificates, use Review key renewal below; revoked keys need another trusted device or recovery.",
       "device_limit": "The existing device or directory limit prevents this change. No extra keys were authorized.",
       "version_conflict": "The saved directory changed. Refresh and review before any new operation.",
       "registry_conflict": "The directory could not be reconciled with the trusted checkpoint. The change stopped.",
@@ -1177,7 +1181,8 @@
     "cancelOperation": "Cancel and lock library",
     "errors": {
       "file_size": "Choose a nonempty recovery file smaller than 128 KiB.",
-      "file_read": "The recovery file could not be read. Choose the encrypted recovery file again."
+      "file_read": "The recovery file could not be read. Choose the encrypted recovery file again.",
+      "stale_recovery_kit": "This recovery kit does not contain a currently eligible recovery key. It may predate a key renewal or no longer be usable. Use the latest recovery kit or a trusted device that can still unlock the library."
     },
     "saved": "The new Passkey and encrypted archive were saved and verified. Unlock the library with the new Passkey to continue.",
     "resumeTitle": "Already created a new Passkey before an interruption?",
@@ -1190,5 +1195,75 @@
     "confirmCancelChange": "Confirm safe cancellation",
     "keepChange": "Keep original update",
     "cancelled": "The unfinished update was safely canceled after verification. The currently saved archive was kept. Unlock with its current Passkey to continue."
+  },
+  "vaultRenewal": {
+    "title": "Renew library keys",
+    "description": "Replace the browser and recovery keys before or after their certificates expire. Your library Passkey stays the same.",
+    "help": "Finish or save local drafts first. Review opens a session used only for key renewal; holdings, tasks, Inbox actions and agent authorization stay locked.",
+    "impact": "Existing reports and holdings remain encrypted. Old reader keys are retained for your history. Agents are not automatically authorized again.",
+    "review": "Review key renewal",
+    "reviewOther": "Review with the selected authenticator",
+    "otherTitle": "Use a phone or security key",
+    "otherHelp": "Choose this only if your current library Passkey is there and supports PRF. Your system may ask for Bluetooth when using a nearby phone.",
+    "restricted": "Only key renewal is open. Ordinary library access and agent authorization remain locked until you finish and unlock again.",
+    "reviewTitle": "Confirm your new key generation",
+    "reviewHelp": "Confirmation creates fresh browser and recovery keys and saves a new encrypted archive. Your sign-in identity and library Passkey stay the same; the server cannot read your private content.",
+    "device": "This browser’s key certificates",
+    "recovery": "Recovery key certificate",
+    "expiry": "Current expiration: {date}",
+    "missingDevice": "This browser has no eligible key pair to renew.",
+    "root": "The library root has no certificate expiration. This action does not replace it.",
+    "confirm": "Confirm and renew keys",
+    "cancelReview": "Close review and lock",
+    "pendingTitle": "A key renewal needs your attention",
+    "pendingReady": "Keep this browser’s original encrypted candidate. Check the original receipt before retrying the same request.",
+    "pendingApplied": "The renewal was accepted. Verify its original receipt and finish saving this browser’s keys.",
+    "pendingConflict": "The directory or archive changed. This candidate cannot be submitted. Safely clear it after checking the current signed history.",
+    "expires": "Original approval expires: {date}",
+    "check": "Check original receipt",
+    "retry": "Retry the original renewal",
+    "finish": "Finish accepted renewal",
+    "cancelCandidate": "Cancel the pending renewal",
+    "cancelConfirm": "Confirm cancellation",
+    "cancelHelp": "Cancellation submits a competing signed archive update. If the renewal already won, finish it instead. Keep the encrypted candidate until the outcome is verified.",
+    "keepCandidate": "Keep the pending renewal",
+    "discard": "Clear superseded candidate and lock",
+    "cancelPending": "Cancellation is pending. Check the outcome or retry this same cancellation; a new renewal will not be created.",
+    "stop": "Stop and lock",
+    "stopHelp": "Stopping clears the open session. An encrypted pending request stays on this browser for later receipt recovery.",
+    "saved": "Library keys renewed. Unlock again with the same Passkey, then immediately create an updated independent recovery kit. An old kit cannot recover new content saved after renewal; keep the old kit until its replacement is safely stored.",
+    "cancelled": "The pending renewal was safely cleared. Your library is locked.",
+    "details": "Verification details",
+    "rootFingerprint": "Library root fingerprint",
+    "registry": "Reviewed directory version",
+    "operation": "Original operation",
+    "reasons": {
+      "device_required": "Unlock with a previously registered browser to renew its key pair.",
+      "keys_revoked": "Revoked keys cannot be renewed. Use another trusted device or the separate recovery flow.",
+      "pending_operation": "Finish the existing local change or encrypted outbox before renewing keys.",
+      "recovery_authorization_pending": "Resolve the pending recovery authorization before renewing keys.",
+      "capacity": "The current signed history has reached its safe limit. A new renewal cannot be created."
+    },
+    "errors": {
+      "key_renewal_pending": "An encrypted key renewal already exists. Review and recover its original outcome.",
+      "key_renewal_missing": "No pending key renewal was found in this browser.",
+      "key_renewal_conflict": "The directory or archive changed. Check the candidate before continuing.",
+      "key_renewal_required": "These certificates require renewal. Open the renewal review with the current Passkey.",
+      "key_renewal_only": "This session can only renew keys. Finish or lock it before opening private content.",
+      "key_renewal_cancel_pending": "Check the pending cancellation before continuing.",
+      "request_failed": "The renewal could not finish. Keep the original encrypted request and check its outcome before retrying.",
+      "key_renewal_local_pending": "Unresolved encrypted uploads were kept. If their signing certificates have expired, this version cannot resolve those uploads yet, so key renewal is paused. While the certificates are still valid, return to the original holdings or task flow to check, complete or explicitly resolve its pending request.",
+      "key_renewal_unknown": "The original renewal outcome has not been verified. Keep its encrypted candidate and review with the same library Passkey.",
+      "renewal_too_early": "These keys were issued too recently to extend their validity yet. Wait briefly, then review again. No new renewal was submitted.",
+      "too_large": "The encrypted archive or retained key history has reached its safe size limit. The current library and pending encrypted records were kept.",
+      "storage_unavailable": "Encrypted browser storage is unavailable. The library was locked; review again before retrying. Existing encrypted candidates are retained.",
+      "unlock_failed": "The current Passkey could not decrypt and verify this library. No key renewal was submitted.",
+      "invalid_signature": "The renewal signatures could not be verified. The encrypted candidate was retained; do not generate another request.",
+      "untrusted_lifecycle": "The saved archive history could not be verified. The library was locked; check the current account and trusted device.",
+      "passkey_cancelled": "Passkey confirmation was canceled or not completed. No new keys were submitted automatically.",
+      "passkey_unsupported": "This browser or authenticator cannot provide the required Passkey protection. Explicitly choose another supported authenticator.",
+      "service_unavailable": "The service is unavailable. If a request was sent, keep its encrypted candidate and check the original receipt before retrying.",
+      "request_timeout": "The operation timed out and the library was locked. Review again with the same Passkey to recover any pending encrypted request."
+    }
   }
 }
