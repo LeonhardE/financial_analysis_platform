@@ -47,7 +47,7 @@
       "directory": "services/portfolio-service",
       "service": "portfolio-api",
       "cloudbuild": "infra/gcp/cloudbuild.portfolio.yaml",
-      "release_mode": "build_only"
+      "release_mode": "existing"
     }
   ]
 }
