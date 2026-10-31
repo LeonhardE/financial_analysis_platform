@@ -1252,7 +1252,7 @@
       "key_renewal_only": "This session can only renew keys. Finish or lock it before opening private content.",
       "key_renewal_cancel_pending": "Check the pending cancellation before continuing.",
       "request_failed": "The renewal could not finish. Keep the original encrypted request and check its outcome before retrying.",
-      "key_renewal_local_pending": "Unresolved encrypted uploads were kept. If their signing certificates have expired, this version cannot resolve those uploads yet, so key renewal is paused. While the certificates are still valid, return to the original holdings or task flow to check, complete or explicitly resolve its pending request.",
+      "key_renewal_local_pending": "Pending encrypted requests are preserved. Use the holdings check to verify an already-saved upload. Unknown outcomes, task uploads and other pending changes still block renewal.",
       "key_renewal_unknown": "The original renewal outcome has not been verified. Keep its encrypted candidate and review with the same library Passkey.",
       "renewal_too_early": "These keys were issued too recently to extend their validity yet. Wait briefly, then review again. No new renewal was submitted.",
       "too_large": "The encrypted archive or retained key history has reached its safe size limit. The current library and pending encrypted records were kept.",
@@ -1263,7 +1263,18 @@
       "passkey_cancelled": "Passkey confirmation was canceled or not completed. No new keys were submitted automatically.",
       "passkey_unsupported": "This browser or authenticator cannot provide the required Passkey protection. Explicitly choose another supported authenticator.",
       "service_unavailable": "The service is unavailable. If a request was sent, keep its encrypted candidate and check the original receipt before retrying.",
-      "request_timeout": "The operation timed out and the library was locked. Review again with the same Passkey to recover any pending encrypted request."
-    }
+      "request_timeout": "The operation timed out and the library was locked. Review again with the same Passkey to recover any pending encrypted request.",
+      "key_renewal_holdings_review_required": "Review the saved holdings upload before confirming.",
+      "key_renewal_holdings_changed": "The reviewed evidence changed or is no longer available. The original upload is preserved; check it again."
+    },
+    "holdingsTitle": "Pending holdings upload",
+    "holdingsHelp": "You can check an earlier holdings upload even after its signing certificate expires. This only reads the original receipt and encrypted snapshot. Nothing is uploaded again, and private content stays locked. Task uploads and other pending changes must still be resolved separately.",
+    "holdingsCheck": "Check pending holdings upload",
+    "holdingsNone": "No pending upload was found for the current holdings sources in this browser. Other pending changes may still block renewal.",
+    "holdingsSaved": "The original receipt and saved encrypted snapshot match this browser’s pending upload, including its signing proof at the time of saving. Review before removing the local retry copy; the saved snapshot will stay on the server.",
+    "holdingsUnknown": "The saved outcome could not be established. The original upload is still kept in this browser, and renewal remains blocked. Check again later. A missing receipt does not prove the upload failed.",
+    "holdingsConfirm": "Confirm saved upload and clear local retry copy",
+    "holdingsKeep": "Keep original upload and lock",
+    "holdingsReconciled": "The verified local retry copy was cleared. The saved encrypted snapshot is unchanged. Check any other pending uploads before renewing."
   }
 }

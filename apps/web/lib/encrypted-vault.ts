@@ -1,5 +1,9 @@
 /** Public worker bridge: returned objects contain public controls/ciphertext only. */
-import { BrowserEncryptedStorage, type EncryptedStorage } from "./encrypted-storage";
+import {
+  BrowserEncryptedStorage,
+  sameEncryptedRecord,
+  type EncryptedStorage,
+} from "./encrypted-storage";
 import {
   VaultError,
   type Vault,
@@ -100,6 +104,7 @@ export class EncryptedVaultSession {
   private generation = 0;
   private next = 0;
   private closed = false;
+  private readonly lifetime = new AbortController();
   private renewalOnly = false;
   private saving: Promise<void> = Promise.resolve();
   private pending = new Map<
@@ -154,6 +159,8 @@ export class EncryptedVaultSession {
       "prepareKeyRenewalCancellation",
       "finishKeyRenewal",
       "discardKeyRenewal",
+      "inspectRenewalHoldingsPending",
+      "verifyRenewalHoldingsReceipt",
     ].includes(method);
     if (!renewal) {
       if (this.renewalOnly || (await this.keyRenewalRow()))
@@ -1483,10 +1490,75 @@ export class EncryptedVaultSession {
     if (!(await this.storage.removeOperation(this.owner + ":outbox:" + sourceId, operationId)))
       throw new VaultError("operation_conflict");
   }
+  private async renewalHoldingsRow(sourceId: string) {
+    const g = this.generation;
+    await this.started;
+    this.assert(g);
+    if (!this.renewalOnly) throw new VaultError("invalid_operation");
+    if (!this.vaultId || !/^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/.test(sourceId))
+      throw new VaultError("invalid_data");
+    const key = this.owner + ":outbox:" + sourceId,
+      row = await this.storage.get(key);
+    this.assert(g);
+    if (
+      row &&
+      (row.ownerSubject !== this.owner ||
+        row.vaultId !== this.vaultId ||
+        row.pending?.source?.resourceRef?.kind !== "holdings" ||
+        row.pending?.source?.resourceRef?.sourceService !== "portfolio" ||
+        row.pending?.source?.resourceRef?.resourceId !== sourceId ||
+        Object.keys(row).length !== 3)
+    )
+      throw new VaultError("wrong_account");
+    return { key, row };
+  }
+  async loadRenewalHoldingsOutbox(sourceId: string): Promise<PendingSnapshot | null> {
+    const g = this.generation,
+      { row } = await this.renewalHoldingsRow(sourceId);
+    if (!row) return null;
+    const result = await this.rpc("inspectRenewalHoldingsPending", { pending: row.pending });
+    this.assert(g);
+    return result;
+  }
+  async verifyRenewalHoldingsReceipt(
+    pending: PendingSnapshot,
+    receipt: unknown,
+    value: SnapshotResponse,
+  ): Promise<void> {
+    const g = this.generation,
+      packet = structuredClone({ pending, receipt, value }),
+      { row } = await this.renewalHoldingsRow(packet.pending?.source?.resourceRef?.resourceId);
+    if (!row || !sameEncryptedRecord(row.pending, packet.pending))
+      throw new VaultError("operation_conflict");
+    await this.rpc("verifyRenewalHoldingsReceipt", packet);
+    this.assert(g);
+  }
+  reconcileRenewalHoldingsOutbox(
+    pending: PendingSnapshot,
+    receipt: unknown,
+    value: SnapshotResponse,
+  ): Promise<void> {
+    const packet = structuredClone({ pending, receipt, value });
+    return this.serial(async () => {
+      const g = this.generation,
+        { key, row } = await this.renewalHoldingsRow(
+          packet.pending?.source?.resourceRef?.resourceId,
+        );
+      if (!row || !sameEncryptedRecord(row.pending, packet.pending))
+        throw new VaultError("operation_conflict");
+      await this.rpc("verifyRenewalHoldingsReceipt", packet);
+      this.assert(g);
+      if (!this.storage.reconcileHoldingsOutbox) throw new VaultError("storage_unavailable");
+      if (!(await this.storage.reconcileHoldingsOutbox(key, row, this.lifetime.signal)))
+        throw new VaultError("operation_conflict");
+      this.assert(g);
+    });
+  }
   lock() {
     if (this.closed) return;
     this.closed = true;
     this.generation++;
+    this.lifetime.abort();
     this.worker.terminate();
     for (const request of this.pending.values()) request.reject(new VaultError("locked"));
     this.pending.clear();

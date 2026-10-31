@@ -23,6 +23,8 @@ function harness() {
     effects = [];
   let index = 0,
     dirty = false;
+  let portfolioConfigured = true,
+    agentHubConfigured = true;
   let auth = { status: "authenticated", sessionKey: "owner_A:1", profile: { uid: "owner_A" } };
   let vault = {
     vaultId: "vault_A",
@@ -78,6 +80,22 @@ function harness() {
           expiresAt: 1200,
         }
       : null,
+  });
+  let holdingsPacket = null,
+    holdingsOutcome = "saved",
+    holdingsCleared = 0,
+    holdingsHold = null,
+    holdingsVersion = 1;
+  const holdingsReceipt = () => ({
+    contractVersion: CONTRACT,
+    stableOperationId: "holdings_operation_A",
+    version: holdingsVersion,
+  });
+  const holdingsSnapshot = () => ({
+    contractVersion: CONTRACT,
+    carrier: { signedObject: { signature: "SYNTHETIC_ORIGINAL" } },
+    keyProofs: { historical: true },
+    receipt: holdingsReceipt(),
   });
   class Session {
     constructor(uid) {
@@ -162,6 +180,26 @@ function harness() {
       cancellation = null;
       cleared++;
     }
+    async loadRenewalHoldingsOutbox(id) {
+      this.active();
+      assert.equal(id, source.resourceRef.resourceId);
+      calls.push("holdings-load");
+      return holdingsPacket && structuredClone(holdingsPacket);
+    }
+    async verifyRenewalHoldingsReceipt(packet, receipt, snapshot) {
+      this.active();
+      calls.push("holdings-verify");
+      assert.equal(JSON.stringify(packet), JSON.stringify(holdingsPacket));
+      assert.equal(JSON.stringify(receipt), JSON.stringify(holdingsReceipt()));
+      assert.equal(JSON.stringify(snapshot), JSON.stringify(holdingsSnapshot()));
+    }
+    async reconcileRenewalHoldingsOutbox(packet, receipt, snapshot) {
+      await this.verifyRenewalHoldingsReceipt(packet, receipt, snapshot);
+      calls.push("holdings-reconcile");
+      holdingsPacket = null;
+      localPending = false;
+      holdingsCleared++;
+    }
     async openTask() {
       ordinaryCalls++;
       throw Error("Renewal-only Worker must not receive ordinary calls");
@@ -193,6 +231,23 @@ function harness() {
           sources: owner.startsWith("owner_A:") ? [source] : [],
         }),
       );
+    if (service === "portfolio") {
+      assert.equal(options.method, undefined, "Recovery is GET-only");
+      if (holdingsHold) await holdingsHold.promise;
+      if (holdingsOutcome === "unavailable") return new Response("{}", { status: 503 });
+      const missing =
+        holdingsOutcome === "missing" ||
+        (holdingsOutcome === "snapshot-missing" && route.includes("/snapshots/"));
+      if (missing)
+        return new Response(
+          JSON.stringify({ contractVersion: CONTRACT, error: { code: "not_found" } }),
+          { status: 404 },
+        );
+      assert.ok(route.includes("/operations/") || route.includes("/snapshots/"));
+      return new Response(
+        JSON.stringify(route.includes("/operations/") ? holdingsReceipt() : holdingsSnapshot()),
+      );
+    }
     if (route.endsWith("/archive") && options.method !== "PUT")
       return new Response(JSON.stringify({ contractVersion: CONTRACT, archive: vault.archive }));
     if (route.includes("/key-renewal-operations/"))
@@ -258,8 +313,8 @@ function harness() {
     "@/components/AuthProvider": {
       useAuth: () => ({
         ...auth,
-        portfolioConfigured: true,
-        agentHubConfigured: true,
+        portfolioConfigured,
+        agentHubConfigured,
         requestPrivate,
         signIn() {},
       }),
@@ -305,6 +360,7 @@ function harness() {
       module,
       exports: module.exports,
       crypto: webcrypto,
+      structuredClone,
       TextEncoder,
       Uint8Array,
       AbortController,
@@ -347,6 +403,11 @@ function harness() {
       await work;
       return view();
     },
+    capability(value) {
+      if (value === "portfolio") portfolioConfigured = false;
+      else agentHubConfigured = false;
+      return view();
+    },
     auth(value) {
       auth = value;
       return view();
@@ -366,6 +427,26 @@ function harness() {
     localPending(value) {
       localPending = value;
     },
+    holdings(value = "saved") {
+      holdingsOutcome = value;
+      holdingsPacket = {
+        snapshotId: "holdings_snapshot_A",
+        operationId: "holdings_operation_A",
+        authorKeyId: "old_sig",
+        expectedRevision: 0,
+        source,
+        carrier: holdingsSnapshot().carrier,
+      };
+      localPending = true;
+    },
+    holdingsHold(value) {
+      holdingsHold = value;
+    },
+    holdingsVersion() {
+      holdingsVersion++;
+    },
+    holdingsCleared: () => holdingsCleared,
+    holdingsPacket: () => holdingsPacket,
     otherTabCandidate() {
       pending = { operationId: "synthetic_other_tab", body: { contractVersion: CONTRACT } };
     },
@@ -588,4 +669,120 @@ test("stale review callbacks cannot submit a candidate from a later unlock gener
   assert.equal(f.counts().prepared, 0);
   assert.equal(f.requests.filter((request) => request.options.method === "POST").length, 0);
   assert.equal(f.view().phase, "renewal-only");
+});
+
+test("renewal holdings review only reads exact original evidence; separate confirmation clears the retry then permits renewal", async () => {
+  const f = harness();
+  await f.ready();
+  f.holdings();
+  await f.run("reviewKeyRenewal");
+  const packet = JSON.stringify(f.holdingsPacket());
+  await f.run("reviewRenewalHoldings");
+  assert.equal(f.view().renewalHoldings.status, "saved");
+  assert.equal(f.holdingsCleared(), 0);
+  assert.equal(JSON.stringify(f.holdingsPacket()), packet);
+  assert.equal(f.counts().ordinaryCalls, 0);
+  assert(f.requests.every((r) => !r.options.method));
+  await f.run("confirmRenewalHoldings");
+  assert.equal(f.holdingsCleared(), 1);
+  assert.equal(f.view().keyNotice, "renewal_holdings_reconciled");
+  assert.equal(f.view().phase, "renewal-only");
+  assert.equal(f.view().content, null);
+  assert.equal(f.requests.filter((r) => r.service === "portfolio").length, 4);
+  assert(f.requests.every((r) => !r.options.method));
+  await f.run("confirmKeyRenewal");
+  assert.equal(f.counts().prepared, 1);
+  assert.equal(f.view().keyNotice, "key_renewal_saved");
+});
+
+test("missing receipts, missing snapshots and unavailable services preserve expired original packets", async () => {
+  for (const outcome of ["missing", "snapshot-missing", "unavailable"]) {
+    const f = harness();
+    await f.ready();
+    f.holdings(outcome);
+    await f.run("reviewKeyRenewal");
+    const packet = JSON.stringify(f.holdingsPacket());
+    await f.run("reviewRenewalHoldings");
+    if (outcome === "unavailable") assert.equal(f.view().error, "service_unavailable");
+    else assert.equal(f.view().renewalHoldings.status, "unknown");
+    await f.run("confirmRenewalHoldings");
+    assert.equal(f.holdingsCleared(), 0);
+    assert.equal(JSON.stringify(f.holdingsPacket()), packet);
+    assert(f.requests.every((r) => !r.options.method));
+  }
+});
+
+test("a fresh no-packet check does not remove records or permit ordinary signing", async () => {
+  const f = harness();
+  await f.ready();
+  await f.run("reviewKeyRenewal");
+  await f.run("reviewRenewalHoldings");
+  assert.equal(f.view().keyNotice, "renewal_holdings_none");
+  assert.equal(f.holdingsCleared(), 0);
+  assert.equal(f.counts().ordinaryCalls, 0);
+  await f.run("confirmRenewalHoldings");
+  assert.equal(f.view().error, "key_renewal_holdings_review_required");
+});
+
+test("changed saved evidence after review invalidates consent without clearing the original packet", async () => {
+  const f = harness();
+  await f.ready();
+  f.holdings();
+  await f.run("reviewKeyRenewal");
+  await f.run("reviewRenewalHoldings");
+  f.holdingsVersion();
+  await f.run("confirmRenewalHoldings");
+  assert.equal(f.view().error, "key_renewal_holdings_changed");
+  assert.equal(f.view().renewalHoldings, null);
+  assert.equal(f.holdingsCleared(), 0);
+  assert(f.holdingsPacket());
+});
+
+test("lock, logout and changed owners fence late holdings checks and confirmations", async () => {
+  for (const stage of ["review", "confirm"])
+    for (const change of ["lock", "logout", "account", "session", "portfolio", "hub"]) {
+      const f = harness();
+      await f.ready();
+      f.holdings();
+      await f.run("reviewKeyRenewal");
+      if (stage === "confirm") await f.run("reviewRenewalHoldings");
+      const hold = deferred();
+      f.holdingsHold(hold);
+      const stale = f.view();
+      const work = stale[stage === "review" ? "reviewRenewalHoldings" : "confirmRenewalHoldings"]();
+      await settle();
+      if (change === "lock") f.view().lock();
+      else if (change === "portfolio" || change === "hub") f.capability(change);
+      else if (change === "logout")
+        f.auth({ status: "anonymous", sessionKey: null, profile: null });
+      else
+        f.auth({
+          status: "authenticated",
+          sessionKey: change === "session" ? "owner_A:2" : "owner_B:1",
+          profile: { uid: change === "session" ? "owner_A" : "owner_B" },
+        });
+      hold.resolve();
+      await work;
+      await settle();
+      assert.equal(f.view().renewalHoldings, null);
+      assert.equal(f.holdingsCleared(), 0);
+      assert(f.holdingsPacket());
+      assert(f.requests.every((r) => !r.options.method));
+    }
+});
+
+test("old holdings-confirm callbacks cannot act in a later renewal unlock generation", async () => {
+  const f = harness();
+  await f.ready();
+  f.holdings();
+  await f.run("reviewKeyRenewal");
+  await f.run("reviewRenewalHoldings");
+  const stale = f.view();
+  await f.run("lock");
+  await f.run("reviewKeyRenewal");
+  await f.run("reviewRenewalHoldings");
+  await stale.confirmRenewalHoldings();
+  f.view();
+  assert.equal(f.holdingsCleared(), 0);
+  assert(f.holdingsPacket());
 });

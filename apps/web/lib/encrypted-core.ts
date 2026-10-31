@@ -5952,6 +5952,179 @@ export class VaultCore {
     )
       throw new VaultError("binding_mismatch");
   }
+  /** Authenticate an old upload for reconciliation only, without reviving its write authority. */
+  private async renewalHoldingsPending(pending: PendingSnapshot) {
+    if (!this.root || !this.wrapping || !this.vault || !this.pin) throw new VaultError("locked");
+    const vault = this.vault;
+    await this.checkVault(vault, this.pin);
+    bounded(pending, 589824);
+    exact(pending, [
+      "snapshotId",
+      "operationId",
+      "authorKeyId",
+      "expectedRevision",
+      "carrier",
+      "source",
+    ]);
+    exact(pending.source, ["resourceRef", "sourceEpoch"]);
+    validate("Identifier", pending.snapshotId);
+    validate("OperationIdentifier", pending.operationId);
+    validate("KeyId", pending.authorKeyId);
+    positive(pending.expectedRevision, 0);
+    validate("Carrier", pending.carrier);
+    bounded(pending.carrier, 524288);
+    const message = parsed(unb64(pending.carrier.signedObject.payload, 524288));
+    validate("ObjectMessage", message);
+    const c = message.context;
+    if (
+      c.ownerSubject !== (await this.owner) ||
+      c.vaultId !== vault.vaultId ||
+      c.rootKeyId !== vault.rootKeyId ||
+      c.objectId !== pending.snapshotId ||
+      c.objectType !== "holdings_snapshot" ||
+      c.operationType !== "commit_snapshot" ||
+      c.authorSigningKeyId !== pending.authorKeyId ||
+      c.stableOperationId !== pending.operationId ||
+      c.expectedRevision !== pending.expectedRevision ||
+      c.revision !== pending.expectedRevision + 1 ||
+      c.deliveryRevision !== 1 ||
+      c.priorEnvelopeFingerprint !== null ||
+      !equal(c.resourceBindings, []) ||
+      !equal(c.binding, this.binding(pending.source, c.revision))
+    )
+      throw new VaultError("binding_mismatch");
+    let registry: Registry | undefined;
+    for (let i = 0; i < c.registrySequence; i++) {
+      if (!vault.registryHistory[i]) throw new VaultError("untrusted_vault");
+      registry = await verifyRegistry(
+        vault.registryHistory[i],
+        vault.rootJwk,
+        await this.owner,
+        vault.vaultId,
+        registry,
+        this.now(),
+      );
+      if (registry.checkpoint.registrySequence !== i + 1) throw new VaultError("untrusted_vault");
+    }
+    const historical = registry!;
+    if (
+      historical.digest !== c.checkpointDigest ||
+      historical.checkpoint.rootEpoch !== c.rootEpoch ||
+      historical.checkpoint.keyEpoch !== c.keyEpoch
+    )
+      throw new VaultError("untrusted_vault");
+    const author = historical.certificates.get(pending.authorKeyId);
+    if (!author || author.role !== "device_sig" || !author.capabilities.includes("object_write"))
+      throw new VaultError("invalid_signature");
+    const certificates = [author];
+    const recipientIds = new Set<string>();
+    for (const recipient of c.recipients) {
+      const proof = historical.certificates.get(recipient.keyId);
+      if (
+        !proof ||
+        recipientIds.has(recipient.keyId) ||
+        !["device_enc", "recovery_enc"].includes(proof.role) ||
+        !equal(recipient, this.taskRecipient(proof))
+      )
+        throw new VaultError("untrusted_vault");
+      recipientIds.add(recipient.keyId);
+      certificates.push(proof);
+    }
+    if (
+      !c.recipients.some((r: Json) => r.role === "device_enc") ||
+      !c.recipients.some((r: Json) => r.role === "recovery_enc") ||
+      !equal([...recipientIds], [...recipientIds].sort())
+    )
+      throw new VaultError("untrusted_vault");
+    // Inspection proves there was a possible authorized interval, not that the upload was saved.
+    const possibleAt = Math.max(
+      historical.checkpoint.issuedAt,
+      ...certificates.map((p) => p.notBefore),
+    );
+    if (possibleAt > this.now()) throw new VaultError("untrusted_vault");
+    for (const proof of certificates) cert(historical, proof.keyId, undefined, possibleAt);
+    await verified(pending.carrier.signedObject, author.publicJwk, "fv-object+jws");
+    const jwe = this.taskJwe(message, c.recipients);
+    unb64(jwe.ciphertext, 196608);
+    for (const recipient of jwe.recipients) await key(recipient.header.epk);
+    return { vault, historical, certificates, context: c };
+  }
+  async inspectRenewalHoldingsPending(pending: PendingSnapshot): Promise<PendingSnapshot> {
+    await this.renewalHoldingsPending(pending);
+    return pending;
+  }
+  /** Both authenticated GETs must prove the exact original upload; no content is decrypted. */
+  async verifyRenewalHoldingsReceipt(
+    pending: PendingSnapshot,
+    receipt: Json,
+    value: SnapshotResponse,
+  ): Promise<void> {
+    const {
+      vault,
+      historical,
+      certificates,
+      context: c,
+    } = await this.renewalHoldingsPending(pending);
+    bounded(value, 1048576);
+    exact(value, ["contractVersion", "carrier", "keyProofs", "receipt"]);
+    validate("KeyProofs", value.keyProofs);
+    if (
+      value.contractVersion !== CONTRACT ||
+      !equal(value.carrier, pending.carrier) ||
+      !equal(value.receipt, receipt) ||
+      !equal(value.keyProofs, {
+        checkpoint: historical.bundle.checkpoint,
+        certificates: historical.bundle.entries.map((entry) => entry.certificate),
+      })
+    )
+      throw new VaultError("binding_mismatch");
+    exact(receipt, [
+      "contractVersion",
+      "vaultId",
+      "resourceRef",
+      "snapshotId",
+      "revision",
+      "sourceEpoch",
+      "stableOperationId",
+      "envelopeFingerprint",
+      "snapshotPath",
+      "storedAt",
+    ]);
+    if (
+      receipt.contractVersion !== CONTRACT ||
+      receipt.vaultId !== vault.vaultId ||
+      !equal(receipt.resourceRef, pending.source.resourceRef) ||
+      receipt.snapshotId !== pending.snapshotId ||
+      receipt.revision !== pending.expectedRevision + 1 ||
+      receipt.sourceEpoch !== pending.source.sourceEpoch ||
+      receipt.stableOperationId !== pending.operationId ||
+      receipt.envelopeFingerprint !== (await signingFingerprint(pending.carrier.signedObject)) ||
+      receipt.snapshotPath !==
+        `/api/v2/holdings/sources/${pending.source.resourceRef.resourceId}/snapshots/${pending.snapshotId}`
+    )
+      throw new VaultError("binding_mismatch");
+    const accepted = utcSeconds(receipt.storedAt);
+    if (accepted < historical.checkpoint.issuedAt || accepted > this.now())
+      throw new VaultError("binding_mismatch");
+    for (const proof of certificates) cert(historical, proof.keyId, undefined, accepted);
+    let atAcceptance = historical;
+    for (let i = c.registrySequence; i < vault.registryHistory.length; i++) {
+      const next = vault.registryHistory[i];
+      // Checkpoints have second precision; same-second ordering is not inferred.
+      if (parsed(unb64(next.checkpoint.payload)).issuedAt >= Math.floor(accepted)) break;
+      atAcceptance = await verifyRegistry(
+        next,
+        vault.rootJwk,
+        await this.owner,
+        vault.vaultId,
+        atAcceptance,
+        accepted,
+      );
+      if (atAcceptance.checkpoint.keyEpoch !== c.keyEpoch) throw new VaultError("binding_mismatch");
+      // An unrelated directory update does not invalidate an authority replica's original upload.
+      for (const proof of certificates) cert(atAcceptance, proof.keyId, undefined, accepted);
+    }
+  }
   private binding(source: Source, revision: number) {
     validate("ResourceRef", source.resourceRef);
     positive(source.sourceEpoch);

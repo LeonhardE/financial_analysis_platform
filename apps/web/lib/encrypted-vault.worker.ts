@@ -25,6 +25,16 @@ scope.onmessage = (event) => {
           case "inspectKeyRenewal":
             result = await core.inspectKeyRenewal(args.vault, args.state, args.record, args.prior);
             break;
+          case "inspectRenewalHoldingsPending":
+            result = await core.inspectRenewalHoldingsPending(args.pending);
+            break;
+          case "verifyRenewalHoldingsReceipt":
+            result = await core.verifyRenewalHoldingsReceipt(
+              args.pending,
+              args.receipt,
+              args.value,
+            );
+            break;
           case "prepareKeyRenewal":
             result = await core.prepareKeyRenewal(args.vault, args.state, args.prior);
             break;
