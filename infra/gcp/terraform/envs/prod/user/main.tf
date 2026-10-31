@@ -2,6 +2,16 @@ locals {
   project_id        = var.deployment.project_id
   region            = var.deployment.region
   existing_user_uid = var.deployment.existing_service_uid
+  hub_trust_environment = var.hub_trust == null ? {} : (
+    alltrue([for value in values(var.hub_trust) : value == ""]) ? {} : var.hub_trust
+  )
+  environment = merge({
+    FIREBASE_PROJECT_ID = local.project_id
+    CORS_ORIGINS        = var.deployment.web_origin
+    FIRESTORE_DATABASE  = "(default)"
+    USER_STORE_BACKEND  = "firestore"
+    MARKET_API_BASE_URL = var.deployment.market_origin
+  }, local.hub_trust_environment)
 }
 
 provider "google" {
@@ -45,13 +55,7 @@ module "user" {
   startup_cpu_boost = true
   ingress           = "INGRESS_TRAFFIC_ALL"
 
-  environment = {
-    FIREBASE_PROJECT_ID = local.project_id
-    CORS_ORIGINS        = var.deployment.web_origin
-    FIRESTORE_DATABASE  = "(default)"
-    USER_STORE_BACKEND  = "firestore"
-    MARKET_API_BASE_URL = var.deployment.market_origin
-  }
+  environment        = local.environment
   secret_environment = {}
 
   # Public invocation already uses invokerIamDisabled=true. Do not add an
