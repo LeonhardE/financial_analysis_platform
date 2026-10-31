@@ -1,4 +1,4 @@
-# Build and publish the skeleton only. No trigger or Cloud Run service is created here.
+# Build and publish the current Hub image only. No trigger or Cloud Run service is created here.
 # The registry's build_only guard also refuses _DEPLOY_SERVICE=true before cloud access.
 steps:
   - name: gcr.io/cloud-builders/docker
@@ -56,8 +56,8 @@ images:
   - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPOSITORY}/agent-hub-api:$BUILD_ID
 
 substitutions:
-  _REGION: northamerica-northeast2
-  _REPOSITORY: financial-analysis
+  _REGION: ""
+  _REPOSITORY: ""
   _DEPLOY_SERVICE: "false"
 
 options:

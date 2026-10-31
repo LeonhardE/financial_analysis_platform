@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "kind": "agent-hub-build-only-candidate",
+  "sourceRepository": "https://github.com/LeonhardE/financial_analysis_platform.git",
+  "sourceCommit": "b59a90019d22a4755bed3d606474a6214a320f1d",
+  "imageRepository": "agent-hub-api",
+  "digest": "sha256:f8c1909965b2bdba1ba0d23007fbb31c1097d19e1e9ad570d8c3cac61d593753",
+  "build": {
+    "id": "51b43d1b-f37c-4322-8f3d-eff90b6422dd",
+    "location": "northamerica-northeast2",
+    "configuration": "infra/gcp/cloudbuild.agent-hub.yaml",
+    "mode": "manual-build-only-existing-identity"
+  },
+  "sourceProvenance": {
+    "kind": "resolvedGitSource",
+    "revision": "b59a90019d22a4755bed3d606474a6214a320f1d"
+  },
+  "firstProvision": {
+    "eligible": false,
+    "reason": "The dedicated target trigger is not provisioned; preserve first_provision.py and rebuild through that trigger after separately authorized execution provisioning."
+  }
+}

@@ -12,11 +12,34 @@ variable "agent_hub_provisioning_stage" {
   }
 }
 
+variable "agent_hub_runtime_account_id" {
+  description = "Hub's explicit custom runtime account ID; must match its separately reviewed business-root deployment inputs."
+  type        = string
+  default     = "fa-agent-hub-runtime"
+  nullable    = false
+  validation {
+    condition     = can(regex("^[a-z][a-z0-9-]{4,28}[a-z0-9]$", var.agent_hub_runtime_account_id))
+    error_message = "Use a canonical custom service account ID in this project."
+  }
+}
+
+variable "agent_hub_public_connector_enabled" {
+  description = "Administrator-only public Hub invoker opt-in after matching OAuth/adapter/application-auth and real consumer acceptance; private by default."
+  type        = bool
+  default     = false
+  nullable    = false
+  validation {
+    condition     = !var.agent_hub_public_connector_enabled || var.agent_hub_provisioning_stage == "service"
+    error_message = "Public invocation requires an explicit service-stage administrator review after business resources and protocol acceptance."
+  }
+}
+
 locals {
-  agent_hub_execution_enabled = var.agent_hub_provisioning_stage != "none" || local.execution_registry.targets["agent-hub"].enabled
-  agent_hub_service_enabled   = var.agent_hub_provisioning_stage == "service" || local.execution_registry.targets["agent-hub"].enabled
-  agent_hub_runtime_email     = "fa-agent-hub-runtime@${var.project_id}.iam.gserviceaccount.com"
-  agent_hub_runtime_resource  = "projects/${var.project_id}/serviceAccounts/${local.agent_hub_runtime_email}"
+  agent_hub_artifact_repository = jsondecode(var.deployment_configs["repo"]).artifactRepository
+  agent_hub_execution_enabled   = var.agent_hub_provisioning_stage != "none" || local.execution_registry.targets["agent-hub"].enabled
+  agent_hub_service_enabled     = var.agent_hub_provisioning_stage == "service" || local.execution_registry.targets["agent-hub"].enabled
+  agent_hub_runtime_email       = "${var.agent_hub_runtime_account_id}@${var.project_id}.iam.gserviceaccount.com"
+  agent_hub_runtime_resource    = "projects/${var.project_id}/serviceAccounts/${local.agent_hub_runtime_email}"
   agent_hub_phase_accounts = local.agent_hub_service_enabled ? {
     plan  = "fa-infra-agent-hub-plan@${var.project_id}.iam.gserviceaccount.com"
     apply = "fa-infra-agent-hub-apply@${var.project_id}.iam.gserviceaccount.com"
@@ -44,11 +67,27 @@ locals {
     }
     database_read = {
       id          = "folioviewAgentHubDatabaseRead"
-      permissions = ["datastore.databases.getMetadata"]
+      permissions = ["datastore.databases.getMetadata", "datastore.indexes.get"]
     }
     database_configuration = {
       id          = "folioviewAgentHubDatabaseConfiguration"
-      permissions = ["datastore.databases.getMetadata", "datastore.databases.update", "datastore.operations.get"]
+      permissions = ["datastore.databases.getMetadata", "datastore.databases.update", "datastore.indexes.get", "datastore.indexes.update", "datastore.operations.get"]
+    }
+    owner_auth_lookup = {
+      id          = "folioviewAgentHubOwnerAuthLookup"
+      permissions = ["firebaseauth.users.get"]
+    }
+    signing_ring_read = {
+      id          = "folioviewAgentHubSigningRingRead"
+      permissions = ["cloudkms.keyRings.get"]
+    }
+    signing_key_read = {
+      id          = "folioviewAgentHubSigningKeyRead"
+      permissions = ["cloudkms.cryptoKeys.get"]
+    }
+    signing_key_configuration = {
+      id          = "folioviewAgentHubSigningKeyConfiguration"
+      permissions = ["cloudkms.cryptoKeys.get", "cloudkms.cryptoKeys.update"]
     }
   } : {}
 }
@@ -75,7 +114,7 @@ resource "google_artifact_registry_repository_iam_member" "agent_hub_build_image
   count      = local.agent_hub_execution_enabled ? 1 : 0
   project    = var.project_id
   location   = var.region
-  repository = "financial-analysis"
+  repository = local.agent_hub_artifact_repository
   role       = "roles/artifactregistry.writer"
   member     = module.agent_hub_build_identity[0].member
 }
@@ -91,10 +130,10 @@ module "agent_hub_image_release" {
   build_service_account = module.agent_hub_build_identity[0].id
   filename              = "infra/gcp/cloudbuild.agent-hub.yaml"
   included_files = [
-    "services/agent-hub-service/**", "services/common/**", ".dockerignore",
+    "services/agent-hub-service/**", "services/common/**", ".dockerignore", "infra/gcp/cloudbuild.agent-hub.yaml",
     "infra/gcp/deploy_existing_service.py", "scripts/service-targets.json", "scripts/service_targets.py",
   ]
-  substitutions  = { _REPOSITORY = "financial-analysis" }
+  substitutions  = { _REPOSITORY = local.agent_hub_artifact_repository }
   disabled       = false
   deploy_enabled = false
 
@@ -140,7 +179,7 @@ resource "google_artifact_registry_repository_iam_member" "agent_hub_configurati
   count      = local.agent_hub_service_enabled ? 1 : 0
   project    = var.project_id
   location   = var.region
-  repository = "financial-analysis"
+  repository = local.agent_hub_artifact_repository
   role       = google_project_iam_custom_role.agent_hub["image_read"].name
   member     = "serviceAccount:${local.agent_hub_phase_accounts.apply}"
 }
@@ -177,7 +216,8 @@ output "agent_hub_preparation" {
     image_deploys      = false
     database_id        = "agent-hub"
     runtime_identity   = local.agent_hub_runtime_email
-    application_status = "health-only; private/OAuth/MCP routes remain unavailable"
+    application_status = "current encrypted owner APIs; private first creation, OAuth/adapter explicitly disabled until separate acceptance"
+    public_connector   = var.agent_hub_public_connector_enabled
   }
 }
 
@@ -214,4 +254,72 @@ resource "google_firebaserules_release" "agent_hub" {
   lifecycle {
     prevent_destroy = true
   }
+}
+
+# API enablement is a separately reviewed execution-stage proposal. None remains
+# inert; an eventual apply must retain the API and its protected signing key.
+resource "google_project_service" "agent_hub_kms" {
+  count              = local.agent_hub_execution_enabled ? 1 : 0
+  project            = var.project_id
+  service            = "cloudkms.googleapis.com"
+  disable_on_destroy = false
+}
+
+# Firebase revocation checks require account lookup, not user listing/admin or
+# Firebase signing authority. This is project-level identity metadata only.
+resource "google_project_iam_member" "agent_hub_owner_auth" {
+  count   = local.agent_hub_service_enabled ? 1 : 0
+  project = var.project_id
+  role    = google_project_iam_custom_role.agent_hub["owner_auth_lookup"].name
+  member  = "serviceAccount:${local.agent_hub_runtime_email}"
+}
+
+locals {
+  agent_hub_signing_ring = "projects/${var.project_id}/locations/${var.region}/keyRings/folioview-agent-hub"
+  agent_hub_signing_key  = "${local.agent_hub_signing_ring}/cryptoKeys/delegation-signing"
+}
+
+# Bootstrap owns these exact-resource IAM tuples. No infrastructure execution
+# identity receives signing, private-key import/export, decrypt or key creation.
+module "agent_hub_delegation_signer" {
+  count         = local.agent_hub_service_enabled ? 1 : 0
+  source        = "../modules/kms-key-access"
+  project_id    = var.project_id
+  crypto_key_id = local.agent_hub_signing_key
+  usage         = "delegation_signer"
+  members       = { runtime = local.agent_hub_runtime_email }
+}
+
+module "agent_hub_delegation_public_key" {
+  count         = local.agent_hub_service_enabled ? 1 : 0
+  source        = "../modules/kms-key-access"
+  project_id    = var.project_id
+  crypto_key_id = local.agent_hub_signing_key
+  usage         = "public_key_viewer"
+  members       = { runtime = local.agent_hub_runtime_email }
+}
+
+resource "google_kms_key_ring_iam_member" "agent_hub_signing_metadata" {
+  for_each    = local.agent_hub_phase_accounts
+  key_ring_id = local.agent_hub_signing_ring
+  role        = google_project_iam_custom_role.agent_hub["signing_ring_read"].name
+  member      = "serviceAccount:${each.value}"
+}
+
+resource "google_kms_crypto_key_iam_member" "agent_hub_signing_metadata" {
+  for_each      = local.agent_hub_phase_accounts
+  crypto_key_id = local.agent_hub_signing_key
+  role          = google_project_iam_custom_role.agent_hub[each.key == "plan" ? "signing_key_read" : "signing_key_configuration"].name
+  member        = "serviceAccount:${each.value}"
+}
+
+# Public invocation is a distinct administrator IAM decision. It does not turn
+# OAuth/adapter flags on, grant user access or bypass owner/internal validation.
+resource "google_cloud_run_v2_service_iam_member" "agent_hub_public_connector" {
+  count    = local.agent_hub_service_enabled && var.agent_hub_public_connector_enabled ? 1 : 0
+  project  = var.project_id
+  location = var.region
+  name     = "agent-hub-api"
+  role     = "roles/run.invoker"
+  member   = "allUsers"
 }

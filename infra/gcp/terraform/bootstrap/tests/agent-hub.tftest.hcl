@@ -288,6 +288,10 @@ run "agent_hub_preparation_is_inert_by_default" {
       length(module.agent_hub_image_release) == 0 &&
       length(google_project_iam_custom_role.agent_hub) == 0 &&
       length(module.agent_hub_database_access) == 0 &&
+      length(google_project_service.agent_hub_kms) == 0 &&
+      length(module.agent_hub_delegation_signer) == 0 &&
+      length(module.agent_hub_delegation_public_key) == 0 &&
+      length(google_cloud_run_v2_service_iam_member.agent_hub_public_connector) == 0 &&
       length(google_firebaserules_release.agent_hub) == 0
     )
     error_message = "Merging Agent Hub preparation must not provision identities, triggers, IAM, rules or databases."
@@ -304,7 +308,14 @@ run "agent_hub_execution_precedes_business_resources" {
       !contains(keys(var.deployment_configs), "agent-hub") &&
       module.target_execution["agent-hub"].state_prefix == "prod/agent-hub" &&
       length(module.agent_hub_build_identity) == 1 &&
+      length(google_project_service.agent_hub_kms) == 1 &&
+      google_project_service.agent_hub_kms[0].service == "cloudkms.googleapis.com" &&
+      !google_project_service.agent_hub_kms[0].disable_on_destroy &&
+      length(module.agent_hub_delegation_signer) == 0 &&
+      length(google_project_iam_member.agent_hub_owner_auth) == 0 &&
+      length(google_cloud_run_v2_service_iam_member.agent_hub_public_connector) == 0 &&
       module.agent_hub_image_release[0].name == "build-agent-hub-api" &&
+      google_artifact_registry_repository_iam_member.agent_hub_build_images[0].repository == jsondecode(var.deployment_configs["repo"]).artifactRepository &&
       length(google_cloud_run_v2_service_iam_member.agent_hub_execution) == 0 &&
       length(module.agent_hub_database_access) == 0 &&
       length(google_firebaserules_release.agent_hub) == 0
@@ -324,8 +335,8 @@ run "agent_hub_service_iam_is_exact_and_has_no_content_keys" {
       alltrue([for grant in google_cloud_run_v2_service_iam_member.agent_hub_execution : grant.name == "agent-hub-api"]) &&
       alltrue([for grant in google_service_account_iam_member.agent_hub_execution_metadata : grant.service_account_id == local.agent_hub_runtime_resource]) &&
       toset(google_project_iam_custom_role.agent_hub["service_configuration"].permissions) == toset(["run.services.get", "run.services.update"]) &&
-      toset(google_project_iam_custom_role.agent_hub["database_read"].permissions) == toset(["datastore.databases.getMetadata"]) &&
-      toset(google_project_iam_custom_role.agent_hub["database_configuration"].permissions) == toset(["datastore.databases.getMetadata", "datastore.databases.update", "datastore.operations.get"]) &&
+      toset(google_project_iam_custom_role.agent_hub["database_read"].permissions) == toset(["datastore.databases.getMetadata", "datastore.indexes.get"]) &&
+      toset(google_project_iam_custom_role.agent_hub["database_configuration"].permissions) == toset(["datastore.databases.getMetadata", "datastore.databases.update", "datastore.indexes.get", "datastore.indexes.update", "datastore.operations.get"]) &&
       alltrue([for grant in google_project_iam_member.agent_hub_database_configuration : grant.condition[0].expression == module.agent_hub_database_access[0].condition.expression]) &&
       google_service_account_iam_member.agent_hub_runtime_deployer[0].member == "serviceAccount:fa-infra-agent-hub-apply@financial-analysis-512202.iam.gserviceaccount.com"
     )
@@ -344,4 +355,50 @@ run "reject_unknown_agent_hub_provisioning_stage" {
   command = plan
   variables { agent_hub_provisioning_stage = "apply-everything" }
   expect_failures = [var.agent_hub_provisioning_stage]
+}
+
+run "agent_hub_operational_signing_and_auth_lookup_are_least_privilege" {
+  command = plan
+  variables { agent_hub_provisioning_stage = "service" }
+  assert {
+    condition = (
+      toset(google_project_iam_custom_role.agent_hub["owner_auth_lookup"].permissions) == toset(["firebaseauth.users.get"]) &&
+      google_project_iam_member.agent_hub_owner_auth[0].member == "serviceAccount:${local.agent_hub_runtime_email}" &&
+      module.agent_hub_delegation_signer[0].role == "roles/cloudkms.signer" &&
+      module.agent_hub_delegation_public_key[0].role == "roles/cloudkms.publicKeyViewer" &&
+      keys(module.agent_hub_delegation_signer[0].grants) == ["runtime"] &&
+      toset(google_project_iam_custom_role.agent_hub["signing_key_read"].permissions) == toset(["cloudkms.cryptoKeys.get"]) &&
+      toset(google_project_iam_custom_role.agent_hub["signing_key_configuration"].permissions) == toset(["cloudkms.cryptoKeys.get", "cloudkms.cryptoKeys.update"]) &&
+      alltrue([for grant in google_kms_crypto_key_iam_member.agent_hub_signing_metadata : grant.crypto_key_id == local.agent_hub_signing_key]) &&
+      alltrue([for grant in google_kms_key_ring_iam_member.agent_hub_signing_metadata : grant.key_ring_id == local.agent_hub_signing_ring]) &&
+      length(google_cloud_run_v2_service_iam_member.agent_hub_public_connector) == 0
+    )
+    error_message = "Only Hub runtime signs/reads public operational keys; infra metadata cannot sign, decrypt, create key versions or look up users. Private is the default."
+  }
+}
+
+run "explicit_future_public_invocation_is_owned_only_by_service_stage" {
+  command = plan
+  variables {
+    agent_hub_provisioning_stage       = "service"
+    agent_hub_public_connector_enabled = true
+  }
+  assert {
+    condition = (
+      length(google_cloud_run_v2_service_iam_member.agent_hub_public_connector) == 1 &&
+      google_cloud_run_v2_service_iam_member.agent_hub_public_connector[0].name == "agent-hub-api" &&
+      google_cloud_run_v2_service_iam_member.agent_hub_public_connector[0].member == "allUsers" &&
+      google_cloud_run_v2_service_iam_member.agent_hub_public_connector[0].role == "roles/run.invoker"
+    )
+    error_message = "Future public protocol access is an explicit exact-service administrator IAM grant; app authentication remains separate."
+  }
+}
+
+run "reject_public_connector_before_business_resources_exist" {
+  command = plan
+  variables {
+    agent_hub_provisioning_stage       = "execution"
+    agent_hub_public_connector_enabled = true
+  }
+  expect_failures = [var.agent_hub_public_connector_enabled]
 }
