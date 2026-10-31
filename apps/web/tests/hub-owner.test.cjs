@@ -181,10 +181,10 @@ function response(value = VAULT, status = 200, headers = {}) {
 }
 function request(
   route = "/api/v2/vaults/current",
-  { method = "GET", auth = tokenA, json, raw, headers = {}, signal } = {},
+  { method = "GET", auth = tokenA, json, raw, headers = {}, signal, site = SITE } = {},
 ) {
   const body = raw ?? (json === undefined ? undefined : JSON.stringify(json));
-  return new Request(SITE + PREFIX + route, {
+  return new Request(site + PREFIX + route, {
     method,
     headers: {
       Authorization: "Bearer " + auth,
@@ -432,6 +432,75 @@ test("closed paths, methods and canonical query bounds deny all agent and cookie
         )
       ).status,
       400,
+    );
+    assert.equal(h.calls.length, 0);
+  }
+});
+
+test("same-origin browser writes use the public Host behind a standalone container", async () => {
+  const raw = JSON.stringify({
+    contractVersion: CONTRACT,
+    vaultId: "vault_A",
+    rootJwk: { kty: "EC", crv: "P-256", x: AUTHOR, y: AUTHOR },
+    rootKeyId: AUTHOR,
+    registryBundle: REGISTRY,
+    archive: ARCHIVE,
+  });
+  for (const host of [new URL(SITE).host, new URL(SITE).host + ":443"]) {
+    const h = harness();
+    const result = await h.proxy(
+      request("/api/v2/vaults", {
+        method: "POST",
+        raw,
+        site: "https://0.0.0.0:8080",
+        headers: {
+          "Idempotency-Key": OP,
+          Host: host,
+          Origin: SITE,
+          "Sec-Fetch-Site": "same-origin",
+          "X-Forwarded-Host": "evil.test",
+        },
+      }),
+    );
+    assert.equal(result.status, 200, await result.clone().text());
+    assert.equal(new TextDecoder().decode(h.hub()[0].init.body), raw);
+    for (const name of ["host", "origin", "x-forwarded-host"])
+      assert.equal(h.hub()[0].init.headers.has(name), false);
+  }
+});
+
+test("public Host origin checks reject cross-origin, ambiguous hosts and forwarded-host spoofing before authentication", async () => {
+  const publicHost = new URL(SITE).host;
+  for (const headers of [
+    { Host: publicHost, Origin: "https://evil.test", "X-Forwarded-Host": "evil.test" },
+    { Host: publicHost, Origin: "https://0.0.0.0:8080" },
+    { Host: publicHost, Origin: SITE.replace("https:", "http:") },
+    { Host: publicHost, Origin: SITE + ":8443" },
+    { Host: publicHost, Origin: "null" },
+    { Host: publicHost, Origin: "" },
+    { Host: publicHost, Origin: SITE, "Sec-Fetch-Site": "cross-site" },
+    ...[
+      "",
+      publicHost + ", evil.test",
+      publicHost + "/ignored",
+      "user@" + publicHost,
+      publicHost + "#ignored",
+      publicHost + "%2f",
+      publicHost + ":99999",
+    ].map((Host) => ({ Host, Origin: SITE })),
+  ]) {
+    const h = harness();
+    await error(
+      await h.proxy(
+        request("/api/v2/tasks", {
+          method: "POST",
+          site: "https://0.0.0.0:8080",
+          headers,
+          json: taskBody,
+        }),
+      ),
+      403,
+      "insufficient_scope",
     );
     assert.equal(h.calls.length, 0);
   }

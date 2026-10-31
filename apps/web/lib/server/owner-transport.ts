@@ -46,6 +46,26 @@ export class Failure extends Error {
 export const fail = (code = "malformed_request"): never => {
   throw new Failure(code);
 };
+
+export function requireSameOrigin(request: Request, url: URL) {
+  if (request.headers.get("sec-fetch-site") === "cross-site") fail("insufficient_scope");
+  const origin = request.headers.get("origin");
+  if (origin === null) return;
+  // Next standalone builds request.url from the container's listening address.
+  // Host retains the browser's destination behind Cloud Run. Forwarded host
+  // headers are caller-controlled and must not select the accepted origin.
+  const host = request.headers.get("host") ?? url.host;
+  if (!host || /[\s,\\/@?#%]/.test(host) || !["https:", "http:"].includes(url.protocol))
+    fail("insufficient_scope");
+  let expected: string;
+  try {
+    expected = new URL(`${url.protocol}//${host}`).origin;
+  } catch {
+    return fail("insufficient_scope");
+  }
+  if (origin !== expected) fail("insufficient_scope");
+}
+
 export const record = (v: unknown): v is Json =>
   v !== null && typeof v === "object" && !Array.isArray(v);
 export const fields = (v: unknown, names: string[]): v is Json =>

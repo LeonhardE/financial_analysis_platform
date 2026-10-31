@@ -106,10 +106,10 @@ function metadataResponse(token = serviceToken, options = {}) {
 
 function request(
   route = SOURCE,
-  { method = "GET", token = tokenA, headers = {}, raw, json, signal } = {},
+  { method = "GET", token = tokenA, headers = {}, raw, json, signal, site = SITE } = {},
 ) {
   const body = raw ?? (json === undefined ? undefined : JSON.stringify(json));
-  return new Request(SITE + PREFIX + route, {
+  return new Request(site + PREFIX + route, {
     method,
     headers: {
       Authorization: `Bearer ${token}`,
@@ -309,6 +309,56 @@ test("real Firebase verification precedes fixed metadata IAM acquisition and pre
   assert.equal(response.headers.get("set-cookie"), null);
   assert.equal(response.headers.get("location"), null);
   assert.equal(response.headers.get("x-private-debug"), null);
+});
+
+test("same-origin snapshot writes survive the container URL while preserving private identity forwarding", async () => {
+  const h = harness();
+  const raw = JSON.stringify({ contractVersion: CONTRACT, expectedRevision: 0, carrier: CARRIER });
+  const result = await h.proxy(
+    request(SOURCE + "/snapshots/snapshot_A", {
+      method: "PUT",
+      raw,
+      site: "https://0.0.0.0:8080",
+      headers: {
+        ...writeHeaders(),
+        Host: new URL(SITE).host,
+        Origin: SITE,
+        "Sec-Fetch-Site": "same-origin",
+        "X-Forwarded-Host": "evil.test",
+      },
+    }),
+  );
+  assert.equal(result.status, 200, await result.clone().text());
+  const forwarded = h.upstream()[0].options;
+  assert.equal(new TextDecoder().decode(forwarded.body), raw);
+  assert.equal(forwarded.headers.get("x-serverless-authorization"), "Bearer " + serviceToken);
+  assert.equal(forwarded.headers.get("authorization"), "Bearer " + tokenA);
+  for (const name of ["host", "origin", "x-forwarded-host"])
+    assert.equal(forwarded.headers.has(name), false);
+});
+
+test("snapshot writes reject a forged forwarded host and the container origin before acquiring identity", async () => {
+  for (const origin of ["https://evil.test", "https://0.0.0.0:8080"]) {
+    const h = harness();
+    await expectError(
+      await h.proxy(
+        request(SOURCE + "/snapshots/snapshot_A", {
+          method: "PUT",
+          site: "https://0.0.0.0:8080",
+          headers: {
+            ...writeHeaders(),
+            Host: new URL(SITE).host,
+            Origin: origin,
+            "X-Forwarded-Host": new URL(origin).host,
+          },
+          json: { contractVersion: CONTRACT, expectedRevision: 0, carrier: CARRIER },
+        }),
+      ),
+      403,
+      "insufficient_scope",
+    );
+    assert.equal(h.calls.length, 0);
+  }
 });
 
 test("wrong signatures, audience, provider and future Firebase claims fail401 before service identity", async () => {
