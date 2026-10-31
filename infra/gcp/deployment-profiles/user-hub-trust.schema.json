@@ -1,0 +1,126 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://folioview.example/schemas/user-hub-trust-v1",
+  "title": "Offline pinned User/Hub trust configuration v1",
+  "description": "Structural schema. The parser additionally requires canonical bytes, independently trusted hash pins and matching selected User/Hub deployment anchors. This neither proves cloud identity ownership nor activates a consumer.",
+  "type": "object",
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "instanceId": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{1,62}$"
+    },
+    "target": {
+      "const": "user"
+    },
+    "userDeploymentSha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "hubDeploymentSha256": {
+      "type": ["string", "null"],
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "hubSubject": {
+      "type": ["string", "null"],
+      "pattern": "^[1-9][0-9]{0,127}$"
+    },
+    "environment": {
+      "type": "object",
+      "properties": {
+        "USER_SERVICE_AUDIENCE": {
+          "type": "string"
+        },
+        "USER_DELEGATION_AUDIENCE": {
+          "type": "string"
+        },
+        "USER_DELEGATION_ISSUER": {
+          "type": "string"
+        },
+        "USER_TRUSTED_HUB_CALLERS": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "USER_SERVICE_AUDIENCE",
+        "USER_DELEGATION_AUDIENCE",
+        "USER_DELEGATION_ISSUER",
+        "USER_TRUSTED_HUB_CALLERS"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "instanceId",
+    "target",
+    "userDeploymentSha256",
+    "hubDeploymentSha256",
+    "hubSubject",
+    "environment"
+  ],
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "hubSubject": {
+            "type": "null"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "hubDeploymentSha256": {
+            "type": "null"
+          },
+          "environment": {
+            "properties": {
+              "USER_SERVICE_AUDIENCE": {
+                "const": ""
+              },
+              "USER_DELEGATION_AUDIENCE": {
+                "const": ""
+              },
+              "USER_DELEGATION_ISSUER": {
+                "const": ""
+              },
+              "USER_TRUSTED_HUB_CALLERS": {
+                "const": ""
+              }
+            }
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "hubDeploymentSha256": {
+            "type": "string"
+          },
+          "environment": {
+            "properties": {
+              "USER_SERVICE_AUDIENCE": {
+                "type": "string",
+                "minLength": 1
+              },
+              "USER_DELEGATION_AUDIENCE": {
+                "type": "string",
+                "minLength": 1
+              },
+              "USER_DELEGATION_ISSUER": {
+                "type": "string",
+                "minLength": 1
+              },
+              "USER_TRUSTED_HUB_CALLERS": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}
