@@ -13,3 +13,8 @@ They are not operator inventory, trusted live evidence, production defaults or
 activation requests. Only targets whose catalog explicitly says `trigger-v1`
 consume their fixture; merely including a projection cannot migrate or enable
 another target. Do not copy these values into an operator deployment profile.
+
+`portfolio-trust.json` extends only the existing synthetic Portfolio projection
+with a mock Hub anchor, pinned numeric subject and selected Web runtime. It is
+generated from committed test inputs, contains no private deployment inputs, and
+exercises exact service invokers independently from image-release activation.

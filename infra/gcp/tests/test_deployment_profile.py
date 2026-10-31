@@ -134,15 +134,16 @@ class ProfileTests(unittest.TestCase):
             import re
 
             variables.update(re.findall(r'^variable "([^"]+)"', file.read_text(), re.M))
-        # Hub's optional administrator-only overrides are not emitted by the
-        # closed profile compiler: preparation cannot silently enable public IAM
-        # or select a different runtime before a separate Hub instance review.
-        hub_admin_overrides = {
+        # Target-specific administrator overrides stay outside the ordinary closed
+        # compiler: it cannot silently activate Hub public IAM, change its
+        # runtime, or enable Portfolio image deployment before target review.
+        target_admin_overrides = {
             "agent_hub_runtime_account_id",
             "agent_hub_public_connector_enabled",
+            "portfolio_image_deployment_enabled",
         }
-        self.assertEqual(set(bootstrap), variables - hub_admin_overrides)
-        self.assertTrue(hub_admin_overrides.isdisjoint(bootstrap))
+        self.assertEqual(set(bootstrap), variables - target_admin_overrides)
+        self.assertTrue(target_admin_overrides.isdisjoint(bootstrap))
         self.assertEqual(bootstrap["portfolio_provisioning_stage"], "service")
         self.assertEqual(bootstrap["agent_hub_provisioning_stage"], "none")
         self.assertEqual(bootstrap["repository_id"], value["source"]["repositoryResource"])
