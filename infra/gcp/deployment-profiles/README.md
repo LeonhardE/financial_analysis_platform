@@ -452,3 +452,31 @@ resources. A later Portfolio PR must configure the exact image deployer/runtime
 permissions and reviewed trigger switch before releasing a provenance-checked
 image. Preserve its existing service UID, private IAM and named database; never
 reuse the first-provision path to update an existing service.
+
+## INF-009 managed Web owner configuration
+
+`compile-web-owner-deployment` explicitly extends the selected Web target with a
+closed `webOwner` object containing the existing server and public sidecars. It
+validates their base deployment hash, matching public/server hash and independent
+boolean flags, then emits one complete managed deployment projection, six-field
+`owner_environment` input, trigger substitutions and file/hash manifest. Candidate
+files remain private and grant no approval. The complete target stays within the
+4,000-byte transport limit. This managed contract supports numbered Portfolio and
+Hub Run origins in the selected project/region; the old sidecar command retains
+its previously reviewed bounded-origin behavior.
+
+Ordinary compile/render and `compile-web-owner` retain their exact prior outputs.
+The existing nine public Web build inputs also remain unchanged. The browser
+already fetches `/api/private/owner-config`, whose flags derive from the validated
+server configuration; remote acceptance must compare that actual response with
+the public sidecar. Runtime configuration alone is not evidence of successful
+browser routing or a matching existing Firebase build. Verify both independently.
+
+Managed consumption requires Web source to opt in through the exact bounded,
+nonsymlink `web-owner.consumer.json`: `schemaVersion: 1`, `target: "web"`,
+`configurationContract: "web-owner.v1"`, `terraformVariable: "owner_environment"`.
+An unmigrated source is rejected before Terraform can ignore the new variable.
+This foundation adds no target marker, runtime settings, IAM, build substitutions
+or cloud activation. Web consumption follows in its own target-only PR. Portfolio
+private invocation and Hub owner/JWKS availability remain producer prerequisites;
+Muse OAuth/adapter registration and activation stay independently gated.
