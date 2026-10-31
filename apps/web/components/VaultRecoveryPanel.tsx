@@ -92,6 +92,11 @@ export default function VaultRecoveryPanel({ workspace }: { workspace: HoldingsW
       <h3 id="vault-recovery-title">{t("title")}</h3>
       <p>{t("description")}</p>
       <p className={styles.warningText}>{t("limits")}</p>
+      {workspace.error === "stale_recovery_kit" && (
+        <p className={styles.error} role="alert">
+          {t("errors.stale_recovery_kit")}
+        </p>
+      )}
       {workspace.keyNotice === "archive_change_saved" && <p role="status">{t("saved")}</p>}
       {workspace.keyNotice === "archive_change_cancelled" && <p role="status">{t("cancelled")}</p>}
       {pending ? (

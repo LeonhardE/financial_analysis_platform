@@ -55,6 +55,9 @@ import {
   type VaultLifecyclePin,
   type RecoveryKitExport,
   type ArchiveChangePacket,
+  type KeyRenewalPacket,
+  type KeyRenewalCancellationPacket,
+  type KeyRenewalSummary,
 } from "./encrypted-types";
 export { CONTRACT };
 const utf8 = new TextEncoder();
@@ -723,6 +726,9 @@ export class VaultCore {
   private root?: CryptoKey;
   private recovery?: CryptoKey;
   private recoveryJwk?: Json;
+  /** Private historical readers stay in this terminated-on-lock Worker. Never grant signing rights. */
+  private historicalReaders = new Map<string, CryptoKey>();
+  private renewalOnly = false;
   private vault?: Vault;
   private registry?: Registry;
   private pin?: Pin;
@@ -751,6 +757,905 @@ export class VaultCore {
   ) {
     if (!uid || uid.length > 128) throw new VaultError("wrong_account");
     this.owner = sha(uid);
+  }
+  private async installMaster(master: Json, vault: Vault) {
+    const fields = ["ownerSubject", "vaultId", "rootKeyId", "rootPrivateJwk", "recoveryPrivateJwk"];
+    if (master.profile === "folioview.historical-keyring.v1")
+      fields.push("profile", "historicalKeys");
+    exact(master, fields);
+    if (
+      master.ownerSubject !== (await this.owner) ||
+      master.vaultId !== vault.vaultId ||
+      master.rootKeyId !== vault.rootKeyId ||
+      (await thumb(master.rootPrivateJwk)) !== vault.rootKeyId
+    )
+      throw new VaultError("untrusted_vault");
+    const readers = new Map<string, CryptoKey>();
+    const historical = master.historicalKeys ?? [];
+    if (!Array.isArray(historical) || historical.length > 63) throw new VaultError("invalid_data");
+    bounded(master, 24560);
+    const seen = new Set<string>([vault.rootKeyId, await thumb(master.recoveryPrivateJwk)]);
+    for (const item of historical) {
+      exact(item, ["role", "principalId", "privateJwk"]);
+      if (!["device_sig", "device_enc", "recovery_enc"].includes(item.role))
+        throw new VaultError("invalid_data");
+      validate("Identifier", item.principalId);
+      exact(item.privateJwk, ["kty", "crv", "x", "y", "d"]);
+      if (unb64(item.privateJwk.d, 32).length !== 32) throw new VaultError("invalid_data");
+      const kid = await thumb(item.privateJwk);
+      if (seen.has(kid)) throw new VaultError("invalid_data");
+      seen.add(kid);
+      let found = false;
+      for (const bundle of vault.registryHistory) {
+        for (const entry of bundle.entries) {
+          const c = parsed(unb64(entry.certificate.payload));
+          if (c.keyId !== kid) continue;
+          const signed = await verified(entry.certificate, vault.rootJwk);
+          if (
+            signed.ownerSubject === master.ownerSubject &&
+            signed.vaultId === vault.vaultId &&
+            signed.issuerKeyId === vault.rootKeyId &&
+            signed.role === item.role &&
+            signed.principalId === item.principalId &&
+            signed.connectionId === null &&
+            equal(signed.publicJwk, pub(item.privateJwk))
+          )
+            found = true;
+        }
+      }
+      if (!found) throw new VaultError("untrusted_vault");
+      const privateKey = await key(item.privateJwk, item.role === "device_sig", true);
+      if (item.role !== "device_sig") readers.set(kid, privateKey);
+    }
+    this.root = await key(master.rootPrivateJwk, true, true);
+    this.recovery = await key(master.recoveryPrivateJwk, false, true);
+    this.recoveryJwk = pub(master.recoveryPrivateJwk);
+    this.recoveryMaster = master;
+    this.historicalReaders = readers;
+  }
+  private async reader(recipientIds: string[]) {
+    if (this.device && recipientIds.includes(this.device.encId)) return this.device.enc;
+    if (this.recovery && this.recoveryJwk && recipientIds.includes(await thumb(this.recoveryJwk!)))
+      return this.recovery;
+    for (const id of recipientIds) {
+      const historical = this.historicalReaders.get(id);
+      if (historical) return historical;
+    }
+    throw new VaultError("missing_key");
+  }
+  private requireOrdinarySession() {
+    if (this.renewalOnly) throw new VaultError("key_renewal_pending");
+  }
+  /** A root-only session is deliberately separate from ordinary content signing. */
+  async unlockForKeyRenewal(
+    vault: Vault,
+    material: PasskeyMaterial,
+    local?: { pin?: Pin; device?: DeviceSeal; pending?: Json; deviceChange?: Json },
+  ) {
+    this.renewalOnly = true;
+    if (local?.pending || local?.deviceChange) throw new VaultError("pending_registration");
+    if (
+      this.archiveChange ||
+      this.deviceChange ||
+      (this.pendingDevice &&
+        !vault.registryHistory.some((bundle) =>
+          equal(bundle, this.pendingDevice!.operation.registryBundle),
+        ))
+    )
+      throw new VaultError("pending_registration");
+    this.pendingDevice = undefined;
+    this.pendingEnvelope = undefined;
+    const compatible =
+      local?.device?.credentialId === vault.archive.credentialId &&
+      local.device.prfSalt === vault.archive.prfSalt
+        ? local.device
+        : undefined;
+    await this.unlockForResults(vault, material, { pin: local?.pin, device: compatible });
+    await this.verifiedVaultPin(vault);
+    return { renewalOnly: true as const };
+  }
+  private async publicVaultPin(vault: Vault, registry: Registry) {
+    const pin: Pin = {
+      ownerSubject: await this.owner,
+      vaultId: vault.vaultId,
+      rootKeyId: vault.rootKeyId,
+      registrySequence: registry.checkpoint.registrySequence,
+      checkpointDigest: registry.digest,
+      keyEpoch: registry.checkpoint.keyEpoch,
+    };
+    const history = [];
+    for (const bundle of vault.registryHistory) {
+      const cp = parsed(unb64(bundle.checkpoint.payload));
+      history.push({
+        registrySequence: cp.registrySequence,
+        checkpointDigest: await sha(canonical(cp)),
+        keyEpoch: cp.keyEpoch,
+      });
+    }
+    return { pin, history };
+  }
+  /** Public metadata only; used after signed lifecycle verification for atomic durable pins. */
+  async verifiedVaultPin(vault: Vault) {
+    if (
+      this.vault &&
+      (this.vault.vaultId !== vault.vaultId ||
+        this.vault.rootKeyId !== vault.rootKeyId ||
+        !equal(this.vault.rootJwk, vault.rootJwk))
+    )
+      throw new VaultError("untrusted_vault");
+    const old = this.vault;
+    this.vault = undefined;
+    try {
+      const registry = await this.checkVault(vault, this.pin);
+      const record = await this.publicVaultPin(vault, registry);
+      this.pin = record.pin;
+      return record;
+    } finally {
+      this.vault = old;
+    }
+  }
+  private async renewalContext(
+    vault: Vault,
+    state: VaultLifecycleState,
+    prior?: VaultLifecyclePin,
+  ) {
+    if (!this.root || !this.wrapping || !this.recoveryMaster) throw new VaultError("locked");
+    const pin = await this.verifyLifecycle(vault, state, prior);
+    const old = this.vault;
+    this.vault = undefined;
+    try {
+      return { pin, registry: await this.checkVault(vault, this.pin) };
+    } finally {
+      this.vault = old;
+    }
+  }
+  private async renewalWrapping() {
+    if (!this.recoveryMaster || !this.vault) throw new VaultError("locked");
+    const raw = unb64(this.recoveryMaster.rootPrivateJwk.d, 32);
+    try {
+      const input = await crypto.subtle.importKey("raw", raw as BufferSource, "HKDF", false, [
+        "deriveKey",
+      ]);
+      return await crypto.subtle.deriveKey(
+        {
+          name: "HKDF",
+          hash: "SHA-256",
+          salt: utf8.encode("FolioView/key-renewal-pending/v1"),
+          info: utf8.encode(
+            canonical({
+              ownerSubject: await this.owner,
+              vaultId: this.vault.vaultId,
+              rootKeyId: this.vault.rootKeyId,
+            }),
+          ),
+        },
+        input,
+        { name: "AES-GCM", length: 256 },
+        false,
+        ["encrypt", "decrypt"],
+      );
+    } finally {
+      raw.fill(0);
+    }
+  }
+  private async sealRenewal(value: Json) {
+    const packet = value.packet as KeyRenewalPacket;
+    bounded(value, 262144);
+    return seal(
+      await this.renewalWrapping(),
+      {
+        profile: "folioview.key-renewal-candidate.v1",
+        ownerSubject: await this.owner,
+        vaultId: this.vault!.vaultId,
+        rootKeyId: this.vault!.rootKeyId,
+        operationId: packet.operationId,
+      },
+      value,
+    );
+  }
+  private async readRenewal(vault: Vault, record: Json) {
+    exact(record, [
+      "profile",
+      "ownerSubject",
+      "vaultId",
+      "rootKeyId",
+      "operationId",
+      "iv",
+      "ciphertext",
+    ]);
+    if (
+      record.profile !== "folioview.key-renewal-candidate.v1" ||
+      record.ownerSubject !== (await this.owner) ||
+      record.vaultId !== vault.vaultId ||
+      record.rootKeyId !== vault.rootKeyId
+    )
+      throw new VaultError("wrong_account");
+    validate("OperationIdentifier", record.operationId);
+    const value = await open(await this.renewalWrapping(), record, 262160);
+    exact(value, ["packet", "device", "cancellation"]);
+    const packet = value.packet as KeyRenewalPacket;
+    exact(packet, ["operationId", "body"]);
+    exact(packet.body, [
+      "contractVersion",
+      "registryBundle",
+      "archive",
+      "command",
+      "archiveCommand",
+    ]);
+    validate("OperationIdentifier", packet.operationId);
+    if (packet.operationId !== record.operationId || packet.body.contractVersion !== CONTRACT)
+      throw new VaultError("binding_mismatch");
+    const { command, archiveCommand, registryBundle, archive } = packet.body;
+    bounded(command, 8192);
+    bounded(archiveCommand, 8192);
+    const p = await verified(command, vault.rootJwk),
+      ap = await verified(archiveCommand, vault.rootJwk);
+    exact(p, [
+      "profile",
+      "contractVersion",
+      "action",
+      "ownerSubject",
+      "vaultId",
+      "rootKeyId",
+      "stableOperationId",
+      "expectedVaultVersion",
+      "registrySequence",
+      "checkpointDigest",
+      "keyEpoch",
+      "expectedLifecycleVersion",
+      "expectedArchiveRevision",
+      "expectedArchiveDigest",
+      "newCheckpointDigest",
+      "newArchiveDigest",
+      "archiveCommandFingerprint",
+      "renewals",
+      "issuedAt",
+      "expiresAt",
+    ]);
+    exact(ap, [
+      "profile",
+      "contractVersion",
+      "action",
+      "ownerSubject",
+      "vaultId",
+      "rootKeyId",
+      "stableOperationId",
+      "expectedVaultVersion",
+      "registrySequence",
+      "checkpointDigest",
+      "keyEpoch",
+      "expectedLifecycleVersion",
+      "expectedArchiveRevision",
+      "expectedArchiveDigest",
+      "newArchiveDigest",
+      "mode",
+      "authorizationId",
+      "issuedAt",
+      "expiresAt",
+    ]);
+    for (const x of [p, ap]) {
+      for (const f of ["expectedVaultVersion", "registrySequence", "keyEpoch", "expiresAt"])
+        positive(x[f]);
+      for (const f of ["expectedLifecycleVersion", "expectedArchiveRevision", "issuedAt"])
+        positive(x[f], 0);
+      if (
+        !(x.issuedAt < x.expiresAt && x.expiresAt <= x.issuedAt + 300) ||
+        x.ownerSubject !== (await this.owner) ||
+        x.vaultId !== vault.vaultId ||
+        x.rootKeyId !== vault.rootKeyId ||
+        x.stableOperationId !== packet.operationId ||
+        x.contractVersion !== CONTRACT
+      )
+        throw new VaultError("binding_mismatch");
+    }
+    for (const f of [
+      "ownerSubject",
+      "vaultId",
+      "rootKeyId",
+      "stableOperationId",
+      "expectedVaultVersion",
+      "registrySequence",
+      "checkpointDigest",
+      "keyEpoch",
+      "expectedLifecycleVersion",
+      "expectedArchiveRevision",
+      "expectedArchiveDigest",
+      "newArchiveDigest",
+    ])
+      if (p[f] !== ap[f]) throw new VaultError("binding_mismatch");
+    if (
+      p.profile !== "folioview.vault-key-renewal.v1" ||
+      p.action !== "key_renewal" ||
+      ap.profile !== "folioview.vault-lifecycle.v1" ||
+      ap.action !== "archive_replace" ||
+      ap.mode !== "rewrap" ||
+      ap.authorizationId !== null ||
+      p.archiveCommandFingerprint !== (await signingFingerprint(archiveCommand))
+    )
+      throw new VaultError("binding_mismatch");
+    checkArchive(archive, await this.owner);
+    if (
+      archive.vaultId !== vault.vaultId ||
+      archive.rootKeyId !== vault.rootKeyId ||
+      p.newArchiveDigest !== (await sha(canonical(archive)))
+    )
+      throw new VaultError("binding_mismatch");
+    let previous: Registry | undefined;
+    const seen = new Set<string>();
+    for (const b of vault.registryHistory.slice(0, p.registrySequence)) {
+      previous = await verifyRegistry(
+        b,
+        vault.rootJwk,
+        await this.owner,
+        vault.vaultId,
+        previous,
+        this.now(),
+      );
+      for (const kid of previous.certificates.keys()) seen.add(kid);
+    }
+    if (
+      !previous ||
+      previous.checkpoint.registrySequence !== p.registrySequence ||
+      previous.digest !== p.checkpointDigest ||
+      previous.checkpoint.keyEpoch !== p.keyEpoch
+    )
+      throw new VaultError("registry_conflict");
+    const next = await verifyRegistry(
+      registryBundle,
+      vault.rootJwk,
+      await this.owner,
+      vault.vaultId,
+      previous,
+      this.now(),
+    );
+    if (
+      next.checkpoint.registrySequence !== p.registrySequence + 1 ||
+      next.digest !== p.newCheckpointDigest ||
+      next.checkpoint.keyEpoch !== p.keyEpoch ||
+      next.checkpoint.rootEpoch !== previous.checkpoint.rootEpoch ||
+      !Array.isArray(p.renewals) ||
+      p.renewals.length !== 3
+    )
+      throw new VaultError("registry_conflict");
+    const old = new Set<string>(),
+      fresh = new Set<string>(),
+      roles = new Set<string>(),
+      order: string[] = [];
+    for (const t of p.renewals) {
+      exact(t, ["role", "principalId", "priorKeyId", "newKeyId", "priorKeyEpoch", "newKeyEpoch"]);
+      validate("Identifier", t.principalId);
+      validate("KeyId", t.priorKeyId);
+      validate("KeyId", t.newKeyId);
+      positive(t.priorKeyEpoch);
+      positive(t.newKeyEpoch);
+      const before = previous.certificates.get(t.priorKeyId),
+        after = next.certificates.get(t.newKeyId);
+      if (
+        !before ||
+        !after ||
+        !["device_sig", "device_enc", "recovery_enc"].includes(t.role) ||
+        roles.has(t.role) ||
+        old.has(t.priorKeyId) ||
+        fresh.has(t.newKeyId) ||
+        seen.has(t.newKeyId) ||
+        !previous.active.has(t.priorKeyId) ||
+        previous.checkpoint.revokedKeyIds.includes(t.priorKeyId) ||
+        before.keyEpoch !== previous.localEpochs.get([t.principalId, t.role, null].join("/")) ||
+        before.keyEpoch !== t.priorKeyEpoch ||
+        t.newKeyEpoch !== t.priorKeyEpoch + 1 ||
+        after.keyEpoch !== t.newKeyEpoch ||
+        before.role !== t.role ||
+        before.principalId !== t.principalId ||
+        before.connectionId !== null ||
+        ["role", "principalId", "connectionId", "capabilities"].some(
+          (f) => !equal(before[f], after[f]),
+        ) ||
+        !(
+          p.issuedAt - 300 <= after.notBefore &&
+          after.notBefore <= p.issuedAt &&
+          p.issuedAt < after.expiresAt &&
+          after.expiresAt > before.expiresAt &&
+          after.expiresAt - after.notBefore <= 31536000
+        )
+      )
+        throw new VaultError("key_revoked");
+      roles.add(t.role);
+      old.add(t.priorKeyId);
+      fresh.add(t.newKeyId);
+      order.push([t.role, t.principalId, t.priorKeyId].join("/"));
+    }
+    if (
+      !equal(order, [...order].sort()) ||
+      p.renewals.find((t: Json) => t.role === "device_sig").principalId !==
+        p.renewals.find((t: Json) => t.role === "device_enc").principalId ||
+      !equal(
+        [...next.certificates.keys()].sort(),
+        [...previous.certificates.keys(), ...fresh].sort(),
+      ) ||
+      !equal(
+        [...next.active].sort(),
+        [...[...previous.active].filter((id) => !old.has(id)), ...fresh].sort(),
+      ) ||
+      !equal(
+        [...next.checkpoint.revokedKeyIds].sort(),
+        [...new Set([...previous.checkpoint.revokedKeyIds, ...old])].sort(),
+      )
+    )
+      throw new VaultError("registry_conflict");
+    for (const [id, c] of previous.certificates)
+      if (!equal(c, next.certificates.get(id))) throw new VaultError("registry_conflict");
+    const device = value.device;
+    if (
+      !device ||
+      device.profile !== "folioview.device-keystore.v1" ||
+      device.ownerSubject !== (await this.owner) ||
+      device.vaultId !== vault.vaultId ||
+      device.rootKeyId !== vault.rootKeyId ||
+      device.credentialId !== archive.credentialId ||
+      device.prfSalt !== archive.prfSalt ||
+      device.signingKeyId !== p.renewals.find((t: Json) => t.role === "device_sig").newKeyId ||
+      device.encryptionKeyId !== p.renewals.find((t: Json) => t.role === "device_enc").newKeyId ||
+      device.deviceId !== p.renewals.find((t: Json) => t.role === "device_sig").principalId
+    )
+      throw new VaultError("binding_mismatch");
+    if (value.cancellation !== null) {
+      const cancel = value.cancellation as KeyRenewalCancellationPacket;
+      exact(cancel, ["operationId", "body"]);
+      exact(cancel.body, ["contractVersion", "archive", "command"]);
+      validate("OperationIdentifier", cancel.operationId);
+      bounded(cancel.body.command, 8192);
+      const c = await verified(cancel.body.command, vault.rootJwk);
+      exact(c, Object.keys(ap));
+      checkArchive(cancel.body.archive, await this.owner);
+      if (
+        cancel.body.contractVersion !== CONTRACT ||
+        c.profile !== ap.profile ||
+        c.action !== "archive_replace" ||
+        c.mode !== "rewrap" ||
+        c.authorizationId !== null ||
+        c.stableOperationId !== cancel.operationId ||
+        cancel.operationId === packet.operationId ||
+        c.contractVersion !== CONTRACT ||
+        [
+          "ownerSubject",
+          "vaultId",
+          "rootKeyId",
+          "expectedVaultVersion",
+          "registrySequence",
+          "checkpointDigest",
+          "keyEpoch",
+          "expectedLifecycleVersion",
+          "expectedArchiveRevision",
+          "expectedArchiveDigest",
+        ].some((f) => c[f] !== p[f]) ||
+        c.newArchiveDigest !== (await sha(canonical(cancel.body.archive))) ||
+        cancel.body.archive.credentialId !== archive.credentialId ||
+        cancel.body.archive.prfSalt !== archive.prfSalt ||
+        cancel.body.archive.vaultId !== vault.vaultId ||
+        cancel.body.archive.rootKeyId !== vault.rootKeyId
+      )
+        throw new VaultError("binding_mismatch");
+      for (const f of ["issuedAt", "expiresAt"]) positive(c[f], 0);
+      if (!(c.issuedAt < c.expiresAt && c.expiresAt <= c.issuedAt + 300))
+        throw new VaultError("binding_mismatch");
+    }
+    return { value, packet, p, previous, next };
+  }
+  private renewalPhase(
+    vault: Vault,
+    state: VaultLifecycleState,
+    value: Awaited<ReturnType<VaultCore["readRenewal"]>>,
+  ) {
+    const p = value.p;
+    const committed = state.history.find((i) => i.receipt.operationId === value.packet.operationId);
+    if (committed) {
+      const checkpoint = vault.registryHistory[p.registrySequence];
+      if (
+        !checkpoint ||
+        !equal(
+          parsed(unb64(checkpoint.checkpoint.payload)),
+          parsed(unb64(value.packet.body.registryBundle.checkpoint.payload)),
+        ) ||
+        !equal(
+          parsed(unb64(committed.command.payload)),
+          parsed(unb64(value.packet.body.archiveCommand.payload)),
+        )
+      )
+        throw new VaultError("binding_mismatch");
+      return "applied" as const;
+    }
+    return vault.version === p.expectedVaultVersion &&
+      state.registrySequence === p.registrySequence &&
+      state.checkpointDigest === p.checkpointDigest &&
+      state.keyEpoch === p.keyEpoch &&
+      state.lifecycleVersion === p.expectedLifecycleVersion &&
+      state.archiveRevision === p.expectedArchiveRevision &&
+      state.archiveDigest === p.expectedArchiveDigest
+      ? ("ready" as const)
+      : ("conflict" as const);
+  }
+  async inspectKeyRenewal(
+    vault: Vault,
+    state: VaultLifecycleState,
+    record?: Json,
+    prior?: VaultLifecyclePin,
+  ): Promise<KeyRenewalSummary> {
+    const { registry } = await this.renewalContext(vault, state, prior);
+    const device = this.device;
+    const sig = device ? registry.certificates.get(device.sigId) : undefined;
+    const enc = device ? registry.certificates.get(device.encId) : undefined;
+    const recoveryId = this.recoveryJwk ? await thumb(this.recoveryJwk!) : null;
+    const recovery = recoveryId ? registry.certificates.get(recoveryId) : undefined;
+    const eligible = (c: Json | undefined) =>
+      !!c &&
+      registry.active.has(c.keyId) &&
+      !registry.checkpoint.revokedKeyIds.includes(c.keyId) &&
+      c.connectionId === null &&
+      c.keyEpoch === registry.localEpochs.get([c.principalId, c.role, null].join("/"));
+    let reason: KeyRenewalSummary["reason"] = !device
+      ? "device_required"
+      : !eligible(sig) ||
+          !eligible(enc) ||
+          !eligible(recovery) ||
+          sig!.role !== "device_sig" ||
+          enc!.role !== "device_enc" ||
+          recovery!.role !== "recovery_enc" ||
+          sig!.principalId !== device.deviceId ||
+          enc!.principalId !== device.deviceId
+        ? "keys_revoked"
+        : this.pendingDevice || this.deviceChange || this.archiveChange
+          ? "pending_operation"
+          : state.pendingAuthorization
+            ? "recovery_authorization_pending"
+            : vault.registryHistory.length >= 32 ||
+                registry.bundle.entries.length + 3 > 64 ||
+                state.lifecycleVersion >= 32
+              ? "capacity"
+              : null;
+    let pending: KeyRenewalSummary["pending"] = null;
+    if (record) {
+      const found = await this.readRenewal(vault, record);
+      pending = {
+        operationId: found.packet.operationId,
+        state: this.renewalPhase(vault, state, found),
+        expiresAt: found.p.expiresAt,
+      };
+      reason = "pending_operation";
+    }
+    return {
+      vaultId: vault.vaultId,
+      rootKeyId: vault.rootKeyId,
+      registrySequence: registry.checkpoint.registrySequence,
+      checkpointDigest: registry.digest,
+      keyEpoch: registry.checkpoint.keyEpoch,
+      canRenew: reason === null,
+      reason,
+      device:
+        device && sig && enc
+          ? {
+              deviceId: device.deviceId,
+              signingKeyId: device.sigId,
+              encryptionKeyId: device.encId,
+              expiresAt: Math.min(sig.expiresAt, enc.expiresAt),
+            }
+          : null,
+      recovery: recovery ? { keyId: recovery.keyId, expiresAt: recovery.expiresAt } : null,
+      pending,
+    };
+  }
+  async prepareKeyRenewal(vault: Vault, state: VaultLifecycleState, prior?: VaultLifecyclePin) {
+    const summary = await this.inspectKeyRenewal(vault, state, undefined, prior);
+    if (!summary.canRenew) throw new VaultError(summary.reason!);
+    if (
+      !this.wrapping ||
+      !this.deviceSeal ||
+      !this.device ||
+      !this.root ||
+      !this.recoveryMaster ||
+      !this.recoveryJwk
+    )
+      throw new VaultError("locked");
+    const { registry } = await this.renewalContext(vault, state, prior);
+    const issuedAt = this.now(),
+      operationId = randomId("renew_");
+    const oldRecovery = registry.certificates.get(await thumb(this.recoveryJwk!))!;
+    const specs = [
+      {
+        role: "device_sig",
+        before: registry.certificates.get(this.device.sigId)!,
+        next: await makeKey(true),
+      },
+      {
+        role: "device_enc",
+        before: registry.certificates.get(this.device.encId)!,
+        next: await makeKey(),
+      },
+      { role: "recovery_enc", before: oldRecovery, next: await makeKey() },
+    ];
+    const historical: Json[] = structuredClone(this.recoveryMaster.historicalKeys ?? []);
+    const deviceMaterial = await open(this.wrapping, this.deviceSeal);
+    exact(deviceMaterial, ["deviceId", "signingPrivateJwk", "encryptionPrivateJwk"]);
+    const retain = async (role: string, principalId: string, privateJwk: Json) => {
+      await thumb(privateJwk);
+      if (
+        !historical.some((item) => canonical(pub(item.privateJwk)) === canonical(pub(privateJwk)))
+      )
+        historical.push({ role, principalId, privateJwk });
+    };
+    await retain("recovery_enc", oldRecovery.principalId, this.recoveryMaster.recoveryPrivateJwk);
+    await retain("device_sig", this.device.deviceId, deviceMaterial.signingPrivateJwk);
+    await retain("device_enc", this.device.deviceId, deviceMaterial.encryptionPrivateJwk);
+    for (const item of specs.filter((i) => i.role.startsWith("device_")))
+      await retain(item.role, item.before.principalId, item.next.privateJwk);
+    const master: Json = {
+      ...this.recoveryMaster,
+      profile: "folioview.historical-keyring.v1",
+      historicalKeys: historical,
+      recoveryPrivateJwk: specs[2].next.privateJwk,
+    };
+    const entries = registry.bundle.entries.map((e) => ({
+      ...e,
+      active: specs.some((i) => i.before.keyId === parsed(unb64(e.certificate.payload)).keyId)
+        ? false
+        : e.active,
+    }));
+    const renewals = [];
+    for (const item of specs) {
+      const before = item.before;
+      const c = {
+        ...before,
+        certificateId: randomId("cert_"),
+        keyId: item.next.keyId,
+        publicJwk: item.next.publicJwk,
+        keyEpoch: before.keyEpoch + 1,
+        notBefore: issuedAt,
+        expiresAt: issuedAt + 31536000,
+      };
+      if (c.expiresAt <= before.expiresAt) throw new VaultError("renewal_too_early");
+      entries.push({ certificate: await sign(c, this.root, vault.rootKeyId), active: true });
+      renewals.push({
+        role: item.role,
+        principalId: before.principalId,
+        priorKeyId: before.keyId,
+        newKeyId: c.keyId,
+        priorKeyEpoch: before.keyEpoch,
+        newKeyEpoch: c.keyEpoch,
+      });
+    }
+    renewals.sort((a, b) =>
+      canonical([a.role, a.principalId, a.priorKeyId]).localeCompare(
+        canonical([b.role, b.principalId, b.priorKeyId]),
+      ),
+    );
+    const registryBundle = await this.bundle(entries, registry);
+    const cp = parsed(unb64(registryBundle.checkpoint.payload));
+    cp.revokedKeyIds = [
+      ...new Set([...cp.revokedKeyIds, ...specs.map((i) => i.before.keyId)]),
+    ].sort();
+    registryBundle.checkpoint = await sign(cp, this.root, vault.rootKeyId);
+    const archive = (await seal(this.wrapping, archiveContext(vault.archive), master)) as Archive;
+    checkArchive(archive, await this.owner);
+    if (!equal(await open(this.wrapping, archive), master)) throw new VaultError("crypto_failed");
+    const candidateVault = {
+      ...vault,
+      archive,
+      registryHistory: [...vault.registryHistory, registryBundle],
+      version: vault.version + 1,
+    };
+    // Validate all private readers against the signed candidate directory before any packet leaves the Worker.
+    const previousMaster = this.recoveryMaster;
+    await this.installMaster(master, candidateVault);
+    await this.installMaster(previousMaster, vault);
+    const device = await seal(
+      this.wrapping,
+      {
+        ...archiveContext(this.deviceSeal),
+        signingKeyId: specs[0].next.keyId,
+        encryptionKeyId: specs[1].next.keyId,
+      },
+      {
+        deviceId: this.device.deviceId,
+        signingPrivateJwk: specs[0].next.privateJwk,
+        encryptionPrivateJwk: specs[1].next.privateJwk,
+      },
+    );
+    const archivePayload: Json = this.lifecycleCommand(state, "archive_replace", operationId, {
+      mode: "rewrap",
+      authorizationId: null,
+      newArchiveDigest: await sha(canonical(archive)),
+      issuedAt,
+      expiresAt: issuedAt + 300,
+    });
+    const archiveCommand = await sign(archivePayload, this.root, vault.rootKeyId);
+    const { mode: _mode, authorizationId: _authorization, ...base } = archivePayload;
+    const packet: KeyRenewalPacket = {
+      operationId,
+      body: {
+        contractVersion: CONTRACT,
+        registryBundle,
+        archive,
+        archiveCommand,
+        command: await sign(
+          {
+            ...base,
+            profile: "folioview.vault-key-renewal.v1",
+            action: "key_renewal",
+            newCheckpointDigest: await sha(canonical(cp)),
+            archiveCommandFingerprint: await signingFingerprint(archiveCommand),
+            renewals,
+          },
+          this.root,
+          vault.rootKeyId,
+        ),
+      },
+    };
+    const record = await this.sealRenewal({ packet, device, cancellation: null });
+    await this.readRenewal(vault, record);
+    this.renewalOnly = true;
+    return { packet, record };
+  }
+  async getKeyRenewal(
+    vault: Vault,
+    state: VaultLifecycleState,
+    record: Json,
+    prior?: VaultLifecyclePin,
+  ) {
+    await this.renewalContext(vault, state, prior);
+    const found = await this.readRenewal(vault, record);
+    return {
+      packet: found.packet,
+      state: this.renewalPhase(vault, state, found),
+      ...(found.value.cancellation
+        ? { cancellation: found.value.cancellation as KeyRenewalCancellationPacket }
+        : {}),
+    };
+  }
+  async prepareKeyRenewalCancellation(
+    vault: Vault,
+    state: VaultLifecycleState,
+    record: Json,
+    prior?: VaultLifecyclePin,
+  ) {
+    await this.renewalContext(vault, state, prior);
+    const found = await this.readRenewal(vault, record);
+    if (this.renewalPhase(vault, state, found) !== "ready")
+      throw new VaultError("operation_conflict");
+    if (state.pendingAuthorization || state.lifecycleVersion >= 32 || !this.wrapping || !this.root)
+      throw new VaultError("recovery_authorization_pending");
+    const previous = found.value.cancellation as KeyRenewalCancellationPacket | null;
+    if (previous && parsed(unb64(previous.body.command.payload)).expiresAt > this.now())
+      return { packet: previous, record };
+    const master = await open(this.wrapping, vault.archive);
+    const archive = (await seal(this.wrapping, archiveContext(vault.archive), master)) as Archive;
+    checkArchive(archive, await this.owner);
+    const operationId = randomId("renew_cancel_");
+    const command = await sign(
+      this.lifecycleCommand(state, "archive_replace", operationId, {
+        mode: "rewrap",
+        authorizationId: null,
+        newArchiveDigest: await sha(canonical(archive)),
+      }),
+      this.root,
+      vault.rootKeyId,
+    );
+    const packet: KeyRenewalCancellationPacket = {
+      operationId,
+      body: { contractVersion: CONTRACT, archive, command },
+    };
+    const next = await this.sealRenewal({ ...found.value, cancellation: packet });
+    await this.readRenewal(vault, next);
+    return { packet, record: next };
+  }
+  private renewalDeviceEligible(registry: Registry) {
+    if (!this.device || !this.deviceSeal) return false;
+    return [
+      [this.device.sigId, "device_sig"],
+      [this.device.encId, "device_enc"],
+    ].every(([id, role]) => {
+      const c = registry.certificates.get(id);
+      return (
+        c &&
+        c.role === role &&
+        c.principalId === this.device!.deviceId &&
+        c.connectionId === null &&
+        registry.active.has(id) &&
+        !registry.checkpoint.revokedKeyIds.includes(id) &&
+        c.keyEpoch === registry.localEpochs.get([c.principalId, role, null].join("/"))
+      );
+    });
+  }
+  private async renewalCommit(vault: Vault, registry: Registry) {
+    const record = await this.adoptVault(vault, registry);
+    // Expiration never erases the sole local identity needed for another explicit
+    // root-approved renewal. Ordinary capabilities still call cert(..., now).
+    if (
+      this.renewalDeviceEligible(registry) &&
+      this.deviceSeal!.credentialId === vault.archive.credentialId &&
+      this.deviceSeal!.prfSalt === vault.archive.prfSalt
+    )
+      record.device = this.deviceSeal;
+    return record;
+  }
+  async finishKeyRenewal(
+    vault: Vault,
+    state: VaultLifecycleState,
+    record: Json,
+    response: Json,
+    prior?: VaultLifecyclePin,
+  ) {
+    const { pin, registry } = await this.renewalContext(vault, state, prior);
+    const found = await this.readRenewal(vault, record);
+    if (this.renewalPhase(vault, state, found) !== "applied")
+      throw new VaultError("key_renewal_unknown");
+    exact(response, ["contractVersion", "profile", "receipt"]);
+    const p = found.p,
+      receipt = response.receipt;
+    const item = state.history.find((i) => i.receipt.operationId === found.packet.operationId)!;
+    const acceptedAt = item.receipt.acceptedAt;
+    const ap = parsed(unb64(found.packet.body.archiveCommand.payload));
+    if (
+      response.contractVersion !== CONTRACT ||
+      response.profile !== p.profile ||
+      !(
+        p.issuedAt <= acceptedAt &&
+        acceptedAt < p.expiresAt &&
+        ap.issuedAt <= acceptedAt &&
+        acceptedAt < ap.expiresAt
+      ) ||
+      !equal(receipt, {
+        profile: p.profile,
+        ownerSubject: await this.owner,
+        vaultId: vault.vaultId,
+        rootKeyId: vault.rootKeyId,
+        operationId: found.packet.operationId,
+        vaultVersion: p.expectedVaultVersion + 1,
+        registrySequence: p.registrySequence + 1,
+        checkpointDigest: p.newCheckpointDigest,
+        keyEpoch: p.keyEpoch,
+        lifecycleVersion: p.expectedLifecycleVersion + 1,
+        archiveRevision: p.expectedArchiveRevision + 1,
+        archiveDigest: p.newArchiveDigest,
+        renewals: p.renewals,
+        commandFingerprint: await signingFingerprint(found.packet.body.command),
+        archiveCommandFingerprint: p.archiveCommandFingerprint,
+        acceptedAt,
+      })
+    )
+      throw new VaultError("binding_mismatch");
+    this.vault = vault;
+    this.registry = registry;
+    if (equal(vault.archive, found.packet.body.archive)) {
+      const master = await open(this.wrapping!, vault.archive);
+      await this.installMaster(master, vault);
+      const nextDevice = await this.readDevice(found.value.device);
+      this.device = nextDevice;
+      this.deviceSeal = found.value.device;
+      if (!this.renewalDeviceEligible(registry)) {
+        this.device = undefined;
+        this.deviceSeal = undefined;
+      }
+    }
+    this.renewalOnly = false;
+    return { pin, record: await this.renewalCommit(vault, registry), applied: true as const };
+  }
+  async discardKeyRenewal(
+    vault: Vault,
+    state: VaultLifecycleState,
+    record: Json,
+    operationId: string,
+    prior?: VaultLifecyclePin,
+  ) {
+    const { pin, registry } = await this.renewalContext(vault, state, prior);
+    const found = await this.readRenewal(vault, record);
+    if (
+      operationId !== found.packet.operationId ||
+      this.renewalPhase(vault, state, found) !== "conflict"
+    )
+      throw new VaultError("key_renewal_unknown");
+    this.vault = vault;
+    this.registry = registry;
+    this.renewalOnly = false;
+    return { safe: true as const, pin, record: await this.renewalCommit(vault, registry) };
   }
   /** Dedicated verified transition path; ordinary checkVault remains archive-strict. */
   async verifyLifecycle(vault: Vault, state: VaultLifecycleState, prior?: VaultLifecyclePin) {
@@ -1035,6 +1940,7 @@ export class VaultCore {
       )
         throw new VaultError("rollback_detected");
     }
+    this.pin = (await this.publicVaultPin(vault, registry)).pin;
     this.lifecyclePin = pin;
     return pin;
   }
@@ -1043,6 +1949,7 @@ export class VaultCore {
     state: VaultLifecycleState,
     prior?: VaultLifecyclePin,
   ): Promise<RecoveryKitExport> {
+    this.requireOrdinarySession();
     if (!this.wrapping || !this.root || !this.recovery) throw new VaultError("locked");
     const pin = await this.verifyLifecycle(vault, state, prior);
     await this.checkVault(vault, this.pin);
@@ -1082,6 +1989,7 @@ export class VaultCore {
     code: string,
     prior?: VaultLifecyclePin,
   ) {
+    this.requireOrdinarySession();
     if (
       typeof file !== "string" ||
       file.length > 65536 ||
@@ -1122,22 +2030,31 @@ export class VaultCore {
     } finally {
       raw.fill(0);
     }
-    exact(master, ["ownerSubject", "vaultId", "rootKeyId", "rootPrivateJwk", "recoveryPrivateJwk"]);
-    if (
-      master.ownerSubject !== (await this.owner) ||
-      master.vaultId !== vault.vaultId ||
-      master.rootKeyId !== vault.rootKeyId ||
-      (await thumb(master.rootPrivateJwk)) !== vault.rootKeyId
-    )
-      throw new VaultError("untrusted_vault");
-    this.root = await key(master.rootPrivateJwk, true, true);
-    this.recovery = await key(master.recoveryPrivateJwk, false, true);
-    this.recoveryJwk = pub(master.recoveryPrivateJwk);
-    this.pin = kit.registryPin;
-    this.lifecyclePin = kit.lifecyclePin;
+    // A recovery kit adds an independent older pin; it must never replace newer
+    // pins already known by this Worker or its durable caller.
+    const registry = await this.checkVault(vault, this.pin);
+    await this.checkVault(vault, kit.registryPin);
     await this.verifyLifecycle(vault, state, prior);
-    this.registry = await this.checkVault(vault, this.pin);
-    cert(this.registry, await thumb(this.recoveryJwk), "recovery_enc", this.now());
+    await this.verifyLifecycle(vault, state, kit.lifecyclePin);
+    // A valid pinned root alone cannot recover keys generated after this kit.
+    // Reject before installing any kit private material into an existing session.
+    try {
+      cert(registry, await thumb(master.recoveryPrivateJwk), "recovery_enc", this.now());
+    } catch {
+      throw new VaultError("stale_recovery_kit");
+    }
+    await this.installMaster(master, vault);
+    // Successful recovery has now observed the current directory. Remember that
+    // high-water mark rather than the recovery kit's older lower bound.
+    this.pin = {
+      ownerSubject: await this.owner,
+      vaultId: vault.vaultId,
+      rootKeyId: vault.rootKeyId,
+      registrySequence: registry.checkpoint.registrySequence,
+      checkpointDigest: registry.digest,
+      keyEpoch: registry.checkpoint.keyEpoch,
+    };
+    this.registry = registry;
     this.vault = vault;
     this.recoveryMaster = master;
     this.device = undefined;
@@ -1180,10 +2097,17 @@ export class VaultCore {
     mode: "passkey_change" | "recovery",
     prior?: VaultLifecyclePin,
   ) {
+    this.requireOrdinarySession();
     if (!this.root || !this.recovery || !["passkey_change", "recovery"].includes(mode))
       throw new VaultError("locked");
     await this.verifyLifecycle(vault, state, prior);
-    await this.checkVault(vault, this.pin);
+    const registry = await this.checkVault(vault, this.pin);
+    try {
+      if (!this.recoveryJwk) throw new VaultError("locked");
+      cert(registry, await thumb(this.recoveryJwk), "recovery_enc", this.now());
+    } catch {
+      throw new VaultError("stale_recovery_kit");
+    }
     if (
       state.lifecycleVersion >= 31 ||
       (state.pendingAuthorization &&
@@ -1463,6 +2387,7 @@ export class VaultCore {
     material?: PasskeyMaterial,
     prior?: VaultLifecyclePin,
   ) {
+    this.requireOrdinarySession();
     await this.inspectArchiveChange(vault, state, record, prior);
     if (
       !record ||
@@ -1517,17 +2442,7 @@ export class VaultCore {
     // The new PRF can resume a recovery before the old cloud archive was replaced.
     // Recover root only inside this Worker so an expired approval can be explicitly revoked.
     const master = await open(wrapping, usedNext ? value.packet.archive : vault.archive);
-    exact(master, ["ownerSubject", "vaultId", "rootKeyId", "rootPrivateJwk", "recoveryPrivateJwk"]);
-    if (
-      master.ownerSubject !== (await this.owner) ||
-      master.vaultId !== vault.vaultId ||
-      master.rootKeyId !== vault.rootKeyId ||
-      (await thumb(master.rootPrivateJwk)) !== vault.rootKeyId
-    )
-      throw new VaultError("untrusted_vault");
-    this.root = await key(master.rootPrivateJwk, true, true);
-    this.recovery = await key(master.recoveryPrivateJwk, false, true);
-    this.recoveryJwk = pub(master.recoveryPrivateJwk);
+    await this.installMaster(master, vault);
     this.recoveryMaster = master;
     this.vault = vault;
     this.registry = await this.checkVault(vault, this.pin);
@@ -1540,6 +2455,7 @@ export class VaultCore {
     operationId: string,
     prior?: VaultLifecyclePin,
   ) {
+    this.requireOrdinarySession();
     const pin = await this.verifyLifecycle(vault, state, prior),
       change = this.archiveChange;
     if (!change || change.packet.operationId !== operationId)
@@ -1566,6 +2482,7 @@ export class VaultCore {
     record: Json,
     prior?: VaultLifecyclePin,
   ) {
+    this.requireOrdinarySession();
     await this.inspectArchiveChange(vault, state, record, prior);
     if (!this.root) throw new VaultError("locked");
     this.vault = vault;
@@ -1736,6 +2653,7 @@ export class VaultCore {
     operationId: string,
     prior?: VaultLifecyclePin,
   ) {
+    this.requireOrdinarySession();
     await this.inspectArchiveChange(vault, state, record, prior);
     if (
       record.operationId !== operationId ||
@@ -1757,6 +2675,7 @@ export class VaultCore {
     state: VaultLifecycleState,
     prior?: VaultLifecyclePin,
   ) {
+    this.requireOrdinarySession();
     if (!this.root) throw new VaultError("locked");
     await this.verifyLifecycle(vault, state, prior);
     await this.checkVault(vault, this.pin);
@@ -1772,6 +2691,7 @@ export class VaultCore {
   }
 
   async beginCreate(material: PasskeyMaterial) {
+    this.requireOrdinarySession();
     const owner = await this.owner;
     const vaultId = randomId("vault_");
     const root = await makeKey(true),
@@ -2057,21 +2977,16 @@ export class VaultCore {
       throw new VaultError("unlock_failed");
     this.wrapping = await aesMaterial(material);
     const master = await open(this.wrapping, vault.archive);
-    exact(master, ["ownerSubject", "vaultId", "rootKeyId", "rootPrivateJwk", "recoveryPrivateJwk"]);
-    if (
-      master.ownerSubject !== owner ||
-      master.vaultId !== vault.vaultId ||
-      master.rootKeyId !== vault.rootKeyId ||
-      (await thumb(master.rootPrivateJwk)) !== master.rootKeyId
-    )
-      throw new VaultError("untrusted_vault");
-    this.vault = vault;
-    this.root = await key(master.rootPrivateJwk, true, true);
-    this.recovery = await key(master.recoveryPrivateJwk, false, true);
-    this.recoveryJwk = pub(master.recoveryPrivateJwk);
+    await this.installMaster(master, vault);
     this.registry = await this.checkVault(vault, local?.pin);
+    this.vault = vault;
     this.pin = local?.pin;
-    const recovery = cert(this.registry, await thumb(this.recoveryJwk), "recovery_enc", this.now());
+    const recovery = cert(
+      this.registry,
+      await thumb(this.recoveryJwk!),
+      "recovery_enc",
+      this.now(),
+    );
     if (recovery.role !== "recovery_enc") throw new VaultError("untrusted_vault");
     if (local?.deviceChange) {
       if (local.pending) throw new VaultError("pending_registration");
@@ -2175,6 +3090,7 @@ export class VaultCore {
   }
 
   async prepareDeviceRegistration(vault: Vault, options?: { replaceInactive?: boolean }) {
+    this.requireOrdinarySession();
     if (options !== undefined) {
       exact(options, options.replaceInactive === undefined ? [] : ["replaceInactive"]);
       if (options.replaceInactive !== undefined && typeof options.replaceInactive !== "boolean")
@@ -2265,6 +3181,7 @@ export class VaultCore {
   }
 
   async acceptVault(vault: Vault) {
+    this.requireOrdinarySession();
     const registry = await this.checkVault(vault, this.pin);
     if (!this.device || !this.deviceSeal) throw new VaultError("device_required");
     cert(registry, this.device.sigId, "device_sig", this.now());
@@ -2273,6 +3190,7 @@ export class VaultCore {
   }
   /** Owner history is authenticated at acceptance time, not a new key-authorized write. */
   async acceptResultVault(vault: Vault) {
+    this.requireOrdinarySession();
     if (!this.root || !this.recovery || !this.recoveryJwk) throw new VaultError("locked");
     const record = await this.adoptVault(vault, await this.checkVault(vault, this.pin));
     return { ...record, canWriteState: this.resultStateAvailable() };
@@ -2291,17 +3209,7 @@ export class VaultCore {
       throw new VaultError("unlock_failed");
     this.wrapping = await aesMaterial(material);
     const master = await open(this.wrapping, vault.archive);
-    exact(master, ["ownerSubject", "vaultId", "rootKeyId", "rootPrivateJwk", "recoveryPrivateJwk"]);
-    if (
-      master.ownerSubject !== owner ||
-      master.vaultId !== vault.vaultId ||
-      master.rootKeyId !== vault.rootKeyId ||
-      (await thumb(master.rootPrivateJwk)) !== master.rootKeyId
-    )
-      throw new VaultError("untrusted_vault");
-    this.root = await key(master.rootPrivateJwk, true, true);
-    this.recovery = await key(master.recoveryPrivateJwk, false, true);
-    this.recoveryJwk = pub(master.recoveryPrivateJwk);
+    await this.installMaster(master, vault);
     this.registry = await this.checkVault(vault, local?.pin ?? this.pin);
     this.vault = vault;
     this.pin = local?.pin ?? this.pin;
@@ -2389,7 +3297,7 @@ export class VaultCore {
     } catch {
       canManage = false;
     }
-    const recoveryId = this.recoveryJwk ? await thumb(this.recoveryJwk) : null;
+    const recoveryId = this.recoveryJwk ? await thumb(this.recoveryJwk!) : null;
     const recoveryCert = recoveryId ? registry.certificates.get(recoveryId) : undefined;
     let recovery: VaultManagementSummary["recovery"] = null;
     if (recoveryCert?.role === "recovery_enc" && recoveryCert.connectionId === null) {
@@ -2586,6 +3494,7 @@ export class VaultCore {
   async prepareDeviceChange(args: { vault: Vault; action: "revoke" | "rotate"; deviceId: string }) {
     exact(args, ["vault", "action", "deviceId"]);
     validate("Identifier", args.deviceId);
+    this.requireOrdinarySession();
     if (!["revoke", "rotate"].includes(args.action)) throw new VaultError("invalid_data");
     const registry = await this.checkVault(args.vault, this.pin);
     this.vault = args.vault;
@@ -2700,6 +3609,7 @@ export class VaultCore {
     return { ...packet, localPending: record };
   }
   async loadDeviceChange(vault: Vault, record: Json) {
+    this.requireOrdinarySession();
     const registry = await this.checkVault(vault, this.pin);
     this.vault = vault;
     const change = await this.readDeviceChange(record, vault, registry);
@@ -2707,6 +3617,7 @@ export class VaultCore {
     return change.packet;
   }
   async acceptDeviceChange(vault: Vault, record: Json) {
+    this.requireOrdinarySession();
     const registry = await this.checkVault(vault, this.pin);
     this.vault = vault;
     const change = await this.readDeviceChange(record, vault, registry);
@@ -2735,6 +3646,7 @@ export class VaultCore {
     };
   }
   async discardDeviceChange(vault: Vault, record: Json, operationId: string) {
+    this.requireOrdinarySession();
     const registry = await this.checkVault(vault, this.pin);
     this.vault = vault;
     const change = await this.readDeviceChange(record, vault, registry);
@@ -2749,9 +3661,10 @@ export class VaultCore {
     return { operationId };
   }
   async verifyRecovery(vault: Vault): Promise<RecoveryVerification> {
+    this.requireOrdinarySession();
     if (!this.root || !this.recovery || !this.recoveryJwk) throw new VaultError("locked");
     const registry = await this.checkVault(vault, this.pin),
-      recoveryKeyId = await thumb(this.recoveryJwk);
+      recoveryKeyId = await thumb(this.recoveryJwk!);
     cert(registry, recoveryKeyId, "recovery_enc", this.now());
     const challenge = crypto.getRandomValues(new Uint8Array(32));
     let left: Uint8Array | undefined, right: Uint8Array | undefined;
@@ -2805,7 +3718,7 @@ export class VaultCore {
     }
   }
   private resultStateAvailable() {
-    if (!this.registry || !this.device) return false;
+    if (this.renewalOnly || !this.registry || !this.device) return false;
     try {
       return cert(this.registry, this.device.sigId, "device_sig", this.now()).capabilities.includes(
         "control_write",
@@ -2865,7 +3778,15 @@ export class VaultCore {
     };
   }
   private ready() {
+    this.requireOrdinarySession();
     if (!this.pin || !this.registry || !this.device || !this.vault) throw new VaultError("locked");
+    if (
+      this.registry.checkpoint.registrySequence < this.pin.registrySequence ||
+      this.registry.checkpoint.keyEpoch < this.pin.keyEpoch ||
+      (this.registry.checkpoint.registrySequence === this.pin.registrySequence &&
+        this.registry.digest !== this.pin.checkpointDigest)
+    )
+      throw new VaultError("registry_conflict");
     cert(this.registry, this.device.sigId, "device_sig", this.now());
     return { registry: this.registry, device: this.device, vault: this.vault };
   }
@@ -4034,6 +4955,7 @@ export class VaultCore {
     };
   }
   async openResult(args: OpenResultArgs): Promise<ResultContent> {
+    this.requireOrdinarySession();
     if (!this.pin || !this.vault || !this.registry || !this.recovery || !this.recoveryJwk)
       throw new VaultError("locked");
     exact(args, ["result", "evidence", "registryBundles"]);
@@ -4399,14 +5321,7 @@ export class VaultCore {
       );
       validate("PublicJWK", recipient.header.epk);
     }
-    const recoveryId = await thumb(this.recoveryJwk);
-    const selectedKey =
-      this.device && recipientIds.includes(this.device.encId)
-        ? this.device.enc
-        : recipientIds.includes(recoveryId)
-          ? this.recovery
-          : null;
-    if (!selectedKey) throw new VaultError("missing_key");
+    const selectedKey = await this.reader(recipientIds);
     let plaintext: Uint8Array | undefined;
     try {
       const opened = await generalDecrypt(jwe, selectedKey, {
@@ -4530,6 +5445,7 @@ export class VaultCore {
     };
   }
   async openTask(task: EncryptedTask): Promise<TaskContent> {
+    this.requireOrdinarySession();
     if (!this.pin || !this.vault || !this.recovery || !this.recoveryJwk)
       throw new VaultError("locked");
     bounded(task, 1048576);
@@ -4608,15 +5524,8 @@ export class VaultCore {
         ) &&
         (await signingFingerprint(task.signedObject)) === m.envelopeFingerprint,
     );
-    const jwe = this.taskJwe(message, recipients),
-      recoveryId = await thumb(this.recoveryJwk);
-    const selected =
-      this.device && recipients.some((r) => r.keyId === this.device!.encId)
-        ? this.device.enc
-        : recipients.some((r) => r.keyId === recoveryId)
-          ? this.recovery
-          : undefined;
-    if (!selected) throw new VaultError("missing_key");
+    const jwe = this.taskJwe(message, recipients);
+    const selected = await this.reader(recipients.map((r) => r.keyId));
     let plaintext: Uint8Array | undefined;
     try {
       const opened = await generalDecrypt(jwe, selected, {
@@ -4898,6 +5807,7 @@ export class VaultCore {
     return pending;
   }
   async sealDraft(args: TaskDraftSummary & { draft: TaskDraft }): Promise<Json> {
+    this.requireOrdinarySession();
     if (!this.wrapping || !this.vault || !this.pin) throw new VaultError("locked");
     exact(args, ["slot", "revision", "baseVersion", "taskId", "draft"]);
     positive(args.revision);
@@ -4921,6 +5831,7 @@ export class VaultCore {
     );
   }
   async openDraft(record: Json): Promise<TaskDraftRecord> {
+    this.requireOrdinarySession();
     if (!this.wrapping || !this.vault || !this.pin) throw new VaultError("locked");
     exact(record, [
       "profile",
@@ -5202,11 +6113,13 @@ export class VaultCore {
       equal(b.checkpoint, value.keyProofs.checkpoint),
     );
     if (!trustedHistory) throw new VaultError("untrusted_vault");
-    const historicalActive = new Map<string, Json>();
+    const historicalCertificates = new Map<string, Json>(),
+      historicalActive = new Set<string>();
     for (const entry of trustedHistory.entries) {
       const p = await verified(entry.certificate, vault.rootJwk);
+      historicalCertificates.set(p.keyId, p);
       if (entry.active && !historical.revokedKeyIds.includes(p.keyId))
-        historicalActive.set(p.keyId, p);
+        historicalActive.add(p.keyId);
     }
     let author: Json | undefined;
     const proofs = new Map<string, Json>();
@@ -5219,13 +6132,18 @@ export class VaultCore {
         proof.issuerKeyId !== vault.rootKeyId ||
         proof.keyId !== (await thumb(proof.publicJwk)) ||
         proofs.has(proof.keyId) ||
-        !equal(historicalActive.get(proof.keyId) ?? null, proof)
+        !equal(historicalCertificates.get(proof.keyId) ?? null, proof)
       )
         throw new VaultError("untrusted_vault");
       proofs.set(proof.keyId, proof);
       if (proof.keyId === c.authorSigningKeyId) author = proof;
     }
-    if (!author || author.role !== "device_sig" || !author.capabilities.includes("object_write"))
+    if (
+      !author ||
+      !historicalActive.has(author.keyId) ||
+      author.role !== "device_sig" ||
+      !author.capabilities.includes("object_write")
+    )
       throw new VaultError("invalid_signature");
     await verified(value.carrier.signedObject, author.publicJwk, "fv-object+jws");
     const receipt = value.receipt;
@@ -5278,6 +6196,7 @@ export class VaultCore {
       const proof = proofs.get(recipient.header.kid);
       if (
         !proof ||
+        !historicalActive.has(proof.keyId) ||
         !equal(c.recipients[i], {
           keyId: proof.keyId,
           role: proof.role,
@@ -5294,12 +6213,7 @@ export class VaultCore {
       !c.recipients.some((r: Json) => r.role === "recovery_enc")
     )
       throw new VaultError("untrusted_vault");
-    const selected = c.recipients.some((x: Json) => x.keyId === device.encId)
-      ? device.enc
-      : this.recovery;
-    const selectedId = selected === device.enc ? device.encId : await thumb(this.recoveryJwk!);
-    if (!selected || !c.recipients.some((x: Json) => x.keyId === selectedId))
-      throw new VaultError("missing_key");
+    const selected = await this.reader(c.recipients.map((x: Json) => x.keyId));
     try {
       const opened = await generalDecrypt(jwe, selected, {
         keyManagementAlgorithms: ["ECDH-ES+A256KW"],

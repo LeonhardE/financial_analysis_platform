@@ -37,6 +37,8 @@ const date = (v: unknown) =>
   Number.isFinite(Date.parse(v));
 const nullable = (v: unknown, test: (v: unknown) => boolean) => v === null || test(v);
 const LIFECYCLE = "folioview.vault-lifecycle.v1";
+const KEY_RENEWAL = "folioview.vault-key-renewal.v1";
+const ownerRoles = ["device_sig", "device_enc", "recovery_enc"];
 const operation = (v: unknown) => typeof v === "string" && /^[A-Za-z0-9_-]{22,128}$/.test(v);
 const actions = ["archive_replace", "recovery_authorize", "recovery_revoke"];
 const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
@@ -89,6 +91,183 @@ export function vaultLifecycleArchive(value: unknown, vaultId?: string) {
     binary(value.prfSalt, 32, 32) &&
     binary(value.iv, 12, 12) &&
     binary(value.ciphertext, 16, 24576)
+  );
+}
+
+export function vaultKeyRenewalRequest(value: unknown, vaultId?: string) {
+  return (
+    fields(value, ["contractVersion", "registryBundle", "archive", "command", "archiveCommand"]) &&
+    value.contractVersion === CONTRACT &&
+    formal("RegistryBundle", value.registryBundle) &&
+    vaultLifecycleArchive(value.archive, vaultId) &&
+    formal("SignedObject", value.command) &&
+    vaultLifecycleCommand(value.command) &&
+    formal("SignedObject", value.archiveCommand) &&
+    vaultLifecycleCommand(value.archiveCommand)
+  );
+}
+
+function keyRenewalState(value: unknown, vaultId: string) {
+  if (
+    !fields(value, [
+      "contractVersion",
+      "profile",
+      "vaultId",
+      "rootKeyId",
+      "rootAnchorExpiresAt",
+      "vaultVersion",
+      "registrySequence",
+      "checkpointDigest",
+      "keyEpoch",
+      "lifecycleVersion",
+      "archiveRevision",
+      "archiveDigest",
+      "pendingRecoveryAuthorization",
+      "certificates",
+    ]) ||
+    value.contractVersion !== CONTRACT ||
+    value.profile !== KEY_RENEWAL ||
+    value.vaultId !== vaultId ||
+    !binary(value.rootKeyId, 32, 32) ||
+    value.rootAnchorExpiresAt !== null ||
+    !integer(value.vaultVersion, 1) ||
+    !integer(value.registrySequence, 1) ||
+    (value.registrySequence as number) > 32 ||
+    !digest(value.checkpointDigest) ||
+    !integer(value.keyEpoch, 1) ||
+    !integer(value.lifecycleVersion, 0) ||
+    (value.lifecycleVersion as number) > 32 ||
+    !integer(value.archiveRevision, 0) ||
+    (value.archiveRevision as number) > (value.lifecycleVersion as number) ||
+    !digest(value.archiveDigest) ||
+    typeof value.pendingRecoveryAuthorization !== "boolean" ||
+    !Array.isArray(value.certificates) ||
+    value.certificates.length > 64
+  )
+    return false;
+  const keys = new Set<unknown>();
+  return value.certificates.every((item) => {
+    if (
+      !fields(item, [
+        "keyId",
+        "role",
+        "principalId",
+        "keyEpoch",
+        "notBefore",
+        "expiresAt",
+        "status",
+      ]) ||
+      !binary(item.keyId, 32, 32) ||
+      keys.has(item.keyId) ||
+      !ownerRoles.includes(item.role as string) ||
+      !id(item.principalId) ||
+      !integer(item.keyEpoch, 1) ||
+      !integer(item.notBefore, 0) ||
+      !integer(item.expiresAt, 1) ||
+      (item.expiresAt as number) <= (item.notBefore as number) ||
+      !["active", "revoked", "superseded", "not_yet_valid", "expired"].includes(
+        item.status as string,
+      )
+    )
+      return false;
+    keys.add(item.keyId);
+    return true;
+  });
+}
+
+function keyRenewalTargets(value: unknown) {
+  if (!Array.isArray(value) || value.length < 1 || value.length > 3) return false;
+  const roles = new Set<unknown>(),
+    oldKeys = new Set<unknown>(),
+    newKeys = new Set<unknown>(),
+    devices = new Set<unknown>();
+  let previous = "";
+  for (const item of value) {
+    if (
+      !fields(item, [
+        "role",
+        "principalId",
+        "priorKeyId",
+        "newKeyId",
+        "priorKeyEpoch",
+        "newKeyEpoch",
+      ]) ||
+      !ownerRoles.includes(item.role as string) ||
+      !id(item.principalId) ||
+      !binary(item.priorKeyId, 32, 32) ||
+      !binary(item.newKeyId, 32, 32) ||
+      !integer(item.priorKeyEpoch, 1) ||
+      !integer(item.newKeyEpoch, 2) ||
+      item.newKeyEpoch !== (item.priorKeyEpoch as number) + 1 ||
+      roles.has(item.role) ||
+      oldKeys.has(item.priorKeyId) ||
+      newKeys.has(item.newKeyId)
+    )
+      return false;
+    const order = `${item.role}\0${item.principalId}\0${item.priorKeyId}`;
+    if (order <= previous) return false;
+    previous = order;
+    roles.add(item.role);
+    oldKeys.add(item.priorKeyId);
+    newKeys.add(item.newKeyId);
+    if (item.role !== "recovery_enc") devices.add(item.principalId);
+  }
+  return (
+    devices.size <= 1 &&
+    ![...oldKeys].some((key) => newKeys.has(key)) &&
+    ((roles.size === 1 && roles.has("recovery_enc")) ||
+      (roles.size === 2 && roles.has("device_sig") && roles.has("device_enc")) ||
+      roles.size === 3)
+  );
+}
+
+function keyRenewalAcknowledgement(value: unknown, vaultId: string, operationId?: string) {
+  if (
+    !fields(value, ["contractVersion", "profile", "receipt"]) ||
+    value.contractVersion !== CONTRACT ||
+    value.profile !== KEY_RENEWAL ||
+    !fields(value.receipt, [
+      "profile",
+      "ownerSubject",
+      "vaultId",
+      "rootKeyId",
+      "operationId",
+      "vaultVersion",
+      "registrySequence",
+      "checkpointDigest",
+      "keyEpoch",
+      "lifecycleVersion",
+      "archiveRevision",
+      "archiveDigest",
+      "renewals",
+      "commandFingerprint",
+      "archiveCommandFingerprint",
+      "acceptedAt",
+    ])
+  )
+    return false;
+  const receipt = value.receipt;
+  return (
+    receipt.profile === KEY_RENEWAL &&
+    digest(receipt.ownerSubject) &&
+    receipt.vaultId === vaultId &&
+    binary(receipt.rootKeyId, 32, 32) &&
+    operation(receipt.operationId) &&
+    (operationId === undefined || receipt.operationId === operationId) &&
+    integer(receipt.vaultVersion, 2) &&
+    integer(receipt.registrySequence, 2) &&
+    (receipt.registrySequence as number) <= 32 &&
+    digest(receipt.checkpointDigest) &&
+    integer(receipt.keyEpoch, 1) &&
+    integer(receipt.lifecycleVersion, 1) &&
+    (receipt.lifecycleVersion as number) <= 32 &&
+    integer(receipt.archiveRevision, 1) &&
+    (receipt.archiveRevision as number) <= (receipt.lifecycleVersion as number) &&
+    digest(receipt.archiveDigest) &&
+    keyRenewalTargets(receipt.renewals) &&
+    digest(receipt.commandFingerprint) &&
+    digest(receipt.archiveCommandFingerprint) &&
+    integer(receipt.acceptedAt, 0)
   );
 }
 
@@ -285,7 +464,12 @@ function aggregate(value: unknown) {
   );
 }
 
-export function hubResponse(path: string, method: string, body: unknown): boolean {
+export function hubResponse(
+  path: string,
+  method: string,
+  body: unknown,
+  operationId?: string,
+): boolean {
   path = path.split("?", 1)[0];
   // This named producer returns a descriptor, not a fabricated contract wrapper.
   if (method === "PUT" && /\/preparation\/objects\//.test(path))
@@ -294,6 +478,20 @@ export function hubResponse(path: string, method: string, body: unknown): boolea
   if (method === "PATCH" && /^\/api\/v2\/results\/[^/]+\/state$/.test(path))
     return formal("ResultMetadata", body);
   if (!record(body) || body.contractVersion !== CONTRACT) return false;
+  const renewalPath =
+    /^\/api\/v2\/vaults\/([A-Za-z0-9][A-Za-z0-9_-]{0,127})\/(key-renewal-state|key-renewals|key-renewal-operations\/([A-Za-z0-9_-]{22,128}))$/.exec(
+      path,
+    );
+  if (renewalPath) {
+    if (method === "GET" && renewalPath[2] === "key-renewal-state")
+      return keyRenewalState(body, renewalPath[1]);
+    if (
+      (method === "GET" && renewalPath[3]) ||
+      (method === "POST" && renewalPath[2] === "key-renewals")
+    )
+      return keyRenewalAcknowledgement(body, renewalPath[1], renewalPath[3] ?? operationId);
+    return false;
+  }
   const lifecyclePath =
     /^\/api\/v2\/vaults\/([A-Za-z0-9][A-Za-z0-9_-]{0,127})\/(archive|archive-operations\/([A-Za-z0-9_-]{22,128})|recovery-authorizations(?:\/[A-Za-z0-9][A-Za-z0-9_-]{0,127}\/revoke)?)$/.exec(
       path,

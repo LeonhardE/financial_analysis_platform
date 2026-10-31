@@ -141,6 +141,16 @@ test("locked library does not render stale decrypted holdings even if a caller s
   assert.ok(!html.includes("onerror"));
 });
 
+test("a renewal-only session hides stale holdings and ordinary import or unlock actions", () => {
+  for (const locale of ["en", "zh"]) {
+    const html = render({ ...base, authenticated: true, phase: "renewal-only", content }, locale);
+    assert.ok(html.includes(locale === "en" ? "Only key renewal is open" : "当前仅开放密钥续期"));
+    assert.ok(!html.includes("9007199254740993"));
+    assert.ok(!html.includes('type="file"'));
+    assert.ok(!html.includes(locale === "en" ? "Unlock with passkey" : "使用通行密钥解锁"));
+  }
+});
+
 test("unlocked private view escapes CSV text and retains all decimal precision", () => {
   const html = render({ ...base, authenticated: true, phase: "unlocked", content });
   assert.ok(html.includes("9,007,199,254,740,993.000000000001"));

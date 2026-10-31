@@ -40,6 +40,9 @@ import {
   type VaultLifecyclePin,
   type RecoveryKitExport,
   type ArchiveChangePacket,
+  type KeyRenewalPacket,
+  type KeyRenewalCancellationPacket,
+  type KeyRenewalSummary,
 } from "./encrypted-types";
 export type {
   Vault,
@@ -70,6 +73,9 @@ export type {
   VaultLifecyclePin,
   RecoveryKitExport,
   ArchiveChangePacket,
+  KeyRenewalPacket,
+  KeyRenewalCancellationPacket,
+  KeyRenewalSummary,
 } from "./encrypted-types";
 export { VaultError };
 type Bootstrap = {
@@ -94,6 +100,7 @@ export class EncryptedVaultSession {
   private generation = 0;
   private next = 0;
   private closed = false;
+  private renewalOnly = false;
   private saving: Promise<void> = Promise.resolve();
   private pending = new Map<
     number,
@@ -138,6 +145,20 @@ export class EncryptedVaultSession {
   }
   private async rpc(method: string, args: any, transfer: Transferable[] = []) {
     await this.started;
+    const renewal = [
+      "unlockForKeyRenewal",
+      "verifyLifecycle",
+      "inspectKeyRenewal",
+      "prepareKeyRenewal",
+      "getKeyRenewal",
+      "prepareKeyRenewalCancellation",
+      "finishKeyRenewal",
+      "discardKeyRenewal",
+    ].includes(method);
+    if (!renewal) {
+      if (this.renewalOnly || (await this.keyRenewalRow()))
+        throw new VaultError("key_renewal_pending");
+    }
     return this.send(method, args, transfer);
   }
   private assert(generation: number) {
@@ -192,6 +213,7 @@ export class EncryptedVaultSession {
         this.owner,
         result.archive.credentialId,
         result.archive.prfSalt,
+        result.archive.iv,
       );
       if (
         !(await this.storage.stageDevice(
@@ -219,6 +241,7 @@ export class EncryptedVaultSession {
         this.owner,
         vault.archive.credentialId,
         vault.archive.prfSalt,
+        vault.archive.iv,
       );
       const value = await this.rpc("unlock", { vault, material, local }, [material.secret]);
       this.assert(g);
@@ -263,6 +286,7 @@ export class EncryptedVaultSession {
         this.owner,
         vault.archive.credentialId,
         vault.archive.prfSalt,
+        vault.archive.iv,
       );
       const result = await this.rpc("unlockForResults", { vault, material, local }, [
         material.secret,
@@ -302,14 +326,197 @@ export class EncryptedVaultSession {
       throw new VaultError("wrong_account");
     return pin as VaultLifecyclePin | undefined;
   }
+  private async keyRenewalRow() {
+    const g = this.generation;
+    await this.started;
+    const row = await this.storage.get(this.owner + ":key-renewal");
+    this.assert(g);
+    if (
+      row &&
+      (row.ownerSubject !== this.owner ||
+        typeof row.vaultId !== "string" ||
+        typeof row.operationId !== "string" ||
+        !row.pending)
+    )
+      throw new VaultError("wrong_account");
+    return row;
+  }
+  async unlockForKeyRenewal(
+    vault: Vault,
+    material: PasskeyMaterial,
+  ): Promise<{ renewalOnly: true }> {
+    try {
+      const g = this.generation,
+        local = await this.local(vault.vaultId, vault.archive);
+      this.storage.setArchiveContext?.(
+        this.owner,
+        vault.archive.credentialId,
+        vault.archive.prfSalt,
+        vault.archive.iv,
+      );
+      const result = await this.rpc("unlockForKeyRenewal", { vault, material, local }, [
+        material.secret,
+      ]);
+      this.assert(g);
+      this.renewalOnly = true;
+      this.vaultId = vault.vaultId;
+      return result;
+    } catch (error) {
+      this.lock();
+      throw error;
+    } finally {
+      if (material.secret.byteLength) new Uint8Array(material.secret).fill(0);
+    }
+  }
+  async inspectKeyRenewal(vault: Vault, state: VaultLifecycleState): Promise<KeyRenewalSummary> {
+    await this.verifyLifecycle(vault, state);
+    const g = this.generation,
+      row = await this.keyRenewalRow(),
+      prior = await this.lifecycleLocal(vault);
+    if (row && row.vaultId !== vault.vaultId) throw new VaultError("wrong_account");
+    const result = await this.rpc("inspectKeyRenewal", {
+      vault,
+      state,
+      record: row?.pending,
+      prior,
+    });
+    this.assert(g);
+    return result;
+  }
+  prepareKeyRenewal(vault: Vault, state: VaultLifecycleState): Promise<KeyRenewalPacket> {
+    return this.serial(async () => {
+      const g = this.generation,
+        prior = await this.lifecycleLocal(vault);
+      if (await this.keyRenewalRow()) throw new VaultError("key_renewal_pending");
+      if (!this.storage.stageKeyRenewal) throw new VaultError("storage_unavailable");
+      try {
+        const { packet, record } = await this.rpc("prepareKeyRenewal", { vault, state, prior });
+        this.assert(g);
+        const row = {
+          ownerSubject: this.owner,
+          vaultId: vault.vaultId,
+          operationId: packet.operationId,
+          pending: record,
+        };
+        if (!(await this.storage.stageKeyRenewal(this.owner, row)))
+          throw new VaultError("key_renewal_pending");
+        this.assert(g);
+        this.renewalOnly = true;
+        return packet;
+      } catch (error) {
+        this.lock();
+        throw error;
+      }
+    });
+  }
+  async getKeyRenewal(
+    vault: Vault,
+    state: VaultLifecycleState,
+  ): Promise<{
+    packet: KeyRenewalPacket;
+    state: "ready" | "applied" | "conflict";
+    cancellation?: KeyRenewalCancellationPacket;
+  } | null> {
+    await this.verifyLifecycle(vault, state);
+    const g = this.generation,
+      row = await this.keyRenewalRow(),
+      prior = await this.lifecycleLocal(vault);
+    if (!row) return null;
+    if (row.vaultId !== vault.vaultId) throw new VaultError("wrong_account");
+    const result = await this.rpc("getKeyRenewal", { vault, state, record: row.pending, prior });
+    this.assert(g);
+    if (result.packet.operationId !== row.operationId) throw new VaultError("binding_mismatch");
+    return result;
+  }
+  prepareKeyRenewalCancellation(
+    vault: Vault,
+    state: VaultLifecycleState,
+  ): Promise<KeyRenewalCancellationPacket> {
+    return this.serial(async () => {
+      const g = this.generation,
+        row = await this.keyRenewalRow(),
+        prior = await this.lifecycleLocal(vault);
+      if (!row || row.vaultId !== vault.vaultId || !this.storage.updateKeyRenewal)
+        throw new VaultError("key_renewal_unknown");
+      const result = await this.rpc("prepareKeyRenewalCancellation", {
+        vault,
+        state,
+        record: row.pending,
+        prior,
+      });
+      this.assert(g);
+      await this.storage.updateKeyRenewal(this.owner, { ...row, pending: result.record }, row);
+      this.assert(g);
+      return result.packet;
+    });
+  }
+  finishKeyRenewal(
+    vault: Vault,
+    state: VaultLifecycleState,
+    receipt: unknown,
+    operationId: string,
+  ): Promise<void> {
+    return this.finishRenewal("finishKeyRenewal", vault, state, operationId, receipt);
+  }
+  discardKeyRenewal(vault: Vault, state: VaultLifecycleState, operationId: string): Promise<void> {
+    return this.finishRenewal("discardKeyRenewal", vault, state, operationId);
+  }
+  private finishRenewal(
+    method: "finishKeyRenewal" | "discardKeyRenewal",
+    vault: Vault,
+    state: VaultLifecycleState,
+    operationId: string,
+    receipt?: unknown,
+  ): Promise<void> {
+    return this.serial(async () => {
+      const g = this.generation,
+        row = await this.keyRenewalRow(),
+        prior = await this.lifecycleLocal(vault);
+      if (
+        !row ||
+        row.vaultId !== vault.vaultId ||
+        row.operationId !== operationId ||
+        !this.storage.finishKeyRenewal
+      )
+        throw new VaultError("key_renewal_unknown");
+      try {
+        const result = await this.rpc(method, {
+          vault,
+          state,
+          record: row.pending,
+          receipt,
+          operationId,
+          prior,
+        });
+        this.assert(g);
+        await this.storage.finishKeyRenewal(
+          this.owner,
+          result.pin,
+          vault.archive,
+          result.record,
+          row,
+        );
+        this.assert(g);
+        this.lock();
+      } catch (error) {
+        this.lock();
+        throw error;
+      }
+    });
+  }
   async verifyLifecycle(vault: Vault, state: VaultLifecycleState): Promise<VaultLifecyclePin> {
     const g = this.generation,
       prior = await this.lifecycleLocal(vault);
     try {
-      const pin = await this.rpc("verifyLifecycle", { vault, state, prior });
+      const { pin, record } = await this.rpc("verifyLifecycle", {
+        vault,
+        state,
+        prior,
+        includeRegistryPin: true,
+      });
       this.assert(g);
       if (!this.storage.commitLifecycle) throw new VaultError("storage_unavailable");
-      await this.storage.commitLifecycle(this.owner, pin, vault.archive);
+      await this.storage.commitLifecycle(this.owner, pin, vault.archive, record);
       this.assert(g);
       return pin;
     } catch (error) {
@@ -341,6 +548,7 @@ export class EncryptedVaultSession {
         this.owner,
         vault.archive.credentialId,
         vault.archive.prfSalt,
+        vault.archive.iv,
       );
       await this.verifyLifecycle(vault, state);
       this.assert(g);

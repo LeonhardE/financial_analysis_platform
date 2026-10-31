@@ -4,6 +4,7 @@ import { useLocale, useTranslations } from "next-intl";
 import type { HoldingsWorkspace } from "./useHoldingsWorkspace";
 import { PasskeyHelp } from "./PasskeyHelp";
 import VaultRecoveryPanel from "./VaultRecoveryPanel";
+import VaultKeyRenewalPanel from "./VaultKeyRenewalPanel";
 import styles from "./VaultManagementPanel.module.css";
 
 const ERRORS = new Set([
@@ -114,7 +115,7 @@ export default function VaultManagementPanel({ workspace }: { workspace: Holding
         </div>
       ) : workspace.phase === "checking" ? (
         <p role="status">{t("loading")}</p>
-      ) : !unlocked ? (
+      ) : workspace.phase === "renewal-only" ? null : !unlocked ? (
         <div className={styles.callout}>
           <PasskeyHelp
             workspace={workspace}
@@ -355,15 +356,19 @@ export default function VaultManagementPanel({ workspace }: { workspace: Holding
           )}
         </>
       )}
-      {error && (
-        <p className={styles.error} role="alert">
-          {t(`errors.${ERRORS.has(error) ? error : "request_failed"}`)}
-        </p>
-      )}
+      {error &&
+        error !== "stale_recovery_kit" &&
+        !workspace.keyRenewalFailure &&
+        !error.startsWith("key_renewal_") && (
+          <p className={styles.error} role="alert">
+            {t(`errors.${ERRORS.has(error) ? error : "request_failed"}`)}
+          </p>
+        )}
       {unlocked && workspace.keyNotice && t.has(`notices.${workspace.keyNotice}`) && (
         <p role="status">{t(`notices.${workspace.keyNotice}`)}</p>
       )}
       <VaultRecoveryPanel workspace={workspace} />
+      <VaultKeyRenewalPanel workspace={workspace} />
       <div className={styles.recovery}>
         <h3>{t("recoveryTitle")}</h3>
         <p>{t("recoveryHelp")}</p>

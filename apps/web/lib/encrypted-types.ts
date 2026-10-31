@@ -50,6 +50,48 @@ export type PendingSnapshot = {
   source: Source;
 };
 export type PasskeyMaterial = { credentialId: string; prfSalt: string; secret: ArrayBuffer };
+/** Public root-approved operation. Candidate private keys only exist inside its PRF-sealed record. */
+export type KeyRenewalPacket = {
+  operationId: string;
+  body: {
+    contractVersion: string;
+    registryBundle: RegistryBundle;
+    archive: Archive;
+    command: Signed;
+    archiveCommand: Signed;
+  };
+};
+export type KeyRenewalCancellationPacket = {
+  operationId: string;
+  body: { contractVersion: string; archive: Archive; command: Signed };
+};
+export type KeyRenewalSummary = {
+  vaultId: string;
+  rootKeyId: string;
+  registrySequence: number;
+  checkpointDigest: string;
+  keyEpoch: number;
+  canRenew: boolean;
+  reason:
+    | null
+    | "device_required"
+    | "keys_revoked"
+    | "pending_operation"
+    | "recovery_authorization_pending"
+    | "capacity";
+  device: {
+    deviceId: string;
+    signingKeyId: string;
+    encryptionKeyId: string;
+    expiresAt: number;
+  } | null;
+  recovery: { keyId: string; expiresAt: number } | null;
+  pending: {
+    operationId: string;
+    state: "ready" | "applied" | "conflict";
+    expiresAt: number;
+  } | null;
+};
 /** Public management facts; private device candidates remain PRF-sealed in the Worker. */
 export type VaultDevice = {
   deviceId: string;

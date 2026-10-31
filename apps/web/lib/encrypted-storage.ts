@@ -1,8 +1,22 @@
 /** Browser-owned ciphertext and public pins only; every shared mutation is atomic. */
 import { VaultError } from "./encrypted-types";
 export interface EncryptedStorage {
-  setArchiveContext?(owner: string, credentialId: string, prfSalt: string): void;
-  commitLifecycle?(owner: string, pin: any, archive: any): Promise<void>;
+  setArchiveContext?(
+    owner: string,
+    credentialId: string,
+    prfSalt: string,
+    archiveIv?: string,
+  ): void;
+  stageKeyRenewal?(owner: string, record: any): Promise<boolean>;
+  updateKeyRenewal?(owner: string, record: any, previous: any): Promise<void>;
+  finishKeyRenewal?(
+    owner: string,
+    pin: any,
+    archive: any,
+    record: any,
+    pending: any,
+  ): Promise<void>;
+  commitLifecycle?(owner: string, pin: any, archive: any, registryRecord?: any): Promise<void>;
   stageArchiveChange?(owner: string, record: any): Promise<boolean>;
   finishArchiveChange?(
     owner: string,
@@ -24,6 +38,16 @@ export interface EncryptedStorage {
   compareTaskRecord(key: string, value: any, expectedRevision: number): Promise<boolean>;
 }
 const same = (a: any, b: any) => JSON.stringify(a) === JSON.stringify(b);
+const archiveBinding = (archive: any) => ({
+  credentialId: archive.credentialId,
+  prfSalt: archive.prfSalt,
+  archiveIv: archive.iv,
+});
+const matchesArchive = (binding: any, context: any) =>
+  !binding ||
+  (binding.credentialId === context.credentialId &&
+    binding.prfSalt === context.prfSalt &&
+    (!binding.archiveIv || binding.archiveIv === context.archiveIv));
 export function assertPinAdvance(current: any, record: any) {
   const pin = record.pin;
   if (!pin || typeof pin.ownerSubject !== "string" || !Array.isArray(record.history))
@@ -54,9 +78,14 @@ export function assertPinAdvance(current: any, record: any) {
 }
 export class BrowserEncryptedStorage implements EncryptedStorage {
   private database?: Promise<IDBDatabase>;
-  private archiveContext?: { owner: string; credentialId: string; prfSalt: string };
-  setArchiveContext(owner: string, credentialId: string, prfSalt: string) {
-    this.archiveContext = { owner, credentialId, prfSalt };
+  private archiveContext?: {
+    owner: string;
+    credentialId: string;
+    prfSalt: string;
+    archiveIv?: string;
+  };
+  setArchiveContext(owner: string, credentialId: string, prfSalt: string, archiveIv?: string) {
+    this.archiveContext = { owner, credentialId, prfSalt, archiveIv };
   }
   private guarded<T>(
     key: string,
@@ -68,6 +97,10 @@ export class BrowserEncryptedStorage implements EncryptedStorage {
         action(s, done, fail);
         return;
       }
+      const renewal = s.get(context.owner + ":key-renewal");
+      renewal.onsuccess = () => {
+        if (renewal.result) fail(new VaultError("key_renewal_pending"));
+      };
       const pending = s.get(context.owner + ":archive-change");
       pending.onsuccess = () => {
         if (pending.result) {
@@ -76,11 +109,7 @@ export class BrowserEncryptedStorage implements EncryptedStorage {
         }
         const binding = s.get(context.owner + ":archive-binding");
         binding.onsuccess = () => {
-          if (
-            binding.result &&
-            (binding.result.credentialId !== context.credentialId ||
-              binding.result.prfSalt !== context.prfSalt)
-          ) {
+          if (!matchesArchive(binding.result, context)) {
             fail(new VaultError("archive_session_stale"));
             return;
           }
@@ -109,7 +138,7 @@ export class BrowserEncryptedStorage implements EncryptedStorage {
     )
       throw new VaultError("rollback_detected");
   }
-  commitLifecycle(owner: string, pin: any, archive: any) {
+  commitLifecycle(owner: string, pin: any, archive: any, registryRecord?: any) {
     return this.atomic<void>((s, done, fail) => {
       const req = s.get(owner + ":lifecycle");
       req.onsuccess = () => {
@@ -117,13 +146,31 @@ export class BrowserEncryptedStorage implements EncryptedStorage {
           if (pin.ownerSubject !== owner || archive.ownerSubject !== owner)
             throw new VaultError("wrong_account");
           this.lifecycleAdvance(req.result, pin);
-          s.put(pin, owner + ":lifecycle");
-          // A known archive may advance during a pending operation; its outbox remains intact.
-          s.put(
-            { credentialId: archive.credentialId, prfSalt: archive.prfSalt },
-            owner + ":archive-binding",
-          );
-          done();
+          const commit = () => {
+            s.put(pin, owner + ":lifecycle");
+            // A known archive may advance during a pending operation; its outbox remains intact.
+            s.put(archiveBinding(archive), owner + ":archive-binding");
+            done();
+          };
+          if (registryRecord) {
+            const previous = s.get(owner + ":pin");
+            previous.onsuccess = () => {
+              try {
+                if (
+                  registryRecord.pin?.ownerSubject !== owner ||
+                  registryRecord.pin.vaultId !== pin.vaultId ||
+                  registryRecord.pin.rootKeyId !== pin.rootKeyId ||
+                  Object.keys(registryRecord).some((key) => !["pin", "history"].includes(key))
+                )
+                  throw new VaultError("untrusted_vault");
+                assertPinAdvance(previous.result, registryRecord);
+                s.put(registryRecord.pin, owner + ":pin");
+                commit();
+              } catch (e) {
+                fail(e);
+              }
+            };
+          } else commit();
         } catch (e) {
           fail(e);
         }
@@ -132,6 +179,10 @@ export class BrowserEncryptedStorage implements EncryptedStorage {
   }
   stageArchiveChange(owner: string, record: any) {
     return this.atomic<boolean>((s, done, fail) => {
+      const renewal = s.get(owner + ":key-renewal");
+      renewal.onsuccess = () => {
+        if (renewal.result) fail(new VaultError("key_renewal_pending"));
+      };
       if (record.ownerSubject !== owner) {
         fail(new VaultError("wrong_account"));
         return;
@@ -145,12 +196,7 @@ export class BrowserEncryptedStorage implements EncryptedStorage {
         const context = this.archiveContext,
           binding = s.get(owner + ":archive-binding");
         binding.onsuccess = () => {
-          if (
-            context &&
-            binding.result &&
-            (binding.result.credentialId !== context.credentialId ||
-              binding.result.prfSalt !== context.prfSalt)
-          ) {
+          if (context && !matchesArchive(binding.result, context)) {
             fail(new VaultError("archive_session_stale"));
             return;
           }
@@ -205,10 +251,7 @@ export class BrowserEncryptedStorage implements EncryptedStorage {
                 else s.delete(owner + ":device:" + pin.vaultId);
                 s.put(record.pin, owner + ":pin");
                 s.put(pin, owner + ":lifecycle");
-                s.put(
-                  { credentialId: archive.credentialId, prfSalt: archive.prfSalt },
-                  owner + ":archive-binding",
-                );
+                s.put(archiveBinding(archive), owner + ":archive-binding");
                 s.delete(owner + ":archive-change");
                 done();
               } catch (e) {
@@ -235,10 +278,7 @@ export class BrowserEncryptedStorage implements EncryptedStorage {
           try {
             this.lifecycleAdvance(current.result, pin);
             s.put(pin, owner + ":lifecycle");
-            s.put(
-              { credentialId: archive.credentialId, prfSalt: archive.prfSalt },
-              owner + ":archive-binding",
-            );
+            s.put(archiveBinding(archive), owner + ":archive-binding");
             s.delete(owner + ":archive-change");
             done();
           } catch (e) {
@@ -258,6 +298,124 @@ export class BrowserEncryptedStorage implements EncryptedStorage {
         }
         s.put(record, owner + ":archive-change");
         done();
+      };
+    });
+  }
+  stageKeyRenewal(owner: string, record: any) {
+    return this.atomic<boolean>((s, done, fail) => {
+      if (record.ownerSubject !== owner || !record.operationId || !record.pending) {
+        fail(new VaultError("wrong_account"));
+        return;
+      }
+      const current = s.get(owner + ":key-renewal");
+      current.onsuccess = () => {
+        if (current.result) {
+          done(same(current.result, record));
+          return;
+        }
+        const binding = s.get(owner + ":archive-binding");
+        binding.onsuccess = () => {
+          if (
+            !this.archiveContext ||
+            this.archiveContext.owner !== owner ||
+            !matchesArchive(binding.result, this.archiveContext)
+          ) {
+            fail(new VaultError("archive_session_stale"));
+            return;
+          }
+          const cursor = s.openCursor(IDBKeyRange.bound(owner + ":", owner + ":\uffff"));
+          let blocked = false;
+          cursor.onsuccess = () => {
+            const row = cursor.result;
+            if (row) {
+              const key = String(row.key),
+                v = row.value;
+              if (
+                key === owner + ":archive-change" ||
+                key.includes(":pending-device:") ||
+                key.includes(":device-change:") ||
+                key.includes(":agent-registration:") ||
+                key.includes(":agent-approval:") ||
+                key.includes(":agent-preparation:") ||
+                key.includes(":outbox:") ||
+                (key.includes(":task-outbox:") && !v.deleted)
+              )
+                blocked = true;
+              row.continue();
+            } else if (blocked) fail(new VaultError("key_renewal_local_pending"));
+            else {
+              s.put(record, owner + ":key-renewal");
+              done(true);
+            }
+          };
+        };
+      };
+    });
+  }
+  updateKeyRenewal(owner: string, record: any, previous: any) {
+    return this.atomic<void>((s, done, fail) => {
+      const current = s.get(owner + ":key-renewal");
+      current.onsuccess = () => {
+        if (
+          record.ownerSubject !== owner ||
+          record.vaultId !== previous.vaultId ||
+          record.operationId !== previous.operationId ||
+          !same(current.result, previous)
+        ) {
+          fail(new VaultError("operation_conflict"));
+          return;
+        }
+        s.put(record, owner + ":key-renewal");
+        done();
+      };
+    });
+  }
+  finishKeyRenewal(owner: string, pin: any, archive: any, record: any, pending: any) {
+    return this.atomic<void>((s, done, fail) => {
+      const current = s.get(owner + ":key-renewal");
+      current.onsuccess = () => {
+        if (
+          !same(current.result, pending) ||
+          pending.ownerSubject !== owner ||
+          pin.ownerSubject !== owner ||
+          archive.ownerSubject !== owner ||
+          record.pin?.ownerSubject !== owner ||
+          pin.vaultId !== pending.vaultId ||
+          record.pin.vaultId !== pin.vaultId ||
+          archive.vaultId !== pin.vaultId ||
+          record.pin.rootKeyId !== pin.rootKeyId ||
+          archive.rootKeyId !== pin.rootKeyId
+        ) {
+          fail(new VaultError("operation_conflict"));
+          return;
+        }
+        const previousLife = s.get(owner + ":lifecycle");
+        previousLife.onsuccess = () => {
+          try {
+            this.lifecycleAdvance(previousLife.result, pin);
+            const previousPin = s.get(owner + ":pin");
+            previousPin.onsuccess = () => {
+              try {
+                assertPinAdvance(previousPin.result, record);
+                if (record.device)
+                  s.put(
+                    { ownerSubject: owner, device: record.device },
+                    owner + ":device:" + pin.vaultId,
+                  );
+                else s.delete(owner + ":device:" + pin.vaultId);
+                s.put(record.pin, owner + ":pin");
+                s.put(pin, owner + ":lifecycle");
+                s.put(archiveBinding(archive), owner + ":archive-binding");
+                s.delete(owner + ":key-renewal");
+                done();
+              } catch (e) {
+                fail(e);
+              }
+            };
+          } catch (e) {
+            fail(e);
+          }
+        };
       };
     });
   }

@@ -1,6 +1,11 @@
 import "server-only";
 
-import { hubResponse, vaultLifecycleArchive, vaultLifecycleCommand } from "./hub-owner-contracts";
+import {
+  hubResponse,
+  vaultKeyRenewalRequest,
+  vaultLifecycleArchive,
+  vaultLifecycleCommand,
+} from "./hub-owner-contracts";
 
 import {
   CONTRACT,
@@ -34,6 +39,7 @@ type Rule = {
     | "bootstrap"
     | "registry"
     | "archive"
+    | "key-renewal"
     | "lifecycle-control"
     | "control"
     | "small"
@@ -46,6 +52,7 @@ type Rule = {
   operation?: boolean;
   author?: boolean;
   vaultId?: string;
+  responseStatus?: 200 | 201;
   query?: Record<string, "limit" | "cursor" | "filter" | "id" | "revision" | "delivery">;
 };
 type Config = { origin: string; project: string };
@@ -90,6 +97,24 @@ function route(request: Request): { path: string; rule: Rule } {
     rule = { kind: "read", max: 0 };
   else if (get && path === "/api/v2/tasks")
     rule = { kind: "read", max: 0, query: { limit: "limit", cursor: "cursor" } };
+  else if (
+    get &&
+    new RegExp(
+      `^/api/v2/vaults/${ID}/(?:key-renewal-state|key-renewal-operations/[A-Za-z0-9_-]{22,128})$`,
+    ).test(path)
+  )
+    rule = { kind: "read", max: 0, responseStatus: 200 };
+  else if (
+    request.method === "POST" &&
+    new RegExp(`^/api/v2/vaults/${ID}/key-renewals$`).test(path)
+  )
+    rule = {
+      kind: "key-renewal",
+      max: 589824,
+      operation: true,
+      vaultId: path.split("/")[4],
+      responseStatus: 201,
+    };
   else if (
     get &&
     new RegExp(`^/api/v2/tasks/${ID}(?:/versions/(?:[1-9]|[1-4][0-9]|50))?$`).test(path)
@@ -218,6 +243,8 @@ function validBody(body: unknown, kind: Rule["kind"], vaultId?: string) {
         vaultLifecycleArchive(body.archive, vaultId) &&
         vaultLifecycleCommand(body.command)
       );
+    case "key-renewal":
+      return vaultKeyRenewalRequest(body, vaultId);
     case "stage":
       return fields(body, ["contractVersion", "envelope"]) && carrier(body.envelope);
     case "registry":
@@ -367,8 +394,16 @@ export function createHubProxy(options: Options = {}) {
         }),
         signal,
       );
+      if (
+        response.status < 400 &&
+        rule.responseStatus !== undefined &&
+        response.status !== rule.responseStatus
+      ) {
+        void response.body?.cancel().catch(() => {});
+        fail("authorization_unavailable");
+      }
       return await forwardResponse(response, signal, (body) =>
-        hubResponse(path, request.method, body),
+        hubResponse(path, request.method, body, headers.get("idempotency-key") ?? undefined),
       );
     } catch (error) {
       return errorResponse(error instanceof Failure ? error.code : "authorization_unavailable");
