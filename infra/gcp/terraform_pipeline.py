@@ -154,10 +154,12 @@ def instance_target(instance):
     }
 
 
-def require_user_hub_trust_consumer(directory):
+def require_trust_consumer(directory, target="user"):
     """Explicit source opt-in prevents Terraform ignoring an undeclared trust variable."""
-    marker = directory / "user-hub-trust.consumer.json"
-    message = "User source has not adopted the reviewed User/Hub trust contract."
+    marker = directory / f"{target}-hub-trust.consumer.json"
+    message = (
+        f"{target.title()} source has not adopted the reviewed {target.title()}/Hub trust contract."
+    )
     try:
         require(marker.is_file() and not marker.is_symlink(), message)
         with marker.open("rb") as source:
@@ -173,14 +175,17 @@ def require_user_hub_trust_consumer(directory):
             value
             == {
                 "schemaVersion": 1,
-                "target": "user",
-                "trustContract": "user-hub-trust.v1",
+                "target": target,
+                "trustContract": f"{target}-hub-trust.v1",
                 "terraformVariable": "hub_trust",
             },
             message,
         )
     except (OSError, ValueError, TypeError, RecursionError):
         raise RuntimeError(message) from None
+
+
+require_user_hub_trust_consumer = require_trust_consumer
 
 
 def registry(root, target, instance=None):
@@ -333,7 +338,9 @@ def registry(root, target, instance=None):
             re.fullmatch(r"prod/[a-z][a-z0-9-]*", selected["state_prefix"]), "Invalid state prefix."
         )
     if instance is not None and "userHubTrust" in instance:
-        require_user_hub_trust_consumer(directory)
+        require_trust_consumer(directory)
+    if instance is not None and "portfolioHubTrust" in instance:
+        require_trust_consumer(directory, "portfolio")
     return policy, selected, directory
 
 

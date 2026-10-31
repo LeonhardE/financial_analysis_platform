@@ -212,12 +212,13 @@ def validate_profile(value):
     try:
         require(type(value) is dict)
         version = value.get("schemaVersion")
-        require(type(version) is int and version in {1, 2, 3})
+        require(type(version) is int and version in {1, 2, 3, 4})
         fields(
             value,
             TOP_FIELDS
             | ({"webOwnerApis"} if version >= 2 else set())
-            | ({"userHubTrust"} if version == 3 else set()),
+            | ({"userHubTrust"} if version >= 3 else set())
+            | ({"portfolioHubTrust"} if version >= 4 else set()),
         )
         matches(SLUG, value["profileId"])
         require(value["mode"] in {"adoption", "fresh_install"})
@@ -344,7 +345,7 @@ def validate_profile(value):
                             upstream["origin"]
                             == f"https://{TARGET_SERVICES[target_name]}-{number}.{region}.run.app"
                         )
-        if version == 3:
+        if version >= 3:
             trust = value["userHubTrust"]
             fields(trust, USER_HUB_TRUST_OPTIONS)
             require(type(trust["enabled"]) is bool)
@@ -361,6 +362,28 @@ def validate_profile(value):
                     )
             else:
                 require(trust["hubSubject"] is None)
+        if version >= 4:
+            trust = value["portfolioHubTrust"]
+            fields(trust, {"hubEnabled", "hubSubject", "webOwnerEnabled"})
+            require(type(trust["hubEnabled"]) is bool and type(trust["webOwnerEnabled"]) is bool)
+            if trust["hubEnabled"]:
+                matches(HUB_SUBJECT, trust["hubSubject"])
+            else:
+                require(trust["hubSubject"] is None)
+            selected_names = (
+                {"portfolio"} if any((trust["hubEnabled"], trust["webOwnerEnabled"])) else set()
+            )
+            if trust["hubEnabled"]:
+                selected_names.add("agent-hub")
+            if trust["webOwnerEnabled"]:
+                selected_names.add("web")
+            for name in selected_names:
+                selected = value["targets"][name]
+                require(selected["lifecycle"] == "adopt")
+                require(
+                    selected["origin"]
+                    == f"https://{TARGET_SERVICES[name]}-{number}.{region}.run.app"
+                )
         # Canonical serialization rejects invalid Unicode and snapshots mutable callers.
         return json.loads(canonical(value))
     except (KeyError, TypeError, ValueError, OverflowError, RecursionError):
@@ -390,13 +413,16 @@ def validate_target(value):
         require(type(value) is dict)
         target = value.get("target")
         require(type(target) is str and target in TARGET_SERVICES)
+        has_portfolio_trust = "portfolioHubTrust" in value
+        require(not has_portfolio_trust or target == "portfolio")
         has_user_trust = "userHubTrust" in value
         require(not has_user_trust or target == "user")
         fields(
             value,
             TARGET_TOP_FIELDS
             | ({"build"} if target == "web" else set())
-            | ({"userHubTrust"} if has_user_trust else set()),
+            | ({"userHubTrust"} if has_user_trust else set())
+            | ({"portfolioHubTrust"} if has_portfolio_trust else set()),
         )
         require(type(value["schemaVersion"]) is int and value["schemaVersion"] == 1)
         matches(SLUG, value["instanceId"])
@@ -497,6 +523,11 @@ def validate_target(value):
             require(type(configuration) is dict)
             require((configuration.get("hubSubject") is None) == (trust["hubDeployment"] is None))
             validate_user_hub_trust(configuration, base, trust["hubDeployment"])
+        if has_portfolio_trust:
+            trust = value["portfolioHubTrust"]
+            fields(trust, {"configuration", "hubDeployment"})
+            base = {name: item for name, item in value.items() if name != "portfolioHubTrust"}
+            validate_portfolio_hub_trust(trust["configuration"], base, trust["hubDeployment"])
         require(len(canonical(value)) <= MAX_TARGET_BYTES)
     except (KeyError, TypeError, ValueError, AttributeError, RecursionError):
         raise ProfileError from None
@@ -523,6 +554,8 @@ def terraform_inputs(instance):
     result = {"deployment": dict(value["inputs"])}
     if "userHubTrust" in value:
         result["hub_trust"] = dict(value["userHubTrust"]["configuration"]["environment"])
+    if "portfolioHubTrust" in value:
+        result["hub_trust"] = dict(value["portfolioHubTrust"]["configuration"]["environment"])
     return result
 
 
@@ -894,6 +927,155 @@ def compile_user_hub_trust_artifacts(profile):
     }
 
 
+PORTFOLIO_HUB_ENVIRONMENT_FIELDS = {
+    "PORTFOLIO_SERVICE_AUDIENCE",
+    "PORTFOLIO_DELEGATION_AUDIENCE",
+    "PORTFOLIO_DELEGATION_ISSUER",
+    "PORTFOLIO_TRUSTED_HUB_CALLERS",
+    "PORTFOLIO_HUB_AUTHORITY_ORIGIN",
+}
+
+
+def portfolio_trust_values(instance, hub, subject, web_account):
+    """Derive only this Portfolio's nonsecret runtime values and service invokers."""
+    project, number, region = (
+        instance["project"]["id"],
+        instance["project"]["number"],
+        instance["region"],
+    )
+    environment = dict.fromkeys(sorted(PORTFOLIO_HUB_ENVIRONMENT_FIELDS), "")
+    invokers = {}
+    if web_account is not None:
+        matches(ACCOUNT, web_account)
+        require(web_account != instance["inputs"]["runtime_account_id"])
+        invokers["web"] = f"{web_account}@{project}.iam.gserviceaccount.com"
+    if subject is not None:
+        matches(HUB_SUBJECT, subject)
+        require(type(hub) is dict and hub.get("target") == "agent-hub")
+        hub = parse_target(canonical(hub))
+        for name in ("instanceId", "project", "region", "source", "artifactRepository"):
+            require(hub[name] == instance[name])
+        account = hub["inputs"]["runtime_account_id"]
+        require(account != instance["inputs"]["runtime_account_id"] and account != web_account)
+        require(hub["adoption"]["serviceUid"] != instance["adoption"]["serviceUid"])
+        email = f"{account}@{project}.iam.gserviceaccount.com"
+        audience = f"https://portfolio-api-{number}.{region}.run.app"
+        issuer = f"https://agent-hub-api-{number}.{region}.run.app"
+        environment = {
+            "PORTFOLIO_SERVICE_AUDIENCE": audience,
+            "PORTFOLIO_DELEGATION_AUDIENCE": audience + "/internal/v2",
+            "PORTFOLIO_DELEGATION_ISSUER": issuer,
+            "PORTFOLIO_TRUSTED_HUB_CALLERS": canonical({subject: email}).decode("ascii"),
+            "PORTFOLIO_HUB_AUTHORITY_ORIGIN": issuer,
+        }
+        invokers["hub"] = email
+    else:
+        require(hub is None)
+    return environment, invokers
+
+
+def validate_portfolio_hub_trust(value, instance, hub=None):
+    try:
+        require(type(instance) is dict and instance.get("target") == "portfolio")
+        require("portfolioHubTrust" not in instance)
+        instance = parse_target(canonical(instance))
+        fields(
+            value,
+            {
+                "schemaVersion",
+                "instanceId",
+                "target",
+                "portfolioDeploymentSha256",
+                "hubDeploymentSha256",
+                "hubSubject",
+                "webRuntimeAccountId",
+                "environment",
+                "invokerServiceAccounts",
+            },
+        )
+        require(type(value["schemaVersion"]) is int and value["schemaVersion"] == 1)
+        require(value["instanceId"] == instance["instanceId"] and value["target"] == "portfolio")
+        require(value["portfolioDeploymentSha256"] == digest(instance))
+        environment, invokers = portfolio_trust_values(
+            instance, hub, value["hubSubject"], value["webRuntimeAccountId"]
+        )
+        require(value["hubDeploymentSha256"] == (digest(hub) if hub is not None else None))
+        require(value["environment"] == environment and value["invokerServiceAccounts"] == invokers)
+        require(len(canonical(value)) <= MAX_TARGET_BYTES)
+    except (KeyError, TypeError, ValueError, AttributeError, RecursionError):
+        raise ProfileError from None
+    return value
+
+
+def parse_portfolio_hub_trust(data, *, instance, expected_sha256, hub_instance=None):
+    value = parse_web_owner_document(data)
+    validate_portfolio_hub_trust(value, instance, hub_instance)
+    matches(re.compile(r"[a-f0-9]{64}\Z"), expected_sha256)
+    require(digest(value) == expected_sha256)
+    return value
+
+
+def compile_portfolio_hub_trust_artifacts(profile):
+    profile = validate_profile(profile)
+    instance = compile_target(profile, "portfolio")
+    options = profile.get(
+        "portfolioHubTrust", {"hubEnabled": False, "hubSubject": None, "webOwnerEnabled": False}
+    )
+    hub = compile_target(profile, "agent-hub") if options["hubEnabled"] else None
+    web_account = (
+        profile["targets"]["web"]["runtimeAccountId"] if options["webOwnerEnabled"] else None
+    )
+    environment, invokers = portfolio_trust_values(
+        instance, hub, options["hubSubject"], web_account
+    )
+    document = {
+        "schemaVersion": 1,
+        "instanceId": instance["instanceId"],
+        "target": "portfolio",
+        "portfolioDeploymentSha256": digest(instance),
+        "hubDeploymentSha256": digest(hub) if hub is not None else None,
+        "hubSubject": options["hubSubject"],
+        "webRuntimeAccountId": web_account,
+        "environment": environment,
+        "invokerServiceAccounts": invokers,
+    }
+    parse_portfolio_hub_trust(
+        canonical(document), instance=instance, hub_instance=hub, expected_sha256=digest(document)
+    )
+    extended = parse_target(
+        canonical(
+            {**instance, "portfolioHubTrust": {"configuration": document, "hubDeployment": hub}}
+        )
+    )
+    artifacts = {
+        "portfolio-hub-trust.candidate.json": document,
+        "deployment-config.candidate.json": extended,
+        "terraform-inputs.candidate.json": terraform_inputs(extended),
+        "trigger-substitutions.candidate.json": {
+            "_DEPLOYMENT_CONFIG": canonical(extended).decode("ascii"),
+            "_DEPLOYMENT_SHA256": digest(extended),
+        },
+    }
+    return {
+        **artifacts,
+        "manifest.json": {
+            "schemaVersion": 1,
+            "purpose": "offline_portfolio_hub_trust_candidate",
+            "approval": "not_requested",
+            "productionActivation": False,
+            "instanceId": instance["instanceId"],
+            "target": "portfolio",
+            "profileSha256": digest(profile),
+            "deploymentSha256": digest(extended),
+            "trustConfigurationSha256": digest(document),
+            "filesSha256": {
+                name: hashlib.sha256(canonical(value) + b"\n").hexdigest()
+                for name, value in artifacts.items()
+            },
+        },
+    }
+
+
 def render(profile, *, root=ROOT):
     profile = validate_profile(profile)
     project, number = profile["project"]["id"], profile["project"]["number"]
@@ -1023,7 +1205,14 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "action",
-        choices=("validate", "render", "compile", "compile-web-owner", "compile-user-hub-trust"),
+        choices=(
+            "validate",
+            "render",
+            "compile",
+            "compile-web-owner",
+            "compile-user-hub-trust",
+            "compile-portfolio-hub-trust",
+        ),
     )
     parser.add_argument("--profile", required=True)
     parser.add_argument("--output-dir")
@@ -1031,12 +1220,23 @@ def main():
     args = parser.parse_args()
     try:
         require(
-            (args.action in {"render", "compile", "compile-web-owner", "compile-user-hub-trust"})
+            (
+                args.action
+                in {
+                    "render",
+                    "compile",
+                    "compile-web-owner",
+                    "compile-user-hub-trust",
+                    "compile-portfolio-hub-trust",
+                }
+            )
             == (args.output_dir is not None)
         )
         require((args.action == "compile") == (args.target is not None))
         profile = load_profile(args.profile)
-        if args.action == "compile-user-hub-trust":
+        if args.action == "compile-portfolio-hub-trust":
+            artifacts = compile_portfolio_hub_trust_artifacts(profile)
+        elif args.action == "compile-user-hub-trust":
             artifacts = compile_user_hub_trust_artifacts(profile)
         elif args.action == "compile-web-owner":
             artifacts = compile_web_owner_artifacts(profile)
@@ -1046,7 +1246,13 @@ def main():
                 if args.action == "compile"
                 else render(profile)
             )
-        if args.action in {"render", "compile", "compile-web-owner", "compile-user-hub-trust"}:
+        if args.action in {
+            "render",
+            "compile",
+            "compile-web-owner",
+            "compile-user-hub-trust",
+            "compile-portfolio-hub-trust",
+        }:
             write_candidates(artifacts, args.output_dir)
         # Hashes identify selected input; they are not source-provenance or approval proof.
         print(json.dumps(artifacts["manifest.json"], sort_keys=True))

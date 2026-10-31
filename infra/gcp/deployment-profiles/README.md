@@ -416,3 +416,39 @@ activate OAuth/agent endpoints, grant invoker access or deploy User. Those remai
 reviewed Hub and User target changes. Normal typed Hub pipeline migration is also separate.
 The existing repo plan trigger watches the producer source; a merge can run the existing plan
 check, but this PR changes no trigger or apply policy and performs no apply/deployment.
+
+## INF-008 Portfolio trust foundation (profile v4)
+
+Version 4 retains v3 fields and adds the closed `portfolioHubTrust` selection:
+`hubEnabled`, the inventoried numeric `hubSubject` (null when disabled), and
+`webOwnerEnabled`. Both switches are independent and default off in the example.
+The explicit `compile-portfolio-hub-trust` action emits private review candidates;
+ordinary compile/render and all v1–v3 output contracts remain unchanged.
+
+The Portfolio-only extension pins its base deployment and an adopted same-instance
+Hub projection. It derives exactly five nonsecret runtime fields: the Portfolio
+service/delegation audiences, Hub issuer, single numeric Hub caller map and Hub
+reverse-authority origin. It separately derives exact service invokers for Hub and
+Web. The Web runtime account comes only from the selected private profile, is
+included in the reviewed document/hash, and never joins the internal trusted caller
+map. Administrator bootstrap owns those IAM tuples; they are not business-root
+variables. No public invoker, database access, content key, arbitrary environment
+map or alternate JWKS endpoint is emitted. The complete managed projection retains
+the 4,000-byte bound. Numeric identities still need live inventory verification;
+syntax validation is not cloud identity proof or apply approval.
+
+The managed runner requires the Portfolio source's exact, bounded, nonsymlink
+`portfolio-hub-trust.consumer.json` marker with `schemaVersion: 1`,
+`target: "portfolio"`, `trustContract: "portfolio-hub-trust.v1"` and
+`terraformVariable: "hub_trust"`. An unmigrated consumer cannot silently ignore the
+new variable. Runtime consumption and service IAM belong to a subsequent
+Portfolio-only PR.
+
+Portfolio's already-created service is admitted to the existing-service release
+helper in the repository catalog. This only removes the first-provision-only
+restriction: the retained image trigger still has `_DEPLOY_SERVICE=false`, the
+normal Terraform pipeline stays disabled, and this foundation changes no cloud
+resources. A later Portfolio PR must configure the exact image deployer/runtime
+permissions and reviewed trigger switch before releasing a provenance-checked
+image. Preserve its existing service UID, private IAM and named database; never
+reuse the first-provision path to update an existing service.
