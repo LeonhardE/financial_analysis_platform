@@ -2,6 +2,7 @@ locals {
   project_id       = var.deployment.project_id
   region           = var.deployment.region
   existing_web_uid = var.deployment.existing_service_uid
+  environment      = var.owner_environment == null ? {} : var.owner_environment
 }
 
 provider "google" {
@@ -46,8 +47,8 @@ module "web" {
   ingress           = "INGRESS_TRAFFIC_ALL"
 
   # The browser client receives public Firebase and API configuration at build
-  # time through the retained image trigger. The deployed container has no env.
-  environment        = {}
+  # time through the retained image trigger. Owner settings are server-only.
+  environment        = local.environment
   secret_environment = {}
 
   # Public invocation already uses invokerIamDisabled=true. Do not add an

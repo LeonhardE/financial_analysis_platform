@@ -1,0 +1,6 @@
+{
+  "schemaVersion": 1,
+  "target": "web",
+  "configurationContract": "web-owner.v1",
+  "terraformVariable": "owner_environment"
+}
