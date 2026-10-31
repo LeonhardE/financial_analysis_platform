@@ -146,6 +146,7 @@ function harness({
   let latestSnapshot = null;
   let forcedHead = null;
   let opens = 0;
+  let snapshotOpenHold = null;
   let resultOpens = 0;
   let resultHold = null;
   let readOnlyUnlocks = 0;
@@ -524,6 +525,7 @@ function harness({
     }
     async openSnapshot() {
       opens++;
+      if (snapshotOpenHold) await snapshotOpenHold.promise;
       return content;
     }
   }
@@ -819,6 +821,9 @@ function harness({
     holdBody(next) {
       bodyHold = next;
     },
+    holdSnapshotOpen(next) {
+      snapshotOpenHold = next;
+    },
     bodyReads: () => bodyReads,
     holdCurrent(value) {
       getCurrentHold = value;
@@ -1024,6 +1029,82 @@ test("a wrong independent recovery code never creates a Passkey or submits recov
   assert.equal(h.counts().replacementCalls, 0);
   assert.ok(!h.requests.some((row) => ["PUT", "POST"].includes(row.options.method)));
   assert.ok(h.instances.every((instance) => instance.locked));
+  h.unmount();
+});
+
+test("a recovered browser reads its saved holdings immediately after explicit device approval", async () => {
+  const h = harness();
+  await ready(h);
+  h.forceHead(1);
+  await h.render().recoverWithKit('{"ciphertext":"SYNTHETIC_ENCRYPTED_KIT"}', "R".repeat(43));
+  const unlocking = h.render().unlock();
+  h.resolvePasskey();
+  await unlocking;
+  assert.equal(h.render().phase, "needs-device");
+  assert.equal(h.render().content, null);
+  assert.equal(h.counts().opens, 0);
+  assert.ok(!h.requests.some((row) => row.service === "portfolio"));
+  await h.render().confirmDeviceRegistration();
+  const model = h.render();
+  assert.equal(model.phase, "unlocked");
+  assert.equal(model.keyNotice, "device_registered");
+  assert.equal(model.content.data.accounts[0].positions[0].symbol, "PRIVATE_SENTINEL");
+  assert.equal(h.counts().opens, 1);
+  assert.equal(h.counts().registrationPrepares, 1);
+  assert.equal(h.commits.length, 0, "Recovery reads the original snapshot without reimporting it");
+  h.unmount();
+});
+
+test("device approval auto-read cannot reveal a late snapshot body or decryption after lock, logout or account switch", async () => {
+  for (const stage of ["body", "decryption"])
+    for (const transition of ["lock", "logout", "switch"]) {
+      const h = harness({ needsDeviceRegistration: true });
+      await ready(h);
+      h.forceHead(1);
+      const unlocking = h.render().unlock();
+      h.resolvePasskey();
+      await unlocking;
+      h.render();
+      const gate = deferred();
+      if (stage === "body") h.holdBody(gate);
+      else h.holdSnapshotOpen(gate);
+      const approving = h.render().confirmDeviceRegistration();
+      await settle();
+      assert.equal(stage === "body" ? h.bodyReads() : h.counts().opens, 1);
+      assert.equal(h.render().content, null);
+      if (transition === "lock") h.render().lock();
+      else
+        h.auth(
+          transition === "switch"
+            ? { status: "authenticated", sessionKey: "owner_b:1", profile: { uid: "owner_b" } }
+            : { status: "anonymous", sessionKey: null, profile: null },
+        );
+      assert.equal(h.render({ flush: false }).content, null);
+      h.render();
+      gate.resolve();
+      await approving;
+      const model = h.render();
+      assert.equal(model.content, null);
+      assert.equal(model.preview, null);
+      assert.equal(h.counts().opens, stage === "body" ? 0 : 1);
+      assert.ok(h.instances.every((instance) => instance.locked));
+      h.unmount();
+    }
+});
+
+test("Inbox-only device approval never prefetches holdings even when Portfolio is available", async () => {
+  const h = harness({ needsDeviceRegistration: true });
+  await ready(h);
+  h.forceHead(1);
+  const unlocking = h.render().unlock({ forResults: true, enableState: true });
+  h.resolvePasskey();
+  await unlocking;
+  h.render();
+  await h.render().confirmDeviceRegistration();
+  assert.equal(h.render().phase, "unlocked");
+  assert.equal(h.counts().opens, 0);
+  assert.equal(h.render().content, null);
+  assert.ok(h.requests.every((row) => row.service === "agent-hub"));
   h.unmount();
 });
 

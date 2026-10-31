@@ -1408,6 +1408,178 @@ test("real crypto lifecycle packets pass the actual provider boundary for BFF an
   }
 });
 
+test("real crypto key-renewal packets pass the browser provider for both BFF and local native acceptance", async () => {
+  const { createHarness, createOwner } = require("./full-flow-crypto-fixture.cjs");
+  const { lifecycleState } = require("./vault-key-renewal-fixture.cjs");
+  const crypto = await createHarness();
+  try {
+    const owner = await createOwner(crypto, "a");
+    owner.time(2000);
+    const state = await lifecycleState(crypto, owner);
+    await owner.session.unlockForKeyRenewal(owner.vault, owner.material(), {
+      pin: owner.local.pin,
+      device: owner.local.device,
+    });
+    const { packet } = await owner.session.prepareKeyRenewal(owner.vault, state);
+    const prefix = `/api/v2/vaults/${owner.vault.vaultId}`;
+    const entries = [
+      [prefix + "/key-renewal-state", {}],
+      [prefix + `/key-renewal-operations/${packet.operationId}`, {}],
+      [
+        prefix + "/key-renewals",
+        {
+          method: "POST",
+          json: packet.body,
+          headers: { "Idempotency-Key": packet.operationId },
+        },
+      ],
+    ];
+    for (const local of [false, true]) {
+      const h = mountProvider({
+        hostname: local ? "localhost" : "folioview.example.test",
+        env: local
+          ? { NODE_ENV: "development", NEXT_PUBLIC_AGENT_HUB_API_BASE_URL: "http://localhost:8769" }
+          : encryptedEnv,
+        fetchOwnerConfig: async () => configResponse(false, !local),
+      });
+      h.emitUser(user("a"));
+      await settle();
+      for (const [path, options] of entries) {
+        await h.actions.requestPrivate("agent-hub", path, "a:1", options);
+        const [url, sent] = h.requests.at(-1);
+        assert.equal(url, (local ? "http://localhost:8769" : "/api/private/agent-hub") + path);
+        assert.equal(sent.method, options.method ?? "GET");
+        assert.equal(sent.headers.Authorization, "Bearer test-token-a");
+        assert.equal(sent.headers["X-FolioView-Contract"], version);
+        assert.equal(sent.headers["Idempotency-Key"], options.headers?.["Idempotency-Key"]);
+        assert.equal(sent.headers["X-FolioView-Author-Key"], undefined);
+        assert.equal(sent.headers["X-FolioView-Authority-Delegation"], undefined);
+        assert.equal(sent.headers["X-Serverless-Authorization"], undefined);
+        assert.equal(sent.credentials, "omit");
+        assert.equal(sent.cache, "no-store");
+        assert.equal(sent.redirect, "error");
+        assert.equal(
+          sent.body,
+          options.json === undefined ? undefined : JSON.stringify(packet.body),
+        );
+      }
+      assert.equal(h.requests.length, entries.length + 1);
+      h.unmount();
+    }
+  } finally {
+    await crypto.close();
+  }
+});
+
+test("key-renewal browser admission rejects alternate routes, open bodies and credential overrides before token access", async () => {
+  let tokens = 0;
+  const h = mountProvider({ fetchOwnerConfig: async () => configResponse(false, true) });
+  h.emitUser({ uid: "a", getIdToken: async () => `test-token-${++tokens}` });
+  await settle();
+  const prefix = "/api/v2/vaults/vault_A";
+  const operation = "synthetic_renewal_operation_0001";
+  const command = { protected: "e30", payload: "e30", signature: "AA" };
+  const body = {
+    contractVersion: version,
+    registryBundle: {},
+    archive: {},
+    command,
+    archiveCommand: command,
+  };
+  const write = { method: "POST", json: body, headers: operationHeaders() };
+  const reads = [prefix + "/key-renewal-state", prefix + `/key-renewal-operations/${operation}`];
+  const attempts = [
+    ...[...reads, prefix + "/key-renewals"].flatMap((path) => [
+      [path + "?", path.endsWith("key-renewals") ? write : {}],
+      [path + "?ownerUid=b", path.endsWith("key-renewals") ? write : {}],
+      [path + "/extra", path.endsWith("key-renewals") ? write : {}],
+    ]),
+    [prefix + "/key-renewal-operations/short", {}],
+    [prefix + `/key-renewal-operations/${"A".repeat(129)}`, {}],
+    [prefix + `/key-renewal-operations/${"A".repeat(21)}`, {}],
+    [prefix + "/key-renewal-operations/encoded%5Foperation_0000000001", {}],
+    ["https://evil.test" + reads[0], {}],
+    [reads[0], { method: "POST", json: body, headers: operationHeaders() }],
+    [reads[1], { json: { contractVersion: version } }],
+    [reads[0], { headers: operationHeaders() }],
+    [reads[1], { headers: { "X-FolioView-Author-Key": author } }],
+    [prefix + "/key-renewals", {}],
+    [prefix + "/key-renewals", { ...write, method: "PUT" }],
+    [prefix + "/key-renewals", { ...write, headers: {} }],
+    [
+      prefix + "/key-renewals",
+      { ...write, headers: operationHeaders({ "X-FolioView-Author-Key": author }) },
+    ],
+    [
+      prefix + "/key-renewals",
+      { ...write, headers: operationHeaders({ "X-FolioView-Authority-Delegation": "a.b.c" }) },
+    ],
+    [
+      prefix + "/key-renewals",
+      { ...write, headers: operationHeaders({ "X-Serverless-Authorization": "Bearer forged" }) },
+    ],
+    [prefix + "/key-renewals", { ...write, json: { ...body, ownerSubject: "body-selected" } }],
+    [prefix + "/key-renewals", { ...write, json: { ...body, contractVersion: "wrong" } }],
+    [
+      prefix + "/key-renewals",
+      { ...write, json: { contractVersion: version, registryBundle: {}, archive: {}, command } },
+    ],
+    ...["command", "archiveCommand"].flatMap((name) => [
+      [
+        prefix + "/key-renewals",
+        { ...write, json: { ...body, [name]: { ...command, privateKey: "CANARY" } } },
+      ],
+      [
+        prefix + "/key-renewals",
+        { ...write, json: { ...body, [name]: { ...command, signature: "not/base64" } } },
+      ],
+      [prefix + "/key-renewals", { ...write, json: { ...body, [name]: null } }],
+    ]),
+  ];
+  for (const [path, options] of attempts)
+    await assert.rejects(
+      h.actions.requestPrivate("agent-hub", path, "a:1", options),
+      /Invalid private API/,
+    );
+  assert.equal(tokens, 1);
+  assert.equal(h.requests.length, 1);
+  h.unmount();
+});
+
+test("key-renewal browser admission bounds each root command and the aggregate body before token access", async () => {
+  let tokens = 0;
+  const h = mountProvider({ fetchOwnerConfig: async () => configResponse(false, true) });
+  h.emitUser({ uid: "a", getIdToken: async () => `test-token-${++tokens}` });
+  await settle();
+  const command = { protected: "e30", payload: "e30", signature: "AA" };
+  const body = {
+    contractVersion: version,
+    registryBundle: {},
+    archive: {},
+    command,
+    archiveCommand: command,
+  };
+  const bodies = [
+    ...["command", "archiveCommand"].map((name) => ({
+      ...body,
+      [name]: { ...command, payload: "A".repeat(8192) },
+    })),
+    { ...body, archive: { ciphertext: "A".repeat(589824) } },
+  ];
+  for (const json of bodies)
+    await assert.rejects(
+      h.actions.requestPrivate("agent-hub", "/api/v2/vaults/vault_A/key-renewals", "a:1", {
+        method: "POST",
+        json,
+        headers: operationHeaders(),
+      }),
+      /Invalid private API/,
+    );
+  assert.equal(tokens, 1);
+  assert.equal(h.requests.length, 1);
+  h.unmount();
+});
+
 test("lifecycle admission rejects alternate routes, queries, device-author overrides and open bodies before token retrieval", async () => {
   let tokens = 0;
   const h = mountProvider({ fetchOwnerConfig: async () => configResponse(false, true) });
