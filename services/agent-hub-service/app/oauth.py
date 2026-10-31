@@ -325,15 +325,138 @@ class _S256(CodeChallenge):
     SUPPORTED_CODE_CHALLENGE_METHOD: ClassVar[list[str]] = ["S256"]
 
 
-class OAuthService:
-    def __init__(self, store, config, catalogue=None, *, clock=time.time):
-        self.store, self.config, self.catalogue, self.clock = store, config, catalogue, clock
+class OwnerConnectionService:
+    """Owner history and revocation remain available while issuance is disabled."""
+
+    def __init__(self, store, *, clock=time.time):
+        self.store, self.clock = store, clock
 
     def now(self):
         value = self.clock()
         if type(value) not in (int, float) or not 0 <= value <= 253402300799:
             raise StoreUnavailable
         return int(value)
+
+    def _owner(self, unit, uid):
+        owner = owner_key(uid)
+        record = _row(unit, "hub_oauth_owners", owner)
+        if record is None:
+            return {"ownerSubject": owner, "ownerUid": uid, "connectionIds": [], "attempts": {}}
+        if (
+            set(record) != {"ownerSubject", "ownerUid", "connectionIds", "attempts"}
+            or record["ownerSubject"] != owner
+            or record["ownerUid"] != uid
+            or type(record["connectionIds"]) is not list
+            or len(record["connectionIds"]) > MAX_CONNECTIONS
+            or type(record["attempts"]) is not dict
+            or len(record["attempts"]) > 64
+        ):
+            raise StoreUnavailable
+        return record
+
+    def _connection_view(self, conn):
+        return {
+            "connectionId": conn["connectionId"],
+            "provider": "muse",
+            "clientId": conn["clientId"],
+            "authorizationId": conn["authorizationId"],
+            "status": "expired"
+            if conn["status"] == "active" and conn["expiresAt"] <= self.now()
+            else conn["status"],
+            "authorizedAt": conn["authorizedAt"],
+            "expiresAt": conn["expiresAt"],
+            "approvedScopes": conn["approvedScopes"],
+            "grants": [
+                {
+                    k: g[k]
+                    for k in (
+                        "taskId",
+                        "taskVersion",
+                        "executionEpoch",
+                        "resourceBindings",
+                        "grantId",
+                        "grantEpoch",
+                        "status",
+                        "authorizedAt",
+                        "readObserved",
+                        "resultSaved",
+                    )
+                }
+                | {"signedGrantPresent": g["keyGrantJson"] is not None}
+                for g in conn["grants"].values()
+            ],
+        }
+
+    def connections(self, uid):
+        owner = owner_key(uid)
+
+        def run(unit):
+            record = self._owner(unit, uid)
+            rows, connections = [], {}
+            for ident in record["connectionIds"]:
+                row = _row(unit, "hub_oauth_connections", owner, ident)
+                if row is None or row["ownerSubject"] != owner:
+                    raise StoreUnavailable
+                connections[ident] = row
+                rows.append(self._connection_view(row))
+            attempts = []
+            for saved in record["attempts"].values():
+                value = _copy(saved)
+                conn = connections.get(value["connectionId"])
+                if value["status"] == "pending" and value["expiresAt"] <= self.now():
+                    value["status"] = "expired"
+                elif value["status"] == "authorized":
+                    if conn is None:
+                        raise StoreUnavailable
+                    if conn["authorizationId"] != value["authorizationId"]:
+                        value["status"] = "superseded"
+                    elif conn["status"] == "revoked":
+                        value["status"] = "revoked"
+                    elif value["expiresAt"] <= self.now():
+                        value["status"] = "expired"
+                attempts.append(value)
+            return {
+                "contractVersion": CONTRACT_VERSION,
+                "items": rows,
+                "authorizationAttempts": attempts,
+            }
+
+        return self.store.transact(run)
+
+    def revoke_connection(self, uid, connection_id):
+        return self._revoke_owner(uid, connection_id)
+
+    def revoke_grant(self, uid, connection_id, grant_id):
+        identifier(grant_id)
+        return self._revoke_owner(uid, connection_id, grant_id)
+
+    def _revoke_owner(self, uid, connection_id, grant_id=None):
+        identifier(connection_id)
+        owner = owner_key(uid)
+
+        def run(unit):
+            conn = _row(unit, "hub_oauth_connections", owner, connection_id)
+            if conn is None or conn["ownerSubject"] != owner:
+                raise ContractError("not_found")
+            if grant_id is None:
+                conn["status"] = "revoked"
+                for grant in conn["grants"].values():
+                    grant["status"] = "revoked"
+            else:
+                grant = next((g for g in conn["grants"].values() if g["grantId"] == grant_id), None)
+                if grant is None:
+                    raise ContractError("not_found")
+                grant["status"] = "revoked"
+            _put(unit, "hub_oauth_connections", (owner, connection_id), conn)
+            return {"contractVersion": CONTRACT_VERSION, "connection": self._connection_view(conn)}
+
+        return self.store.transact(run)
+
+
+class OAuthService(OwnerConnectionService):
+    def __init__(self, store, config, catalogue=None, *, clock=time.time):
+        super().__init__(store, clock=clock)
+        self.config, self.catalogue = config, catalogue
 
     def metadata(self):
         return {
@@ -446,23 +569,6 @@ class OAuthService:
             "expiresAt": row["expiresAt"],
             "prepared": row["prepared"],
         }
-
-    def _owner(self, unit, uid):
-        owner = owner_key(uid)
-        record = _row(unit, "hub_oauth_owners", owner)
-        if record is None:
-            return {"ownerSubject": owner, "ownerUid": uid, "connectionIds": [], "attempts": {}}
-        if (
-            set(record) != {"ownerSubject", "ownerUid", "connectionIds", "attempts"}
-            or record["ownerSubject"] != owner
-            or record["ownerUid"] != uid
-            or type(record["connectionIds"]) is not list
-            or len(record["connectionIds"]) > MAX_CONNECTIONS
-            or type(record["attempts"]) is not dict
-            or len(record["attempts"]) > 64
-        ):
-            raise StoreUnavailable
-        return record
 
     def _attempt(self, unit, uid, request_id, row):
         record = self._owner(unit, uid)
@@ -897,104 +1003,6 @@ class OAuthService:
 
         return self.store.transact(run)
 
-    def _connection_view(self, conn):
-        return {
-            "connectionId": conn["connectionId"],
-            "provider": "muse",
-            "clientId": conn["clientId"],
-            "authorizationId": conn["authorizationId"],
-            "status": "expired"
-            if conn["status"] == "active" and conn["expiresAt"] <= self.now()
-            else conn["status"],
-            "authorizedAt": conn["authorizedAt"],
-            "expiresAt": conn["expiresAt"],
-            "approvedScopes": conn["approvedScopes"],
-            "grants": [
-                {
-                    k: g[k]
-                    for k in (
-                        "taskId",
-                        "taskVersion",
-                        "executionEpoch",
-                        "resourceBindings",
-                        "grantId",
-                        "grantEpoch",
-                        "status",
-                        "authorizedAt",
-                        "readObserved",
-                        "resultSaved",
-                    )
-                }
-                | {"signedGrantPresent": g["keyGrantJson"] is not None}
-                for g in conn["grants"].values()
-            ],
-        }
-
-    def connections(self, uid):
-        owner = owner_key(uid)
-
-        def run(unit):
-            record = self._owner(unit, uid)
-            rows, connections = [], {}
-            for ident in record["connectionIds"]:
-                row = _row(unit, "hub_oauth_connections", owner, ident)
-                if row is None or row["ownerSubject"] != owner:
-                    raise StoreUnavailable
-                connections[ident] = row
-                rows.append(self._connection_view(row))
-            attempts = []
-            for saved in record["attempts"].values():
-                value = _copy(saved)
-                conn = connections.get(value["connectionId"])
-                if value["status"] == "pending" and value["expiresAt"] <= self.now():
-                    value["status"] = "expired"
-                elif value["status"] == "authorized":
-                    if conn is None:
-                        raise StoreUnavailable
-                    if conn["authorizationId"] != value["authorizationId"]:
-                        value["status"] = "superseded"
-                    elif conn["status"] == "revoked":
-                        value["status"] = "revoked"
-                    elif value["expiresAt"] <= self.now():
-                        value["status"] = "expired"
-                attempts.append(value)
-            return {
-                "contractVersion": CONTRACT_VERSION,
-                "items": rows,
-                "authorizationAttempts": attempts,
-            }
-
-        return self.store.transact(run)
-
-    def revoke_connection(self, uid, connection_id):
-        return self._revoke_owner(uid, connection_id)
-
-    def revoke_grant(self, uid, connection_id, grant_id):
-        identifier(grant_id)
-        return self._revoke_owner(uid, connection_id, grant_id)
-
-    def _revoke_owner(self, uid, connection_id, grant_id=None):
-        identifier(connection_id)
-        owner = owner_key(uid)
-
-        def run(unit):
-            conn = _row(unit, "hub_oauth_connections", owner, connection_id)
-            if conn is None or conn["ownerSubject"] != owner:
-                raise ContractError("not_found")
-            if grant_id is None:
-                conn["status"] = "revoked"
-                for grant in conn["grants"].values():
-                    grant["status"] = "revoked"
-            else:
-                grant = next((g for g in conn["grants"].values() if g["grantId"] == grant_id), None)
-                if grant is None:
-                    raise ContractError("not_found")
-                grant["status"] = "revoked"
-            _put(unit, "hub_oauth_connections", (owner, connection_id), conn)
-            return {"contractVersion": CONTRACT_VERSION, "connection": self._connection_view(conn)}
-
-        return self.store.transact(run)
-
     def authenticate(self, token, task_id=None, scope=None):
         principal = self.store.transact(
             lambda unit: self.authorize_in_transaction(unit, token, task_id, scope)
@@ -1127,6 +1135,10 @@ class OAuthService:
         if not capabilities <= set(verified["capabilities"]):
             raise OAuthFailure("insufficient_scope", 403)
         return verified
+
+
+def get_owner_connection_service():
+    return OwnerConnectionService(get_store())
 
 
 def get_oauth_service():

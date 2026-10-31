@@ -56,6 +56,7 @@ class AgentHubBoundaryTests(unittest.TestCase):
                     "/api/v2/agent-authorizations/{request_id}/prepare",
                     "/api/v2/agent-authorizations/{request_id}/prepare-encrypted",
                     "/api/v2/agent-authorizations/{request_id}/decision",
+                    "/api/v2/agent-capabilities",
                     "/api/v2/agent-connections",
                     "/api/v2/agent-connections/{connection_id}/revoke",
                     "/api/v2/agent-connections/{connection_id}/grants/{grant_id}/revoke",
