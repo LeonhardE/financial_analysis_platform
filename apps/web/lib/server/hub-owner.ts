@@ -12,6 +12,7 @@ import {
   JWT,
   Failure,
   fail,
+  requireSameOrigin,
   fields,
   integer,
   errorResponse,
@@ -81,9 +82,7 @@ function route(request: Request): { path: string; rule: Rule } {
   const url = new URL(request.url);
   // Query values can be encoded; encoded PATH separators/segments cannot select a route.
   if (/[\\%#]/.test(request.url.split("?", 1)[0]) || url.hash) fail();
-  const origin = request.headers.get("origin");
-  if ((origin && origin !== url.origin) || request.headers.get("sec-fetch-site") === "cross-site")
-    fail("insufficient_scope");
+  requireSameOrigin(request, url);
   if (!url.pathname.startsWith(PREFIX + "/")) fail();
   const path = url.pathname.slice(PREFIX.length);
   const get = request.method === "GET";

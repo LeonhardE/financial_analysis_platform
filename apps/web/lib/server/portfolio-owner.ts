@@ -6,6 +6,7 @@ import {
   JWT,
   Failure,
   fail,
+  requireSameOrigin,
   record,
   fields,
   integer,
@@ -46,9 +47,7 @@ function ruleFor(request: Request): { path: string; rule: Rule } {
   const url = new URL(request.url);
   if (url.search || request.url.includes("?")) fail("unsupported_query");
   if (/[\\%#]/.test(request.url)) fail();
-  const origin = request.headers.get("origin");
-  if ((origin && origin !== url.origin) || request.headers.get("sec-fetch-site") === "cross-site")
-    fail("insufficient_scope");
+  requireSameOrigin(request, url);
   if (!url.pathname.startsWith(PREFIX + "/")) fail();
   const path = url.pathname.slice(PREFIX.length);
   if (

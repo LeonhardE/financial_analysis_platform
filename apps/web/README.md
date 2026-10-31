@@ -169,6 +169,14 @@ per verified UID, with at most 1,024 tracked UID windows. These local bounds do 
 separate deployment-wide cost controls. Only fixed formal application errors cross the boundary;
 metadata/IAM/network/key-fetch failures become retryable service errors, not a user logout.
 
+Browser Origin checks use the incoming `Host` and the request URL's protocol. Next standalone
+can give route handlers a URL containing the container's listening hostname instead of the
+public destination, so that internal hostname is not the browser origin. `X-Forwarded-Host`
+and `Forwarded` do not select an accepted origin. Cross-site requests, mismatched schemes or
+ports, opaque origins and malformed/multiple Host values are rejected before identity checks.
+Hostless direct Request callers retain the URL-origin check; absent Origin remains permitted
+for authenticated non-browser clients.
+
 Hub forwarding covers owner vault enrollment/registry/source controls and authority tokens,
 resource catalogue, encrypted tasks and versions/transitions, Inbox lists/counts/details/history/
 proofs/state, connection listing/revocation and preparation intent/staging/commit. Only the named
