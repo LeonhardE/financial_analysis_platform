@@ -188,6 +188,34 @@ def require_trust_consumer(directory, target="user"):
 require_user_hub_trust_consumer = require_trust_consumer
 
 
+def require_web_owner_consumer(directory):
+    marker = directory / "web-owner.consumer.json"
+    message = "Web source has not adopted the reviewed owner configuration contract."
+    try:
+        require(marker.is_file() and not marker.is_symlink(), message)
+        with marker.open("rb") as source:
+            data = source.read(513)
+        require(0 < len(data) <= 512, message)
+        value = json.loads(
+            data.decode("utf-8"),
+            object_pairs_hook=deployments.unique_pairs,
+            parse_constant=deployments.reject_constant,
+        )
+        require(type(value) is dict and type(value.get("schemaVersion")) is int, message)
+        require(
+            value
+            == {
+                "schemaVersion": 1,
+                "target": "web",
+                "configurationContract": "web-owner.v1",
+                "terraformVariable": "owner_environment",
+            },
+            message,
+        )
+    except (OSError, ValueError, TypeError, RecursionError):
+        raise RuntimeError(message) from None
+
+
 def registry(root, target, instance=None):
     policy = json.loads((root / POLICY).read_text())
     require(isinstance(policy, dict), "Pipeline policy must be an object.")
@@ -341,6 +369,8 @@ def registry(root, target, instance=None):
         require_trust_consumer(directory)
     if instance is not None and "portfolioHubTrust" in instance:
         require_trust_consumer(directory, "portfolio")
+    if instance is not None and "webOwner" in instance:
+        require_web_owner_consumer(directory)
     return policy, selected, directory
 
 

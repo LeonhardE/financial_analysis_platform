@@ -413,6 +413,8 @@ def validate_target(value):
         require(type(value) is dict)
         target = value.get("target")
         require(type(target) is str and target in TARGET_SERVICES)
+        has_web_owner = "webOwner" in value
+        require(not has_web_owner or target == "web")
         has_portfolio_trust = "portfolioHubTrust" in value
         require(not has_portfolio_trust or target == "portfolio")
         has_user_trust = "userHubTrust" in value
@@ -422,7 +424,8 @@ def validate_target(value):
             TARGET_TOP_FIELDS
             | ({"build"} if target == "web" else set())
             | ({"userHubTrust"} if has_user_trust else set())
-            | ({"portfolioHubTrust"} if has_portfolio_trust else set()),
+            | ({"portfolioHubTrust"} if has_portfolio_trust else set())
+            | ({"webOwner"} if has_web_owner else set()),
         )
         require(type(value["schemaVersion"]) is int and value["schemaVersion"] == 1)
         matches(SLUG, value["instanceId"])
@@ -523,6 +526,26 @@ def validate_target(value):
             require(type(configuration) is dict)
             require((configuration.get("hubSubject") is None) == (trust["hubDeployment"] is None))
             validate_user_hub_trust(configuration, base, trust["hubDeployment"])
+        if has_web_owner:
+            owner = value["webOwner"]
+            fields(owner, {"server", "public"})
+            base = {name: item for name, item in value.items() if name != "webOwner"}
+            server = owner["server"]
+            parse_web_owner_server(canonical(server), instance=base, expected_sha256=digest(server))
+            parse_web_owner_public(
+                canonical(owner["public"]),
+                server=server,
+                instance=base,
+                expected_server_sha256=digest(server),
+            )
+            # This managed contract supports numbered origins only. Legacy
+            # sidecar parsing keeps its broader previously reviewed contract.
+            environment = server["environment"]
+            if environment["FOLIOVIEW_HUB_OWNER_ENABLED"] == "true":
+                require(
+                    environment["FOLIOVIEW_HUB_ORIGIN"]
+                    == f"https://agent-hub-api-{number}.{region}.run.app"
+                )
         if has_portfolio_trust:
             trust = value["portfolioHubTrust"]
             fields(trust, {"configuration", "hubDeployment"})
@@ -556,6 +579,8 @@ def terraform_inputs(instance):
         result["hub_trust"] = dict(value["userHubTrust"]["configuration"]["environment"])
     if "portfolioHubTrust" in value:
         result["hub_trust"] = dict(value["portfolioHubTrust"]["configuration"]["environment"])
+    if "webOwner" in value:
+        result["owner_environment"] = dict(value["webOwner"]["server"]["environment"])
     return result
 
 
@@ -1076,6 +1101,49 @@ def compile_portfolio_hub_trust_artifacts(profile):
     }
 
 
+def compile_web_owner_deployment_artifacts(profile):
+    """Opt into managed Web consumption without changing the old sidecar command."""
+    sidecars = compile_web_owner_artifacts(profile)
+    instance = compile_target(profile, "web")
+    server = sidecars["web-owner-server.candidate.json"]
+    public = sidecars["web-owner-public.candidate.json"]
+    extended = parse_target(
+        canonical({**instance, "webOwner": {"server": server, "public": public}})
+    )
+    inputs = terraform_inputs(extended)
+    artifacts = {
+        "web-owner-server.candidate.json": server,
+        "web-owner-public.candidate.json": public,
+        "deployment-config.candidate.json": extended,
+        "terraform-inputs.candidate.json": inputs,
+        "trigger-substitutions.candidate.json": {
+            "_DEPLOYMENT_CONFIG": canonical(extended).decode("ascii"),
+            "_DEPLOYMENT_SHA256": digest(extended),
+        },
+    }
+    return {
+        **artifacts,
+        "manifest.json": {
+            "schemaVersion": 1,
+            "purpose": "offline_web_owner_deployment_candidate",
+            "approval": "not_requested",
+            "productionActivation": False,
+            "instanceId": instance["instanceId"],
+            "target": "web",
+            "profileSha256": digest(profile),
+            "webDeploymentSha256": digest(instance),
+            "deploymentSha256": digest(extended),
+            "terraformInputsSha256": digest(inputs),
+            "serverConfigurationSha256": digest(server),
+            "publicConfigurationSha256": digest(public),
+            "filesSha256": {
+                name: hashlib.sha256(canonical(value) + b"\n").hexdigest()
+                for name, value in artifacts.items()
+            },
+        },
+    }
+
+
 def render(profile, *, root=ROOT):
     profile = validate_profile(profile)
     project, number = profile["project"]["id"], profile["project"]["number"]
@@ -1212,6 +1280,7 @@ def main():
             "compile-web-owner",
             "compile-user-hub-trust",
             "compile-portfolio-hub-trust",
+            "compile-web-owner-deployment",
         ),
     )
     parser.add_argument("--profile", required=True)
@@ -1228,13 +1297,16 @@ def main():
                     "compile-web-owner",
                     "compile-user-hub-trust",
                     "compile-portfolio-hub-trust",
+                    "compile-web-owner-deployment",
                 }
             )
             == (args.output_dir is not None)
         )
         require((args.action == "compile") == (args.target is not None))
         profile = load_profile(args.profile)
-        if args.action == "compile-portfolio-hub-trust":
+        if args.action == "compile-web-owner-deployment":
+            artifacts = compile_web_owner_deployment_artifacts(profile)
+        elif args.action == "compile-portfolio-hub-trust":
             artifacts = compile_portfolio_hub_trust_artifacts(profile)
         elif args.action == "compile-user-hub-trust":
             artifacts = compile_user_hub_trust_artifacts(profile)
@@ -1252,6 +1324,7 @@ def main():
             "compile-web-owner",
             "compile-user-hub-trust",
             "compile-portfolio-hub-trust",
+            "compile-web-owner-deployment",
         }:
             write_candidates(artifacts, args.output_dir)
         # Hashes identify selected input; they are not source-provenance or approval proof.
