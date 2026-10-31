@@ -1,4 +1,26 @@
-# Candidate artifact verified by the earlier build-only delivery. Plan only:
-# it lacks a target-trigger/output provenance approval. Rebuild through the
-# reviewed target trigger and validate first_provision.py before actual creation.
-bootstrap_image = "northamerica-northeast2-docker.pkg.dev/financial-analysis-512202/financial-analysis/agent-hub-api@sha256:e4504d4b3b4624dd0c81585f13166fe3c6a4cb6bd9171adc87c9cf5b0b8ad927"
+# Illustrative non-production inputs only, not an existing image or apply approval.
+# Supply the reviewed current candidate digest and matching private instance profile.
+deployment = {
+  project_id          = "example-project-1234"
+  region              = "europe-west3"
+  artifact_repository = "example-images"
+  runtime_account_id  = "example-hub-runtime"
+  creation_image      = "europe-west3-docker.pkg.dev/example-project-1234/example-images/agent-hub-api@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  web_origin          = "https://web.example.invalid"
+  hub_origin          = "https://hub.example.invalid"
+}
+
+# Exact producer sources and the inventoried Portfolio numeric subject/email pair
+# may be supplied after inventory. Missing values fail closed, never trust a name.
+sources = {
+  user_origin               = ""
+  portfolio_origin          = ""
+  portfolio_caller_email    = ""
+  trusted_portfolio_callers = {}
+}
+
+connector = {
+  oauth_enabled             = false
+  encrypted_adapter_enabled = false
+  muse_clients              = []
+}

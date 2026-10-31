@@ -1,127 +1,123 @@
 # Agent Hub first-provision preparation (INF-006)
 
-This target is registered **disabled**. Merging these files does not create its backend,
-identities, trigger, database, Rules release or Cloud Run service. Administrator bootstrap
-`agent_hub_provisioning_stage` defaults to `none`; a complete plan against the existing
-bootstrap state must have no new Agent Hub actions with that default. No `-target` is needed.
+This target remains **disabled**, with `agent_hub_provisioning_stage = "none"` and
+image release `build_only`. Merging this preparation does not create a service,
+database, API enablement, key, identity, trigger, Rules release or public IAM grant.
+The current application contains encrypted owner APIs, OAuth, helper/MCP, tasks,
+Runs and results. A successful image health test is not their production acceptance.
 
-## Ownership and stages
+## Explicit configuration
 
-| Owner                            | Future resources                                                                                                                                                | Stage                                     |
-| -------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------- |
-| Existing administrator bootstrap | Dedicated target state bucket, plan/apply accounts, scoped state/plan permissions, plan/approval triggers; dedicated image-build account and build-only trigger | `execution`                               |
-| This business root               | `fa-agent-hub-runtime`, protected named Firestore DB `agent-hub`, protected `agent-hub-api` and configuration controller                                        | Separately approved first creation        |
-| Existing administrator bootstrap | Resource-scoped Run/runtime-metadata/image-read permissions; exact DB runtime/metadata grants; deny-all named-DB client Rules                                   | `service`, after business resources exist |
+Supply the closed `deployment` object in `variables.tf`, using the private reviewed
+instance profile and a current immutable **agent-hub-api** image. Project, region,
+repository, runtime identity, canonical Web origin and canonical Hub origin have no
+checked-in production defaults. The example is illustrative and is not a real image.
+`bootstrap_image` is a compatibility alias that may only equal the selected image.
 
-`module.target_execution["agent-hub"]` retains its address from execution through activation.
-After either stage is applied, retain its stage in administrator configuration. After explicit
-pipeline activation, the registry's `enabled` flag also preserves the service stage. Do not
-reset an already-provisioned protected target to `none` or remove its catalog entry.
+`AGENT_HUB_STORE_BACKEND=firestore` is the actual application setting. The obsolete
+`HUB_STORE_BACKEND` name is not emitted. The database is explicitly `agent-hub`;
+the default database and emulator are refused by the deployed application.
+Scale remains min 0/max 1 per revision, one CPU/256 MiB, concurrency 8 and timeout
+60 seconds. These bounds limit capacity but are not a total billing cap.
 
-Never jump directly from `none` to `service`: its Run/runtime-scoped grants and Rules release
-require the independently created business resources, and the execution identities must already
-exist from stage one. Native preparation plans do not prove those future live prerequisites.
+The `sources` input contains fixed HTTPS producer origins and the inventoried
+Portfolio Google subject/email pair. Missing values leave those operations
+unavailable; do not guess the numeric subject or trust email alone. Producer-side
+trust and invoker permissions remain INF-007/008, not this target's IAM grants.
+The Hub catalogue caller is its selected runtime identity.
 
-Normal target execution never owns IAM, Roles, Rules, triggers, buckets, another target, or
-content keys. Its plan account only reads resource metadata; apply can update this service's
-configuration/runtime metadata and this database's metadata. Neither gets entity read/write,
-DB create/delete, IAM administration or identity-token minting. The DB metadata permission is
-`datastore.databases.getMetadata`; `datastore.databases.get` permits transaction operations and
-is deliberately absent from infrastructure roles. Only the apply metadata role also receives
-`datastore.operations.get`: provider 7.28.0 waits for the database PATCH's asynchronous operation
-([database update](https://github.com/hashicorp/terraform-provider-google/blob/v7.28.0/google/services/firestore/resource_firestore_database.go#L784),
-[operation polling](https://github.com/hashicorp/terraform-provider-google/blob/v7.28.0/google/services/firestore/firestore_operation.go#L53)).
-The exact named-DB CEL condition remains unchanged; plan gets no polling/update permission,
-and neither role can cancel/delete operations. Native plans validate this proposed permission
-set, not its live asynchronous authorization behavior. After actual creation, verify the target
-apply identity can complete a reviewed database metadata update and operation wait under that
-condition before enabling its normal infrastructure pipeline; no such update runs in preparation.
+`connector` supplies exact Muse registrations. OAuth and the encrypted adapter
+both default to `false`, no client is implicitly registered, and the adapter
+cannot be enabled without OAuth. Callbacks have no wildcards, userinfo, query or
+fragment; the serialized list is bounded to the application's 16 KiB budget.
+Public clients use PKCE with `none` authentication. Confidential clients use only
+a high-entropy secret's SHA256 verifier from private operator inputs; never place
+the raw secret in Terraform, source or logs. The configured consent page is the
+fixed same-origin `/agent/v2/helper/consent.html` asset.
 
-The runtime alone has conditional Datastore User on
-`projects/financial-analysis-512202/databases/agent-hub`. Client Rules are a separate deny-all
-release `cloud.firestore/agent-hub`; they never overwrite `(default)` Rules. IAM-based server
-SDKs bypass client Rules, so both boundaries must be checked. The image builder gets writer
-access only to the existing Toronto Artifact Registry repository and log writing, with no Run
-update or runtime attachment. Artifact Registry IAM is repository-scoped, not an image-name
-security boundary; no cross-target upload isolation inside that existing repository is claimed.
+## Ownership and staged creation
 
-## Configuration and data limits
+| Owner                   | Prospective resources                                                                                                    | Order                                    |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------- |
+| Administrator bootstrap | Dedicated state/plan/apply/build identities and triggers; explicit Cloud KMS API enablement                              | `execution`                              |
+| This business root      | Runtime, protected named DB, index-only exemptions, signing key ring/key, private Run and configuration controller       | First creation after execution           |
+| Administrator bootstrap | Exact DB and resource metadata IAM, runtime signing/public-key access, Firebase account lookup and deny-all client Rules | `service` after business resources exist |
 
-- Toronto; request-billed one-vCPU/256Mi container, scale-to-zero, max one instance per revision,
-  concurrency eight, timeout sixty seconds. Revision caps are not a total billing cap.
-- Cloud Run invoker IAM remains enforced with no public or service-account invoker grant.
-  Only health is implemented in the image; private APIs/OAuth/MCP remain unavailable. This
-  preparation does not claim production agent integration or application authentication.
-- Exact existing Web CORS origin is desired configuration for later implementation; the skeleton
-  does not implement private APIs or consume a store yet. No guessed callback or OAuth secret.
-- No content key, private agent key, secret value, KMS key, broker credential, plaintext fixture,
-  payload logging or trace-body configuration. Existing Docker entry disables access logs;
-  managed platform request metadata is still retained. Future handlers must preserve no-body
-  logs, owner/grant checks and envelope validation.
-- Empty TTL/index maps are intentional until Hub storage collections/queries are implemented.
-  Add TTL, ciphertext index exemptions and required metadata indexes in the consuming Hub
-  storage tickets before admitting private content. TTL does not replace immediate expiry checks.
-  The current empty database/skeleton cannot be treated as completed storage/E2EE functionality.
-- Hub delegation-signing/OAuth operational keys are distinct from content keys. No signing-key
-  resource or decryption service is created speculatively; later authorization tickets add their
-  narrowly scoped operational needs. Firebase Auth Viewer is not pre-granted to this skeleton.
+Use complete saved plans, never `-target`. Preserve the already-applied Portfolio
+stage and other target resources. After any provisioning, keep its administrator
+stage; never reset protected targets to `none`. The default none plan must remain
+inert. The future Hub backend must not be initialized until its bucket exists.
 
-## Complete plans without provisioning
+The Cloud KMS API is currently a proposed execution-stage prerequisite with
+`disable_on_destroy=false`. The business root proposes one protected
+`ASYMMETRIC_SIGN` key using `RSA_SIGN_PKCS1_2048_SHA256`, software protection and
+initial numeric version 1. It signs operational delegation authority, never user
+holdings/tasks/reports. No private key bytes, content recovery key or KMS decrypt
+permission are configured. Future key-version rotation needs its own reviewed
+creation and explicit numeric-version change.
 
-Use pinned Terraform 1.16.7 / Google provider 7.28.0 and the committed lockfile. CI initializes
-without a backend and runs credential-free native `plan` tests. For live bootstrap inventory,
-use the already-established administrator backend and variables; save a **full** plan with
-stage `none`, then review each separately proposed `execution` and `service` plan. Never hide
-other target changes with `-target`, replace existing state, or run any apply during preparation.
+Only the runtime receives `roles/cloudkms.signer` and `roles/cloudkms.publicKeyViewer`
+on that exact CryptoKey. Those parent-key IAM grants cover usable versions of
+that key; the environment pins version 1 but is not a version-level IAM boundary.
+Plan/apply identities get ring/key metadata read, and apply gets key metadata
+update; neither signs, decrypts, creates/destroys key versions or administers IAM.
+Only `firebaseauth.users.get` is added to the runtime for the existing
+`check_revoked=True` owner verifier. No user listing/admin or token-signing role.
 
-This target's backend is future `financial-analysis-512202-tfstate-agent-hub`, prefix
-`prod/agent-hub`. That bucket is not available until separately authorized execution provisioning.
-For the preparation-only business plan, use an isolated copy with only the GCS backend declaration
-replaced by a temporary local backend and an empty local state. Keep relative module/tool paths,
-lockfile and all resource declarations unchanged; use the full native provider graph, not a
-mocked screenshot or fabricated state. Authenticate only provider metadata as required; do not
-print/store tokens. `terraform show -json` must list only the target runtime, named database,
-Run creation/controller and deferred configured-service read; zero destroy/import actions.
-This empty-local-state plan is proposed initial creation, not a remote-state adoption check or
-an approved, later-reusable production plan. It must be regenerated after the real backend exists.
+## Storage and permissions
 
-`bootstrap_image` has a committed creation-only default so normal noninteractive target plans
-can run after activation without ad-hoc variable files. `terraform.tfvars.example` records the
-same previously verified build-only artifact solely as a plan
-candidate. Its manual build lacks supported target-trigger/output provenance. It grants **no**
-first-provision approval and is not a reason to relax `first_provision.py` or release guards.
-No stage is applied by this preparation PR.
+`storage.tf` records 35 implemented opaque JSON/map/array fields. Each
+`google_firestore_field.opaque` has an empty `index_config` and **no `ttl_config`**.
+This is deliberately separate from the shared database module's TTL input, which
+would enable TTL. No grants, refresh families, immutable histories, operation
+ACKs, manifests, deliveries or result references are deleted by TTL. All current
+lookups use bounded exact document IDs/get-many; no composite query index is added.
 
-## Future separately authorized first creation
+The runtime alone receives data access conditioned on the exact Hub database.
+Plan/apply metadata permissions retain the same DB condition. Field GET/PATCH use
+`datastore.indexes.get`/`datastore.indexes.update`; apply also polls
+`datastore.operations.get`. No entity access, DB create/delete, index create/delete,
+list or project-wide data role is added to infrastructure execution. Live field
+metadata and asynchronous-operation checks remain required after actual creation.
+See the [Firestore method permissions](https://docs.cloud.google.com/firestore/native/docs/audit-logging#getfield)
+and [provider 7.28.0 field implementation](https://github.com/hashicorp/terraform-provider-google/blob/v7.28.0/google/services/firestore/resource_firestore_field.go).
 
-1. Recheck live inventory and the three legacy runtimes' exact default-DB conditions. Keep new
-   target registration disabled and the image release build-only. Review/apply only the full
-   `execution` bootstrap plan for this target; preserve the saved plan/source/state fingerprints.
-2. Run the new main-only target image trigger; independently capture successful build, trigger,
-   immutable digest and supported output-only provenance. Use `first_provision.py` to prepare and
-   validate matching review material. Empty provenance remains a failed gate. Update the candidate
-   creation image to that reviewed digest, re-review source and regenerate complete plans.
-3. Initialize the real isolated backend only after its bucket exists. Administrators review and
-   approve the business-root saved plan separately. Create runtime/database/Run without granting
-   normal execution create/IAM rights. Do not import nonexistent resources or invent UIDs.
-4. After those resources exist and the Firebase Rules API availability is confirmed (otherwise
-   record enabling it as an explicit future operation), review/apply only the additive `service`
-   bootstrap plan. Verify exact named-DB Rules release and IAM. No stage-three resource references
-   a nonexistent Run service during stage one.
-5. Immediately test real old Market/User/Config runtime reads/writes/transactions are denied on the
-   new DB, and verify Hub can access only its own DB. Backfill INF-002–004 before any real private
-   data. Missing-DB 404 is not permission denial. Verify anonymous/private-route rejection,
-   authenticated health, no payload logs/keys and empty second full plans. No user data is needed.
-6. Only after these checks, separately enable normal infrastructure planning. Image registry
-   release mode stays `build_only` until its own deployment review; this preparation changes no
-   service release setting. The initial image/traffic ownership stays with reviewed creation and
-   the later release controller; normal configuration must preserve live image/revision/traffic.
+## Public connector is a separate decision
 
-On failure keep the service private, stop progression and retain protected resources/state for
-review. Revert only the target's configuration or restore its previous reviewed release when
-available; do not delete the DB/identities, reset stage to none, disable unrelated IAM, or broaden
-permissions as a workaround. No infrastructure cleanup is needed for this plan-only delivery.
+The business root grants no invoker IAM. First creation remains private with no
+public/caller invoker grants. A later administrator service-stage plan can
+explicitly set `agent_hub_public_connector_enabled=true` to add only this service's
+`allUsers` invoker tuple. That flag does not enable OAuth/adapter, approve an agent,
+change application authentication or give normal target execution IAM rights.
+Review the matching application configuration and real OAuth/consumer acceptance
+before any public activation. Hub owner/internal routes still require their exact
+Firebase/workload/delegation checks; URL naming, CORS or Web forwarding is not an
+authorization boundary. The Web owner BFF and public agent protocol stay distinct.
 
-Official contracts: [Firestore IAM](https://cloud.google.com/firestore/native/docs/security/iam),
-[named Firestore Rules deployment](https://firebase.google.com/docs/rules/manage-deploy),
-[server SDK versus Rules](https://firebase.google.com/docs/firestore/security/rules-conditions).
+## Plans, images and remaining live gates
+
+Use the pinned Terraform 1.16.7/provider 7.28.0 lockfile. Native tests are mock
+`plan` only and never run the configuration provisioner. Review complete default,
+execution and service bootstrap plans, plus a full business first-create plan.
+Because the real Hub state bucket does not exist, an isolated local-backend copy
+with empty state can preview business creation; it is not adoption or a reusable
+approved production plan. Regenerate against the real backend after execution.
+
+The current build-only artifact is a **candidate**, not first-provision approval.
+Its reviewed digest, exact released-main source and official build reference are
+pinned in [image-candidate.json](image-candidate.json); compose the full image
+reference with the selected deployment project/region/repository. This manifest
+does not activate a target or substitute a future dedicated-trigger approval.
+Supported Git source/output provenance does not replace the dedicated target
+trigger requirement. The Hub trigger cannot exist until separately authorized
+execution provisioning. Keep `first_provision.py`, source, digest, saved-plan and
+release guards intact. A future target-trigger build must be independently checked
+and pinned before actual service creation. This preparation performs no apply.
+
+After eventual creation, verify cross-DB refusals with existing DBs, exact
+runtime/infra permissions, Firebase owner auth, signing/public JWKS and no content
+keys/body logging; then review fresh no-drift plans. Backfill INF-002/003/004 Hub
+checks. Configure producer trust in INF-007/008, Web entry in INF-009 and real Muse
+acceptance separately. Keep protocol flags and public invocation closed until
+those checks are complete. Never recover a failed stage by granting broad IAM,
+recreating the DB, deleting histories or supplying a content key to the backend.
