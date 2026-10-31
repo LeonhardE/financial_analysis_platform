@@ -1517,6 +1517,8 @@ export function useHoldingsWorkspace() {
           notice: "",
           error: "",
         }));
+        if (!before.registrationForResults && capabilitiesRef.current.portfolio && saved.sources[0])
+          await readSaved(saved.sources[0], signal, assertActive);
       }),
     [
       api,
@@ -1526,6 +1528,7 @@ export function useHoldingsWorkspace() {
       managementGeneration,
       perform,
       readCurrent,
+      readSaved,
       enrollmentCheckpoint,
     ],
   );

@@ -148,6 +148,7 @@ type EncryptedRule = {
   authority?: boolean;
   maxBytes?: number;
   rootCommand?: boolean;
+  rootCommands?: string[];
 };
 function hubOwnerRule(path: string, method: PrivateMethod): EncryptedRule | null {
   if (path.length > 8192 || /[\\#]/.test(path)) return null;
@@ -166,6 +167,8 @@ function hubOwnerRule(path: string, method: PrivateMethod): EncryptedRule | null
         "/api/v2/agent-connections",
       ].includes(pathname) ||
       matches(`/api/v2/agent-connections/${id}/tasks/${id}/preparation-intent`) ||
+      matches(`/api/v2/vaults/${id}/key-renewal-state`) ||
+      matches(`/api/v2/vaults/${id}/key-renewal-operations/[A-Za-z0-9_-]{22,128}`) ||
       matches(`/api/v2/vaults/${id}/archive`) ||
       matches(`/api/v2/vaults/${id}/archive-operations/${id}`)
     )
@@ -212,6 +215,14 @@ function hubOwnerRule(path: string, method: PrivateMethod): EncryptedRule | null
       idempotent: true,
       maxBytes: 65536,
       rootCommand: true,
+    };
+  } else if (method === "POST" && matches(`/api/v2/vaults/${id}/key-renewals`)) {
+    rule = {
+      method,
+      keys: ["contractVersion", "registryBundle", "archive", "command", "archiveCommand"],
+      idempotent: true,
+      maxBytes: 589824,
+      rootCommands: ["command", "archiveCommand"],
     };
   } else if (
     method === "POST" &&
@@ -351,8 +362,8 @@ function encryptedRequestHeaders(
     )
       throw new Error("Invalid private API request");
   } else if (options.json !== undefined) throw new Error("Invalid private API request");
-  if (rule.rootCommand) {
-    const command = (options.json as Record<string, unknown>).command;
+  for (const name of rule.rootCommands ?? (rule.rootCommand ? ["command"] : [])) {
+    const command = (options.json as Record<string, unknown>)[name];
     if (
       !exact(command, ["protected", "payload", "signature"]) ||
       !Object.values(command).every(
