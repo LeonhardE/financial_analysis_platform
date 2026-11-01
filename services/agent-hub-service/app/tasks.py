@@ -4,6 +4,7 @@ Only public routing and signature facts are interpreted. Private task rules,
 template semantics and financial content are never decrypted by this service.
 """
 
+import asyncio
 import hashlib
 import math
 import secrets
@@ -11,7 +12,7 @@ import time
 from datetime import UTC, datetime
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Request, Response
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from starlette.concurrency import run_in_threadpool
 
 from folioview_shared.encrypted.authority import verify_registry, verify_task_transition
@@ -651,6 +652,52 @@ class TaskService:
 
         return self.store.transact(read)
 
+    def operation(self, uid, task_id, operation):
+        """Recover the original saved task without renewing its writer authority."""
+        identifier(task_id)
+        validate_schema("OperationIdentifier", operation)
+        owner = owner_key(uid)
+
+        def read(unit):
+            vault, _ = _current(unit, owner, self.now())
+            vault_id = vault["vaultId"]
+            index = _index(unit, owner, vault_id)
+            head = _head(unit, owner, vault_id, task_id, index)
+            saved = unit.get(
+                document_path("hub_task_operations", owner, vault_id, task_id, operation)
+            )
+            if saved is None:
+                raise ContractError("not_found")
+            try:
+                if (
+                    type(saved) is not dict
+                    or set(saved) != _OP_FIELDS
+                    or saved["ownerSubject"] != owner
+                    or saved["vaultId"] != vault_id
+                    or saved["taskId"] != task_id
+                    or head is None
+                ):
+                    raise StoreUnavailable
+                positive(saved["version"])
+                validate_schema("KeyId", saved["authorKeyId"])
+                validate_schema("Digest", saved["fingerprint"])
+                if saved["version"] > head["metadata"]["taskVersion"]:
+                    raise StoreUnavailable
+                original = _response(unit, owner, vault, task_id, saved["version"])
+                context = _signed_parts(original["signedObject"])[1]["context"]
+                if (
+                    context["stableOperationId"] != operation
+                    or context["authorSigningKeyId"] != saved["authorKeyId"]
+                ):
+                    raise StoreUnavailable
+                return original
+            except (ContractError, ValueError, TypeError, KeyError):
+                # A committed operation must have its exact immutable version.
+                # Missing/corrupt associated state is not a missing operation.
+                raise StoreUnavailable from None
+
+        return self.store.transact(read)
+
     def list(self, uid, *, limit=20, cursor=None):
         if type(limit) is not int or not 1 <= limit <= 50:
             raise ContractError("unsupported_query")
@@ -776,6 +823,31 @@ def get_task_version(task_id: str, version: str, request: Request, user: Owner, 
         return service.get(user.uid, task_id, int(version))
 
     return _invoke(read)
+
+
+@router.get("/{task_id}/operations/{operation_id}")
+async def get_task_operation(
+    task_id: str, operation_id: str, request: Request, user: Owner, service: Tasks
+):
+    def protocol():
+        _protocol(request)
+        transport(request)
+        if request.headers.getlist("idempotency-key") or request.headers.getlist(
+            "x-folioview-author-key"
+        ):
+            raise ContractError("malformed_request")
+
+    _invoke(protocol)
+    try:
+        async with asyncio.timeout(5):
+            async for chunk in request.stream():
+                if chunk:
+                    raise ContractError("malformed_request")
+    except (ContractError, TimeoutError):
+        raise HTTPException(400, {"code": "malformed_request"}) from None
+    return await run_in_threadpool(
+        _invoke, lambda: service.operation(user.uid, task_id, operation_id)
+    )
 
 
 async def _write_request(request, user, service, *, mode, task_id=None, response=None):
