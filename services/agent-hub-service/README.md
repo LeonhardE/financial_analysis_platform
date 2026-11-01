@@ -200,14 +200,15 @@ cannot supply another owner partition, an agent/delegation header or a workload 
 authority. Unknown fields, duplicate JSON members, duplicate resource refs and unsupported queries
 fail closed through the existing bounded body/error transport.
 
-| Endpoint                                        | Behavior                                                |
-| ----------------------------------------------- | ------------------------------------------------------- |
-| `GET /api/v2/tasks`                             | Bounded public metadata page; `limit` and `cursor` only |
-| `GET /api/v2/tasks/{taskId}`                    | Current encrypted version                               |
-| `GET /api/v2/tasks/{taskId}/versions/{version}` | One immutable encrypted historical version              |
-| `POST /api/v2/tasks`                            | Create active version 1 with expected version 0         |
-| `PUT /api/v2/tasks/{taskId}`                    | CAS rule/scope edit with a newly signed envelope        |
-| `POST /api/v2/tasks/{taskId}/transitions`       | Signed pause, resume or terminal archive                |
+| Endpoint                                              | Behavior                                                |
+| ----------------------------------------------------- | ------------------------------------------------------- |
+| `GET /api/v2/tasks`                                   | Bounded public metadata page; `limit` and `cursor` only |
+| `GET /api/v2/tasks/{taskId}`                          | Current encrypted version                               |
+| `GET /api/v2/tasks/{taskId}/versions/{version}`       | One immutable encrypted historical version              |
+| `GET /api/v2/tasks/{taskId}/operations/{operationId}` | Original encrypted version bound to a saved operation   |
+| `POST /api/v2/tasks`                                  | Create active version 1 with expected version 0         |
+| `PUT /api/v2/tasks/{taskId}`                          | CAS rule/scope edit with a newly signed envelope        |
+| `POST /api/v2/tasks/{taskId}/transitions`             | Signed pause, resume or terminal archive                |
 
 Create has exactly `contractVersion`, `taskId`, `expectedVersion`, `resourceBindings`, `envelope`.
 Update omits the body `taskId`; transition adds `transitionIntent`. `envelope` is the existing shared
@@ -257,6 +258,19 @@ public recipient bindings at the original save time: an author revoked or expire
 make a formerly valid owner history unreadable. Historical proof or stored receipt corruption
 fails closed. A backwards server clock rejects a new version before commit; saved exact replays
 remain recoverable.
+
+The operation read returns the existing `EncryptedTask` DTO for the exact original saved version,
+even after later edits, pause or archive. It binds the operation record's owner, vault, task,
+version and author to the immutable signed envelope's original stable operation ID and author,
+using the same historical signature/checkpoint verification as version reads. It needs the verified
+Google owner, not a currently valid task writer or live resource catalogue. An unknown operation
+returns `404`; a committed operation whose associated history or bindings are missing/corrupt fails
+closed as a storage error. It never substitutes the latest task or changes task/index/cursor state,
+and does not replay a write, sign a replacement, cancel an operation or authorize a new write.
+The operation ID uses the existing 22–128 character base64url form, including `_` or `-` as the
+first character. This read rejects query selectors, request bodies, author/idempotency headers,
+delegation/serverless selectors and duplicate contract/identity headers. It returns the existing
+historical task proof, not a new receipt for the complete original transition-intent body.
 
 Lists return only shared `TaskMetadataPage`, never private task text or encrypted carriers. They
 default to 20 entries, allow at most 50, and sort by opaque task ID. A cursor is a persistent random

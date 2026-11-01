@@ -71,7 +71,8 @@ test("a competing changed original operation cannot overwrite its first cipherte
   const { one, two } = pair(t);
   await one.stage(scope, pending);
   const packet = changedPacket(null, (message) => {
-    message.jwe.ciphertext = "A" + message.jwe.ciphertext.slice(1);
+    message.jwe.ciphertext =
+      (message.jwe.ciphertext[0] === "A" ? "B" : "A") + message.jwe.ciphertext.slice(1);
   });
   await assert.rejects(() => two.stage(scope, { ...pending, packet }), /outbox_conflict/);
   assert.deepEqual((await one.list(scope))[0].packet, pending.packet);
