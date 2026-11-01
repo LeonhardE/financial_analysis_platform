@@ -9,6 +9,10 @@ import {
   type Vault,
   type PasskeyMaterial,
   type Source,
+  type SourceCreationPacket,
+  type SourceMutationAction,
+  type SourceMutationPacket,
+  type SourceMutationReceipt,
   type PendingSnapshot,
   type SnapshotResponse,
   type Json,
@@ -51,6 +55,10 @@ import {
 export type {
   Vault,
   Source,
+  SourceCreationPacket,
+  SourceMutationAction,
+  SourceMutationPacket,
+  SourceMutationReceipt,
   Archive,
   PasskeyMaterial,
   PendingSnapshot,
@@ -161,6 +169,12 @@ export class EncryptedVaultSession {
       "discardKeyRenewal",
       "inspectRenewalHoldingsPending",
       "verifyRenewalHoldingsReceipt",
+      "validateSourceCreation",
+      "verifySourceCreation",
+      "discardSourceCreation",
+      "validateSourceMutation",
+      "verifySourceMutationReceipt",
+      "discardSourceMutation",
     ].includes(method);
     if (!renewal) {
       if (this.renewalOnly || (await this.keyRenewalRow()))
@@ -903,6 +917,218 @@ export class EncryptedVaultSession {
   ): Promise<{ operationId: string; command: Json; authorKeyId: string }> {
     return this.rpc("signSource", { sourceId });
   }
+  private sourceCreationKey() {
+    if (!this.vaultId) throw new VaultError("locked");
+    return this.owner + ":source-create:" + this.vaultId;
+  }
+  async prepareSourceCreation(sourceId: string): Promise<SourceCreationPacket> {
+    return this.serial(async () => {
+      const g = this.generation;
+      await this.started;
+      this.assert(g);
+      const key = this.sourceCreationKey();
+      if (await this.storage.get(key)) throw new VaultError("source_creation_pending");
+      this.assert(g);
+      const packet = await this.rpc("prepareSourceCreation", { sourceId });
+      this.assert(g);
+      if (
+        !(await this.storage.stageDevice(
+          key,
+          { ownerSubject: this.owner, vaultId: this.vaultId, pending: packet },
+          null,
+          this.owner + ":outbox:" + sourceId,
+        ))
+      )
+        throw new VaultError("source_creation_pending");
+      this.assert(g);
+      return packet;
+    });
+  }
+  async loadSourceCreation(): Promise<SourceCreationPacket | null> {
+    const g = this.generation;
+    await this.started;
+    this.assert(g);
+    const row = await this.storage.get(this.sourceCreationKey());
+    this.assert(g);
+    if (!row) return null;
+    if (
+      row.ownerSubject !== this.owner ||
+      row.vaultId !== this.vaultId ||
+      Object.keys(row).length !== 3 ||
+      !Object.hasOwn(row, "pending")
+    )
+      throw new VaultError("wrong_account");
+    const packet = await this.rpc("validateSourceCreation", { packet: row.pending });
+    this.assert(g);
+    return packet;
+  }
+  async finishSourceCreation(
+    packet: SourceCreationPacket,
+    source: Source,
+    signal?: AbortSignal,
+  ): Promise<void> {
+    return this.serial(async () => {
+      const g = this.generation;
+      const cancellation = signal
+        ? AbortSignal.any([this.lifetime.signal, signal])
+        : this.lifetime.signal;
+      cancellation.throwIfAborted();
+      await this.rpc("verifySourceCreation", { packet, source });
+      this.assert(g);
+      cancellation.throwIfAborted();
+      if (!this.storage.finishSourceCreation) throw new VaultError("storage_unavailable");
+      if (
+        !(await this.storage.finishSourceCreation(
+          this.sourceCreationKey(),
+          { ownerSubject: this.owner, vaultId: this.vaultId, pending: packet },
+          cancellation,
+        ))
+      )
+        throw new VaultError("operation_conflict");
+      this.assert(g);
+    });
+  }
+  async discardSourceCreation(
+    packet: SourceCreationPacket,
+    currentVault: Vault,
+    sources: Source[],
+    signal?: AbortSignal,
+  ): Promise<void> {
+    return this.serial(async () => {
+      const g = this.generation;
+      const cancellation = signal
+        ? AbortSignal.any([this.lifetime.signal, signal])
+        : this.lifetime.signal;
+      cancellation.throwIfAborted();
+      await this.rpc("discardSourceCreation", { packet, currentVault, sources });
+      this.assert(g);
+      cancellation.throwIfAborted();
+      if (!this.storage.finishSourceCreation) throw new VaultError("storage_unavailable");
+      if (
+        !(await this.storage.finishSourceCreation(
+          this.sourceCreationKey(),
+          { ownerSubject: this.owner, vaultId: this.vaultId, pending: packet },
+          cancellation,
+        ))
+      )
+        throw new VaultError("operation_conflict");
+      this.assert(g);
+    });
+  }
+  private sourceMutationKey(sourceId: string) {
+    if (!/^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/.test(sourceId)) throw new VaultError("invalid_data");
+    return this.owner + ":source-mutation:" + sourceId;
+  }
+  async prepareSourceMutation(args: {
+    source: Source;
+    expectedVersion: number;
+    action: SourceMutationAction;
+  }): Promise<SourceMutationPacket> {
+    return this.serial(async () => {
+      const g = this.generation;
+      await this.started;
+      this.assert(g);
+      const sourceId = args.source.resourceRef.resourceId;
+      const key = this.sourceMutationKey(sourceId);
+      if (await this.storage.get(key)) throw new VaultError("source_mutation_pending");
+      this.assert(g);
+      const packet = await this.rpc("signSourceMutation", args);
+      this.assert(g);
+      if (
+        !(await this.storage.stageDevice(
+          key,
+          { ownerSubject: this.owner, vaultId: this.vaultId, pending: packet },
+          null,
+          this.owner + ":outbox:" + sourceId,
+        ))
+      )
+        throw new VaultError("source_mutation_pending");
+      this.assert(g);
+      return packet;
+    });
+  }
+  async loadSourceMutation(sourceId: string): Promise<SourceMutationPacket | null> {
+    const g = this.generation;
+    await this.started;
+    this.assert(g);
+    const row = await this.storage.get(this.sourceMutationKey(sourceId));
+    this.assert(g);
+    if (!row) return null;
+    if (
+      row.ownerSubject !== this.owner ||
+      row.vaultId !== this.vaultId ||
+      row.pending?.source?.resourceRef?.resourceId !== sourceId ||
+      Object.keys(row).length !== 3 ||
+      !Object.hasOwn(row, "pending")
+    )
+      throw new VaultError("wrong_account");
+    const packet = await this.rpc("validateSourceMutation", { packet: row.pending });
+    this.assert(g);
+    return packet;
+  }
+  async verifySourceMutationReceipt(
+    packet: SourceMutationPacket,
+    receipt: unknown,
+  ): Promise<SourceMutationReceipt> {
+    const g = this.generation;
+    const result = await this.rpc("verifySourceMutationReceipt", { packet, receipt });
+    this.assert(g);
+    return result;
+  }
+  async discardSourceMutation(
+    packet: SourceMutationPacket,
+    currentSource: Source,
+    signal?: AbortSignal,
+    currentAuthorityVersion?: number,
+  ): Promise<void> {
+    return this.serial(async () => {
+      const g = this.generation;
+      const cancellation = signal
+        ? AbortSignal.any([this.lifetime.signal, signal])
+        : this.lifetime.signal;
+      cancellation.throwIfAborted();
+      await this.rpc("discardSourceMutation", { packet, currentSource, currentAuthorityVersion });
+      this.assert(g);
+      cancellation.throwIfAborted();
+      if (!this.storage.finishSourceMutation) throw new VaultError("storage_unavailable");
+      if (
+        !(await this.storage.finishSourceMutation(
+          this.sourceMutationKey(packet.source.resourceRef.resourceId),
+          { ownerSubject: this.owner, vaultId: this.vaultId, pending: packet },
+          cancellation,
+        ))
+      )
+        throw new VaultError("operation_conflict");
+      this.assert(g);
+    });
+  }
+  async finishSourceMutation(
+    packet: SourceMutationPacket,
+    receipt: unknown,
+    signal?: AbortSignal,
+  ): Promise<void> {
+    return this.serial(async () => {
+      const g = this.generation;
+      const cancellation = signal
+        ? AbortSignal.any([this.lifetime.signal, signal])
+        : this.lifetime.signal;
+      cancellation.throwIfAborted();
+      const checked = await this.verifySourceMutationReceipt(packet, receipt);
+      this.assert(g);
+      cancellation.throwIfAborted();
+      if (checked.state !== "acknowledged") throw new VaultError("operation_conflict");
+      if (!this.storage.finishSourceMutation) throw new VaultError("storage_unavailable");
+      if (
+        !(await this.storage.finishSourceMutation(
+          this.sourceMutationKey(packet.source.resourceRef.resourceId),
+          { ownerSubject: this.owner, vaultId: this.vaultId, pending: packet },
+          cancellation,
+        ))
+      )
+        throw new VaultError("operation_conflict");
+      this.assert(g);
+    });
+  }
   async openTask(task: EncryptedTask): Promise<TaskContent> {
     const g = this.generation,
       result = await this.rpc("openTask", { task });
@@ -1448,11 +1674,16 @@ export class EncryptedVaultSession {
       const value = await this.rpc("sealSnapshot", args);
       this.assert(g);
       if (
-        !(await this.storage.insert(this.owner + ":outbox:" + args.source.resourceRef.resourceId, {
-          ownerSubject: this.owner,
-          vaultId: this.vaultId,
-          pending: value,
-        }))
+        !(await this.storage.stageDevice(
+          this.owner + ":outbox:" + args.source.resourceRef.resourceId,
+          {
+            ownerSubject: this.owner,
+            vaultId: this.vaultId,
+            pending: value,
+          },
+          null,
+          this.sourceMutationKey(args.source.resourceRef.resourceId),
+        ))
       )
         throw new VaultError("pending_upload");
       this.assert(g);

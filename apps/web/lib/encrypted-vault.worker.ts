@@ -202,6 +202,34 @@ scope.onmessage = (event) => {
           case "sealAgentPreparation":
             result = await core.sealAgentPreparation(args);
             break;
+          case "prepareSourceCreation":
+            result = await core.prepareSourceCreation(args.sourceId);
+            break;
+          case "validateSourceCreation":
+            result = await core.validateSourceCreation(args.packet);
+            break;
+          case "discardSourceCreation":
+            result = await core.discardSourceCreation(args.packet, args.currentVault, args.sources);
+            break;
+          case "verifySourceCreation":
+            result = await core.verifySourceCreation(args.packet, args.source);
+            break;
+          case "signSourceMutation":
+            result = await core.signSourceMutation(args);
+            break;
+          case "validateSourceMutation":
+            result = await core.validateSourceMutation(args.packet);
+            break;
+          case "discardSourceMutation":
+            result = await core.discardSourceMutation(
+              args.packet,
+              args.currentSource,
+              args.currentAuthorityVersion,
+            );
+            break;
+          case "verifySourceMutationReceipt":
+            result = await core.verifySourceMutationReceipt(args.packet, args.receipt);
+            break;
           case "signSource":
             result = await core.signSource(args.sourceId);
             break;

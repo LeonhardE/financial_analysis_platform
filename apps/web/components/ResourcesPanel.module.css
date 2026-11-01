@@ -189,6 +189,57 @@
   padding: 28px 18px;
   text-align: center;
 }
+.sourceManagement {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  margin: 18px 0;
+  min-width: 0;
+  padding: 16px;
+}
+.sourceManagement h3 {
+  font-size: 14px;
+  margin: 0 0 12px;
+}
+.sourceManagement p {
+  font-size: 12px;
+  line-height: 1.65;
+}
+.sourcePicker {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  font-size: 12px;
+  gap: 10px;
+}
+.sourcePicker select {
+  background: var(--raised);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  color: var(--text);
+  max-width: 100%;
+  min-height: 40px;
+  padding: 8px 12px;
+}
+.sourceActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 12px 0;
+}
+.sourceReview {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  margin: 12px 0;
+  min-width: 0;
+  padding: 12px;
+}
+.sourceReview legend {
+  font-size: 13px;
+  font-weight: 600;
+}
+.danger {
+  color: var(--negative);
+}
 .upload svg {
   color: var(--accent);
   height: 25px;

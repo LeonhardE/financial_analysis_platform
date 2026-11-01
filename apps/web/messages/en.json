@@ -302,7 +302,13 @@
       "vault_created": "Your encrypted library is ready. You can now choose a CSV.",
       "saved": "Your encrypted snapshot was saved and its receipt verified.",
       "receipt_recovered": "The saved receipt was recovered and verified. Cloud history was kept.",
-      "retry_discarded": "The local retry was removed. Cloud history was not deleted; you can choose a CSV for a new import."
+      "retry_discarded": "The local retry was removed. Cloud history was not deleted; you can choose a CSV for a new import.",
+      "source_change_pending": "The change was accepted and is awaiting confirmation.",
+      "source_change_acknowledged": "The original change is acknowledged. Refer to the displayed current data state.",
+      "source_change_discarded": "The obsolete local request was cleared. Server data was not deleted.",
+      "new_source": "New independent data is ready. Review the CSV and explicitly save; existing data keeps its state.",
+      "source_created": "The original creation is confirmed. Review the preview before explicitly saving holdings.",
+      "source_creation_discarded": "The obsolete local creation request was cleared."
     },
     "errors": {
       "generic": "This step could not be completed. Reload the library status and try again.",
@@ -343,7 +349,15 @@
       "untrusted_vault": "The library identity differs from this device’s record. Opening or replacing it was blocked. Check your account and reload the library status.",
       "key_renewal_pending": "This browser has a pending encrypted key renewal. Open Settings → Library keys and devices to recover its original receipt.",
       "key_renewal_only": "Only key renewal is open. Finish it in Settings, or lock this session first.",
-      "key_revoked": "A required key is expired or revoked. Review Library keys and devices in Settings. Eligible expired keys can be renewed; revoked keys require another trusted device or recovery."
+      "key_revoked": "A required key is expired or revoked. Review Library keys and devices in Settings. Eligible expired keys can be renewed; revoked keys require another trusted device or recovery.",
+      "source_change_blocked": "Resolve pending uploads or changes first. Disconnected or deleted data cannot be updated; create independent data when needed.",
+      "source_review_required": "Review the current data state and change effects again before confirming.",
+      "source_mutation_pending": "A data change is unconfirmed. Continue the original operation first.",
+      "source_creation_pending": "A new data creation is unconfirmed. Continue checking the original request first.",
+      "source_limit": "The limit of 10 holdings creation records has been reached.",
+      "scope_change_requires_fence": "The account scope differs from the saved holdings. Invalidate previous access first (your preview is retained), or save the preview as independent data, then save.",
+      "operation_conflict": "The original request changed. Processing stopped without overwriting another operation. Check its current state.",
+      "source_creation_exists": "This data already exists. Continue checking the original creation instead of clearing its local request."
     },
     "warnings": {
       "generic": "Some imported information needs review.",
@@ -375,7 +389,59 @@
     "keepPending": "Keep encrypted retry",
     "confirmDiscard": "Discard local retry",
     "importScope": "Saves selected accounts, securities, quantities, currencies, reported values and verified cash. Unit prices, book costs, returns and the report date are not retained yet. The original CSV is not uploaded.",
-    "renewalOnly": "Only key renewal is open. Finish it in Settings, or lock this session before opening resources."
+    "renewalOnly": "Only key renewal is open. Finish it in Settings, or lock this session before opening resources.",
+    "lifecycle": {
+      "title": "Manage holdings data",
+      "select": "Selected data",
+      "source": "Holdings data {number}",
+      "new": "New holdings data",
+      "newHelp": "Your next save creates independent data. It will not restore or change access to existing data.",
+      "add": "Add independent holdings data",
+      "newFromPreview": "Save this preview as independent data",
+      "limit": "At most 10 creation records are retained. Deleting data does not release a record slot.",
+      "historical": "These holdings belong to the previous scope. Previous access is invalidated. Review the preview accounts and save again before authorizing an agent.",
+      "creationPending": "The creation result is unconfirmed. Continue checking the original request without creating a duplicate.",
+      "resumeCreation": "Check original creation",
+      "discardCreation": "Check and clear expired creation request",
+      "discardCreationHelp": "Only a request that can no longer be submitted is cleared locally. Server data is not cancelled or deleted.",
+      "pendingHelp": "The change is awaiting confirmation; previous access may already be restricted. Continue the original change. It is not shown as completed yet.",
+      "resume": "Continue original change",
+      "staleHelp": "This request was not accepted, and another change has advanced the data. You can clear the obsolete local request without deleting server data.",
+      "discardStale": "Clear obsolete local request",
+      "cancel": "Cancel and keep current data",
+      "confirmAction": "Confirm this change",
+      "copies": "Content already downloaded, decrypted or copied cannot be recalled.",
+      "previewKept": "Your CSV preview is retained. After invalidating access, review the selected accounts and choose Save.",
+      "previewClosed": "Confirming closes the unsaved CSV preview.",
+      "actions": {
+        "fence": "Invalidate previous access",
+        "disconnect": "Disconnect future access",
+        "delete": "Delete this data"
+      },
+      "confirm": {
+        "fence": "Invalidate previous access?",
+        "disconnect": "Disconnect this data?",
+        "delete": "Delete this data?"
+      },
+      "effects": {
+        "fence": "Stop future access and new tasks under the previous scope while retaining holdings history. Save the current account scope again, then authorize an agent.",
+        "disconnect": "Stop future use and updates. Existing holdings remain readable after unlocking. Importing again requires independent data.",
+        "delete": "Hide this data and its holdings history, and stop future access. Server ciphertext and backups may be retained; this does not mean immediate physical erasure."
+      },
+      "states": {
+        "active": "Available for use and updates.",
+        "revoking": "Restricting previous access; awaiting confirmation.",
+        "disconnected": "Disconnected. Existing holdings remain readable.",
+        "deleted": "Deleted. Holdings history is hidden."
+      },
+      "unknown": "This data state is unconfirmed. Check it again before saving or changing access.",
+      "initialize": "Check and prepare this data",
+      "confirmButton": {
+        "fence": "Confirm access invalidation",
+        "disconnect": "Confirm disconnect",
+        "delete": "Confirm delete"
+      }
+    }
   },
   "inbox": {
     "eyebrow": "YOUR AGENT RESULTS",
