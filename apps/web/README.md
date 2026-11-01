@@ -406,3 +406,37 @@ successful owner list or prevent its explicit revocation controls. Only a
 successful empty list renders the empty state; real list failures remain retryable
 errors. Disabled or unverified new-connection availability suppresses MCP address
 copying and consent entry while retaining owner history.
+
+### Holdings lifecycle and recoverable changes
+
+Resources provides explicit review and confirmation for invalidating previous source access,
+disconnecting future use, and logically deleting a holdings source. Disconnect preserves unlocked
+owner history; deletion hides it, including while acknowledgement is pending. Neither action recalls
+already decrypted copies or claims physical erasure of retained ciphertext/backups. Reimporting after
+a terminal action requires an explicitly created independent source; creation anchors retain the
+existing ten-source limit. Source selection never silently reconnects an old source.
+
+The controller reads Portfolio state before authority synchronization, so a locally advanced pending
+fence remains recoverable while Hub still reports the old epoch. A request is not presented as
+completed until its exact receipt is acknowledged and current state is reread. A remotely accepted
+operation can resume with its owner-authenticated receipt even without a local retry packet.
+Unknown state disables saving and access changes. Fresh account-scope comparisons require explicit
+invalidation or independent data before changing the saved account set; invalidation retains the CSV
+preview for a separate explicit save. Known revoking/terminal state cannot produce a new upload.
+
+The Worker signs only closed source actions. Public creation/mutation packets are persisted before
+network submission and replayed unchanged after interruption; no CSV, holdings plaintext or private
+key is added to those records. Creation recovery reuses its original source ID and derived incarnation.
+Same-source uploads and lifecycle packets stage atomically across tabs. Receipt verification and
+local cleanup compare the full original row and respect account/session cancellation. Historical
+signature verification permits recovery after renewal without granting old keys new signing rights.
+Local cleanup of an unaccepted stale mutation requires a newer epoch or authority version and a
+fresh missing receipt; stale creation cleanup requires a cryptographically advanced registry and
+the complete current directory. These actions clear local public retry state, never server data.
+
+The Portfolio owner bridge adds only the fixed source-operation synchronization POST with a closed
+1 KiB body and exact acknowledged-response validation. Mutation and upload receipt reads accept the
+full existing operation-ID alphabet; source and snapshot identifiers retain their own constraints.
+No backend, shared contract, cloud permission, broker connection or Muse activation changes are
+part of this Web delivery. Synthetic crypto/storage/controller checks and local responsive previews
+remain separate from real Google/Passkey and cloud-workload lifecycle acceptance.

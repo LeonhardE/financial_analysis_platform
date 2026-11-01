@@ -108,7 +108,7 @@ const vault = {
   rootJwk: {},
   rootKeyId: "synthetic",
   registryHistory: [],
-  archive: { profile: "folioview.passkey-vault.v1" },
+  archive: { profile: "folioview.passkey-vault.v1", ownerSubject: "a".repeat(64) },
 };
 
 function harness({
@@ -123,6 +123,40 @@ function harness({
   const instances = [];
   const commits = [];
   const outboxes = new Map();
+  const sourcePackets = new Map();
+  const mutations = new Map();
+  const sourceStates = new Map();
+  let creation = null;
+  let importPreview = preview;
+  let metadataHook = null;
+  let metadataReads = 0;
+  let mutationFail = null;
+  let synchronizeFail = false;
+  let mutationHold = null;
+  let sourceCreateFailure = null;
+  let mutationPrepares = 0;
+  let mutationFinishes = 0;
+  let sourcePacketSequence = 0;
+  const sourceState = (sourceId) => {
+    if (!sourceStates.has(sourceId))
+      sourceStates.set(sourceId, {
+        epoch: 1,
+        authorityVersion: 1,
+        state: "active",
+        pendingMutationId: null,
+      });
+    return sourceStates.get(sourceId);
+  };
+  const mutationReceipt = (packet, state = "pending") => ({
+    contractVersion: CONTRACT,
+    operationId: packet.operationId,
+    action: packet.action,
+    resourceRef: packet.source.resourceRef,
+    sourceEpoch: packet.source.sourceEpoch + 1,
+    state,
+    requestedAt: "2026-11-01T00:00:00Z",
+    completedAt: state === "acknowledged" ? "2026-11-01T00:00:01Z" : null,
+  });
   const passkey = deferred();
   let auth = { status: "authenticated", sessionKey: "owner_a:1", profile: { uid: "owner_a" } };
   let portfolioConfigured = configured;
@@ -493,6 +527,75 @@ function harness({
         sourceId,
       };
     }
+    async loadSourceCreation() {
+      return creation;
+    }
+    async prepareSourceCreation(sourceId) {
+      if (creation) throw { code: "source_creation_pending" };
+      creation = await this.signSource(sourceId);
+      return creation;
+    }
+    async finishSourceCreation(packet, selected) {
+      assert.equal(packet.sourceId, selected.resourceRef.resourceId);
+      assert.equal(creation?.operationId, packet.operationId);
+      creation = null;
+    }
+    async discardSourceCreation(packet) {
+      if (creation?.operationId !== packet.operationId) throw { code: "operation_conflict" };
+      creation = null;
+    }
+    async loadSourceMutation(sourceId) {
+      return sourcePackets.get(this.uid + ":" + sourceId) ?? null;
+    }
+    async prepareSourceMutation({ source: selected, expectedVersion, action }) {
+      if (
+        (await this.loadOutbox()) ||
+        (await this.loadSourceMutation(selected.resourceRef.resourceId))
+      )
+        throw { code: "source_mutation_pending" };
+      mutationPrepares++;
+      const packet = {
+        operationId: "synthetic_source_mutation_" + ++sourcePacketSequence,
+        authorKeyId: "author_a",
+        action,
+        source: selected,
+        body: {
+          contractVersion: CONTRACT,
+          expectedVersion,
+          expectedSourceEpoch: selected.sourceEpoch,
+          command: { opaque: true },
+        },
+      };
+      sourcePackets.set(this.uid + ":" + selected.resourceRef.resourceId, packet);
+      return packet;
+    }
+    async verifySourceMutationReceipt(packet, receipt) {
+      if (
+        receipt.operationId !== packet.operationId ||
+        receipt.action !== packet.action ||
+        receipt.sourceEpoch !== packet.source.sourceEpoch + 1
+      )
+        throw { code: "invalid_response" };
+    }
+    async finishSourceMutation(packet, receipt) {
+      await this.verifySourceMutationReceipt(packet, receipt);
+      if (receipt.state !== "acknowledged") throw { code: "invalid_response" };
+      if (
+        sourcePackets.get(this.uid + ":" + packet.source.resourceRef.resourceId)?.operationId !==
+        packet.operationId
+      )
+        throw { code: "operation_conflict" };
+      mutationFinishes++;
+      sourcePackets.delete(this.uid + ":" + packet.source.resourceRef.resourceId);
+    }
+    async discardSourceMutation(packet, currentSource, signal, authorityVersion) {
+      assert.ok(
+        currentSource.sourceEpoch >= packet.source.sourceEpoch &&
+          (currentSource.sourceEpoch > packet.source.sourceEpoch ||
+            authorityVersion > packet.body.expectedVersion),
+      );
+      sourcePackets.delete(this.uid + ":" + packet.source.resourceRef.resourceId);
+    }
     async sealSnapshot({ source: selected, expectedRevision }) {
       seals++;
       const pending = {
@@ -635,12 +738,73 @@ function harness({
           expiresAt: "2026-10-28T19:01:00Z",
         }),
       );
-    if (route.endsWith("/authority-sync"))
-      return new Response(JSON.stringify({ contractVersion: CONTRACT }));
+    if (route.endsWith("/authority-sync")) {
+      const meta = sourceState(route.split("/")[5]);
+      return new Response(
+        JSON.stringify({
+          contractVersion: CONTRACT,
+          sourceEpoch: meta.epoch,
+          authorityVersion: meta.authorityVersion,
+        }),
+      );
+    }
     if (route.includes("/holdings-sources/")) {
       const resourceId = route.split("/").at(-1);
-      sources = [{ ...source, resourceRef: { ...source.resourceRef, resourceId } }];
-      return new Response(JSON.stringify({ contractVersion: CONTRACT, source: sources[0] }));
+      if (sourceCreateFailure === "before") throw { code: "service_unavailable" };
+      if (!sources.some((s) => s.resourceRef.resourceId === resourceId))
+        sources.push({ ...source, resourceRef: { ...source.resourceRef, resourceId } });
+      if (sourceCreateFailure === "after") throw { code: "service_unavailable" };
+      return new Response(
+        JSON.stringify({
+          contractVersion: CONTRACT,
+          source: sources.find((s) => s.resourceRef.resourceId === resourceId),
+        }),
+      );
+    }
+    if (route.includes("/mutations/")) {
+      const sourceId = route.split("/")[5];
+      const meta = sourceState(sourceId);
+      const operation = options.headers?.["Idempotency-Key"];
+      const pathId = route.split("/").at(-1);
+      if (options.method === "POST" && ["fence", "disconnect", "delete"].includes(pathId)) {
+        const packet = sourcePackets.get(auth.profile.uid + ":" + sourceId);
+        assert.equal(packet.operationId, operation);
+        if (mutationFail === "before") throw { code: "service_unavailable" };
+        mutations.set(operation, mutationReceipt(packet));
+        meta.epoch++;
+        meta.authorityVersion++;
+        meta.state = "revoking";
+        meta.pendingMutationId = operation;
+        if (mutationFail === "after") throw { code: "service_unavailable" };
+        return new Response(JSON.stringify(mutations.get(operation)), { status: 202 });
+      }
+      if (pathId === "synchronize") {
+        if (mutationHold) await mutationHold.promise;
+        if (synchronizeFail) throw { code: "service_unavailable" };
+        const op = route.split("/").at(-2);
+        const receipt = mutations.get(op);
+        if (receipt.state !== "acknowledged") {
+          receipt.state = "acknowledged";
+          receipt.completedAt = "2026-11-01T00:00:01Z";
+          meta.state = { fence: "active", disconnect: "disconnected", delete: "deleted" }[
+            receipt.action
+          ];
+          meta.pendingMutationId = null;
+          meta.authorityVersion++;
+          sources = sources.map((s) =>
+            s.resourceRef.resourceId === sourceId ? { ...s, sourceEpoch: meta.epoch } : s,
+          );
+        }
+        return new Response(JSON.stringify(receipt));
+      }
+      if (mutations.has(pathId)) return new Response(JSON.stringify(mutations.get(pathId)));
+      return new Response(
+        JSON.stringify({
+          contractVersion: CONTRACT,
+          error: { code: "not_found", retryable: false, requestId: "synthetic_missing" },
+        }),
+        { status: 404 },
+      );
     }
     if (route.includes("/snapshots/") && options.method === "PUT") {
       commits.push({
@@ -660,7 +824,8 @@ function harness({
       );
     }
     if (route.includes("/snapshots/")) {
-      const selected = sources[0] ?? source;
+      const selected =
+        sources.find((s) => s.resourceRef.resourceId === route.split("/")[5]) ?? source;
       const receipt = {
         snapshotId: route.split("/").at(-1),
         revision: forcedHead ?? successfulHead,
@@ -707,13 +872,23 @@ function harness({
     }
     if (route.startsWith("/api/v2/holdings/sources/")) {
       if (readFailure) return new Response("{}", { status: readFailure });
-      const selected = sources[0] ?? source;
+      const selected =
+        sources.find((s) => s.resourceRef.resourceId === route.split("/")[5]) ?? source;
+      const meta = sourceState(selected.resourceRef.resourceId);
+      metadataReads++;
+      metadataHook?.(meta, metadataReads);
       return new Response(
         JSON.stringify({
           contractVersion: CONTRACT,
           resourceRef: selected.resourceRef,
-          sourceEpoch: 1,
-          snapshotSourceEpoch: 1,
+          ownerSubject: "a".repeat(64),
+          sourceId: selected.resourceRef.resourceId,
+          vaultId: "vault_a",
+          authorityVersion: meta.authorityVersion,
+          state: meta.state,
+          pendingMutationId: meta.pendingMutationId,
+          sourceEpoch: meta.epoch,
+          snapshotSourceEpoch: latestSnapshot ? 1 : null,
           revision: forcedHead ?? successfulHead,
           snapshotId: forcedHead ? "snapshot_remote_newer" : latestSnapshot,
         }),
@@ -765,7 +940,7 @@ function harness({
     "@/lib/holdings-csv": {
       HOLDINGS_CSV_MAX_BYTES: 4194304,
       HoldingsCsvError: class HoldingsCsvError extends Error {},
-      parseHoldingsCsv: async () => preview,
+      parseHoldingsCsv: async () => importPreview,
       selectHoldingsAccounts: (input) => input,
     },
     "@/lib/encrypted-vault": { EncryptedVaultSession: Session },
@@ -809,6 +984,49 @@ function harness({
     instances,
     commits,
     outboxes,
+    sourcePackets,
+    mutations,
+    sourceState,
+    metadataHook(value) {
+      metadataHook = value;
+      metadataReads = 0;
+    },
+    failMutation(value) {
+      mutationFail = value;
+    },
+    failSynchronize(value) {
+      synchronizeFail = value;
+    },
+    holdMutation(value) {
+      mutationHold = value;
+    },
+    failSourceCreate(value) {
+      sourceCreateFailure = value;
+    },
+    creation: () => creation,
+    sources: () => sources,
+    previewAccounts(ids) {
+      importPreview = JSON.parse(JSON.stringify(preview));
+      importPreview.resourceContent.data.accounts = ids.map((accountId) => ({
+        ...content.data.accounts[0],
+        accountId,
+      }));
+      importPreview.selectedAccountIds = ids;
+    },
+    advanceSource(epoch, state = "active") {
+      const selected = sources.at(-1);
+      const meta = sourceState(selected.resourceRef.resourceId);
+      meta.epoch = epoch;
+      meta.authorityVersion += 2;
+      meta.state = state;
+      meta.pendingMutationId = null;
+      sources = sources.map((s) =>
+        s.resourceRef.resourceId === selected.resourceRef.resourceId
+          ? { ...s, sourceEpoch: epoch }
+          : s,
+      );
+    },
+    mutationCounts: () => ({ prepares: mutationPrepares, finishes: mutationFinishes }),
     auth(next) {
       auth = next;
     },
@@ -2097,4 +2315,288 @@ test("owner agent crypto wrappers reject late replies and captured methods acros
       h.unmount();
     }
   }
+});
+
+test("source change review and cancellation do not sign or send a mutation", async () => {
+  const h = harness();
+  await unlocked(h);
+  await h.render().reviewSourceChange("fence");
+  assert.equal(h.render().sourceReview.action, "fence");
+  assert.equal(h.mutationCounts().prepares, 0);
+  assert.equal(h.requests.filter((r) => r.route.includes("/mutations/")).length, 0);
+  h.render().cancelSourceReview();
+  assert.equal(h.render().sourceReview, null);
+});
+
+test("confirmed fence automatically acknowledges and retains account preview for explicit resave", async () => {
+  const h = harness();
+  await unlocked(h);
+  await h.render().importFile(file);
+  const original = h.render().preview;
+  await h.render().reviewSourceChange("fence");
+  await h.render().confirmSourceChange();
+  const model = h.render();
+  assert.equal(model.sourceMetadata.state, "active");
+  assert.equal(model.sourceMetadata.source.sourceEpoch, 2);
+  assert.equal(model.sourceMutation, null);
+  assert.equal(model.preview, original);
+  assert.equal(model.notice, "source_change_acknowledged");
+  assert.deepEqual(h.mutationCounts(), { prepares: 1, finishes: 1 });
+  assert.equal(h.commits.length, 0);
+  const sync = h.requests.find((r) => r.route.endsWith("/synchronize"));
+  assert.deepEqual(JSON.parse(JSON.stringify(sync.options.json)), { contractVersion: CONTRACT });
+  assert.equal(sync.options.headers["Idempotency-Key"], undefined);
+});
+
+test("disconnect retains readable history and deletion hides it without reactivating writes", async () => {
+  const h = harness();
+  await unlocked(h);
+  await h.render().importFile(file);
+  await h.render().save();
+  await h.render().reviewSourceChange("disconnect");
+  await h.render().confirmSourceChange();
+  assert.equal(h.render().sourceMetadata.state, "disconnected");
+  assert.ok(h.render().content);
+  const count = h.commits.length;
+  await h.render().importFile(file);
+  assert.equal(h.render().error, "source_change_blocked");
+  assert.equal(h.commits.length, count);
+  await h.render().reviewSourceChange("delete");
+  await h.render().confirmSourceChange();
+  assert.equal(h.render().sourceMetadata.state, "deleted");
+  assert.equal(h.render().content, null);
+  assert.equal(h.sources()[0].sourceEpoch, 3);
+});
+
+test("unacknowledged fence reload reads Portfolio before sync and retries the exact original operation", async () => {
+  const h = harness();
+  await unlocked(h);
+  h.failSynchronize(true);
+  await h.render().reviewSourceChange("fence");
+  await h.render().confirmSourceChange();
+  assert.equal(h.render().sourceMutation.state, "pending");
+  assert.equal(h.sources()[0].sourceEpoch, 1);
+  const before = h.requests.length;
+  await h.render().readStored();
+  assert.equal(h.render().sourceMetadata.state, "revoking");
+  assert.equal(h.render().sourceMetadata.source.sourceEpoch, 2);
+  assert.equal(
+    h.requests.slice(before).some((r) => r.route.endsWith("/authority-sync")),
+    false,
+  );
+  h.failSynchronize(false);
+  await h.render().resumeSourceChange();
+  assert.equal(h.render().sourceMutation, null);
+  assert.equal(h.sources()[0].sourceEpoch, 2);
+  assert.equal(h.requests.filter((r) => /\/mutations\/fence$/.test(r.route)).length, 1);
+  assert.deepEqual(h.mutationCounts(), { prepares: 1, finishes: 1 });
+});
+
+test("lost initial reply recovers the accepted mutation after relock without resigning", async () => {
+  const h = harness();
+  await unlocked(h);
+  h.failMutation("after");
+  await h.render().reviewSourceChange("disconnect");
+  await h.render().confirmSourceChange();
+  const original = h.render().sourceMutation.operationId;
+  h.render().lock();
+  await h.render().unlock();
+  assert.equal(h.render().sourceMutation.operationId, original);
+  h.failMutation(null);
+  await h.render().resumeSourceChange();
+  assert.equal(h.render().sourceMetadata.state, "disconnected");
+  assert.equal(h.mutationCounts().prepares, 1);
+  assert.equal(h.requests.filter((r) => /\/mutations\/disconnect$/.test(r.route)).length, 1);
+});
+
+test("a server pending operation can complete after local public retry data is absent", async () => {
+  const h = harness();
+  await unlocked(h);
+  h.failSynchronize(true);
+  await h.render().reviewSourceChange("fence");
+  await h.render().confirmSourceChange();
+  h.sourcePackets.clear();
+  h.render().lock();
+  await h.render().unlock();
+  assert.equal(h.render().sourceMetadata.state, "revoking");
+  h.failSynchronize(false);
+  await h.render().resumeSourceChange();
+  assert.equal(h.render().sourceMetadata.state, "active");
+  assert.equal(h.render().sourceMutation, null);
+  assert.deepEqual(h.mutationCounts(), { prepares: 1, finishes: 0 });
+});
+
+test("changed authority after review requires a new review before signing", async () => {
+  const h = harness();
+  await unlocked(h);
+  await h.render().reviewSourceChange("delete");
+  h.sourceState(source.resourceRef.resourceId).authorityVersion++;
+  await h.render().confirmSourceChange();
+  assert.equal(h.render().error, "version_conflict");
+  assert.equal(h.mutationCounts().prepares, 0);
+  assert.equal(h.render().sourceReview, null);
+});
+
+test("pending delete hides plaintext immediately even if the Hub acknowledgement is unavailable", async () => {
+  const h = harness();
+  await unlocked(h);
+  await h.render().importFile(file);
+  await h.render().save();
+  h.failSynchronize(true);
+  await h.render().reviewSourceChange("delete");
+  await h.render().confirmSourceChange();
+  assert.equal(h.render().content, null);
+  await h.render().readStored();
+  assert.equal(h.render().content, null);
+  assert.equal(h.render().sourceMutation.action, "delete");
+});
+
+test("owner switch during acknowledgement leaves the original retry row and hides prior state", async () => {
+  const h = harness();
+  await unlocked(h);
+  const hold = deferred();
+  h.holdMutation(hold);
+  await h.render().reviewSourceChange("fence");
+  const action = h.render().confirmSourceChange();
+  for (let i = 0; i < 30 && !h.requests.some((r) => r.route.endsWith("/synchronize")); i++)
+    await settle();
+  h.auth({ status: "authenticated", sessionKey: "owner_b:2", profile: { uid: "owner_b" } });
+  h.render();
+  hold.resolve();
+  await action;
+  await settle();
+  assert.equal(h.render().sourceMutation, null);
+  assert.equal(h.render().content, null);
+  assert.equal(h.mutationCounts().finishes, 0);
+  assert.equal(h.sourcePackets.size, 1);
+});
+
+test("a never-accepted original mutation can be explicitly cleared only after the epoch advanced", async () => {
+  const h = harness();
+  await unlocked(h);
+  h.failMutation("before");
+  await h.render().reviewSourceChange("fence");
+  await h.render().confirmSourceChange();
+  assert.equal(h.sourcePackets.size, 1);
+  h.advanceSource(2);
+  h.failMutation(null);
+  await h.render().readStored();
+  await h.render().resumeSourceChange();
+  assert.equal(h.render().staleSourceMutation, true);
+  await h.render().discardStaleSourceChange();
+  assert.equal(h.render().sourceMutation, null);
+  assert.equal(h.sourcePackets.size, 0);
+  assert.equal(h.render().sourceMetadata.source.sourceEpoch, 2);
+});
+
+test("lost source creation response is resolved by the original ID without a second creation", async () => {
+  const h = harness({ hasSource: false });
+  await unlocked(h);
+  await h.render().importFile(file);
+  h.failSourceCreate("after");
+  await h.render().save();
+  const original = h.creation();
+  assert.ok(original);
+  assert.equal(h.sources().length, 1);
+  h.failSourceCreate(null);
+  await h.render().resumeSourceCreation();
+  assert.equal(h.creation(), null);
+  assert.equal(h.render().selectedSourceId, original.sourceId);
+  assert.equal(h.requests.filter((r) => r.route.includes("/holdings-sources/")).length, 1);
+  assert.equal(h.counts().creates, 1);
+});
+
+test("account scope changes require explicit invalidation while retaining the reviewed preview", async () => {
+  const h = harness();
+  await unlocked(h);
+  await h.render().importFile(file);
+  await h.render().save();
+  const originalCommits = h.commits.length;
+  h.previewAccounts(["masked_b"]);
+  await h.render().importFile(file);
+  await h.render().save();
+  assert.equal(h.render().error, "scope_change_requires_fence");
+  assert.equal(h.commits.length, originalCommits);
+  const retained = h.render().preview;
+  await h.render().reviewSourceChange("fence");
+  await h.render().confirmSourceChange();
+  assert.equal(h.render().preview, retained);
+  await h.render().save();
+  assert.equal(h.commits.length, originalCommits + 1);
+});
+
+test("new independent data uses a new source and cannot reconnect the disconnected source", async () => {
+  const h = harness();
+  await unlocked(h);
+  await h.render().reviewSourceChange("disconnect");
+  await h.render().confirmSourceChange();
+  const old = h.sources()[0].resourceRef.resourceId;
+  h.render().beginNewSource();
+  assert.equal(h.render().newSource, true);
+  await h.render().importFile(file);
+  await h.render().save();
+  assert.equal(h.sources().length, 2);
+  assert.notEqual(h.render().selectedSourceId, old);
+  assert.equal(h.sourceState(old).state, "disconnected");
+});
+
+test("an unaccepted mutation with the same epoch can be cleared after an authoritative version advance", async () => {
+  const h = harness();
+  await unlocked(h);
+  h.failMutation("before");
+  await h.render().reviewSourceChange("fence");
+  await h.render().confirmSourceChange();
+  h.sourceState(source.resourceRef.resourceId).authorityVersion++;
+  h.failMutation(null);
+  await h.render().readStored();
+  await h.render().resumeSourceChange();
+  assert.equal(h.render().staleSourceMutation, true);
+  await h.render().discardStaleSourceChange();
+  assert.equal(h.render().sourceMutation, null);
+  assert.equal(h.sourcePackets.size, 0);
+  assert.equal(h.render().sourceMetadata.source.sourceEpoch, 1);
+});
+
+test("failed metadata refresh clears a previously active state instead of advertising writes", async () => {
+  const h = harness();
+  await unlocked(h);
+  assert.equal(h.render().sourceMetadata.state, "active");
+  h.failRead(503);
+  await h.render().readStored();
+  assert.equal(h.render().sourceMetadata, null);
+  assert.equal(h.render().content, null);
+  assert.equal(h.render().error, "service_unavailable");
+});
+
+test("scope review that observes a racing pending fence never seals or uploads a new snapshot", async () => {
+  const h = harness();
+  await unlocked(h);
+  await h.render().importFile(file);
+  await h.render().save();
+  await h.render().importFile(file);
+  const before = { seals: h.counts().seals, commits: h.commits.length };
+  const other = "synthetic_other_device_fence_0001";
+  h.metadataHook((meta, reads) => {
+    if (reads !== 3) return;
+    meta.epoch = 2;
+    meta.authorityVersion++;
+    meta.state = "revoking";
+    meta.pendingMutationId = other;
+    h.mutations.set(other, {
+      contractVersion: CONTRACT,
+      operationId: other,
+      action: "fence",
+      resourceRef: source.resourceRef,
+      sourceEpoch: 2,
+      state: "pending",
+      requestedAt: "2026-11-01T00:00:00Z",
+      completedAt: null,
+    });
+  });
+  await h.render().save();
+  assert.equal(h.counts().seals, before.seals);
+  assert.equal(h.commits.length, before.commits);
+  assert.equal(h.outboxes.size, 0);
+  assert.equal(h.render().sourceMutation.operationId, other);
+  assert.equal(h.render().error, "version_conflict");
 });

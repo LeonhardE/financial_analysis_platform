@@ -302,7 +302,13 @@
       "vault_created": "加密资源库已准备好，可以选择 CSV 文件了。",
       "saved": "加密快照已保存，保存回执已通过校验。",
       "receipt_recovered": "已找回并校验保存回执，云端历史保留。",
-      "retry_discarded": "已移除本地重试，未删除云端历史；现在可重新选择 CSV 导入。"
+      "retry_discarded": "已移除本地重试，未删除云端历史；现在可重新选择 CSV 导入。",
+      "source_change_pending": "变更请求已接收，正在等待确认。",
+      "source_change_acknowledged": "原变更已确认；请以资料管理中显示的当前状态为准。",
+      "source_change_discarded": "本机失效请求已清理，服务器资料未被删除。",
+      "new_source": "已准备新资料。检查 CSV 后明确保存，旧资料保持原状态。",
+      "source_created": "原创建已确认。检查预览后，可继续明确保存持仓。",
+      "source_creation_discarded": "本机失效创建请求已清理。"
     },
     "errors": {
       "generic": "当前步骤未能完成，请重新检查资源库状态后重试。",
@@ -343,7 +349,15 @@
       "untrusted_vault": "资源库身份与本设备记录不一致，已阻止打开或替换。请检查当前账号后重新读取状态。",
       "key_renewal_pending": "此浏览器有待处理的加密密钥续期。请在设置 → 资源库密钥与设备中恢复原回执。",
       "key_renewal_only": "当前仅开放密钥续期，请在设置中完成，或先锁定此会话。",
-      "key_revoked": "所需密钥已过期或被撤销。请在设置中查看资源库密钥与设备；符合条件的过期密钥可续期，已撤销的密钥需要其他可信设备或恢复流程。"
+      "key_revoked": "所需密钥已过期或被撤销。请在设置中查看资源库密钥与设备；符合条件的过期密钥可续期，已撤销的密钥需要其他可信设备或恢复流程。",
+      "source_change_blocked": "请先处理待确认上传或变更。已断开或删除的资料不能重新写入；需要时新增独立资料。",
+      "source_review_required": "请重新查看资料状态和变更影响，再明确确认。",
+      "source_mutation_pending": "有待确认的资料变更，请先继续处理原操作。",
+      "source_creation_pending": "有待确认的新资料创建，请先继续检查原请求。",
+      "source_limit": "已达到 10 份资料的创建上限。",
+      "scope_change_requires_fence": "账户范围与已保存持仓不同。请先使旧授权失效（预览会保留），或将预览另存为新资料，再保存。",
+      "operation_conflict": "原请求发生变化，已停止处理。请重新检查状态，不会覆盖另一项操作。",
+      "source_creation_exists": "这份资料已经建立。请继续检查原创建，不要清理本机请求。"
     },
     "warnings": {
       "generic": "部分导入信息需要检查。",
@@ -375,7 +389,59 @@
     "keepPending": "保留加密重试",
     "confirmDiscard": "确认放弃本地重试",
     "importScope": "保存所选账户、证券、数量、币种、报告市值与可核实现金；暂不保留单价、账面成本、盈亏或报告日期。原始 CSV 不会上传。",
-    "renewalOnly": "当前仅开放密钥续期。请在设置中完成，或先锁定此会话再打开资源。"
+    "renewalOnly": "当前仅开放密钥续期。请在设置中完成，或先锁定此会话再打开资源。",
+    "lifecycle": {
+      "title": "持仓资料管理",
+      "select": "当前资料",
+      "source": "持仓资料 {number}",
+      "new": "新的持仓资料",
+      "newHelp": "下一次保存将建立独立资料，不会恢复或修改旧资料的授权。",
+      "add": "新增一份持仓资料",
+      "newFromPreview": "将这份预览另存为新资料",
+      "limit": "最多保留 10 份资料的创建记录；删除不会释放记录名额。",
+      "historical": "当前显示的是旧范围下的历史持仓。旧授权已失效；如需继续使用，请检查预览账户并重新加密保存，再为 Agent 授权。",
+      "creationPending": "新资料的创建结果尚未确认。继续检查原请求，不会重复创建。",
+      "resumeCreation": "继续检查原创建",
+      "discardCreation": "检查并清理失效的创建请求",
+      "discardCreationHelp": "只有旧请求已无法再提交时，才清理本机请求；不会取消或删除服务器资料。",
+      "pendingHelp": "变更尚待确认，旧授权可能已受限制。请继续处理原变更；确认前不会显示为完成。",
+      "resume": "继续处理原变更",
+      "staleHelp": "此请求未被接收，资料已由另一项变更推进。可以确认清理本机旧请求，服务器资料不会被删除。",
+      "discardStale": "清理本机失效请求",
+      "cancel": "取消，保持当前资料",
+      "confirmAction": "确认此变更",
+      "copies": "已被下载、解密或复制的内容无法收回。",
+      "previewKept": "当前 CSV 预览会保留；授权失效后，仍需检查所选账户并点击保存。",
+      "previewClosed": "确认后将关闭未保存的 CSV 预览。",
+      "actions": {
+        "fence": "使旧授权失效",
+        "disconnect": "断开后续访问",
+        "delete": "删除这份资料"
+      },
+      "confirm": {
+        "fence": "确认使旧授权失效？",
+        "disconnect": "确认断开这份资料？",
+        "delete": "确认删除这份资料？"
+      },
+      "effects": {
+        "fence": "停止基于旧范围的后续访问和新任务，保留持仓历史。完成后重新保存当前账户范围，再为 Agent 授权。",
+        "disconnect": "停止这份资料的后续使用和更新。解锁后仍可查看已有持仓；再次导入需新建独立资料。",
+        "delete": "隐藏这份资料及持仓历史并停止后续访问。服务端密文和备份可能保留，不代表立即物理清除。"
+      },
+      "states": {
+        "active": "可使用和更新。",
+        "revoking": "正在限制旧授权，等待变更确认。",
+        "disconnected": "已断开，仅可查看已有持仓。",
+        "deleted": "已删除，持仓历史已隐藏。"
+      },
+      "unknown": "尚未确认这份资料的状态。请重新检查，确认前不能保存或更改访问。",
+      "initialize": "检查并准备这份资料",
+      "confirmButton": {
+        "fence": "确认使旧授权失效",
+        "disconnect": "确认断开",
+        "delete": "确认删除"
+      }
+    }
   },
   "inbox": {
     "eyebrow": "个人 AGENT 产出",

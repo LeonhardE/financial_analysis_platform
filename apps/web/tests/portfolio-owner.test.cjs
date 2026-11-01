@@ -892,3 +892,145 @@ test("owner minute budget limits30 attempts and an idle elapsed window permits a
   assert.equal((await h.proxy(request())).status, 200);
   assert.equal(h.upstream().length, 32);
 });
+
+const sourceMutationAck = (operationId = OPERATION) => ({
+  contractVersion: CONTRACT,
+  operationId,
+  action: "fence",
+  resourceRef: {
+    kind: "holdings",
+    sourceService: "portfolio",
+    resourceId: "source_A",
+    incarnation: "inc_A",
+  },
+  sourceEpoch: 2,
+  state: "acknowledged",
+  requestedAt: "2026-10-29T23:29:00Z",
+  completedAt: "2026-10-29T23:29:01Z",
+});
+test("owner-only source synchronization accepts all legal operation IDs and forwards no author/replay/delegation selectors", async () => {
+  for (const operation of [
+    OPERATION,
+    "_" + "A".repeat(21),
+    "-" + "A".repeat(21),
+    "A".repeat(128),
+  ]) {
+    const h = harness({ upstream: () => jsonResponse(sourceMutationAck(operation)) });
+    assert.equal((await h.proxy(request(SOURCE + "/mutations/" + operation))).status, 200);
+    const raw = ' { "contractVersion": "' + CONTRACT + '" } ';
+    const result = await h.proxy(
+      request(SOURCE + "/mutations/" + operation + "/synchronize", {
+        method: "POST",
+        raw,
+        headers: {
+          Cookie: "not_forwarded",
+          "X-FolioView-Delegation": "not_forwarded",
+          "X-Serverless-Authorization": "not_forwarded",
+        },
+      }),
+    );
+    assert.equal(result.status, 200, await result.clone().text());
+    const forwarded = h.upstream().at(-1).options;
+    assert.equal(new TextDecoder().decode(forwarded.body), raw);
+    assert.deepEqual([...forwarded.headers.keys()].sort(), [
+      "authorization",
+      "content-type",
+      "x-folioview-contract",
+      "x-serverless-authorization",
+    ]);
+    assert.equal(forwarded.headers.get("authorization"), "Bearer " + tokenA);
+    assert.equal(forwarded.headers.get("x-serverless-authorization"), "Bearer " + serviceToken);
+  }
+});
+test("source synchronization rejects non-owner control headers, extra body fields and invalid operation paths before identity", async () => {
+  const route = SOURCE + "/mutations/" + OPERATION + "/synchronize";
+  for (const options of [
+    { headers: { "Idempotency-Key": OPERATION } },
+    { headers: { "X-FolioView-Author-Key": AUTHOR } },
+    { headers: { "X-FolioView-Authority-Delegation": "a.b.c" } },
+    { json: { contractVersion: CONTRACT, sourceEpoch: 2 } },
+    { json: {} },
+  ]) {
+    const h = harness();
+    await expectError(
+      await h.proxy(
+        request(route, { method: "POST", json: { contractVersion: CONTRACT }, ...options }),
+      ),
+      400,
+      "malformed_request",
+    );
+    assert.equal(h.calls.length, 0);
+  }
+  for (const path of [
+    SOURCE + "/mutations/short/synchronize",
+    SOURCE + "/mutations/" + "A".repeat(129) + "/synchronize",
+    route + "?source=other",
+    SOURCE + "/mutations/%5f" + "A".repeat(21) + "/synchronize",
+  ]) {
+    const h = harness();
+    assert.equal(
+      (await h.proxy(request(path, { method: "POST", json: { contractVersion: CONTRACT } })))
+        .status,
+      400,
+    );
+    assert.equal(h.calls.length, 0);
+  }
+  const exact = '{"contractVersion":"' + CONTRACT + '"}';
+  const h = harness({ upstream: () => jsonResponse(sourceMutationAck()) });
+  assert.equal(
+    (await h.proxy(request(route, { method: "POST", raw: exact.padEnd(1024, " ") }))).status,
+    200,
+  );
+  const big = harness();
+  await expectError(
+    await big.proxy(request(route, { method: "POST", raw: exact.padEnd(1025, " ") })),
+    413,
+    "payload_too_large",
+  );
+  assert.equal(big.calls.length, 0);
+});
+test("source synchronization accepts only closed acknowledged receipts bound to the fixed source and operation", async () => {
+  for (const [patch, status] of [
+    [{ operationId: "another_operation_00001" }, 200],
+    [{ resourceRef: { ...sourceMutationAck().resourceRef, resourceId: "source_other" } }, 200],
+    [{ state: "pending", completedAt: null }, 200],
+    [{ action: "unknown" }, 200],
+    [{ sourceEpoch: 0 }, 200],
+    [{ completedAt: "2026-02-31T00:00:00Z" }, 200],
+    [{ completedAt: "2026-10-29T23:28:00Z" }, 200],
+    [{ privateKey: "CANARY" }, 200],
+    [{}, 202],
+    [{}, 201],
+  ]) {
+    const h = harness({
+      upstream: () => jsonResponse({ ...sourceMutationAck(), ...patch }, { status }),
+    });
+    await expectError(
+      await h.proxy(
+        request(SOURCE + "/mutations/" + OPERATION + "/synchronize", {
+          method: "POST",
+          json: { contractVersion: CONTRACT },
+        }),
+      ),
+      503,
+      "authorization_unavailable",
+    );
+  }
+});
+
+test("snapshot receipt recovery accepts the full operation identifier alphabet without opening other paths", async () => {
+  for (const operation of ["_" + "A".repeat(21), "-" + "B".repeat(21), "_".repeat(128)]) {
+    const h = harness();
+    assert.equal((await h.proxy(request(SOURCE + "/operations/" + operation))).status, 200);
+    assert.equal(h.upstream().length, 1);
+  }
+  for (const operation of ["short", "A".repeat(129)]) {
+    const h = harness();
+    await expectError(
+      await h.proxy(request(SOURCE + "/operations/" + operation)),
+      400,
+      "malformed_request",
+    );
+    assert.equal(h.upstream().length, 0);
+  }
+});

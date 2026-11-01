@@ -26,9 +26,10 @@ const PREFIX = "/api/private/portfolio";
 const METADATA =
   "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/identity";
 const ID = "[A-Za-z0-9][A-Za-z0-9_-]{0,127}";
+const OPERATION = "[A-Za-z0-9_-]{22,128}";
 const SOURCE = `/api/v2/holdings/sources/${ID}`;
 type Config = { project: string; origin: string; audience: string };
-type Rule = { kind: "read" | "snapshot" | "mutation" | "authority"; max: number };
+type Rule = { kind: "read" | "snapshot" | "mutation" | "authority" | "synchronize"; max: number };
 export function portfolioConfiguration(env: NodeJS.ProcessEnv): Config | null {
   const project = env.FOLIOVIEW_OWNER_FIREBASE_PROJECT_ID ?? "";
   const origin = env.FOLIOVIEW_PORTFOLIO_ORIGIN ?? "";
@@ -52,7 +53,9 @@ function ruleFor(request: Request): { path: string; rule: Rule } {
   const path = url.pathname.slice(PREFIX.length);
   if (
     request.method === "GET" &&
-    new RegExp(`^${SOURCE}(?:/latest|/(?:snapshots|operations|mutations)/${ID})?$`).test(path)
+    new RegExp(
+      `^${SOURCE}(?:/latest|/snapshots/${ID}|/(?:operations|mutations)/${OPERATION})?$`,
+    ).test(path)
   )
     return { path, rule: { kind: "read", max: 0 } };
   if (request.method === "PUT" && new RegExp(`^${SOURCE}/snapshots/${ID}$`).test(path))
@@ -62,6 +65,11 @@ function ruleFor(request: Request): { path: string; rule: Rule } {
     new RegExp(`^${SOURCE}/mutations/(?:fence|disconnect|delete)$`).test(path)
   )
     return { path, rule: { kind: "mutation", max: 66560 } };
+  if (
+    request.method === "POST" &&
+    new RegExp(`^${SOURCE}/mutations/${OPERATION}/synchronize$`).test(path)
+  )
+    return { path, rule: { kind: "synchronize", max: 1024 } };
   if (request.method === "POST" && new RegExp(`^${SOURCE}/authority-sync$`).test(path))
     return { path, rule: { kind: "authority", max: 1024 } };
   return fail();
@@ -82,7 +90,9 @@ async function transport(request: Request, rule: Rule, signal: AbortSignal) {
     const allowed =
       rule.kind === "authority"
         ? name === "x-folioview-authority-delegation"
-        : rule.kind !== "read" && name !== "x-folioview-authority-delegation";
+        : rule.kind !== "read" &&
+          rule.kind !== "synchronize" &&
+          name !== "x-folioview-authority-delegation";
     if (allowed) {
       if (
         !value ||
@@ -102,7 +112,7 @@ async function transport(request: Request, rule: Rule, signal: AbortSignal) {
   if (request.headers.get("content-type")?.split(";", 1)[0].toLowerCase() !== "application/json")
     fail("unsupported_media_type");
   const body = json(raw);
-  if (rule.kind === "authority") {
+  if (rule.kind === "authority" || rule.kind === "synchronize") {
     if (!fields(body, ["contractVersion"]) || body.contractVersion !== CONTRACT) fail();
   } else if (rule.kind === "snapshot") {
     if (
@@ -122,6 +132,44 @@ async function transport(request: Request, rule: Rule, signal: AbortSignal) {
     fail();
   headers.set("Content-Type", "application/json");
   return { headers, raw, token: auth.slice(7) };
+}
+
+function synchronizedReceipt(value: unknown, path: string) {
+  if (
+    !fields(value, [
+      "contractVersion",
+      "operationId",
+      "action",
+      "resourceRef",
+      "sourceEpoch",
+      "state",
+      "requestedAt",
+      "completedAt",
+    ]) ||
+    value.contractVersion !== CONTRACT ||
+    value.state !== "acknowledged" ||
+    typeof value.operationId !== "string" ||
+    value.operationId !== path.split("/")[7] ||
+    !["fence", "disconnect", "delete"].includes(value.action as string) ||
+    !integer(value.sourceEpoch, 1) ||
+    !fields(value.resourceRef, ["kind", "sourceService", "resourceId", "incarnation"]) ||
+    value.resourceRef.kind !== "holdings" ||
+    value.resourceRef.sourceService !== "portfolio" ||
+    value.resourceRef.resourceId !== path.split("/")[5] ||
+    typeof value.resourceRef.incarnation !== "string" ||
+    !new RegExp(`^${ID}$`).test(value.resourceRef.incarnation)
+  )
+    return false;
+  const time = (v: unknown) =>
+    typeof v === "string" &&
+    /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d{1,6})?Z$/.test(v) &&
+    Number.isFinite(Date.parse(v)) &&
+    new Date(v).toISOString().slice(0, 19) === v.slice(0, 19);
+  return (
+    time(value.requestedAt) &&
+    time(value.completedAt) &&
+    Date.parse(value.completedAt as string) >= Date.parse(value.requestedAt as string)
+  );
 }
 
 export function createPortfolioProxy(options: Options = {}) {
@@ -208,7 +256,13 @@ export function createPortfolioProxy(options: Options = {}) {
         }),
         signal,
       );
-      return await forwardResponse(response, signal);
+      if (rule.kind === "synchronize" && response.status < 400 && response.status !== 200)
+        fail("authorization_unavailable");
+      return await forwardResponse(
+        response,
+        signal,
+        rule.kind === "synchronize" ? (value) => synchronizedReceipt(value, path) : undefined,
+      );
     } catch (error) {
       return errorResponse(error instanceof Failure ? error.code : "authorization_unavailable");
     } finally {

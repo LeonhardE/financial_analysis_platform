@@ -17,6 +17,10 @@ import {
   type Vault,
   type Archive,
   type Source,
+  type SourceCreationPacket,
+  type SourceMutationAction,
+  type SourceMutationPacket,
+  type SourceMutationReceipt,
   type RegistryBundle,
   type Signed,
   type PasskeyMaterial,
@@ -4910,6 +4914,294 @@ export class VaultCore {
       command: await sign(command, device.sig, device.sigId),
       authorKeyId: device.sigId,
     };
+  }
+  async prepareSourceCreation(sourceId: string): Promise<SourceCreationPacket> {
+    validate("Identifier", sourceId);
+    const { registry, device } = this.ready();
+    if (
+      !cert(registry, device.sigId, "device_sig", this.now()).capabilities.includes("control_write")
+    )
+      throw new VaultError("key_revoked");
+    return { sourceId, ...(await this.signSource(sourceId)) };
+  }
+  async validateSourceCreation(packet: SourceCreationPacket): Promise<SourceCreationPacket> {
+    bounded(packet, 66560);
+    exact(packet, ["sourceId", "operationId", "authorKeyId", "command"]);
+    validate("Identifier", packet.sourceId);
+    validate("OperationIdentifier", packet.operationId);
+    const { command } = await this.sourceControl(packet.command, packet.authorKeyId);
+    if (
+      command.action !== "manual_source_create" ||
+      command.targetId !== packet.sourceId ||
+      command.stableOperationId !== packet.operationId ||
+      command.expectedVersion !== 0 ||
+      command.expectedSourceEpoch !== null ||
+      !equal(command.parameters, {})
+    )
+      throw new VaultError("binding_mismatch");
+    return packet;
+  }
+  async verifySourceCreation(packet: SourceCreationPacket, source: Source): Promise<void> {
+    await this.validateSourceCreation(packet);
+    exact(source, ["resourceRef", "sourceEpoch"]);
+    this.binding(source, 1);
+    if (
+      source.resourceRef.resourceId !== packet.sourceId ||
+      source.resourceRef.incarnation !==
+        "inc_" + (await signingFingerprint(packet.command)).slice(0, 32)
+    )
+      throw new VaultError("binding_mismatch");
+  }
+  async discardSourceCreation(
+    packet: SourceCreationPacket,
+    currentVault: Vault,
+    sources: Source[],
+  ): Promise<void> {
+    await this.validateSourceCreation(packet);
+    const { command } = await this.sourceControl(packet.command, packet.authorKeyId);
+    const current = await this.checkVault(currentVault, this.pin);
+    if (
+      current.checkpoint.registrySequence <= command.registrySequence ||
+      (await sha(
+        canonical(
+          parsed(
+            unb64(currentVault.registryHistory[command.registrySequence - 1].checkpoint.payload),
+          ),
+        ),
+      )) !== command.checkpointDigest
+    )
+      throw new VaultError("binding_mismatch");
+    bounded(sources, 16384);
+    if (!Array.isArray(sources) || sources.length > 10) throw new VaultError("invalid_data");
+    const seen = new Set<string>();
+    for (const source of sources) {
+      exact(source, ["resourceRef", "sourceEpoch"]);
+      this.binding(source, 1);
+      if (
+        seen.has(source.resourceRef.resourceId) ||
+        source.resourceRef.resourceId === packet.sourceId
+      )
+        throw new VaultError("binding_mismatch");
+      seen.add(source.resourceRef.resourceId);
+    }
+  }
+  async signSourceMutation(args: {
+    source: Source;
+    expectedVersion: number;
+    action: SourceMutationAction;
+  }): Promise<SourceMutationPacket> {
+    exact(args, ["source", "expectedVersion", "action"]);
+    exact(args.source, ["resourceRef", "sourceEpoch"]);
+    this.binding(args.source, 1);
+    positive(args.expectedVersion);
+    positive(args.expectedVersion + 1);
+    positive(args.source.sourceEpoch + 1);
+    const actions = {
+      fence: "resource_fence_request",
+      disconnect: "source_disconnect",
+      delete: "source_delete",
+    };
+    if (!Object.hasOwn(actions, args.action)) throw new VaultError("invalid_data");
+    const { registry, device, vault } = this.ready();
+    if (
+      !cert(registry, device.sigId, "device_sig", this.now()).capabilities.includes("control_write")
+    )
+      throw new VaultError("key_revoked");
+    const operationId = randomId() + (await sha(canonical(args.source)));
+    const command = {
+      artifactType: "control_command",
+      contractVersion: CONTRACT,
+      vaultId: vault.vaultId,
+      ownerSubject: await this.owner,
+      stableOperationId: operationId,
+      action: actions[args.action],
+      targetId: args.source.resourceRef.resourceId,
+      expectedVersion: args.expectedVersion,
+      expectedSourceEpoch: args.source.sourceEpoch,
+      registrySequence: registry.checkpoint.registrySequence,
+      checkpointDigest: registry.digest,
+      keyEpoch: registry.checkpoint.keyEpoch,
+      parameters: args.action === "fence" ? { resourceRef: args.source.resourceRef } : {},
+    };
+    validate("ControlCommandPayload", command);
+    return {
+      operationId,
+      authorKeyId: device.sigId,
+      action: args.action,
+      source: args.source,
+      body: {
+        contractVersion: CONTRACT,
+        expectedVersion: args.expectedVersion,
+        expectedSourceEpoch: args.source.sourceEpoch,
+        command: await sign(command, device.sig, device.sigId),
+      },
+    };
+  }
+  private async sourceControl(signed: Signed, authorKeyId: string) {
+    if (!this.root || !this.wrapping || !this.vault || !this.pin) throw new VaultError("locked");
+    const vault = this.vault;
+    await this.checkVault(vault, this.pin);
+    validate("KeyId", authorKeyId);
+    validate("SignedObject", signed);
+    const command = parsed(unb64(signed.payload, 65536));
+    validate("ControlCommandPayload", command);
+    if (command.ownerSubject !== (await this.owner) || command.vaultId !== vault.vaultId)
+      throw new VaultError("binding_mismatch");
+    let historical: Registry | undefined;
+    for (let i = 0; i < command.registrySequence; i++) {
+      if (!vault.registryHistory[i]) throw new VaultError("untrusted_vault");
+      historical = await verifyRegistry(
+        vault.registryHistory[i],
+        vault.rootJwk,
+        await this.owner,
+        vault.vaultId,
+        historical,
+        this.now(),
+      );
+      if (historical.checkpoint.registrySequence !== i + 1) throw new VaultError("untrusted_vault");
+    }
+    if (
+      !historical ||
+      historical.digest !== command.checkpointDigest ||
+      historical.checkpoint.keyEpoch !== command.keyEpoch
+    )
+      throw new VaultError("untrusted_vault");
+    const author = historical.certificates.get(authorKeyId);
+    if (
+      !author ||
+      author.role !== "device_sig" ||
+      author.connectionId !== null ||
+      !author.capabilities.includes("control_write")
+    )
+      throw new VaultError("invalid_signature");
+    const possibleAt = Math.max(historical.checkpoint.issuedAt, author.notBefore);
+    if (possibleAt > this.now()) throw new VaultError("untrusted_vault");
+    cert(historical, author.keyId, "device_sig", possibleAt);
+    await verified(signed, author.publicJwk);
+    return { vault, historical, author, command };
+  }
+  /** Authenticate an original public control, without restoring its signing authority. */
+  private async sourceMutationPacket(packet: SourceMutationPacket) {
+    if (!this.root || !this.wrapping || !this.vault || !this.pin) throw new VaultError("locked");
+    const vault = this.vault;
+    await this.checkVault(vault, this.pin);
+    bounded(packet, 67584);
+    exact(packet, ["operationId", "authorKeyId", "action", "source", "body"]);
+    exact(packet.source, ["resourceRef", "sourceEpoch"]);
+    this.binding(packet.source, 1);
+    positive(packet.source.sourceEpoch + 1);
+    validate("OperationIdentifier", packet.operationId);
+    if (
+      packet.operationId.length !== 86 ||
+      packet.operationId.slice(22) !== (await sha(canonical(packet.source)))
+    )
+      throw new VaultError("binding_mismatch");
+    validate("KeyId", packet.authorKeyId);
+    exact(packet.body, ["contractVersion", "expectedVersion", "expectedSourceEpoch", "command"]);
+    positive(packet.body.expectedVersion);
+    positive(packet.body.expectedVersion + 1);
+    const actions = {
+      fence: "resource_fence_request",
+      disconnect: "source_disconnect",
+      delete: "source_delete",
+    };
+    if (!Object.hasOwn(actions, packet.action)) throw new VaultError("invalid_data");
+    validate("SignedObject", packet.body.command);
+    const command = parsed(unb64(packet.body.command.payload, 65536));
+    validate("ControlCommandPayload", command);
+    if (
+      packet.body.contractVersion !== CONTRACT ||
+      packet.body.expectedSourceEpoch !== packet.source.sourceEpoch ||
+      command.ownerSubject !== (await this.owner) ||
+      command.vaultId !== vault.vaultId ||
+      command.stableOperationId !== packet.operationId ||
+      command.action !== actions[packet.action] ||
+      command.targetId !== packet.source.resourceRef.resourceId ||
+      command.expectedVersion !== packet.body.expectedVersion ||
+      command.expectedSourceEpoch !== packet.source.sourceEpoch ||
+      !equal(
+        command.parameters,
+        packet.action === "fence" ? { resourceRef: packet.source.resourceRef } : {},
+      )
+    )
+      throw new VaultError("binding_mismatch");
+    return this.sourceControl(packet.body.command, packet.authorKeyId);
+  }
+  async validateSourceMutation(packet: SourceMutationPacket): Promise<SourceMutationPacket> {
+    await this.sourceMutationPacket(packet);
+    return packet;
+  }
+  async discardSourceMutation(
+    packet: SourceMutationPacket,
+    currentSource: Source,
+    currentAuthorityVersion?: number,
+  ): Promise<void> {
+    await this.validateSourceMutation(packet);
+    exact(currentSource, ["resourceRef", "sourceEpoch"]);
+    this.binding(currentSource, 1);
+    if (currentAuthorityVersion !== undefined) positive(currentAuthorityVersion);
+    if (
+      !equal(currentSource.resourceRef, packet.source.resourceRef) ||
+      currentSource.sourceEpoch < packet.source.sourceEpoch ||
+      !(
+        currentSource.sourceEpoch > packet.source.sourceEpoch ||
+        (currentAuthorityVersion !== undefined &&
+          currentAuthorityVersion > packet.body.expectedVersion)
+      )
+    )
+      throw new VaultError("binding_mismatch");
+  }
+  async verifySourceMutationReceipt(
+    packet: SourceMutationPacket,
+    receipt: SourceMutationReceipt,
+  ): Promise<SourceMutationReceipt> {
+    const { vault, historical, author, command } = await this.sourceMutationPacket(packet);
+    bounded(receipt, 4096);
+    exact(receipt, [
+      "contractVersion",
+      "operationId",
+      "action",
+      "resourceRef",
+      "sourceEpoch",
+      "state",
+      "requestedAt",
+      "completedAt",
+    ]);
+    if (
+      receipt.contractVersion !== CONTRACT ||
+      receipt.operationId !== packet.operationId ||
+      receipt.action !== packet.action ||
+      !equal(receipt.resourceRef, packet.source.resourceRef) ||
+      receipt.sourceEpoch !== packet.source.sourceEpoch + 1 ||
+      !["pending", "acknowledged"].includes(receipt.state)
+    )
+      throw new VaultError("binding_mismatch");
+    const requested = utcSeconds(receipt.requestedAt);
+    if (
+      requested < historical.checkpoint.issuedAt ||
+      (receipt.state === "pending"
+        ? receipt.completedAt !== null
+        : receipt.completedAt === null || utcSeconds(receipt.completedAt) < requested)
+    )
+      throw new VaultError("binding_mismatch");
+    cert(historical, author.keyId, "device_sig", requested);
+    let acceptedRegistry = historical;
+    for (let i = command.registrySequence; i < vault.registryHistory.length; i++) {
+      const next = vault.registryHistory[i];
+      if (parsed(unb64(next.checkpoint.payload)).issuedAt >= Math.floor(requested)) break;
+      acceptedRegistry = await verifyRegistry(
+        next,
+        vault.rootJwk,
+        await this.owner,
+        vault.vaultId,
+        acceptedRegistry,
+        requested,
+      );
+      if (acceptedRegistry.checkpoint.keyEpoch !== command.keyEpoch)
+        throw new VaultError("binding_mismatch");
+      cert(acceptedRegistry, author.keyId, "device_sig", requested);
+    }
+    return receipt;
   }
   async signResultState(args: {
     metadata: ResultMetadata;

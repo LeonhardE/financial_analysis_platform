@@ -42,6 +42,10 @@ import type {
   ArchiveChangePacket,
   KeyRenewalSummary,
   KeyRenewalPacket,
+  SourceMutationAction,
+  SourceMutationPacket,
+  SourceMutationReceipt,
+  SourceCreationPacket,
 } from "@/lib/encrypted-types";
 
 const CONTRACT = "folioview.agent-workspace.v2.0";
@@ -64,7 +68,18 @@ type Busy =
   | "reviewing-renewal"
   | "renewing-keys"
   | "cancelling-renewal"
+  | "changing-source"
   | null;
+type SourceMetadata = {
+  source: Source;
+  authorityVersion: number;
+  revision: number;
+  snapshotId: string | null;
+  snapshotSourceEpoch: number | null;
+  state: "active" | "revoking" | "disconnected" | "deleted";
+  pendingMutationId: string | null;
+};
+type SourceReview = { action: SourceMutationAction; source: Source; authorityVersion: number };
 type DeviceReview = {
   action: "revoke" | "rotate";
   deviceId: string;
@@ -77,6 +92,18 @@ type State = {
   busy: Busy;
   vault: Vault | null;
   sources: Source[];
+  selectedSourceId: string | null;
+  newSource: boolean;
+  sourceMetadata: SourceMetadata | null;
+  sourceReview: SourceReview | null;
+  sourceMutation: {
+    operationId: string;
+    action: SourceMutationAction;
+    sourceEpoch: number;
+    state: "prepared" | "pending";
+  } | null;
+  sourceCreationId: string | null;
+  staleSourceMutation: boolean;
   preview: HoldingsCsvPreview | null;
   content: HoldingsResourceContent | null;
   hasPending: boolean;
@@ -115,6 +142,13 @@ const empty: State = {
   busy: null,
   vault: null,
   sources: [],
+  selectedSourceId: null,
+  newSource: false,
+  sourceMetadata: null,
+  sourceReview: null,
+  sourceMutation: null,
+  sourceCreationId: null,
+  staleSourceMutation: false,
   preview: null,
   content: null,
   hasPending: false,
@@ -155,6 +189,95 @@ function sameSource(left: unknown, right: Source["resourceRef"]) {
       (key) => left[key] === right[key as keyof typeof right],
     )
   );
+}
+function selectedSource(sources: Source[], selected: string | null) {
+  return selected
+    ? sources.find((source) => source.resourceRef.resourceId === selected)
+    : sources.at(-1);
+}
+const operationId = (value: unknown): value is string =>
+  typeof value === "string" && /^[A-Za-z0-9_-]{22,128}$/.test(value);
+const positive = (value: unknown): value is number =>
+  Number.isSafeInteger(value) && Number(value) > 0;
+function sourceMetadata(value: unknown, source: Source, vault: Vault): SourceMetadata {
+  if (
+    !record(value) ||
+    value.contractVersion !== CONTRACT ||
+    !record(value.resourceRef) ||
+    Object.keys(value.resourceRef).length !== 4 ||
+    !sameSource(value.resourceRef, source.resourceRef) ||
+    value.sourceId !== source.resourceRef.resourceId ||
+    value.vaultId !== vault.vaultId ||
+    typeof value.ownerSubject !== "string" ||
+    !/^[a-f0-9]{64}$/.test(value.ownerSubject) ||
+    (vault.archive.ownerSubject && value.ownerSubject !== vault.archive.ownerSubject) ||
+    !positive(value.sourceEpoch) ||
+    !positive(value.authorityVersion) ||
+    !Number.isSafeInteger(value.revision) ||
+    Number(value.revision) < 0 ||
+    !(
+      value.snapshotId === null ||
+      (typeof value.snapshotId === "string" &&
+        /^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/.test(value.snapshotId))
+    ) ||
+    !(
+      value.snapshotSourceEpoch === null ||
+      (positive(value.snapshotSourceEpoch) && value.snapshotSourceEpoch <= value.sourceEpoch)
+    ) ||
+    typeof value.state !== "string" ||
+    !["active", "revoking", "disconnected", "deleted"].includes(value.state) ||
+    (value.state === "revoking"
+      ? !operationId(value.pendingMutationId)
+      : value.pendingMutationId !== null) ||
+    (value.state === "revoking"
+      ? ![source.sourceEpoch, source.sourceEpoch + 1].includes(value.sourceEpoch)
+      : value.sourceEpoch !== source.sourceEpoch)
+  )
+    throw new WorkspaceError("invalid_response");
+  return {
+    source: { resourceRef: source.resourceRef, sourceEpoch: value.sourceEpoch },
+    authorityVersion: value.authorityVersion,
+    revision: value.revision as number,
+    snapshotId: value.snapshotId as string | null,
+    snapshotSourceEpoch: value.snapshotSourceEpoch as number | null,
+    state: value.state as SourceMetadata["state"],
+    pendingMutationId: value.pendingMutationId as string | null,
+  };
+}
+function mutationReceipt(
+  value: unknown,
+  source: Source,
+  expectedOperation: string,
+): SourceMutationReceipt {
+  const time = (v: unknown) =>
+    typeof v === "string" &&
+    /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?Z$/.test(v) &&
+    Number.isFinite(Date.parse(v)) &&
+    new Date(v).toISOString().slice(0, 19) === v.slice(0, 19);
+  if (
+    !record(value) ||
+    Object.keys(value).sort().join(",") !==
+      "action,completedAt,contractVersion,operationId,requestedAt,resourceRef,sourceEpoch,state" ||
+    value.contractVersion !== CONTRACT ||
+    !operationId(value.operationId) ||
+    value.operationId !== expectedOperation ||
+    typeof value.action !== "string" ||
+    !["fence", "disconnect", "delete"].includes(value.action) ||
+    !record(value.resourceRef) ||
+    Object.keys(value.resourceRef).length !== 4 ||
+    !sameSource(value.resourceRef, source.resourceRef) ||
+    !positive(value.sourceEpoch) ||
+    value.sourceEpoch !== source.sourceEpoch ||
+    !time(value.requestedAt) ||
+    !(
+      (value.state === "pending" && value.completedAt === null) ||
+      (value.state === "acknowledged" &&
+        time(value.completedAt) &&
+        Date.parse(value.completedAt as string) >= Date.parse(value.requestedAt as string))
+    )
+  )
+    throw new WorkspaceError("invalid_response");
+  return value as SourceMutationReceipt;
 }
 function aggregate(value: unknown): { vault: Vault | null; sources: Source[] } {
   if (
@@ -211,6 +334,15 @@ export function useHoldingsWorkspace() {
   const current = useRef<{ serial: number; controller: AbortController } | null>(null);
   const session = useRef<{ owner: string; instance: EncryptedVaultSession } | null>(null);
   const pending = useRef<PendingSnapshot | null>(null);
+  const verifiedSnapshot = useRef<{
+    sourceId: string;
+    snapshotId: string;
+    sourceEpoch: number;
+    revision: number;
+    currentEpoch: number;
+    authorityVersion: number;
+    state: SourceMetadata["state"];
+  } | null>(null);
   const vaultGeneration = useRef(0);
   const recoverySession = useRef<EncryptedVaultSession | null>(null);
   const renewalHoldingsReview = useRef<{
@@ -228,6 +360,7 @@ export function useHoldingsWorkspace() {
     recoverySession.current = null;
     session.current = null;
     pending.current = null;
+    verifiedSnapshot.current = null;
     renewalHoldingsReview.current = null;
   }, []);
 
@@ -281,6 +414,9 @@ export function useHoldingsWorkspace() {
             phase: previous.vault ? "locked" : "needs-vault",
             preview: null,
             content: null,
+            sourceMetadata: null,
+            sourceReview: null,
+            sourceMutation: null,
             hasPending: false,
             discardOperationId: null,
             keyManagement: null,
@@ -348,7 +484,19 @@ export function useHoldingsWorkspace() {
                 keyRenewalCancellation: false,
               }
             : {}),
-          ...(busy === "reading" || busy === "saving" ? { content: null } : {}),
+          ...(["reading", "saving", "changing-source"].includes(busy) ? { content: null } : {}),
+          sourceReview: null,
+          ...(["reading", "saving", "changing-source"].includes(busy) &&
+          [
+            "service_unavailable",
+            "invalid_response",
+            "version_conflict",
+            "session_expired",
+            "insufficient_scope",
+            "request_failed",
+          ].includes(errorCode(error))
+            ? { sourceMetadata: null }
+            : {}),
           error: errorCode(error),
           keyRenewalFailure:
             previous.phase === "renewal-only" ||
@@ -474,7 +622,7 @@ export function useHoldingsWorkspace() {
         token.token.length > 16_384
       )
         throw new WorkspaceError("invalid_response");
-      await api(
+      const result = await api(
         "portfolio",
         `/api/v2/holdings/sources/${source.resourceRef.resourceId}/authority-sync`,
         signal,
@@ -484,45 +632,127 @@ export function useHoldingsWorkspace() {
           headers: { "X-FolioView-Authority-Delegation": token.token },
         },
       );
+      if (
+        !record(result) ||
+        result.contractVersion !== CONTRACT ||
+        result.sourceEpoch !== source.sourceEpoch ||
+        !positive(result.authorityVersion)
+      )
+        throw new WorkspaceError("invalid_response");
     },
     [api],
   );
 
   const readSaved = useCallback(
-    async (source: Source, signal: AbortSignal, assertActive: () => void) => {
+    async (
+      source: Source,
+      signal: AbortSignal,
+      assertActive: () => void,
+    ): Promise<HoldingsResourceContent | null> => {
       const instance = liveSession();
-      if (!capabilitiesRef.current.portfolio) throw new WorkspaceError("service_unavailable");
-      await sync(source, signal);
-      const metadata = await api(
-        "portfolio",
-        `/api/v2/holdings/sources/${source.resourceRef.resourceId}`,
-        signal,
+      const vault = stateRef.current.vault;
+      if (!capabilitiesRef.current.portfolio || !vault)
+        throw new WorkspaceError("service_unavailable");
+      verifiedSnapshot.current = null;
+      setState((previous) => ({
+        ...previous,
+        content: null,
+        sourceMetadata: null,
+        sourceReview: null,
+      }));
+      // Portfolio advances its epoch before Hub receives the fence. Read that
+      // state first; authority-sync of Hub's old epoch would prevent recovery.
+      let metadata = sourceMetadata(
+        await api("portfolio", `/api/v2/holdings/sources/${source.resourceRef.resourceId}`, signal),
+        source,
+        vault,
       );
-      if (
-        !record(metadata) ||
-        metadata.contractVersion !== CONTRACT ||
-        !sameSource(metadata.resourceRef, source.resourceRef) ||
-        metadata.sourceEpoch !== source.sourceEpoch ||
-        !Number.isSafeInteger(metadata.revision) ||
-        (metadata.revision as number) < 0
-      )
-        throw new WorkspaceError("invalid_response");
+      assertActive();
+      if (metadata.state !== "revoking") {
+        await sync(source, signal);
+        assertActive();
+        metadata = sourceMetadata(
+          await api(
+            "portfolio",
+            `/api/v2/holdings/sources/${source.resourceRef.resourceId}`,
+            signal,
+          ),
+          source,
+          vault,
+        );
+      }
+      assertActive();
+      let mutation: State["sourceMutation"] = null;
+      let pendingDelete = false;
+      if (metadata.pendingMutationId) {
+        const receipt = mutationReceipt(
+          await api(
+            "portfolio",
+            `/api/v2/holdings/sources/${source.resourceRef.resourceId}/mutations/${metadata.pendingMutationId}`,
+            signal,
+          ),
+          metadata.source,
+          metadata.pendingMutationId,
+        );
+        assertActive();
+        mutation = {
+          operationId: receipt.operationId,
+          action: receipt.action,
+          sourceEpoch: receipt.sourceEpoch,
+          state: "pending",
+        };
+        pendingDelete = receipt.action === "delete";
+      } else {
+        const packet = await instance.loadSourceMutation(source.resourceRef.resourceId);
+        assertActive();
+        if (packet) {
+          const existing = await api(
+            "portfolio",
+            `/api/v2/holdings/sources/${source.resourceRef.resourceId}/mutations/${packet.operationId}`,
+            signal,
+            { allowMissing: true },
+          );
+          assertActive();
+          if (existing !== null) {
+            const receipt = mutationReceipt(
+              existing,
+              { ...packet.source, sourceEpoch: packet.source.sourceEpoch + 1 },
+              packet.operationId,
+            );
+            await instance.verifySourceMutationReceipt(packet, receipt);
+            assertActive();
+            if (receipt.state === "acknowledged") {
+              await instance.finishSourceMutation(packet, receipt);
+              assertActive();
+            } else
+              mutation = {
+                operationId: receipt.operationId,
+                action: receipt.action,
+                sourceEpoch: receipt.sourceEpoch,
+                state: "pending",
+              };
+          } else
+            mutation = {
+              operationId: packet.operationId,
+              action: packet.action,
+              sourceEpoch: packet.source.sourceEpoch + 1,
+              state: "prepared",
+            };
+        }
+      }
       const recovered = await instance.loadOutbox(source.resourceRef.resourceId);
       assertActive();
       pending.current = recovered;
-      if (metadata.snapshotId === null) {
-        setState((previous) => ({
-          ...previous,
-          content: null,
-          hasPending: Boolean(pending.current),
-        }));
-        return;
-      }
-      if (
-        typeof metadata.snapshotId !== "string" ||
-        !/^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/.test(metadata.snapshotId)
-      )
-        throw new WorkspaceError("invalid_response");
+      setState((previous) => ({
+        ...previous,
+        selectedSourceId: source.resourceRef.resourceId,
+        newSource: false,
+        sourceMetadata: metadata,
+        sourceMutation: mutation,
+        hasPending: Boolean(recovered),
+      }));
+      if (metadata.state === "deleted" || pendingDelete || metadata.snapshotId === null)
+        return null;
       const stored = await api(
         "portfolio",
         `/api/v2/holdings/sources/${source.resourceRef.resourceId}/snapshots/${metadata.snapshotId}`,
@@ -539,21 +769,29 @@ export function useHoldingsWorkspace() {
         receipt.revision !== metadata.revision ||
         receipt.snapshotPath !== expectedPath ||
         !sameSource(receipt.resourceRef, source.resourceRef) ||
-        (metadata.snapshotSourceEpoch != null &&
-          (!Number.isSafeInteger(metadata.snapshotSourceEpoch) ||
-            receipt.sourceEpoch !== metadata.snapshotSourceEpoch))
+        !positive(receipt.sourceEpoch) ||
+        receipt.sourceEpoch > metadata.source.sourceEpoch ||
+        (metadata.snapshotSourceEpoch !== null &&
+          receipt.sourceEpoch !== metadata.snapshotSourceEpoch)
       )
         throw new WorkspaceError("invalid_response");
-      const content = await instance.openSnapshot(
-        stored as Parameters<EncryptedVaultSession["openSnapshot"]>[0],
-        source,
-      );
+      const content = await instance.openSnapshot(stored as SnapshotResponse, metadata.source);
       assertActive();
+      verifiedSnapshot.current = {
+        sourceId: source.resourceRef.resourceId,
+        snapshotId: metadata.snapshotId,
+        sourceEpoch: receipt.sourceEpoch as number,
+        revision: metadata.revision,
+        currentEpoch: metadata.source.sourceEpoch,
+        authorityVersion: metadata.authorityVersion,
+        state: metadata.state,
+      };
       setState((previous) => ({
         ...previous,
         content: content as HoldingsResourceContent,
-        hasPending: Boolean(pending.current),
+        sourceMetadata: { ...metadata, snapshotSourceEpoch: receipt.sourceEpoch as number },
       }));
+      return content as HoldingsResourceContent;
     },
     [api, liveSession, sync],
   );
@@ -699,10 +937,12 @@ export function useHoldingsWorkspace() {
           if (!readOnly) await instance.acceptVault(refreshed.vault);
           const keyManagement = await instance.deviceManagement(refreshed.vault);
           const deviceChange = await instance.loadDeviceChange(refreshed.vault);
+          const sourceCreation = await instance.loadSourceCreation();
           assertActive();
           setState((previous) => ({
             ...previous,
             phase: "unlocked",
+            sourceCreationId: sourceCreation?.sourceId ?? null,
             vault: refreshed.vault,
             sources: refreshed.sources,
             canWriteState: readOnly ? Boolean(resultAccess?.canWriteState) : true,
@@ -712,8 +952,29 @@ export function useHoldingsWorkspace() {
             needsDeviceApproval: false,
             recoveryCheck: null,
           }));
-          if (!options?.forResults && capabilitiesRef.current.portfolio && refreshed.sources[0])
-            await readSaved(refreshed.sources[0], signal, assertActive);
+          if (
+            !options?.forResults &&
+            capabilitiesRef.current.portfolio &&
+            selectedSource(refreshed.sources, stateRef.current.selectedSourceId)
+          ) {
+            try {
+              await readSaved(
+                selectedSource(refreshed.sources, stateRef.current.selectedSourceId)!,
+                signal,
+                assertActive,
+              );
+            } catch (error) {
+              assertActive();
+              if (!(error instanceof WorkspaceError) || error.code !== "service_unavailable")
+                throw error;
+              setState((previous) => ({
+                ...previous,
+                sourceMetadata: null,
+                content: null,
+                error: "service_unavailable",
+              }));
+            }
+          }
         } finally {
           if (material.secret.byteLength) new Uint8Array(material.secret).fill(0);
         }
@@ -773,6 +1034,15 @@ export function useHoldingsWorkspace() {
       perform("parsing", async ({ assertActive }) => {
         if (!capabilitiesRef.current.portfolio) throw new WorkspaceError("service_unavailable");
         liveSession();
+        if (
+          stateRef.current.sourceMutation ||
+          stateRef.current.sourceCreationId ||
+          (!stateRef.current.newSource &&
+            ["revoking", "disconnected", "deleted"].includes(
+              stateRef.current.sourceMetadata?.state ?? "",
+            ))
+        )
+          throw new WorkspaceError("source_change_blocked");
         if (file.size > HOLDINGS_CSV_MAX_BYTES) throw new HoldingsCsvError("file_too_large");
         const text = await file.text();
         assertActive();
@@ -796,7 +1066,9 @@ export function useHoldingsWorkspace() {
         ownerRef.current !== owner ||
         current.current ||
         stateRef.current.owner !== owner ||
-        !stateRef.current.preview
+        !stateRef.current.preview ||
+        stateRef.current.sourceMutation ||
+        stateRef.current.sourceCreationId
       )
         return;
       try {
@@ -827,22 +1099,35 @@ export function useHoldingsWorkspace() {
           vault: refreshed.vault,
           sources: refreshed.sources,
         }));
-        let source = refreshed.sources[0];
+        let source = currentState.newSource
+          ? undefined
+          : selectedSource(refreshed.sources, currentState.selectedSourceId);
+        let created = false;
+        let creationPacket: SourceCreationPacket | null = null;
         if (!source) {
+          if (!currentState.newSource && refreshed.sources.length)
+            throw new WorkspaceError("invalid_response");
           if (!currentState.preview) throw new WorkspaceError("choose_file");
-          const sourceId = id("holdings");
-          const signed = await instance.signSource(sourceId);
+          const savedCreation = await instance.loadSourceCreation();
           assertActive();
+          if (savedCreation) {
+            setState((previous) => ({ ...previous, sourceCreationId: savedCreation.sourceId }));
+            throw new WorkspaceError("source_creation_pending");
+          }
+          if (refreshed.sources.length >= 10) throw new WorkspaceError("source_limit");
+          const packet = await instance.prepareSourceCreation(id("holdings"));
+          assertActive();
+          setState((previous) => ({ ...previous, sourceCreationId: packet.sourceId }));
           await api(
             "agent-hub",
-            `/api/v2/vaults/${currentState.vault.vaultId}/holdings-sources/${sourceId}`,
+            `/api/v2/vaults/${refreshed.vault.vaultId}/holdings-sources/${packet.sourceId}`,
             signal,
             {
               method: "POST",
-              json: { contractVersion: CONTRACT, command: signed.command },
+              json: { contractVersion: CONTRACT, command: packet.command },
               headers: {
-                "Idempotency-Key": signed.operationId,
-                "X-FolioView-Author-Key": signed.authorKeyId,
+                "Idempotency-Key": packet.operationId,
+                "X-FolioView-Author-Key": packet.authorKeyId,
               },
             },
           );
@@ -850,12 +1135,41 @@ export function useHoldingsWorkspace() {
           assertActive();
           if (!updated.vault) throw new WorkspaceError("invalid_response");
           await instance.acceptVault(updated.vault);
-          source = updated.sources.find((item) => item.resourceRef.resourceId === sourceId)!;
+          source = updated.sources.find((item) => item.resourceRef.resourceId === packet.sourceId);
           if (!source) throw new WorkspaceError("invalid_response");
-          setState((previous) => ({ ...previous, vault: updated.vault, sources: updated.sources }));
+          creationPacket = packet;
+          created = true;
+          setState((previous) => ({
+            ...previous,
+            vault: updated.vault,
+            sources: updated.sources,
+            selectedSourceId: packet.sourceId,
+            newSource: false,
+          }));
+        }
+        if (!created) {
+          const before = sourceMetadata(
+            await api(
+              "portfolio",
+              `/api/v2/holdings/sources/${source.resourceRef.resourceId}`,
+              signal,
+            ),
+            source,
+            refreshed.vault,
+          );
+          assertActive();
+          if (before.state !== "active") throw new WorkspaceError("source_change_blocked");
+          if (await instance.loadSourceMutation(source.resourceRef.resourceId))
+            throw new WorkspaceError("source_mutation_pending");
+          assertActive();
         }
         await sync(source, signal);
         assertActive();
+        if (creationPacket) {
+          await instance.finishSourceCreation(creationPacket, source, signal);
+          assertActive();
+          setState((previous) => ({ ...previous, sourceCreationId: null }));
+        }
         let upload = pending.current ?? (await instance.loadOutbox(source.resourceRef.resourceId));
         assertActive();
         if (!upload) {
@@ -875,6 +1189,38 @@ export function useHoldingsWorkspace() {
             (metadata.revision as number) < 0
           )
             throw new WorkspaceError("invalid_response");
+          const currentMetadata = sourceMetadata(metadata, source, refreshed.vault);
+          if (currentMetadata.state !== "active") throw new WorkspaceError("source_change_blocked");
+          if (
+            currentMetadata.snapshotId &&
+            (currentMetadata.snapshotSourceEpoch === null ||
+              currentMetadata.snapshotSourceEpoch === source.sourceEpoch)
+          ) {
+            const stored = await readSaved(source, signal, assertActive);
+            assertActive();
+            const accounts = (value: HoldingsResourceContent) =>
+              value.data.accounts
+                .map((account) => account.accountId)
+                .sort()
+                .join("|");
+            const verified = verifiedSnapshot.current;
+            if (
+              !stored ||
+              !verified ||
+              verified.sourceId !== source.resourceRef.resourceId ||
+              verified.snapshotId !== currentMetadata.snapshotId ||
+              verified.revision !== currentMetadata.revision ||
+              verified.state !== "active" ||
+              verified.currentEpoch !== source.sourceEpoch ||
+              verified.authorityVersion !== currentMetadata.authorityVersion
+            )
+              throw new WorkspaceError("version_conflict");
+            if (
+              verified.sourceEpoch === source.sourceEpoch &&
+              accounts(stored) !== accounts(preview.resourceContent)
+            )
+              throw new WorkspaceError("scope_change_requires_fence");
+          }
           upload = await instance.sealSnapshot({
             content: preview.resourceContent,
             source,
@@ -931,7 +1277,7 @@ export function useHoldingsWorkspace() {
     (confirmedOperation: string | null = null) =>
       perform("recovering", async ({ assertActive, signal }) => {
         const instance = liveSession();
-        const source = stateRef.current.sources[0];
+        const source = selectedSource(stateRef.current.sources, stateRef.current.selectedSourceId);
         if (!source) throw new WorkspaceError("invalid_response");
         const upload =
           pending.current ?? (await instance.loadOutbox(source.resourceRef.resourceId));
@@ -993,6 +1339,498 @@ export function useHoldingsWorkspace() {
     [api, liveSession, perform, readSaved],
   );
 
+  const freshSource = useCallback(
+    async (signal: AbortSignal, assertActive: () => void, refreshAuthority = true) => {
+      const before = stateRef.current;
+      const instance = liveSession();
+      if (!capabilitiesRef.current.portfolio || before.phase !== "unlocked" || before.newSource)
+        throw new WorkspaceError("unlock_required");
+      const fresh = await readCurrent(signal);
+      assertActive();
+      const source = selectedSource(fresh.sources, before.selectedSourceId);
+      if (!fresh.vault || !source) throw new WorkspaceError("invalid_response");
+      let metadata = sourceMetadata(
+        await api("portfolio", `/api/v2/holdings/sources/${source.resourceRef.resourceId}`, signal),
+        source,
+        fresh.vault,
+      );
+      assertActive();
+      if (refreshAuthority && metadata.state !== "revoking") {
+        await instance.acceptVault(fresh.vault);
+        assertActive();
+        await sync(source, signal);
+        metadata = sourceMetadata(
+          await api(
+            "portfolio",
+            `/api/v2/holdings/sources/${source.resourceRef.resourceId}`,
+            signal,
+          ),
+          source,
+          fresh.vault,
+        );
+        assertActive();
+      }
+      setState((previous) => ({
+        ...previous,
+        vault: fresh.vault,
+        sources: fresh.sources,
+        selectedSourceId: source.resourceRef.resourceId,
+        sourceMetadata: metadata,
+        ...(metadata.state === "revoking" || metadata.state === "deleted" ? { content: null } : {}),
+      }));
+      return { instance, vault: fresh.vault, source, metadata };
+    },
+    [api, liveSession, readCurrent, sync],
+  );
+
+  const reviewSourceChange = useCallback(
+    (action: SourceMutationAction) =>
+      perform("changing-source", async ({ signal, assertActive }) => {
+        const before = stateRef.current;
+        if (
+          !before.canWriteState ||
+          before.needsDeviceApproval ||
+          before.hasPending ||
+          before.sourceMutation ||
+          before.sourceCreationId
+        )
+          throw new WorkspaceError("source_change_blocked");
+        const fresh = await freshSource(signal, assertActive);
+        if (!(
+          fresh.metadata.state === "active" ||
+          (action === "delete" && fresh.metadata.state === "disconnected")
+        ))
+          throw new WorkspaceError("source_change_blocked");
+        if (
+          (await fresh.instance.loadOutbox(fresh.source.resourceRef.resourceId)) ||
+          (await fresh.instance.loadSourceMutation(fresh.source.resourceRef.resourceId))
+        )
+          throw new WorkspaceError("source_change_blocked");
+        assertActive();
+        setState((previous) => ({
+          ...previous,
+          sourceReview: {
+            action,
+            source: fresh.metadata.source,
+            authorityVersion: fresh.metadata.authorityVersion,
+          },
+          staleSourceMutation: false,
+        }));
+      }),
+    [freshSource, perform],
+  );
+
+  const completeSourceChange = useCallback(
+    async (
+      instance: EncryptedVaultSession,
+      original: SourceMutationReceipt,
+      packet: SourceMutationPacket | null,
+      signal: AbortSignal,
+      assertActive: () => void,
+    ) => {
+      const sourceId = original.resourceRef.resourceId;
+      const target = {
+        resourceRef: original.resourceRef,
+        sourceEpoch: original.sourceEpoch,
+      } as Source;
+      let receipt = original;
+      if (receipt.state === "pending") {
+        receipt = mutationReceipt(
+          await api(
+            "portfolio",
+            `/api/v2/holdings/sources/${sourceId}/mutations/${original.operationId}/synchronize`,
+            signal,
+            { method: "POST", json: { contractVersion: CONTRACT } },
+          ),
+          target,
+          original.operationId,
+        );
+        assertActive();
+        if (receipt.state !== "acknowledged" || receipt.action !== original.action)
+          throw new WorkspaceError("invalid_response");
+      }
+      packet ??= await instance.loadSourceMutation(sourceId);
+      assertActive();
+      if (packet?.operationId === receipt.operationId) {
+        await instance.finishSourceMutation(packet, receipt, signal);
+        assertActive();
+      }
+      const current = await readCurrent(signal);
+      assertActive();
+      const source = current.sources.find((item) => item.resourceRef.resourceId === sourceId);
+      if (!source || !current.vault) throw new WorkspaceError("invalid_response");
+      setState((previous) => ({
+        ...previous,
+        vault: current.vault,
+        sources: current.sources,
+        sourceMutation: null,
+        sourceReview: null,
+        content: null,
+        preview: original.action === "fence" ? previous.preview : null,
+      }));
+      await readSaved(source, signal, assertActive);
+      assertActive();
+      setState((previous) => ({ ...previous, notice: "source_change_acknowledged" }));
+    },
+    [api, readCurrent, readSaved],
+  );
+
+  const resumeSourceChange = useCallback(
+    () =>
+      perform("changing-source", async ({ signal, assertActive }) => {
+        const visible = stateRef.current.sourceMutation;
+        if (!visible) throw new WorkspaceError("invalid_operation");
+        const fresh = await freshSource(signal, assertActive, false);
+        const sourceId = fresh.source.resourceRef.resourceId;
+        const target = { ...fresh.source, sourceEpoch: visible.sourceEpoch };
+        let value = await api(
+          "portfolio",
+          `/api/v2/holdings/sources/${sourceId}/mutations/${visible.operationId}`,
+          signal,
+          { allowMissing: true },
+        );
+        assertActive();
+        let packet: SourceMutationPacket | null = null;
+        if (value === null) {
+          packet = await fresh.instance.loadSourceMutation(sourceId);
+          assertActive();
+          if (!packet || packet.operationId !== visible.operationId)
+            throw new WorkspaceError("invalid_response");
+          if (
+            fresh.metadata.source.sourceEpoch > packet.source.sourceEpoch ||
+            fresh.metadata.authorityVersion > packet.body.expectedVersion
+          ) {
+            setState((previous) => ({
+              ...previous,
+              staleSourceMutation: true,
+              sourceReview: null,
+            }));
+            return;
+          }
+          if (
+            fresh.metadata.state !== "active" &&
+            !(packet.action === "delete" && fresh.metadata.state === "disconnected")
+          )
+            throw new WorkspaceError("source_change_blocked");
+          if (
+            fresh.metadata.authorityVersion !== packet.body.expectedVersion ||
+            fresh.metadata.source.sourceEpoch !== packet.source.sourceEpoch
+          )
+            throw new WorkspaceError("version_conflict");
+          value = await api(
+            "portfolio",
+            `/api/v2/holdings/sources/${sourceId}/mutations/${packet.action}`,
+            signal,
+            {
+              method: "POST",
+              json: packet.body,
+              headers: {
+                "Idempotency-Key": packet.operationId,
+                "X-FolioView-Author-Key": packet.authorKeyId,
+              },
+            },
+          );
+          assertActive();
+        }
+        let receipt = mutationReceipt(value, target, visible.operationId);
+        if (receipt.action !== visible.action) throw new WorkspaceError("invalid_response");
+        setState((previous) => ({
+          ...previous,
+          content: receipt.action === "delete" ? null : previous.content,
+          preview: receipt.action === "fence" ? previous.preview : null,
+          sourceReview: null,
+          staleSourceMutation: false,
+          sourceMutation: { ...visible, state: "pending" },
+        }));
+        await completeSourceChange(fresh.instance, receipt, packet, signal, assertActive);
+      }),
+    [api, freshSource, perform, completeSourceChange],
+  );
+
+  const confirmSourceChange = useCallback(
+    () =>
+      perform("changing-source", async ({ signal, assertActive }) => {
+        const reviewed = stateRef.current.sourceReview;
+        if (
+          !reviewed ||
+          stateRef.current.hasPending ||
+          stateRef.current.sourceMutation ||
+          !stateRef.current.canWriteState
+        )
+          throw new WorkspaceError("source_review_required");
+        const fresh = await freshSource(signal, assertActive);
+        if (
+          !sameSource(fresh.source.resourceRef, reviewed.source.resourceRef) ||
+          fresh.metadata.source.sourceEpoch !== reviewed.source.sourceEpoch ||
+          fresh.metadata.authorityVersion !== reviewed.authorityVersion ||
+          !(
+            fresh.metadata.state === "active" ||
+            (reviewed.action === "delete" && fresh.metadata.state === "disconnected")
+          )
+        )
+          throw new WorkspaceError("version_conflict");
+        const packet = await fresh.instance.prepareSourceMutation({
+          source: reviewed.source,
+          expectedVersion: reviewed.authorityVersion,
+          action: reviewed.action,
+        });
+        assertActive();
+        setState((previous) => ({
+          ...previous,
+          sourceReview: null,
+          preview: reviewed.action === "fence" ? previous.preview : null,
+          content: reviewed.action === "delete" ? null : previous.content,
+          sourceMutation: {
+            operationId: packet.operationId,
+            action: packet.action,
+            sourceEpoch: packet.source.sourceEpoch + 1,
+            state: "prepared",
+          },
+          staleSourceMutation: false,
+        }));
+        const receipt = mutationReceipt(
+          await api(
+            "portfolio",
+            `/api/v2/holdings/sources/${packet.source.resourceRef.resourceId}/mutations/${packet.action}`,
+            signal,
+            {
+              method: "POST",
+              json: packet.body,
+              headers: {
+                "Idempotency-Key": packet.operationId,
+                "X-FolioView-Author-Key": packet.authorKeyId,
+              },
+            },
+          ),
+          { ...packet.source, sourceEpoch: packet.source.sourceEpoch + 1 },
+          packet.operationId,
+        );
+        assertActive();
+        await fresh.instance.verifySourceMutationReceipt(packet, receipt);
+        assertActive();
+        setState((previous) => ({
+          ...previous,
+          sourceMetadata: null,
+          sourceMutation: {
+            operationId: receipt.operationId,
+            action: receipt.action,
+            sourceEpoch: receipt.sourceEpoch,
+            state: "pending",
+          },
+          notice: "source_change_pending",
+        }));
+        await completeSourceChange(fresh.instance, receipt, packet, signal, assertActive);
+      }),
+    [api, freshSource, perform, completeSourceChange],
+  );
+
+  const discardStaleSourceChange = useCallback(
+    () =>
+      perform("changing-source", async ({ signal, assertActive }) => {
+        const visible = stateRef.current.sourceMutation;
+        if (!visible || !stateRef.current.staleSourceMutation)
+          throw new WorkspaceError("source_review_required");
+        const fresh = await freshSource(signal, assertActive, false);
+        const packet = await fresh.instance.loadSourceMutation(fresh.source.resourceRef.resourceId);
+        assertActive();
+        if (
+          !packet ||
+          packet.operationId !== visible.operationId ||
+          fresh.metadata.state === "revoking" ||
+          fresh.metadata.source.sourceEpoch < packet.source.sourceEpoch ||
+          (fresh.metadata.source.sourceEpoch === packet.source.sourceEpoch &&
+            fresh.metadata.authorityVersion <= packet.body.expectedVersion)
+        )
+          throw new WorkspaceError("version_conflict");
+        const missing = await api(
+          "portfolio",
+          `/api/v2/holdings/sources/${fresh.source.resourceRef.resourceId}/mutations/${packet.operationId}`,
+          signal,
+          { allowMissing: true },
+        );
+        assertActive();
+        if (missing !== null) throw new WorkspaceError("version_conflict");
+        await fresh.instance.discardSourceMutation(
+          packet,
+          fresh.metadata.source,
+          signal,
+          fresh.metadata.authorityVersion,
+        );
+        assertActive();
+        setState((previous) => ({
+          ...previous,
+          sourceMutation: null,
+          staleSourceMutation: false,
+          notice: "source_change_discarded",
+        }));
+        await readSaved(fresh.source, signal, assertActive);
+      }),
+    [api, freshSource, perform, readSaved],
+  );
+
+  const selectHoldingsSource = useCallback(
+    (sourceId: string) =>
+      perform("reading", async ({ signal, assertActive }) => {
+        const fresh = await readCurrent(signal);
+        const instance = liveSession();
+        assertActive();
+        const source = fresh.sources.find((item) => item.resourceRef.resourceId === sourceId);
+        if (!source || !fresh.vault) throw new WorkspaceError("invalid_response");
+        await instance.acceptVault(fresh.vault);
+        assertActive();
+        pending.current = null;
+        setState((previous) => ({
+          ...previous,
+          vault: fresh.vault,
+          sources: fresh.sources,
+          selectedSourceId: sourceId,
+          newSource: false,
+          preview: null,
+          content: null,
+          hasPending: false,
+          sourceMetadata: null,
+          sourceReview: null,
+          sourceMutation: null,
+          staleSourceMutation: false,
+        }));
+        await readSaved(source, signal, assertActive);
+      }),
+    [liveSession, perform, readCurrent, readSaved],
+  );
+
+  const beginNewSource = useCallback(() => {
+    if (ownerRef.current !== owner || current.current) return;
+    const before = stateRef.current;
+    if (
+      before.phase !== "unlocked" ||
+      !before.canWriteState ||
+      before.hasPending ||
+      before.sourceMutation ||
+      before.sourceCreationId ||
+      before.sources.length >= 10
+    )
+      return;
+    pending.current = null;
+    setState((previous) => ({
+      ...previous,
+      newSource: true,
+      selectedSourceId: null,
+      sourceMetadata: null,
+      sourceReview: null,
+      sourceMutation: null,
+      content: null,
+      hasPending: false,
+      error: "",
+      notice: "new_source",
+      staleSourceMutation: false,
+    }));
+  }, [owner]);
+
+  const resumeSourceCreation = useCallback(
+    () =>
+      perform("recovering", async ({ signal, assertActive }) => {
+        const instance = liveSession();
+        const packet = await instance.loadSourceCreation();
+        assertActive();
+        if (!packet || packet.sourceId !== stateRef.current.sourceCreationId)
+          throw new WorkspaceError("invalid_operation");
+        let fresh = await readCurrent(signal);
+        assertActive();
+        if (!fresh.vault) throw new WorkspaceError("invalid_response");
+        let source = fresh.sources.find((item) => item.resourceRef.resourceId === packet.sourceId);
+        if (!source) {
+          await api(
+            "agent-hub",
+            `/api/v2/vaults/${fresh.vault.vaultId}/holdings-sources/${packet.sourceId}`,
+            signal,
+            {
+              method: "POST",
+              json: { contractVersion: CONTRACT, command: packet.command },
+              headers: {
+                "Idempotency-Key": packet.operationId,
+                "X-FolioView-Author-Key": packet.authorKeyId,
+              },
+            },
+          );
+          fresh = await readCurrent(signal);
+          assertActive();
+          source = fresh.sources.find((item) => item.resourceRef.resourceId === packet.sourceId);
+        }
+        if (!source || !fresh.vault) throw new WorkspaceError("invalid_response");
+        await sync(source, signal);
+        assertActive();
+        await instance.finishSourceCreation(packet, source, signal);
+        assertActive();
+        setState((previous) => ({
+          ...previous,
+          vault: fresh.vault,
+          sources: fresh.sources,
+          selectedSourceId: source!.resourceRef.resourceId,
+          sourceCreationId: null,
+          newSource: false,
+          sourceReview: null,
+          content: null,
+        }));
+        await readSaved(source, signal, assertActive);
+        setState((previous) => ({ ...previous, notice: "source_created" }));
+      }),
+    [api, liveSession, perform, readCurrent, readSaved, sync],
+  );
+
+  const discardSourceCreation = useCallback(
+    () =>
+      perform("recovering", async ({ signal, assertActive }) => {
+        const instance = liveSession();
+        const packet = await instance.loadSourceCreation();
+        assertActive();
+        if (!packet || packet.sourceId !== stateRef.current.sourceCreationId)
+          throw new WorkspaceError("invalid_operation");
+        const fresh = await readCurrent(signal);
+        assertActive();
+        if (!fresh.vault) throw new WorkspaceError("invalid_response");
+        if (fresh.sources.some((source) => source.resourceRef.resourceId === packet.sourceId))
+          throw new WorkspaceError("source_creation_exists");
+        await instance.discardSourceCreation(packet, fresh.vault, fresh.sources, signal);
+        assertActive();
+        setState((previous) => ({
+          ...previous,
+          sourceCreationId: null,
+          notice: "source_creation_discarded",
+        }));
+      }),
+    [liveSession, perform, readCurrent],
+  );
+
+  const initializeHoldingsSource = useCallback(
+    () =>
+      perform("reading", async ({ signal, assertActive }) => {
+        const instance = liveSession();
+        const fresh = await readCurrent(signal);
+        assertActive();
+        const source = selectedSource(fresh.sources, stateRef.current.selectedSourceId);
+        if (
+          !fresh.vault ||
+          !source ||
+          source.sourceEpoch !== 1 ||
+          stateRef.current.sourceMutation ||
+          stateRef.current.sourceCreationId
+        )
+          throw new WorkspaceError("source_change_blocked");
+        await instance.acceptVault(fresh.vault);
+        assertActive();
+        if (await instance.loadSourceMutation(source.resourceRef.resourceId))
+          throw new WorkspaceError("source_mutation_pending");
+        assertActive();
+        // Explicit preparation of this known first-epoch source is bounded and may
+        // fail closed if Portfolio already has a pending fence. It never creates a source.
+        await sync(source, signal);
+        assertActive();
+        setState((previous) => ({ ...previous, vault: fresh.vault, sources: fresh.sources }));
+        await readSaved(source, signal, assertActive);
+      }),
+    [liveSession, perform, readCurrent, readSaved, sync],
+  );
+
   const lock = useCallback(() => {
     if (ownerRef.current !== owner) return;
     ++serial.current;
@@ -1003,6 +1841,9 @@ export function useHoldingsWorkspace() {
       ...previous,
       preview: null,
       content: null,
+      sourceMetadata: null,
+      sourceReview: null,
+      sourceMutation: null,
       busy: null,
       hasPending: false,
       discardOperationId: null,
@@ -1530,8 +2371,16 @@ export function useHoldingsWorkspace() {
           notice: "",
           error: "",
         }));
-        if (!before.registrationForResults && capabilitiesRef.current.portfolio && saved.sources[0])
-          await readSaved(saved.sources[0], signal, assertActive);
+        if (
+          !before.registrationForResults &&
+          capabilitiesRef.current.portfolio &&
+          selectedSource(saved.sources, stateRef.current.selectedSourceId)
+        )
+          await readSaved(
+            selectedSource(saved.sources, stateRef.current.selectedSourceId)!,
+            signal,
+            assertActive,
+          );
       }),
     [
       api,
@@ -2473,6 +3322,23 @@ export function useHoldingsWorkspace() {
   const visible = owner && configured && state.owner === owner ? state : { ...empty, owner };
   return {
     ...visible,
+    sourceMetadata: visible.phase === "unlocked" ? visible.sourceMetadata : null,
+    sourceReview: visible.phase === "unlocked" ? visible.sourceReview : null,
+    sourceMutation: visible.phase === "unlocked" ? visible.sourceMutation : null,
+    sourceCreationId: visible.phase === "unlocked" ? visible.sourceCreationId : null,
+    reviewSourceChange,
+    confirmSourceChange,
+    resumeSourceChange,
+    discardStaleSourceChange,
+    selectHoldingsSource,
+    beginNewSource,
+    resumeSourceCreation,
+    discardSourceCreation,
+    initializeHoldingsSource,
+    cancelSourceReview: () => {
+      if (ownerRef.current === owner && !current.current)
+        setState((previous) => ({ ...previous, sourceReview: null }));
+    },
     content: holdingsConfigured ? visible.content : null,
     preview: holdingsConfigured ? visible.preview : null,
     canWriteState: visible.phase === "unlocked" && visible.canWriteState,
@@ -2571,8 +3437,16 @@ export function useHoldingsWorkspace() {
     },
     readStored: () =>
       perform("reading", async ({ assertActive, signal }) => {
-        const source = stateRef.current.sources[0];
-        if (source) await readSaved(source, signal, assertActive);
+        const instance = liveSession();
+        if (stateRef.current.newSource) return;
+        const fresh = await readCurrent(signal);
+        assertActive();
+        const source = selectedSource(fresh.sources, stateRef.current.selectedSourceId);
+        if (!fresh.vault || !source) return;
+        await instance.acceptVault(fresh.vault);
+        assertActive();
+        setState((previous) => ({ ...previous, vault: fresh.vault, sources: fresh.sources }));
+        await readSaved(source, signal, assertActive);
       }),
   };
 }

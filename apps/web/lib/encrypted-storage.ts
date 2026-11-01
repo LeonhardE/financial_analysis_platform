@@ -33,6 +33,8 @@ export interface EncryptedStorage {
   insert(key: string, value: any): Promise<boolean>;
   removeOperation(key: string, operationId: string): Promise<boolean>;
   reconcileHoldingsOutbox?(key: string, expected: any, signal?: AbortSignal): Promise<boolean>;
+  finishSourceCreation?(key: string, expected: any, signal?: AbortSignal): Promise<boolean>;
+  finishSourceMutation?(key: string, expected: any, signal?: AbortSignal): Promise<boolean>;
   stageDevice(key: string, record: any, expected: any, blockedByKey?: string): Promise<boolean>;
   commitVault(owner: string, record: any): Promise<void>;
   list(prefix: string): Promise<{ key: string; value: any }[]>;
@@ -633,6 +635,64 @@ export class BrowserEncryptedStorage implements EncryptedStorage {
       },
       signal,
     );
+  }
+  finishSourceCreation(key: string, expected: any, signal?: AbortSignal) {
+    const context = this.archiveContext;
+    if (
+      !context ||
+      expected?.ownerSubject !== context.owner ||
+      typeof expected?.vaultId !== "string" ||
+      !/^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/.test(expected.vaultId) ||
+      typeof expected?.pending?.sourceId !== "string" ||
+      !/^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/.test(expected.pending.sourceId) ||
+      key !== context.owner + ":source-create:" + expected.vaultId ||
+      Object.keys(expected).length !== 3 ||
+      !Object.hasOwn(expected, "pending")
+    )
+      return Promise.reject(new VaultError("wrong_account"));
+    return this.finishPublicSourceControl(key, expected, context, signal);
+  }
+  private finishPublicSourceControl(
+    key: string,
+    expected: any,
+    context: any,
+    signal?: AbortSignal,
+  ) {
+    return this.atomic<boolean>((s, done, fail) => {
+      const req = s.get(key);
+      req.onsuccess = () => {
+        if (this.archiveContext !== context) {
+          fail(new VaultError("archive_session_stale"));
+          return;
+        }
+        if (!sameEncryptedRecord(req.result, expected)) {
+          done(false);
+          return;
+        }
+        s.delete(key);
+        done(true);
+      };
+    }, signal);
+  }
+  /** ACK cleanup only: public controls survive renewal/archive/device changes. */
+  finishSourceMutation(key: string, expected: any, signal?: AbortSignal) {
+    const context = this.archiveContext,
+      source = expected?.pending?.source?.resourceRef;
+    if (
+      !context ||
+      expected?.ownerSubject !== context.owner ||
+      typeof expected?.vaultId !== "string" ||
+      !expected.vaultId ||
+      source?.kind !== "holdings" ||
+      source.sourceService !== "portfolio" ||
+      typeof source.resourceId !== "string" ||
+      !/^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/.test(source.resourceId) ||
+      key !== context.owner + ":source-mutation:" + source.resourceId ||
+      Object.keys(expected).length !== 3 ||
+      !Object.hasOwn(expected, "pending")
+    )
+      return Promise.reject(new VaultError("wrong_account"));
+    return this.finishPublicSourceControl(key, expected, context, signal);
   }
   stageDevice(key: string, record: any, expected: any, blockedByKey?: string) {
     return this.guarded<boolean>(key, (s, done) => {

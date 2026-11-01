@@ -172,3 +172,115 @@ test("Chinese resources UI translates passkey errors and upload guide without a 
   assert.ok(!html.includes('type="password"'));
   assert.ok(!html.includes('accept=".json"'));
 });
+
+const managedSource = {
+  resourceRef: {
+    kind: "holdings",
+    sourceService: "portfolio",
+    resourceId: "holdings_a",
+    incarnation: "inc_a",
+  },
+  sourceEpoch: 2,
+};
+const managed = {
+  ...base,
+  authenticated: true,
+  phase: "unlocked",
+  canWriteState: true,
+  sources: [managedSource],
+  selectedSourceId: "holdings_a",
+  newSource: false,
+  sourceMetadata: {
+    source: managedSource,
+    authorityVersion: 3,
+    revision: 1,
+    snapshotId: "snapshot_a",
+    snapshotSourceEpoch: 1,
+    state: "active",
+    pendingMutationId: null,
+  },
+};
+
+test("source controls explain actual access effects without exposing internal source IDs", () => {
+  for (const locale of ["en", "zh"]) {
+    const html = render(managed, locale);
+    assert.ok(html.includes(locale === "en" ? "Invalidate previous access" : "使旧授权失效"));
+    assert.ok(html.includes(locale === "en" ? "previous scope" : "历史持仓"));
+    assert.ok(!html.includes("inc_a"));
+    assert.ok(!html.includes("sourceEpoch"));
+  }
+});
+
+test("delete review states logical retention and copied-content limits in both languages", () => {
+  for (const locale of ["en", "zh"]) {
+    const html = render(
+      {
+        ...managed,
+        sourceReview: { action: "delete", source: managedSource, authorityVersion: 3 },
+      },
+      locale,
+    );
+    assert.ok(html.includes("fieldset"));
+    assert.ok(html.includes(locale === "en" ? "physical erasure" : "物理清除"));
+    assert.ok(html.includes(locale === "en" ? "cannot be recalled" : "无法收回"));
+    assert.ok(html.includes(locale === "en" ? "Cancel and keep" : "取消，保持"));
+  }
+});
+
+test("pending or acknowledged deletion never renders stale supplied holdings plaintext", () => {
+  for (const state of ["revoking", "deleted"]) {
+    const html = render({
+      ...managed,
+      content,
+      sourceMetadata: { ...managed.sourceMetadata, state },
+      sourceMutation:
+        state === "revoking"
+          ? {
+              action: "delete",
+              state: "pending",
+              operationId: "synthetic_delete_operation_0001",
+              sourceEpoch: 2,
+            }
+          : null,
+    });
+    assert.ok(!html.includes("9007199254740993"));
+    assert.ok(!html.includes("&lt;img"));
+    assert.ok(!html.includes("snapshot was saved"));
+  }
+});
+
+test("disconnected data retains readable owner history while the upload control is disabled", () => {
+  const html = render({
+    ...managed,
+    content,
+    sourceMetadata: { ...managed.sourceMetadata, state: "disconnected" },
+  });
+  assert.ok(html.includes("Existing holdings remain readable"));
+  assert.ok(html.includes("9,007,199,254,740,993"));
+  assert.match(html, /<input[^>]*type="file"[^>]*disabled/);
+  assert.ok(html.includes("Add independent holdings data"));
+});
+
+test("locked and renewal-only phases hide source management and all prior private facts", () => {
+  for (const phase of ["locked", "renewal-only"]) {
+    const html = render({
+      ...managed,
+      phase,
+      content,
+      sourceReview: { action: "delete" },
+      sourceMutation: { action: "delete" },
+    });
+    assert.ok(!html.includes("Manage holdings data"));
+    assert.ok(!html.includes("9,007,199,254,740,993"));
+    assert.ok(!html.includes("Confirm this change"));
+  }
+});
+
+test("uncertain creation offers original-result recovery without declaring a completed upload", () => {
+  const html = render({ ...managed, sourceCreationId: "source_synthetic_pending" });
+  assert.ok(html.includes("Check original creation"));
+  assert.ok(html.includes("without creating a duplicate"));
+  assert.ok(html.includes("Only a request that can no longer be submitted"));
+  assert.ok(!html.includes("snapshot was saved"));
+  assert.match(html, /<input[^>]*type="file"[^>]*disabled/);
+});

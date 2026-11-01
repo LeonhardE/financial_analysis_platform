@@ -34,6 +34,37 @@ export type Source = {
   };
   sourceEpoch: number;
 };
+export type SourceCreationPacket = {
+  sourceId: string;
+  operationId: string;
+  authorKeyId: string;
+  command: Signed;
+};
+export type SourceMutationAction = "fence" | "disconnect" | "delete";
+/** Web-local packet: signed operationId binds a 22-character random prefix plus
+ * SHA-256(canonical public Source). This does not narrow server OperationIdentifier. */
+export type SourceMutationPacket = {
+  operationId: string;
+  authorKeyId: string;
+  action: SourceMutationAction;
+  source: Source;
+  body: {
+    contractVersion: string;
+    expectedVersion: number;
+    expectedSourceEpoch: number;
+    command: Signed;
+  };
+};
+export type SourceMutationReceipt = {
+  contractVersion: string;
+  operationId: string;
+  action: SourceMutationAction;
+  resourceRef: Source["resourceRef"];
+  sourceEpoch: number;
+  state: "pending" | "acknowledged";
+  requestedAt: string;
+  completedAt: string | null;
+};
 export type ResourceContent = Json;
 export type SnapshotResponse = {
   contractVersion: string;

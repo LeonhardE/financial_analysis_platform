@@ -84,18 +84,204 @@ function Holdings({ content }: { content: HoldingsResourceContent }) {
     </div>
   );
 }
+function SourceManagement({ model }: { model: HoldingsWorkspace }) {
+  const t = useTranslations("resources");
+  const sources = model.sources ?? [];
+  const busy = Boolean(model.busy);
+  const metadata = model.sourceMetadata;
+  const blocked =
+    busy ||
+    Boolean(model.hasPending || model.sourceMutation || model.sourceCreationId) ||
+    !model.canWriteState;
+  const selected = model.selectedSourceId ?? sources.at(-1)?.resourceRef.resourceId ?? "";
+  if (!sources.length && !model.newSource && !model.sourceCreationId) return null;
+  return (
+    <section className={styles.sourceManagement} aria-labelledby="holdings-management-title">
+      <h3 id="holdings-management-title">{t("lifecycle.title")}</h3>
+      {sources.length > 0 && (
+        <label className={styles.sourcePicker}>
+          <span>{t("lifecycle.select")}</span>
+          <select
+            value={model.newSource ? "new" : selected}
+            disabled={busy || Boolean(model.preview)}
+            onChange={(event) => void model.selectHoldingsSource(event.target.value)}
+          >
+            {model.newSource && <option value="new">{t("lifecycle.new")}</option>}
+            {sources.map((source, index) => (
+              <option key={source.resourceRef.resourceId} value={source.resourceRef.resourceId}>
+                {t("lifecycle.source", { number: index + 1 })}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
+      {model.newSource ? (
+        <p role="status">{t("lifecycle.newHelp")}</p>
+      ) : (
+        metadata && <p role="status">{t(`lifecycle.states.${metadata.state}`)}</p>
+      )}
+      {metadata?.state === "active" &&
+        metadata.snapshotId &&
+        metadata.snapshotSourceEpoch !== null &&
+        metadata.snapshotSourceEpoch < metadata.source.sourceEpoch && (
+          <p className={styles.warning}>{t("lifecycle.historical")}</p>
+        )}
+      {model.sourceCreationId && (
+        <div className={styles.warning} role="status">
+          <p>{t("lifecycle.creationPending")}</p>
+          <button
+            type="button"
+            className={styles.secondary}
+            disabled={busy}
+            onClick={() => void model.resumeSourceCreation()}
+          >
+            {t("lifecycle.resumeCreation")}
+          </button>
+          <p>{t("lifecycle.discardCreationHelp")}</p>
+          <button
+            type="button"
+            className={styles.secondary}
+            disabled={busy}
+            onClick={() => void model.discardSourceCreation()}
+          >
+            {t("lifecycle.discardCreation")}
+          </button>
+        </div>
+      )}
+      {model.sourceMutation ? (
+        <div className={styles.warning} role="status">
+          <p>{t(model.staleSourceMutation ? "lifecycle.staleHelp" : "lifecycle.pendingHelp")}</p>
+          <button
+            type="button"
+            className={styles.secondary}
+            disabled={busy}
+            onClick={() =>
+              void (model.staleSourceMutation
+                ? model.discardStaleSourceChange()
+                : model.resumeSourceChange())
+            }
+          >
+            {t(model.staleSourceMutation ? "lifecycle.discardStale" : "lifecycle.resume")}
+          </button>
+        </div>
+      ) : model.sourceReview ? (
+        <fieldset className={styles.sourceReview}>
+          <legend>{t(`lifecycle.confirm.${model.sourceReview.action}`)}</legend>
+          <p>{t(`lifecycle.effects.${model.sourceReview.action}`)}</p>
+          <p>{t("lifecycle.copies")}</p>
+          {model.preview && (
+            <p>
+              {t(
+                model.sourceReview.action === "fence"
+                  ? "lifecycle.previewKept"
+                  : "lifecycle.previewClosed",
+              )}
+            </p>
+          )}
+          <div className={styles.sourceActions}>
+            <button
+              type="button"
+              className={styles.secondary}
+              disabled={busy}
+              onClick={model.cancelSourceReview}
+            >
+              {t("lifecycle.cancel")}
+            </button>
+            <button
+              type="button"
+              className={`${styles.secondary} ${styles.danger}`}
+              disabled={busy}
+              onClick={() => void model.confirmSourceChange()}
+            >
+              {t(`lifecycle.confirmButton.${model.sourceReview.action}`)}
+            </button>
+          </div>
+        </fieldset>
+      ) : (
+        metadata &&
+        !model.newSource && (
+          <div className={styles.sourceActions}>
+            <button
+              type="button"
+              className={styles.secondary}
+              disabled={blocked || metadata.state !== "active"}
+              onClick={() => void model.reviewSourceChange("fence")}
+            >
+              {t("lifecycle.actions.fence")}
+            </button>
+            <button
+              type="button"
+              className={styles.secondary}
+              disabled={blocked || metadata.state !== "active"}
+              onClick={() => void model.reviewSourceChange("disconnect")}
+            >
+              {t("lifecycle.actions.disconnect")}
+            </button>
+            <button
+              type="button"
+              className={`${styles.secondary} ${styles.danger}`}
+              disabled={blocked || !["active", "disconnected"].includes(metadata.state)}
+              onClick={() => void model.reviewSourceChange("delete")}
+            >
+              {t("lifecycle.actions.delete")}
+            </button>
+          </div>
+        )
+      )}
+      {!metadata &&
+        !model.newSource &&
+        !model.sourceMutation &&
+        !model.sourceCreationId &&
+        sources.length > 0 && (
+          <div role="status">
+            <p>{t("lifecycle.unknown")}</p>
+            {sources.find((source) => source.resourceRef.resourceId === selected)?.sourceEpoch ===
+              1 && (
+              <button
+                type="button"
+                className={styles.secondary}
+                disabled={blocked}
+                onClick={() => void model.initializeHoldingsSource()}
+              >
+                {t("lifecycle.initialize")}
+              </button>
+            )}
+          </div>
+        )}
+      {!model.newSource && sources.length < 10 && (
+        <button
+          type="button"
+          className={styles.secondary}
+          disabled={blocked}
+          onClick={model.beginNewSource}
+        >
+          {t(model.preview ? "lifecycle.newFromPreview" : "lifecycle.add")}
+        </button>
+      )}
+      {sources.length >= 10 && <p className={styles.note}>{t("lifecycle.limit")}</p>}
+    </section>
+  );
+}
 function Workspace({ model }: { model: HoldingsWorkspace }) {
   const t = useTranslations("resources");
   const file = useRef<HTMLInputElement>(null);
   const busy = Boolean(model.busy);
-  const preview = model.preview;
+  const hiddenHistory =
+    model.sourceMetadata?.state === "deleted" || model.sourceMutation?.action === "delete";
+  const preview = hiddenHistory ? null : model.preview;
   const canImport =
     model.authenticated &&
     model.configured &&
     model.phase === "unlocked" &&
     !model.needsDeviceApproval &&
+    model.canWriteState &&
     !busy &&
-    !model.hasPending;
+    !model.hasPending &&
+    !model.sourceMutation &&
+    !model.sourceCreationId &&
+    (model.newSource ||
+      (model.sources ?? []).length === 0 ||
+      model.sourceMetadata?.state === "active");
   const errorKey = `errors.${model.error}`;
   return (
     <>
@@ -179,6 +365,7 @@ function Workspace({ model }: { model: HoldingsWorkspace }) {
               {t("lock")}
             </button>
           </div>
+          <SourceManagement model={model} />
           <div className={styles.upload}>
             <svg
               viewBox="0 0 24 24"
@@ -274,7 +461,14 @@ function Workspace({ model }: { model: HoldingsWorkspace }) {
                 <button
                   className={styles.secondary}
                   type="button"
-                  disabled={busy || model.hasPending}
+                  disabled={
+                    busy ||
+                    model.hasPending ||
+                    Boolean(model.sourceMutation || model.sourceCreationId) ||
+                    (!model.newSource &&
+                      (model.sources ?? []).length > 0 &&
+                      model.sourceMetadata?.state !== "active")
+                  }
                   onClick={model.discardPreview}
                 >
                   {t("cancelPreview")}
@@ -364,7 +558,7 @@ function Workspace({ model }: { model: HoldingsWorkspace }) {
               </div>
             </section>
           )}
-          {model.content && (
+          {model.content && !hiddenHistory && (
             <section className={styles.saved} aria-labelledby="saved-holdings-title">
               <div className={styles.sectionHeading}>
                 <div>
