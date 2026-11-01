@@ -53,10 +53,21 @@ root. Web keyring retention and renewal UX are separate consumer work.
 
 Bootstrap and registry writes return `{contractVersion,vault,sources}`. An exact operation replay
 returns the current verified aggregate, never an old directory or archive replacement; these are
-not immutable historical response receipts. Source-create replay returns its stable source.
+not immutable historical response receipts. Source-create replay returns its stable source ref
+with the current fence epoch.
 Every replay still authorizes the current owner/root, and source replay rechecks the current
 signing device/directory before returning. Account separation uses the shared owner hash, not body
 fields or filenames.
+
+The stored source creation anchor remains epoch `1`. Current reads, bootstrap/registry replies,
+source-create replies and Portfolio authority reads project the validated current source fence
+epoch within the same database transaction as the vault and signed registry. Fence changes do not
+rewrite creation anchors, change vault/registry versions or make an old operation replay return
+an old epoch. Corrupt fence state fails closed instead of falling back to the creation anchor.
+In Portfolio authority, `active` describes the owner's current vault/key authorization; a
+disconnected or deleted source does not lock that vault or remove owner history access. The
+source producer and downstream delegated operations still enforce their own terminal source
+state and current fence checks.
 
 The initial directory must have root/registry/key epochs `1/1/1`. Public roots are authenticated
 owner enrollment on first use. The client independently protects its root pin within its

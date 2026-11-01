@@ -13,6 +13,7 @@ from folioview_shared.encrypted.jsonutil import b64url_decode, canonical_json
 from folioview_shared.encrypted.schema import validate_schema
 from folioview_shared.identity import owner_key
 
+from .fences import _state
 from .store import StoreUnavailable, document_path
 
 MAX_SOURCES = 10
@@ -179,7 +180,17 @@ def _current(unit, owner, now, vault=None):
     return row, registry
 
 
-def _response(row):
+def _source_projection(unit, owner, source):
+    # The vault row retains the immutable creation anchor at epoch 1. Source
+    # invalidation lives in its own namespace and must be read in this same
+    # transaction, including on operation replays and registry-only responses.
+    return {
+        "resourceRef": source["resourceRef"],
+        "sourceEpoch": _state(unit, owner, source["resourceRef"])["sourceEpoch"],
+    }
+
+
+def _response(row, unit):
     if row is None:
         return {"contractVersion": CONTRACT_VERSION, "vault": None, "sources": []}
     value = {
@@ -195,7 +206,9 @@ def _response(row):
                 "version",
             )
         },
-        "sources": row["sources"],
+        "sources": [
+            _source_projection(unit, row["ownerSubject"], source) for source in row["sources"]
+        ],
     }
     check_read_response(value)
     return value
@@ -243,7 +256,7 @@ class VaultService:
             row = unit.get(document_path("hub_vaults", owner))
             if row is not None:
                 _verify_row(row, owner, self.now())
-            return _response(row)
+            return _response(row, unit)
 
         return self.store.transact(read)
 
@@ -286,7 +299,7 @@ class VaultService:
                     and existing["rootKeyId"] == body["rootKeyId"]
                     and existing["vaultId"] == body["vaultId"]
                 ):
-                    return _response(existing)
+                    return _response(existing, unit)
                 raise ContractError("version_conflict")
             if replay:
                 raise StoreUnavailable
@@ -301,7 +314,7 @@ class VaultService:
                 "sources": [],
                 "operationCount": 1,
             }
-            result = _response(row)
+            result = _response(row, unit)
             unit.put(path, row)
             _record(unit, op_path, owner, "bootstrap", fingerprint)
             return result
@@ -323,7 +336,7 @@ class VaultService:
             row, current = _current(unit, owner, self.now(), vault)
             op_path, replay = _operation(unit, owner, "registry", operation, fingerprint)
             if replay:
-                return _response(row)
+                return _response(row, unit)
             if row["version"] != body["expectedVersion"]:
                 raise ContractError("version_conflict")
             if (
@@ -350,7 +363,7 @@ class VaultService:
                 "operationCount": row["operationCount"] + 1,
                 "registryHistory": [*row["registryHistory"], body["registryBundle"]],
             }
-            result = _response(next_row)
+            result = _response(next_row, unit)
             unit.put(document_path("hub_vaults", owner), next_row)
             _record(unit, op_path, owner, "registry", fingerprint)
             return result
@@ -401,7 +414,10 @@ class VaultService:
             if replay:
                 if existing is None:
                     raise StoreUnavailable
-                return {"contractVersion": CONTRACT_VERSION, "source": existing}
+                return {
+                    "contractVersion": CONTRACT_VERSION,
+                    "source": _source_projection(unit, owner, existing),
+                }
             if (
                 existing is not None
                 or len(row["sources"]) >= MAX_SOURCES
@@ -421,9 +437,10 @@ class VaultService:
                 "operationCount": row["operationCount"] + 1,
                 "sources": [*row["sources"], selected],
             }
+            projected = _source_projection(unit, owner, selected)
             unit.put(document_path("hub_vaults", owner), next_row)
             _record(unit, op_path, owner, "source", fingerprint)
-            return {"contractVersion": CONTRACT_VERSION, "source": selected}
+            return {"contractVersion": CONTRACT_VERSION, "source": projected}
 
         return self.store.transact(create)
 
@@ -439,6 +456,7 @@ class VaultService:
             )
             if selected is None:
                 raise ContractError("not_found")
+            selected = _source_projection(unit, owner, selected)
             writers, recipients = _selection(registry, self.now())
             value = {
                 "version": row["version"],
