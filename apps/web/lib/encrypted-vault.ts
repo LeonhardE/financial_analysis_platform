@@ -169,6 +169,8 @@ export class EncryptedVaultSession {
       "discardKeyRenewal",
       "inspectRenewalHoldingsPending",
       "verifyRenewalHoldingsReceipt",
+      "inspectRenewalTaskPending",
+      "verifyRenewalTaskReceipt",
       "validateSourceCreation",
       "verifySourceCreation",
       "discardSourceCreation",
@@ -1527,6 +1529,9 @@ export class EncryptedVaultSession {
     return this.serial(async () => {
       const g = this.generation;
       await this.started;
+      this.assert(g);
+      if (this.renewalOnly || (await this.keyRenewalRow()))
+        throw new VaultError("key_renewal_pending");
       const key = this.taskKey("outbox", taskId),
         row = await this.storage.get(key);
       this.assert(g);
@@ -1547,6 +1552,90 @@ export class EncryptedVaultSession {
           row.revision,
         ))
       )
+        throw new VaultError("operation_conflict");
+      this.assert(g);
+    });
+  }
+  private checkRenewalTaskRow(row: any, taskId: string) {
+    this.checkTaskRow(row, taskId, "outbox");
+    if (row) {
+      const fields = [
+        "ownerSubject",
+        "vaultId",
+        "slot",
+        "kind",
+        "revision",
+        row.deleted === true ? "deleted" : "pending",
+      ];
+      if (
+        Object.keys(row).length !== fields.length ||
+        fields.some((name) => !Object.hasOwn(row, name)) ||
+        (row.deleted !== true && row.pending?.taskId !== taskId)
+      )
+        throw new VaultError("binding_mismatch");
+    }
+  }
+  private async renewalTaskRow(taskId: string) {
+    const g = this.generation;
+    await this.started;
+    this.assert(g);
+    if (!this.renewalOnly) throw new VaultError("invalid_operation");
+    const key = this.taskKey("outbox", taskId),
+      row = await this.storage.get(key);
+    this.assert(g);
+    this.checkRenewalTaskRow(row, taskId);
+    return { key, row };
+  }
+  async loadRenewalTaskOutbox(taskId: string): Promise<PendingTask | null> {
+    const g = this.generation,
+      { row } = await this.renewalTaskRow(taskId);
+    if (!row || row.deleted === true) return null;
+    const result = await this.rpc("inspectRenewalTaskPending", { pending: row.pending });
+    this.assert(g);
+    return result;
+  }
+  async listRenewalTaskOutbox(): Promise<PendingTask[]> {
+    const g = this.generation;
+    await this.started;
+    this.assert(g);
+    if (!this.renewalOnly) throw new VaultError("invalid_operation");
+    const prefix = this.taskKey("outbox", "prefix").slice(0, -6),
+      rows = await this.storage.list(prefix),
+      result: PendingTask[] = [];
+    this.assert(g);
+    for (const { key, value } of rows) {
+      const taskId = key.slice(prefix.length);
+      if (this.taskKey("outbox", taskId) !== key) throw new VaultError("wrong_account");
+      this.checkRenewalTaskRow(value, taskId);
+    }
+    // Bound one UI review batch. Remaining original rows continue to block renewal.
+    for (const { key } of rows.filter(({ value }) => value.deleted !== true).slice(0, 32)) {
+      const pending = await this.loadRenewalTaskOutbox(key.slice(prefix.length));
+      this.assert(g);
+      if (pending) result.push(pending);
+    }
+    return result;
+  }
+  async verifyRenewalTaskReceipt(pending: PendingTask, value: EncryptedTask): Promise<void> {
+    const g = this.generation,
+      packet = structuredClone({ pending, value }),
+      { row } = await this.renewalTaskRow(packet.pending?.taskId);
+    if (!row || row.deleted === true || !sameEncryptedRecord(row.pending, packet.pending))
+      throw new VaultError("operation_conflict");
+    await this.rpc("verifyRenewalTaskReceipt", packet);
+    this.assert(g);
+  }
+  reconcileRenewalTaskOutbox(pending: PendingTask, value: EncryptedTask): Promise<void> {
+    const packet = structuredClone({ pending, value });
+    return this.serial(async () => {
+      const g = this.generation,
+        { key, row } = await this.renewalTaskRow(packet.pending?.taskId);
+      if (!row || row.deleted === true || !sameEncryptedRecord(row.pending, packet.pending))
+        throw new VaultError("operation_conflict");
+      await this.rpc("verifyRenewalTaskReceipt", packet);
+      this.assert(g);
+      if (!this.storage.reconcileTaskOutbox) throw new VaultError("storage_unavailable");
+      if (!(await this.storage.reconcileTaskOutbox(key, row, this.lifetime.signal)))
         throw new VaultError("operation_conflict");
       this.assert(g);
     });

@@ -86,6 +86,17 @@ function harness() {
     holdingsCleared = 0,
     holdingsHold = null,
     holdingsVersion = 1;
+  let taskPackets = [],
+    taskOutcome = "saved",
+    taskCleared = 0,
+    taskHold = null,
+    taskVersion = 1;
+  const taskResponse = () => ({
+    contractVersion: CONTRACT,
+    metadata: { taskId: taskPackets[0]?.taskId ?? "synthetic_task_A", taskVersion },
+    signedObject: { signature: "SYNTHETIC_ORIGINAL_TASK" },
+    keyProofs: { historical: true },
+  });
   const holdingsReceipt = () => ({
     contractVersion: CONTRACT,
     stableOperationId: "holdings_operation_A",
@@ -197,8 +208,28 @@ function harness() {
       await this.verifyRenewalHoldingsReceipt(packet, receipt, snapshot);
       calls.push("holdings-reconcile");
       holdingsPacket = null;
-      localPending = false;
+      localPending = taskPackets.length > 0;
       holdingsCleared++;
+    }
+    async listRenewalTaskOutbox() {
+      this.active();
+      calls.push("tasks-list");
+      return structuredClone(taskPackets);
+    }
+    async verifyRenewalTaskReceipt(packet, task) {
+      this.active();
+      calls.push("task-verify");
+      if (taskOutcome === "invalid") throw { code: "invalid_signature" };
+      assert.equal(JSON.stringify(packet), JSON.stringify(taskPackets[0]));
+      assert.equal(JSON.stringify(task), JSON.stringify(taskResponse()));
+    }
+    async reconcileRenewalTaskOutbox(packet, task) {
+      await this.verifyRenewalTaskReceipt(packet, task);
+      this.active();
+      calls.push("task-reconcile");
+      taskPackets.shift();
+      taskCleared++;
+      localPending = Boolean(holdingsPacket || taskPackets.length);
     }
     async openTask() {
       ordinaryCalls++;
@@ -231,6 +262,22 @@ function harness() {
           sources: owner.startsWith("owner_A:") ? [source] : [],
         }),
       );
+    if (route.startsWith("/api/v2/tasks/")) {
+      assert.equal(service, "agent-hub");
+      assert.equal(options.method, undefined);
+      assert.equal(
+        route,
+        `/api/v2/tasks/${taskPackets[0].taskId}/operations/${taskPackets[0].operationId}`,
+      );
+      if (taskHold) await taskHold.promise;
+      if (taskOutcome === "unavailable") return new Response("{}", { status: 503 });
+      if (taskOutcome === "missing")
+        return new Response(
+          JSON.stringify({ contractVersion: CONTRACT, error: { code: "not_found" } }),
+          { status: 404 },
+        );
+      return new Response(JSON.stringify(taskResponse()));
+    }
     if (service === "portfolio") {
       assert.equal(options.method, undefined, "Recovery is GET-only");
       if (holdingsHold) await holdingsHold.promise;
@@ -426,6 +473,28 @@ function harness() {
     },
     localPending(value) {
       localPending = value;
+    },
+    tasks(value = "saved", count = 1) {
+      taskOutcome = value;
+      taskPackets = Array.from({ length: count }, (_, i) => ({
+        taskId: "synthetic_task_" + (count === 1 ? "A" : i),
+        operationId: "synthetic_original_task_operation_" + i,
+        authorKeyId: "old_sig",
+        mode: "create",
+        body: { expectedVersion: 0 },
+      }));
+      localPending = true;
+    },
+    taskPacket: () => taskPackets[0],
+    taskCleared: () => taskCleared,
+    taskHold(value) {
+      taskHold = value;
+    },
+    taskVersion() {
+      taskVersion++;
+    },
+    registryAdvance() {
+      vault = { ...vault, version: vault.version + 1 };
     },
     holdings(value = "saved") {
       holdingsOutcome = value;
@@ -785,4 +854,162 @@ test("old holdings-confirm callbacks cannot act in a later renewal unlock genera
   f.view();
   assert.equal(f.holdingsCleared(), 0);
   assert(f.holdingsPacket());
+});
+
+test("task recovery reads only the original operation and needs separate consent before local cleanup and renewal", async () => {
+  const f = harness();
+  await f.ready();
+  f.tasks();
+  await f.run("reviewKeyRenewal");
+  const packet = JSON.stringify(f.taskPacket());
+  await f.run("reviewRenewalTasks");
+  assert.equal(f.view().renewalTask.status, "saved");
+  assert.equal(f.taskCleared(), 0);
+  assert.equal(JSON.stringify(f.taskPacket()), packet);
+  assert(f.requests.every((r) => !r.options.method));
+  assert.equal(f.counts().ordinaryCalls, 0);
+  await f.run("confirmRenewalTask");
+  assert.equal(f.taskCleared(), 1);
+  assert.equal(f.view().keyNotice, "renewal_task_reconciled");
+  assert.equal(f.view().phase, "renewal-only");
+  assert.equal(f.view().content, null);
+  const reads = f.requests.filter((r) => r.route.startsWith("/api/v2/tasks/"));
+  assert.equal(reads.length, 2);
+  assert(reads.every((r) => r.route.includes("/operations/")));
+  assert(f.requests.every((r) => !r.options.method));
+  await f.run("confirmKeyRenewal");
+  assert.equal(f.counts().prepared, 1);
+});
+
+test("task missing, unavailable or invalid evidence preserves the packet and blocks renewal", async () => {
+  for (const outcome of ["missing", "unavailable", "invalid"]) {
+    const f = harness();
+    await f.ready();
+    f.tasks(outcome);
+    await f.run("reviewKeyRenewal");
+    const packet = JSON.stringify(f.taskPacket());
+    await f.run("reviewRenewalTasks");
+    assert.equal(f.view().renewalTask.status, "unknown");
+    await f.run("confirmRenewalTask");
+    await f.run("confirmKeyRenewal");
+    assert.equal(f.taskCleared(), 0);
+    assert.equal(JSON.stringify(f.taskPacket()), packet);
+    assert.equal(f.counts().prepared, 0);
+    assert(f.requests.every((r) => !r.options.method));
+  }
+});
+
+test("no pending tasks does not clear unrelated encrypted work or waive renewal blockers", async () => {
+  const f = harness();
+  await f.ready();
+  f.localPending(true);
+  await f.run("reviewKeyRenewal");
+  await f.run("reviewRenewalTasks");
+  assert.equal(f.view().keyNotice, "renewal_tasks_none");
+  await f.run("confirmRenewalTask");
+  assert.equal(f.view().error, "key_renewal_task_review_required");
+  await f.run("confirmKeyRenewal");
+  assert.equal(f.counts().prepared, 0);
+  assert.equal(f.taskCleared(), 0);
+});
+
+test("changed original task evidence or directory invalidates prior consent without cleanup", async () => {
+  for (const change of ["task", "registry"]) {
+    const f = harness();
+    await f.ready();
+    f.tasks();
+    await f.run("reviewKeyRenewal");
+    await f.run("reviewRenewalTasks");
+    if (change === "task") f.taskVersion();
+    else f.registryAdvance();
+    await f.run("confirmRenewalTask");
+    assert.equal(
+      f.view().error,
+      change === "task" ? "key_renewal_task_changed" : "key_renewal_conflict",
+    );
+    assert.equal(f.taskCleared(), 0);
+    assert(f.taskPacket());
+    assert(f.requests.every((r) => !r.options.method));
+  }
+});
+
+test("task checks do not depend on Portfolio and reconcile one original request at a time", async () => {
+  const f = harness();
+  await f.ready();
+  f.capability("portfolio");
+  await f.ready();
+  f.tasks("saved", 2);
+  await f.run("reviewKeyRenewal");
+  await f.run("reviewRenewalTasks");
+  await f.run("confirmRenewalTask");
+  assert.equal(
+    f.taskCleared(),
+    1,
+    JSON.stringify({
+      error: f.view().error,
+      phase: f.view().phase,
+      task: f.view().renewalTask,
+      calls: f.calls,
+    }),
+  );
+  await f.run("confirmKeyRenewal");
+  assert.equal(f.counts().prepared, 0);
+  await f.run("reviewKeyRenewal");
+  await f.run("reviewRenewalTasks");
+  await f.run("confirmRenewalTask");
+  assert.equal(f.taskCleared(), 2);
+  assert(!f.requests.some((r) => r.service === "portfolio"));
+});
+
+test("lock, signout, owner/session change or disabled Hub fence late task checks and consent", async () => {
+  for (const stage of ["reviewRenewalTasks", "confirmRenewalTask"])
+    for (const change of ["lock", "logout", "account", "session", "hub"]) {
+      const f = harness();
+      await f.ready();
+      f.tasks();
+      await f.run("reviewKeyRenewal");
+      if (stage === "confirmRenewalTask") await f.run("reviewRenewalTasks");
+      const hold = deferred();
+      f.taskHold(hold);
+      const work = f.view()[stage]();
+      await settle();
+      if (change === "lock") f.view().lock();
+      else if (change === "hub") f.capability("hub");
+      else if (change === "logout")
+        f.auth({ status: "anonymous", sessionKey: null, profile: null });
+      else
+        f.auth({
+          status: "authenticated",
+          sessionKey: change === "session" ? "owner_A:2" : "owner_B:1",
+          profile: { uid: change === "session" ? "owner_A" : "owner_B" },
+        });
+      hold.resolve();
+      await work;
+      await settle();
+      assert.equal(f.view().renewalTask, null);
+      assert.equal(f.taskCleared(), 0);
+      assert(f.taskPacket());
+      assert(f.requests.every((r) => !r.options.method));
+    }
+});
+
+test("task consent from an older unlock or another review cannot clean a saved request", async () => {
+  const f = harness();
+  await f.ready();
+  f.tasks();
+  await f.run("reviewKeyRenewal");
+  await f.run("reviewRenewalTasks");
+  const stale = f.view();
+  await f.run("lock");
+  await f.run("reviewKeyRenewal");
+  await f.run("reviewRenewalTasks");
+  await stale.confirmRenewalTask();
+  f.view();
+  assert.equal(f.taskCleared(), 0);
+  f.holdings();
+  await f.run("reviewRenewalHoldings");
+  assert.equal(f.view().renewalTask, null);
+  await f.run("confirmRenewalTask");
+  assert.equal(f.taskCleared(), 0);
+  assert(f.taskPacket());
 });

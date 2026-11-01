@@ -519,6 +519,28 @@ export function hubResponse(
     return false;
   }
   if (path === "/api/v2/tasks" && method === "GET") return formal("TaskMetadataPage", body);
+  const taskOperation =
+    /^\/api\/v2\/tasks\/([A-Za-z0-9][A-Za-z0-9_-]{0,127})\/operations\/([A-Za-z0-9_-]{22,128})$/.exec(
+      path,
+    );
+  if (taskOperation) {
+    if (method !== "GET" || !formal("EncryptedTask", body) || !record(body.metadata)) return false;
+    try {
+      if (!record(body.signedObject) || typeof body.signedObject.payload !== "string") return false;
+      const message = JSON.parse(
+        Buffer.from(body.signedObject.payload, "base64url").toString("utf8"),
+      );
+      return (
+        record(message) &&
+        record(message.context) &&
+        body.metadata.taskId === taskOperation[1] &&
+        message.context.objectId === taskOperation[1] &&
+        message.context.stableOperationId === taskOperation[2]
+      );
+    } catch {
+      return false;
+    }
+  }
   if (path.startsWith("/api/v2/tasks")) return formal("EncryptedTask", body);
   if (path === "/api/v2/results/counts")
     return (

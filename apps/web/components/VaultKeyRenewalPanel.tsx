@@ -223,10 +223,54 @@ export default function VaultKeyRenewalPanel({ workspace }: { workspace: Holding
                   </div>
                 </div>
               )}
+              <div className={styles.callout} role="group" aria-label={t("taskTitle")}>
+                <h4>{t("taskTitle")}</h4>
+                <p>{t("taskHelp")}</p>
+                {workspace.keyNotice === "renewal_tasks_none" && (
+                  <p role="status">{t("taskNone")}</p>
+                )}
+                {workspace.keyNotice === "renewal_task_reconciled" && (
+                  <p role="status">{t("taskReconciled")}</p>
+                )}
+                {workspace.renewalTask && (
+                  <p role="status">
+                    {t(workspace.renewalTask.status === "saved" ? "taskSaved" : "taskUnknown")}
+                  </p>
+                )}
+                <div className={styles.actions}>
+                  <button
+                    type="button"
+                    className={styles.secondary}
+                    disabled={busy}
+                    onClick={() => void workspace.reviewRenewalTasks()}
+                  >
+                    {t("taskCheck")}
+                  </button>
+                  {workspace.renewalTask?.status === "saved" && (
+                    <button
+                      type="button"
+                      className={styles.primary}
+                      disabled={busy}
+                      onClick={() => void workspace.confirmRenewalTask()}
+                    >
+                      {t("taskConfirm")}
+                    </button>
+                  )}
+                  {workspace.renewalTask && (
+                    <button type="button" className={styles.secondary} onClick={workspace.lock}>
+                      {t("taskKeep")}
+                    </button>
+                  )}
+                </div>
+              </div>
               <button
                 type="button"
                 className={styles.primary}
-                disabled={busy || !summary.canRenew || Boolean(workspace.renewalHoldings)}
+                disabled={
+                  busy ||
+                  !summary.canRenew ||
+                  Boolean(workspace.renewalHoldings || workspace.renewalTask)
+                }
                 onClick={() => void workspace.confirmKeyRenewal()}
               >
                 {t("confirm")}

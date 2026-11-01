@@ -121,7 +121,14 @@ function route(request: Request): { path: string; rule: Rule } {
       vaultId: path.split("/")[4],
       responseStatus: 201,
     };
-  else if (
+  else if (get && new RegExp(`^/api/v2/tasks/${ID}/operations/[A-Za-z0-9_-]{22,128}$`).test(path)) {
+    if (
+      request.headers.has("x-folioview-delegation") ||
+      request.headers.has("x-serverless-authorization")
+    )
+      fail("insufficient_scope");
+    rule = { kind: "read", max: 0, responseStatus: 200 };
+  } else if (
     get &&
     new RegExp(`^/api/v2/tasks/${ID}(?:/versions/(?:[1-9]|[1-4][0-9]|50))?$`).test(path)
   )

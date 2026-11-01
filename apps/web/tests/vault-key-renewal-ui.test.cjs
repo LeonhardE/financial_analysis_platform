@@ -37,6 +37,7 @@ function harness(changes = {}, locale = "en") {
     vaultConfigured: true,
     configured: true,
     renewalHoldings: null,
+    renewalTask: null,
     owner: "owner_A:1",
     vaultGeneration: 1,
     vault: { vaultId: summary.vaultId, rootKeyId: summary.rootKeyId },
@@ -50,6 +51,8 @@ function harness(changes = {}, locale = "en") {
     deviceChange: null,
     ...Object.fromEntries(
       [
+        "reviewRenewalTasks",
+        "confirmRenewalTask",
         "reviewRenewalHoldings",
         "confirmRenewalHoldings",
         "reviewKeyRenewal",
@@ -347,4 +350,60 @@ test("holdings checks are hidden outside a configured renewal-only review and un
     pending: { operationId: "renew_A", state: "ready", expiresAt: 1200 },
   };
   assert(!f.view().includes("Check pending holdings upload"));
+});
+
+test("task recovery is available without Portfolio and needs explicit saved confirmation in both languages", () => {
+  for (const locale of ["en", "zh"]) {
+    const f = harness({ phase: "renewal-only", configured: false }, locale);
+    f.workspace.keyRenewal = f.summary;
+    const html = f.view();
+    const check = locale === "en" ? "Check pending task uploads" : "检查待确认的任务保存";
+    const confirm =
+      locale === "en" ? "Confirm saved task and clear local retry" : "确认已保存并清理本机重试副本";
+    assert(html.includes(check));
+    assert(!html.includes("Check pending holdings upload"));
+    f.button(check).onClick();
+    assert.deepEqual(f.calls.at(-1), ["reviewRenewalTasks"]);
+    f.workspace.renewalTask = {
+      taskId: "SYNTHETIC_PRIVATE_TASK_ID",
+      operationId: "SYNTHETIC_OP",
+      status: "unknown",
+    };
+    const unknown = f.view();
+    assert(!unknown.includes(confirm));
+    assert(!unknown.includes("SYNTHETIC_PRIVATE_TASK_ID"));
+    assert.equal(
+      f.button(locale === "en" ? "Confirm and renew keys" : "确认并续期密钥").disabled,
+      true,
+    );
+    f.workspace.renewalTask.status = "saved";
+    const saved = f.view();
+    assert(saved.includes(confirm));
+    assert(saved.includes(locale === "en" ? "without deleting the task" : "不会删除任务"));
+    f.button(confirm).onClick();
+    assert.deepEqual(f.calls.at(-1), ["confirmRenewalTask"]);
+    f.button(locale === "en" ? "Keep the original request and lock" : "保留原请求并锁定").onClick();
+    assert.deepEqual(f.calls.at(-1), ["lock"]);
+  }
+});
+
+test("task checks hide outside a renewal review and staged candidates, and block duplicate clicks while busy", () => {
+  for (const config of [
+    { phase: "locked" },
+    { authenticated: false },
+    { vaultConfigured: false },
+  ]) {
+    const f = harness({ phase: "renewal-only", ...config });
+    f.workspace.keyRenewal = f.summary;
+    assert(!f.view().includes("Check pending task uploads"));
+  }
+  const f = harness({ phase: "renewal-only", busy: "recovering" });
+  f.workspace.keyRenewal = f.summary;
+  f.view();
+  assert.equal(f.button("Check pending task uploads").disabled, true);
+  f.workspace.keyRenewal = {
+    ...f.summary,
+    pending: { operationId: "renew_A", state: "ready", expiresAt: 1200 },
+  };
+  assert(!f.view().includes("Check pending task uploads"));
 });
