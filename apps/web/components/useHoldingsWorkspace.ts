@@ -135,6 +135,7 @@ type State = {
   keyRenewalCancellation: boolean;
   keyRenewalFailure: boolean;
   renewalHoldings: { sourceId: string; operationId: string; status: "saved" | "unknown" } | null;
+  renewalTask: { taskId: string; operationId: string; status: "saved" | "unknown" } | null;
 };
 const empty: State = {
   owner: null,
@@ -170,6 +171,7 @@ const empty: State = {
   keyRenewalCancellation: false,
   keyRenewalFailure: false,
   renewalHoldings: null,
+  renewalTask: null,
 };
 class WorkspaceError extends Error {
   constructor(public readonly code: string) {
@@ -352,6 +354,12 @@ export function useHoldingsWorkspace() {
     registrySequence: number;
     checkpointDigest: string;
   } | null>(null);
+  const renewalTaskReview = useRef<{
+    pending: PendingTask;
+    task: EncryptedTask;
+    registrySequence: number;
+    checkpointDigest: string;
+  } | null>(null);
 
   const terminate = useCallback(() => {
     ++vaultGeneration.current;
@@ -362,6 +370,7 @@ export function useHoldingsWorkspace() {
     pending.current = null;
     verifiedSnapshot.current = null;
     renewalHoldingsReview.current = null;
+    renewalTaskReview.current = null;
   }, []);
 
   const perform = useCallback(
@@ -428,6 +437,7 @@ export function useHoldingsWorkspace() {
             recoveryExport: null,
             keyRenewal: null,
             renewalHoldings: null,
+            renewalTask: null,
             keyRenewalCancellation: false,
             keyRenewalFailure:
               previous.phase === "renewal-only" ||
@@ -481,6 +491,7 @@ export function useHoldingsWorkspace() {
                 recoveryExport: null,
                 keyRenewal: null,
                 renewalHoldings: null,
+                renewalTask: null,
                 keyRenewalCancellation: false,
               }
             : {}),
@@ -2981,7 +2992,8 @@ export function useHoldingsWorkspace() {
         };
         assertHoldingsActive();
         renewalHoldingsReview.current = null;
-        setState((previous) => ({ ...previous, renewalHoldings: null }));
+        renewalTaskReview.current = null;
+        setState((previous) => ({ ...previous, renewalHoldings: null, renewalTask: null }));
         const fresh = await readRenewalContext(signal, assertHoldingsActive);
         const summary = await instance.inspectKeyRenewal(fresh.vault, fresh.lifecycle);
         assertHoldingsActive();
@@ -3087,6 +3099,120 @@ export function useHoldingsWorkspace() {
         }));
       }),
     [assertRenewal, perform, readRenewalContext, readRenewalHoldingsEvidence],
+  );
+
+  // A task has no separate receipt DTO: the fixed operation GET returns its
+  // original encrypted version, whose signature is checked inside the Worker.
+  const readRenewalTaskEvidence = useCallback(
+    async (packet: PendingTask, signal: AbortSignal, assertActive: () => void) => {
+      const task = (await api(
+        "agent-hub",
+        `/api/v2/tasks/${packet.taskId}/operations/${packet.operationId}`,
+        signal,
+        { allowMissing: true },
+      )) as EncryptedTask | null;
+      assertActive();
+      return task;
+    },
+    [api],
+  );
+
+  const reviewRenewalTasks = useCallback(
+    () =>
+      perform("recovering", async ({ assertActive, signal }) => {
+        const instance = assertRenewal();
+        renewalTaskReview.current = null;
+        renewalHoldingsReview.current = null;
+        setState((previous) => ({
+          ...previous,
+          renewalTask: null,
+          renewalHoldings: null,
+          keyNotice: "",
+        }));
+        const fresh = await readRenewalContext(signal, assertActive);
+        const summary = await instance.inspectKeyRenewal(fresh.vault, fresh.lifecycle);
+        assertActive();
+        if (summary.pending) throw new WorkspaceError("key_renewal_pending");
+        setState((previous) => ({
+          ...previous,
+          vault: fresh.vault,
+          sources: fresh.sources,
+          keyRenewal: summary,
+        }));
+        const packets = await instance.listRenewalTaskOutbox();
+        assertActive();
+        const packet = packets[0];
+        if (!packet) {
+          setState((previous) => ({ ...previous, keyNotice: "renewal_tasks_none" }));
+          return;
+        }
+        setState((previous) => ({
+          ...previous,
+          renewalTask: {
+            taskId: packet.taskId,
+            operationId: packet.operationId,
+            status: "unknown",
+          },
+        }));
+        const task = await readRenewalTaskEvidence(packet, signal, assertActive);
+        if (!task) return;
+        await instance.verifyRenewalTaskReceipt(packet, task);
+        assertActive();
+        renewalTaskReview.current = {
+          pending: packet,
+          task,
+          registrySequence: summary.registrySequence,
+          checkpointDigest: summary.checkpointDigest,
+        };
+        setState((previous) => ({
+          ...previous,
+          renewalTask: { taskId: packet.taskId, operationId: packet.operationId, status: "saved" },
+        }));
+      }),
+    [assertRenewal, perform, readRenewalContext, readRenewalTaskEvidence],
+  );
+
+  const confirmRenewalTask = useCallback(
+    () =>
+      perform("recovering", async ({ assertActive, signal }) => {
+        const instance = assertRenewal();
+        const reviewed = renewalTaskReview.current;
+        const visible = stateRef.current.renewalTask;
+        if (
+          !reviewed ||
+          visible?.status !== "saved" ||
+          visible.taskId !== reviewed.pending.taskId ||
+          visible.operationId !== reviewed.pending.operationId
+        )
+          throw new WorkspaceError("key_renewal_task_review_required");
+        const fresh = await readRenewalContext(signal, assertActive);
+        const summary = await instance.inspectKeyRenewal(fresh.vault, fresh.lifecycle);
+        assertActive();
+        if (
+          summary.pending ||
+          summary.registrySequence !== reviewed.registrySequence ||
+          summary.checkpointDigest !== reviewed.checkpointDigest
+        )
+          throw new WorkspaceError("key_renewal_conflict");
+        const task = await readRenewalTaskEvidence(reviewed.pending, signal, assertActive);
+        if (!task || JSON.stringify(task) !== JSON.stringify(reviewed.task)) {
+          renewalTaskReview.current = null;
+          setState((previous) => ({ ...previous, renewalTask: null }));
+          throw new WorkspaceError("key_renewal_task_changed");
+        }
+        // The dedicated operation re-verifies the signature and compares the
+        // complete local row atomically. Ordinary outbox cleanup is unavailable.
+        await instance.reconcileRenewalTaskOutbox(reviewed.pending, task);
+        assertActive();
+        renewalTaskReview.current = null;
+        setState((previous) => ({
+          ...previous,
+          keyRenewal: summary,
+          renewalTask: null,
+          keyNotice: "renewal_task_reconciled",
+        }));
+      }),
+    [assertRenewal, perform, readRenewalContext, readRenewalTaskEvidence],
   );
 
   const refreshKeyRenewal = useCallback(
@@ -3363,8 +3489,11 @@ export function useHoldingsWorkspace() {
     keyRenewal: visible.phase === "renewal-only" ? visible.keyRenewal : null,
     keyRenewalCancellation: visible.phase === "renewal-only" && visible.keyRenewalCancellation,
     renewalHoldings: visible.phase === "renewal-only" ? visible.renewalHoldings : null,
+    renewalTask: visible.phase === "renewal-only" ? visible.renewalTask : null,
     reviewRenewalHoldings,
     confirmRenewalHoldings,
+    reviewRenewalTasks,
+    confirmRenewalTask,
     reviewKeyRenewal,
     refreshKeyRenewal,
     confirmKeyRenewal,

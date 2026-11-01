@@ -28,6 +28,12 @@ scope.onmessage = (event) => {
           case "inspectRenewalHoldingsPending":
             result = await core.inspectRenewalHoldingsPending(args.pending);
             break;
+          case "inspectRenewalTaskPending":
+            result = await core.inspectRenewalTaskPending(args.pending);
+            break;
+          case "verifyRenewalTaskReceipt":
+            result = await core.verifyRenewalTaskReceipt(args.pending, args.value);
+            break;
           case "verifyRenewalHoldingsReceipt":
             result = await core.verifyRenewalHoldingsReceipt(
               args.pending,

@@ -440,3 +440,22 @@ full existing operation-ID alphabet; source and snapshot identifiers retain thei
 No backend, shared contract, cloud permission, broker connection or Muse activation changes are
 part of this Web delivery. Synthetic crypto/storage/controller checks and local responsive previews
 remain separate from real Google/Passkey and cloud-workload lifecycle acceptance.
+
+### Task upload reconciliation during renewal
+
+The restricted key-renewal view can check task uploads using the owner's original-operation GET.
+It authenticates the old public packet and historical saved `EncryptedTask` inside the Worker,
+including transition intent/status/execution epoch, without decrypting or re-signing content.
+Missing or invalid evidence never triggers a write replay, a latest-version fallback or local cleanup.
+
+A separate explicit confirmation rereads the trusted directory and exact original result before
+replacing only the matching local outbox row with a revision-advanced tombstone. The transaction
+compares the complete row, archive context and session cancellation, so another tab's newer packet
+or lock/account change cannot be overwritten. Server tasks and local encrypted drafts stay intact.
+Checks operate one task at a time and remain available without Portfolio. Other pending uploads
+or key/device/agent changes still block renewal through their existing guards. Ordinary task cleanup
+cannot bypass this restricted flow. The original Google account and Passkey are reused.
+
+This consumer requires the separately delivered Hub original-task-operation producer. No shared
+contract, cloud permission, broker connection or Muse activation changes accompany this Web slice.
+Synthetic expired-certificate checks do not require changing live credentials or their expiry.

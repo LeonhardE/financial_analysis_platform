@@ -152,6 +152,7 @@ function compile(name, imports) {
     Response,
     Headers,
     URL,
+    Buffer,
     AbortSignal,
     AbortController,
     TextEncoder,
@@ -231,6 +232,99 @@ const taskBody = {
   resourceBindings: [],
   envelope: CARRIER,
 };
+
+function savedTaskOperation(operation = OP, taskId = "task_A") {
+  return {
+    contractVersion: CONTRACT,
+    metadata: { ...TASK, taskId },
+    signedObject: {
+      ...SIGNED,
+      payload: Buffer.from(
+        JSON.stringify({ context: { objectId: taskId, stableOperationId: operation } }),
+      ).toString("base64url"),
+    },
+    keyProofs: { checkpoint: SIGNED, certificates: [SIGNED] },
+  };
+}
+
+test("task operation reads use the fixed owner route, including leading underscore and dash operation identifiers", async () => {
+  for (const operation of [OP, "_" + "a".repeat(21), "-" + "b".repeat(127)]) {
+    const route = `/api/v2/tasks/task_A/operations/${operation}`;
+    const original = savedTaskOperation(operation);
+    const h = harness({ upstream: () => response(original) });
+    const result = await h.proxy(request(route));
+    assert.equal(result.status, 200);
+    assert.equal(result.headers.get("cache-control"), "no-store");
+    assert.deepEqual(await result.json(), original);
+    assert.equal(h.hub()[0].url, ORIGIN + route);
+    assert.equal(h.hub()[0].init.method, "GET");
+    assert.deepEqual([...h.hub()[0].init.headers.keys()].sort(), [
+      "authorization",
+      "x-folioview-contract",
+    ]);
+  }
+});
+
+test("task original-operation reads reject selector headers, queries, alternate methods and malformed IDs before upstream access", async () => {
+  const route = `/api/v2/tasks/task_A/operations/${OP}`;
+  for (const headers of [
+    { "Idempotency-Key": OP },
+    { "X-FolioView-Author-Key": AUTHOR },
+    { "X-FolioView-Delegation": "synthetic" },
+    { "X-Serverless-Authorization": "Bearer synthetic" },
+    { "X-FolioView-Contract": CONTRACT + "," + CONTRACT },
+  ]) {
+    const h = harness();
+    const result = await h.proxy(request(route, { headers }));
+    assert.equal(
+      result.status,
+      400 + (headers["X-FolioView-Delegation"] || headers["X-Serverless-Authorization"] ? 3 : 0),
+    );
+    assert.equal(h.calls.length, 0);
+  }
+  for (const path of [
+    route + "?owner=other",
+    route + "?",
+    route + "/synchronize",
+    route.replace(OP, "x".repeat(21)),
+    route.replace(OP, "x".repeat(129)),
+    route.replace("task_A", "bad%2Ftask"),
+  ]) {
+    const h = harness();
+    const result = await h.proxy(request(path));
+    assert.equal(result.status, 400);
+    assert.equal(h.calls.length, 0);
+  }
+  for (const method of ["POST", "PUT", "DELETE"]) {
+    const h = harness();
+    assert.equal((await h.proxy(request(route, { method }))).status, 400);
+    assert.equal(h.calls.length, 0);
+  }
+});
+
+test("task-operation responses are closed, path-bound and never replace missing evidence with a latest task", async () => {
+  const route = `/api/v2/tasks/task_A/operations/${OP}`;
+  for (const value of [
+    savedTaskOperation("another_synthetic_operation_0001"),
+    savedTaskOperation(OP, "task_B"),
+    { ...savedTaskOperation(), privateTitle: "synthetic-private-canary" },
+    { ...savedTaskOperation(), signedObject: SIGNED },
+  ]) {
+    const h = harness({ upstream: () => response(value) });
+    const result = await h.proxy(request(route));
+    await error(result, 503, "authorization_unavailable");
+    assert.equal(h.hub().length, 1);
+  }
+  const missing = {
+    contractVersion: CONTRACT,
+    error: { code: "not_found", retryable: false, requestId: "synthetic_request" },
+  };
+  const h = harness({ upstream: () => response(missing, 404) });
+  const result = await h.proxy(request(route));
+  assert.equal(result.status, 404);
+  assert.equal(h.hub().length, 1);
+  assert.equal(h.hub()[0].url, ORIGIN + route);
+});
 
 test.before(async () => {
   jose = await import("jose");

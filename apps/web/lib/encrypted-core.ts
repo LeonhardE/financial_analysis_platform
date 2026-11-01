@@ -6000,8 +6000,11 @@ export class VaultCore {
     );
   }
   async validateTaskPending(pending: PendingTask) {
-    const { registry, vault } = this.ready(),
-      { writers, recipients } = this.taskSelection(registry, this.now());
+    const { registry, vault } = this.ready();
+    return this.taskPendingAt(pending, registry, vault, this.now());
+  }
+  private async taskPendingAt(pending: PendingTask, registry: Registry, vault: Vault, at: number) {
+    const { writers, recipients } = this.taskSelection(registry, at);
     exact(pending, [
       "taskId",
       "operationId",
@@ -6041,7 +6044,7 @@ export class VaultCore {
       pending.checkpointDigest !== registry.digest
     )
       throw new VaultError("stale_epoch");
-    const author = cert(registry, pending.authorKeyId, "device_sig", this.now());
+    const author = cert(registry, pending.authorKeyId, "device_sig", at);
     resultRequire(writers.some((w) => w.keyId === author.keyId));
     const message = await verified(p.envelope.signedObject, author.publicJwk, "fv-object+jws");
     validate("ObjectMessage", message);
@@ -6097,6 +6100,127 @@ export class VaultCore {
         resultRequire(intent[name] === value);
     }
     return pending;
+  }
+  /** Public authentication of a fixed historical packet, never an ordinary writer unlock. */
+  private async renewalTaskPending(pending: PendingTask) {
+    if (!this.root || !this.wrapping || !this.vault || !this.pin) throw new VaultError("locked");
+    if (!this.renewalOnly) throw new VaultError("invalid_operation");
+    const vault = this.vault;
+    await this.checkVault(vault, this.pin);
+    bounded(pending, 589824);
+    positive(pending.registrySequence);
+    if (pending.registrySequence > vault.registryHistory.length)
+      throw new VaultError("untrusted_vault");
+    let registry: Registry | undefined;
+    for (let i = 0; i < pending.registrySequence; i++) {
+      registry = await verifyRegistry(
+        vault.registryHistory[i],
+        vault.rootJwk,
+        await this.owner,
+        vault.vaultId,
+        registry,
+        this.now(),
+      );
+      resultRequire(registry.checkpoint.registrySequence === i + 1);
+    }
+    const historical = registry!,
+      message = parsed(unb64(pending.body?.envelope?.signedObject?.payload, 524288));
+    validate("ObjectMessage", message);
+    const certificates = [
+      historical.certificates.get(pending.authorKeyId),
+      ...message.context.recipients.map((r: Json) => historical.certificates.get(r.keyId)),
+    ];
+    if (certificates.some((proof) => !proof)) throw new VaultError("untrusted_vault");
+    // Recipient eligibility can change as a certificate expires. Find an actual common
+    // authorized interval with the exact signed recipient set, rather than widening it.
+    const lower = Math.max(
+        historical.checkpoint.issuedAt,
+        ...certificates.map((p) => p!.notBefore),
+      ),
+      candidates = [
+        ...new Set([lower, ...[...historical.certificates.values()].map((p) => p.expiresAt)]),
+      ]
+        .filter((at) => at >= lower && at <= this.now())
+        .sort((a, b) => a - b);
+    let possibleAt: number | undefined;
+    for (const at of candidates) {
+      try {
+        for (const proof of certificates) cert(historical, proof!.keyId, undefined, at);
+        const selection = this.taskSelection(historical, at);
+        if (
+          equal(
+            message.context.recipients,
+            selection.recipients.map((r) => this.taskRecipient(r)),
+          )
+        ) {
+          possibleAt = at;
+          break;
+        }
+      } catch (error) {
+        if (!(error instanceof VaultError)) throw error;
+      }
+    }
+    if (possibleAt === undefined) throw new VaultError("key_revoked");
+    await this.taskPendingAt(pending, historical, vault, possibleAt);
+    const jwe = this.taskJwe(message, message.context.recipients);
+    unb64(jwe.ciphertext, 196608);
+    for (const recipient of jwe.recipients) await key(recipient.header.epk);
+    return { vault, historical, certificates, message };
+  }
+  async inspectRenewalTaskPending(pending: PendingTask): Promise<PendingTask> {
+    await this.renewalTaskPending(pending);
+    return pending;
+  }
+  /** The operation GET must return this original envelope and its historical storage facts. */
+  async verifyRenewalTaskReceipt(pending: PendingTask, value: EncryptedTask): Promise<void> {
+    const { vault, historical, certificates } = await this.renewalTaskPending(pending);
+    bounded(value, 1048576);
+    validate("EncryptedTask", value);
+    const m = value.metadata,
+      accepted = utcSeconds(m.updatedAt);
+    resultRequire(
+      value.contractVersion === CONTRACT &&
+        m.vaultId === vault.vaultId &&
+        m.taskId === pending.taskId &&
+        m.taskVersion === pending.body.expectedVersion + 1 &&
+        m.objectRevision === m.taskVersion &&
+        m.deliveryRevision === 1 &&
+        m.executionEpoch <= m.taskVersion &&
+        m.keyEpoch === pending.keyEpoch &&
+        m.envelopeFingerprint === pending.envelopeFingerprint &&
+        equal(m.resourceBindings, pending.body.resourceBindings) &&
+        equal(value.signedObject, pending.body.envelope.signedObject) &&
+        equal(value.keyProofs, {
+          checkpoint: historical.bundle.checkpoint,
+          certificates: historical.bundle.entries.map((entry) => entry.certificate),
+        }) &&
+        accepted >= historical.checkpoint.issuedAt &&
+        accepted <= this.now() &&
+        utcSeconds(m.createdAt) >= 0 &&
+        utcSeconds(m.createdAt) <= accepted,
+    );
+    if (pending.mode === "create") {
+      resultRequire(m.status === "active" && m.executionEpoch === 1 && m.createdAt === m.updatedAt);
+    } else if (pending.mode === "transition") {
+      // taskPendingAt authenticates the original control signature and all operation bindings.
+      const intent = parsed(unb64(pending.body.transitionIntent!.payload));
+      resultRequire(
+        m.status ===
+          { pause: "paused", resume: "active", archive: "archived" }[intent.action as TaskAction] &&
+          m.executionEpoch === intent.nextExecutionEpoch,
+      );
+    } else resultRequire(m.status === "active" || m.status === "paused");
+    for (const proof of certificates) cert(historical, proof!.keyId, undefined, accepted);
+    await this.taskPendingAt(pending, historical, vault, accepted);
+    // Initial task commits require the then-current directory. A later revocation cannot
+    // erase an earlier stored fact; second-precision checkpoints cannot establish a tie's order.
+    for (let i = pending.registrySequence; i < vault.registryHistory.length; i++) {
+      if (
+        parsed(unb64(vault.registryHistory[i].checkpoint.payload)).issuedAt >= Math.floor(accepted)
+      )
+        break;
+      throw new VaultError("registry_conflict");
+    }
   }
   async sealDraft(args: TaskDraftSummary & { draft: TaskDraft }): Promise<Json> {
     this.requireOrdinarySession();

@@ -39,6 +39,7 @@ export interface EncryptedStorage {
   commitVault(owner: string, record: any): Promise<void>;
   list(prefix: string): Promise<{ key: string; value: any }[]>;
   compareTaskRecord(key: string, value: any, expectedRevision: number): Promise<boolean>;
+  reconcileTaskOutbox?(key: string, expected: any, signal?: AbortSignal): Promise<boolean>;
 }
 const same = (a: any, b: any) => JSON.stringify(a) === JSON.stringify(b);
 // Unlike serialization equality, preserve every own field when comparing a saved row.
@@ -558,6 +559,62 @@ export class BrowserEncryptedStorage implements EncryptedStorage {
         done(true);
       };
     });
+  }
+  reconcileTaskOutbox(key: string, expected: any, signal?: AbortSignal) {
+    const context = this.archiveContext,
+      row = structuredClone(expected),
+      identifier = (value: any) =>
+        typeof value === "string" && /^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/.test(value);
+    if (
+      !context ||
+      row?.ownerSubject !== context.owner ||
+      !identifier(row?.vaultId) ||
+      !identifier(row?.slot) ||
+      row?.kind !== "outbox" ||
+      !Number.isSafeInteger(row?.revision) ||
+      row.revision < 1 ||
+      !Number.isSafeInteger(row.revision + 1) ||
+      row?.pending?.taskId !== row.slot ||
+      Object.keys(row).length !== 6 ||
+      !["ownerSubject", "vaultId", "slot", "kind", "revision", "pending"].every((name) =>
+        Object.hasOwn(row, name),
+      ) ||
+      key !== context.owner + ":task-outbox:" + row.vaultId + ":" + row.slot
+    )
+      return Promise.reject(new VaultError("wrong_account"));
+    return this.guarded<boolean>(
+      key,
+      (s, done, fail) => {
+        const req = s.get(key);
+        req.onsuccess = () => {
+          try {
+            if (this.archiveContext !== context) {
+              fail(new VaultError("archive_session_stale"));
+              return;
+            }
+            if (!sameEncryptedRecord(req.result, row)) {
+              done(false);
+              return;
+            }
+            s.put(
+              {
+                ownerSubject: row.ownerSubject,
+                vaultId: row.vaultId,
+                slot: row.slot,
+                kind: "outbox",
+                revision: row.revision + 1,
+                deleted: true,
+              },
+              key,
+            );
+            done(true);
+          } catch (error) {
+            fail(error);
+          }
+        };
+      },
+      signal,
+    );
   }
   async remove(key: string) {
     await this.guarded<void>(key, (s, done) => {
