@@ -788,6 +788,15 @@ class PortfolioService:
         return self.store.transact(write)
 
     def mutation(self, uid: str, source: str, operation_id: str):
+        result = {
+            "contractVersion": CONTRACT_VERSION,
+            **public_mutation(self.fence_mutation(uid, source, operation_id)),
+        }
+        check_read_response(result)
+        return result
+
+    def fence_mutation(self, uid: str, source: str, operation_id: str):
+        """Read one authoritative mutation for server-side delivery, without I/O."""
         _identifier(source)
         validate_schema("OperationIdentifier", operation_id)
         owner = owner_key(uid)
@@ -804,9 +813,7 @@ class PortfolioService:
             source_state(unit, authority)
             if saved["vaultId"] != authority.document["vaultId"]:
                 raise StoreUnavailable
-            result = {"contractVersion": CONTRACT_VERSION, **public_mutation(saved)}
-            check_read_response(result)
-            return result
+            return saved
 
         return self.store.transact(read)
 
@@ -818,12 +825,12 @@ class PortfolioService:
         operation_id: str,
         resource_ref: dict,
         source_epoch: int,
+        expected_mutation: dict | None = None,
     ):
-        """Internal adapter seam; NOT a remotely trusted ACK format or endpoint.
+        """Commit after the server adapter authenticates and validates a Hub ACK.
 
-        A future Hub-008 adapter must authenticate/validate the actual Hub ACK
-        before invoking this method. No runtime caller is installed. Passing
-        locally fabricated parameters is test setup, never live Hub evidence.
+        Runtime delivery supplies its original stored mutation snapshot as CAS.
+        Direct synthetic fixture calls are not evidence of a live Hub ACK.
         """
         _identifier(source)
         validate_schema("OperationIdentifier", operation_id)
@@ -849,6 +856,12 @@ class PortfolioService:
             ):
                 raise ContractError("recipient_binding_mismatch")
             lifecycle = source_state(unit, authority)
+            if expected_mutation is not None and any(
+                saved[key] != expected_mutation.get(key)
+                for key in saved
+                if key not in {"state", "completedAt"}
+            ):
+                raise ContractError("version_conflict")
             if saved["sourceEpoch"] > row["sourceEpoch"]:
                 raise StoreUnavailable
             if saved["state"] == "acknowledged":

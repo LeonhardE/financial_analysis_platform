@@ -15,15 +15,16 @@ Every private request requires `X-FolioView-Contract: folioview.agent-workspace.
 stable shared v2.0/P1 encrypted/control primitives are accepted; candidate versions, v1, aliases and plaintext fallback
 are rejected. No query parameters or server-side financial searches are supported.
 
-| Method / path                                                      | Result                                                                                 |
-| ------------------------------------------------------------------ | -------------------------------------------------------------------------------------- |
-| `GET /api/v2/holdings/sources/{sourceId}`                          | Own source/vault reference, epoch, latest version and public authority-replica version |
-| `PUT /api/v2/holdings/sources/{sourceId}/snapshots/{snapshotId}`   | Verify and atomically save immutable ciphertext, operation/receipt and latest pointer  |
-| `GET /api/v2/holdings/sources/{sourceId}/snapshots/{snapshotId}`   | Authorized retained ciphertext, original receipt and historical public key proofs      |
-| `GET /api/v2/holdings/sources/{sourceId}/latest`                   | Latest authorized snapshot, or 404 if the source has no saved snapshot                 |
-| `GET /api/v2/holdings/sources/{sourceId}/operations/{operationId}` | Recover the original immutable receipt after current owner/vault authorization         |
-| `POST /api/v2/holdings/sources/{sourceId}/mutations/{action}`      | Owner-signed `fence`, `disconnect` or `delete`; persist a local pending fence          |
-| `GET /api/v2/holdings/sources/{sourceId}/mutations/{operationId}`  | Recover one pending/completed source mutation without scanning history                 |
+| Method / path                                                                  | Result                                                                                 |
+| ------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------- |
+| `GET /api/v2/holdings/sources/{sourceId}`                                      | Own source/vault reference, epoch, latest version and public authority-replica version |
+| `PUT /api/v2/holdings/sources/{sourceId}/snapshots/{snapshotId}`               | Verify and atomically save immutable ciphertext, operation/receipt and latest pointer  |
+| `GET /api/v2/holdings/sources/{sourceId}/snapshots/{snapshotId}`               | Authorized retained ciphertext, original receipt and historical public key proofs      |
+| `GET /api/v2/holdings/sources/{sourceId}/latest`                               | Latest authorized snapshot, or 404 if the source has no saved snapshot                 |
+| `GET /api/v2/holdings/sources/{sourceId}/operations/{operationId}`             | Recover the original immutable receipt after current owner/vault authorization         |
+| `POST /api/v2/holdings/sources/{sourceId}/mutations/{action}`                  | Owner-signed `fence`, `disconnect` or `delete`; persist a local pending fence          |
+| `GET /api/v2/holdings/sources/{sourceId}/mutations/{operationId}`              | Recover one pending/completed source mutation without scanning history                 |
+| `POST /api/v2/holdings/sources/{sourceId}/mutations/{operationId}/synchronize` | Explicitly deliver the stored mutation to the fixed Hub and reconcile its ACK          |
 
 Writes also require `Content-Type: application/json`, exactly one `Idempotency-Key`, and one
 `X-FolioView-Author-Key` selecting an allowed owner device signing key. The closed outer body has
@@ -97,13 +98,34 @@ receipt; current key revocation or a vault lock can reject an old retry. A diffe
 the same ID conflicts. `202` means the mutation receipt was accepted; callers must inspect its
 `state`, and must not interpret it as completed cross-service revocation.
 
-`PortfolioService.finish_fence` is an internal adapter seam with **no installed runtime caller,
-HTTP endpoint or environment switch**. A future authenticated HUB-008 adapter must validate a real
-Hub transaction ACK before invoking it. It compares the exact owner/source/ref/incarnation,
-mutation ID and epoch and uses transaction CAS. The test suite supplies synthetic adapter inputs;
-these tests do not prove Hub revocation. Until that adapter exists, production mutations remain
-pending. Failure, restart or a lost response cannot silently clear the fence. Replaying an older
-acknowledged operation returns its original receipt and never clears a newer pending operation.
+The owner can explicitly resume one stored operation with
+`POST /api/v2/holdings/sources/{sourceId}/mutations/{operationId}/synchronize`, the contract header,
+`Content-Type: application/json`, and exactly `{"contractVersion":"folioview.agent-workspace.v2.0"}`.
+The route requires the existing Google/Firebase owner verification. It accepts no browser-supplied
+ACK, destination, owner, resource, epoch or control override. It does not create or resign a mutation.
+GETs and the initial mutation request do not initiate remote delivery.
+
+The server derives the exact Hub `source-fences` request from the durable signed mutation. It reuses
+the explicit HTTPS `PORTFOLIO_HUB_AUTHORITY_ORIGIN` and obtains an audience-specific token from its
+runtime identity. Hub must independently trust the Portfolio workload for its narrow callback;
+enabling OAuth or the encrypted adapter is not required. No new identity, key, IAM grant or arbitrary
+upstream is installed by this implementation. Missing configuration remains a closed `503`.
+
+Delivery uses one metadata identity GET and one Hub POST, no SDK retries, redirects or ambient proxies,
+a four-second per-call timeout, a cancellable twelve-second network deadline, and an 8 KiB
+uncompressed ACK ceiling. The network runs on the server event loop; timeout cancellation closes the
+request stream without waiting for an SDK retry worker. Contract, operation, exact
+resource/incarnation, integer epoch and UTC timestamp must match the closed Hub ACK shape. Upstream
+diagnostics are never forwarded. Only then does `PortfolioService.finish_fence` recheck current
+owner/vault authority and compare the original stored mutation in a new transaction. Network I/O
+never runs within a transaction or its retries.
+
+Failures, mismatches, restart, a lost Hub response or a failed local commit retain pending state.
+The next explicit synchronization sends the same immutable operation to obtain Hub's idempotent ACK.
+Already completed operations return the original local receipt without token/network access, and
+replaying an older acknowledged operation never clears a newer pending operation. The automated
+tests use synthetic identities/transports; real workload/owner acceptance is tracked separately.
+Web forwarding and lifecycle controls remain independently scoped Web work.
 
 A completed ordinary fence permits new writes at the new source epoch. Disconnect retains owner
 history while denying future source use; it cannot reconnect through authority installation. The

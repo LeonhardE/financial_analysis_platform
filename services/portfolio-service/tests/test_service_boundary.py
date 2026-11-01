@@ -34,6 +34,7 @@ class PortfolioBoundaryTests(unittest.TestCase):
                     "/api/v2/holdings/sources/{source_id}/operations/{operation_id}",
                     "/api/v2/holdings/sources/{source_id}/mutations/{action}",
                     "/api/v2/holdings/sources/{source_id}/mutations/{operation_id}",
+                    "/api/v2/holdings/sources/{source_id}/mutations/{operation_id}/synchronize",
                 },
             )
 
