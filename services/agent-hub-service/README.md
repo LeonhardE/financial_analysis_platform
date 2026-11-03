@@ -200,15 +200,17 @@ cannot supply another owner partition, an agent/delegation header or a workload 
 authority. Unknown fields, duplicate JSON members, duplicate resource refs and unsupported queries
 fail closed through the existing bounded body/error transport.
 
-| Endpoint                                              | Behavior                                                |
-| ----------------------------------------------------- | ------------------------------------------------------- |
-| `GET /api/v2/tasks`                                   | Bounded public metadata page; `limit` and `cursor` only |
-| `GET /api/v2/tasks/{taskId}`                          | Current encrypted version                               |
-| `GET /api/v2/tasks/{taskId}/versions/{version}`       | One immutable encrypted historical version              |
-| `GET /api/v2/tasks/{taskId}/operations/{operationId}` | Original encrypted version bound to a saved operation   |
-| `POST /api/v2/tasks`                                  | Create active version 1 with expected version 0         |
-| `PUT /api/v2/tasks/{taskId}`                          | CAS rule/scope edit with a newly signed envelope        |
-| `POST /api/v2/tasks/{taskId}/transitions`             | Signed pause, resume or terminal archive                |
+| Endpoint                                                              | Behavior                                                |
+| --------------------------------------------------------------------- | ------------------------------------------------------- |
+| `GET /api/v2/tasks`                                                   | Bounded public metadata page; `limit` and `cursor` only |
+| `GET /api/v2/tasks/{taskId}`                                          | Current encrypted version                               |
+| `GET /api/v2/tasks/{taskId}/versions/{version}`                       | One immutable encrypted historical version              |
+| `GET /api/v2/tasks/{taskId}/operations/{operationId}`                 | Original encrypted version bound to a saved operation   |
+| `POST /api/v2/tasks/{taskId}/operation-cancellations`                 | Root-approved final decision for one original upload    |
+| `GET /api/v2/tasks/{taskId}/operation-cancellations/{cancellationId}` | Original validated cancellation decision                |
+| `POST /api/v2/tasks`                                                  | Create active version 1 with expected version 0         |
+| `PUT /api/v2/tasks/{taskId}`                                          | CAS rule/scope edit with a newly signed envelope        |
+| `POST /api/v2/tasks/{taskId}/transitions`                             | Signed pause, resume or terminal archive                |
 
 Create has exactly `contractVersion`, `taskId`, `expectedVersion`, `resourceBindings`, `envelope`.
 Update omits the body `taskId`; transition adds `transitionIntent`. `envelope` is the existing shared
@@ -271,6 +273,59 @@ The operation ID uses the existing 22–128 character base64url form, including 
 first character. This read rejects query selectors, request bodies, author/idempotency headers,
 delegation/serverless selectors and duplicate contract/identity headers. It returns the existing
 historical task proof, not a new receipt for the complete original transition-intent body.
+
+### Root-approved upload cancellation
+
+An unlocked owner root can permanently deny one unresolved task upload without replaying that
+upload or granting an expired device another write. Both cancellation endpoints require the
+verified Firebase Google owner and the exact v2 contract header. POST has one `Idempotency-Key`
+equal to its cancellation ID and exactly `{contractVersion,command}` in at most 8192 JSON bytes.
+`command` is a pinned-root `fv-control+jws` with this closed service-owned payload:
+
+```text
+artifactType: "task_upload_cancellation_intent"
+contractVersion: "folioview.agent-workspace.v2.0"
+profile: "folioview.task-upload-cancellation.v1"
+ownerSubject, vaultId, rootKeyId, rootEpoch: 1, cancellationId
+target: {taskId, operationId, mode, expectedVersion, authorKeyId,
+         envelopeFingerprint, requestFingerprint, packetDigest}
+```
+
+`mode` is `create`, `update` or `transition`; task and operation IDs retain their existing rules.
+`requestFingerprint` is the existing original write fingerprint, including its mode, expected
+version, resource bindings, envelope fingerprint, transition-intent fingerprint when applicable
+and author. `packetDigest` is the owner's SHA-256 digest of the canonical complete local
+`PendingTask`; Hub validates its signed declaration and echoes it, without reconstructing that
+client-only packet. The profile adds no shared control action or shared DTO. It has no TTL or
+registry checkpoint binding: it only denies one immutable operation under the pinned vault/root
+epoch `1`. A future root reset must use a new vault/root epoch.
+
+POST and GET return HTTP `200` and exactly `{contractVersion,profile,command,receipt}`. The original
+root command is preserved. Receipt fields are exactly `cancellationId`, `ownerSubject`, `vaultId`,
+`rootKeyId`, `rootEpoch`, `target`, `commandFingerprint`, `outcome`, `acceptedAt`; `acceptedAt` is
+integer Unix seconds. `outcome=saved` validates the original operation and encrypted historical
+task against the target; clients still read and verify that original task before resolving their
+local packet. `outcome=cancelled` atomically places a strict tombstone at the original
+`hub_task_operations` path, so the original or a changed packet reusing that operation is refused.
+Rolling older writers also fail closed on that unknown row shape; an in-flight writer conflicts
+on that same document before committing. The saved operation row keeps its old shape.
+
+The per-owner/vault `hub_upload_cancellations` ledger retains at most 32 cancellation IDs, counting
+both outcomes and multiple IDs for the same exact target. Records contain the root command and
+immutable receipt; the serialized storage budget also applies. There is no TTL eviction and no
+task, index or version is created merely to cancel an unknown task. Exact cancellation-ID replay,
+including a legal root signature variant with the same signing input, returns the original full
+response even at capacity. Changed commands or changed target/packet bindings conflict. Expired,
+revoked or renewed device keys cannot remove a fence; cancellation itself needs no current device
+certificate or source RPC and does not edit, pause or archive the task.
+
+Each receipt read rechecks the stored root proof and its original tombstone or saved-task
+association. Corrupt or incomplete associations fail as storage errors. A true cancelled original
+operation returns `404` from the existing operation read; an orphan tombstone returns `503` from
+that original-operation read, upload or cancellation POST. If the entire ledger is absent, a
+cancellation-ID GET can only return `404`, which is not a cancellation proof and must preserve
+the local pending packet. Queries, author/delegation/serverless selectors and duplicate protocol
+headers are rejected; GET also rejects bodies and idempotency headers. Every response is no-store.
 
 Lists return only shared `TaskMetadataPage`, never private task text or encrypted carriers. They
 default to 20 entries, allow at most 50, and sort by opaque task ID. A cursor is a persistent random

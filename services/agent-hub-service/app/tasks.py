@@ -34,6 +34,7 @@ from .api import Owner, _invoke, body, transport
 from .catalogue import CatalogueService, get_sources
 from .fences import require_current_bindings
 from .store import StoreUnavailable, document_path, get_store
+from .task_upload_cancellations import TaskUploadCancellationService, operation_cancelled
 from .vaults import VaultService, _current, _selection, identifier, positive
 
 MAX_TASKS = 32
@@ -380,6 +381,8 @@ class TaskService:
             head = _head(unit, owner, vault_id, task_id, index)
             op_path = document_path("hub_task_operations", owner, vault_id, task_id, operation)
             saved = unit.get(op_path)
+            if operation_cancelled(unit, vault, task_id, operation, saved):
+                raise ContractError("idempotency_conflict")
             current = head["metadata"] if head is not None else None
             if saved is not None:
                 if (
@@ -666,6 +669,8 @@ class TaskService:
             saved = unit.get(
                 document_path("hub_task_operations", owner, vault_id, task_id, operation)
             )
+            if operation_cancelled(unit, vault, task_id, operation, saved):
+                raise ContractError("not_found")
             if saved is None:
                 raise ContractError("not_found")
             try:
@@ -697,6 +702,16 @@ class TaskService:
                 raise StoreUnavailable from None
 
         return self.store.transact(read)
+
+    def cancel_upload(self, uid, task_id, value, cancellation):
+        return TaskUploadCancellationService(self.store, clock=self.clock).cancel(
+            uid, task_id, value, cancellation
+        )
+
+    def upload_cancellation(self, uid, task_id, cancellation):
+        return TaskUploadCancellationService(self.store, clock=self.clock).get(
+            uid, task_id, cancellation
+        )
 
     def list(self, uid, *, limit=20, cursor=None):
         if type(limit) is not int or not 1 <= limit <= 50:
@@ -829,6 +844,13 @@ def get_task_version(task_id: str, version: str, request: Request, user: Owner, 
 async def get_task_operation(
     task_id: str, operation_id: str, request: Request, user: Owner, service: Tasks
 ):
+    await _read_operation_request(request)
+    return await run_in_threadpool(
+        _invoke, lambda: service.operation(user.uid, task_id, operation_id)
+    )
+
+
+async def _read_operation_request(request):
     def protocol():
         _protocol(request)
         transport(request)
@@ -845,8 +867,31 @@ async def get_task_operation(
                     raise ContractError("malformed_request")
     except (ContractError, TimeoutError):
         raise HTTPException(400, {"code": "malformed_request"}) from None
+
+
+@router.get("/{task_id}/operation-cancellations/{cancellation_id}")
+async def get_upload_cancellation(
+    task_id: str, cancellation_id: str, request: Request, user: Owner, service: Tasks
+):
+    await _read_operation_request(request)
     return await run_in_threadpool(
-        _invoke, lambda: service.operation(user.uid, task_id, operation_id)
+        _invoke, lambda: service.upload_cancellation(user.uid, task_id, cancellation_id)
+    )
+
+
+@router.post("/{task_id}/operation-cancellations")
+async def cancel_task_upload(task_id: str, request: Request, user: Owner, service: Tasks):
+    def protocol():
+        _protocol(request)
+        transport(request, operation=True)
+        if request.headers.getlist("x-folioview-author-key"):
+            raise ContractError("malformed_request")
+
+    _invoke(protocol)
+    value = await body(request, {"contractVersion", "command"}, max_bytes=8192)
+    return await run_in_threadpool(
+        _invoke,
+        lambda: service.cancel_upload(user.uid, task_id, value, request.headers["idempotency-key"]),
     )
 
 

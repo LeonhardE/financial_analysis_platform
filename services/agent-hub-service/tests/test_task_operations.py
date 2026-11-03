@@ -341,6 +341,7 @@ class FirestoreTaskOperationTests(OperationSetup, unittest.TestCase):
             self.head_path(),
             self.op_path(),
             self.version_path(),
+            document_path("hub_upload_cancellations", owner_key(UID), self.fixture.vault),
         ]
         self.assertEqual(
             {name for read in reads for name in read["documents"]},
