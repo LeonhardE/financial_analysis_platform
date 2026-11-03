@@ -601,3 +601,15 @@ preparation/Run/result requests and persists only ciphertext for exact replay an
 The manual public-card page has no token input and does not claim an authenticated server save.
 Both modes keep private keys in memory and disable unattended execution. No cloud setting, service
 identity or resource is enabled by this code change.
+
+### Automatic release builder compatibility
+
+The Hub deployment step in `infra/gcp/cloudbuild.agent-hub.yaml` pins the official Cloud CLI
+builder by immutable digest and calls its bundled Python at
+`/usr/lib/google-cloud-sdk/platform/bundledpythonunix/bin/python3`. The pinned image deliberately
+has no system `python3` on PATH. An unqualified entrypoint therefore fails before the guarded
+release script can run. Image upgrades must verify the replacement digest and interpreter layout.
+The existing `deploy_existing_service.py` arguments, source and release-order checks, service
+identity, runtime settings, IAM and build-only opt-in behavior are unchanged. Validate this target's
+automatic main-branch build through successful deployment and exact ready image/traffic checks;
+a manual recovery does not establish automatic pipeline success.
