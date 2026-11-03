@@ -484,3 +484,15 @@ bindings retain the original requests. Cancellation does not expire, prune old f
 vault, revoke the Root, reactivate sources, or enable Muse. This Web slice depends on the separately
 merged Hub and Portfolio cancellation producer PRs. Physical device acceptance remains separate
 from synthetic expired-certificate and interrupted-network verification.
+
+## Automatic image release
+
+`infra/gcp/cloudbuild.web.yaml` runs the existing release guard using the official Google Cloud
+CLI image pinned to digest `sha256:8a50079dfc4b164aa5e83926bef5f9b305b93e80f82d40fabd836da4830dd08e`.
+The deploy step invokes `/usr/lib/google-cloud-sdk/platform/bundledpythonunix/bin/python3`
+explicitly. This avoids relying on a system `python3` executable in the moving `slim` image,
+which prevented the deployment container from starting after a successful image build and push.
+
+The release guard receives the existing source/build/image arguments and keeps its current
+service configuration, release ordering, conditional update and 100% readiness checks. Image
+build arguments, runtime identity, IAM and trigger configuration retain their existing behavior.
