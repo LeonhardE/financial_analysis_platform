@@ -1,4 +1,5 @@
 import "server-only";
+import { cancellationRequest, cancellationResponse } from "./upload-cancellation";
 
 import {
   hubResponse,
@@ -55,6 +56,7 @@ type Rule = {
   vaultId?: string;
   responseStatus?: 200 | 201;
   query?: Record<string, "limit" | "cursor" | "filter" | "id" | "revision" | "delivery">;
+  cancel?: { slot: string; id?: string };
 };
 type Config = { origin: string; project: string };
 
@@ -104,6 +106,26 @@ function route(request: Request): { path: string; rule: Rule } {
   else if (get && path === "/api/v2/tasks")
     rule = { kind: "read", max: 0, query: { limit: "limit", cursor: "cursor" } };
   else if (
+    (get &&
+      new RegExp(`^/api/v2/tasks/${ID}/operation-cancellations/[A-Za-z0-9_-]{22,128}$`).test(
+        path,
+      )) ||
+    (request.method === "POST" &&
+      new RegExp(`^/api/v2/tasks/${ID}/operation-cancellations$`).test(path))
+  ) {
+    if (
+      request.headers.has("x-folioview-delegation") ||
+      request.headers.has("x-serverless-authorization")
+    )
+      fail("insufficient_scope");
+    rule = {
+      kind: get ? "read" : "small",
+      max: get ? 0 : 8192,
+      operation: !get,
+      responseStatus: 200,
+      cancel: { slot: path.split("/")[4], ...(get ? { id: path.split("/").at(-1)! } : {}) },
+    };
+  } else if (
     get &&
     new RegExp(
       `^/api/v2/vaults/${ID}/(?:key-renewal-state|key-renewal-operations/[A-Za-z0-9_-]{22,128})$`,
@@ -371,7 +393,12 @@ async function transport(request: Request, rule: Rule, signal: AbortSignal) {
   if (rule.kind === "read") return { headers, raw: undefined, token: auth.slice(7) };
   if (request.headers.get("content-type")?.split(";", 1)[0].toLowerCase() !== "application/json")
     fail("unsupported_media_type");
-  if (!validBody(json(raw), rule.kind, rule.vaultId)) fail();
+  if (
+    rule.cancel
+      ? !cancellationRequest("task", json(raw), rule.cancel.slot, headers.get("idempotency-key")!)
+      : !validBody(json(raw), rule.kind, rule.vaultId)
+  )
+    fail();
   headers.set("Content-Type", "application/json");
   return { headers, raw, token: auth.slice(7) };
 }
@@ -416,7 +443,14 @@ export function createHubProxy(options: Options = {}) {
         fail("authorization_unavailable");
       }
       return await forwardResponse(response, signal, (body) =>
-        hubResponse(path, request.method, body, headers.get("idempotency-key") ?? undefined),
+        rule.cancel
+          ? cancellationResponse(
+              "task",
+              body,
+              rule.cancel.slot,
+              rule.cancel.id ?? headers.get("idempotency-key") ?? undefined,
+            )
+          : hubResponse(path, request.method, body, headers.get("idempotency-key") ?? undefined),
       );
     } catch (error) {
       return errorResponse(error instanceof Failure ? error.code : "authorization_unavailable");

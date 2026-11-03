@@ -40,6 +40,8 @@ export interface EncryptedStorage {
   list(prefix: string): Promise<{ key: string; value: any }[]>;
   compareTaskRecord(key: string, value: any, expectedRevision: number): Promise<boolean>;
   reconcileTaskOutbox?(key: string, expected: any, signal?: AbortSignal): Promise<boolean>;
+  stageUploadCancellation?(key: string, record: any, signal?: AbortSignal): Promise<boolean>;
+  finishUploadCancellation?(key: string, expected: any, signal?: AbortSignal): Promise<boolean>;
 }
 const same = (a: any, b: any) => JSON.stringify(a) === JSON.stringify(b);
 // Unlike serialization equality, preserve every own field when comparing a saved row.
@@ -355,6 +357,7 @@ export class BrowserEncryptedStorage implements EncryptedStorage {
                 key.includes(":agent-approval:") ||
                 key.includes(":agent-preparation:") ||
                 key.includes(":outbox:") ||
+                key.includes(":upload-cancellation:") ||
                 (key.includes(":task-outbox:") && !v.deleted)
               )
                 blocked = true;
@@ -559,6 +562,128 @@ export class BrowserEncryptedStorage implements EncryptedStorage {
         done(true);
       };
     });
+  }
+  private uploadCancellationBinding(key: string, record: any) {
+    const context = this.archiveContext;
+    const id = (v: any) => typeof v === "string" && /^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/.test(v);
+    const fields = ["ownerSubject", "vaultId", "kind", "slot", "originalKey", "original", "packet"];
+    if (
+      !context ||
+      !record ||
+      Object.keys(record).length !== fields.length ||
+      fields.some((f) => !Object.hasOwn(record, f)) ||
+      record.ownerSubject !== context.owner ||
+      !id(record.vaultId) ||
+      !id(record.slot) ||
+      !["task", "holdings"].includes(record.kind) ||
+      record.packet?.kind !== record.kind ||
+      record.original?.ownerSubject !== context.owner ||
+      record.original?.vaultId !== record.vaultId ||
+      key !==
+        `${context.owner}:upload-cancellation:${record.vaultId}:${record.kind}:${record.slot}` ||
+      record.originalKey !==
+        (record.kind === "task"
+          ? `${context.owner}:task-outbox:${record.vaultId}:${record.slot}`
+          : `${context.owner}:outbox:${record.slot}`) ||
+      (record.kind === "task"
+        ? record.original.pending?.taskId !== record.slot ||
+          record.original.kind !== "outbox" ||
+          record.original.slot !== record.slot ||
+          !Number.isSafeInteger(record.original.revision) ||
+          record.original.revision < 1 ||
+          !Number.isSafeInteger(record.original.revision + 1) ||
+          record.original.deleted === true
+        : record.original.pending?.source?.resourceRef?.resourceId !== record.slot)
+    )
+      throw new VaultError("wrong_account");
+    return context;
+  }
+  stageUploadCancellation(key: string, record: any, signal?: AbortSignal) {
+    const expected = structuredClone(record),
+      context = this.uploadCancellationBinding(key, expected);
+    return this.guarded<boolean>(
+      key,
+      (s, done, fail) => {
+        const prior = s.get(key);
+        prior.onsuccess = () => {
+          if (this.archiveContext !== context) {
+            fail(new VaultError("archive_session_stale"));
+            return;
+          }
+          if (prior.result !== undefined) {
+            done(sameEncryptedRecord(prior.result, expected));
+            return;
+          }
+          const original = s.get(expected.originalKey);
+          original.onsuccess = () => {
+            if (this.archiveContext !== context) {
+              fail(new VaultError("archive_session_stale"));
+              return;
+            }
+            if (!sameEncryptedRecord(original.result, expected.original)) {
+              done(false);
+              return;
+            }
+            s.put(expected, key);
+            done(true);
+          };
+        };
+      },
+      signal,
+    );
+  }
+  finishUploadCancellation(key: string, expected: any, signal?: AbortSignal) {
+    const record = structuredClone(expected),
+      context = this.uploadCancellationBinding(key, record);
+    return this.guarded<boolean>(
+      key,
+      (s, done, fail) => {
+        const saved = s.get(key);
+        saved.onsuccess = () => {
+          if (this.archiveContext !== context) {
+            fail(new VaultError("archive_session_stale"));
+            return;
+          }
+          if (!sameEncryptedRecord(saved.result, record)) {
+            done(false);
+            return;
+          }
+          const original = s.get(record.originalKey);
+          original.onsuccess = () => {
+            if (this.archiveContext !== context) {
+              fail(new VaultError("archive_session_stale"));
+              return;
+            }
+            // Preserve another tab's newer upload. Only this proven terminal cancellation is cleared.
+            if (sameEncryptedRecord(original.result, record.original)) {
+              if (record.kind === "task")
+                s.put(
+                  {
+                    ownerSubject: record.ownerSubject,
+                    vaultId: record.vaultId,
+                    kind: "outbox",
+                    slot: record.slot,
+                    revision: record.original.revision + 1,
+                    deleted: true,
+                  },
+                  record.originalKey,
+                );
+              else s.delete(record.originalKey);
+            } else if (
+              original.result &&
+              (original.result.ownerSubject !== context.owner ||
+                original.result.vaultId !== record.vaultId)
+            ) {
+              fail(new VaultError("wrong_account"));
+              return;
+            }
+            s.delete(key);
+            done(true);
+          };
+        };
+      },
+      signal,
+    );
   }
   reconcileTaskOutbox(key: string, expected: any, signal?: AbortSignal) {
     const context = this.archiveContext,

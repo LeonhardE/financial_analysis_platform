@@ -215,6 +215,17 @@ export default function VaultKeyRenewalPanel({ workspace }: { workspace: Holding
                         {t("holdingsConfirm")}
                       </button>
                     )}
+                    {workspace.renewalHoldings?.status === "unknown" &&
+                      !workspace.uploadCancellation && (
+                        <button
+                          type="button"
+                          className={styles.secondary}
+                          disabled={busy}
+                          onClick={() => void workspace.reviewUploadCancellation("holdings")}
+                        >
+                          {t("cancelHoldings")}
+                        </button>
+                      )}
                     {workspace.renewalHoldings && (
                       <button type="button" className={styles.secondary} onClick={workspace.lock}>
                         {t("holdingsKeep")}
@@ -256,6 +267,16 @@ export default function VaultKeyRenewalPanel({ workspace }: { workspace: Holding
                       {t("taskConfirm")}
                     </button>
                   )}
+                  {workspace.renewalTask?.status === "unknown" && !workspace.uploadCancellation && (
+                    <button
+                      type="button"
+                      className={styles.secondary}
+                      disabled={busy}
+                      onClick={() => void workspace.reviewUploadCancellation("task")}
+                    >
+                      {t("cancelTask")}
+                    </button>
+                  )}
                   {workspace.renewalTask && (
                     <button type="button" className={styles.secondary} onClick={workspace.lock}>
                       {t("taskKeep")}
@@ -263,13 +284,83 @@ export default function VaultKeyRenewalPanel({ workspace }: { workspace: Holding
                   )}
                 </div>
               </div>
+              {workspace.uploadCancellationReview && (
+                <fieldset className={styles.callout}>
+                  <legend>{t("cancelUploadTitle")}</legend>
+                  <p>{t("cancelUploadHelp")}</p>
+                  <p className={styles.note}>{t("cancelUploadCapacity")}</p>
+                  <div className={styles.actions}>
+                    <button
+                      type="button"
+                      className={styles.danger}
+                      disabled={busy}
+                      onClick={() => void workspace.confirmUploadCancellation()}
+                    >
+                      {t("cancelUploadConfirm")}
+                    </button>
+                    <button
+                      type="button"
+                      className={styles.secondary}
+                      disabled={busy}
+                      onClick={workspace.dismissUploadCancellationReview}
+                    >
+                      {t("cancelUploadKeep")}
+                    </button>
+                  </div>
+                </fieldset>
+              )}
+              {workspace.uploadCancellation && (
+                <div
+                  className={styles.callout}
+                  role="group"
+                  aria-label={t("cancelUploadPendingTitle")}
+                >
+                  <h4>{t("cancelUploadPendingTitle")}</h4>
+                  <p role="status">
+                    {t(
+                      workspace.uploadCancellation.outcome === "saved"
+                        ? "cancelUploadSavedUnverified"
+                        : "cancelUploadPending",
+                    )}
+                  </p>
+                  <div className={styles.actions}>
+                    <button
+                      type="button"
+                      className={styles.primary}
+                      disabled={busy}
+                      onClick={() => void workspace.resumeUploadCancellation()}
+                    >
+                      {t("cancelUploadResume")}
+                    </button>
+                    <button
+                      type="button"
+                      className={styles.secondary}
+                      disabled={busy}
+                      onClick={workspace.lock}
+                    >
+                      {t("taskKeep")}
+                    </button>
+                  </div>
+                </div>
+              )}
+              {workspace.keyNotice === "upload_cancelled" && (
+                <p role="status">{t("uploadCancelled")}</p>
+              )}
+              {workspace.keyNotice === "upload_cancel_saved" && (
+                <p role="status">{t("uploadAlreadySaved")}</p>
+              )}
               <button
                 type="button"
                 className={styles.primary}
                 disabled={
                   busy ||
                   !summary.canRenew ||
-                  Boolean(workspace.renewalHoldings || workspace.renewalTask)
+                  Boolean(
+                    workspace.renewalHoldings ||
+                    workspace.renewalTask ||
+                    workspace.uploadCancellation ||
+                    workspace.uploadCancellationReview,
+                  )
                 }
                 onClick={() => void workspace.confirmKeyRenewal()}
               >

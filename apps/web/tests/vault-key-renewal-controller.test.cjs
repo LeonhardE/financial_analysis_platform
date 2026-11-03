@@ -91,6 +91,11 @@ function harness() {
     taskCleared = 0,
     taskHold = null,
     taskVersion = 1;
+  let uploadCancel = null,
+    uploadAck = null,
+    uploadFailure = null,
+    uploadOutcome = "cancelled",
+    uploadPrepareHold = null;
   const taskResponse = () => ({
     contractVersion: CONTRACT,
     metadata: { taskId: taskPackets[0]?.taskId ?? "synthetic_task_A", taskVersion },
@@ -211,6 +216,62 @@ function harness() {
       localPending = taskPackets.length > 0;
       holdingsCleared++;
     }
+    async listRenewalUploadCancellations(kind) {
+      this.active();
+      return uploadCancel?.kind === kind ? [structuredClone(uploadCancel)] : [];
+    }
+    async loadRenewalTaskOutbox(slot) {
+      this.active();
+      return structuredClone(taskPackets.find((p) => p.taskId === slot) ?? null);
+    }
+    async prepareRenewalUploadCancellation(kind, slot, packet) {
+      this.active();
+      calls.push("upload-cancel-prepare");
+      if (uploadPrepareHold) await uploadPrepareHold.promise;
+      this.active();
+      uploadCancel ??= {
+        kind,
+        slot,
+        pending: structuredClone(packet),
+        packet: {
+          kind,
+          cancellationId: "synthetic_original_upload_cancel",
+          body: { contractVersion: CONTRACT, command: { signature: "SYNTHETIC_ROOT_CANCEL" } },
+        },
+      };
+      return structuredClone(uploadCancel);
+    }
+    async verifyRenewalUploadCancellation(record, value) {
+      this.active();
+      calls.push("upload-cancel-verify");
+      assert.deepEqual(JSON.parse(JSON.stringify(record)), uploadCancel);
+      assert.deepEqual(JSON.parse(JSON.stringify(value)), uploadAck);
+      return { outcome: uploadOutcome };
+    }
+    async finishRenewalUploadCancellation(record, value, evidence) {
+      await this.verifyRenewalUploadCancellation(record, value);
+      this.active();
+      if (uploadOutcome === "saved") {
+        if (record.kind === "task")
+          await this.verifyRenewalTaskReceipt(record.pending, evidence?.task);
+        else
+          await this.verifyRenewalHoldingsReceipt(
+            record.pending,
+            evidence?.receipt,
+            evidence?.snapshot,
+          );
+      }
+      calls.push("upload-cancel-finish");
+      if (record.kind === "task") {
+        taskPackets.shift();
+        taskCleared++;
+      } else {
+        holdingsPacket = null;
+        holdingsCleared++;
+      }
+      uploadCancel = null;
+      localPending = Boolean(holdingsPacket || taskPackets.length);
+    }
     async listRenewalTaskOutbox() {
       this.active();
       calls.push("tasks-list");
@@ -262,6 +323,22 @@ function harness() {
           sources: owner.startsWith("owner_A:") ? [source] : [],
         }),
       );
+    if (route.includes("/operation-cancellations")) {
+      if (options.method === "POST") {
+        assert.equal(JSON.stringify(options.json), JSON.stringify(uploadCancel.packet.body));
+        assert.equal(options.headers["Idempotency-Key"], uploadCancel.packet.cancellationId);
+        if (uploadFailure !== "before")
+          uploadAck = { contractVersion: CONTRACT, receipt: { outcome: uploadOutcome } };
+        if (uploadFailure) return new Response("{}", { status: 503 });
+        return Response.json(uploadAck);
+      }
+      return uploadAck
+        ? Response.json(uploadAck)
+        : Response.json(
+            { contractVersion: CONTRACT, error: { code: "not_found" } },
+            { status: 404 },
+          );
+    }
     if (route.startsWith("/api/v2/tasks/")) {
       assert.equal(service, "agent-hub");
       assert.equal(options.method, undefined);
@@ -484,6 +561,20 @@ function harness() {
         body: { expectedVersion: 0 },
       }));
       localPending = true;
+    },
+    uploadFailure(value) {
+      uploadFailure = value;
+    },
+    uploadOutcome(value) {
+      uploadOutcome = value;
+    },
+    uploadRecord: () => uploadCancel,
+    uploadPrepareHold(value) {
+      uploadPrepareHold = value;
+    },
+    originalAvailable(kind) {
+      if (kind === "task") taskOutcome = "saved";
+      else holdingsOutcome = "saved";
     },
     taskPacket: () => taskPackets[0],
     taskCleared: () => taskCleared,
@@ -1012,4 +1103,105 @@ test("task consent from an older unlock or another review cannot clean a saved r
   await f.run("confirmRenewalTask");
   assert.equal(f.taskCleared(), 0);
   assert(f.taskPacket());
+});
+
+for (const kind of ["task", "holdings"]) {
+  const prepareUnknown = async (f) => {
+    if (kind === "task") f.tasks("missing");
+    else f.holdings("missing");
+    await f.ready();
+    await f.run("reviewKeyRenewal");
+    await f.run(kind === "task" ? "reviewRenewalTasks" : "reviewRenewalHoldings");
+  };
+  test(`${kind} unknown upload cancellation requires review and persists once before lost-ACK recovery`, async () => {
+    const f = harness();
+    await prepareUnknown(f);
+    await f.run("confirmUploadCancellation");
+    assert.equal(f.calls.includes("upload-cancel-prepare"), false);
+    await f.run("reviewUploadCancellation", kind);
+    assert.equal(f.calls.includes("upload-cancel-prepare"), false);
+    assert.equal(f.requests.filter((r) => r.options.method === "POST").length, 0);
+    f.uploadFailure("after");
+    const done = await f.run("confirmUploadCancellation");
+    assert.equal(done.uploadCancellation, null);
+    assert.equal(done.keyNotice, "upload_cancelled");
+    assert.equal(f.calls.filter((c) => c === "upload-cancel-prepare").length, 1);
+    assert.equal(f.calls.filter((c) => c === "upload-cancel-finish").length, 1);
+    assert.equal(f.counts().ordinaryCalls, 0);
+  });
+  test(`${kind} unknown cancellation survives lock and resumes exactly the original signed command`, async () => {
+    const f = harness();
+    await prepareUnknown(f);
+    await f.run("reviewUploadCancellation", kind);
+    f.uploadFailure("before");
+    let state = await f.run("confirmUploadCancellation");
+    assert.ok(state.uploadCancellation);
+    const original = structuredClone(f.uploadRecord());
+    await f.run("lock");
+    await f.run("reviewKeyRenewal");
+    state = await f.run(kind === "task" ? "reviewRenewalTasks" : "reviewRenewalHoldings");
+    assert.equal(state.uploadCancellation.cancellationId, original.packet.cancellationId);
+    f.uploadFailure(null);
+    await f.run("resumeUploadCancellation");
+    assert.equal(f.calls.filter((c) => c === "upload-cancel-prepare").length, 1);
+    assert.equal(f.calls.filter((c) => c === "upload-cancel-finish").length, 1);
+    const writes = f.requests.filter(
+      (r) => r.route.endsWith("/operation-cancellations") && r.options.method === "POST",
+    );
+    assert.equal(writes.length, 2);
+    assert.equal(JSON.stringify(writes[0].options), JSON.stringify(writes[1].options));
+  });
+  test(`${kind} saved cancellation keeps both local requests until the historical encrypted original is available`, async () => {
+    const f = harness();
+    await prepareUnknown(f);
+    await f.run("reviewUploadCancellation", kind);
+    f.uploadOutcome("saved");
+    let state = await f.run("confirmUploadCancellation");
+    assert.equal(state.uploadCancellation.outcome, "saved");
+    assert.equal(f.calls.includes("upload-cancel-finish"), false);
+    assert.ok(f.uploadRecord());
+    f.originalAvailable(kind);
+    state = await f.run("resumeUploadCancellation");
+    assert.equal(state.uploadCancellation, null);
+    assert.equal(state.keyNotice, "upload_cancel_saved");
+    assert.equal(f.calls.filter((c) => c === "upload-cancel-finish").length, 1);
+    assert.equal(f.requests.filter((r) => r.options.method === "POST").length, 1);
+  });
+  test(`${kind} changed registry invalidates cancellation review before Root staging`, async () => {
+    const f = harness();
+    await prepareUnknown(f);
+    await f.run("reviewUploadCancellation", kind);
+    f.registryAdvance();
+    await f.run("confirmUploadCancellation");
+    assert.equal(f.calls.includes("upload-cancel-prepare"), false);
+    assert.equal(f.uploadRecord(), null);
+  });
+}
+test("Portfolio capability loss during cancellation review or Root signing locks and retains the original", async () => {
+  for (const held of [false, true]) {
+    const f = harness();
+    f.holdings("missing");
+    await f.ready();
+    await f.run("reviewKeyRenewal");
+    await f.run("reviewRenewalHoldings");
+    await f.run("reviewUploadCancellation", "holdings");
+    const stale = f.view().confirmUploadCancellation;
+    let operation, gate;
+    if (held) {
+      gate = deferred();
+      f.uploadPrepareHold(gate);
+      operation = f.run("confirmUploadCancellation");
+      for (let i = 0; i < 30 && !f.calls.includes("upload-cancel-prepare"); i++) await settle();
+    }
+    f.capability("portfolio");
+    if (held) {
+      gate.resolve();
+      await operation;
+    } else await stale();
+    assert.equal(f.requests.filter((r) => r.options.method === "POST").length, 0);
+    assert.equal(f.calls.includes("upload-cancel-finish"), false);
+    assert.ok(f.holdingsPacket());
+    await settle();
+    assert.equal(f.view().phase, "locked");
+  }
 });

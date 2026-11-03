@@ -134,6 +134,7 @@ function compile(name, imports) {
     Response,
     Headers,
     URL,
+    Buffer,
     AbortSignal,
     AbortController,
     TextEncoder,
@@ -214,6 +215,11 @@ test.before(async () => {
     "node:crypto": require("node:crypto"),
     jose,
   });
+  const cancellation = compile("upload-cancellation", {
+    "server-only": {},
+    "node:crypto": require("node:crypto"),
+    "./owner-transport": common,
+  });
   const contracts = compile("hub-owner-contracts", {
     "server-only": {},
     "ajv/dist/2020": require("ajv/dist/2020"),
@@ -222,6 +228,7 @@ test.before(async () => {
     "./owner-transport": common,
   });
   api = compile("hub-owner", {
+    "./upload-cancellation": cancellation,
     "server-only": {},
     "./owner-transport": common,
     "./hub-owner-contracts": contracts,

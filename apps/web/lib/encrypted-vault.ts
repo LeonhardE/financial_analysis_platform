@@ -30,6 +30,9 @@ import {
   type TaskAction,
   type EncryptedTask,
   type PendingTask,
+  type UploadCancellationKind,
+  type UploadCancellationPacket,
+  type PendingUploadCancellation,
   type SealTaskArgs,
   type TaskOutboxSummary,
   type AgentAnchor,
@@ -171,6 +174,9 @@ export class EncryptedVaultSession {
       "verifyRenewalHoldingsReceipt",
       "inspectRenewalTaskPending",
       "verifyRenewalTaskReceipt",
+      "prepareUploadCancellation",
+      "validateUploadCancellation",
+      "verifyUploadCancellationReceipt",
       "validateSourceCreation",
       "verifySourceCreation",
       "discardSourceCreation",
@@ -1532,6 +1538,8 @@ export class EncryptedVaultSession {
       this.assert(g);
       if (this.renewalOnly || (await this.keyRenewalRow()))
         throw new VaultError("key_renewal_pending");
+      if (await this.storage.get(this.uploadCancellationKey("task", taskId)))
+        throw new VaultError("upload_cancellation_pending");
       const key = this.taskKey("outbox", taskId),
         row = await this.storage.get(key);
       this.assert(g);
@@ -1551,6 +1559,193 @@ export class EncryptedVaultSession {
           },
           row.revision,
         ))
+      )
+        throw new VaultError("operation_conflict");
+      this.assert(g);
+    });
+  }
+  private uploadCancellationKey(kind: UploadCancellationKind, slot: string) {
+    if (
+      !["task", "holdings"].includes(kind) ||
+      !this.vaultId ||
+      !/^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/.test(slot)
+    )
+      throw new VaultError("invalid_data");
+    return `${this.owner}:upload-cancellation:${this.vaultId}:${kind}:${slot}`;
+  }
+  private checkUploadCancellationRow(key: string, row: any) {
+    if (
+      !row ||
+      row.ownerSubject !== this.owner ||
+      row.vaultId !== this.vaultId ||
+      key !== this.uploadCancellationKey(row.kind, row.slot) ||
+      Object.keys(row).length !== 7 ||
+      !["ownerSubject", "vaultId", "kind", "slot", "originalKey", "original", "packet"].every((f) =>
+        Object.hasOwn(row, f),
+      ) ||
+      row.original?.ownerSubject !== this.owner ||
+      row.original?.vaultId !== this.vaultId ||
+      row.originalKey !==
+        (row.kind === "task"
+          ? this.taskKey("outbox", row.slot)
+          : this.owner + ":outbox:" + row.slot)
+    )
+      throw new VaultError("wrong_account");
+    if (row.kind === "task") {
+      this.checkRenewalTaskRow(row.original, row.slot);
+      if (row.original.deleted) throw new VaultError("binding_mismatch");
+    } else if (
+      Object.keys(row.original).length !== 3 ||
+      row.original.pending?.source?.resourceRef?.resourceId !== row.slot
+    )
+      throw new VaultError("binding_mismatch");
+  }
+  async listRenewalUploadCancellations(
+    kind: UploadCancellationKind,
+  ): Promise<PendingUploadCancellation[]> {
+    const g = this.generation;
+    await this.started;
+    this.assert(g);
+    if (!this.renewalOnly) throw new VaultError("invalid_operation");
+    const prefix = this.uploadCancellationKey(kind, "prefix").slice(0, -6);
+    const rows = await this.storage.list(prefix);
+    this.assert(g);
+    if (rows.length > 32) throw new VaultError("capacity");
+    const result: PendingUploadCancellation[] = [];
+    for (const { key, value } of rows) {
+      this.checkUploadCancellationRow(key, value);
+      await this.rpc("validateUploadCancellation", {
+        kind,
+        pending: value.original.pending,
+        packet: value.packet,
+      });
+      this.assert(g);
+      result.push({
+        kind,
+        slot: value.slot,
+        pending: value.original.pending,
+        packet: value.packet,
+      });
+    }
+    return result;
+  }
+  prepareRenewalUploadCancellation(
+    kind: UploadCancellationKind,
+    slot: string,
+    expected: PendingTask | PendingSnapshot,
+  ): Promise<PendingUploadCancellation> {
+    const pending = structuredClone(expected);
+    return this.serial(async () => {
+      const g = this.generation;
+      await this.started;
+      this.assert(g);
+      if (!this.renewalOnly) throw new VaultError("invalid_operation");
+      if (await this.keyRenewalRow()) throw new VaultError("key_renewal_pending");
+      const key = this.uploadCancellationKey(kind, slot),
+        prior = await this.storage.get(key);
+      this.assert(g);
+      if (prior) {
+        this.checkUploadCancellationRow(key, prior);
+        if (!sameEncryptedRecord(prior.original.pending, pending))
+          throw new VaultError("operation_conflict");
+        await this.rpc("validateUploadCancellation", { kind, pending, packet: prior.packet });
+        this.assert(g);
+        return { kind, slot, pending, packet: prior.packet };
+      }
+      const originalKey =
+        kind === "task" ? this.taskKey("outbox", slot) : this.owner + ":outbox:" + slot;
+      const original = await this.storage.get(originalKey);
+      this.assert(g);
+      if (!original || !sameEncryptedRecord(original.pending, pending))
+        throw new VaultError("operation_conflict");
+      const packet: UploadCancellationPacket = await this.rpc("prepareUploadCancellation", {
+        kind,
+        pending,
+      });
+      this.assert(g);
+      const row = {
+        ownerSubject: this.owner,
+        vaultId: this.vaultId,
+        kind,
+        slot,
+        originalKey,
+        original,
+        packet,
+      };
+      this.checkUploadCancellationRow(key, row);
+      if (
+        !this.storage.stageUploadCancellation ||
+        !(await this.storage.stageUploadCancellation(key, row, this.lifetime.signal))
+      )
+        throw new VaultError("operation_conflict");
+      this.assert(g);
+      return { kind, slot, pending, packet };
+    });
+  }
+  async verifyRenewalUploadCancellation(
+    record: PendingUploadCancellation,
+    value: Json,
+  ): Promise<{ outcome: "saved" | "cancelled" }> {
+    const g = this.generation;
+    await this.started;
+    this.assert(g);
+    if (!this.renewalOnly) throw new VaultError("invalid_operation");
+    const key = this.uploadCancellationKey(record.kind, record.slot),
+      saved = await this.storage.get(key);
+    this.assert(g);
+    this.checkUploadCancellationRow(key, saved);
+    if (
+      !sameEncryptedRecord(saved.packet, record.packet) ||
+      !sameEncryptedRecord(saved.original.pending, record.pending)
+    )
+      throw new VaultError("operation_conflict");
+    const result = await this.rpc("verifyUploadCancellationReceipt", {
+      kind: record.kind,
+      pending: record.pending,
+      packet: record.packet,
+      value,
+    });
+    this.assert(g);
+    return result;
+  }
+  finishRenewalUploadCancellation(
+    record: PendingUploadCancellation,
+    value: Json,
+    evidence?: any,
+  ): Promise<void> {
+    const expected = structuredClone(record),
+      reply = structuredClone(value),
+      proof = structuredClone(evidence);
+    return this.serial(async () => {
+      const g = this.generation;
+      const outcome = await this.verifyRenewalUploadCancellation(expected, reply);
+      this.assert(g);
+      if (outcome.outcome === "saved") {
+        if (expected.kind === "task")
+          await this.rpc("verifyRenewalTaskReceipt", {
+            pending: expected.pending,
+            value: proof?.task,
+          });
+        else
+          await this.rpc("verifyRenewalHoldingsReceipt", {
+            pending: expected.pending,
+            receipt: proof?.receipt,
+            value: proof?.snapshot,
+          });
+        this.assert(g);
+      }
+      const key = this.uploadCancellationKey(expected.kind, expected.slot),
+        saved = await this.storage.get(key);
+      this.assert(g);
+      this.checkUploadCancellationRow(key, saved);
+      if (
+        !sameEncryptedRecord(saved.packet, expected.packet) ||
+        !sameEncryptedRecord(saved.original.pending, expected.pending)
+      )
+        throw new VaultError("operation_conflict");
+      if (
+        !this.storage.finishUploadCancellation ||
+        !(await this.storage.finishUploadCancellation(key, saved, this.lifetime.signal))
       )
         throw new VaultError("operation_conflict");
       this.assert(g);
@@ -1805,6 +2000,8 @@ export class EncryptedVaultSession {
     return this.rpc("validatePending", { pending: row.pending });
   }
   async clearOutbox(sourceId: string, operationId: string): Promise<void> {
+    if (await this.storage.get(this.uploadCancellationKey("holdings", sourceId)))
+      throw new VaultError("upload_cancellation_pending");
     const row = await this.loadOutbox(sourceId);
     if (row && row.operationId !== operationId) throw new VaultError("operation_conflict");
     if (!(await this.storage.removeOperation(this.owner + ":outbox:" + sourceId, operationId)))

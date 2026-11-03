@@ -1341,7 +1341,11 @@
       "key_renewal_holdings_review_required": "Review the saved holdings upload before confirming.",
       "key_renewal_holdings_changed": "The reviewed evidence changed or is no longer available. The original upload is preserved; check it again.",
       "key_renewal_task_review_required": "Review the exact saved task before confirming.",
-      "key_renewal_task_changed": "The reviewed task evidence changed or is unavailable. The original encrypted request is preserved; check it again."
+      "key_renewal_task_changed": "The reviewed task evidence changed or is unavailable. The original encrypted request is preserved; check it again.",
+      "upload_cancellation_unknown": "Cancellation is not confirmed. Both original encrypted requests are preserved; continue checking the same cancellation.",
+      "upload_cancellation_saved_unverified": "The upload was already saved, but the original encrypted result could not be verified. Both local requests are preserved.",
+      "upload_cancellation_review_required": "Review this exact pending upload before confirming cancellation.",
+      "upload_cancellation_pending": "Continue the original cancellation before clearing this retry copy."
     },
     "holdingsTitle": "Pending holdings upload",
     "holdingsHelp": "You can check an earlier holdings upload even after its signing certificate expires. This only reads the original receipt and encrypted snapshot. Nothing is uploaded again, and private content stays locked. Use the separate task check for task uploads; other pending changes still need their original flow.",
@@ -1356,10 +1360,23 @@
     "taskHelp": "Check earlier task saves one at a time, even after their signing certificates expire. Only the original encrypted operation is read; nothing is uploaded again or decrypted. Confirming a saved operation clears its local retry copy without deleting the task. Unknown outcomes remain preserved and block renewal.",
     "taskNone": "No pending task uploads were found in this browser. Other pending changes may still block renewal.",
     "taskSaved": "The exact original task save was verified. You can confirm clearing its local encrypted retry copy.",
-    "taskUnknown": "The original save is not confirmed. Its encrypted retry copy is preserved; it cannot be cleared here.",
+    "taskUnknown": "The original save is not confirmed. Its encrypted retry copy is preserved. Check again or review cancellation of further submission.",
     "taskReconciled": "The saved task’s local retry copy was cleared. Check again for other pending tasks, then review renewal.",
     "taskCheck": "Check pending task uploads",
     "taskConfirm": "Confirm saved task and clear local retry",
-    "taskKeep": "Keep the original request and lock"
+    "taskKeep": "Keep the original request and lock",
+    "cancelHoldings": "Review cancellation of the original holdings upload",
+    "cancelTask": "Review cancellation of the original task upload",
+    "cancelUploadTitle": "Cancel this original upload?",
+    "cancelUploadHelp": "This stops further submission of this exact request. If it was already saved, the saved data is kept and its original encrypted result is verified before clearing the local retry copy. Unknown outcomes preserve both requests so you can continue later.",
+    "cancelUploadConfirm": "Confirm cancellation of the original upload",
+    "cancelUploadKeep": "Keep the original upload",
+    "cancelUploadPendingTitle": "Original cancellation awaiting verification",
+    "cancelUploadPending": "The original upload and its signed cancellation are preserved. Continue checking the same cancellation; a new request will not be generated.",
+    "cancelUploadSavedUnverified": "The upload was already saved, but its original encrypted result is not verified yet. Both local requests are preserved; cancellation does not delete saved data.",
+    "cancelUploadResume": "Continue the original cancellation",
+    "uploadCancelled": "The original upload is cancelled and cannot be submitted again. Its matching local retry copies were cleared. Check other pending work before renewal.",
+    "uploadAlreadySaved": "The upload had already been saved. Its original encrypted result was verified and only its local retry copies were cleared. Saved data is kept.",
+    "cancelUploadCapacity": "Holdings and task uploads each retain at most 32 cancellation decisions per library. Retrying the original cancellation does not use another slot. At capacity the original requests remain preserved."
   }
 }

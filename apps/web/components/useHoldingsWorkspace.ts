@@ -19,6 +19,7 @@ import {
   type PasskeyOptions,
 } from "@/lib/encrypted-passkey";
 import type {
+  Json,
   OpenResultArgs,
   PendingSnapshot,
   SnapshotResponse,
@@ -27,6 +28,8 @@ import type {
   Source,
   EncryptedTask,
   PendingTask,
+  PendingUploadCancellation,
+  UploadCancellationKind,
   TaskContent,
   TaskDraft,
   ResourceBindingMetadata,
@@ -136,6 +139,17 @@ type State = {
   keyRenewalFailure: boolean;
   renewalHoldings: { sourceId: string; operationId: string; status: "saved" | "unknown" } | null;
   renewalTask: { taskId: string; operationId: string; status: "saved" | "unknown" } | null;
+  uploadCancellation: {
+    kind: UploadCancellationKind;
+    slot: string;
+    cancellationId: string;
+    outcome?: "saved" | "cancelled";
+  } | null;
+  uploadCancellationReview: {
+    kind: UploadCancellationKind;
+    slot: string;
+    operationId: string;
+  } | null;
 };
 const empty: State = {
   owner: null,
@@ -172,6 +186,8 @@ const empty: State = {
   keyRenewalFailure: false,
   renewalHoldings: null,
   renewalTask: null,
+  uploadCancellation: null,
+  uploadCancellationReview: null,
 };
 class WorkspaceError extends Error {
   constructor(public readonly code: string) {
@@ -360,6 +376,14 @@ export function useHoldingsWorkspace() {
     registrySequence: number;
     checkpointDigest: string;
   } | null>(null);
+  const uploadCancellation = useRef<PendingUploadCancellation | null>(null);
+  const uploadCancellationReview = useRef<{
+    kind: UploadCancellationKind;
+    slot: string;
+    pending: PendingTask | PendingSnapshot;
+    registrySequence: number;
+    checkpointDigest: string;
+  } | null>(null);
 
   const terminate = useCallback(() => {
     ++vaultGeneration.current;
@@ -371,6 +395,8 @@ export function useHoldingsWorkspace() {
     verifiedSnapshot.current = null;
     renewalHoldingsReview.current = null;
     renewalTaskReview.current = null;
+    uploadCancellation.current = null;
+    uploadCancellationReview.current = null;
   }, []);
 
   const perform = useCallback(
@@ -438,6 +464,8 @@ export function useHoldingsWorkspace() {
             keyRenewal: null,
             renewalHoldings: null,
             renewalTask: null,
+            uploadCancellation: null,
+            uploadCancellationReview: null,
             keyRenewalCancellation: false,
             keyRenewalFailure:
               previous.phase === "renewal-only" ||
@@ -492,6 +520,8 @@ export function useHoldingsWorkspace() {
                 keyRenewal: null,
                 renewalHoldings: null,
                 renewalTask: null,
+                uploadCancellation: null,
+                uploadCancellationReview: null,
                 keyRenewalCancellation: false,
               }
             : {}),
@@ -2954,6 +2984,28 @@ export function useHoldingsWorkspace() {
     return liveSession(true);
   }, [liveSession, renewalGeneration, reviewedRenewal]);
 
+  const restoreUploadCancellation = useCallback(
+    async (
+      instance: EncryptedVaultSession,
+      kind: UploadCancellationKind,
+      assertActive: () => void,
+    ) => {
+      const records = await instance.listRenewalUploadCancellations(kind);
+      assertActive();
+      uploadCancellation.current = records[0] ?? null;
+      uploadCancellationReview.current = null;
+      setState((previous) => ({
+        ...previous,
+        uploadCancellationReview: null,
+        uploadCancellation: records[0]
+          ? { kind, slot: records[0].slot, cancellationId: records[0].packet.cancellationId }
+          : null,
+      }));
+      return Boolean(records[0]);
+    },
+    [],
+  );
+
   // These GET-only checks never turn a root renewal session into an ordinary writer.
   const readRenewalHoldingsEvidence = useCallback(
     async (packet: PendingSnapshot, signal: AbortSignal, assertActive: () => void) => {
@@ -3004,6 +3056,7 @@ export function useHoldingsWorkspace() {
           sources: fresh.sources,
           keyRenewal: summary,
         }));
+        if (await restoreUploadCancellation(instance, "holdings", assertHoldingsActive)) return;
         for (const source of fresh.sources) {
           const sourceId = source.resourceRef.resourceId;
           const packet = await instance.loadRenewalHoldingsOutbox(sourceId);
@@ -3036,7 +3089,13 @@ export function useHoldingsWorkspace() {
         }
         setState((previous) => ({ ...previous, keyNotice: "renewal_holdings_none" }));
       }),
-    [assertRenewal, perform, readRenewalContext, readRenewalHoldingsEvidence],
+    [
+      assertRenewal,
+      perform,
+      readRenewalContext,
+      readRenewalHoldingsEvidence,
+      restoreUploadCancellation,
+    ],
   );
 
   const confirmRenewalHoldings = useCallback(
@@ -3139,6 +3198,7 @@ export function useHoldingsWorkspace() {
           sources: fresh.sources,
           keyRenewal: summary,
         }));
+        if (await restoreUploadCancellation(instance, "task", assertActive)) return;
         const packets = await instance.listRenewalTaskOutbox();
         assertActive();
         const packet = packets[0];
@@ -3169,7 +3229,13 @@ export function useHoldingsWorkspace() {
           renewalTask: { taskId: packet.taskId, operationId: packet.operationId, status: "saved" },
         }));
       }),
-    [assertRenewal, perform, readRenewalContext, readRenewalTaskEvidence],
+    [
+      assertRenewal,
+      perform,
+      readRenewalContext,
+      readRenewalTaskEvidence,
+      restoreUploadCancellation,
+    ],
   );
 
   const confirmRenewalTask = useCallback(
@@ -3213,6 +3279,231 @@ export function useHoldingsWorkspace() {
         }));
       }),
     [assertRenewal, perform, readRenewalContext, readRenewalTaskEvidence],
+  );
+
+  const completeUploadCancellation = useCallback(
+    async (
+      instance: EncryptedVaultSession,
+      record: PendingUploadCancellation,
+      submit: boolean,
+      signal: AbortSignal,
+      assertActive: () => void,
+    ) => {
+      const active = () => {
+        assertActive();
+        if (record.kind === "holdings" && !capabilitiesRef.current.portfolio) {
+          instance.lock();
+          throw new WorkspaceError("service_unavailable");
+        }
+      };
+      active();
+      const service = record.kind === "task" ? "agent-hub" : "portfolio";
+      if (service === "portfolio" && !capabilitiesRef.current.portfolio)
+        throw new WorkspaceError("service_unavailable");
+      const base =
+        record.kind === "task"
+          ? `/api/v2/tasks/${record.slot}/operation-cancellations`
+          : `/api/v2/holdings/sources/${record.slot}/operation-cancellations`;
+      const path = base + "/" + record.packet.cancellationId;
+      let response = await api(service, path, signal, { allowMissing: true });
+      active();
+      if (response === null && submit) {
+        let failure: unknown;
+        try {
+          await api(service, base, signal, {
+            method: "POST",
+            json: record.packet.body,
+            headers: { "Idempotency-Key": record.packet.cancellationId },
+          });
+        } catch (error) {
+          failure = error;
+        }
+        active();
+        response = await api(service, path, signal, { allowMissing: true });
+        active();
+        if (response === null) throw failure ?? new WorkspaceError("upload_cancellation_unknown");
+      }
+      if (response === null) throw new WorkspaceError("upload_cancellation_unknown");
+      const result = await instance.verifyRenewalUploadCancellation(record, response as Json);
+      active();
+      setState((previous) => ({
+        ...previous,
+        uploadCancellation: {
+          kind: record.kind,
+          slot: record.slot,
+          cancellationId: record.packet.cancellationId,
+          outcome: result.outcome,
+        },
+      }));
+      let evidence: any;
+      if (result.outcome === "saved") {
+        if (record.kind === "task") {
+          const task = await readRenewalTaskEvidence(
+            record.pending as PendingTask,
+            signal,
+            assertActive,
+          );
+          if (task) evidence = { task };
+        } else
+          evidence = await readRenewalHoldingsEvidence(
+            record.pending as PendingSnapshot,
+            signal,
+            assertActive,
+          );
+        if (!evidence) throw new WorkspaceError("upload_cancellation_saved_unverified");
+      }
+      active();
+      await instance.finishRenewalUploadCancellation(record, response as Json, evidence);
+      active();
+      uploadCancellation.current = null;
+      uploadCancellationReview.current = null;
+      renewalTaskReview.current = null;
+      renewalHoldingsReview.current = null;
+      setState((previous) => ({
+        ...previous,
+        uploadCancellation: null,
+        uploadCancellationReview: null,
+        renewalTask: null,
+        renewalHoldings: null,
+        keyNotice: result.outcome === "cancelled" ? "upload_cancelled" : "upload_cancel_saved",
+      }));
+    },
+    [api, readRenewalTaskEvidence, readRenewalHoldingsEvidence],
+  );
+
+  const reviewUploadCancellation = useCallback(
+    (kind: UploadCancellationKind) =>
+      perform("recovering", async ({ signal, assertActive }) => {
+        const instance = assertRenewal();
+        const active = () => {
+          assertActive();
+          if (kind === "holdings" && !capabilitiesRef.current.portfolio) {
+            instance.lock();
+            throw new WorkspaceError("service_unavailable");
+          }
+        };
+        active();
+        const visible =
+          kind === "task" ? stateRef.current.renewalTask : stateRef.current.renewalHoldings;
+        if (!visible || visible.status !== "unknown")
+          throw new WorkspaceError("upload_cancellation_review_required");
+        const slot =
+          kind === "task"
+            ? (visible as { taskId: string }).taskId
+            : (visible as { sourceId: string }).sourceId;
+        uploadCancellationReview.current = null;
+        setState((previous) => ({ ...previous, uploadCancellationReview: null }));
+        const fresh = await readRenewalContext(signal, active);
+        const summary = await instance.inspectKeyRenewal(fresh.vault, fresh.lifecycle);
+        active();
+        if (summary.pending) throw new WorkspaceError("key_renewal_pending");
+        if (await restoreUploadCancellation(instance, kind, active)) return;
+        const pending =
+          kind === "task"
+            ? await instance.loadRenewalTaskOutbox(slot)
+            : await instance.loadRenewalHoldingsOutbox(slot);
+        active();
+        if (!pending || pending.operationId !== visible.operationId)
+          throw new WorkspaceError("upload_cancellation_review_required");
+        uploadCancellationReview.current = {
+          kind,
+          slot,
+          pending,
+          registrySequence: summary.registrySequence,
+          checkpointDigest: summary.checkpointDigest,
+        };
+        setState((previous) => ({
+          ...previous,
+          keyRenewal: summary,
+          uploadCancellationReview: { kind, slot, operationId: pending.operationId },
+        }));
+      }),
+    [assertRenewal, perform, readRenewalContext, restoreUploadCancellation],
+  );
+
+  const confirmUploadCancellation = useCallback(
+    () =>
+      perform("recovering", async ({ signal, assertActive }) => {
+        const instance = assertRenewal(),
+          reviewed = uploadCancellationReview.current,
+          visible = stateRef.current.uploadCancellationReview;
+        if (
+          !reviewed ||
+          !visible ||
+          visible.kind !== reviewed.kind ||
+          visible.slot !== reviewed.slot ||
+          visible.operationId !== reviewed.pending.operationId
+        )
+          throw new WorkspaceError("upload_cancellation_review_required");
+        const active = () => {
+          assertActive();
+          if (reviewed.kind === "holdings" && !capabilitiesRef.current.portfolio) {
+            instance.lock();
+            throw new WorkspaceError("service_unavailable");
+          }
+        };
+        active();
+        const fresh = await readRenewalContext(signal, active);
+        const summary = await instance.inspectKeyRenewal(fresh.vault, fresh.lifecycle);
+        active();
+        if (
+          summary.pending ||
+          summary.registrySequence !== reviewed.registrySequence ||
+          summary.checkpointDigest !== reviewed.checkpointDigest
+        )
+          throw new WorkspaceError("key_renewal_conflict");
+        const record = await instance.prepareRenewalUploadCancellation(
+          reviewed.kind,
+          reviewed.slot,
+          reviewed.pending,
+        );
+        active();
+        uploadCancellation.current = record;
+        uploadCancellationReview.current = null;
+        setState((previous) => ({
+          ...previous,
+          keyRenewal: summary,
+          uploadCancellationReview: null,
+          uploadCancellation: {
+            kind: record.kind,
+            slot: record.slot,
+            cancellationId: record.packet.cancellationId,
+          },
+        }));
+        await completeUploadCancellation(instance, record, true, signal, active);
+      }),
+    [assertRenewal, completeUploadCancellation, perform, readRenewalContext],
+  );
+
+  const resumeUploadCancellation = useCallback(
+    () =>
+      perform("recovering", async ({ signal, assertActive }) => {
+        const instance = assertRenewal(),
+          record = uploadCancellation.current,
+          visible = stateRef.current.uploadCancellation;
+        if (
+          !record ||
+          visible?.cancellationId !== record.packet.cancellationId ||
+          visible.kind !== record.kind ||
+          visible.slot !== record.slot
+        )
+          throw new WorkspaceError("upload_cancellation_review_required");
+        const active = () => {
+          assertActive();
+          if (record.kind === "holdings" && !capabilitiesRef.current.portfolio) {
+            instance.lock();
+            throw new WorkspaceError("service_unavailable");
+          }
+        };
+        active();
+        const fresh = await readRenewalContext(signal, active);
+        const summary = await instance.inspectKeyRenewal(fresh.vault, fresh.lifecycle);
+        active();
+        if (summary.pending) throw new WorkspaceError("key_renewal_pending");
+        setState((previous) => ({ ...previous, keyRenewal: summary }));
+        await completeUploadCancellation(instance, record, true, signal, active);
+      }),
+    [assertRenewal, completeUploadCancellation, perform, readRenewalContext],
   );
 
   const refreshKeyRenewal = useCallback(
@@ -3445,6 +3736,15 @@ export function useHoldingsWorkspace() {
     ],
   );
 
+  useEffect(() => {
+    if (
+      !auth.portfolioConfigured &&
+      (uploadCancellation.current?.kind === "holdings" ||
+        uploadCancellationReview.current?.kind === "holdings")
+    )
+      lock();
+  }, [auth.portfolioConfigured, lock]);
+
   const visible = owner && configured && state.owner === owner ? state : { ...empty, owner };
   return {
     ...visible,
@@ -3490,6 +3790,18 @@ export function useHoldingsWorkspace() {
     keyRenewalCancellation: visible.phase === "renewal-only" && visible.keyRenewalCancellation,
     renewalHoldings: visible.phase === "renewal-only" ? visible.renewalHoldings : null,
     renewalTask: visible.phase === "renewal-only" ? visible.renewalTask : null,
+    uploadCancellation: visible.phase === "renewal-only" ? visible.uploadCancellation : null,
+    uploadCancellationReview:
+      visible.phase === "renewal-only" ? visible.uploadCancellationReview : null,
+    reviewUploadCancellation,
+    confirmUploadCancellation,
+    resumeUploadCancellation,
+    dismissUploadCancellationReview: () => {
+      if (ownerRef.current === owner && !current.current) {
+        uploadCancellationReview.current = null;
+        setState((previous) => ({ ...previous, uploadCancellationReview: null }));
+      }
+    },
     reviewRenewalHoldings,
     confirmRenewalHoldings,
     reviewRenewalTasks,

@@ -294,6 +294,18 @@ export type PendingTask = {
   registrySequence: number;
   checkpointDigest: string;
 };
+export type UploadCancellationKind = "task" | "holdings";
+export type UploadCancellationPacket = {
+  kind: UploadCancellationKind;
+  cancellationId: string;
+  body: { contractVersion: string; command: Signed };
+};
+export type PendingUploadCancellation = {
+  kind: UploadCancellationKind;
+  slot: string;
+  pending: PendingTask | PendingSnapshot;
+  packet: UploadCancellationPacket;
+};
 /** Incomplete forms use the same closed fields; blank strings and -1 integers are permitted locally. */
 export type TaskDraft = { content: TaskContent; resourceBindings: ResourceBindingMetadata[] };
 export type TaskDraftSummary = {

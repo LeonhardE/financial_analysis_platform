@@ -19,6 +19,20 @@ scope.onmessage = (event) => {
       } else {
         if (!core) throw new VaultError("locked");
         switch (method) {
+          case "prepareUploadCancellation":
+            result = await core.prepareUploadCancellation(args.kind, args.pending);
+            break;
+          case "validateUploadCancellation":
+            result = await core.validateUploadCancellation(args.kind, args.pending, args.packet);
+            break;
+          case "verifyUploadCancellationReceipt":
+            result = await core.verifyUploadCancellationReceipt(
+              args.kind,
+              args.pending,
+              args.packet,
+              args.value,
+            );
+            break;
           case "unlockForKeyRenewal":
             result = await core.unlockForKeyRenewal(args.vault, args.material, args.local);
             break;

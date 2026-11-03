@@ -261,3 +261,124 @@ test("a root-authenticated directory with no common author and recipient authori
   await session.unlockForKeyRenewal(f.vault, f.material());
   await assert.rejects(session.inspectRenewalTaskPending(changed), /key_revoked/);
 });
+
+async function uploadReply(packet, outcome = "cancelled") {
+  const p = decoded(packet.body.command);
+  return {
+    contractVersion: h.core.CONTRACT,
+    profile: p.profile,
+    command: clone(packet.body.command),
+    receipt: {
+      ...Object.fromEntries(
+        ["cancellationId", "ownerSubject", "vaultId", "rootKeyId", "rootEpoch", "target"].map(
+          (k) => [k, clone(p[k])],
+        ),
+      ),
+      commandFingerprint: await h.core.signingFingerprint(packet.body.command),
+      outcome,
+      acceptedAt: 31537001,
+    },
+  };
+}
+for (const kind of ["task", "holdings"]) {
+  test(`${kind} cancellation signs only the original encrypted upload under Root after device expiry`, async () => {
+    const f = await createOwner(h),
+      fixture =
+        kind === "task"
+          ? await createTask(h, f, { template: "custom", bindings: [] })
+          : await require("./full-flow-crypto-fixture.cjs").importHoldings(h, f);
+    f.time(31537001);
+    const session = await restricted(f);
+    session.reader = () => assert.fail("No plaintext reader");
+    session.ready = () => assert.fail("No device writer");
+    const packet = await session.prepareUploadCancellation(kind, fixture.pending),
+      payload = decoded(packet.body.command);
+    assert.equal(payload.profile, `folioview.${kind}-upload-cancellation.v1`);
+    assert.equal(payload.target.operationId, fixture.pending.operationId);
+    assert.equal(Object.hasOwn(payload, "expiresAt"), false);
+    assert.equal(Object.hasOwn(payload, "registrySequence"), false);
+    const response = await uploadReply(packet);
+    assert.deepEqual(
+      await session.verifyUploadCancellationReceipt(kind, fixture.pending, packet, response),
+      { outcome: "cancelled" },
+    );
+    response.receipt.outcome = "saved";
+    assert.deepEqual(
+      await session.verifyUploadCancellationReceipt(kind, fixture.pending, packet, response),
+      { outcome: "saved" },
+    );
+    await assert.rejects(f.session.prepareUploadCancellation(kind, fixture.pending));
+    await assert.rejects(
+      new h.core.VaultCore(f.uid).prepareUploadCancellation(kind, fixture.pending),
+    );
+    const other = await createOwner(h, "synthetic_other_cancel_owner");
+    await assert.rejects(
+      (await restricted(other)).validateUploadCancellation(kind, fixture.pending, packet),
+    );
+  });
+  test(`${kind} cancellation binds every original target and rejects mutated receipts and commands`, async () => {
+    const f = await createOwner(h),
+      fixture =
+        kind === "task"
+          ? await createTask(h, f, { template: "custom", bindings: [] })
+          : await require("./full-flow-crypto-fixture.cjs").importHoldings(h, f),
+      session = await restricted(f),
+      packet = await session.prepareUploadCancellation(kind, fixture.pending),
+      reply = await uploadReply(packet);
+    for (const mutate of [
+      (v) => (v.receipt.target.operationId = "synthetic_other_operation_0001"),
+      (v) => v.receipt.rootEpoch++,
+      (v) => (v.receipt.cancellationId = "synthetic_other_cancellation_1"),
+      (v) => (v.receipt.commandFingerprint = "a".repeat(64)),
+      (v) => (v.receipt.outcome = "missing"),
+      (v) => (v.receipt.acceptedAt = -1),
+      (v) => (v.receipt.extra = true),
+      (v) => (v.profile = "wrong"),
+      (v) => (v.command.signature = "A".repeat(86)),
+    ]) {
+      const value = clone(reply);
+      mutate(value);
+      await assert.rejects(
+        session.verifyUploadCancellationReceipt(kind, fixture.pending, packet, value),
+      );
+    }
+    const changed = clone(packet),
+      p = decoded(packet.body.command);
+    p.target.packetDigest = "0".repeat(64);
+    changed.body.command = await signed(f, p);
+    await assert.rejects(session.validateUploadCancellation(kind, fixture.pending, changed));
+    const foreign = clone(fixture.pending);
+    foreign.operationId = "synthetic_other_operation_0001";
+    await assert.rejects(session.validateUploadCancellation(kind, foreign, packet));
+    const variant = clone(reply);
+    variant.command = await signed(f, decoded(packet.body.command));
+    assert.equal(
+      await h.core.signingFingerprint(variant.command),
+      reply.receipt.commandFingerprint,
+    );
+    await session.verifyUploadCancellationReceipt(kind, fixture.pending, packet, variant);
+  });
+}
+test("a later Root-only unlock replays the exact cancellation after key renewal", async () => {
+  const { f, pending } = await fixture(),
+    old = await restricted(f),
+    packet = await old.prepareUploadCancellation("task", pending),
+    reply = await uploadReply(packet);
+  f.time(2000);
+  const state = await lifecycleState(h, f),
+    candidate = await old.prepareKeyRenewal(f.vault, state),
+    accepted = await renewalAccepted(h, f.vault, state, candidate.packet, f.now()),
+    done = await old.finishKeyRenewal(
+      accepted.vault,
+      accepted.state,
+      candidate.record,
+      accepted.receipt,
+    );
+  const later = new h.core.VaultCore(f.uid, f.now);
+  await later.unlockForKeyRenewal(accepted.vault, f.material(), {
+    pin: done.record.pin,
+    device: done.record.device,
+  });
+  await later.validateUploadCancellation("task", pending, packet);
+  await later.verifyUploadCancellationReceipt("task", pending, packet, reply);
+});

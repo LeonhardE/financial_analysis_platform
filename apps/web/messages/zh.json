@@ -1341,7 +1341,11 @@
       "key_renewal_holdings_review_required": "请先检查并审阅已保存的持仓上传，再确认清理。",
       "key_renewal_holdings_changed": "已审阅的证据已变化或暂不可用。原上传已保留，请重新检查。",
       "key_renewal_task_review_required": "请先核对原始任务已保存的证据，再明确确认。",
-      "key_renewal_task_changed": "已审阅的任务证据改变或暂不可用。原加密请求已保留，请重新检查。"
+      "key_renewal_task_changed": "已审阅的任务证据改变或暂不可用。原加密请求已保留，请重新检查。",
+      "upload_cancellation_unknown": "取消结果尚未确认。原上传与取消请求均已保留，请继续检查原取消。",
+      "upload_cancellation_saved_unverified": "上传此前已保存，但暂未验证原密文。本机两份请求均已保留。",
+      "upload_cancellation_review_required": "请先审阅这项原上传的取消影响，再明确确认。",
+      "upload_cancellation_pending": "请先继续处理原取消，再清理对应本机重试副本。"
     },
     "holdingsTitle": "待确认的持仓上传",
     "holdingsHelp": "即使签名证书已过期，也可以检查之前的持仓上传。这里只读取原操作回执与加密快照，不会再次上传或解锁私密内容。任务上传可使用单独的任务检查；其他未决变更仍需回到原流程处理。",
@@ -1356,10 +1360,23 @@
     "taskHelp": "即使签名证书已过期，也可逐项检查之前的任务保存。这里只读取原操作的加密结果，不会再次上传或解密。确认已保存后仅清除本机加密重试副本，不会删除任务；尚未确认的请求会保留，并继续阻止续期。",
     "taskNone": "本浏览器未发现待确认的任务上传。其他未决变更仍可能阻止续期。",
     "taskSaved": "已验证这项原始任务保存。你可以确认清理其本机加密重试副本。",
-    "taskUnknown": "原保存尚未确认。本机加密重试副本已保留，不能在此清理。",
+    "taskUnknown": "原保存尚未确认，加密重试副本已保留。可以继续核对，或审阅取消后续提交。",
     "taskReconciled": "已清理这项已保存任务的本机重试副本。请继续检查其他未决任务，再审阅续期。",
     "taskCheck": "检查待确认的任务保存",
     "taskConfirm": "确认已保存并清理本机重试副本",
-    "taskKeep": "保留原请求并锁定"
+    "taskKeep": "保留原请求并锁定",
+    "cancelHoldings": "审阅取消原持仓上传",
+    "cancelTask": "审阅取消原任务上传",
+    "cancelUploadTitle": "取消这项原上传？",
+    "cancelUploadHelp": "这会阻止这份原请求的后续提交。如果上传已保存，已保存的数据会保留，核对原密文后才清理本机重试副本。结果不明时会保留原上传与取消请求，稍后可继续处理。",
+    "cancelUploadConfirm": "确认取消这项原上传",
+    "cancelUploadKeep": "保留原上传",
+    "cancelUploadPendingTitle": "原取消请求尚待核对",
+    "cancelUploadPending": "原上传及其签名取消请求已保留。请继续核对同一次取消，不会新建请求。",
+    "cancelUploadSavedUnverified": "上传已保存，但原密文尚未核实。本机两份请求已保留；取消不会删除已保存资料。",
+    "cancelUploadResume": "继续处理原取消",
+    "uploadCancelled": "这项原上传已取消，不能再次提交。对应本机重试副本已清理；请继续检查其他未决请求，再续期密钥。",
+    "uploadAlreadySaved": "原上传此前已保存，现已验证原密文，只清理本机重试副本。已保存资料保持可用。",
+    "cancelUploadCapacity": "每个资源库的持仓上传与任务上传各最多保留32次取消裁定。重试同一次取消不会重复占位；达到上限时原请求会继续保留。"
   }
 }
