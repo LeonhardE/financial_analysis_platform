@@ -209,9 +209,13 @@ creates no indexes, TTL, databases, IAM, secrets or other cloud resources.
 
 ## Delivery and enablement
 
-The target stays `release_mode=build_only` and `_DEPLOY_SERVICE=false`; publishing does not update
-the existing Cloud Run revision. Future enablement retains source/digest review and saved-plan
-controls. This code delivery does not claim the deployed health-only revision serves these APIs.
+The source registry permits `existing` service image releases through the shared release helper.
+`_DEPLOY_SERVICE` defaults to `false`; actual deployment requires a separately reviewed
+administrator trigger opt-in and exact existing-service/runtime permissions. The deploy step pins
+the official Cloud SDK image by digest and invokes its bundled Python interpreter at
+`/usr/lib/google-cloud-sdk/platform/bundledpythonunix/bin/python3`, because this image does not
+provide `python3` on `PATH`. Source, image, identity, ordering and traffic checks remain enforced
+by the unchanged `infra/gcp/deploy_existing_service.py` guard.
 
 Production also needs the planned authenticated Hub public projection/trust wiring, minimum Firebase
 user lookup permission for revocation checks, reviewed index policy, and an approved invocation path
