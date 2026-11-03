@@ -264,3 +264,62 @@ by the separate source-fence protocol, never reset by synchronization.
 This is public authority replication for an owner upload, not agent content access or a root
 enrollment shortcut. It creates no cloud resources, IAM grants or database migration, does not
 activate the normal Portfolio release pipeline, and does not enable brokerage login or Hub ACKs.
+
+## Root-authorized upload cancellation
+
+An absent upload receipt leaves an uncertain result. The owner can now permanently deny exactly
+one original upload using a root-signed command, including after device signing certificates expire:
+
+| Route                                                                              | Result                                             |
+| ---------------------------------------------------------------------------------- | -------------------------------------------------- |
+| `POST /api/v2/holdings/sources/{sourceId}/operation-cancellations`                 | Decide `saved` or `cancelled` atomically; HTTP 200 |
+| `GET /api/v2/holdings/sources/{sourceId}/operation-cancellations/{cancellationId}` | Recover the original immutable decision; HTTP 200  |
+
+These routes retain Firebase owner authentication and the deployment's separate Cloud Run caller
+identity. `X-Serverless-Authorization` remains the Cloud Run identity header; it grants no owner or
+root signing authority. POST requires exactly one `Idempotency-Key` equal to `cancellationId`,
+`Content-Type: application/json`, and an 8192-byte closed body `{contractVersion,command}`. Only
+`X-FolioView-Contract` is accepted among FolioView selector headers; device author, delegation and
+caller selectors are rejected. GET accepts no write headers or body. Neither route accepts queries.
+
+The service-local profile is `folioview.holdings-upload-cancellation.v1`. The ES256
+`fv-control+jws` command is verified with the root already pinned in the trusted source authority;
+request fields never install or replace a root. Its exact payload is:
+
+```text
+{artifactType:"holdings_upload_cancellation_intent",contractVersion,profile,
+ ownerSubject,vaultId,rootKeyId,rootEpoch:1,cancellationId,
+ target:{resourceRef,sourceEpoch,snapshotId,operationId,expectedRevision,
+         authorKeyId,envelopeFingerprint,packetDigest}}
+```
+
+`packetDigest` is the client's SHA-256 of the canonical complete original `PendingSnapshot`;
+it is signed and echoed without the server reconstructing or guessing the local packet. The
+complete resource reference must match the trusted source incarnation, and the original source
+epoch cannot exceed its current epoch. The command has no TTL or registry/device binding: it
+permanently denies only its named operation under this owner/vault/root generation. A future
+root reset must change the root key or epoch. Cancellation needs no active device or active source,
+and never restores a disconnected/deleted source, changes its epoch, or returns saved ciphertext.
+
+The response is exactly `{contractVersion,profile,command,receipt}`, where receipt is
+`{cancellationId,ownerSubject,vaultId,rootKeyId,rootEpoch,target,commandFingerprint,outcome,acceptedAt}`.
+`acceptedAt` is integer Unix seconds. Same signing-input retries return the first complete response,
+including its original signature bytes. Changed payload under the same cancellation ID conflicts. A new cancellation ID for the exact same
+complete target (including `packetDigest`) can record another immutable cancelled decision within
+the quota; it keeps the first global fence unchanged and must join back to that original decision.
+
+The operation's original vault-wide namespace intentionally omits source and snapshot IDs. A
+cancelled decision atomically places a tombstone in that same `portfolio_operations` document and
+stores the signed command/response in a `portfolio_upload_cancellations` ledger. Every vault ledger
+holds at most 32 cancellation IDs and never evicts records. Original retries still succeed at the
+limit; new decisions fail closed. This shared document also makes an older in-flight writer retry
+and reject after a transaction conflict. New commits return 409 for a verified tombstone; ordinary
+upload receipt reads return 404. Each original upload commit and receipt read checks the bounded vault ledger, even when its
+operation document is absent or has a legacy shape. Missing/corrupt saved, ledger or fence
+associations return 503, so losing a fence cannot revive a cancelled upload.
+
+If the original immutable upload won first, cancellation records `saved` and leaves it intact.
+Consumers must still verify the original upload proof before removing a local retry copy. Deleted
+history remains hidden; its cancellation receipt may report `saved` without exposing the history,
+and consumers must retain their local packet when its required original proof cannot be read.
+The service-local contract adds no shared schema snapshot or generic root signing endpoint.

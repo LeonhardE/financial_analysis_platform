@@ -446,6 +446,10 @@ class PortfolioService:
             now = self.now()
             authority = _current_authority(unit, owner, source, now)
             row = authority.document
+            from .upload_cancellations import operation_cancelled
+
+            if operation_cancelled(unit, authority, operation_id, now):
+                raise ContractError("version_conflict")
             require_active(source_state(unit, authority))
             if writer_key_id not in row["writerKeyIds"]:
                 raise ContractError("key_authorization_required")
@@ -629,6 +633,10 @@ class PortfolioService:
             authority = _current_authority(unit, owner, source, self.now())
             path = _operation_path(owner, authority.document["vaultId"], operation_id)
             row = unit.get(path)
+            from .upload_cancellations import operation_cancelled
+
+            if operation_cancelled(unit, authority, operation_id, self.now()):
+                raise PortfolioError("not_found", 404, "Receipt not found.")
             if row is None or row.get("ownerSubject") != owner or row.get("sourceId") != source:
                 raise PortfolioError("not_found", 404, "Receipt not found.")
             receipt = _receipt(
@@ -649,6 +657,16 @@ class PortfolioService:
             return receipt
 
         return self.store.transact(read)
+
+    def cancel_upload(self, uid, source, body, cancellation_id):
+        from .upload_cancellations import cancel_upload
+
+        return cancel_upload(self, uid, source, body, cancellation_id)
+
+    def upload_cancellation(self, uid, source, cancellation_id):
+        from .upload_cancellations import upload_cancellation
+
+        return upload_cancellation(self, uid, source, cancellation_id)
 
     @staticmethod
     def _owner_history(unit, authority):

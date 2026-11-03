@@ -20,6 +20,7 @@ COLLECTIONS = frozenset(
         "portfolio_operations",
         "portfolio_source_states",
         "portfolio_source_mutations",
+        "portfolio_upload_cancellations",
     }
 )
 

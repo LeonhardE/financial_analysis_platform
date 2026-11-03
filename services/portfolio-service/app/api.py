@@ -135,6 +135,57 @@ async def _read_json(request, *, max_bytes):
         raise HTTPException(400, {"code": "malformed_request"}) from None
 
 
+def _cancellation_transport(request, *, write=False):
+    _transport(request)
+    for name in request.headers:
+        if name.startswith("x-folioview-") and name != "x-folioview-contract":
+            raise ContractError("malformed_request")
+    # X-Serverless-Authorization is the existing Portfolio Cloud Run identity;
+    # owner bearer verification remains independent. Neither header selects keys.
+    for name in ("authorization", "x-serverless-authorization", "content-type", "content-length"):
+        if len(request.headers.getlist(name)) > 1:
+            raise ContractError("malformed_request")
+    if request.headers.getlist("content-encoding"):
+        raise ContractError("unsupported_media_type")
+    if write:
+        if len(request.headers.getlist("idempotency-key")) != 1:
+            raise ContractError("malformed_request")
+        if request.headers.getlist("content-type") != ["application/json"]:
+            raise ContractError("unsupported_media_type")
+    elif request.headers.getlist("idempotency-key"):
+        raise ContractError("malformed_request")
+
+
+@router.post("/{source_id}/operation-cancellations")
+async def cancel_upload(source_id: str, request: Request, user: Owner, service: Service):
+    _invoke(lambda: _cancellation_transport(request, write=True))
+    value = await _read_json(request, max_bytes=8192)
+    return await run_in_threadpool(
+        _invoke,
+        lambda: service.cancel_upload(
+            user.uid, source_id, value, request.headers["idempotency-key"]
+        ),
+    )
+
+
+@router.get("/{source_id}/operation-cancellations/{cancellation_id}")
+async def upload_cancellation(
+    source_id: str, cancellation_id: str, request: Request, user: Owner, service: Service
+):
+    _invoke(lambda: _cancellation_transport(request))
+    try:
+        async with asyncio.timeout(WRITE_BODY_TIMEOUT_SECONDS):
+            async for chunk in request.stream():
+                if chunk:
+                    raise ContractError("malformed_request")
+    except (ContractError, TimeoutError):
+        raise HTTPException(400, {"code": "malformed_request"}) from None
+    return await run_in_threadpool(
+        _invoke,
+        lambda: service.upload_cancellation(user.uid, source_id, cancellation_id),
+    )
+
+
 @router.post("/{source_id}/mutations/{action}", status_code=202)
 async def begin_mutation(
     source_id: str, action: str, request: Request, user: Owner, service: Service
