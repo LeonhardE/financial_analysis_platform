@@ -68,6 +68,13 @@ compilation and complete no-change plan requirements. The local `.env.example` l
 project empty; choose your own project explicitly to enable sign-in. This does not relax token
 verification, change the default database or enable Hub trust.
 
+The User deployment step in `infra/gcp/cloudbuild.user.yaml` pins the official Google Cloud CLI
+image to `sha256:8a50079dfc4b164aa5e83926bef5f9b305b93e80f82d40fabd836da4830dd08e` and explicitly
+runs `/usr/lib/google-cloud-sdk/platform/bundledpythonunix/bin/python3`. This removes dependence
+on a system `python3` executable in the moving `slim` image. Existing release arguments, including
+`_DEPLOY_SERVICE`, and the existing source, ordering, conditional-update and readiness guards
+retain their behavior. Runtime identity, IAM, service settings and trigger configuration are unchanged.
+
 ## Verification
 
 Run the service suite in a development environment with its dependencies and the
