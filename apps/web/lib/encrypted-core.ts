@@ -38,6 +38,8 @@ import {
   type TaskAction,
   type EncryptedTask,
   type PendingTask,
+  type UploadCancellationKind,
+  type UploadCancellationPacket,
   type SealTaskArgs,
   type ResourceBindingMetadata,
   type AgentAnchor,
@@ -6166,6 +6168,153 @@ export class VaultCore {
     unb64(jwe.ciphertext, 196608);
     for (const recipient of jwe.recipients) await key(recipient.header.epk);
     return { vault, historical, certificates, message };
+  }
+  private async uploadCancellationTarget(
+    kind: UploadCancellationKind,
+    pending: PendingTask | PendingSnapshot,
+  ) {
+    if (!this.renewalOnly) throw new VaultError("invalid_operation");
+    if (kind === "task") {
+      const p = pending as PendingTask;
+      await this.renewalTaskPending(p);
+      const requestFingerprint = await sha(
+        canonical({
+          mode: p.mode,
+          taskId: p.taskId,
+          expectedVersion: p.body.expectedVersion,
+          resourceBindings: p.body.resourceBindings,
+          envelopeFingerprint: p.envelopeFingerprint,
+          transitionFingerprint:
+            p.mode === "transition" ? await signingFingerprint(p.body.transitionIntent!) : null,
+          authorKeyId: p.authorKeyId,
+        }),
+      );
+      return {
+        taskId: p.taskId,
+        operationId: p.operationId,
+        mode: p.mode,
+        expectedVersion: p.body.expectedVersion,
+        authorKeyId: p.authorKeyId,
+        envelopeFingerprint: p.envelopeFingerprint,
+        requestFingerprint,
+        packetDigest: await sha(canonical(p)),
+      };
+    }
+    if (kind !== "holdings") throw new VaultError("invalid_operation");
+    const p = pending as PendingSnapshot;
+    await this.renewalHoldingsPending(p);
+    return {
+      resourceRef: p.source.resourceRef,
+      sourceEpoch: p.source.sourceEpoch,
+      snapshotId: p.snapshotId,
+      operationId: p.operationId,
+      expectedRevision: p.expectedRevision,
+      authorKeyId: p.authorKeyId,
+      envelopeFingerprint: await signingFingerprint(p.carrier.signedObject),
+      packetDigest: await sha(canonical(p)),
+    };
+  }
+  private cancellationProfile(kind: UploadCancellationKind) {
+    if (!["task", "holdings"].includes(kind)) throw new VaultError("invalid_operation");
+    return {
+      profile: `folioview.${kind}-upload-cancellation.v1`,
+      artifactType: `${kind}_upload_cancellation_intent`,
+    };
+  }
+  async prepareUploadCancellation(
+    kind: UploadCancellationKind,
+    pending: PendingTask | PendingSnapshot,
+  ): Promise<UploadCancellationPacket> {
+    const target = await this.uploadCancellationTarget(kind, pending);
+    const cancellationId = randomId();
+    const payload = {
+      ...this.cancellationProfile(kind),
+      contractVersion: CONTRACT,
+      ownerSubject: await this.owner,
+      vaultId: this.vault!.vaultId,
+      rootKeyId: this.vault!.rootKeyId,
+      rootEpoch: 1,
+      cancellationId,
+      target,
+    };
+    return {
+      kind,
+      cancellationId,
+      body: {
+        contractVersion: CONTRACT,
+        command: await sign(payload, this.root!, this.vault!.rootKeyId),
+      },
+    };
+  }
+  async validateUploadCancellation(
+    kind: UploadCancellationKind,
+    pending: PendingTask | PendingSnapshot,
+    packet: UploadCancellationPacket,
+  ) {
+    const target = await this.uploadCancellationTarget(kind, pending);
+    exact(packet, ["kind", "cancellationId", "body"]);
+    exact(packet.body, ["contractVersion", "command"]);
+    validate("OperationIdentifier", packet.cancellationId);
+    bounded(packet.body, 8192);
+    resultRequire(packet.kind === kind && packet.body.contractVersion === CONTRACT);
+    const payload = await verified(packet.body.command, this.vault!.rootJwk);
+    const expected = {
+      ...this.cancellationProfile(kind),
+      contractVersion: CONTRACT,
+      ownerSubject: await this.owner,
+      vaultId: this.vault!.vaultId,
+      rootKeyId: this.vault!.rootKeyId,
+      rootEpoch: 1,
+      cancellationId: packet.cancellationId,
+      target,
+    };
+    resultRequire(equal(payload, expected));
+    return packet;
+  }
+  async verifyUploadCancellationReceipt(
+    kind: UploadCancellationKind,
+    pending: PendingTask | PendingSnapshot,
+    packet: UploadCancellationPacket,
+    value: Json,
+  ) {
+    await this.validateUploadCancellation(kind, pending, packet);
+    bounded(value, 16384);
+    exact(value, ["contractVersion", "profile", "command", "receipt"]);
+    const original = await verified(packet.body.command, this.vault!.rootJwk);
+    const echoed = await verified(value.command, this.vault!.rootJwk);
+    resultRequire(
+      equal(echoed, original) &&
+        value.contractVersion === CONTRACT &&
+        value.profile === original.profile,
+    );
+    const r = value.receipt;
+    exact(r, [
+      "cancellationId",
+      "ownerSubject",
+      "vaultId",
+      "rootKeyId",
+      "rootEpoch",
+      "target",
+      "commandFingerprint",
+      "outcome",
+      "acceptedAt",
+    ]);
+    for (const name of [
+      "cancellationId",
+      "ownerSubject",
+      "vaultId",
+      "rootKeyId",
+      "rootEpoch",
+      "target",
+    ])
+      resultRequire(equal(r[name], original[name]));
+    resultRequire(
+      r.commandFingerprint === (await signingFingerprint(value.command)) &&
+        r.commandFingerprint === (await signingFingerprint(packet.body.command)) &&
+        ["saved", "cancelled"].includes(r.outcome),
+    );
+    positive(r.acceptedAt, 0);
+    return { outcome: r.outcome as "saved" | "cancelled" };
   }
   async inspectRenewalTaskPending(pending: PendingTask): Promise<PendingTask> {
     await this.renewalTaskPending(pending);

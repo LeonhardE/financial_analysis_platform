@@ -69,6 +69,7 @@ async function stack(options = {}) {
     Response,
     Headers,
     URL,
+    Buffer,
     URLSearchParams,
     AbortSignal,
     AbortController,
@@ -85,6 +86,11 @@ async function stack(options = {}) {
     "node:crypto": require("node:crypto"),
     jose,
   });
+  const cancellation = server("upload-cancellation", {
+    "server-only": {},
+    "node:crypto": require("node:crypto"),
+    "./owner-transport": transport,
+  });
   const contracts = server("hub-owner-contracts", {
     "server-only": {},
     "ajv/dist/2020": require("ajv/dist/2020"),
@@ -93,11 +99,13 @@ async function stack(options = {}) {
     "./owner-transport": transport,
   });
   const hub = server("hub-owner", {
+    "./upload-cancellation": cancellation,
     "server-only": {},
     "./owner-transport": transport,
     "./hub-owner-contracts": contracts,
   });
   const portfolio = server("portfolio-owner", {
+    "./upload-cancellation": cancellation,
     "server-only": {},
     jose,
     "./owner-transport": transport,

@@ -341,6 +341,11 @@ test.before(async () => {
     "node:crypto": require("node:crypto"),
     jose,
   });
+  const cancellation = compile("upload-cancellation", {
+    "server-only": {},
+    "node:crypto": require("node:crypto"),
+    "./owner-transport": common,
+  });
   const contracts = compile("hub-owner-contracts", {
     "server-only": {},
     "ajv/dist/2020": require("ajv/dist/2020"),
@@ -349,11 +354,13 @@ test.before(async () => {
     "./owner-transport": common,
   });
   api = compile("hub-owner", {
+    "./upload-cancellation": cancellation,
     "server-only": {},
     "./owner-transport": common,
     "./hub-owner-contracts": contracts,
   });
   const portfolio = compile("portfolio-owner", {
+    "./upload-cancellation": cancellation,
     "server-only": {},
     jose,
     "./owner-transport": common,
@@ -1236,4 +1243,53 @@ test("capabilities are read-only, closed and do not forward private fields or fa
     503,
     "authorization_unavailable",
   );
+});
+
+test("Root upload cancellation POST/GET keeps the exact profile and rejects selectors or mismatched receipts", async () => {
+  const fixture = require("./upload-cancellation-fixture.cjs")("task", "task_A"),
+    base = "/api/v2/tasks/task_A/operation-cancellations",
+    write = { method: "POST", json: fixture.body, headers: { "Idempotency-Key": fixture.id } };
+  const h = harness({ upstream: () => Response.json(fixture.response) });
+  for (const [route, opts] of [
+    [base, write],
+    [base + "/" + fixture.id, {}],
+  ]) {
+    const reply = await h.proxy(request(route, opts));
+    assert.equal(reply.status, 200, await reply.clone().text());
+    assert.deepEqual(await reply.json(), fixture.response);
+  }
+  const upstream = h.hub()[0],
+    headers = new Headers(upstream.init.headers);
+  assert.equal(headers.has("x-folioview-author-key"), false);
+  assert.equal(headers.has("x-folioview-authority-delegation"), false);
+  assert.equal(headers.has("x-serverless-authorization"), false);
+  for (const [route, options] of [
+    [base + "?owner=other", write],
+    ...[
+      "X-FolioView-Author-Key",
+      "X-FolioView-Authority-Delegation",
+      "X-Serverless-Authorization",
+    ].map((k) => [base, { ...write, headers: { ...write.headers, [k]: "forged" } }]),
+    [base, { ...write, json: { ...fixture.body, ownerSubject: "chosen" } }],
+    [base, { ...write, headers: { "Idempotency-Key": fixture.id + "_different" } }],
+  ]) {
+    const denied = harness();
+    const result = await denied.proxy(request(route, options));
+    assert.ok([400, 403, 404, 405].includes(result.status), await result.clone().text());
+    assert.equal(denied.hub().length, 0);
+  }
+  for (const change of [
+    (v) => (v.receipt.target.operationId = "wrong"),
+    (v) => (v.receipt.cancellationId = "synthetic_other_cancellation_1"),
+    (v) => (v.receipt.commandFingerprint = "0".repeat(64)),
+    (v) => (v.receipt.extra = "PRIVATE_CANARY"),
+    (v) => (v.profile = "wrong"),
+  ]) {
+    const value = structuredClone(fixture.response);
+    change(value);
+    const bad = harness({ upstream: () => Response.json(value) });
+    const reply = await bad.proxy(request(base + "/" + fixture.id));
+    assert.equal(reply.status, 503);
+    assert.ok(!(await reply.text()).includes("PRIVATE_CANARY"));
+  }
 });

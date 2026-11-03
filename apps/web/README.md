@@ -459,3 +459,28 @@ cannot bypass this restricted flow. The original Google account and Passkey are 
 This consumer requires the separately delivered Hub original-task-operation producer. No shared
 contract, cloud permission, broker connection or Muse activation changes accompany this Web slice.
 Synthetic expired-certificate checks do not require changing live credentials or their expiry.
+
+### Safe cancellation of unknown uploads during renewal
+
+An owner with expired operational certificates can separately review and confirm cancellation of one
+unknown task or holdings upload in the restricted renewal view. The Root signs only a permanent deny
+for the exact original encrypted request; this grants no device write authority and never decrypts
+content. Browser admission and both owner BFFs allow only the fixed producer-owned cancellation
+routes, closed 8 KiB commands and original idempotency key. Portfolio still uses the Web workload's
+separate server identity.
+
+The signed cancellation and complete original encrypted outbox row are atomically persisted before
+submission. Reload and lost acknowledgements resume the identical command. A cancellation receipt
+must match the Root command, owner, vault, complete target and fingerprints. If cancellation won,
+local cleanup uses an atomic full-row comparison; task outboxes receive a revision tombstone and
+holdings outboxes are removed. A newer tab's upload survives and continues blocking renewal. If the
+upload won, the original saved encrypted result must additionally pass historical signature checks
+before cleanup. A missing, hidden or deleted original result preserves both local requests and keeps
+renewal blocked; cancellation never deletes already saved server data.
+
+Each producer retains at most 32 permanent cancellation decisions per owner/vault. Exact retries
+reuse their slot; capacity, missing receipts, corruption, lock/account changes and stale archive
+bindings retain the original requests. Cancellation does not expire, prune old fences, reset the
+vault, revoke the Root, reactivate sources, or enable Muse. This Web slice depends on the separately
+merged Hub and Portfolio cancellation producer PRs. Physical device acceptance remains separate
+from synthetic expired-certificate and interrupted-network verification.

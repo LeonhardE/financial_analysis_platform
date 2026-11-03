@@ -171,7 +171,8 @@ function hubOwnerRule(path: string, method: PrivateMethod): EncryptedRule | null
       matches(`/api/v2/vaults/${id}/key-renewal-state`) ||
       matches(`/api/v2/vaults/${id}/key-renewal-operations/[A-Za-z0-9_-]{22,128}`) ||
       matches(`/api/v2/vaults/${id}/archive`) ||
-      matches(`/api/v2/vaults/${id}/archive-operations/[A-Za-z0-9_-]{22,128}`)
+      matches(`/api/v2/vaults/${id}/archive-operations/[A-Za-z0-9_-]{22,128}`) ||
+      matches(`/api/v2/tasks/${id}/(?:operations|operation-cancellations)/[A-Za-z0-9_-]{22,128}`)
     )
       rule = { method };
     else if (pathname === "/api/v2/tasks") {
@@ -250,6 +251,14 @@ function hubOwnerRule(path: string, method: PrivateMethod): EncryptedRule | null
       matches(`/api/v2/agent-connections/${id}/(?:revoke|grants/${id}/revoke)`))
   ) {
     rule = { method, keys: ["contractVersion"], maxBytes: 1024 };
+  } else if (method === "POST" && matches(`/api/v2/tasks/${id}/operation-cancellations`)) {
+    rule = {
+      method,
+      keys: ["contractVersion", "command"],
+      idempotent: true,
+      maxBytes: 8192,
+      rootCommand: true,
+    };
   } else if (method === "POST" && pathname === "/api/v2/tasks") {
     rule = {
       method,
@@ -335,8 +344,19 @@ function encryptedRule(
   if (service === "agent-hub") return hubOwnerRule(path, method);
   const id = "[A-Za-z0-9][A-Za-z0-9_-]{0,127}";
   if (
+    method === "POST" &&
+    new RegExp(`^/api/v2/holdings/sources/${id}/operation-cancellations$`).test(path)
+  )
+    return {
+      method,
+      keys: ["contractVersion", "command"],
+      idempotent: true,
+      maxBytes: 8192,
+      rootCommand: true,
+    };
+  if (
     new RegExp(
-      `^/api/v2/holdings/sources/${id}(?:/latest|/snapshots/${id}|/operations/${id}|/mutations/${id})?$`,
+      `^/api/v2/holdings/sources/${id}(?:/latest|/snapshots/${id}|/(?:operations|operation-cancellations)/[A-Za-z0-9_-]{22,128}|/mutations/${id})?$`,
     ).test(path)
   )
     return { method: "GET" };

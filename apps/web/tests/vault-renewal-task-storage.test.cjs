@@ -486,3 +486,212 @@ test("a review batch authenticates at most 32 original packets and leaves additi
     assert.equal((await store.list(key.slice(0, key.lastIndexOf(":") + 1))).length, 34);
     await assert.rejects(client.prepareKeyRenewal(f.vault, state), /key_renewal_local_pending/);
   }));
+
+async function cancelReply(packet, outcome = "cancelled") {
+  const p = require("./full-flow-crypto-fixture.cjs").decoded(packet.body.command);
+  return {
+    contractVersion: h.core.CONTRACT,
+    profile: p.profile,
+    command: clone(packet.body.command),
+    receipt: {
+      ...Object.fromEntries(
+        ["cancellationId", "ownerSubject", "vaultId", "rootKeyId", "rootEpoch", "target"].map(
+          (k) => [k, clone(p[k])],
+        ),
+      ),
+      commandFingerprint: await h.core.signingFingerprint(packet.body.command),
+      outcome,
+      acceptedAt: clock,
+    },
+  };
+}
+for (const kind of ["task", "holdings"]) {
+  async function cancelSeed() {
+    const seed = await seeded();
+    if (kind === "task") return { ...seed, slot: seed.pending.taskId };
+    seed.f.time(1000);
+    const fixture = await require("./full-flow-crypto-fixture.cjs").importHoldings(h, seed.f);
+    seed.f.time(clock);
+    const slot = fixture.source.resourceRef.resourceId,
+      key = seed.f.owner + ":outbox:" + slot,
+      row = { ownerSubject: seed.f.owner, vaultId: seed.f.vault.vaultId, pending: fixture.pending };
+    await seed.store.remove(seed.key);
+    await seed.store.put(key, row);
+    return { ...seed, ...fixture, key, row, slot };
+  }
+  test(`${kind} cancellation persists before transport, resumes identical command and clears only after proof`, async () =>
+    withStorage(async () => {
+      const { f, pending, store, key, row, slot, state } = await cancelSeed(),
+        { client } = await unlocked(f, store);
+      const record = await client.prepareRenewalUploadCancellation(kind, slot, pending),
+        cancelKey = f.owner + ":upload-cancellation:" + f.vault.vaultId + ":" + kind + ":" + slot;
+      assert.deepEqual(await store.get(key), row);
+      assert.deepEqual((await store.get(cancelKey)).original, row);
+      await assert.rejects(client.prepareKeyRenewal(f.vault, state), /key_renewal_local_pending/);
+      client.lock();
+      const second = await unlocked(f, store);
+      assert.deepEqual(await second.client.listRenewalUploadCancellations(kind), [record]);
+      assert.deepEqual(
+        await second.client.prepareRenewalUploadCancellation(kind, slot, pending),
+        record,
+      );
+      for (const reply of [null, {}, { ...(await cancelReply(record.packet)), receipt: {} }])
+        await assert.rejects(second.client.finishRenewalUploadCancellation(record, reply));
+      assert.deepEqual(await store.get(key), row);
+      assert.ok(await store.get(cancelKey));
+      await second.client.finishRenewalUploadCancellation(record, await cancelReply(record.packet));
+      assert.equal(await store.get(cancelKey), null);
+      if (kind === "task") {
+        assert.equal((await store.get(key)).deleted, true);
+        assert.equal((await store.get(key)).revision, 2);
+      } else assert.equal(await store.get(key), null);
+      assert.deepEqual(await second.client.listRenewalUploadCancellations(kind), []);
+    }));
+  test(`${kind} saved cancellation needs the actual historical original before local cleanup`, async () =>
+    withStorage(async () => {
+      const { f, pending, store, key, row, slot, task, response } = await cancelSeed(),
+        { client } = await unlocked(f, store),
+        record = await client.prepareRenewalUploadCancellation(kind, slot, pending),
+        reply = await cancelReply(record.packet, "saved");
+      await assert.rejects(client.finishRenewalUploadCancellation(record, reply));
+      await assert.rejects(
+        client.finishRenewalUploadCancellation(record, reply, {
+          task: {},
+          receipt: {},
+          snapshot: {},
+        }),
+      );
+      assert.deepEqual(await store.get(key), row);
+      await client.finishRenewalUploadCancellation(
+        record,
+        reply,
+        kind === "task" ? { task } : { receipt: response.receipt, snapshot: response },
+      );
+      if (kind === "task") assert.equal((await store.get(key)).deleted, true);
+      else assert.equal(await store.get(key), null);
+    }));
+  test(`${kind} a newer tab upload survives finishing an older terminal cancellation`, async () =>
+    withStorage(async () => {
+      const { f, pending, store, key, row, slot, state } = await cancelSeed(),
+        { client } = await unlocked(f, store),
+        record = await client.prepareRenewalUploadCancellation(kind, slot, pending),
+        replacement = clone(row);
+      replacement.pending.operationId = "synthetic_newer_operation_0001";
+      if (kind === "task") replacement.revision++;
+      await store.put(key, replacement);
+      await client.finishRenewalUploadCancellation(record, await cancelReply(record.packet));
+      assert.deepEqual(await store.get(key), replacement);
+      assert.deepEqual(await client.listRenewalUploadCancellations(kind), []);
+      await assert.rejects(client.prepareKeyRenewal(f.vault, state), /key_renewal_local_pending/);
+    }));
+}
+test("cancellation staging rejects full-row races, renewal candidates, stale archive and lock during Worker reply", async () =>
+  withStorage(async () => {
+    const { f, pending, store, key, row } = await seeded(),
+      { client, worker } = await unlocked(f, store),
+      entered = deferred(),
+      release = deferred();
+    worker.beforeReply = async (method) => {
+      if (method === "prepareUploadCancellation") {
+        entered.resolve();
+        await release.promise;
+      }
+    };
+    const operation = client.prepareRenewalUploadCancellation("task", pending.taskId, pending);
+    await entered.promise;
+    const replacement = { ...row, revision: 2 };
+    await store.put(key, replacement);
+    release.resolve();
+    await assert.rejects(operation, /operation_conflict/);
+    assert.deepEqual(await store.get(key), replacement);
+    assert.deepEqual(await store.list(f.owner + ":upload-cancellation:"), []);
+    await store.put(key, row);
+    worker.beforeReply = undefined;
+    await store.put(f.owner + ":key-renewal", { ownerSubject: f.owner, vaultId: f.vault.vaultId });
+    await assert.rejects(client.prepareRenewalUploadCancellation("task", pending.taskId, pending));
+    await store.atomic((s, done) => {
+      s.delete(f.owner + ":key-renewal");
+      done();
+    });
+    const record = await client.prepareRenewalUploadCancellation("task", pending.taskId, pending),
+      cancelKey = f.owner + ":upload-cancellation:" + f.vault.vaultId + ":task:" + pending.taskId,
+      saved = await store.get(cancelKey),
+      open = store.open.bind(store),
+      e = deferred(),
+      r = deferred();
+    store.open = async () => {
+      e.resolve();
+      await r.promise;
+      return open();
+    };
+    const finishing = store.finishUploadCancellation(cancelKey, saved);
+    await e.promise;
+    store.setArchiveContext(
+      f.owner,
+      f.vault.archive.credentialId,
+      f.vault.archive.prfSalt,
+      "changed_iv",
+    );
+    r.resolve();
+    await assert.rejects(finishing, /archive_session_stale/);
+    store.open = open;
+    context(store, f);
+    assert.deepEqual(await store.get(key), row);
+    const e2 = deferred(),
+      r2 = deferred();
+    worker.beforeReply = async (method) => {
+      if (method === "verifyUploadCancellationReceipt") {
+        e2.resolve();
+        await r2.promise;
+      }
+    };
+    const final = client.finishRenewalUploadCancellation(record, await cancelReply(record.packet));
+    await e2.promise;
+    const rejected = assert.rejects(final, /locked/);
+    client.lock();
+    r2.resolve();
+    await rejected;
+    assert.deepEqual(await store.get(key), row);
+    assert.deepEqual(await store.get(cancelKey), saved);
+  }));
+
+test("pending cancellation remains a renewal blocker even when another tab removed its original outbox", async () =>
+  withStorage(async () => {
+    const { f, pending, store, key, state } = await seeded(),
+      { client } = await unlocked(f, store),
+      record = await client.prepareRenewalUploadCancellation("task", pending.taskId, pending);
+    await store.atomic((s, done) => {
+      s.delete(key);
+      done();
+    });
+    await assert.rejects(client.prepareKeyRenewal(f.vault, state), /key_renewal_local_pending/);
+    const resumed = (await unlocked(f, store)).client;
+    assert.deepEqual(await resumed.listRenewalUploadCancellations("task"), [record]);
+    await resumed.finishRenewalUploadCancellation(record, await cancelReply(record.packet));
+    assert.equal(await store.get(key), null);
+    assert.deepEqual(await resumed.listRenewalUploadCancellations("task"), []);
+  }));
+test("locking inside cancellation cleanup aborts the whole IDB transaction, retaining original and cancellation", async () =>
+  withStorage(async () => {
+    const { f, pending, store, key, row } = await seeded(),
+      { client } = await unlocked(f, store),
+      record = await client.prepareRenewalUploadCancellation("task", pending.taskId, pending),
+      cancelKey = f.owner + ":upload-cancellation:" + f.vault.vaultId + ":task:" + pending.taskId,
+      saved = await store.get(cancelKey),
+      put = fake.IDBObjectStore.prototype.put;
+    fake.IDBObjectStore.prototype.put = function (value, target) {
+      const request = put.call(this, value, target);
+      if (target === key && value.deleted) client.lock();
+      return request;
+    };
+    try {
+      await assert.rejects(
+        client.finishRenewalUploadCancellation(record, await cancelReply(record.packet)),
+        /locked/,
+      );
+    } finally {
+      fake.IDBObjectStore.prototype.put = put;
+    }
+    assert.deepEqual(await store.get(key), row);
+    assert.deepEqual(await store.get(cancelKey), saved);
+  }));

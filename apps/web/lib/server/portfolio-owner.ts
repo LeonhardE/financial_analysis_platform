@@ -1,4 +1,5 @@
 import "server-only";
+import { cancellationRequest, cancellationResponse } from "./upload-cancellation";
 
 import { decodeJwt } from "jose";
 import {
@@ -29,7 +30,11 @@ const ID = "[A-Za-z0-9][A-Za-z0-9_-]{0,127}";
 const OPERATION = "[A-Za-z0-9_-]{22,128}";
 const SOURCE = `/api/v2/holdings/sources/${ID}`;
 type Config = { project: string; origin: string; audience: string };
-type Rule = { kind: "read" | "snapshot" | "mutation" | "authority" | "synchronize"; max: number };
+type Rule = {
+  kind: "read" | "snapshot" | "mutation" | "authority" | "synchronize" | "cancellation";
+  max: number;
+  cancel?: { slot: string; id?: string };
+};
 export function portfolioConfiguration(env: NodeJS.ProcessEnv): Config | null {
   const project = env.FOLIOVIEW_OWNER_FIREBASE_PROJECT_ID ?? "";
   const origin = env.FOLIOVIEW_PORTFOLIO_ORIGIN ?? "";
@@ -51,6 +56,26 @@ function ruleFor(request: Request): { path: string; rule: Rule } {
   requireSameOrigin(request, url);
   if (!url.pathname.startsWith(PREFIX + "/")) fail();
   const path = url.pathname.slice(PREFIX.length);
+  if (
+    (request.method === "GET" &&
+      new RegExp(`^${SOURCE}/operation-cancellations/${OPERATION}$`).test(path)) ||
+    (request.method === "POST" && new RegExp(`^${SOURCE}/operation-cancellations$`).test(path))
+  ) {
+    if (
+      request.headers.has("x-folioview-delegation") ||
+      request.headers.has("x-serverless-authorization")
+    )
+      fail("insufficient_scope");
+    const read = request.method === "GET";
+    return {
+      path,
+      rule: {
+        kind: read ? "read" : "cancellation",
+        max: read ? 0 : 8192,
+        cancel: { slot: path.split("/")[5], ...(read ? { id: path.split("/").at(-1)! } : {}) },
+      },
+    };
+  }
   if (
     request.method === "GET" &&
     new RegExp(
@@ -88,11 +113,13 @@ async function transport(request: Request, rule: Rule, signal: AbortSignal) {
   ]) {
     const value = request.headers.get(name);
     const allowed =
-      rule.kind === "authority"
-        ? name === "x-folioview-authority-delegation"
-        : rule.kind !== "read" &&
-          rule.kind !== "synchronize" &&
-          name !== "x-folioview-authority-delegation";
+      rule.kind === "cancellation"
+        ? name === "idempotency-key"
+        : rule.kind === "authority"
+          ? name === "x-folioview-authority-delegation"
+          : rule.kind !== "read" &&
+            rule.kind !== "synchronize" &&
+            name !== "x-folioview-authority-delegation";
     if (allowed) {
       if (
         !value ||
@@ -112,7 +139,10 @@ async function transport(request: Request, rule: Rule, signal: AbortSignal) {
   if (request.headers.get("content-type")?.split(";", 1)[0].toLowerCase() !== "application/json")
     fail("unsupported_media_type");
   const body = json(raw);
-  if (rule.kind === "authority" || rule.kind === "synchronize") {
+  if (rule.kind === "cancellation") {
+    if (!cancellationRequest("holdings", body, rule.cancel!.slot, headers.get("idempotency-key")!))
+      fail();
+  } else if (rule.kind === "authority" || rule.kind === "synchronize") {
     if (!fields(body, ["contractVersion"]) || body.contractVersion !== CONTRACT) fail();
   } else if (rule.kind === "snapshot") {
     if (
@@ -256,12 +286,26 @@ export function createPortfolioProxy(options: Options = {}) {
         }),
         signal,
       );
-      if (rule.kind === "synchronize" && response.status < 400 && response.status !== 200)
+      if (
+        (rule.kind === "synchronize" || rule.cancel) &&
+        response.status < 400 &&
+        response.status !== 200
+      )
         fail("authorization_unavailable");
       return await forwardResponse(
         response,
         signal,
-        rule.kind === "synchronize" ? (value) => synchronizedReceipt(value, path) : undefined,
+        rule.cancel
+          ? (value) =>
+              cancellationResponse(
+                "holdings",
+                value,
+                rule.cancel!.slot,
+                rule.cancel!.id ?? headers.get("idempotency-key") ?? undefined,
+              )
+          : rule.kind === "synchronize"
+            ? (value) => synchronizedReceipt(value, path)
+            : undefined,
       );
     } catch (error) {
       return errorResponse(error instanceof Failure ? error.code : "authorization_unavailable");

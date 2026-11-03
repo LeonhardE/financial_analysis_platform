@@ -38,6 +38,8 @@ function harness(changes = {}, locale = "en") {
     configured: true,
     renewalHoldings: null,
     renewalTask: null,
+    uploadCancellation: null,
+    uploadCancellationReview: null,
     owner: "owner_A:1",
     vaultGeneration: 1,
     vault: { vaultId: summary.vaultId, rootKeyId: summary.rootKeyId },
@@ -51,6 +53,10 @@ function harness(changes = {}, locale = "en") {
     deviceChange: null,
     ...Object.fromEntries(
       [
+        "reviewUploadCancellation",
+        "confirmUploadCancellation",
+        "resumeUploadCancellation",
+        "dismissUploadCancellationReview",
         "reviewRenewalTasks",
         "confirmRenewalTask",
         "reviewRenewalHoldings",
@@ -406,4 +412,45 @@ test("task checks hide outside a renewal review and staged candidates, and block
     pending: { operationId: "renew_A", state: "ready", expiresAt: 1200 },
   };
   assert(!f.view().includes("Check pending task uploads"));
+});
+
+test("bilingual upload cancellation review and saved-but-unverified state remain explicit and block renewal", () => {
+  for (const locale of ["en", "zh"]) {
+    const messages = require("../messages/" + locale + ".json").vaultRenewal,
+      f = harness(
+        {
+          phase: "renewal-only",
+          uploadCancellationReview: {
+            kind: "task",
+            slot: "PRIVATE_TASK",
+            operationId: "PRIVATE_OP",
+          },
+        },
+        locale,
+      );
+    f.workspace.keyRenewal = f.summary;
+    const review = f.view();
+    assert.ok(review.includes(messages.cancelUploadTitle));
+    assert.ok(review.includes(messages.cancelUploadCapacity));
+    assert.ok(!review.includes("PRIVATE_TASK"));
+    assert.equal(f.button(messages.confirm).disabled, true);
+    f.button(messages.cancelUploadConfirm).onClick();
+    assert.deepEqual(f.calls.at(-1), ["confirmUploadCancellation"]);
+    f.workspace.uploadCancellationReview = null;
+    f.workspace.uploadCancellation = {
+      kind: "task",
+      slot: "PRIVATE_TASK",
+      cancellationId: "PRIVATE_CANCEL",
+      outcome: "saved",
+    };
+    const pending = f.view();
+    assert.ok(pending.includes(messages.cancelUploadSavedUnverified));
+    assert.ok(!pending.includes("PRIVATE_CANCEL"));
+    f.button(messages.cancelUploadResume).onClick();
+    assert.deepEqual(f.calls.at(-1), ["resumeUploadCancellation"]);
+    assert.equal(f.button(messages.confirm).disabled, true);
+    f.workspace.busy = "recovering";
+    f.view();
+    assert.equal(f.button(messages.cancelUploadResume).disabled, true);
+  }
 });

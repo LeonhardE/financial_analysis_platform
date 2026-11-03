@@ -2183,3 +2183,58 @@ test("a delayed owner-consent token cannot cross account changes or a closed bro
   assert.equal(sends, 0);
   h.unmount();
 });
+
+for (const service of ["agent-hub", "portfolio"])
+  test(`${service} admits only closed Root cancellation routes and full operation identifiers before token access`, async () => {
+    let tokens = 0;
+    const h = mountProvider({ fetchOwnerConfig: async () => configResponse(true, true) });
+    h.emitUser({ uid: "a", getIdToken: async () => `test-token-${++tokens}` });
+    await settle();
+    const prefix =
+        service === "agent-hub" ? "/api/v2/tasks/task_A" : "/api/v2/holdings/sources/source_A",
+      version = "folioview.agent-workspace.v2.0",
+      op = "_".repeat(22),
+      body = {
+        contractVersion: version,
+        command: { protected: "e30", payload: "e30", signature: "AA" },
+      },
+      write = { method: "POST", json: body, headers: { "Idempotency-Key": op } };
+    for (const path of [prefix + "/operations/" + op, prefix + "/operation-cancellations/" + op])
+      await h.actions.requestPrivate(service, path, "a:1");
+    await h.actions.requestPrivate(service, prefix + "/operation-cancellations", "a:1", write);
+    const count = tokens,
+      requests = h.requests.length;
+    for (const [route, options] of [
+      [prefix + "/operation-cancellations?", write],
+      [prefix + "/operation-cancellations/short", {}],
+      [prefix + "/operation-cancellations/" + op + "/extra", {}],
+      [prefix + "/operation-cancellations", { ...write, headers: {} }],
+      ...[
+        "X-FolioView-Author-Key",
+        "X-FolioView-Authority-Delegation",
+        "X-Serverless-Authorization",
+      ].map((name) => [
+        prefix + "/operation-cancellations",
+        { ...write, headers: { ...write.headers, [name]: "forged" } },
+      ]),
+      [
+        prefix + "/operation-cancellations",
+        { ...write, json: { ...body, ownerSubject: "selected" } },
+      ],
+      [
+        prefix + "/operation-cancellations",
+        { ...write, json: { ...body, command: { ...body.command, privateKey: "CANARY" } } },
+      ],
+      [
+        prefix + "/operation-cancellations",
+        { ...write, json: { ...body, command: { ...body.command, payload: "A".repeat(8192) } } },
+      ],
+    ])
+      await assert.rejects(
+        h.actions.requestPrivate(service, route, "a:1", options),
+        /Invalid private API/,
+      );
+    assert.equal(tokens, count);
+    assert.equal(h.requests.length, requests);
+    h.unmount();
+  });
