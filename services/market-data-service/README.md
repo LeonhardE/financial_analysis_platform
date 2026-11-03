@@ -109,6 +109,19 @@ requests temporarily receive 429. Deployment capacity, monitoring and any future
 edge/global controls require their own reviewed operational work. This change
 adds no database, state migration, IAM grant, scheduler or external limiter.
 
+## Automatic image release
+
+The Market deploy step in `infra/gcp/cloudbuild.api.yaml` pins the official Cloud CLI image by
+immutable digest and invokes its bundled Python interpreter at
+`/usr/lib/google-cloud-sdk/platform/bundledpythonunix/bin/python3`. The pinned image has no system
+`python3` on `PATH`, so an unqualified entrypoint cannot start the release guard. Image upgrades
+must verify the replacement digest and interpreter layout.
+
+The existing `deploy_existing_service.py` arguments, source and release-order checks, conditional
+updates and 100% readiness checks remain unchanged. `_DEPLOY_SERVICE` retains its default `false`;
+the administrator-managed trigger keeps its existing opt-in, build identity and permissions.
+Confirm the normal automatic build completes deployment before considering a release verified.
+
 ## Validation
 
 Run from the repository root in the existing development environment:
