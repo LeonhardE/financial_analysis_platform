@@ -43,6 +43,8 @@ class AgentHubBoundaryTests(unittest.TestCase):
                     "/api/v2/tasks/{task_id}",
                     "/api/v2/tasks/{task_id}/versions/{version}",
                     "/api/v2/tasks/{task_id}/operations/{operation_id}",
+                    "/api/v2/tasks/{task_id}/operation-cancellations",
+                    "/api/v2/tasks/{task_id}/operation-cancellations/{cancellation_id}",
                     "/api/v2/tasks/{task_id}/transitions",
                     "/internal/v2/portfolio-authorities/read",
                     "/internal/v2/source-fences",

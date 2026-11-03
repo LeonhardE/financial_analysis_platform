@@ -23,6 +23,7 @@ COLLECTIONS = frozenset(
         "hub_task_versions",
         "hub_task_operations",
         "hub_task_indexes",
+        "hub_upload_cancellations",
         "hub_oauth_pending",
         "hub_oauth_codes",
         "hub_oauth_access",
