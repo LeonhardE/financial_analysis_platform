@@ -484,7 +484,7 @@ class VaultKeyRenewalService:
                 or p["expectedArchiveDigest"] != state["digest"]
             ):
                 raise ContractError("version_conflict")
-            if state["pending"] is not None:
+            if state["pending"] is not None or state["deleted"]:
                 raise ContractError("key_authorization_required")
             if (
                 len(row["registryHistory"]) >= MAX_HISTORY

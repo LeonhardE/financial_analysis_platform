@@ -47,6 +47,7 @@ _BASE_FIELDS = frozenset(
 )
 _ACTION_FIELDS = {
     "archive_replace": frozenset({"mode", "newArchiveDigest", "authorizationId"}),
+    "archive_delete": frozenset(),
     "recovery_authorize": frozenset({"authorizationId", "newArchiveDigest"}),
     "recovery_revoke": frozenset({"authorizationId"}),
 }
@@ -107,7 +108,7 @@ def _payload(command, vault):
     _digest(value["checkpointDigest"])
     if not value["issuedAt"] < value["expiresAt"] <= value["issuedAt"] + MAX_AUTHORIZATION_SECONDS:
         raise ContractError("malformed_request")
-    if action != "recovery_revoke":
+    if action in {"archive_replace", "recovery_authorize"}:
         _digest(value["newArchiveDigest"])
     if action == "archive_replace":
         if value["mode"] not in ("rewrap", "passkey_change", "recovery"):
@@ -117,7 +118,7 @@ def _payload(command, vault):
                 raise ContractError("malformed_request")
         else:
             identifier(value["authorizationId"])
-    else:
+    elif action in {"recovery_authorize", "recovery_revoke"}:
         identifier(value["authorizationId"])
     return value
 
@@ -160,6 +161,16 @@ def _advance(state, payload, command, accepted_at):
         if pending is None or pending["payload"]["authorizationId"] != payload["authorizationId"]:
             raise ContractError("key_authorization_required")
         next_state["pending"] = None
+    elif action == "archive_delete":
+        # Leave room for a fresh approval and restore from independent material.
+        if state["deleted"] or state["version"] > MAX_LIFECYCLE_OPERATIONS - 3:
+            raise ContractError("version_conflict")
+        next_state.update(
+            revision=state["revision"] + 1,
+            digest=_fingerprint(None),
+            pending=None,
+            deleted=True,
+        )
     else:
         if payload["newArchiveDigest"] == state["digest"]:
             raise ContractError("recipient_binding_mismatch")
@@ -177,10 +188,13 @@ def _advance(state, payload, command, accepted_at):
                 or payload["expiresAt"] > grant["expiresAt"]
             ):
                 raise ContractError("key_authorization_required")
+        elif state["deleted"]:
+            raise ContractError("key_authorization_required")
         next_state.update(
             revision=state["revision"] + 1,
             digest=payload["newArchiveDigest"],
             pending=None,
+            deleted=False,
         )
     return next_state
 
@@ -216,6 +230,7 @@ def _history_state(vault, registry, row):
         "revision": 0,
         "digest": initial,
         "pending": None,
+        "deleted": False,
         "authorizationIds": set(),
         "operations": {},
         "lastAcceptedAt": 0,
@@ -270,7 +285,7 @@ def _history_state(vault, registry, row):
                 raise StoreUnavailable
             advanced["operations"] = {**state["operations"], payload["stableOperationId"]: item}
             state = advanced
-        if state["digest"] != current_digest:
+        if state["digest"] != current_digest or state["deleted"] != (vault["archive"] is None):
             raise StoreUnavailable
         return state
     except (ContractError, KeyError, TypeError, ValueError):
@@ -364,6 +379,9 @@ class VaultLifecycleService:
     def replace_archive(self, uid, vault, body, operation):
         return self._mutate(uid, vault, body, operation, "archive_replace")
 
+    def delete_archive(self, uid, vault, body, operation):
+        return self._mutate(uid, vault, body, operation, "archive_delete")
+
     def authorize_recovery(self, uid, vault, body, operation):
         return self._mutate(uid, vault, body, operation, "recovery_authorize")
 
@@ -422,16 +440,20 @@ class VaultLifecycleService:
             if action == "archive_replace":
                 archive = body["archive"]
                 old = row["archive"]
-                if archive["iv"] == old["iv"] or archive["ciphertext"] == old["ciphertext"]:
-                    raise ContractError("recipient_binding_mismatch")
-                if payload["mode"] == "rewrap":
-                    if archive["credentialId"] != old["credentialId"]:
+                if old is None:
+                    if payload["mode"] != "recovery":
+                        raise ContractError("key_authorization_required")
+                else:
+                    if archive["iv"] == old["iv"] or archive["ciphertext"] == old["ciphertext"]:
                         raise ContractError("recipient_binding_mismatch")
-                elif (
-                    archive["credentialId"] == old["credentialId"]
-                    or archive["prfSalt"] == old["prfSalt"]
-                ):
-                    raise ContractError("recipient_binding_mismatch")
+                    if payload["mode"] == "rewrap":
+                        if archive["credentialId"] != old["credentialId"]:
+                            raise ContractError("recipient_binding_mismatch")
+                    elif (
+                        archive["credentialId"] == old["credentialId"]
+                        or archive["prfSalt"] == old["prfSalt"]
+                    ):
+                        raise ContractError("recipient_binding_mismatch")
             now = self.now()
             advanced = _advance(state, payload, body["command"], now)
             receipt = _receipt(row, payload, advanced, body["command"], now)
@@ -447,8 +469,11 @@ class VaultLifecycleService:
             }
             response = _mutation_response(receipt)
             # Firestore reads are complete before either buffered write is flushed.
-            if action == "archive_replace":
-                unit.put(document_path("hub_vaults", owner), {**row, "archive": body["archive"]})
+            if action in {"archive_replace", "archive_delete"}:
+                archive = body["archive"] if action == "archive_replace" else None
+                next_row = {**row, "archive": archive}
+                _history_state(next_row, registry, next_lifecycle)
+                unit.put(document_path("hub_vaults", owner), next_row)
             unit.put(document_path("hub_vault_lifecycle", owner, vault), next_lifecycle)
             return response
 

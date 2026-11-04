@@ -45,6 +45,9 @@ require one bounded `Idempotency-Key`; source creation requires `X-FolioView-Aut
 The separate [vault lifecycle API](VAULT_LIFECYCLE.md) adds root-signed opaque archive replacement,
 Passkey-change intent, bounded recovery approval/revocation and immutable operation receipts.
 It keeps this legacy response shape and the existing directory/source version unchanged.
+Root-approved cloud archive removal retains the vault and its public authority, projecting
+`archive:null` only after an explicit signed deletion. Independent recovery requires a fresh
+root-approved recovery authorization; deletion does not revoke devices or remove private content.
 
 The [owner key renewal API](KEY_RENEWALS.md) atomically accepts root-approved successor
 device/recovery certificates and a client-encrypted archive, with original receipt recovery.

@@ -108,3 +108,11 @@ class LifecycleFixture(VaultFixture):
                 state, operation, "recovery_revoke", authorizationId=authorization, **changes
             ),
         }
+
+    def delete(self, state, operation="synthetic_archive_delete_0001", **changes):
+        return {
+            "contractVersion": CONTRACT_VERSION,
+            "command": self.command(
+                state, operation, changes.pop("action", "archive_delete"), **changes
+            ),
+        }

@@ -16,6 +16,7 @@ no body. Mutations require one `Idempotency-Key` containing the signed stable op
 | ------ | --------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
 | GET    | `/archive`                                          | Current ciphertext, lifecycle/archive versions, public fences, pending approval and signed history |
 | PUT    | `/archive`                                          | `{contractVersion,archive,command}`; root-approved replacement and original receipt                |
+| POST   | `/archive-deletions`                                | `{contractVersion,command}`; root-approved removal of the cloud archive, HTTP 201                  |
 | POST   | `/recovery-authorizations`                          | `{contractVersion,command}`; approve one exact replacement digest, HTTP 201                        |
 | POST   | `/recovery-authorizations/{authorizationId}/revoke` | `{contractVersion,command}`; explicitly revoke that pending approval                               |
 | GET    | `/archive-operations/{operationId}`                 | The immutable original operation receipt, or 404                                                   |
@@ -33,24 +34,25 @@ The current root is an independent trust anchor; an initial directory need not c
 
 Every payload has exactly these common fields:
 
-| Field                                              | Meaning                                                               |
-| -------------------------------------------------- | --------------------------------------------------------------------- |
-| `profile`, `contractVersion`                       | Exact lifecycle profile above and existing workspace v2.0 contract    |
-| `action`                                           | `archive_replace`, `recovery_authorize` or `recovery_revoke`          |
-| `ownerSubject`, `vaultId`, `rootKeyId`             | Existing owner hash, vault and pinned root                            |
-| `stableOperationId`                                | Exact `Idempotency-Key`; use a fresh client-generated operation ID    |
-| `expectedVaultVersion`                             | Existing directory/source aggregate version                           |
-| `expectedLifecycleVersion`                         | Current independent lifecycle version; starts at 0                    |
-| `expectedArchiveRevision`                          | Current independent archive revision; starts at 0                     |
-| `expectedArchiveDigest`                            | SHA-256 hex of the canonical current archive JSON                     |
-| `registrySequence`, `checkpointDigest`, `keyEpoch` | Exact current verified registry fence                                 |
-| `issuedAt`, `expiresAt`                            | Integer Unix seconds; `issuedAt <= now < expiresAt <= issuedAt + 300` |
+| Field                                              | Meaning                                                                        |
+| -------------------------------------------------- | ------------------------------------------------------------------------------ |
+| `profile`, `contractVersion`                       | Exact lifecycle profile above and existing workspace v2.0 contract             |
+| `action`                                           | `archive_replace`, `archive_delete`, `recovery_authorize` or `recovery_revoke` |
+| `ownerSubject`, `vaultId`, `rootKeyId`             | Existing owner hash, vault and pinned root                                     |
+| `stableOperationId`                                | Exact `Idempotency-Key`; use a fresh client-generated operation ID             |
+| `expectedVaultVersion`                             | Existing directory/source aggregate version                                    |
+| `expectedLifecycleVersion`                         | Current independent lifecycle version; starts at 0                             |
+| `expectedArchiveRevision`                          | Current independent archive revision; starts at 0                              |
+| `expectedArchiveDigest`                            | SHA-256 hex of the canonical current archive JSON                              |
+| `registrySequence`, `checkpointDigest`, `keyEpoch` | Exact current verified registry fence                                          |
+| `issuedAt`, `expiresAt`                            | Integer Unix seconds; `issuedAt <= now < expiresAt <= issuedAt + 300`          |
 
 Each action adds only the following fields:
 
 | Action               | Additional fields                             |
 | -------------------- | --------------------------------------------- |
 | `archive_replace`    | `mode`, `newArchiveDigest`, `authorizationId` |
+| `archive_delete`     | None                                          |
 | `recovery_authorize` | `authorizationId`, `newArchiveDigest`         |
 | `recovery_revoke`    | `authorizationId`                             |
 
@@ -73,6 +75,42 @@ For `archive_replace`:
 All modes require root possession. Rewrapping is not revocation of an exposed root or a copy of
 an old Passkey and archive already held elsewhere. Full root renewal/rekey and historical-data
 policy require their own contracts; these endpoints cannot promise cryptographic recall.
+
+## Cloud archive removal
+
+`archive_delete` requires a fresh pinned-root signature binding the exact current archive digest,
+archive/lifecycle versions and directory fence, in the same five-minute window as other commands.
+The deletion transaction replaces only the stored archive with JSON `null`, advances the archive
+revision and lifecycle version once, and clears any pending recovery approval. Its resulting
+archive digest is SHA-256 of canonical JSON `null`. The existing owner/vault/root, directory,
+sources, task/result ciphertext and operation receipts remain. The vault itself stays present;
+first-enrollment APIs cannot install a new root or restore an old archive, including on retries.
+
+`current` and `/archive` return `archive:null` after deletion, with the existing surrounding fields.
+This is an explicitly deleted key archive, not an empty resource library. Every read of a null
+archive verifies the complete signed deletion history. Missing, inconsistent or forged history
+fails closed. Older validators that do not implement this action reject the new state; ordinary
+clients that never request deletion keep their existing non-null response shape and behavior.
+
+The signed deletion proof and immutable receipt contain no archive ciphertext, credential ID,
+PRF salt or IV. No old archive is copied into the lifecycle history. An exact deletion retry returns
+its original receipt even after restoration; it never deletes a newer archive. A competing
+replacement/deletion rereads the winning archive inside the transaction and cannot both commit
+against one revision. Old replacement, bootstrap and renewal retries cannot resurrect the archive.
+
+Restoration requires independent root-capable recovery material, a **new** recovery authorization
+bound to the deleted state, and a root-signed `archive_replace` in `recovery` mode targeting that
+exact approval. Rewrap, ordinary Passkey change and key renewal cannot recreate a deleted archive.
+There is no prior credential/salt left to compare after deletion; the new archive's owner/root
+bindings, complete target digest and fresh recovery approval remain mandatory. Deletion is refused
+at lifecycle versions 30 or later, leaving two slots for approval and restoration. This is not a
+new lifecycle quota or an unlimited recovery guarantee.
+
+Removing the cloud archive does not recall downloaded archives, recovery kits, backups, local keys
+or prior access grants. It does not revoke devices, reset the library, re-encrypt historical data or
+guarantee physical erasure from storage-provider backups. A later client must show these effects,
+require explicit confirmation and preserve independent recovery material. This producer delivery
+does not add a Web button or modify a real user's archive during deployment.
 
 ## Recovery approval and revocation
 
@@ -110,7 +148,7 @@ A separate `hub_vault_lifecycle` document in the existing configured Hub store c
 `ownerSubject`, `vaultId`, `rootKeyId`, `initialArchiveDigest` and `history`. Before the first
 lifecycle mutation, reads derive version/revision 0 without creating a document. The history
 contains at most 32 pairs of root-signed command and original receipt. The lifecycle version is
-the history length; archive revision counts replacements. No old archive ciphertext is retained
+the history length; archive revision counts replacements and deletions. No old archive ciphertext is retained
 in this history or in receipts. An authorization reserves one final slot for consumption or
 revocation, so no new approval is issued at lifecycle version 31.
 

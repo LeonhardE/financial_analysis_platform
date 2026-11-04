@@ -190,6 +190,77 @@ class VaultLifecycleRoutesTests(unittest.TestCase):
         ):
             self.failure(self.client.get(self.base + "/archive", headers=self.headers), 401)
 
+    def test_archive_delete_null_projection_and_receipt_are_no_store_and_idempotent(self):
+        state = self.state()
+        operation = "synthetic_http_archive_delete_0001"
+        body = self.f.delete(state, operation)
+        result = self.write("POST", "/archive-deletions", body, operation)
+        self.assertEqual(result.status_code, 201, result.text)
+        self.assertEqual(result.headers["cache-control"], "no-store")
+        self.assertIsNone(self.state()["archive"])
+        self.assertEqual(
+            self.write("POST", "/archive-deletions", body, operation).json(), result.json()
+        )
+        response = self.client.get(
+            self.base + "/archive-operations/" + operation, headers=self.headers
+        )
+        self.assertEqual(response.json(), result.json())
+        self.uid = OTHER_UID
+        self.failure(self.write("POST", "/archive-deletions", body, operation), 404)
+
+    def test_archive_delete_rejects_selected_key_query_extra_fields_and_oversize_body(self):
+        operation = "synthetic_http_invalid_delete_0001"
+        body = self.f.delete(self.state(), operation)
+        for extra in ({"archive": None}, {"ownerSubject": self.f.owner}, {"confirmed": True}):
+            self.failure(
+                self.write("POST", "/archive-deletions", {**body, **extra}, operation), 400
+            )
+        for suffix, headers, content, expected in (
+            ("?uid=other", {}, body, 400),
+            ("", {"X-FolioView-Author-Key": self.f.root_id}, body, 400),
+        ):
+            self.failure(
+                self.client.post(
+                    self.base + "/archive-deletions" + suffix,
+                    headers={**self.headers, "Idempotency-Key": operation, **headers},
+                    json=content,
+                ),
+                expected,
+            )
+        self.failure(
+            self.client.post(
+                self.base + "/archive-deletions",
+                headers={
+                    **self.headers,
+                    "Idempotency-Key": operation,
+                    "Content-Type": "application/json",
+                },
+                content=b"x" * 8193,
+            ),
+            413,
+        )
+        self.failure(
+            self.write(
+                "POST",
+                "/archive-deletions",
+                self.f.delete(self.state(), operation, signer="device_sig"),
+                operation,
+            ),
+            422,
+        )
+        self.assertIsNotNone(self.state()["archive"])
+
+    def test_archive_delete_requires_google_owner_before_storage_or_crypto(self):
+        body = self.f.delete(self.state())
+        app.dependency_overrides.pop(require_owner)
+        with (
+            patch.dict(os.environ, {}, clear=True),
+            patch("socket.create_connection", side_effect=AssertionError("network")),
+        ):
+            self.failure(
+                self.write("POST", "/archive-deletions", body, "synthetic_archive_delete_0001"), 401
+            )
+
 
 if __name__ == "__main__":
     unittest.main()

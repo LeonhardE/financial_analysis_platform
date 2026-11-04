@@ -412,7 +412,7 @@ class CatalogueService:
             row = unit.get(document_path("hub_vaults", owner))
             if row is None:
                 return {"vault": None, "sources": []}
-            registry = _verify_row(row, owner, self.vaults.now())
+            registry = _verify_row(row, owner, self.vaults.now(), unit=unit)
             sources = [
                 {"ref": source["resourceRef"], "fence": _state(unit, owner, source["resourceRef"])}
                 for source in row["sources"]

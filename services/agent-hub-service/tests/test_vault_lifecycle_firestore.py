@@ -74,6 +74,53 @@ class FirestoreVaultLifecycleTests(unittest.TestCase):
         self.assertEqual(self.service.receipt(UID, self.f.vault, REPLACE), result)
         self.assertEqual(self.state()["archive"], body["archive"])
 
+    def test_archive_removal_and_proof_are_atomic_and_conflicting_retry_is_idempotent(self):
+        operation = "synthetic_sdk_archive_delete_0001"
+        body = self.f.delete(self.state(), operation)
+        accepted = []
+        self.inject(
+            lambda: accepted.append(self.service.delete_archive(UID, self.f.vault, body, operation))
+        )
+        response = self.service.delete_archive(UID, self.f.vault, body, operation)
+        self.assertEqual(response, accepted[0])
+        self.assertIsNone(self.vaults.current(UID)["vault"]["archive"])
+        self.assertEqual(self.state()["lifecycleVersion"], 1)
+        self.assertEqual(self.service.receipt(UID, self.f.vault, operation), response)
+        self.assertEqual([len(batch) for batch in self.batches()], [2, 2])
+        self.assertEqual(
+            {
+                write.update.name.split("/documents/")[1].split("/")[0]
+                for write in self.batches()[0]
+            },
+            {"hub_vaults", "hub_vault_lifecycle"},
+        )
+
+    def test_delete_and_replacement_race_rereads_winner_on_firestore_retry(self):
+        state = self.state()
+        replacement = self.f.replace(state, REPLACE)
+        operation = "synthetic_sdk_delete_loser_0001"
+        body = self.f.delete(state, operation)
+        self.inject(lambda: self.replace(replacement))
+        with self.assertRaises(ContractError) as failed:
+            self.service.delete_archive(UID, self.f.vault, body, operation)
+        self.assertEqual(failed.exception.code, "version_conflict")
+        self.assertEqual(self.state()["archive"], replacement["archive"])
+        with self.assertRaises(ContractError):
+            self.service.receipt(UID, self.f.vault, operation)
+
+    def test_delete_winner_prevents_replacement_on_firestore_retry(self):
+        state = self.state()
+        replacement = self.f.replace(state, REPLACE)
+        operation = "synthetic_sdk_delete_winner_0001"
+        body = self.f.delete(state, operation)
+        self.inject(lambda: self.service.delete_archive(UID, self.f.vault, body, operation))
+        with self.assertRaises(ContractError):
+            self.replace(replacement)
+        self.assertIsNone(self.state()["archive"])
+        self.assertEqual(self.state()["lifecycleVersion"], 1)
+        with self.assertRaises(ContractError):
+            self.service.receipt(UID, self.f.vault, REPLACE)
+
     def test_conflicting_archive_winner_rechecks_dual_cas_on_sdk_retry(self):
         state = self.state()
         winner_op = "synthetic_sdk_archive_winner_0001"
