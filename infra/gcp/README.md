@@ -352,3 +352,11 @@ not external telemetry. Use the same network/device conditions for comparison;
 measure empty cache, expired cache, warm cache, and a service idle long enough to
 scale to zero separately. Record the source timestamps and refresh status along
 with timings so skeletons or undated prices do not count as useful data.
+
+### Terraform execution builder compatibility
+
+The plan and saved-plan apply steps pin the verified official Cloud CLI builder digest and invoke its bundled Python
+at `/usr/lib/google-cloud-sdk/platform/bundledpythonunix/bin/python3`. The pinned image has no system
+`python3` on PATH. Verify the replacement digest and interpreter layout before upgrading it.
+Terraform tool checksums, saved-plan ownership, target identities and native approval requirements
+remain unchanged. Updating the interpreter does not approve or apply infrastructure changes.
