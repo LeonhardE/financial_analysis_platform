@@ -17,6 +17,8 @@ no body. Mutations require one `Idempotency-Key` containing the signed stable op
 | GET    | `/archive`                                          | Current ciphertext, lifecycle/archive versions, public fences, pending approval and signed history |
 | PUT    | `/archive`                                          | `{contractVersion,archive,command}`; root-approved replacement and original receipt                |
 | POST   | `/archive-deletions`                                | `{contractVersion,command}`; root-approved removal of the cloud archive, HTTP 201                  |
+| POST   | `/archive-deletion-checks`                          | Original signed deletion; read-only outcome and matching snapshot versions                         |
+| POST   | `/archive-deletion-withdrawals`                     | Fresh root command plus original deletion command; retain archive and invalidate original CAS      |
 | POST   | `/recovery-authorizations`                          | `{contractVersion,command}`; approve one exact replacement digest, HTTP 201                        |
 | POST   | `/recovery-authorizations/{authorizationId}/revoke` | `{contractVersion,command}`; explicitly revoke that pending approval                               |
 | GET    | `/archive-operations/{operationId}`                 | The immutable original operation receipt, or 404                                                   |
@@ -34,27 +36,28 @@ The current root is an independent trust anchor; an initial directory need not c
 
 Every payload has exactly these common fields:
 
-| Field                                              | Meaning                                                                        |
-| -------------------------------------------------- | ------------------------------------------------------------------------------ |
-| `profile`, `contractVersion`                       | Exact lifecycle profile above and existing workspace v2.0 contract             |
-| `action`                                           | `archive_replace`, `archive_delete`, `recovery_authorize` or `recovery_revoke` |
-| `ownerSubject`, `vaultId`, `rootKeyId`             | Existing owner hash, vault and pinned root                                     |
-| `stableOperationId`                                | Exact `Idempotency-Key`; use a fresh client-generated operation ID             |
-| `expectedVaultVersion`                             | Existing directory/source aggregate version                                    |
-| `expectedLifecycleVersion`                         | Current independent lifecycle version; starts at 0                             |
-| `expectedArchiveRevision`                          | Current independent archive revision; starts at 0                              |
-| `expectedArchiveDigest`                            | SHA-256 hex of the canonical current archive JSON                              |
-| `registrySequence`, `checkpointDigest`, `keyEpoch` | Exact current verified registry fence                                          |
-| `issuedAt`, `expiresAt`                            | Integer Unix seconds; `issuedAt <= now < expiresAt <= issuedAt + 300`          |
+| Field                                              | Meaning                                                                                                   |
+| -------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| `profile`, `contractVersion`                       | Exact lifecycle profile above and existing workspace v2.0 contract                                        |
+| `action`                                           | `archive_replace`, `archive_delete`, `archive_delete_withdraw`, `recovery_authorize` or `recovery_revoke` |
+| `ownerSubject`, `vaultId`, `rootKeyId`             | Existing owner hash, vault and pinned root                                                                |
+| `stableOperationId`                                | Exact `Idempotency-Key`; use a fresh client-generated operation ID                                        |
+| `expectedVaultVersion`                             | Existing directory/source aggregate version                                                               |
+| `expectedLifecycleVersion`                         | Current independent lifecycle version; starts at 0                                                        |
+| `expectedArchiveRevision`                          | Current independent archive revision; starts at 0                                                         |
+| `expectedArchiveDigest`                            | SHA-256 hex of the canonical current archive JSON                                                         |
+| `registrySequence`, `checkpointDigest`, `keyEpoch` | Exact current verified registry fence                                                                     |
+| `issuedAt`, `expiresAt`                            | Integer Unix seconds; `issuedAt <= now < expiresAt <= issuedAt + 300`                                     |
 
 Each action adds only the following fields:
 
-| Action               | Additional fields                             |
-| -------------------- | --------------------------------------------- |
-| `archive_replace`    | `mode`, `newArchiveDigest`, `authorizationId` |
-| `archive_delete`     | None                                          |
-| `recovery_authorize` | `authorizationId`, `newArchiveDigest`         |
-| `recovery_revoke`    | `authorizationId`                             |
+| Action                    | Additional fields                                                               |
+| ------------------------- | ------------------------------------------------------------------------------- |
+| `archive_replace`         | `mode`, `newArchiveDigest`, `authorizationId`                                   |
+| `archive_delete`          | None                                                                            |
+| `archive_delete_withdraw` | `deletionOperationId`, `deletionCommandFingerprint`, `deletionLifecycleVersion` |
+| `recovery_authorize`      | `authorizationId`, `newArchiveDigest`                                           |
+| `recovery_revoke`         | `authorizationId`                                                               |
 
 `newArchiveDigest` is SHA-256 hex of the complete canonical proposed archive, including its
 randomized ciphertext and public binding metadata. It is not a digest of private holdings,
@@ -77,6 +80,36 @@ an old Passkey and archive already held elsewhere. Full root renewal/rekey and h
 policy require their own contracts; these endpoints cannot promise cryptographic recall.
 
 ## Cloud archive removal
+
+### Checking and withdrawing an unknown deletion
+
+`POST /archive-deletion-checks` accepts `{contractVersion,command}`, where `command` is the
+original root-signed `archive_delete`. It is read-only, requires the Google owner, disallows
+`Idempotency-Key` and selected-author headers, and has an 8192-byte body limit. It returns
+`{contractVersion,profile,vaultId,operationId,commandFingerprint,outcome,vaultVersion,lifecycleVersion,receipt}`.
+The outcome is `deleted` for the original accepted deletion, `withdrawn` for its signed withdrawal,
+`superseded` when a later immutable CAS fence prevents the original command, or `unresolved`.
+Expiry alone always remains unresolved. A future counter is rejected rather than declared safe.
+An original deletion remains `deleted` even if a later recovery restored the current archive.
+The optional receipt is the immutable original deletion/withdrawal receipt. Clients independently
+verify `/archive` signed history and match the returned snapshot versions; a check response alone
+does not replace root proof or permit discarding a still viable command.
+
+`POST /archive-deletion-withdrawals` accepts `{contractVersion,command,deletionCommand}` with a
+24576-byte body limit and an idempotency key for the new withdrawal. Both commands remain bounded
+by 8192 bytes. `deletionCommand` is the original signed deletion; `command` is a fresh root-signed
+`archive_delete_withdraw` with all common current lifecycle fences, plus exactly
+`deletionOperationId`, `deletionCommandFingerprint` and `deletionLifecycleVersion` (the original
+expected lifecycle version). Its signature and all three target fields must match the original.
+
+Withdrawal advances lifecycle version once, retains the archive and its revision/digest, and
+preserves the pending recovery approval and all other state. The target version cannot be in the
+future. The signed history permanently records that exact deletion identity and invalidates its
+old CAS, including for late or rolling-old requests; its operation ID cannot be reused to delete
+later. Deletion and withdrawal compete in one transaction, so only one wins. A committed deletion
+cannot be undone by withdrawal, and repeated/different withdrawals cannot consume more slots for
+the same target. Exact retries recover the original withdrawal receipt after expiry or capacity.
+No client-clock or 404 inference, new collection, cloud permission, TTL or background job is used.
 
 `archive_delete` requires a fresh pinned-root signature binding the exact current archive digest,
 archive/lifecycle versions and directory fence, in the same five-minute window as other commands.

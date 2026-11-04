@@ -48,6 +48,9 @@ _BASE_FIELDS = frozenset(
 _ACTION_FIELDS = {
     "archive_replace": frozenset({"mode", "newArchiveDigest", "authorizationId"}),
     "archive_delete": frozenset(),
+    "archive_delete_withdraw": frozenset(
+        {"deletionOperationId", "deletionCommandFingerprint", "deletionLifecycleVersion"}
+    ),
     "recovery_authorize": frozenset({"authorizationId", "newArchiveDigest"}),
     "recovery_revoke": frozenset({"authorizationId"}),
 }
@@ -120,6 +123,12 @@ def _payload(command, vault):
             identifier(value["authorizationId"])
     elif action in {"recovery_authorize", "recovery_revoke"}:
         identifier(value["authorizationId"])
+    elif action == "archive_delete_withdraw":
+        validate_schema("OperationIdentifier", value["deletionOperationId"])
+        _digest(value["deletionCommandFingerprint"])
+        positive(value["deletionLifecycleVersion"], zero=True)
+        if value["deletionOperationId"] == value["stableOperationId"]:
+            raise ContractError("idempotency_conflict")
     return value
 
 
@@ -163,7 +172,11 @@ def _advance(state, payload, command, accepted_at):
         next_state["pending"] = None
     elif action == "archive_delete":
         # Leave room for a fresh approval and restore from independent material.
-        if state["deleted"] or state["version"] > MAX_LIFECYCLE_OPERATIONS - 3:
+        if (
+            state["deleted"]
+            or payload["stableOperationId"] in state["withdrawn"]
+            or state["version"] > MAX_LIFECYCLE_OPERATIONS - 3
+        ):
             raise ContractError("version_conflict")
         next_state.update(
             revision=state["revision"] + 1,
@@ -171,6 +184,18 @@ def _advance(state, payload, command, accepted_at):
             pending=None,
             deleted=True,
         )
+    elif action == "archive_delete_withdraw":
+        target = payload["deletionOperationId"]
+        if (
+            state["deleted"]
+            or target in state["operations"]
+            or target in state["withdrawn"]
+            or payload["deletionLifecycleVersion"] > state["version"]
+        ):
+            raise ContractError("version_conflict")
+        # This signed lifecycle advance permanently invalidates the original CAS.
+        # It preserves the archive/revision, pending recovery and all other keys.
+        next_state["withdrawn"] = {**state["withdrawn"], target: payload}
     else:
         if payload["newArchiveDigest"] == state["digest"]:
             raise ContractError("recipient_binding_mismatch")
@@ -233,6 +258,7 @@ def _history_state(vault, registry, row):
         "deleted": False,
         "authorizationIds": set(),
         "operations": {},
+        "withdrawn": {},
         "lastAcceptedAt": 0,
         "lastVaultVersion": 0,
         "lastRegistrySequence": 0,
@@ -382,6 +408,68 @@ class VaultLifecycleService:
     def delete_archive(self, uid, vault, body, operation):
         return self._mutate(uid, vault, body, operation, "archive_delete")
 
+    def withdraw_deletion(self, uid, vault, body, operation):
+        return self._mutate(uid, vault, body, operation, "archive_delete_withdraw")
+
+    def check_deletion(self, uid, vault, body):
+        identifier(vault)
+        if (
+            type(body) is not dict
+            or set(body) != {"contractVersion", "command"}
+            or body["contractVersion"] != CONTRACT_VERSION
+        ):
+            raise ContractError("malformed_request")
+        owner = owner_key(uid)
+
+        def read(unit):
+            row, registry, _, state = self._read(unit, owner, vault, self.now())
+            payload = _payload(body["command"], row)
+            if payload["action"] != "archive_delete":
+                raise ContractError("malformed_request")
+            operation = payload["stableOperationId"]
+            fingerprint = signing_input_fingerprint(body["command"])
+            prior = state["operations"].get(operation)
+            withdrawn = state["withdrawn"].get(operation)
+            receipt = None
+            if prior:
+                if prior["receipt"]["commandFingerprint"] != fingerprint:
+                    raise ContractError("idempotency_conflict")
+                outcome, receipt = "deleted", prior["receipt"]
+            elif withdrawn:
+                if withdrawn["deletionCommandFingerprint"] != fingerprint:
+                    raise ContractError("idempotency_conflict")
+                outcome = "withdrawn"
+                receipt = state["operations"][withdrawn["stableOperationId"]]["receipt"]
+            else:
+                counters = {
+                    "expectedVaultVersion": row["version"],
+                    "expectedLifecycleVersion": state["version"],
+                    "expectedArchiveRevision": state["revision"],
+                    "registrySequence": registry.registry_sequence,
+                    "keyEpoch": registry.key_epoch,
+                }
+                if any(payload[key] > value for key, value in counters.items()):
+                    raise ContractError("version_conflict")
+                matches = all(payload[key] == value for key, value in counters.items())
+                matches = matches and payload["expectedArchiveDigest"] == state["digest"]
+                matches = matches and payload["checkpointDigest"] == registry.checkpoint_digest
+                outcome = "unresolved" if matches else "superseded"
+            value = {
+                "contractVersion": CONTRACT_VERSION,
+                "profile": PROFILE,
+                "vaultId": vault,
+                "operationId": operation,
+                "commandFingerprint": fingerprint,
+                "outcome": outcome,
+                "vaultVersion": row["version"],
+                "lifecycleVersion": state["version"],
+                "receipt": receipt,
+            }
+            check_read_response(value)
+            return value
+
+        return self.store.transact(read)
+
     def authorize_recovery(self, uid, vault, body, operation):
         return self._mutate(uid, vault, body, operation, "recovery_authorize")
 
@@ -397,6 +485,8 @@ class VaultLifecycleService:
         fields = {"contractVersion", "command"}
         if action == "archive_replace":
             fields.add("archive")
+        if action == "archive_delete_withdraw":
+            fields.add("deletionCommand")
         if (
             type(body) is not dict
             or set(body) != fields
@@ -417,6 +507,16 @@ class VaultLifecycleService:
             if action == "archive_replace":
                 _archive(body["archive"], owner=owner, vault=vault, root=row["rootKeyId"])
                 if _fingerprint(body["archive"]) != payload["newArchiveDigest"]:
+                    raise ContractError("recipient_binding_mismatch")
+            if action == "archive_delete_withdraw":
+                original = _payload(body["deletionCommand"], row)
+                if (
+                    original["action"] != "archive_delete"
+                    or original["stableOperationId"] != payload["deletionOperationId"]
+                    or original["expectedLifecycleVersion"] != payload["deletionLifecycleVersion"]
+                    or signing_input_fingerprint(body["deletionCommand"])
+                    != payload["deletionCommandFingerprint"]
+                ):
                     raise ContractError("recipient_binding_mismatch")
             prior = state["operations"].get(operation)
             if prior is not None:

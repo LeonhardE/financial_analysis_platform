@@ -261,6 +261,74 @@ class VaultLifecycleRoutesTests(unittest.TestCase):
                 self.write("POST", "/archive-deletions", body, "synthetic_archive_delete_0001"), 401
             )
 
+    def test_delete_check_and_withdrawal_are_bounded_owner_only_no_store(self):
+        deletion = self.f.delete(self.state())
+        check_path = self.base + "/archive-deletion-checks"
+        response = self.client.post(check_path, headers=self.headers, json=deletion)
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(response.json()["outcome"], "unresolved")
+        self.assertEqual(response.headers["cache-control"], "no-store")
+        operation = "synthetic_deletion_withdraw_0001"
+        body = self.f.withdraw(self.state(), deletion, operation)
+        response = self.write("POST", "/archive-deletion-withdrawals", body, operation)
+        self.assertEqual(response.status_code, 201, response.text)
+        self.assertEqual(response.headers["cache-control"], "no-store")
+        result = self.client.post(check_path, headers=self.headers, json=deletion)
+        self.assertEqual(result.json()["outcome"], "withdrawn")
+        self.assertEqual(result.json()["receipt"], response.json()["receipt"])
+        self.assertIsNotNone(self.state()["archive"])
+        self.failure(self.write("POST", "/archive-deletion-checks", deletion, operation), 400)
+        self.uid = OTHER_UID
+        self.failure(self.client.post(check_path, headers=self.headers, json=deletion), 404)
+        self.failure(self.write("POST", "/archive-deletion-withdrawals", body, operation), 404)
+
+    def test_delete_check_and_withdrawal_reject_untrusted_transport_and_missing_owner(self):
+        deletion = self.f.delete(self.state())
+        operation = "synthetic_deletion_withdraw_0001"
+        withdrawal = self.f.withdraw(self.state(), deletion, operation)
+        for path, body, limit in (
+            ("/archive-deletion-checks", deletion, 8192),
+            ("/archive-deletion-withdrawals", withdrawal, 24576),
+        ):
+            headers = (
+                self.headers
+                if path.endswith("checks")
+                else {**self.headers, "Idempotency-Key": operation}
+            )
+            self.failure(
+                self.client.post(self.base + path + "?owner=other", headers=headers, json=body), 400
+            )
+            self.failure(
+                self.client.post(
+                    self.base + path,
+                    headers={**headers, "X-FolioView-Author-Key": self.f.root_id},
+                    json=body,
+                ),
+                400,
+            )
+            self.failure(
+                self.client.post(
+                    self.base + path,
+                    headers={**headers, "Content-Type": "application/json"},
+                    content=b"x" * (limit + 1),
+                ),
+                413,
+            )
+        app.dependency_overrides.pop(require_owner)
+        with (
+            patch.dict(os.environ, {}, clear=True),
+            patch("socket.create_connection", side_effect=AssertionError("network")),
+        ):
+            self.failure(
+                self.client.post(
+                    self.base + "/archive-deletion-checks", headers=self.headers, json=deletion
+                ),
+                401,
+            )
+            self.failure(
+                self.write("POST", "/archive-deletion-withdrawals", withdrawal, operation), 401
+            )
+
 
 if __name__ == "__main__":
     unittest.main()
