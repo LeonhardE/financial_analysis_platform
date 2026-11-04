@@ -6,7 +6,13 @@ import hashlib
 from fixtures import VaultFixture
 
 from folioview_shared.encrypted.constants import CONTRACT_VERSION
-from folioview_shared.encrypted.jsonutil import b64url_encode, canonical_json
+from folioview_shared.encrypted.crypto import signing_input_fingerprint
+from folioview_shared.encrypted.jsonutil import (
+    b64url_decode,
+    b64url_encode,
+    canonical_json,
+    strict_json_loads,
+)
 
 PROFILE = "folioview.vault-lifecycle.v1"
 
@@ -114,5 +120,21 @@ class LifecycleFixture(VaultFixture):
             "contractVersion": CONTRACT_VERSION,
             "command": self.command(
                 state, operation, changes.pop("action", "archive_delete"), **changes
+            ),
+        }
+
+    def withdraw(self, state, deletion, operation="synthetic_deletion_withdraw_0001", **changes):
+        original = strict_json_loads(b64url_decode(deletion["command"]["payload"]))
+        return {
+            "contractVersion": CONTRACT_VERSION,
+            "deletionCommand": deletion["command"],
+            "command": self.command(
+                state,
+                operation,
+                "archive_delete_withdraw",
+                deletionOperationId=original["stableOperationId"],
+                deletionCommandFingerprint=signing_input_fingerprint(deletion["command"]),
+                deletionLifecycleVersion=original["expectedLifecycleVersion"],
+                **changes,
             ),
         }

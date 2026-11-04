@@ -36,6 +36,54 @@ class FirestoreVaultLifecycleTests(unittest.TestCase):
         self.vaults.bootstrap(UID, self.f.bootstrap(), BOOT)
         self.rpc.calls.clear()
 
+    def test_sdk_withdrawal_winner_prevents_delete_after_conflict_retry(self):
+        state = self.state()
+        deletion = self.f.delete(state)
+        withdrawal = self.f.withdraw(state, deletion)
+        before = self.vaults.current(UID)
+        self.inject(
+            lambda: self.service.withdraw_deletion(
+                UID, self.f.vault, withdrawal, "synthetic_deletion_withdraw_0001"
+            )
+        )
+        with self.assertRaises(ContractError):
+            self.service.delete_archive(
+                UID, self.f.vault, deletion, "synthetic_archive_delete_0001"
+            )
+        self.assertEqual(self.vaults.current(UID), before)
+        self.assertEqual(
+            self.service.check_deletion(UID, self.f.vault, deletion)["outcome"], "withdrawn"
+        )
+        self.assertEqual(self.state()["lifecycleVersion"], 1)
+
+    def test_sdk_delete_winner_prevents_withdrawal_after_conflict_retry(self):
+        state = self.state()
+        deletion = self.f.delete(state)
+        withdrawal = self.f.withdraw(state, deletion)
+        self.inject(
+            lambda: self.service.delete_archive(
+                UID, self.f.vault, deletion, "synthetic_archive_delete_0001"
+            )
+        )
+        with self.assertRaises(ContractError):
+            self.service.withdraw_deletion(
+                UID, self.f.vault, withdrawal, "synthetic_deletion_withdraw_0001"
+            )
+        self.assertIsNone(self.state()["archive"])
+        self.assertEqual(
+            self.service.check_deletion(UID, self.f.vault, deletion)["outcome"], "deleted"
+        )
+        self.assertEqual(self.state()["lifecycleVersion"], 1)
+
+    def test_sdk_status_check_never_commits_or_calls_expiry_a_withdrawal(self):
+        deletion = self.f.delete(self.state())
+        self.now = 9000
+        self.rpc.calls.clear()
+        self.assertEqual(
+            self.service.check_deletion(UID, self.f.vault, deletion)["outcome"], "unresolved"
+        )
+        self.assertEqual(self.batches(), [])
+
     def state(self):
         return self.service.state(UID, self.f.vault)
 

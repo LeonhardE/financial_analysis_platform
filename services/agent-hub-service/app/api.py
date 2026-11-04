@@ -221,6 +221,31 @@ async def delete_archive(vault_id: str, request: Request, user: Owner, service: 
     )
 
 
+@owner_router.post("/{vault_id}/archive-deletion-withdrawals", status_code=201)
+async def withdraw_archive_deletion(
+    vault_id: str, request: Request, user: Owner, service: Lifecycle
+):
+    _invoke(lambda: _lifecycle_transport(request, operation=True))
+    value = await body(request, {"contractVersion", "command", "deletionCommand"}, max_bytes=24576)
+    return await run_in_threadpool(
+        _invoke,
+        lambda: service.withdraw_deletion(
+            user.uid, vault_id, value, request.headers["idempotency-key"]
+        ),
+    )
+
+
+@owner_router.post("/{vault_id}/archive-deletion-checks")
+async def check_archive_deletion(vault_id: str, request: Request, user: Owner, service: Lifecycle):
+    _invoke(lambda: _lifecycle_transport(request))
+    if request.headers.getlist("idempotency-key"):
+        raise HTTPException(400, {"code": "malformed_request"})
+    value = await body(request, {"contractVersion", "command"}, max_bytes=8192)
+    return await run_in_threadpool(
+        _invoke, lambda: service.check_deletion(user.uid, vault_id, value)
+    )
+
+
 @owner_router.post("/{vault_id}/recovery-authorizations/{authorization_id}/revoke")
 async def revoke_recovery(
     vault_id: str, authorization_id: str, request: Request, user: Owner, service: Lifecycle
