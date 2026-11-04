@@ -71,6 +71,21 @@ class SelectionTests(unittest.TestCase):
             with self.subTest(path=path):
                 self.assertEqual(select([path]), FULL)
 
+    def test_codeowners_only_keeps_repository_checks_but_cannot_hide_executable_changes(
+        self,
+    ):
+        self.assertEqual(select([".github/CODEOWNERS", "changelog/owner.md"]), Plan())
+        self.assertEqual(
+            select([".github/CODEOWNERS", "services/agent-hub-service/app/main.py"]),
+            Plan(services=("agent-hub-service",)),
+        )
+        for path in (
+            ".github/workflows/new.yml",
+            ".github/actions/check/action.yml",
+            ".github/new",
+        ):
+            self.assertEqual(select([".github/CODEOWNERS", path]), FULL)
+
     def test_per_target_build_config_keeps_only_its_owner_and_infra(self):
         cases = {
             "api": Plan(services=("market-data-service",), infra=True),

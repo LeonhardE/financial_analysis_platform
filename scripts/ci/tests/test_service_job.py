@@ -181,6 +181,14 @@ class RegisteredJobTests(unittest.TestCase):
         self.assertIn("checks.py gate --verify-matrix", workflow)
         self.assertIn("actions: read", workflow)
 
+    def test_only_hub_enables_bounded_process_sharding(self):
+        with patch.object(service_job.subprocess, "run") as run:
+            service_job.check_target("agent-hub-service")
+        self.assertEqual(
+            run.call_args.args[0][-6:],
+            ["--service", "common", "--service", "agent-hub-service", "--jobs", "4"],
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -17,6 +17,7 @@ from pathlib import Path
 from urllib.request import ProxyHandler, Request, build_opener
 
 from fake_cloud_run import PROJECT, REGION, RESOURCE, SERVICE, TOKEN, FakeCloudRun
+from scenario_runner import run_scenarios
 
 ROOT = Path(__file__).resolve().parents[4]
 MODULE = ROOT / "infra/gcp/terraform/modules/cloud-run-service"
@@ -268,9 +269,9 @@ def image(body):
     return template["containers"][0]["image"]
 
 
-def scenarios(terraform, provider_dir):
+def scenarios(terraform, provider_dir, jobs=1):
     helper = release_helper()
-    findings = []
+    cases = []
 
     def case(variant, callback):
         with (
@@ -296,7 +297,7 @@ def scenarios(terraform, provider_dir):
             "released_image": "B",
         }
 
-    findings.append(case("baseline", baseline))
+    cases.append(lambda: case("baseline", baseline))
 
     def immutable(case, fixture):
         revision_b = release(fixture, helper, "B")
@@ -320,7 +321,7 @@ def scenarios(terraform, provider_dir):
             "wire_image": "B",
         }
 
-    findings.append(case("naive-ignore", immutable))
+    cases.append(lambda: case("naive-ignore", immutable))
 
     def stale_image(case, fixture):
         release(fixture, helper, "B")
@@ -344,7 +345,7 @@ def scenarios(terraform, provider_dir):
             "wire_etag": False,
         }
 
-    findings.append(case("image-traffic-ignore", stale_image))
+    cases.append(lambda: case("image-traffic-ignore", stale_image))
 
     def rollback_semantics(case, fixture):
         revision_b = release(fixture, helper, "B")
@@ -377,7 +378,7 @@ def scenarios(terraform, provider_dir):
             "configuration_change_reaches_serving_revision": False,
         }
 
-    findings.append(case("image-traffic-ignore", rollback_semantics))
+    cases.append(lambda: case("image-traffic-ignore", rollback_semantics))
 
     def stale_traffic(case, fixture):
         revision_b = release(fixture, helper, "B")
@@ -403,13 +404,14 @@ def scenarios(terraform, provider_dir):
             "wire_etag": False,
         }
 
-    findings.append(case("image-traffic-ignore", stale_traffic))
-    return findings
+    cases.append(lambda: case("image-traffic-ignore", stale_traffic))
+    return run_scenarios(cases, jobs)
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--terraform", required=True, type=Path)
+    parser.add_argument("--jobs", type=int, choices=range(1, 9), default=1)
     parser.add_argument(
         "--provider-dir",
         type=Path,
@@ -430,7 +432,7 @@ def main():
         provider_dir is not None,
         "Initialize the pinned module provider first, or pass --provider-dir",
     )
-    findings = scenarios(terraform, provider_dir)
+    findings = scenarios(terraform, provider_dir, args.jobs)
     report = {
         "verification_passed": True,
         "compatible": False,

@@ -247,6 +247,12 @@ routing tests remain lightweight common checks; the required **Quality checks** 
 results, including documentation-only PRs. See the
 [CI impact rules](infra/gcp/README.md#ci-target-selection) for shared tooling and infrastructure paths.
 
+The Agent Hub suite uses four isolated test processes locally and in CI. Each keeps complete module/class
+fixtures together; the runner verifies the combined discovery manifest before reporting success.
+Other service jobs remain serial. To reproduce the Hub execution locally, use
+`python3 scripts/test_services.py --service common --service agent-hub-service --jobs 4`.
+Use `--jobs 1` for serial reproduction.
+
 ## Signed contributions and merges
 
 Follow [the commit conventions](AGENTS.md) and sign new commits with a key registered to your

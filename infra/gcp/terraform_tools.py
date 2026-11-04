@@ -79,6 +79,8 @@ def check(terraform: str) -> None:
                 str(DIRECTORY / "compatibility" / script),
                 "--terraform",
                 terraform,
+                "--jobs",
+                "4",
             ],
             env=environment,
             check=True,

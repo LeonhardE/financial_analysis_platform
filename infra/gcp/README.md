@@ -26,16 +26,17 @@ the backend configurations stop after publishing that image.
 The CI workflow runs on every PR and push to `main`. It does not use workflow-level path filters:
 the required **Quality checks** result must also complete for documentation-only changes.
 
-| Changed paths                                                                     | Application checks                  |
-| --------------------------------------------------------------------------------- | ----------------------------------- |
-| `apps/web/**`, root `package-lock.json`                                           | Web                                 |
-| `services/market-data-service/**`                                                 | Market                              |
-| `services/user-service/**`                                                        | User                                |
-| `services/config-service/**`                                                      | Config                              |
-| `services/common/**`, `services/requirements-dev.txt`, `scripts/test_services.py` | All backend services                |
-| `infra/gcp/cloudbuild.api.yaml`, `.user.yaml`, `.config.yaml`, `.web.yaml`        | The corresponding service or client |
-| Root `package.json`, `.dockerignore`, `.github/**`, `scripts/ci/**`               | All targets                         |
-| Documentation, changelogs, formatter configuration                                | No application build                |
+| Changed paths                                                                         | Application checks                  |
+| ------------------------------------------------------------------------------------- | ----------------------------------- |
+| `apps/web/**`, root `package-lock.json`                                               | Web                                 |
+| `services/market-data-service/**`                                                     | Market                              |
+| `services/user-service/**`                                                            | User                                |
+| `services/config-service/**`                                                          | Config                              |
+| `services/common/**`, `services/requirements-dev.txt`, `scripts/test_services.py`     | All backend services                |
+| `infra/gcp/cloudbuild.api.yaml`, `.user.yaml`, `.config.yaml`, `.web.yaml`            | The corresponding service or client |
+| Root `package.json`, `.dockerignore`, `.github/**` except CODEOWNERS, `scripts/ci/**` | All targets                         |
+| `.github/CODEOWNERS` only                                                             | Repository checks                   |
+| Documentation, changelogs, formatter configuration                                    | No application build                |
 
 Every selected backend installs its own dependencies, checks its own code plus `services/common`,
 runs the common and selected service suites in separate processes, then builds and starts that
