@@ -349,9 +349,19 @@ export class BrowserEncryptedStorage implements EncryptedStorage {
             if (row) {
               const key = String(row.key),
                 v = row.value;
+              // A different vault's unfinished bootstrap cannot replace the current
+              // server vault. Preserve it, but do not let it prevent this renewal.
+              const otherVaultBootstrap =
+                v?.ownerSubject === owner &&
+                v?.pending?.ownerSubject === owner &&
+                v?.pending?.profile === "folioview.pending-device.v1" &&
+                v?.pending?.kind === "bootstrap" &&
+                typeof v?.pending?.vaultId === "string" &&
+                v.pending.vaultId !== record.vaultId &&
+                key === owner + ":pending-device:" + v.pending.vaultId;
               if (
                 key === owner + ":archive-change" ||
-                key.includes(":pending-device:") ||
+                (key.includes(":pending-device:") && !otherVaultBootstrap) ||
                 key.includes(":device-change:") ||
                 key.includes(":agent-registration:") ||
                 key.includes(":agent-approval:") ||
