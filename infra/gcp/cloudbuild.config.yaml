@@ -13,8 +13,8 @@ steps:
       - push
       - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPOSITORY}/config-api:$BUILD_ID
 
-  - name: gcr.io/google.com/cloudsdktool/google-cloud-cli:slim
-    entrypoint: python3
+  - name: gcr.io/google.com/cloudsdktool/google-cloud-cli@sha256:8a50079dfc4b164aa5e83926bef5f9b305b93e80f82d40fabd836da4830dd08e
+    entrypoint: /usr/lib/google-cloud-sdk/platform/bundledpythonunix/bin/python3
     args:
       - infra/gcp/deploy_existing_service.py
       - --project=$PROJECT_ID
