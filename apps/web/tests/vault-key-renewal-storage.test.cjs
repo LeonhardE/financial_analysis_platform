@@ -298,9 +298,34 @@ test("renewal blocks unresolved uploads and authority candidates, retains draft 
       assert.equal((await store.get(key)).encrypted, "retained");
       await store.remove(key);
     }
+    const bootstrap = (vaultId, kind = "bootstrap") => ({
+      ownerSubject: f.owner,
+      pending: { ownerSubject: f.owner, vaultId, kind, profile: "folioview.pending-device.v1" },
+    });
+    const foreignKey = f.owner + ":pending-device:other_vault";
+    for (const value of [
+      bootstrap("other_vault", "registration"),
+      bootstrap(f.vault.vaultId),
+      { ...bootstrap("other_vault"), ownerSubject: "other_owner" },
+      {
+        ...bootstrap("other_vault"),
+        pending: { ...bootstrap("other_vault").pending, profile: "bad" },
+      },
+    ]) {
+      await store.put(foreignKey, value);
+      await assert.rejects(store.stageKeyRenewal(f.owner, row), /key_renewal_local_pending/);
+    }
+    await store.remove(foreignKey);
+    const currentKey = f.owner + ":pending-device:" + f.vault.vaultId;
+    await store.put(currentKey, bootstrap(f.vault.vaultId));
+    await assert.rejects(store.stageKeyRenewal(f.owner, row), /key_renewal_local_pending/);
+    await store.remove(currentKey);
+    const foreignBootstrap = bootstrap("other_vault");
+    await store.put(foreignKey, foreignBootstrap);
     await store.put(f.owner + ":task-draft:vault:new", { encrypted: "draft" });
     await store.put("other-owner:outbox:holdings", { encrypted: "other" });
     assert(await store.stageKeyRenewal(f.owner, row));
+    assert.deepEqual(await store.get(foreignKey), foreignBootstrap);
     assert.equal((await store.get(f.owner + ":task-draft:vault:new")).encrypted, "draft");
     assert.equal((await store.get("other-owner:outbox:holdings")).encrypted, "other");
     const other = await createOwner(h, "another-archive-owner"),
