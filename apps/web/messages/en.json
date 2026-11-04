@@ -441,7 +441,9 @@
         "disconnect": "Confirm disconnect",
         "delete": "Confirm delete"
       }
-    }
+    },
+    "archiveUnavailable": "A key archive removal needs attention, or the cloud key archive was removed. Open Settings to check the original request or use independent recovery. Your saved content has not been emptied.",
+    "archiveSettings": "Open key archive settings"
   },
   "inbox": {
     "eyebrow": "YOUR AGENT RESULTS",
@@ -567,7 +569,9 @@
     "enableChanges": "Enable changes on this device",
     "readOnlyHelp": "You can read saved reports. Use your Passkey to authorize this device before changing their status.",
     "stateScope": "Read, star and archive apply to this result across all its revisions.",
-    "countsHelp": "Counts reflect the last refresh."
+    "countsHelp": "Counts reflect the last refresh.",
+    "archiveUnavailable": "A key archive removal needs attention, or the cloud key archive was removed. Open Settings to check the original request or use independent recovery. Your saved content has not been emptied.",
+    "archiveSettings": "Open key archive settings"
   },
   "resourceLibrary": {
     "filterLabel": "Filter resources",
@@ -835,7 +839,9 @@
     "selectedResourceHelp": "Start a brief using {kind}. Unlock the library first; you can adjust the selection before saving.",
     "startSelected": "Start with this resource",
     "notChecked": "Agent input readiness has not been checked yet",
-    "resourceLimit": "Choose up to 10 resources."
+    "resourceLimit": "Choose up to 10 resources.",
+    "archiveUnavailable": "A key archive removal needs attention, or the cloud key archive was removed. Open Settings to check the original request or use independent recovery. Your saved content has not been emptied.",
+    "archiveSettings": "Open key archive settings"
   },
   "agents": {
     "eyebrow": "Personal workspace",
@@ -1093,7 +1099,9 @@
       "original_helper_required": "Only the original helper keys can decrypt this approved copy. No new keys were substituted."
     },
     "originalHelperHelp": "Recovery cannot recreate private helper keys. Continue only if the original helper with these exact fingerprints is still open in your other browser; otherwise restart authorization from Muse.",
-    "confirmOriginalHelper": "My original helper is still open; continue with its original keys"
+    "confirmOriginalHelper": "My original helper is still open; continue with its original keys",
+    "archiveUnavailable": "A key archive removal needs attention, or the cloud key archive was removed. Open Settings to check the original request or use independent recovery. Your saved content has not been emptied.",
+    "archiveSettings": "Open key archive settings"
   },
   "vaultManagement": {
     "title": "Library keys and devices",
@@ -1378,5 +1386,58 @@
     "uploadCancelled": "The original upload is cancelled and cannot be submitted again. Its matching local retry copies were cleared. Check other pending work before renewal.",
     "uploadAlreadySaved": "The upload had already been saved. Its original encrypted result was verified and only its local retry copies were cleared. Saved data is kept.",
     "cancelUploadCapacity": "Holdings and task uploads each retain at most 32 cancellation decisions per library. Retrying the original cancellation does not use another slot. At capacity the original requests remain preserved."
+  },
+  "vaultDeletion": {
+    "title": "Cloud key archive",
+    "description": "Remove the encrypted key package stored in the cloud. Your library identity, saved holdings, tasks and reports remain.",
+    "effects": "After removal, the original Passkey alone cannot unlock the library. Approved devices and Agent connections, downloaded copies and recovery packages remain valid.",
+    "reviewDeletion": "Review cloud key archive removal",
+    "reviewTitle": "Confirm cloud key archive removal",
+    "recoveryWarning": "Without independent recovery material, access to the encrypted content may be lost permanently. This does not reset your library or revoke other devices.",
+    "backupLink": "Save a current independent recovery package above first",
+    "backupConfirmation": "I have safely stored the current recovery file and its code separately, and understand that losing them may prevent recovery.",
+    "confirmDeletion": "Confirm and remove cloud key archive",
+    "keepArchive": "Keep cloud key archive",
+    "reviewAgain": "Review the current archive again",
+    "libraryDetails": "Library fingerprint",
+    "operationDetails": "Original request",
+    "pendingTitle": "Original removal request needs checking",
+    "pendingHelp": "Keep the original request while its outcome is unknown. Checking reads state; continuing retries the retained original command.",
+    "withdrawalPendingTitle": "Original withdrawal needs checking",
+    "withdrawalPendingHelp": "The withdrawal request is retained. Continuing retries its withdrawal only; it does not send the removal command again.",
+    "check": "Check again",
+    "retryDeletion": "Continue original removal",
+    "retryWithdrawal": "Continue original withdrawal",
+    "reviewWithdrawal": "Review withdrawal",
+    "withdrawalTitle": "Withdraw the original removal",
+    "withdrawalHelp": "Verify the original Passkey to approve keeping the cloud archive. If removal already won, withdrawal cannot undo it; use independent recovery instead.",
+    "confirmWithdrawal": "Verify original Passkey and withdraw",
+    "keepPending": "Keep pending request",
+    "otherPasskey": "Use a phone or security key",
+    "withdrawOther": "Verify another way and withdraw",
+    "deleted": "The cloud key archive has been removed. Use an independent recovery package to restore it and create a new Passkey.",
+    "restoreLink": "Open independent recovery",
+    "notices": {
+      "deleted": "The original removal is confirmed.",
+      "withdrawn": "The original removal was withdrawn; the cloud key archive remains. Unlock again to continue.",
+      "superseded": "A later key change permanently superseded the original removal. Unlock the current archive to continue."
+    },
+    "errors": {
+      "archive_local_pending": "Finish the pending encrypted requests or drafts in this browser before removing the key archive.",
+      "archive_change_pending": "Another key archive operation is pending. Resolve it before starting a new removal.",
+      "archive_deletion_unknown": "The outcome is still unknown. The original request is retained; check again or explicitly withdraw it.",
+      "archive_deletion_unavailable": "A recovery approval or the remaining operation allowance prevents removal. Keep the archive and resolve the pending approval first.",
+      "archive_deletion_review_stale": "The archive changed after review. Review its current state and confirm again.",
+      "archive_deletion_unlock_required": "Use the original Passkey to approve withdrawal. Ordinary content access stays locked.",
+      "archive_session_stale": "The key archive changed. Reload its current state before continuing.",
+      "storage_unavailable": "This browser could not preserve the request safely. Restore local storage availability before continuing.",
+      "passkey_cancelled": "Passkey verification was cancelled. The original request remains pending.",
+      "passkey_unsupported": "This authenticator could not unlock the key archive. Try a supported original Passkey.",
+      "request_timeout": "The request timed out. Its original command is retained for checking.",
+      "service_unavailable": "The service is unavailable. Keep the original request and check again later.",
+      "untrusted_lifecycle": "The signed archive history could not be verified. No pending request was discarded.",
+      "operation_conflict": "The pending request changed in another tab. Reload and check its current state.",
+      "generic": "The operation could not finish. Check the original request or review the current key archive before retrying."
+    }
   }
 }

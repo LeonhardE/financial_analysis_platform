@@ -53,7 +53,15 @@ import type {
 
 const CONTRACT = "folioview.agent-workspace.v2.0";
 const contractHeaders = { "X-FolioView-Contract": CONTRACT };
-type Phase = "checking" | "needs-vault" | "locked" | "needs-device" | "unlocked" | "renewal-only";
+type Phase =
+  | "checking"
+  | "needs-vault"
+  | "locked"
+  | "needs-device"
+  | "unlocked"
+  | "renewal-only"
+  | "archive-pending"
+  | "archive-deleted";
 type Busy =
   | "loading"
   | "creating"
@@ -72,6 +80,10 @@ type Busy =
   | "renewing-keys"
   | "cancelling-renewal"
   | "changing-source"
+  | "reviewing-archive-deletion"
+  | "deleting-archive"
+  | "checking-archive-deletion"
+  | "withdrawing-archive-deletion"
   | null;
 type SourceMetadata = {
   source: Source;
@@ -89,7 +101,27 @@ type DeviceReview = {
   registrySequence: number;
   checkpointDigest: string;
 };
+type ArchiveDeletionReview = Pick<
+  VaultLifecycleState,
+  | "vaultId"
+  | "rootKeyId"
+  | "vaultVersion"
+  | "lifecycleVersion"
+  | "archiveRevision"
+  | "archiveDigest"
+  | "registrySequence"
+  | "checkpointDigest"
+  | "keyEpoch"
+>;
 type State = {
+  archiveDeletionError: string;
+  archiveDeletionReview: ArchiveDeletionReview | null;
+  archiveDeletion: {
+    operationId: string;
+    outcome: import("@/lib/encrypted-types").ArchiveDeletionOutcome;
+    canWithdraw: boolean;
+    withdrawalPending: boolean;
+  } | null;
   owner: string | null;
   phase: Phase;
   busy: Busy;
@@ -152,6 +184,9 @@ type State = {
   } | null;
 };
 const empty: State = {
+  archiveDeletionError: "",
+  archiveDeletionReview: null,
+  archiveDeletion: null,
   owner: null,
   phase: "checking",
   busy: null,
@@ -200,6 +235,19 @@ function id(prefix: string) {
 function record(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
+function requireArchive(archive: Vault["archive"]) {
+  if (!archive) throw new WorkspaceError("archive_deleted");
+  return archive;
+}
+function lockedPhase(state: Pick<State, "vault" | "archiveDeletion">): Phase {
+  return state.archiveDeletion
+    ? "archive-pending"
+    : !state.vault
+      ? "needs-vault"
+      : state.vault.archive === null
+        ? "archive-deleted"
+        : "locked";
+}
 function sameSource(left: unknown, right: Source["resourceRef"]) {
   return (
     record(left) &&
@@ -228,7 +276,8 @@ function sourceMetadata(value: unknown, source: Source, vault: Vault): SourceMet
     value.vaultId !== vault.vaultId ||
     typeof value.ownerSubject !== "string" ||
     !/^[a-f0-9]{64}$/.test(value.ownerSubject) ||
-    (vault.archive.ownerSubject && value.ownerSubject !== vault.archive.ownerSubject) ||
+    (requireArchive(vault.archive).ownerSubject &&
+      value.ownerSubject !== requireArchive(vault.archive).ownerSubject) ||
     !positive(value.sourceEpoch) ||
     !positive(value.authorityVersion) ||
     !Number.isSafeInteger(value.revision) ||
@@ -435,6 +484,7 @@ export function useHoldingsWorkspace() {
         keyNotice: "",
         recoveryExport: null,
         keyRenewalFailure: false,
+        archiveDeletionError: "",
       }));
       const timeout = window.setTimeout(
         () => {
@@ -446,7 +496,8 @@ export function useHoldingsWorkspace() {
           setState((previous) => ({
             ...previous,
             busy: null,
-            phase: previous.vault ? "locked" : "needs-vault",
+            phase: lockedPhase(previous),
+            archiveDeletionReview: null,
             preview: null,
             content: null,
             sourceMetadata: null,
@@ -472,6 +523,7 @@ export function useHoldingsWorkspace() {
               ["reviewing-renewal", "renewing-keys", "cancelling-renewal"].includes(busy),
             canWriteState: false,
             error: "request_timeout",
+            archiveDeletionError: busy.includes("archive") ? "request_timeout" : "",
           }));
         },
         [
@@ -480,6 +532,7 @@ export function useHoldingsWorkspace() {
           "verifying",
           "changing-passkey",
           "restoring-recovery",
+          "withdrawing-archive-deletion",
           "reviewing-renewal",
         ].includes(busy)
           ? 180_000
@@ -493,6 +546,8 @@ export function useHoldingsWorkspace() {
           busy === "creating" ||
           busy === "unlocking" ||
           busy === "reviewing-renewal" ||
+          busy === "deleting-archive" ||
+          busy === "withdrawing-archive-deletion" ||
           [
             "untrusted_vault",
             "rollback_detected",
@@ -507,7 +562,8 @@ export function useHoldingsWorkspace() {
           ...previous,
           ...(discardKeys
             ? {
-                phase: previous.vault ? ("locked" as const) : ("needs-vault" as const),
+                phase: lockedPhase(previous),
+                archiveDeletionReview: null,
                 content: null,
                 preview: null,
                 keyManagement: null,
@@ -539,6 +595,7 @@ export function useHoldingsWorkspace() {
             ? { sourceMetadata: null }
             : {}),
           error: errorCode(error),
+          archiveDeletionError: busy.includes("archive") ? errorCode(error) : "",
           keyRenewalFailure:
             previous.phase === "renewal-only" ||
             errorCode(error).startsWith("key_renewal_") ||
@@ -642,6 +699,7 @@ export function useHoldingsWorkspace() {
         ownerRef.current !== owner ||
         !capabilitiesRef.current.hub ||
         session.current?.owner !== owner ||
+        ["archive-pending", "archive-deleted"].includes(stateRef.current.phase) ||
         (stateRef.current.phase === "renewal-only" && !allowRenewal)
       )
         throw new WorkspaceError("unlock_required");
@@ -837,12 +895,135 @@ export function useHoldingsWorkspace() {
     [api, liveSession, sync],
   );
 
+  const reconcileArchiveDeletion = useCallback(
+    async (
+      initial: { vault: Vault | null; sources: Source[] },
+      signal: AbortSignal,
+      assertActive: () => void,
+      retained?: EncryptedVaultSession,
+    ) => {
+      if (!initial.vault || !uid || !owner) return false;
+      if (
+        !retained &&
+        initial.vault.archive !== null &&
+        !(await EncryptedVaultSession.hasArchiveDeletion(uid))
+      ) {
+        assertActive();
+        return false;
+      }
+      assertActive();
+      const instance = retained ?? new EncryptedVaultSession(uid);
+      if (!retained) {
+        terminate();
+        session.current = { owner, instance };
+      }
+      const hasPending = await instance.hasArchiveDeletion();
+      assertActive();
+      if (!hasPending && initial.vault.archive !== null) {
+        if (!retained) {
+          instance.lock();
+          session.current = null;
+        }
+        return false;
+      }
+      let fresh = initial;
+      if (hasPending)
+        setState((previous) => ({
+          ...empty,
+          owner,
+          busy: previous.busy,
+          vault: initial.vault,
+          sources: initial.sources,
+          phase: "archive-pending",
+          archiveDeletion: {
+            operationId: "",
+            outcome: "unresolved",
+            canWithdraw: false,
+            withdrawalPending: false,
+          },
+        }));
+      for (let attempt = 0; attempt < 2; attempt++) {
+        const snapshot = fresh;
+        if (!snapshot.vault) throw new WorkspaceError("archive_deletion_unknown");
+        const lifecycle = await readLifecycle(snapshot.vault, signal);
+        const pending = await instance.inspectArchiveDeletion(snapshot.vault, lifecycle);
+        assertActive();
+        if (!pending) {
+          await instance.verifyLifecycle(snapshot.vault, lifecycle);
+          assertActive();
+          terminate();
+          setState((previous) => ({
+            ...empty,
+            owner,
+            busy: previous.busy,
+            vault: snapshot.vault,
+            sources: snapshot.sources,
+            phase: snapshot.vault!.archive === null ? "archive-deleted" : "locked",
+          }));
+          return true;
+        }
+        setState((previous) => ({
+          ...empty,
+          owner,
+          busy: previous.busy,
+          vault: snapshot.vault,
+          sources: snapshot.sources,
+          phase: "archive-pending",
+          archiveDeletion: {
+            operationId: pending.operationId,
+            outcome: pending.outcome,
+            canWithdraw: pending.canWithdraw,
+            withdrawalPending: Boolean(pending.withdrawal),
+          },
+        }));
+        const checked = await api(
+          "agent-hub",
+          `/api/v2/vaults/${snapshot.vault.vaultId}/archive-deletion-checks`,
+          signal,
+          { method: "POST", json: pending.packet.body },
+        );
+        assertActive();
+        if (
+          !record(checked) ||
+          checked.operationId !== pending.operationId ||
+          checked.commandFingerprint !== pending.commandFingerprint ||
+          checked.vaultVersion !== lifecycle.vaultVersion ||
+          checked.lifecycleVersion !== lifecycle.lifecycleVersion ||
+          checked.outcome !== pending.outcome
+        ) {
+          fresh = await readCurrent(signal);
+          assertActive();
+          continue;
+        }
+        if (pending.outcome !== "unresolved") {
+          const outcome = await instance.finishArchiveDeletion(snapshot.vault, lifecycle);
+          assertActive();
+          terminate();
+          setState((previous) => ({
+            ...empty,
+            owner,
+            busy: previous.busy,
+            vault: snapshot.vault,
+            sources: snapshot.sources,
+            phase: snapshot.vault!.archive === null ? "archive-deleted" : "locked",
+            keyNotice: "archive_deletion_" + outcome,
+          }));
+        }
+        return pending.outcome;
+      }
+      throw new WorkspaceError("archive_deletion_unknown");
+    },
+    [api, owner, uid, readCurrent, readLifecycle, terminate],
+  );
+
   const reload = useCallback(
     () =>
       perform("loading", async ({ assertActive, signal }) => {
         const result = await readCurrent(signal);
         assertActive();
         terminate();
+        if (await reconcileArchiveDeletion(result, signal, assertActive)) return;
+        assertActive();
         setState({
           ...empty,
           owner,
@@ -852,7 +1033,7 @@ export function useHoldingsWorkspace() {
           busy: "loading",
         });
       }),
-    [owner, perform, readCurrent, terminate],
+    [owner, perform, readCurrent, terminate, reconcileArchiveDeletion],
   );
 
   useEffect(() => {
@@ -878,12 +1059,19 @@ export function useHoldingsWorkspace() {
         assertActive();
         const vault = stateRef.current.owner === owner ? fresh.vault : null;
         if (!vault || !uid || !owner) throw new WorkspaceError("unlock_required");
+        if (vault.archive === null || (await EncryptedVaultSession.hasArchiveDeletion(uid))) {
+          assertActive();
+          terminate();
+          await reconcileArchiveDeletion(fresh, signal, assertActive);
+          return;
+        }
         terminate();
         const instance = new EncryptedVaultSession(uid);
         session.current = { owner, instance };
         setState((previous) => ({
           ...previous,
           phase: "locked",
+          archiveDeletionReview: null,
           content: null,
           preview: null,
           keyManagement: null,
@@ -893,7 +1081,7 @@ export function useHoldingsWorkspace() {
           needsDeviceApproval: false,
           canWriteState: false,
         }));
-        const material = await unlockVaultPasskey(vault.archive, {
+        const material = await unlockVaultPasskey(requireArchive(vault.archive), {
           method: options?.method,
           signal,
         });
@@ -1020,7 +1208,17 @@ export function useHoldingsWorkspace() {
           if (material.secret.byteLength) new Uint8Array(material.secret).fill(0);
         }
       }),
-    [api, owner, perform, readCurrent, readLifecycle, readSaved, terminate, uid],
+    [
+      api,
+      owner,
+      perform,
+      readCurrent,
+      readLifecycle,
+      readSaved,
+      terminate,
+      uid,
+      reconcileArchiveDeletion,
+    ],
   );
 
   const create = useCallback(
@@ -1888,7 +2086,9 @@ export function useHoldingsWorkspace() {
       busy: null,
       hasPending: false,
       discardOperationId: null,
-      phase: previous.vault ? "locked" : "needs-vault",
+      phase: lockedPhase(previous),
+      archiveDeletionReview: null,
+      archiveDeletionError: "",
       error: "",
       notice: "",
       canWriteState: false,
@@ -2444,7 +2644,10 @@ export function useHoldingsWorkspace() {
         assertActive();
         assertKeySession(instance, managementGeneration);
         if (!fresh.vault || !uid) throw new WorkspaceError("invalid_response");
-        const material = await unlockVaultPasskey(fresh.vault.archive, { method, signal });
+        const material = await unlockVaultPasskey(requireArchive(fresh.vault.archive), {
+          method,
+          signal,
+        });
         let probe: EncryptedVaultSession | null = null;
         try {
           assertActive();
@@ -2590,6 +2793,259 @@ export function useHoldingsWorkspace() {
     [api, owner, readCurrent, readLifecycle, terminate],
   );
 
+  const reviewArchiveDeletion = useCallback(
+    () =>
+      perform("reviewing-archive-deletion", async ({ assertActive, signal }) => {
+        const instance = liveSession();
+        assertKeySession(instance, managementGeneration);
+        const fresh = await readCurrent(signal);
+        if (!fresh.vault?.archive) throw new WorkspaceError("archive_deleted");
+        const lifecycle = await readLifecycle(fresh.vault, signal);
+        await instance.verifyLifecycle(fresh.vault, lifecycle);
+        assertActive();
+        assertKeySession(instance, managementGeneration);
+        if (lifecycle.lifecycleVersion >= 30 || lifecycle.pendingAuthorization)
+          throw new WorkspaceError("archive_deletion_unavailable");
+        const {
+          vaultId,
+          rootKeyId,
+          vaultVersion,
+          lifecycleVersion,
+          archiveRevision,
+          archiveDigest,
+          registrySequence,
+          checkpointDigest,
+          keyEpoch,
+        } = lifecycle;
+        setState((previous) => ({
+          ...previous,
+          archiveDeletionReview: {
+            vaultId,
+            rootKeyId,
+            vaultVersion,
+            lifecycleVersion,
+            archiveRevision,
+            archiveDigest,
+            registrySequence,
+            checkpointDigest,
+            keyEpoch,
+          },
+        }));
+      }),
+    [perform, liveSession, assertKeySession, managementGeneration, readCurrent, readLifecycle],
+  );
+
+  const confirmArchiveDeletion = useCallback(
+    (backupConfirmed: boolean) =>
+      perform("deleting-archive", async ({ assertActive, signal }) => {
+        if (backupConfirmed !== true) throw new WorkspaceError("archive_deletion_backup_required");
+        const review = stateRef.current.archiveDeletionReview;
+        if (!review) throw new WorkspaceError("archive_deletion_review_required");
+        const instance = liveSession();
+        assertKeySession(instance, managementGeneration);
+        const fresh = await readCurrent(signal);
+        if (!fresh.vault?.archive) throw new WorkspaceError("archive_deleted");
+        const lifecycle = await readLifecycle(fresh.vault, signal);
+        await instance.verifyLifecycle(fresh.vault, lifecycle);
+        assertActive();
+        assertKeySession(instance, managementGeneration);
+        if (
+          Object.entries(review).some(
+            ([key, value]) => lifecycle[key as keyof VaultLifecycleState] !== value,
+          )
+        )
+          throw new WorkspaceError("archive_deletion_review_stale");
+        const packet = await instance.prepareArchiveDeletion(fresh.vault, lifecycle);
+        assertActive();
+        ++vaultGeneration.current;
+        setState((previous) => ({
+          ...empty,
+          owner,
+          busy: previous.busy,
+          vault: fresh.vault,
+          sources: fresh.sources,
+          phase: "archive-pending",
+          archiveDeletion: {
+            operationId: packet.operationId,
+            outcome: "unresolved",
+            canWithdraw: true,
+            withdrawalPending: false,
+          },
+        }));
+        let failure: unknown;
+        try {
+          await api(
+            "agent-hub",
+            `/api/v2/vaults/${fresh.vault.vaultId}/archive-deletions`,
+            signal,
+            {
+              method: "POST",
+              json: packet.body,
+              headers: { "Idempotency-Key": packet.operationId },
+            },
+          );
+        } catch (error) {
+          failure = error;
+        }
+        assertActive();
+        const outcome = await reconcileArchiveDeletion(
+          await readCurrent(signal),
+          signal,
+          assertActive,
+          instance,
+        );
+        assertActive();
+        if (outcome === "unresolved")
+          throw failure ?? new WorkspaceError("archive_deletion_unknown");
+      }),
+    [
+      perform,
+      owner,
+      liveSession,
+      assertKeySession,
+      managementGeneration,
+      readCurrent,
+      readLifecycle,
+      api,
+      reconcileArchiveDeletion,
+    ],
+  );
+
+  const refreshArchiveDeletion = useCallback(
+    () =>
+      perform("checking-archive-deletion", async ({ assertActive, signal }) => {
+        const fresh = await readCurrent(signal);
+        assertActive();
+        terminate();
+        if (!(await reconcileArchiveDeletion(fresh, signal, assertActive))) {
+          assertActive();
+          setState((previous) => ({
+            ...empty,
+            owner,
+            busy: previous.busy,
+            vault: fresh.vault,
+            sources: fresh.sources,
+            phase: fresh.vault ? "locked" : "needs-vault",
+          }));
+        }
+      }),
+    [perform, readCurrent, terminate, reconcileArchiveDeletion, owner],
+  );
+
+  const resumeArchiveDeletion = useCallback(
+    () =>
+      perform("deleting-archive", async ({ assertActive, signal }) => {
+        if (!uid || !owner) throw new WorkspaceError("unlock_required");
+        terminate();
+        const instance = new EncryptedVaultSession(uid);
+        session.current = { owner, instance };
+        const fresh = await readCurrent(signal);
+        if (!fresh.vault) throw new WorkspaceError("invalid_response");
+        const lifecycle = await readLifecycle(fresh.vault, signal);
+        const found = await instance.inspectArchiveDeletion(fresh.vault, lifecycle);
+        assertActive();
+        if (!found) throw new WorkspaceError("archive_deletion_missing");
+        let failure: unknown;
+        if (found.outcome === "unresolved") {
+          const packet = found.withdrawal ?? found.packet;
+          try {
+            await api(
+              "agent-hub",
+              `/api/v2/vaults/${fresh.vault.vaultId}/${found.withdrawal ? "archive-deletion-withdrawals" : "archive-deletions"}`,
+              signal,
+              {
+                method: "POST",
+                json: packet.body,
+                headers: { "Idempotency-Key": packet.operationId },
+              },
+            );
+          } catch (error) {
+            failure = error;
+          }
+        }
+        assertActive();
+        const outcome = await reconcileArchiveDeletion(
+          await readCurrent(signal),
+          signal,
+          assertActive,
+          instance,
+        );
+        assertActive();
+        if (outcome === "unresolved")
+          throw failure ?? new WorkspaceError("archive_deletion_unknown");
+      }),
+    [perform, uid, owner, terminate, readCurrent, readLifecycle, api, reconcileArchiveDeletion],
+  );
+
+  const withdrawArchiveDeletion = useCallback(
+    (method: PasskeyMethod = "local") =>
+      perform("withdrawing-archive-deletion", async ({ assertActive, signal }) => {
+        if (!uid || !owner || !stateRef.current.archiveDeletion)
+          throw new WorkspaceError("archive_deletion_missing");
+        terminate();
+        const instance = new EncryptedVaultSession(uid);
+        session.current = { owner, instance };
+        const fresh = await readCurrent(signal);
+        if (!fresh.vault) throw new WorkspaceError("invalid_response");
+        const lifecycle = await readLifecycle(fresh.vault, signal);
+        const found = await instance.inspectArchiveDeletion(fresh.vault, lifecycle);
+        assertActive();
+        if (!found) throw new WorkspaceError("archive_deletion_missing");
+        if (found.outcome !== "unresolved") {
+          await reconcileArchiveDeletion(fresh, signal, assertActive, instance);
+          return;
+        }
+        if (!fresh.vault.archive) throw new WorkspaceError("archive_deleted");
+        const material = await unlockVaultPasskey(requireArchive(fresh.vault.archive), {
+          method,
+          signal,
+        });
+        try {
+          await instance.unlockForArchiveDeletion(fresh.vault, material);
+          assertActive();
+          const latest = await readCurrent(signal);
+          if (!latest.vault) throw new WorkspaceError("invalid_response");
+          const state = await readLifecycle(latest.vault, signal);
+          const currentDeletion = await instance.inspectArchiveDeletion(latest.vault, state);
+          assertActive();
+          if (currentDeletion?.outcome !== "unresolved") {
+            await reconcileArchiveDeletion(latest, signal, assertActive, instance);
+            return;
+          }
+          const packet = await instance.prepareArchiveWithdrawal(latest.vault, state);
+          assertActive();
+          let failure: unknown;
+          try {
+            await api(
+              "agent-hub",
+              `/api/v2/vaults/${latest.vault.vaultId}/archive-deletion-withdrawals`,
+              signal,
+              {
+                method: "POST",
+                json: packet.body,
+                headers: { "Idempotency-Key": packet.operationId },
+              },
+            );
+          } catch (error) {
+            failure = error;
+          }
+          assertActive();
+          const outcome = await reconcileArchiveDeletion(
+            await readCurrent(signal),
+            signal,
+            assertActive,
+            instance,
+          );
+          assertActive();
+          if (outcome === "unresolved")
+            throw failure ?? new WorkspaceError("archive_deletion_unknown");
+        } finally {
+          if (material.secret.byteLength) new Uint8Array(material.secret).fill(0);
+        }
+      }),
+    [perform, uid, owner, terminate, readCurrent, readLifecycle, api, reconcileArchiveDeletion],
+  );
+
   const changePasskey = useCallback(
     (method: PasskeyMethod = "local") =>
       perform("changing-passkey", async ({ assertActive, signal }) => {
@@ -2646,7 +3102,11 @@ export function useHoldingsWorkspace() {
   const recoverWithKit = useCallback(
     (file: string, code: string, method: PasskeyMethod = "local") =>
       perform("restoring-recovery", async ({ assertActive, signal }) => {
-        if (!uid || !owner || !["locked", "needs-device"].includes(stateRef.current.phase))
+        if (
+          !uid ||
+          !owner ||
+          !["locked", "needs-device", "archive-deleted"].includes(stateRef.current.phase)
+        )
           throw new WorkspaceError("invalid_operation");
         if (file.length > 131_072 || code.length > 128) throw new WorkspaceError("invalid_data");
         terminate();
@@ -2658,6 +3118,11 @@ export function useHoldingsWorkspace() {
           if (!fresh.vault) throw new WorkspaceError("invalid_response");
           const lifecycle = await readLifecycle(fresh.vault, signal);
           await instance.importRecoveryKit(fresh.vault, lifecycle, file, code);
+          if (
+            fresh.vault.archive === null &&
+            (await instance.inspectArchiveChange(fresh.vault, lifecycle))
+          )
+            throw new WorkspaceError("archive_change_pending");
           file = "";
           code = "";
           assertActive();
@@ -2753,7 +3218,7 @@ export function useHoldingsWorkspace() {
   const resumeArchiveWithNewPasskey = useCallback(
     (method: PasskeyMethod = "local") =>
       perform("unlocking", async ({ assertActive, signal }) => {
-        if (!uid || !owner || stateRef.current.phase !== "locked")
+        if (!uid || !owner || !["locked", "archive-deleted"].includes(stateRef.current.phase))
           throw new WorkspaceError("invalid_operation");
         terminate();
         const instance = new EncryptedVaultSession(uid);
@@ -2774,6 +3239,8 @@ export function useHoldingsWorkspace() {
             throw new WorkspaceError("operation_conflict");
           setState((previous) => ({
             ...previous,
+            phase: "locked",
+            archiveDeletionReview: null,
             archiveChange: {
               operationId: pending.packet.operationId,
               mode: pending.packet.mode,
@@ -2844,7 +3311,7 @@ export function useHoldingsWorkspace() {
           busy: previous.busy,
           vault: saved.vault,
           sources: saved.sources,
-          phase: "locked",
+          phase: saved.vault!.archive === null ? "archive-deleted" : "locked",
           keyNotice: "archive_change_cancelled",
         }));
       }),
@@ -2887,7 +3354,10 @@ export function useHoldingsWorkspace() {
           sources: fresh.sources,
           phase: "renewal-only",
         }));
-        const material = await unlockVaultPasskey(fresh.vault.archive, { method, signal });
+        const material = await unlockVaultPasskey(requireArchive(fresh.vault.archive), {
+          method,
+          signal,
+        });
         try {
           assertActive();
           await instance.unlockForKeyRenewal(fresh.vault, material);
@@ -3812,6 +4282,18 @@ export function useHoldingsWorkspace() {
     cancelKeyRenewal,
     discardKeyRenewal,
     exportRecoveryKit,
+    archiveDeletionError: visible.archiveDeletionError,
+    archiveDeletion: visible.archiveDeletion,
+    archiveDeletionReview: visible.phase === "unlocked" ? visible.archiveDeletionReview : null,
+    reviewArchiveDeletion,
+    confirmArchiveDeletion,
+    refreshArchiveDeletion,
+    resumeArchiveDeletion,
+    withdrawArchiveDeletion,
+    cancelArchiveDeletionReview: () => {
+      if (ownerRef.current === owner && !current.current)
+        setState((previous) => ({ ...previous, archiveDeletionReview: null }));
+    },
     clearRecoveryExport,
     changePasskey,
     recoverWithKit,

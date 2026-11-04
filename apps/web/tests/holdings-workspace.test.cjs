@@ -127,6 +127,16 @@ function harness({
   const mutations = new Map();
   const sourceStates = new Map();
   let creation = null;
+  let deletionPending = null,
+    deletionApplied = false,
+    deletionWithdrawn = false;
+  let deletionFailure = null,
+    withdrawalFailure = null,
+    deletionCheckFault = null;
+  let deletionPrepares = 0,
+    deletionFinishes = 0,
+    withdrawalPrepares = 0;
+
   let importPreview = preview;
   let metadataHook = null;
   let metadataReads = 0;
@@ -157,7 +167,7 @@ function harness({
     requestedAt: "2026-11-01T00:00:00Z",
     completedAt: state === "acknowledged" ? "2026-11-01T00:00:01Z" : null,
   });
-  const passkey = deferred();
+  let passkey = deferred();
   let auth = { status: "authenticated", sessionKey: "owner_a:1", profile: { uid: "owner_a" } };
   let portfolioConfigured = configured;
   let agentHubConfigured = hubConfigured;
@@ -266,6 +276,9 @@ function harness({
   const changed = (before, after) =>
     !before || after.some((value, position) => value !== before[position]);
   class Session {
+    static async hasArchiveDeletion(uid) {
+      return deletionPending?.uid === uid;
+    }
     constructor(uid) {
       this.uid = uid;
       this.locked = false;
@@ -395,6 +408,60 @@ function harness({
         checkpointDigest: `checkpoint_${remoteVault.version}`,
         verifiedAt: 1000,
       };
+    }
+    async hasArchiveDeletion() {
+      return deletionPending?.uid === this.uid;
+    }
+    async prepareArchiveDeletion(_vault, lifecycle) {
+      if (this.locked) throw { code: "locked" };
+      deletionPrepares++;
+      const packet = {
+        operationId: "synthetic_deletion_original_0001",
+        body: { contractVersion: CONTRACT, command: { public: "synthetic_root_command" } },
+      };
+      deletionPending = {
+        uid: this.uid,
+        packet,
+        withdrawal: null,
+        lifecycleVersion: lifecycle.lifecycleVersion,
+      };
+      return packet;
+    }
+    async inspectArchiveDeletion(_vault, lifecycle) {
+      if (!deletionPending) return null;
+      if (this.locked || deletionPending.uid !== this.uid) throw { code: "wrong_account" };
+      return {
+        operationId: deletionPending.packet.operationId,
+        commandFingerprint: "d".repeat(64),
+        outcome: lifecycle.deletionOutcome,
+        canWithdraw: lifecycle.deletionOutcome === "unresolved",
+        packet: deletionPending.packet,
+        withdrawal: deletionPending.withdrawal,
+      };
+    }
+    async unlockForArchiveDeletion() {
+      if (this.locked) throw { code: "locked" };
+      this.withdrawalRoot = true;
+    }
+    async prepareArchiveWithdrawal() {
+      if (!this.withdrawalRoot || this.locked) throw { code: "archive_deletion_unlock_required" };
+      withdrawalPrepares++;
+      deletionPending.withdrawal ??= {
+        operationId: "synthetic_withdraw_original_0001",
+        body: {
+          contractVersion: CONTRACT,
+          command: { public: "synthetic_withdrawal_command" },
+          deletionCommand: deletionPending.packet.body.command,
+        },
+      };
+      return deletionPending.withdrawal;
+    }
+    async finishArchiveDeletion(_vault, lifecycle) {
+      if (!deletionPending || lifecycle.deletionOutcome === "unresolved")
+        throw { code: "archive_deletion_unknown" };
+      deletionFinishes++;
+      deletionPending = null;
+      return lifecycle.deletionOutcome;
     }
     async verifyLifecycle() {
       if (this.locked) throw { code: "locked" };
@@ -648,6 +715,51 @@ function harness({
       remoteVault = vault;
       return new Response(JSON.stringify({ contractVersion: CONTRACT, vault }));
     }
+    if (route === "/api/v2/vaults/vault_a/archive-deletion-checks") {
+      return new Response(
+        JSON.stringify({
+          contractVersion: CONTRACT,
+          profile: "folioview.vault-lifecycle.v1",
+          operationId: deletionPending.packet.operationId,
+          commandFingerprint: "d".repeat(64),
+          vaultVersion: remoteVault.version,
+          lifecycleVersion: archiveLifecycle,
+          outcome:
+            deletionCheckFault ??
+            (deletionApplied ? "deleted" : deletionWithdrawn ? "withdrawn" : "unresolved"),
+        }),
+      );
+    }
+    if (route === "/api/v2/vaults/vault_a/archive-deletions") {
+      if (!deletionApplied && deletionFailure !== "before") {
+        deletionApplied = true;
+        archiveLifecycle++;
+        remoteVault = { ...remoteVault, archive: null };
+      }
+      if (deletionFailure) throw { code: "service_unavailable" };
+      return new Response(
+        JSON.stringify({
+          contractVersion: CONTRACT,
+          profile: "folioview.vault-lifecycle.v1",
+          receipt: { operationId: options.headers["Idempotency-Key"] },
+        }),
+      );
+    }
+    if (route === "/api/v2/vaults/vault_a/archive-deletion-withdrawals") {
+      if (deletionApplied) throw { code: "version_conflict" };
+      if (!deletionWithdrawn && withdrawalFailure !== "before") {
+        deletionWithdrawn = true;
+        archiveLifecycle++;
+      }
+      if (withdrawalFailure) throw { code: "service_unavailable" };
+      return new Response(
+        JSON.stringify({
+          contractVersion: CONTRACT,
+          profile: "folioview.vault-lifecycle.v1",
+          receipt: { operationId: options.headers["Idempotency-Key"] },
+        }),
+      );
+    }
     if (route === "/api/v2/vaults/vault_a/archive") {
       if (options.method === "PUT") {
         if (archiveFailure !== "before") {
@@ -672,6 +784,18 @@ function harness({
           rootKeyId: remoteVault.rootKeyId,
           archive: remoteVault.archive,
           lifecycleVersion: archiveLifecycle,
+          vaultVersion: remoteVault.version,
+          archiveRevision: Number(archiveApplied) + Number(deletionApplied),
+          archiveDigest: deletionApplied ? "0".repeat(64) : "a".repeat(64),
+          registrySequence: remoteVault.version,
+          checkpointDigest: "c".repeat(64),
+          keyEpoch: 1,
+          pendingAuthorization: null,
+          deletionOutcome: deletionApplied
+            ? "deleted"
+            : deletionWithdrawn
+              ? "withdrawn"
+              : "unresolved",
         }),
       );
     }
@@ -982,6 +1106,24 @@ function harness({
     render,
     requests,
     instances,
+    deletionPending: () => deletionPending,
+    deletionCounts: () => ({
+      prepares: deletionPrepares,
+      finishes: deletionFinishes,
+      withdrawals: withdrawalPrepares,
+    }),
+    failDeletion(value) {
+      deletionFailure = value;
+    },
+    failWithdrawal(value) {
+      withdrawalFailure = value;
+    },
+    misreportDeletion(value) {
+      deletionCheckFault = value;
+    },
+    waitForPasskey() {
+      passkey = deferred();
+    },
     commits,
     outboxes,
     sourcePackets,
@@ -1144,6 +1286,137 @@ async function unlocked(h) {
   await action;
   return h.render();
 }
+
+test("archive deletion requires public review and backup confirmation before signing or HTTP", async () => {
+  const h = harness();
+  await unlocked(h);
+  await h.render().reviewArchiveDeletion();
+  assert(h.render().archiveDeletionReview);
+  assert.equal(h.deletionCounts().prepares, 0);
+  assert.equal(h.requests.filter((r) => r.route.endsWith("/archive-deletions")).length, 0);
+  await h.render().confirmArchiveDeletion(false);
+  assert.equal(h.deletionCounts().prepares, 0);
+  assert.equal(h.render().archiveDeletionError, "archive_deletion_backup_required");
+  h.unmount();
+});
+test("lost committed deletion reply is checked against verified history and enters recovery without a new Passkey prompt", async () => {
+  const h = harness();
+  await unlocked(h);
+  h.failDeletion("after");
+  await h.render().reviewArchiveDeletion();
+  const passkeys = h.counts().passkeyCalls;
+  await h.render().confirmArchiveDeletion(true);
+  assert.equal(h.render().phase, "archive-deleted");
+  assert.equal(h.render().keyNotice, "archive_deletion_deleted");
+  assert.equal(h.deletionPending(), null);
+  assert.equal(h.deletionCounts().finishes, 1);
+  assert.equal(h.counts().passkeyCalls, passkeys);
+  assert.equal(h.render().content, null);
+  assert.equal(h.render().canWriteState, false);
+  h.unmount();
+});
+test("archive deletion review cannot authorize a changed directory or survive a lock", async () => {
+  const h = harness();
+  await unlocked(h);
+  await h.render().reviewArchiveDeletion();
+  h.deviceConflict();
+  await h.render().confirmArchiveDeletion(true);
+  assert.equal(h.deletionCounts().prepares, 0);
+  assert.equal(h.render().archiveDeletionError, "archive_deletion_review_stale");
+  h.render().lock();
+  assert.equal(h.render().archiveDeletionReview, null);
+  await h.render().confirmArchiveDeletion(true);
+  assert.equal(h.deletionCounts().prepares, 0);
+  assert.equal(h.requests.filter((r) => r.route.endsWith("/archive-deletions")).length, 0);
+  h.unmount();
+});
+test("unknown deletion survives lock/reload; check is read-only and explicit replay keeps exact original bytes", async () => {
+  const h = harness();
+  await unlocked(h);
+  h.failDeletion("before");
+  await h.render().reviewArchiveDeletion();
+  await h.render().confirmArchiveDeletion(true);
+  assert.equal(h.render().phase, "archive-pending");
+  const pending = h.deletionPending(),
+    passkeys = h.counts().passkeyCalls;
+  h.render().lock();
+  await h.render().reload();
+  assert.equal(h.render().phase, "archive-pending");
+  assert.equal(h.counts().passkeyCalls, passkeys);
+  assert.equal(h.deletionCounts().prepares, 1);
+  await h.render().refreshArchiveDeletion();
+  assert.equal(h.deletionPending(), pending);
+  assert.equal(h.requests.filter((r) => r.route.endsWith("/archive-deletions")).length, 1);
+  h.failDeletion(null);
+  await h.render().resumeArchiveDeletion();
+  const posts = h.requests.filter((r) => r.route.endsWith("/archive-deletions"));
+  assert.equal(posts.length, 2);
+  assert.deepEqual(posts[0].options.json, posts[1].options.json);
+  assert.deepEqual(posts[0].options.headers, posts[1].options.headers);
+  assert.equal(h.deletionPending(), null);
+  assert.equal(h.render().phase, "archive-deleted");
+  h.unmount();
+});
+test("a claimed terminal check without matching verified history cannot clear the pending deletion", async () => {
+  const h = harness();
+  await unlocked(h);
+  h.failDeletion("before");
+  await h.render().reviewArchiveDeletion();
+  await h.render().confirmArchiveDeletion(true);
+  const pending = h.deletionPending();
+  h.misreportDeletion("deleted");
+  await h.render().refreshArchiveDeletion();
+  assert.equal(h.deletionPending(), pending);
+  assert.equal(h.deletionCounts().finishes, 0);
+  assert.equal(h.render().phase, "archive-pending");
+  assert.equal(h.render().archiveDeletionError, "archive_deletion_unknown");
+  h.unmount();
+});
+test("withdrawal uses the original Passkey and remains the sole retry intent after a lost response", async () => {
+  const h = harness();
+  await unlocked(h);
+  h.failDeletion("before");
+  await h.render().reviewArchiveDeletion();
+  await h.render().confirmArchiveDeletion(true);
+  const original = h.deletionPending().packet;
+  h.failWithdrawal("before");
+  await h.render().withdrawArchiveDeletion("other");
+  assert.equal(h.render().archiveDeletion.withdrawalPending, true);
+  assert.deepEqual(h.deletionPending().withdrawal.body.deletionCommand, original.body.command);
+  assert.equal(h.passkeyOptions.at(-1).method, "other");
+  const deletions = h.requests.filter((r) => r.route.endsWith("/archive-deletions")).length;
+  h.failWithdrawal(null);
+  await h.render().resumeArchiveDeletion();
+  assert.equal(h.requests.filter((r) => r.route.endsWith("/archive-deletions")).length, deletions);
+  assert.equal(h.render().keyNotice, "archive_deletion_withdrawn");
+  assert.equal(h.render().phase, "locked");
+  assert(h.render().vault.archive);
+  assert.equal(h.deletionPending(), null);
+  h.unmount();
+});
+test("late Passkey withdrawal results and captured confirmations cannot cross lock or account changes", async () => {
+  const h = harness();
+  await unlocked(h);
+  h.failDeletion("before");
+  await h.render().reviewArchiveDeletion();
+  await h.render().confirmArchiveDeletion(true);
+  h.waitForPasskey();
+  const result = h.render().withdrawArchiveDeletion();
+  await settle();
+  h.render().lock();
+  h.resolvePasskey();
+  await result;
+  assert.equal(h.deletionCounts().withdrawals, 0);
+  assert(h.deletionPending());
+  const captured = h.render().confirmArchiveDeletion;
+  h.auth({ status: "authenticated", sessionKey: "owner_b:2", profile: { uid: "owner_b" } });
+  h.render();
+  await captured(true);
+  await settle();
+  assert.equal(h.deletionCounts().prepares, 1);
+  assert.equal(h.render().content, null);
+  h.unmount();
+});
 const file = { size: 10, text: async () => "private CSV that must never reach HTTP" };
 
 test("Passkey replacement saves only a root-signed encrypted archive and recovers a lost committed reply without recreating credentials", async () => {

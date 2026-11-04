@@ -51,6 +51,17 @@
   gap: 9px;
   margin-top: 13px;
 }
+.deletionCheck {
+  align-items: flex-start;
+  display: flex;
+  gap: 9px;
+  font-size: 12px;
+  line-height: 1.65;
+}
+.deletionCheck input {
+  flex-shrink: 0;
+  margin-top: 4px;
+}
 .primary,
 .secondary,
 .danger {

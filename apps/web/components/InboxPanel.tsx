@@ -143,6 +143,12 @@ export function InboxView({
             {t("signIn")}
           </button>
         </div>
+      ) : ["archive-pending", "archive-deleted"].includes(workspace.phase) ||
+        workspace.vault?.archive === null ? (
+        <div className={styles.empty} role="status">
+          <p>{t("archiveUnavailable")}</p>
+          <a href="/settings">{t("archiveSettings")}</a>
+        </div>
       ) : (
         <>
           {workspace.phase === "checking" ? (

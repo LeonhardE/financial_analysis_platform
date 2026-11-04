@@ -40,7 +40,13 @@ const LIFECYCLE = "folioview.vault-lifecycle.v1";
 const KEY_RENEWAL = "folioview.vault-key-renewal.v1";
 const ownerRoles = ["device_sig", "device_enc", "recovery_enc"];
 const operation = (v: unknown) => typeof v === "string" && /^[A-Za-z0-9_-]{22,128}$/.test(v);
-const actions = ["archive_replace", "recovery_authorize", "recovery_revoke"];
+const actions = [
+  "archive_replace",
+  "archive_delete",
+  "archive_delete_withdraw",
+  "recovery_authorize",
+  "recovery_revoke",
+];
 const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
 
 function binary(value: unknown, minimum: number, maximum: number) {
@@ -335,15 +341,23 @@ function lifecycleState(value: unknown, vaultId: string) {
     !integer(value.archiveRevision, 0) ||
     (value.archiveRevision as number) > (value.lifecycleVersion as number) ||
     !digest(value.archiveDigest) ||
-    !vaultLifecycleArchive(value.archive, vaultId) ||
-    !record(value.archive) ||
-    value.archive.rootKeyId !== value.rootKeyId ||
+    !(
+      value.archive === null ||
+      (vaultLifecycleArchive(value.archive, vaultId) &&
+        record(value.archive) &&
+        value.archive.rootKeyId === value.rootKeyId)
+    ) ||
     !Array.isArray(value.history) ||
     value.history.length !== value.lifecycleVersion
   )
     return false;
   const rootKeyId = value.rootKeyId,
-    ownerSubject = value.archive.ownerSubject;
+    ownerSubject = record(value.archive)
+      ? value.archive.ownerSubject
+      : record(value.history[0]) && record(value.history[0].receipt)
+        ? value.history[0].receipt.ownerSubject
+        : undefined;
+  if (!digest(ownerSubject)) return false;
   if (
     !value.history.every(
       (item, index) =>
@@ -445,18 +459,19 @@ function aggregate(value: unknown) {
       ]) &&
         id(value.vault.vaultId) &&
         fields(value.vault.rootJwk, ["kty", "crv", "x", "y"]) &&
-        fields(value.vault.archive, [
-          "profile",
-          "ownerSubject",
-          "vaultId",
-          "rootKeyId",
-          "credentialId",
-          "prfSalt",
-          "iv",
-          "ciphertext",
-        ]) &&
-        value.vault.archive.profile === "folioview.passkey-vault.v1" &&
-        Object.values(value.vault.archive).every((v) => typeof v === "string") &&
+        (value.vault.archive === null ||
+          (fields(value.vault.archive, [
+            "profile",
+            "ownerSubject",
+            "vaultId",
+            "rootKeyId",
+            "credentialId",
+            "prfSalt",
+            "iv",
+            "ciphertext",
+          ]) &&
+            value.vault.archive.profile === "folioview.passkey-vault.v1" &&
+            Object.values(value.vault.archive).every((v) => typeof v === "string"))) &&
         Array.isArray(value.vault.registryHistory) &&
         value.vault.registryHistory.length <= 32 &&
         value.vault.registryHistory.every((v) => formal("RegistryBundle", v)) &&
@@ -491,6 +506,53 @@ export function hubResponse(
     )
       return keyRenewalAcknowledgement(body, renewalPath[1], renewalPath[3] ?? operationId);
     return false;
+  }
+  const deletionPath =
+    /^\/api\/v2\/vaults\/([A-Za-z0-9][A-Za-z0-9_-]{0,127})\/(archive-deletions|archive-deletion-withdrawals|archive-deletion-checks)$/.exec(
+      path,
+    );
+  if (deletionPath) {
+    if (method !== "POST") return false;
+    if (deletionPath[2] !== "archive-deletion-checks")
+      return lifecycleAcknowledgement(
+        body,
+        deletionPath[1],
+        operationId,
+        deletionPath[2] === "archive-deletions" ? "archive_delete" : "archive_delete_withdraw",
+      );
+    if (
+      !fields(body, [
+        "contractVersion",
+        "profile",
+        "vaultId",
+        "operationId",
+        "commandFingerprint",
+        "outcome",
+        "vaultVersion",
+        "lifecycleVersion",
+        "receipt",
+      ]) ||
+      body.contractVersion !== CONTRACT ||
+      body.profile !== LIFECYCLE ||
+      body.vaultId !== deletionPath[1] ||
+      !operation(body.operationId) ||
+      !digest(body.commandFingerprint) ||
+      !integer(body.vaultVersion, 1) ||
+      !integer(body.lifecycleVersion, 0) ||
+      Number(body.lifecycleVersion) > 32 ||
+      !["unresolved", "deleted", "withdrawn", "superseded"].includes(String(body.outcome))
+    )
+      return false;
+    if (["unresolved", "superseded"].includes(String(body.outcome))) return body.receipt === null;
+    return (
+      lifecycleReceipt(body.receipt, deletionPath[1]) &&
+      record(body.receipt) &&
+      body.receipt.action ===
+        (body.outcome === "deleted" ? "archive_delete" : "archive_delete_withdraw") &&
+      (body.outcome !== "deleted" ||
+        (body.receipt.operationId === body.operationId &&
+          body.receipt.commandFingerprint === body.commandFingerprint))
+    );
   }
   const lifecyclePath =
     /^\/api\/v2\/vaults\/([A-Za-z0-9][A-Za-z0-9_-]{0,127})\/(archive|archive-operations\/([A-Za-z0-9_-]{22,128})|recovery-authorizations(?:\/[A-Za-z0-9][A-Za-z0-9_-]{0,127}\/revoke)?)$/.exec(

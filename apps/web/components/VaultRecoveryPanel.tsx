@@ -21,7 +21,7 @@ export default function VaultRecoveryPanel({ workspace }: { workspace: HoldingsW
     workspace.authenticated &&
     workspace.vaultConfigured &&
     workspace.vault &&
-    ["locked", "unlocked", "needs-device"].includes(workspace.phase),
+    ["locked", "unlocked", "needs-device", "archive-deleted"].includes(workspace.phase),
   );
   const unlocked = available && workspace.phase === "unlocked" && !workspace.needsDeviceApproval;
   const exported =
@@ -280,8 +280,11 @@ export default function VaultRecoveryPanel({ workspace }: { workspace: HoldingsW
           )}
         </>
       ) : null}
-      {workspace.phase === "locked" && !pending && (
-        <details className={styles.alternative}>
+      {["locked", "archive-deleted"].includes(workspace.phase) && !pending && (
+        <details
+          className={styles.alternative}
+          open={workspace.phase === "archive-deleted" || undefined}
+        >
           <summary>{t("importTitle")}</summary>
           <p>{t("importHelp")}</p>
           <p className={styles.note}>{t("deviceHelp")}</p>
@@ -358,7 +361,7 @@ export default function VaultRecoveryPanel({ workspace }: { workspace: HoldingsW
           </details>
         </details>
       )}
-      {workspace.phase === "locked" && (
+      {["locked", "archive-deleted"].includes(workspace.phase) && (
         <details className={styles.alternative}>
           <summary>{t("resumeTitle")}</summary>
           <p>{t("resumeHelp")}</p>

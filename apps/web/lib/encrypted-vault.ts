@@ -6,6 +6,9 @@ import {
 } from "./encrypted-storage";
 import {
   VaultError,
+  requireArchive,
+  type ArchiveDeletionPacket,
+  type ArchiveDeletionRecord,
   type Vault,
   type PasskeyMaterial,
   type Source,
@@ -107,6 +110,20 @@ type Registration = {
   registryBundle: RegistryBundle;
 };
 export class EncryptedVaultSession {
+  static async hasArchiveDeletion(uid: string) {
+    if (!uid || uid.length > 128) throw new VaultError("wrong_account");
+    const hash = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(uid));
+    const owner = [...new Uint8Array(hash)]
+      .map((value) => value.toString(16).padStart(2, "0"))
+      .join("");
+    const storage = new BrowserEncryptedStorage();
+    try {
+      const pending = await storage.get(owner + ":archive-change");
+      return pending?.profile === "folioview.archive-deletion-candidate.v1";
+    } finally {
+      await storage.close();
+    }
+  }
   private readonly worker: Worker;
   private readonly storage: EncryptedStorage;
   private readonly started: Promise<void>;
@@ -117,6 +134,7 @@ export class EncryptedVaultSession {
   private closed = false;
   private readonly lifetime = new AbortController();
   private renewalOnly = false;
+  private deletionOnly = false;
   private saving: Promise<void> = Promise.resolve();
   private pending = new Map<
     number,
@@ -188,12 +206,25 @@ export class EncryptedVaultSession {
       if (this.renewalOnly || (await this.keyRenewalRow()))
         throw new VaultError("key_renewal_pending");
     }
+    const deletionControl = [
+      "verifyLifecycle",
+      "prepareArchiveDeletion",
+      "inspectArchiveDeletion",
+      "unlockForArchiveDeletion",
+      "prepareArchiveWithdrawal",
+      "finishArchiveDeletion",
+    ].includes(method);
+    if (!deletionControl) {
+      const pending = await this.storage.get(this.owner + ":archive-change");
+      if (this.deletionOnly || pending?.profile === "folioview.archive-deletion-candidate.v1")
+        throw new VaultError("archive_deletion_pending");
+    }
     return this.send(method, args, transfer);
   }
   private assert(generation: number) {
     if (this.closed || generation !== this.generation) throw new VaultError("locked");
   }
-  private async local(vaultId: string, archive?: Archive) {
+  private async local(vaultId: string, archive?: Archive | null) {
     const g = this.generation;
     await this.started;
     const record = await this.storage.get(this.owner + ":device:" + vaultId),
@@ -268,9 +299,9 @@ export class EncryptedVaultSession {
       const local = await this.local(vault.vaultId, vault.archive);
       this.storage.setArchiveContext?.(
         this.owner,
-        vault.archive.credentialId,
-        vault.archive.prfSalt,
-        vault.archive.iv,
+        requireArchive(vault.archive).credentialId,
+        requireArchive(vault.archive).prfSalt,
+        requireArchive(vault.archive).iv,
       );
       const value = await this.rpc("unlock", { vault, material, local }, [material.secret]);
       this.assert(g);
@@ -313,9 +344,9 @@ export class EncryptedVaultSession {
       const local = await this.local(vault.vaultId, vault.archive);
       this.storage.setArchiveContext?.(
         this.owner,
-        vault.archive.credentialId,
-        vault.archive.prfSalt,
-        vault.archive.iv,
+        requireArchive(vault.archive).credentialId,
+        requireArchive(vault.archive).prfSalt,
+        requireArchive(vault.archive).iv,
       );
       const result = await this.rpc("unlockForResults", { vault, material, local }, [
         material.secret,
@@ -379,9 +410,9 @@ export class EncryptedVaultSession {
         local = await this.local(vault.vaultId, vault.archive);
       this.storage.setArchiveContext?.(
         this.owner,
-        vault.archive.credentialId,
-        vault.archive.prfSalt,
-        vault.archive.iv,
+        requireArchive(vault.archive).credentialId,
+        requireArchive(vault.archive).prfSalt,
+        requireArchive(vault.archive).iv,
       );
       const result = await this.rpc("unlockForKeyRenewal", { vault, material, local }, [
         material.secret,
@@ -553,6 +584,123 @@ export class EncryptedVaultSession {
       throw error;
     }
   }
+  async prepareArchiveDeletion(
+    vault: Vault,
+    state: VaultLifecycleState,
+  ): Promise<ArchiveDeletionPacket> {
+    return this.serial(async () => {
+      try {
+        await this.verifyLifecycle(vault, state);
+        const g = this.generation,
+          prior = await this.lifecycleLocal(vault);
+        if (!this.storage.stageArchiveChange || !this.storage.finishArchiveDeletion)
+          throw new VaultError("storage_unavailable");
+        const { packet, record } = await this.rpc("prepareArchiveDeletion", {
+          vault,
+          state,
+          prior,
+        });
+        this.assert(g);
+        if (!(await this.storage.stageArchiveChange(this.owner, record)))
+          throw new VaultError("archive_change_pending");
+        this.assert(g);
+        this.deletionOnly = true;
+        return packet;
+      } catch (error) {
+        this.lock();
+        throw error;
+      }
+    });
+  }
+  async hasArchiveDeletion() {
+    await this.started;
+    const g = this.generation,
+      record = await this.storage.get(this.owner + ":archive-change");
+    this.assert(g);
+    return record?.profile === "folioview.archive-deletion-candidate.v1";
+  }
+  async inspectArchiveDeletion(vault: Vault, state: VaultLifecycleState) {
+    await this.started;
+    const g = this.generation;
+    const record = await this.storage.get(this.owner + ":archive-change");
+    this.assert(g);
+    if (!record || record.profile !== "folioview.archive-deletion-candidate.v1") return null;
+    const prior = await this.lifecycleLocal(vault);
+    const result = await this.rpc("inspectArchiveDeletion", { vault, state, record, prior });
+    this.assert(g);
+    await this.verifyLifecycle(vault, state);
+    this.assert(g);
+    return result as {
+      operationId: string;
+      commandFingerprint: string;
+      outcome: import("./encrypted-types").ArchiveDeletionOutcome;
+      canWithdraw: boolean;
+      packet: ArchiveDeletionPacket;
+      withdrawal: import("./encrypted-types").ArchiveWithdrawalPacket | null;
+    };
+  }
+  async unlockForArchiveDeletion(vault: Vault, material: PasskeyMaterial) {
+    return this.serial(async () => {
+      try {
+        await this.started;
+        const g = this.generation;
+        const pin = await this.storage.get(this.owner + ":pin");
+        if (pin && pin.ownerSubject !== this.owner) throw new VaultError("wrong_account");
+        await this.rpc("unlockForArchiveDeletion", { vault, material, pin }, [material.secret]);
+        this.assert(g);
+        this.vaultId = vault.vaultId;
+        this.deletionOnly = true;
+      } finally {
+        if (material.secret.byteLength) new Uint8Array(material.secret).fill(0);
+      }
+    });
+  }
+  async prepareArchiveWithdrawal(vault: Vault, state: VaultLifecycleState) {
+    return this.serial(async () => {
+      const g = this.generation,
+        prior = await this.lifecycleLocal(vault);
+      const previous: ArchiveDeletionRecord = await this.storage.get(
+        this.owner + ":archive-change",
+      );
+      if (!previous || !this.storage.updateArchiveChange)
+        throw new VaultError("archive_deletion_missing");
+      const result = await this.rpc("prepareArchiveWithdrawal", {
+        vault,
+        state,
+        record: previous,
+        prior,
+      });
+      this.assert(g);
+      await this.storage.updateArchiveChange(this.owner, result.record, previous);
+      this.assert(g);
+      return result.packet as import("./encrypted-types").ArchiveWithdrawalPacket;
+    });
+  }
+  async finishArchiveDeletion(vault: Vault, state: VaultLifecycleState) {
+    return this.serial(async () => {
+      const g = this.generation,
+        prior = await this.lifecycleLocal(vault);
+      const pending = await this.storage.get(this.owner + ":archive-change");
+      if (!pending || !this.storage.finishArchiveDeletion)
+        throw new VaultError("archive_deletion_missing");
+      const result = await this.rpc("finishArchiveDeletion", {
+        vault,
+        state,
+        record: pending,
+        prior,
+      });
+      this.assert(g);
+      await this.storage.finishArchiveDeletion(
+        this.owner,
+        result.pin,
+        vault.archive,
+        result.record,
+        pending,
+      );
+      this.assert(g);
+      return result.outcome as import("./encrypted-types").ArchiveDeletionOutcome;
+    });
+  }
   async createRecoveryKit(vault: Vault, state: VaultLifecycleState): Promise<RecoveryKitExport> {
     await this.verifyLifecycle(vault, state);
     const g = this.generation,
@@ -573,12 +721,13 @@ export class EncryptedVaultSession {
       const result = await this.rpc("importRecoveryKit", { vault, state, file, code, prior });
       this.assert(g);
       this.vaultId = vault.vaultId;
-      this.storage.setArchiveContext?.(
-        this.owner,
-        vault.archive.credentialId,
-        vault.archive.prfSalt,
-        vault.archive.iv,
-      );
+      if (vault.archive)
+        this.storage.setArchiveContext?.(
+          this.owner,
+          requireArchive(vault.archive).credentialId,
+          requireArchive(vault.archive).prfSalt,
+          requireArchive(vault.archive).iv,
+        );
       await this.verifyLifecycle(vault, state);
       this.assert(g);
       return result;

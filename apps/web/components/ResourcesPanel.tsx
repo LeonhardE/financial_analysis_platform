@@ -316,6 +316,12 @@ function Workspace({ model }: { model: HoldingsWorkspace }) {
         </div>
       ) : model.phase === "checking" || model.busy === "loading" ? (
         <p role="status">{t("loading")}</p>
+      ) : ["archive-pending", "archive-deleted"].includes(model.phase) ||
+        model.vault?.archive === null ? (
+        <div className={styles.start} role="status">
+          <p>{t("archiveUnavailable")}</p>
+          <a href="/settings">{t("archiveSettings")}</a>
+        </div>
       ) : model.phase === "needs-vault" ? (
         <div className={styles.start}>
           <p>{t("createHelp")}</p>

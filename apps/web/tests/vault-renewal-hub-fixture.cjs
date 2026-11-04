@@ -35,6 +35,18 @@ with tempfile.TemporaryDirectory(prefix='folioview-renewal-adversarial-') as dir
     response=renewals.renew(actor,b['vaultId'],packet['body'],operation)
    elif kind=='receipt':
     response=renewals.receipt(actor,b['vaultId'],operation)
+   elif kind=='registry':
+    response=vaults.update_registry(actor,b['vaultId'],packet['body'],operation)
+   elif kind=='archive_delete':
+    response=lifecycle.delete_archive(actor,b['vaultId'],packet['body'],operation)
+   elif kind=='archive_delete_withdraw':
+    response=lifecycle.withdraw_deletion(actor,b['vaultId'],packet['body'],operation)
+   elif kind=='archive_delete_check':
+    response=lifecycle.check_deletion(actor,b['vaultId'],packet['body'])
+   elif kind=='recovery_authorize':
+    response=lifecycle.authorize_recovery(actor,b['vaultId'],dict(contractVersion=contract,command=packet['command']),operation)
+   elif kind=='recovery_revoke':
+    response=lifecycle.revoke_recovery(actor,b['vaultId'],packet['authorizationId'],dict(contractVersion=contract,command=packet['command']),operation)
    elif kind=='archive_replace':
     body=packet.get('body',packet)
     response=lifecycle.replace_archive(actor,b['vaultId'],dict(contractVersion=contract,archive=body['archive'],command=body['command']),operation)

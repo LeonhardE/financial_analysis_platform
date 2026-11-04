@@ -145,6 +145,7 @@ function render(f, { locale = "en", component = "panel", mode = "unlock", unlock
     "./PasskeyHelp": help,
     "./VaultRecoveryPanel": recovery,
     "./VaultKeyRenewalPanel": renewal,
+    "./VaultArchiveDeletionPanel": load("VaultArchiveDeletionPanel", imports),
   });
   const settings = load("SettingsPanel", {
     ...imports,
@@ -350,6 +351,19 @@ test("Passkey alternatives are explicit user actions and preserve the requested 
   );
   button(created, "Create with the selected authenticator").onClick();
   assert.deepEqual(JSON.parse(JSON.stringify(creating.calls)), [["create", { method: "other" }]]);
+});
+
+test("a null archive never offers ordinary unlock during an interrupted recovery", () => {
+  const f = fixture({
+    phase: "locked",
+    keyManagement: null,
+    vault: { vaultId: "vault_synthetic_A", rootKeyId: "root_synthetic_A", archive: null },
+  });
+  const view = render(f);
+  const messages = require("../messages/en.json");
+  assert(!view.buttons.some((row) => row.children === messages.vaultManagement.unlockLocal));
+  assert.equal(f.calls.length, 0);
+  assert(view.html.includes(messages.vaultRecovery.resumeTitle));
 });
 
 test("new-device approval is explicit, ordinary unlock paths are absent, and cancel locks instead of registering", () => {

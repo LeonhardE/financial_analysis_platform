@@ -218,6 +218,25 @@ function hubOwnerRule(path: string, method: PrivateMethod): EncryptedRule | null
       maxBytes: 65536,
       rootCommand: true,
     };
+  } else if (method === "POST" && matches(`/api/v2/vaults/${id}/archive-deletion-withdrawals`)) {
+    rule = {
+      method,
+      keys: ["contractVersion", "command", "deletionCommand"],
+      idempotent: true,
+      maxBytes: 24576,
+      rootCommands: ["command", "deletionCommand"],
+    };
+  } else if (
+    method === "POST" &&
+    matches(`/api/v2/vaults/${id}/(?:archive-deletions|archive-deletion-checks)`)
+  ) {
+    rule = {
+      method,
+      keys: ["contractVersion", "command"],
+      idempotent: pathname.endsWith("/archive-deletions"),
+      maxBytes: 8192,
+      rootCommand: true,
+    };
   } else if (method === "POST" && matches(`/api/v2/vaults/${id}/key-renewals`)) {
     rule = {
       method,

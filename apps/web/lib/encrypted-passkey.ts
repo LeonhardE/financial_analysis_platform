@@ -260,14 +260,14 @@ export async function createVaultPasskey(
 /** Create alongside the old key, then prove that the new PRF is retrievable. */
 export async function replaceVaultPasskey(
   uid: string,
-  archive: Archive,
+  archive: Archive | null,
   options: PasskeyOptions = {},
 ): Promise<PasskeyMaterial> {
   const made = await createPasskey(uid, options, true);
   let checked: PasskeyMaterial | undefined;
   try {
     active(options.signal);
-    if (made.credentialId === archive.credentialId || made.prfSalt === archive.prfSalt)
+    if (archive && (made.credentialId === archive.credentialId || made.prfSalt === archive.prfSalt))
       throw new VaultError("invalid_operation");
     checked = await read(made.credentialId, made.prfSalt, options);
     active(options.signal);

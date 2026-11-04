@@ -27,6 +27,13 @@ export interface EncryptedStorage {
   ): Promise<void>;
   discardArchiveChange?(owner: string, pin: any, archive: any, operationId: string): Promise<void>;
   updateArchiveChange?(owner: string, record: any, previous: any): Promise<void>;
+  finishArchiveDeletion?(
+    owner: string,
+    pin: any,
+    archive: any,
+    registryRecord: any,
+    pending: any,
+  ): Promise<void>;
   get(key: string): Promise<any>;
   put(key: string, value: any): Promise<void>;
   remove(key: string): Promise<void>;
@@ -56,11 +63,14 @@ export const sameEncryptedRecord = (a: any, b: any): boolean => {
     keys.every((key) => Object.hasOwn(b, key) && sameEncryptedRecord(a[key], b[key]))
   );
 };
-const archiveBinding = (archive: any) => ({
-  credentialId: archive.credentialId,
-  prfSalt: archive.prfSalt,
-  archiveIv: archive.iv,
-});
+const archiveBinding = (archive: any) =>
+  archive === null
+    ? { deleted: true }
+    : {
+        credentialId: archive.credentialId,
+        prfSalt: archive.prfSalt,
+        archiveIv: archive.iv,
+      };
 const matchesArchive = (binding: any, context: any) =>
   !binding ||
   (binding.credentialId === context.credentialId &&
@@ -96,6 +106,10 @@ export function assertPinAdvance(current: any, record: any) {
 }
 export class BrowserEncryptedStorage implements EncryptedStorage {
   private database?: Promise<IDBDatabase>;
+  async close() {
+    if (this.database) (await this.database).close();
+    this.database = undefined;
+  }
   private archiveContext?: {
     owner: string;
     credentialId: string;
@@ -162,7 +176,7 @@ export class BrowserEncryptedStorage implements EncryptedStorage {
       const req = s.get(owner + ":lifecycle");
       req.onsuccess = () => {
         try {
-          if (pin.ownerSubject !== owner || archive.ownerSubject !== owner)
+          if (pin.ownerSubject !== owner || (archive !== null && archive.ownerSubject !== owner))
             throw new VaultError("wrong_account");
           this.lifecycleAdvance(req.result, pin);
           const commit = () => {
@@ -198,6 +212,7 @@ export class BrowserEncryptedStorage implements EncryptedStorage {
   }
   stageArchiveChange(owner: string, record: any) {
     return this.atomic<boolean>((s, done, fail) => {
+      const deletion = record.profile === "folioview.archive-deletion-candidate.v1";
       const renewal = s.get(owner + ":key-renewal");
       renewal.onsuccess = () => {
         if (renewal.result) fail(new VaultError("key_renewal_pending"));
@@ -215,7 +230,10 @@ export class BrowserEncryptedStorage implements EncryptedStorage {
         const context = this.archiveContext,
           binding = s.get(owner + ":archive-binding");
         binding.onsuccess = () => {
-          if (context && !matchesArchive(binding.result, context)) {
+          if (
+            (deletion && (!context || context.owner !== owner)) ||
+            (context && !matchesArchive(binding.result, context))
+          ) {
             fail(new VaultError("archive_session_stale"));
             return;
           }
@@ -226,13 +244,29 @@ export class BrowserEncryptedStorage implements EncryptedStorage {
             if (row) {
               const key = String(row.key),
                 v = row.value;
+              const otherVaultBootstrap =
+                deletion &&
+                v?.ownerSubject === owner &&
+                v?.pending?.ownerSubject === owner &&
+                v?.pending?.profile === "folioview.pending-device.v1" &&
+                v?.pending?.kind === "bootstrap" &&
+                typeof v?.pending?.vaultId === "string" &&
+                v.pending.vaultId !== record.vaultId;
               if (
-                key.includes(":pending-device:") ||
+                (key.includes(":pending-device:") && !otherVaultBootstrap) ||
                 key.includes(":device-change:") ||
                 key.includes(":agent-registration:") ||
                 key.includes(":agent-approval:") ||
                 key.includes(":agent-preparation:") ||
-                (key.includes(":task-draft:") && !v.deleted)
+                (key.includes(":task-draft:") && !v.deleted) ||
+                (deletion &&
+                  [
+                    ":outbox:",
+                    ":task-outbox:",
+                    ":upload-cancellation:",
+                    ":source-create:",
+                    ":source-mutation:",
+                  ].some((part) => key.includes(part)))
               )
                 blocked = true;
               row.continue();
@@ -280,6 +314,47 @@ export class BrowserEncryptedStorage implements EncryptedStorage {
           } catch (e) {
             fail(e);
           }
+        };
+      };
+    });
+  }
+  finishArchiveDeletion(owner: string, pin: any, archive: any, registryRecord: any, pending: any) {
+    return this.atomic<void>((s, done, fail) => {
+      const read = s.get(owner + ":archive-change");
+      read.onsuccess = () => {
+        if (
+          pending?.ownerSubject !== owner ||
+          pending?.profile !== "folioview.archive-deletion-candidate.v1" ||
+          !sameEncryptedRecord(read.result, pending)
+        ) {
+          fail(new VaultError("operation_conflict"));
+          return;
+        }
+        const previous = s.get(owner + ":lifecycle"),
+          root = s.get(owner + ":pin");
+        previous.onsuccess = () => {
+          root.onsuccess = () => {
+            try {
+              if (
+                pin.ownerSubject !== owner ||
+                registryRecord.pin?.ownerSubject !== owner ||
+                pin.vaultId !== pending.vaultId ||
+                pin.rootKeyId !== pending.rootKeyId ||
+                registryRecord.pin.vaultId !== pin.vaultId ||
+                registryRecord.pin.rootKeyId !== pin.rootKeyId
+              )
+                throw new VaultError("wrong_account");
+              this.lifecycleAdvance(previous.result, pin);
+              assertPinAdvance(root.result, registryRecord);
+              s.put(pin, owner + ":lifecycle");
+              s.put(registryRecord.pin, owner + ":pin");
+              s.put(archiveBinding(archive), owner + ":archive-binding");
+              s.delete(owner + ":archive-change");
+              done();
+            } catch (e) {
+              fail(e);
+            }
+          };
         };
       };
     });

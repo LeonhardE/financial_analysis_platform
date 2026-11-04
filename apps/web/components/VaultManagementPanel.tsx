@@ -5,6 +5,7 @@ import type { HoldingsWorkspace } from "./useHoldingsWorkspace";
 import { PasskeyHelp } from "./PasskeyHelp";
 import VaultRecoveryPanel from "./VaultRecoveryPanel";
 import VaultKeyRenewalPanel from "./VaultKeyRenewalPanel";
+import VaultArchiveDeletionPanel from "./VaultArchiveDeletionPanel";
 import styles from "./VaultManagementPanel.module.css";
 
 const ERRORS = new Set([
@@ -115,7 +116,8 @@ export default function VaultManagementPanel({ workspace }: { workspace: Holding
         </div>
       ) : workspace.phase === "checking" ? (
         <p role="status">{t("loading")}</p>
-      ) : workspace.phase === "renewal-only" ? null : !unlocked ? (
+      ) : ["renewal-only", "archive-pending", "archive-deleted"].includes(workspace.phase) ||
+        workspace.vault?.archive === null ? null : !unlocked ? (
         <div className={styles.callout}>
           <PasskeyHelp
             workspace={workspace}
@@ -368,6 +370,7 @@ export default function VaultManagementPanel({ workspace }: { workspace: Holding
         <p role="status">{t(`notices.${workspace.keyNotice}`)}</p>
       )}
       <VaultRecoveryPanel workspace={workspace} />
+      <VaultArchiveDeletionPanel workspace={workspace} />
       <VaultKeyRenewalPanel workspace={workspace} />
       <div className={styles.recovery}>
         <h3>{t("recoveryTitle")}</h3>
