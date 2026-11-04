@@ -70,7 +70,7 @@ def select(paths: list[str], registry: Registry | None = None) -> Plan:
     web = infra = terraform = False
     services = set()
     for path in paths:
-        if path.startswith("local-docs/"):
+        if path.startswith("local-docs/") or path == ".github/CODEOWNERS":
             continue
         if path.startswith((".github/", "scripts/ci/")) or path in {
             "package.json",

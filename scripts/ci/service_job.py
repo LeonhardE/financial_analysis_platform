@@ -187,11 +187,26 @@ def check_target(target_id: str) -> None:
     for config in configs:
         for command in (
             ["check", "--config", config, target.directory, "services/common"],
-            ["format", "--check", "--config", config, target.directory, "services/common"],
+            [
+                "format",
+                "--check",
+                "--config",
+                config,
+                target.directory,
+                "services/common",
+            ],
         ):
             subprocess.run([sys.executable, "-m", "ruff", *command], cwd=ROOT, check=True)
     subprocess.run(
-        [sys.executable, "scripts/test_services.py", "--service", "common", "--service", target.id],
+        [
+            sys.executable,
+            "scripts/test_services.py",
+            "--service",
+            "common",
+            "--service",
+            target.id,
+            *(["--jobs", "4"] if target.id == "agent-hub-service" else []),
+        ],
         cwd=ROOT,
         check=True,
     )

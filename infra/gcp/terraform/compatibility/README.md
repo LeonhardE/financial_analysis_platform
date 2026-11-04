@@ -71,6 +71,11 @@ configuration-descendant release polling, failed readiness, UID replacement and 
 errors. Localhost subprocess transport disables proxies and refuses non-loopback endpoints. These
 are deterministic protocol tests, not real-cloud concurrency stress tests.
 
+The top-level validation command runs each five-scenario compatibility group with four workers.
+Each scenario owns a separate temporary Terraform root/state and localhost fixture, and shares only
+the read-only provider mirror. Results retain their original order and any scenario failure fails
+the command. The individual scripts accept `--jobs 1` to reproduce serial execution.
+
 ## Authenticated isolated verification
 
 ```bash

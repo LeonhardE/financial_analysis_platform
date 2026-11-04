@@ -18,6 +18,7 @@ from pathlib import Path
 
 from fake_cloud_run import PROJECT, REGION, RESOURCE, SERVICE, TOKEN, FakeCloudRun
 from provider_check import IMAGES, MODULE, ROOT, http, image, release, release_helper, rollback
+from scenario_runner import run_scenarios
 
 CONTROLLER = "module.fixture.terraform_data.configuration"
 NATIVE = "module.fixture.google_cloud_run_v2_service.service"
@@ -191,9 +192,9 @@ def guarded_patch(patches, before, expected_image, expected_mode):
     )
 
 
-def scenarios(terraform, provider_dir):
+def scenarios(terraform, provider_dir, jobs=1):
     helper = release_helper()
-    findings = []
+    cases = []
 
     def case(callback):
         with (
@@ -211,7 +212,7 @@ def scenarios(terraform, provider_dir):
         require(served_revision(fixture.service) == revision_b, "No-op must preserve serving B")
         return {"scenario": "release-b-followed-by-no-op", "status": "passed"}
 
-    findings.append(case(post_release_noop))
+    cases.append(lambda: case(post_release_noop))
 
     def stale_before_release(controller, fixture):
         controller.environment_change("two")
@@ -230,7 +231,7 @@ def scenarios(terraform, provider_dir):
             "next_plan": "no-op",
         }
 
-    findings.append(case(stale_before_release))
+    cases.append(lambda: case(stale_before_release))
 
     def pinned_rollback(controller, fixture, stale):
         revision_b = release(fixture, helper, "B")
@@ -269,8 +270,12 @@ def scenarios(terraform, provider_dir):
             "next_plan": "no-op",
         }
 
-    findings.append(case(lambda controller, fixture: pinned_rollback(controller, fixture, False)))
-    findings.append(case(lambda controller, fixture: pinned_rollback(controller, fixture, True)))
+    cases.append(
+        lambda: case(lambda controller, fixture: pinned_rollback(controller, fixture, False))
+    )
+    cases.append(
+        lambda: case(lambda controller, fixture: pinned_rollback(controller, fixture, True))
+    )
 
     def drift_repair(controller, fixture):
         release(fixture, helper, "B")
@@ -310,13 +315,14 @@ def scenarios(terraform, provider_dir):
             "next_plan": "no-op",
         }
 
-    findings.append(case(drift_repair))
-    return findings
+    cases.append(lambda: case(drift_repair))
+    return run_scenarios(cases, jobs)
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--terraform", required=True, type=Path)
+    parser.add_argument("--jobs", type=int, choices=range(1, 9), default=1)
     parser.add_argument("--provider-dir", type=Path, help="Existing pinned provider mirror")
     parser.add_argument("--report", type=Path, help="Write only the sanitized regression result")
     args = parser.parse_args()
@@ -328,7 +334,7 @@ def main():
     ]
     provider_dir = next((path.resolve() for path in candidates if path and path.is_dir()), None)
     require(provider_dir is not None, "Initialize the pinned provider or pass --provider-dir")
-    findings = scenarios(terraform, provider_dir)
+    findings = scenarios(terraform, provider_dir, args.jobs)
     report = {
         "verification_passed": True,
         "compatibility_status": "passed-localhost-wire",
