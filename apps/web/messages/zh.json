@@ -441,7 +441,9 @@
         "disconnect": "确认断开",
         "delete": "确认删除"
       }
-    }
+    },
+    "archiveUnavailable": "密钥包移除请求尚待处理，或云端密钥包已移除。请到设置核对原请求，或使用独立恢复包恢复；原内容并未因此清空。",
+    "archiveSettings": "前往设置处理密钥包"
   },
   "inbox": {
     "eyebrow": "个人 AGENT 产出",
@@ -567,7 +569,9 @@
     "enableChanges": "在此设备启用修改",
     "readOnlyHelp": "你可以阅读已保存的报告。修改状态前，请通过 Passkey 授权此设备。",
     "stateScope": "已读、收藏和归档状态作用于这份结果的全部修订。",
-    "countsHelp": "数量以最近一次刷新为准。"
+    "countsHelp": "数量以最近一次刷新为准。",
+    "archiveUnavailable": "密钥包移除请求尚待处理，或云端密钥包已移除。请到设置核对原请求，或使用独立恢复包恢复；原内容并未因此清空。",
+    "archiveSettings": "前往设置处理密钥包"
   },
   "resourceLibrary": {
     "filterLabel": "筛选资源",
@@ -835,7 +839,9 @@
     "selectedResourceHelp": "使用{kind}创建简报。请先解锁资源库，保存前仍可调整选择。",
     "startSelected": "使用此资源创建任务",
     "notChecked": "尚未检查供 agent 使用的资源是否就绪",
-    "resourceLimit": "最多选择 10 项资源。"
+    "resourceLimit": "最多选择 10 项资源。",
+    "archiveUnavailable": "密钥包移除请求尚待处理，或云端密钥包已移除。请到设置核对原请求，或使用独立恢复包恢复；原内容并未因此清空。",
+    "archiveSettings": "前往设置处理密钥包"
   },
   "agents": {
     "eyebrow": "个人工作区",
@@ -1093,7 +1099,9 @@
       "original_helper_required": "只有原 helper 密钥可以解密此次获准副本，没有替换为新密钥。"
     },
     "originalHelperHelp": "恢复不会重建 helper 私钥。仅在另一个浏览器中仍打开原 helper，且指纹完全相同时继续，否则请从 Muse 重新授权。",
-    "confirmOriginalHelper": "原 helper 仍打开，继续使用其原密钥"
+    "confirmOriginalHelper": "原 helper 仍打开，继续使用其原密钥",
+    "archiveUnavailable": "密钥包移除请求尚待处理，或云端密钥包已移除。请到设置核对原请求，或使用独立恢复包恢复；原内容并未因此清空。",
+    "archiveSettings": "前往设置处理密钥包"
   },
   "vaultManagement": {
     "title": "资源库密钥与设备",
@@ -1378,5 +1386,58 @@
     "uploadCancelled": "这项原上传已取消，不能再次提交。对应本机重试副本已清理；请继续检查其他未决请求，再续期密钥。",
     "uploadAlreadySaved": "原上传此前已保存，现已验证原密文，只清理本机重试副本。已保存资料保持可用。",
     "cancelUploadCapacity": "每个资源库的持仓上传与任务上传各最多保留32次取消裁定。重试同一次取消不会重复占位；达到上限时原请求会继续保留。"
+  },
+  "vaultDeletion": {
+    "title": "云端密钥归档",
+    "description": "移除云端保存的加密密钥包。资源库身份、已保存持仓、任务和报告会保留。",
+    "effects": "移除后，原 Passkey 无法单独解锁资源库。已批准的设备与 Agent 连接、已下载副本和独立恢复包仍然有效。",
+    "reviewDeletion": "审阅移除云端密钥包",
+    "reviewTitle": "确认移除云端密钥包",
+    "recoveryWarning": "没有独立恢复材料时，可能永久失去对加密内容的访问。此操作不会重置资源库或撤销其他设备。",
+    "backupLink": "先在上方保存当前有效的独立恢复包",
+    "backupConfirmation": "我已将当前有效的恢复文件和恢复码分开妥善保存，并理解丢失材料后可能无法恢复。",
+    "confirmDeletion": "确认并移除云端密钥包",
+    "keepArchive": "保留云端密钥包",
+    "reviewAgain": "重新审阅当前密钥包",
+    "libraryDetails": "资源库指纹",
+    "operationDetails": "原始请求",
+    "pendingTitle": "原移除请求待核对",
+    "pendingHelp": "结果未知时请保留原请求。重新核对只读取状态；继续处理会重试保留的原命令。",
+    "withdrawalPendingTitle": "原撤回请求待核对",
+    "withdrawalPendingHelp": "撤回请求已保留。继续处理只重试撤回，不会再次发送移除命令。",
+    "check": "重新核对",
+    "retryDeletion": "继续原移除请求",
+    "retryWithdrawal": "继续原撤回请求",
+    "reviewWithdrawal": "审阅撤回移除",
+    "withdrawalTitle": "撤回原移除请求",
+    "withdrawalHelp": "使用原 Passkey 批准保留云端密钥包。如果移除已经先完成，撤回不能恢复密钥包，需要使用独立恢复材料。",
+    "confirmWithdrawal": "验证原 Passkey 并撤回",
+    "keepPending": "保留待核对请求",
+    "otherPasskey": "改用手机或安全密钥",
+    "withdrawOther": "使用其他方式验证并撤回",
+    "deleted": "云端密钥包已移除。请使用独立恢复包恢复，并创建新的 Passkey。",
+    "restoreLink": "打开独立恢复入口",
+    "notices": {
+      "deleted": "原移除操作已核实完成。",
+      "withdrawn": "原移除请求已撤回，云端密钥包保留。请重新解锁后继续。",
+      "superseded": "后续密钥变更已使原移除请求永久失效。请解锁当前密钥包后继续。"
+    },
+    "errors": {
+      "archive_local_pending": "请先处理这台浏览器中尚未完成的加密请求或草稿，再移除密钥包。",
+      "archive_change_pending": "另一个密钥归档操作尚未完成，请先核对并处理原操作。",
+      "archive_deletion_unknown": "结果仍未知，原请求已保留。请重新核对，或明确批准撤回。",
+      "archive_deletion_unavailable": "待处理恢复批准或剩余操作额度暂不允许移除。请保留密钥包，并先处理恢复批准。",
+      "archive_deletion_review_stale": "密钥包在审阅后发生变化，请重新审阅当前状态并确认。",
+      "archive_deletion_unlock_required": "请用原 Passkey 批准撤回；普通内容访问保持锁定。",
+      "archive_session_stale": "密钥包已发生变化，请重新读取当前状态后继续。",
+      "storage_unavailable": "浏览器未能安全保留原请求，请恢复本机存储可用性后继续。",
+      "passkey_cancelled": "Passkey 验证已取消，原请求仍保留待核对。",
+      "passkey_unsupported": "此验证器未能解锁密钥包，请改用支持的原 Passkey。",
+      "request_timeout": "请求超时，原命令已保留以供核对。",
+      "service_unavailable": "服务暂不可用，请保留原请求，稍后重新核对。",
+      "untrusted_lifecycle": "无法核实密钥归档的签名历史，未清理待确认请求。",
+      "operation_conflict": "其他标签页更改了待确认请求，请重新读取并核对。",
+      "generic": "操作尚未完成，请核对原请求或重新审阅当前密钥包后再试。"
+    }
   }
 }

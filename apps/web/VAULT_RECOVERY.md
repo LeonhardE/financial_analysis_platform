@@ -4,6 +4,9 @@ The Web client consumes the existing Hub-owned `folioview.vault-lifecycle.v1` AP
 explicit, bounded owner BFF routes. Google login establishes the owner. Root signatures approve
 archive changes. The service receives public bindings, signatures and ciphertext only.
 
+Cloud archive removal adds three separate bounded routes and an explicit confirmation/recovery
+flow, described in [ARCHIVE_DELETION.md](ARCHIVE_DELETION.md).
+
 ## User flows
 
 Settings → encrypted library offers three separate operations:

@@ -114,6 +114,9 @@ function harness() {
     receipt: holdingsReceipt(),
   });
   class Session {
+    static async hasArchiveDeletion() {
+      return false;
+    }
     constructor(uid) {
       this.uid = uid;
       this.locked = false;

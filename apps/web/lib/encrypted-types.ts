@@ -22,7 +22,7 @@ export type Vault = {
   rootJwk: Json;
   rootKeyId: string;
   registryHistory: RegistryBundle[];
-  archive: Archive;
+  archive: Archive | null;
   version: number;
 };
 export type Source = {
@@ -429,7 +429,7 @@ export type VaultLifecycleState = {
   lifecycleVersion: number;
   archiveRevision: number;
   archiveDigest: string;
-  archive: Archive;
+  archive: Archive | null;
   pendingAuthorization: Json | null;
   history: { command: Signed; receipt: Json }[];
 };
@@ -454,6 +454,28 @@ export type ArchiveChangePacket = {
   command: Signed;
   authorization?: { operationId: string; authorizationId: string; command: Signed };
 };
+export type ArchiveDeletionPacket = {
+  operationId: string;
+  body: { contractVersion: string; command: Signed };
+};
+export type ArchiveWithdrawalPacket = {
+  operationId: string;
+  body: { contractVersion: string; command: Signed; deletionCommand: Signed };
+};
+export type ArchiveDeletionOutcome = "unresolved" | "deleted" | "withdrawn" | "superseded";
+export type ArchiveDeletionRecord = {
+  profile: "folioview.archive-deletion-candidate.v1";
+  ownerSubject: string;
+  vaultId: string;
+  rootKeyId: string;
+  operationId: string;
+  packet: ArchiveDeletionPacket;
+  withdrawal: ArchiveWithdrawalPacket | null;
+};
+export function requireArchive(archive: Archive | null): Archive {
+  if (!archive) throw new VaultError("archive_deleted");
+  return archive;
+}
 export class VaultError extends Error {
   constructor(public readonly code: string) {
     super(code);

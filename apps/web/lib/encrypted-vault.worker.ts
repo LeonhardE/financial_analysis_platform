@@ -18,7 +18,48 @@ scope.onmessage = (event) => {
         result = { ownerSubject: await core.owner };
       } else {
         if (!core) throw new VaultError("locked");
+        if (
+          core.archiveDeletionRestricted &&
+          ![
+            "verifyLifecycle",
+            "inspectArchiveDeletion",
+            "unlockForArchiveDeletion",
+            "prepareArchiveWithdrawal",
+            "finishArchiveDeletion",
+          ].includes(method)
+        )
+          throw new VaultError("archive_deletion_pending");
         switch (method) {
+          case "prepareArchiveDeletion":
+            result = await core.prepareArchiveDeletion(args.vault, args.state, args.prior);
+            break;
+          case "inspectArchiveDeletion":
+            result = await core.inspectArchiveDeletion(
+              args.vault,
+              args.state,
+              args.record,
+              args.prior,
+            );
+            break;
+          case "unlockForArchiveDeletion":
+            result = await core.unlockForArchiveDeletion(args.vault, args.material, args.pin);
+            break;
+          case "prepareArchiveWithdrawal":
+            result = await core.prepareArchiveWithdrawal(
+              args.vault,
+              args.state,
+              args.record,
+              args.prior,
+            );
+            break;
+          case "finishArchiveDeletion":
+            result = await core.finishArchiveDeletion(
+              args.vault,
+              args.state,
+              args.record,
+              args.prior,
+            );
+            break;
           case "prepareUploadCancellation":
             result = await core.prepareUploadCancellation(args.kind, args.pending);
             break;

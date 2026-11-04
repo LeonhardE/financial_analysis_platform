@@ -1718,6 +1718,57 @@ test("lifecycle archive and authorization budgets are enforced independently bef
   h.unmount();
 });
 
+test("archive deletion browser admission keeps three fixed routes, original bytes and independent root bounds", async () => {
+  let tokens = 0;
+  const h = mountProvider({ fetchOwnerConfig: async () => configResponse(false, true) });
+  h.emitUser({ uid: "a", getIdToken: async () => `test-token-${++tokens}` });
+  await settle();
+  const base = "/api/v2/vaults/vault_A",
+    command = { protected: "e30", payload: "e30", signature: "AA" };
+  const body = { contractVersion: version, command };
+  for (const [path, json, headers] of [
+    [base + "/archive-deletions", body, operationHeaders()],
+    [
+      base + "/archive-deletion-withdrawals",
+      { ...body, deletionCommand: command },
+      operationHeaders(),
+    ],
+    [base + "/archive-deletion-checks", body, {}],
+  ]) {
+    await h.actions.requestPrivate("agent-hub", path, "a:1", { method: "POST", json, headers });
+    assert.equal(h.requests.at(-1)[0], "/api/private/agent-hub" + path);
+    assert.deepEqual(JSON.parse(h.requests.at(-1)[1].body), json);
+  }
+  const before = { tokens, requests: h.requests.length };
+  for (const [path, json, headers] of [
+    [base + "/archive-deletion-checks", body, operationHeaders()],
+    [base + "/archive-deletions", { ...body, ownerSubject: "selected_owner" }, operationHeaders()],
+    [
+      base + "/archive-deletion-withdrawals",
+      { ...body, deletionCommand: { ...command, payload: "A".repeat(8192) } },
+      operationHeaders(),
+    ],
+    [
+      base + "/archive-deletion-withdrawals",
+      { ...body, deletionCommand: { ...command, privateKey: "PRIVATE_CANARY" } },
+      operationHeaders(),
+    ],
+    [
+      base + "/archive-deletion-withdrawals",
+      { ...body, deletionCommand: command },
+      operationHeaders({ "X-FolioView-Author-Key": "A".repeat(43) }),
+    ],
+    [base + "/archive-deletion-checks?owner=other", body, {}],
+  ])
+    await assert.rejects(
+      h.actions.requestPrivate("agent-hub", path, "a:1", { method: "POST", json, headers }),
+      /Invalid private API/,
+    );
+  assert.equal(tokens, before.tokens);
+  assert.equal(h.requests.length, before.requests);
+  h.unmount();
+});
+
 test("Hub owner queries reject duplicate, unknown, malformed and out-of-range values before retrieving a token", async () => {
   let tokens = 0;
   const h = mountProvider({ fetchOwnerConfig: async () => configResponse(false, true) });

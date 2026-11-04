@@ -672,3 +672,164 @@ test("formal Hub renewal failures retain their status without passing private up
     );
   }
 });
+
+const lifecycleProfile = "folioview.vault-lifecycle.v1";
+function deletionAck(action = "archive_delete", operationId = OP) {
+  return {
+    contractVersion: CONTRACT,
+    profile: lifecycleProfile,
+    receipt: {
+      profile: lifecycleProfile,
+      ownerSubject: ARCHIVE.ownerSubject,
+      vaultId: ARCHIVE.vaultId,
+      rootKeyId: ARCHIVE.rootKeyId,
+      operationId,
+      action,
+      lifecycleVersion: 1,
+      archiveRevision: action === "archive_delete" ? 1 : 0,
+      archiveDigest: "a".repeat(64),
+      commandFingerprint: "b".repeat(64),
+      acceptedAt: 1000,
+    },
+  };
+}
+function deletionCheck(outcome = "unresolved") {
+  return {
+    contractVersion: CONTRACT,
+    profile: lifecycleProfile,
+    vaultId: "vault_A",
+    operationId: OP,
+    commandFingerprint: "b".repeat(64),
+    outcome,
+    vaultVersion: 1,
+    lifecycleVersion: 1,
+    receipt: ["unresolved", "superseded"].includes(outcome)
+      ? null
+      : deletionAck(outcome === "deleted" ? "archive_delete" : "archive_delete_withdraw").receipt,
+  };
+}
+test("deletion, withdrawal and read-only checks have fixed owner routes and exact original bodies", async () => {
+  for (const [path, body, result, status, operation] of [
+    ["/archive-deletions", { contractVersion: CONTRACT, command: SIGNED }, deletionAck(), 201, OP],
+    [
+      "/archive-deletion-withdrawals",
+      { contractVersion: CONTRACT, command: SIGNED, deletionCommand: SIGNED },
+      deletionAck("archive_delete_withdraw"),
+      201,
+      OP,
+    ],
+    [
+      "/archive-deletion-checks",
+      { contractVersion: CONTRACT, command: SIGNED },
+      deletionCheck(),
+      200,
+      undefined,
+    ],
+  ]) {
+    const h = harness({ upstream: () => Response.json(result, { status }) });
+    const raw = JSON.stringify(body, null, 2);
+    for (let i = 0; i < 2; i++) {
+      const reply = await h.proxy(
+        request(BASE + path, {
+          method: "POST",
+          raw,
+          headers: operation ? { "Idempotency-Key": operation } : {},
+        }),
+      );
+      assert.equal(reply.status, status, await reply.clone().text());
+      assert.equal(reply.headers.get("cache-control"), "no-store");
+      assert.deepEqual(await reply.json(), result);
+      assert.equal(new TextDecoder().decode(h.hub().at(-1).init.body), raw);
+      assert.equal(h.hub().at(-1).init.headers.get("Authorization"), "Bearer " + tokenA);
+      assert.equal(h.hub().at(-1).init.headers.has("X-FolioView-Author-Key"), false);
+    }
+  }
+});
+test("deletion checks accept only exact outcomes and reject author, idempotency, query and private fields", async () => {
+  const body = { contractVersion: CONTRACT, command: SIGNED };
+  for (const options of [
+    { headers: { "Idempotency-Key": OP } },
+    { headers: { "X-FolioView-Author-Key": binary(32) } },
+    { json: { ...body, privateKey: "PRIVATE_CANARY" } },
+    { raw: "x".repeat(8193) },
+  ]) {
+    const h = harness();
+    const response = await h.proxy(
+      request(BASE + "/archive-deletion-checks", { method: "POST", json: body, ...options }),
+    );
+    assert([400, 413].includes(response.status));
+    assert.equal(h.hub().length, 0);
+  }
+  for (const outcome of ["deleted", "withdrawn", "superseded", "unresolved"]) {
+    const h = harness({ upstream: () => Response.json(deletionCheck(outcome)) });
+    assert.equal(
+      (await h.proxy(request(BASE + "/archive-deletion-checks", { method: "POST", json: body })))
+        .status,
+      200,
+    );
+  }
+  for (const poison of [
+    { ...deletionCheck(), outcome: "expired" },
+    { ...deletionCheck(), privateKey: "PRIVATE_CANARY" },
+    { ...deletionCheck("deleted"), receipt: null },
+  ]) {
+    const h = harness({ upstream: () => Response.json(poison) });
+    await failure(
+      await h.proxy(request(BASE + "/archive-deletion-checks", { method: "POST", json: body })),
+      503,
+      "authorization_unavailable",
+    );
+  }
+});
+test("withdrawal independently bounds both commands and cannot alias other methods or identity selectors", async () => {
+  const body = { contractVersion: CONTRACT, command: SIGNED, deletionCommand: SIGNED };
+  for (const options of [
+    { json: { ...body, deletionCommand: { ...SIGNED, signature: "A" } } },
+    { json: { ...body, deletionCommand: { ...SIGNED, payload: "A".repeat(9000) } } },
+    { json: { ...body, ownerSubject: ARCHIVE.ownerSubject } },
+    { headers: { "Idempotency-Key": OP, "X-FolioView-Author-Key": binary(32) } },
+  ]) {
+    const h = harness();
+    assert.equal(
+      (
+        await h.proxy(
+          request(BASE + "/archive-deletion-withdrawals", {
+            method: "POST",
+            json: body,
+            headers: { "Idempotency-Key": OP },
+            ...options,
+          }),
+        )
+      ).status,
+      400,
+    );
+    assert.equal(h.hub().length, 0);
+  }
+  const anon = harness();
+  await failure(
+    await anon.proxy(
+      request(BASE + "/archive-deletion-checks", {
+        method: "POST",
+        json: { contractVersion: CONTRACT, command: SIGNED },
+        auth: "",
+      }),
+    ),
+    401,
+    "invalid_token",
+  );
+  for (const method of ["GET", "PUT", "DELETE"]) {
+    const h = harness();
+    assert.equal(
+      (
+        await h.proxy(
+          request(BASE + "/archive-deletions", {
+            method,
+            ...(method === "GET" ? {} : { json: body }),
+          }),
+        )
+      ).status,
+      400,
+    );
+    assert.equal(h.hub().length, 0);
+  }
+});

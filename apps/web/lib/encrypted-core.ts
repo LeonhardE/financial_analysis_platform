@@ -13,6 +13,10 @@ import schemas from "./encrypted-schemas.json";
 import {
   CONTRACT,
   VaultError,
+  requireArchive,
+  type ArchiveDeletionPacket,
+  type ArchiveDeletionRecord,
+  type ArchiveDeletionOutcome,
   type Json,
   type Vault,
   type Archive,
@@ -735,6 +739,10 @@ export class VaultCore {
   /** Private historical readers stay in this terminated-on-lock Worker. Never grant signing rights. */
   private historicalReaders = new Map<string, CryptoKey>();
   private renewalOnly = false;
+  private deletionOnly = false;
+  get archiveDeletionRestricted() {
+    return this.deletionOnly;
+  }
   private vault?: Vault;
   private registry?: Registry;
   private pin?: Pin;
@@ -831,6 +839,7 @@ export class VaultCore {
   }
   private requireOrdinarySession() {
     if (this.renewalOnly) throw new VaultError("key_renewal_pending");
+    if (this.deletionOnly) throw new VaultError("archive_deletion_pending");
   }
   /** A root-only session is deliberately separate from ordinary content signing. */
   async unlockForKeyRenewal(
@@ -852,8 +861,8 @@ export class VaultCore {
     this.pendingDevice = undefined;
     this.pendingEnvelope = undefined;
     const compatible =
-      local?.device?.credentialId === vault.archive.credentialId &&
-      local.device.prfSalt === vault.archive.prfSalt
+      local?.device?.credentialId === requireArchive(vault.archive).credentialId &&
+      local.device.prfSalt === requireArchive(vault.archive).prfSalt
         ? local.device
         : undefined;
     await this.unlockForResults(vault, material, { pin: local?.pin, device: compatible });
@@ -892,7 +901,7 @@ export class VaultCore {
     const old = this.vault;
     this.vault = undefined;
     try {
-      const registry = await this.checkVault(vault, this.pin);
+      const registry = await this.checkVault(vault, this.pin, true);
       const record = await this.publicVaultPin(vault, registry);
       this.pin = record.pin;
       return record;
@@ -1439,7 +1448,11 @@ export class VaultCore {
       ...new Set([...cp.revokedKeyIds, ...specs.map((i) => i.before.keyId)]),
     ].sort();
     registryBundle.checkpoint = await sign(cp, this.root, vault.rootKeyId);
-    const archive = (await seal(this.wrapping, archiveContext(vault.archive), master)) as Archive;
+    const archive = (await seal(
+      this.wrapping,
+      archiveContext(requireArchive(vault.archive)),
+      master,
+    )) as Archive;
     checkArchive(archive, await this.owner);
     if (!equal(await open(this.wrapping, archive), master)) throw new VaultError("crypto_failed");
     const candidateVault = {
@@ -1531,8 +1544,12 @@ export class VaultCore {
     const previous = found.value.cancellation as KeyRenewalCancellationPacket | null;
     if (previous && parsed(unb64(previous.body.command.payload)).expiresAt > this.now())
       return { packet: previous, record };
-    const master = await open(this.wrapping, vault.archive);
-    const archive = (await seal(this.wrapping, archiveContext(vault.archive), master)) as Archive;
+    const master = await open(this.wrapping, requireArchive(vault.archive));
+    const archive = (await seal(
+      this.wrapping,
+      archiveContext(requireArchive(vault.archive)),
+      master,
+    )) as Archive;
     checkArchive(archive, await this.owner);
     const operationId = randomId("renew_cancel_");
     const command = await sign(
@@ -1576,8 +1593,8 @@ export class VaultCore {
     // root-approved renewal. Ordinary capabilities still call cert(..., now).
     if (
       this.renewalDeviceEligible(registry) &&
-      this.deviceSeal!.credentialId === vault.archive.credentialId &&
-      this.deviceSeal!.prfSalt === vault.archive.prfSalt
+      this.deviceSeal!.credentialId === requireArchive(vault.archive).credentialId &&
+      this.deviceSeal!.prfSalt === requireArchive(vault.archive).prfSalt
     )
       record.device = this.deviceSeal;
     return record;
@@ -1631,7 +1648,7 @@ export class VaultCore {
     this.vault = vault;
     this.registry = registry;
     if (equal(vault.archive, found.packet.body.archive)) {
-      const master = await open(this.wrapping!, vault.archive);
+      const master = await open(this.wrapping!, requireArchive(vault.archive));
       await this.installMaster(master, vault);
       const nextDevice = await this.readDevice(found.value.device);
       this.device = nextDevice;
@@ -1677,7 +1694,7 @@ export class VaultCore {
     let registry: Registry;
     this.vault = undefined;
     try {
-      registry = await this.checkVault(vault, this.pin);
+      registry = await this.checkVault(vault, this.pin, true);
     } finally {
       this.vault = old;
     }
@@ -1722,7 +1739,9 @@ export class VaultCore {
       pending: { payload: Json; command: Signed } | null = null,
       acceptedAt = 0,
       lastVault = 0,
-      lastRegistry = 0;
+      lastRegistry = 0,
+      deleted = false;
+    const withdrawn = new Set<string>();
     const digestValid = (v: unknown) => {
       if (typeof v !== "string" || !/^[0-9a-f]{64}$/.test(v))
         throw new VaultError("untrusted_lifecycle");
@@ -1736,6 +1755,12 @@ export class VaultCore {
       const p = await verified(item.command, vault.rootJwk);
       const extras: Record<string, string[]> = {
         archive_replace: ["mode", "newArchiveDigest", "authorizationId"],
+        archive_delete: [],
+        archive_delete_withdraw: [
+          "deletionOperationId",
+          "deletionCommandFingerprint",
+          "deletionLifecycleVersion",
+        ],
         recovery_authorize: ["authorizationId", "newArchiveDigest"],
         recovery_revoke: ["authorizationId"],
       };
@@ -1812,11 +1837,14 @@ export class VaultCore {
       positive(r.acceptedAt, 0);
       if (r.acceptedAt < acceptedAt || r.acceptedAt < p.issuedAt || r.acceptedAt >= p.expiresAt)
         throw new VaultError("untrusted_lifecycle");
-      if (p.action !== "recovery_revoke") {
+      if (["archive_replace", "recovery_authorize"].includes(p.action)) {
         digestValid(p.newArchiveDigest);
         if (p.newArchiveDigest === digest) throw new VaultError("untrusted_lifecycle");
       }
-      if (p.action !== "archive_replace" || p.mode === "recovery")
+      if (
+        ["recovery_authorize", "recovery_revoke"].includes(p.action) ||
+        (p.action === "archive_replace" && p.mode === "recovery")
+      )
         validate("Identifier", p.authorizationId);
       if (p.action === "recovery_authorize") {
         if (
@@ -1831,8 +1859,29 @@ export class VaultCore {
         if (!pending || pending.payload.authorizationId !== p.authorizationId)
           throw new VaultError("untrusted_lifecycle");
         pending = null;
+      } else if (p.action === "archive_delete") {
+        if (deleted || withdrawn.has(p.stableOperationId) || index > 29)
+          throw new VaultError("untrusted_lifecycle");
+        deleted = true;
+        digest = await sha(canonical(null));
+        revision++;
+        pending = null;
+      } else if (p.action === "archive_delete_withdraw") {
+        validate("OperationIdentifier", p.deletionOperationId);
+        digestValid(p.deletionCommandFingerprint);
+        positive(p.deletionLifecycleVersion, 0);
+        if (
+          deleted ||
+          p.deletionOperationId === p.stableOperationId ||
+          operations.has(p.deletionOperationId) ||
+          withdrawn.has(p.deletionOperationId) ||
+          p.deletionLifecycleVersion > index
+        )
+          throw new VaultError("untrusted_lifecycle");
+        withdrawn.add(p.deletionOperationId);
       } else {
         if (
+          (deleted && p.mode !== "recovery") ||
           !["rewrap", "passkey_change", "recovery"].includes(p.mode) ||
           (p.mode !== "recovery" && p.authorizationId !== null)
         )
@@ -1855,6 +1904,7 @@ export class VaultCore {
           )
             throw new VaultError("untrusted_lifecycle");
         }
+        deleted = false;
         digest = p.newArchiveDigest;
         revision++;
         pending = null;
@@ -1884,6 +1934,7 @@ export class VaultCore {
       lastRegistry = p.registrySequence;
     }
     if (
+      deleted !== (vault.archive === null) ||
       digest !== state.archiveDigest ||
       revision !== state.archiveRevision ||
       digest !== (await sha(canonical(vault.archive)))
@@ -1950,6 +2001,289 @@ export class VaultCore {
     this.lifecyclePin = pin;
     return pin;
   }
+  private restrictToArchiveDeletion() {
+    this.deletionOnly = true;
+    this.wrapping = undefined;
+    this.device = undefined;
+    this.deviceSeal = undefined;
+    this.recovery = undefined;
+    this.recoveryJwk = undefined;
+    this.recoveryMaster = undefined;
+    this.historicalReaders.clear();
+  }
+  async unlockForArchiveDeletion(vault: Vault, material: PasskeyMaterial, pin?: Pin) {
+    const registry = await this.checkVault(vault, pin);
+    const wrapping = await aesMaterial(material);
+    const master = await open(wrapping, requireArchive(vault.archive));
+    await this.installMaster(master, vault);
+    this.vault = vault;
+    this.registry = registry;
+    this.pin = (await this.publicVaultPin(vault, registry)).pin;
+    this.restrictToArchiveDeletion();
+    return { rootKeyId: vault.rootKeyId };
+  }
+  private async deletionControl(
+    vault: Vault,
+    command: Signed,
+    action: string,
+    extras: string[] = [],
+  ) {
+    bounded(command, 8192);
+    const p = await verified(command, vault.rootJwk);
+    exact(p, [
+      "profile",
+      "contractVersion",
+      "action",
+      "ownerSubject",
+      "vaultId",
+      "rootKeyId",
+      "stableOperationId",
+      "expectedVaultVersion",
+      "expectedLifecycleVersion",
+      "expectedArchiveRevision",
+      "expectedArchiveDigest",
+      "registrySequence",
+      "checkpointDigest",
+      "keyEpoch",
+      "issuedAt",
+      "expiresAt",
+      ...extras,
+    ]);
+    validate("OperationIdentifier", p.stableOperationId);
+    for (const f of ["expectedVaultVersion", "registrySequence", "keyEpoch", "expiresAt"])
+      positive(p[f]);
+    for (const f of ["expectedLifecycleVersion", "expectedArchiveRevision", "issuedAt"])
+      positive(p[f], 0);
+    if (
+      p.profile !== "folioview.vault-lifecycle.v1" ||
+      p.contractVersion !== CONTRACT ||
+      p.action !== action ||
+      p.ownerSubject !== (await this.owner) ||
+      p.vaultId !== vault.vaultId ||
+      p.rootKeyId !== vault.rootKeyId ||
+      !/^[0-9a-f]{64}$/.test(p.expectedArchiveDigest) ||
+      !/^[0-9a-f]{64}$/.test(p.checkpointDigest) ||
+      !(p.issuedAt < p.expiresAt && p.expiresAt <= p.issuedAt + 300)
+    )
+      throw new VaultError("untrusted_lifecycle");
+    return p;
+  }
+  private async readDeletionRecord(vault: Vault, record: ArchiveDeletionRecord) {
+    exact(record, [
+      "profile",
+      "ownerSubject",
+      "vaultId",
+      "rootKeyId",
+      "operationId",
+      "packet",
+      "withdrawal",
+    ]);
+    bounded(record, 65536);
+    if (
+      record.profile !== "folioview.archive-deletion-candidate.v1" ||
+      record.ownerSubject !== (await this.owner) ||
+      record.vaultId !== vault.vaultId ||
+      record.rootKeyId !== vault.rootKeyId
+    )
+      throw new VaultError("wrong_account");
+    exact(record.packet, ["operationId", "body"]);
+    exact(record.packet.body, ["contractVersion", "command"]);
+    const p = await this.deletionControl(vault, record.packet.body.command, "archive_delete");
+    if (
+      p.stableOperationId !== record.operationId ||
+      record.packet.operationId !== record.operationId ||
+      record.packet.body.contractVersion !== CONTRACT ||
+      p.expectedLifecycleVersion > 29
+    )
+      throw new VaultError("untrusted_lifecycle");
+    if (record.withdrawal) {
+      exact(record.withdrawal, ["operationId", "body"]);
+      exact(record.withdrawal.body, ["contractVersion", "command", "deletionCommand"]);
+      const w = await this.deletionControl(
+        vault,
+        record.withdrawal.body.command,
+        "archive_delete_withdraw",
+        ["deletionOperationId", "deletionCommandFingerprint", "deletionLifecycleVersion"],
+      );
+      if (
+        record.withdrawal.body.contractVersion !== CONTRACT ||
+        w.stableOperationId !== record.withdrawal.operationId ||
+        w.deletionOperationId !== record.operationId ||
+        w.stableOperationId === record.operationId ||
+        w.deletionLifecycleVersion !== p.expectedLifecycleVersion ||
+        w.deletionCommandFingerprint !== (await signingFingerprint(record.packet.body.command)) ||
+        w.deletionCommandFingerprint !==
+          (await signingFingerprint(record.withdrawal.body.deletionCommand))
+      )
+        throw new VaultError("untrusted_lifecycle");
+      await this.deletionControl(vault, record.withdrawal.body.deletionCommand, "archive_delete");
+    }
+    return p;
+  }
+  async prepareArchiveDeletion(
+    vault: Vault,
+    state: VaultLifecycleState,
+    prior?: VaultLifecyclePin,
+  ) {
+    this.requireOrdinarySession();
+    if (!this.root || !this.wrapping) throw new VaultError("locked");
+    if (
+      this.archiveChange ||
+      this.deviceChange ||
+      (this.pendingDevice &&
+        !vault.registryHistory.some((bundle) =>
+          equal(bundle, this.pendingDevice!.operation.registryBundle),
+        ))
+    )
+      throw new VaultError("archive_local_pending");
+    await this.verifyLifecycle(vault, state, prior);
+    await this.checkVault(vault, this.pin);
+    if (state.lifecycleVersion >= 30 || state.pendingAuthorization)
+      throw new VaultError("archive_deletion_unavailable");
+    this.vault = vault;
+    const operationId = randomId();
+    const packet: ArchiveDeletionPacket = {
+      operationId,
+      body: {
+        contractVersion: CONTRACT,
+        command: await sign(
+          this.lifecycleCommand(state, "archive_delete", operationId, {}),
+          this.root,
+          vault.rootKeyId,
+        ),
+      },
+    };
+    const record: ArchiveDeletionRecord = {
+      profile: "folioview.archive-deletion-candidate.v1",
+      ownerSubject: await this.owner,
+      vaultId: vault.vaultId,
+      rootKeyId: vault.rootKeyId,
+      operationId,
+      packet,
+      withdrawal: null,
+    };
+    await this.readDeletionRecord(vault, record);
+    this.restrictToArchiveDeletion();
+    return { packet, record };
+  }
+  async inspectArchiveDeletion(
+    vault: Vault,
+    state: VaultLifecycleState,
+    record: ArchiveDeletionRecord,
+    prior?: VaultLifecyclePin,
+  ) {
+    await this.verifyLifecycle(vault, state, prior);
+    const p = await this.readDeletionRecord(vault, record);
+    const fingerprint = await signingFingerprint(record.packet.body.command);
+    let outcome: ArchiveDeletionOutcome = "unresolved";
+    const original = state.history.find((i) => i.receipt.operationId === record.operationId);
+    if (original) {
+      if (
+        original.receipt.action !== "archive_delete" ||
+        original.receipt.commandFingerprint !== fingerprint
+      )
+        throw new VaultError("operation_conflict");
+      outcome = "deleted";
+    } else {
+      const withdrawal = state.history.find((i) => {
+        const w = parsed(unb64(i.command.payload));
+        return (
+          w.action === "archive_delete_withdraw" && w.deletionOperationId === record.operationId
+        );
+      });
+      if (withdrawal) {
+        const w = parsed(unb64(withdrawal.command.payload));
+        if (
+          w.deletionCommandFingerprint !== fingerprint ||
+          w.deletionLifecycleVersion !== p.expectedLifecycleVersion
+        )
+          throw new VaultError("operation_conflict");
+        outcome = "withdrawn";
+      } else {
+        const counters: Json = {
+          expectedVaultVersion: state.vaultVersion,
+          expectedLifecycleVersion: state.lifecycleVersion,
+          expectedArchiveRevision: state.archiveRevision,
+          registrySequence: state.registrySequence,
+          keyEpoch: state.keyEpoch,
+        };
+        if (Object.entries(counters).some(([k, v]) => p[k] > v))
+          throw new VaultError("rollback_detected");
+        if (
+          Object.entries(counters).some(([k, v]) => p[k] !== v) ||
+          p.expectedArchiveDigest !== state.archiveDigest ||
+          p.checkpointDigest !== state.checkpointDigest
+        )
+          outcome = "superseded";
+      }
+    }
+    return {
+      operationId: record.operationId,
+      commandFingerprint: fingerprint,
+      outcome,
+      packet: record.packet,
+      withdrawal: record.withdrawal,
+      canWithdraw:
+        outcome === "unresolved" && Boolean(vault.archive) && state.lifecycleVersion < 32,
+    };
+  }
+  async prepareArchiveWithdrawal(
+    vault: Vault,
+    state: VaultLifecycleState,
+    record: ArchiveDeletionRecord,
+    prior?: VaultLifecyclePin,
+  ) {
+    const found = await this.inspectArchiveDeletion(vault, state, record, prior);
+    if (!found.canWithdraw || !this.root || this.vault?.rootKeyId !== vault.rootKeyId)
+      throw new VaultError("archive_deletion_unlock_required");
+    const retained = record.withdrawal;
+    if (retained) {
+      const p = parsed(unb64(retained.body.command.payload));
+      if (
+        p.expectedLifecycleVersion === state.lifecycleVersion &&
+        p.expectedVaultVersion === vault.version &&
+        p.issuedAt <= this.now() &&
+        this.now() < p.expiresAt
+      )
+        return { packet: retained, record };
+    }
+    this.vault = vault;
+    const original = parsed(unb64(record.packet.body.command.payload));
+    const operationId = randomId();
+    const packet = {
+      operationId,
+      body: {
+        contractVersion: CONTRACT,
+        deletionCommand: record.packet.body.command,
+        command: await sign(
+          this.lifecycleCommand(state, "archive_delete_withdraw", operationId, {
+            deletionOperationId: record.operationId,
+            deletionCommandFingerprint: await signingFingerprint(record.packet.body.command),
+            deletionLifecycleVersion: original.expectedLifecycleVersion,
+          }),
+          this.root,
+          vault.rootKeyId,
+        ),
+      },
+    };
+    const next = { ...record, withdrawal: packet };
+    await this.readDeletionRecord(vault, next);
+    return { packet, record: next };
+  }
+  async finishArchiveDeletion(
+    vault: Vault,
+    state: VaultLifecycleState,
+    record: ArchiveDeletionRecord,
+    prior?: VaultLifecyclePin,
+  ) {
+    const found = await this.inspectArchiveDeletion(vault, state, record, prior);
+    if (found.outcome === "unresolved") throw new VaultError("archive_deletion_unknown");
+    return {
+      pin: this.lifecyclePin!,
+      record: await this.verifiedVaultPin(vault),
+      outcome: found.outcome,
+    };
+  }
   async createRecoveryKit(
     vault: Vault,
     state: VaultLifecycleState,
@@ -1959,7 +2293,7 @@ export class VaultCore {
     if (!this.wrapping || !this.root || !this.recovery) throw new VaultError("locked");
     const pin = await this.verifyLifecycle(vault, state, prior);
     await this.checkVault(vault, this.pin);
-    const master = await open(this.wrapping, vault.archive);
+    const master = await open(this.wrapping, requireArchive(vault.archive));
     const raw = crypto.getRandomValues(new Uint8Array(32));
     try {
       const code = b64(raw),
@@ -2038,8 +2372,8 @@ export class VaultCore {
     }
     // A recovery kit adds an independent older pin; it must never replace newer
     // pins already known by this Worker or its durable caller.
-    const registry = await this.checkVault(vault, this.pin);
-    await this.checkVault(vault, kit.registryPin);
+    const registry = await this.checkVault(vault, this.pin, true);
+    await this.checkVault(vault, kit.registryPin, true);
     await this.verifyLifecycle(vault, state, prior);
     await this.verifyLifecycle(vault, state, kit.lifecyclePin);
     // A valid pinned root alone cannot recover keys generated after this kit.
@@ -2074,13 +2408,13 @@ export class VaultCore {
     operationId: string,
     extra: Json,
   ) {
-    if (!this.vault) throw new VaultError("locked");
+    if (!this.vault || !this.pin) throw new VaultError("locked");
     const issuedAt = this.now();
     return {
       profile: "folioview.vault-lifecycle.v1",
       contractVersion: CONTRACT,
       action,
-      ownerSubject: state.archive.ownerSubject,
+      ownerSubject: this.pin!.ownerSubject,
       vaultId: state.vaultId,
       rootKeyId: state.rootKeyId,
       stableOperationId: operationId,
@@ -2107,7 +2441,7 @@ export class VaultCore {
     if (!this.root || !this.recovery || !["passkey_change", "recovery"].includes(mode))
       throw new VaultError("locked");
     await this.verifyLifecycle(vault, state, prior);
-    const registry = await this.checkVault(vault, this.pin);
+    const registry = await this.checkVault(vault, this.pin, true);
     try {
       if (!this.recoveryJwk) throw new VaultError("locked");
       cert(registry, await thumb(this.recoveryJwk), "recovery_enc", this.now());
@@ -2121,18 +2455,27 @@ export class VaultCore {
     )
       throw new VaultError("recovery_authorization_pending");
     if (
-      material.credentialId === vault.archive.credentialId ||
-      material.prfSalt === vault.archive.prfSalt
+      vault.archive &&
+      (material.credentialId === requireArchive(vault.archive).credentialId ||
+        material.prfSalt === requireArchive(vault.archive).prfSalt)
     )
       throw new VaultError("invalid_replacement_passkey");
     const master =
-      this.recoveryMaster ?? (this.wrapping ? await open(this.wrapping, vault.archive) : null);
+      this.recoveryMaster ??
+      (this.wrapping ? await open(this.wrapping, requireArchive(vault.archive)) : null);
     if (!master) throw new VaultError("locked");
     const nextWrapping = await aesMaterial(material);
     const archive = (await seal(
       nextWrapping,
       {
-        ...archiveContext(vault.archive),
+        ...(vault.archive
+          ? archiveContext(requireArchive(vault.archive))
+          : {
+              profile: "folioview.passkey-vault.v1",
+              ownerSubject: await this.owner,
+              vaultId: vault.vaultId,
+              rootKeyId: vault.rootKeyId,
+            }),
         credentialId: material.credentialId,
         prfSalt: material.prfSalt,
       },
@@ -2207,8 +2550,8 @@ export class VaultCore {
             this.wrapping,
             {
               ...context,
-              credentialId: vault.archive.credentialId,
-              prfSalt: vault.archive.prfSalt,
+              credentialId: requireArchive(vault.archive).credentialId,
+              prfSalt: requireArchive(vault.archive).prfSalt,
             },
             value,
           )
@@ -2301,9 +2644,10 @@ export class VaultCore {
     )
       throw new VaultError("untrusted_lifecycle");
     if (
+      vault.archive &&
       state.archiveDigest === p.expectedArchiveDigest &&
-      (packet.archive.credentialId === vault.archive.credentialId ||
-        packet.archive.prfSalt === vault.archive.prfSalt)
+      (packet.archive.credentialId === requireArchive(vault.archive).credentialId ||
+        packet.archive.prfSalt === requireArchive(vault.archive).prfSalt)
     )
       throw new VaultError("invalid_replacement_passkey");
     if (
@@ -2447,11 +2791,14 @@ export class VaultCore {
       throw new VaultError("untrusted_lifecycle");
     // The new PRF can resume a recovery before the old cloud archive was replaced.
     // Recover root only inside this Worker so an expired approval can be explicitly revoked.
-    const master = await open(wrapping, usedNext ? value.packet.archive : vault.archive);
+    const master = await open(
+      wrapping,
+      usedNext ? value.packet.archive : requireArchive(vault.archive),
+    );
     await this.installMaster(master, vault);
     this.recoveryMaster = master;
     this.vault = vault;
-    this.registry = await this.checkVault(vault, this.pin);
+    this.registry = await this.checkVault(vault, this.pin, true);
     this.archiveChange = { packet: value.packet, candidate: value.candidate };
     return value.packet as ArchiveChangePacket;
   }
@@ -2476,7 +2823,7 @@ export class VaultCore {
     const applied = equal(vault.archive, change.packet.archive);
     // This does not install the old receipt's archive if a later replacement exists.
     this.vault = vault;
-    const registry = await this.checkVault(vault, this.pin);
+    const registry = await this.checkVault(vault, this.pin, true);
     const record = await this.adoptVault(vault, registry);
     record.device = applied && change.candidate ? change.candidate : undefined;
     this.archiveChange = undefined;
@@ -2775,8 +3122,8 @@ export class VaultCore {
         ownerSubject: await this.owner,
         vaultId: this.vault.vaultId,
         rootKeyId: this.vault.rootKeyId,
-        credentialId: this.vault.archive.credentialId,
-        prfSalt: this.vault.archive.prfSalt,
+        credentialId: requireArchive(this.vault.archive).credentialId,
+        prfSalt: requireArchive(this.vault.archive).prfSalt,
         kind,
       },
       value,
@@ -2792,8 +3139,8 @@ export class VaultCore {
       d.ownerSubject !== (await this.owner) ||
       d.vaultId !== vault.vaultId ||
       d.rootKeyId !== vault.rootKeyId ||
-      d.credentialId !== vault.archive.credentialId ||
-      d.prfSalt !== vault.archive.prfSalt
+      d.credentialId !== requireArchive(vault.archive).credentialId ||
+      d.prfSalt !== requireArchive(vault.archive).prfSalt
     )
       throw new VaultError("wrong_account");
     const m = await open(this.wrapping, d);
@@ -2840,8 +3187,8 @@ export class VaultCore {
         ownerSubject: await this.owner,
         vaultId: this.vault.vaultId,
         rootKeyId: this.vault.rootKeyId,
-        credentialId: this.vault.archive.credentialId,
-        prfSalt: this.vault.archive.prfSalt,
+        credentialId: requireArchive(this.vault.archive).credentialId,
+        prfSalt: requireArchive(this.vault.archive).prfSalt,
         deviceId,
         signingKeyId: sig.keyId,
         encryptionKeyId: enc.keyId,
@@ -2913,15 +3260,22 @@ export class VaultCore {
       entries,
     };
   }
-  private async checkVault(vault: Vault, pin?: Pin) {
+  private async checkVault(vault: Vault, pin?: Pin, allowDeleted = false) {
     exact(vault, ["vaultId", "rootJwk", "rootKeyId", "registryHistory", "archive", "version"]);
     positive(vault.version);
     validate("PublicJWK", vault.rootJwk);
     const owner = await this.owner;
-    checkArchive(vault.archive, owner);
+    if (vault.archive === null) {
+      if (!allowDeleted) throw new VaultError("archive_deleted");
+    } else {
+      checkArchive(requireArchive(vault.archive), owner);
+      if (
+        requireArchive(vault.archive).vaultId !== vault.vaultId ||
+        requireArchive(vault.archive).rootKeyId !== vault.rootKeyId
+      )
+        throw new VaultError("untrusted_vault");
+    }
     if (
-      vault.archive.vaultId !== vault.vaultId ||
-      vault.archive.rootKeyId !== vault.rootKeyId ||
       (await thumb(vault.rootJwk)) !== vault.rootKeyId ||
       !Array.isArray(vault.registryHistory) ||
       vault.registryHistory.length < 1 ||
@@ -2975,14 +3329,14 @@ export class VaultCore {
     local?: { pin?: Pin; device?: DeviceSeal; pending?: Json; deviceChange?: Json },
   ) {
     const owner = await this.owner;
-    checkArchive(vault.archive, owner);
+    checkArchive(requireArchive(vault.archive), owner);
     if (
-      material.credentialId !== vault.archive.credentialId ||
-      material.prfSalt !== vault.archive.prfSalt
+      material.credentialId !== requireArchive(vault.archive).credentialId ||
+      material.prfSalt !== requireArchive(vault.archive).prfSalt
     )
       throw new VaultError("unlock_failed");
     this.wrapping = await aesMaterial(material);
-    const master = await open(this.wrapping, vault.archive);
+    const master = await open(this.wrapping, requireArchive(vault.archive));
     await this.installMaster(master, vault);
     this.registry = await this.checkVault(vault, local?.pin);
     this.vault = vault;
@@ -3035,8 +3389,8 @@ export class VaultCore {
       e.ownerSubject !== owner ||
       e.vaultId !== vault.vaultId ||
       e.rootKeyId !== vault.rootKeyId ||
-      e.credentialId !== vault.archive.credentialId ||
-      e.prfSalt !== vault.archive.prfSalt ||
+      e.credentialId !== requireArchive(vault.archive).credentialId ||
+      e.prfSalt !== requireArchive(vault.archive).prfSalt ||
       !["bootstrap", "registration"].includes(e.kind)
     )
       throw new VaultError("wrong_account");
@@ -3207,14 +3561,14 @@ export class VaultCore {
     local?: { pin?: Pin; device?: DeviceSeal; pending?: Json; deviceChange?: Json },
   ) {
     const owner = await this.owner;
-    checkArchive(vault.archive, owner);
+    checkArchive(requireArchive(vault.archive), owner);
     if (
-      material.credentialId !== vault.archive.credentialId ||
-      material.prfSalt !== vault.archive.prfSalt
+      material.credentialId !== requireArchive(vault.archive).credentialId ||
+      material.prfSalt !== requireArchive(vault.archive).prfSalt
     )
       throw new VaultError("unlock_failed");
     this.wrapping = await aesMaterial(material);
-    const master = await open(this.wrapping, vault.archive);
+    const master = await open(this.wrapping, requireArchive(vault.archive));
     await this.installMaster(master, vault);
     this.registry = await this.checkVault(vault, local?.pin ?? this.pin);
     this.vault = vault;
@@ -3360,8 +3714,8 @@ export class VaultCore {
       record.ownerSubject !== (await this.owner) ||
       record.vaultId !== vault.vaultId ||
       record.rootKeyId !== vault.rootKeyId ||
-      record.credentialId !== vault.archive.credentialId ||
-      record.prfSalt !== vault.archive.prfSalt
+      record.credentialId !== requireArchive(vault.archive).credentialId ||
+      record.prfSalt !== requireArchive(vault.archive).prfSalt
     )
       throw new VaultError("wrong_account");
     const value = await open(this.wrapping, record, 262144);
@@ -3606,8 +3960,8 @@ export class VaultCore {
         ownerSubject: await this.owner,
         vaultId: vault.vaultId,
         rootKeyId: vault.rootKeyId,
-        credentialId: vault.archive.credentialId,
-        prfSalt: vault.archive.prfSalt,
+        credentialId: requireArchive(vault.archive).credentialId,
+        prfSalt: requireArchive(vault.archive).prfSalt,
       },
       value,
     );

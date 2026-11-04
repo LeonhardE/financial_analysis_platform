@@ -43,6 +43,7 @@ type Rule = {
     | "archive"
     | "key-renewal"
     | "lifecycle-control"
+    | "deletion-withdrawal"
     | "control"
     | "small"
     | "task-create"
@@ -186,6 +187,21 @@ function route(request: Request): { path: string; rule: Rule } {
     )
   )
     rule = { kind: "read", max: 0 };
+  else if (
+    request.method === "POST" &&
+    new RegExp(`^/api/v2/vaults/${ID}/archive-deletion-withdrawals$`).test(path)
+  )
+    rule = { kind: "deletion-withdrawal", max: 24576, operation: true, responseStatus: 201 };
+  else if (
+    request.method === "POST" &&
+    new RegExp(`^/api/v2/vaults/${ID}/archive-deletions$`).test(path)
+  )
+    rule = { kind: "lifecycle-control", max: 8192, operation: true, responseStatus: 201 };
+  else if (
+    request.method === "POST" &&
+    new RegExp(`^/api/v2/vaults/${ID}/archive-deletion-checks$`).test(path)
+  )
+    rule = { kind: "lifecycle-control", max: 8192, responseStatus: 200 };
   else if (request.method === "PUT" && new RegExp(`^/api/v2/vaults/${ID}/archive$`).test(path))
     rule = { kind: "archive", max: 65536, operation: true, vaultId: path.split("/")[4] };
   else if (
@@ -272,6 +288,12 @@ function validBody(body: unknown, kind: Rule["kind"], vaultId?: string) {
       return fields(body, ["contractVersion", "command"]) && signedObject(body.command);
     case "lifecycle-control":
       return fields(body, ["contractVersion", "command"]) && vaultLifecycleCommand(body.command);
+    case "deletion-withdrawal":
+      return (
+        fields(body, ["contractVersion", "command", "deletionCommand"]) &&
+        vaultLifecycleCommand(body.command) &&
+        vaultLifecycleCommand(body.deletionCommand)
+      );
     case "archive":
       return (
         fields(body, ["contractVersion", "archive", "command"]) &&

@@ -78,6 +78,19 @@ export function AgentConsentCard({
     !model.notice
   )
     return null;
+  if (
+    ["archive-pending", "archive-deleted"].includes(workspace.phase) ||
+    workspace.vault?.archive === null
+  )
+    return (
+      <section className={styles.card} aria-labelledby="agent-consent-title">
+        <h2 id="agent-consent-title">{t("title")}</h2>
+        <div className={styles.unlock} role="status">
+          <p>{t("archiveUnavailable")}</p>
+          <a href="/settings">{t("archiveSettings")}</a>
+        </div>
+      </section>
+    );
   return (
     <section className={styles.card} aria-labelledby="agent-consent-title">
       <header>
