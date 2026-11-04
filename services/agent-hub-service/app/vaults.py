@@ -107,7 +107,7 @@ def _selection(registry, now):
     return writers, recipients
 
 
-def _verify_row(row, owner, now):
+def _verify_row(row, owner, now, *, unit=None):
     if type(row) is not dict or set(row) != _VAULT_FIELDS or row["ownerSubject"] != owner:
         raise StoreUnavailable
     identifier(row["vaultId"])
@@ -117,7 +117,8 @@ def _verify_row(row, owner, now):
     validate_schema("PublicJWK", row["rootJwk"])
     if jwk_thumbprint(row["rootJwk"]) != row["rootKeyId"]:
         raise StoreUnavailable
-    _archive(row["archive"], owner=owner, vault=row["vaultId"], root=row["rootKeyId"])
+    if row["archive"] is not None:
+        _archive(row["archive"], owner=owner, vault=row["vaultId"], root=row["rootKeyId"])
     history = row["registryHistory"]
     if type(history) is not list or not 1 <= len(history) <= MAX_HISTORY:
         raise StoreUnavailable
@@ -167,6 +168,16 @@ def _verify_row(row, owner, now):
         or row["operationCount"] != row["version"]
     ):
         raise StoreUnavailable
+    if row["archive"] is None:
+        # Absence is valid only with the complete root-approved deletion history.
+        # Import lazily: lifecycle verification reuses this module's primitives.
+        from .vault_lifecycle import _history_state
+
+        if unit is None:
+            raise StoreUnavailable
+        lifecycle = unit.get(document_path("hub_vault_lifecycle", owner, row["vaultId"]))
+        if not _history_state(row, registry, lifecycle)["deleted"]:
+            raise StoreUnavailable
     return registry
 
 
@@ -174,7 +185,7 @@ def _current(unit, owner, now, vault=None):
     row = unit.get(document_path("hub_vaults", owner))
     if row is None:
         raise ContractError("not_found")
-    registry = _verify_row(row, owner, now)
+    registry = _verify_row(row, owner, now, unit=unit)
     if vault is not None and row["vaultId"] != vault:
         raise ContractError("not_found")
     return row, registry
@@ -255,7 +266,7 @@ class VaultService:
         def read(unit):
             row = unit.get(document_path("hub_vaults", owner))
             if row is not None:
-                _verify_row(row, owner, self.now())
+                _verify_row(row, owner, self.now(), unit=unit)
             return _response(row, unit)
 
         return self.store.transact(read)
@@ -293,7 +304,7 @@ class VaultService:
             existing = unit.get(path)
             op_path, replay = _operation(unit, owner, "bootstrap", operation, fingerprint)
             if existing is not None:
-                _verify_row(existing, owner, self.now())
+                _verify_row(existing, owner, self.now(), unit=unit)
                 if (
                     replay
                     and existing["rootKeyId"] == body["rootKeyId"]

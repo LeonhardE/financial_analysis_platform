@@ -94,6 +94,10 @@ resource, database, IAM role, KMS key, index or cleanup schedule is created.
 
 ## Client rollout and limits
 
+A root-approved cloud archive deletion prevents new renewal writes until independent recovery
+restores the archive. A retry of a previously accepted renewal returns only its original receipt;
+it cannot recreate the deleted archive. The directory and certificates remain separate authority.
+
 This is a producer-only delivery. Existing clients do not call these new routes; Web BFF and
 browser admission, Worker generation, local persistence and renewal UX remain a separate Web PR.
 

@@ -114,6 +114,21 @@ class KeyRenewalTests(unittest.TestCase):
         self.assertEqual(self.state()["history"], [])
         self.assert_unchanged()
 
+    def test_deleted_archive_cannot_be_recreated_by_pending_or_fresh_key_renewal(self):
+        before = self.state()
+        old = self.body()
+        operation = "synthetic_delete_before_renewal_0001"
+        self.lifecycle.delete_archive(
+            UID, self.f.vault, self.f.delete(before, operation), operation
+        )
+        self.code("version_conflict", lambda: self.renew(old))
+        current = self.state()
+        # Build a valid successor candidate from retained synthetic material,
+        # but bind its fences to the current deletion state.
+        fresh = self.f.renewal({**current, "archive": before["archive"]}, now=self.now)
+        self.code("key_authorization_required", lambda: self.renew(fresh))
+        self.assertIsNone(self.vaults.current(UID)["vault"]["archive"])
+
     def test_all_expired_owner_certificates_can_be_renewed_by_pinned_root(self):
         self.now = 6000
         body = self.body()

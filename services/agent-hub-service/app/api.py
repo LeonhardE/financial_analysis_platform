@@ -209,6 +209,18 @@ async def authorize_recovery(vault_id: str, request: Request, user: Owner, servi
     )
 
 
+@owner_router.post("/{vault_id}/archive-deletions", status_code=201)
+async def delete_archive(vault_id: str, request: Request, user: Owner, service: Lifecycle):
+    _invoke(lambda: _lifecycle_transport(request, operation=True))
+    value = await body(request, {"contractVersion", "command"}, max_bytes=8192)
+    return await run_in_threadpool(
+        _invoke,
+        lambda: service.delete_archive(
+            user.uid, vault_id, value, request.headers["idempotency-key"]
+        ),
+    )
+
+
 @owner_router.post("/{vault_id}/recovery-authorizations/{authorization_id}/revoke")
 async def revoke_recovery(
     vault_id: str, authorization_id: str, request: Request, user: Owner, service: Lifecycle
