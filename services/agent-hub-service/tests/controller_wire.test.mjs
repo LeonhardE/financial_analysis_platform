@@ -116,9 +116,11 @@ function send(f, id, op, json, authorization = "aaa.bbb.ccc") {
   });
   return response;
 }
-test("actual consent MessageChannel adds one Bearer prefix to a raw JWT; wrong source/nonce cannot pair", async () => {
+test("consent calls fetch without an incompatible receiver; raw JWT and origin/nonce stay bound", async () => {
   const requests = [],
-    f = await consent(async (url, options) => {
+    f = await consent(async function (url, options) {
+      // Chrome's native Window.fetch rejects a bridge instance as its receiver.
+      assert.equal(this, undefined);
       requests.push({ url, options });
       return Response.json(pending);
     });

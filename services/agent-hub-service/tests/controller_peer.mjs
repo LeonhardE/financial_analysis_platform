@@ -21,7 +21,10 @@ let httpCounter = 0,
   now = 1000000,
   controller,
   storage;
-const fetchImpl = async (url, options = {}) => {
+async function fetchImpl(url, options = {}) {
+  // Model the native browser receiver check for both shipped controller releases.
+  // Arrow mocks and Node's global fetch alone do not expose Illegal invocation.
+  if (this !== undefined) throw new TypeError("Illegal invocation");
   if (
     new URL(url).pathname ===
     (nextRelease ? "/agent/v2/helper/1.3.0/worker.mjs" : "/agent/v2/helper/worker.mjs")
@@ -60,7 +63,7 @@ const fetchImpl = async (url, options = {}) => {
     });
     process.stdout.write(JSON.stringify(request) + "\n");
   });
-};
+}
 const create = () => {
   storage = new CiphertextOutbox();
   controller = new ForegroundController({

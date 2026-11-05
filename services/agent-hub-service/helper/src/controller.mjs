@@ -141,7 +141,8 @@ export class ForegroundController {
     onState = () => {},
   }) {
     this.#issuer = issuerOrigin(issuer, developmentLoopback);
-    this.#fetch = fetchImpl;
+    // Invoke the browser transport as a callback, never as a controller method.
+    this.#fetch = (...args) => fetchImpl(...args);
     this.#makeWorker = createWorker;
     this.#storage = outbox;
     this.#clock = clock;
