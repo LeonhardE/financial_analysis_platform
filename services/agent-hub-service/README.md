@@ -596,6 +596,12 @@ real remote Muse and broker integration remain separate acceptance scopes.
 
 ## Foreground controller code stage
 
+The additive [authenticated foreground release 1.3.0](FOREGROUND_TRANSPORT.md) provides the
+closed `get_foreground_transport_v2` MCP tool and versioned browser assets. It transfers only
+recipient-encrypted connection ciphertext through the model, then reuses the existing
+authenticated preparation/Run/result APIs. Legacy helper paths and bytes remain available.
+Production Muse registration/activation and the Web hash consumer are separate rollout steps.
+
 The fixed [controller and same-origin consent shell](CONTROLLER.md) reuse helper 1.2.0 without
 changing its crypto/schema or algorithm. A separate owner-only channel provides independently
 confirmed public root/release/delivery pins; model operations cannot initialize trust, acknowledge

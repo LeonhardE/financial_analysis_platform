@@ -103,12 +103,25 @@ def create_server(oauth):
             return [
                 Tool(
                     name=name,
-                    description="FolioView encrypted v2: " + name,
+                    description=(
+                        "Return a 60-second encrypted connection packet for the selected task's "
+                        "already root-approved foreground helper. Transfer the complete packet "
+                        "to that helper's encrypted connection field. Only its in-memory key "
+                        "can open it; this tool never returns a raw token or changes authority."
+                        if name == "get_foreground_transport_v2"
+                        else "FolioView encrypted v2: " + name
+                    ),
                     input_schema=input_schema(name),
                     output_schema=output_schema(name),
                     annotations=ToolAnnotations(
                         read_only_hint=name
-                        in {"list_tasks_v2", "get_task_v2", "get_run_inputs_v2", "get_receipt_v2"},
+                        in {
+                            "list_tasks_v2",
+                            "get_task_v2",
+                            "get_run_inputs_v2",
+                            "get_receipt_v2",
+                            "get_foreground_transport_v2",
+                        },
                         destructive_hint=False,
                         idempotent_hint=True,
                         open_world_hint=False,

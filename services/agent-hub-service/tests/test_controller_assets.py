@@ -84,6 +84,37 @@ class ControllerAssetsTests(unittest.TestCase):
                 self.assertEqual(response.status_code, 503)
                 self.assertNotIn("https://web.example", response.text)
 
+    def test_new_transport_release_is_explicit_and_keeps_legacy_distribution(self):
+        old = self.client.get("/agent/v2/controller/config").json()
+        new = self.client.get("/agent/v2/controller/config/1.3.0").json()
+        self.assertEqual(old["helperVersion"], "1.2.0")
+        self.assertEqual(new["helperVersion"], "1.3.0")
+        self.assertNotEqual(old["workerSha256"], new["workerSha256"])
+        self.assertEqual(new["workerPath"], "/agent/v2/helper/1.3.0/worker.mjs")
+        for name in [
+            "controller.html",
+            "controller.css",
+            "controller.mjs",
+            "worker.mjs",
+            "owner-helper.mjs",
+            "controller-page.mjs",
+            "integrity.json",
+            "protocol.json",
+        ]:
+            response = self.client.get("/agent/v2/helper/1.3.0/" + name)
+            self.assertEqual(response.status_code, 200, name)
+            self.assertEqual(response.headers["cache-control"], "no-store")
+        self.assertEqual(self.client.get("/agent/v2/helper/1.3.0/idb-runtime.mjs").status_code, 404)
+        self.assertEqual(self.client.get("/agent/v2/helper/9.9.9/worker.mjs").status_code, 404)
+        self.assertEqual(
+            self.client.get("/agent/v2/controller/config/1.3.0?issuer=evil").status_code, 503
+        )
+        with patch.dict(os.environ, {"HUB_OAUTH_ENABLED": "0"}):
+            self.assertEqual(self.client.get("/agent/v2/controller/config/1.3.0").status_code, 503)
+            self.assertEqual(
+                self.client.get("/agent/v2/helper/1.3.0/controller.html").status_code, 503
+            )
+
     def test_adapter_and_oauth_remain_disabled_by_default_without_credential_fallback(self):
         with patch.dict(os.environ, {"HUB_ENCRYPTED_ADAPTER_ENABLED": "0"}):
             self.assertEqual(self.client.get("/agent/v2/helper/controller.html").status_code, 503)

@@ -33,16 +33,35 @@ FILES = {
     "THIRD_PARTY_NOTICES.md": ("THIRD_PARTY_NOTICES.md", "text/plain; charset=utf-8", 131_072),
 }
 router = APIRouter(dependencies=[Depends(require_adapter)])
+NEXT = ROOT / "releases" / "1.3.0"
+NEXT_FILES = {
+    key: value
+    for key, value in FILES.items()
+    if key not in {"consent.html", "consent.mjs", "THIRD_PARTY_NOTICES.md"}
+}
 
 
 @router.get("/agent/v2/helper/{asset}", include_in_schema=False)
 def helper_asset(asset: str):
-    configured = FILES.get(asset)
+    return _asset_response(asset, ROOT, FILES)
+
+
+@router.get("/agent/v2/helper/1.3.0/{asset}", include_in_schema=False)
+def foreground_asset(asset: str):
+    try:
+        OAuthConfig.environment()
+    except (ValueError, ContractError):
+        raise HTTPException(503, "Foreground transport unavailable") from None
+    return _asset_response(asset, NEXT, NEXT_FILES)
+
+
+def _asset_response(asset, root, files):
+    configured = files.get(asset)
     if configured is None:
         raise HTTPException(404, "Not found")
     relative, content_type, maximum = configured
     try:
-        with (ROOT / relative).open("rb") as stream:
+        with (root / relative).open("rb") as stream:
             data = stream.read(maximum + 1)
         if len(data) > maximum:
             raise ValueError
@@ -104,12 +123,22 @@ def _owner_origins():
 
 @router.get("/agent/v2/controller/config", include_in_schema=False)
 def controller_configuration(request: Request):
+    return _configuration(request)
+
+
+@router.get("/agent/v2/controller/config/1.3.0", include_in_schema=False)
+def foreground_configuration(request: Request):
+    return _configuration(request, "1.3.0")
+
+
+def _configuration(request, version=None):
     try:
         if request.query_params:
             raise ValueError
         config = OAuthConfig.environment()
         origins = _owner_origins()
-        integrity = strict_json_loads((ROOT / "integrity.json").read_bytes(), max_bytes=131_072)
+        root = NEXT if version else ROOT
+        integrity = strict_json_loads((root / "integrity.json").read_bytes(), max_bytes=131_072)
         worker_hash = integrity["files"]["dist/worker.mjs"]
         if len(worker_hash) != 64 or any(c not in "0123456789abcdef" for c in worker_hash):
             raise ValueError
@@ -119,12 +148,12 @@ def controller_configuration(request: Request):
         {
             "contractVersion": CONTRACT_VERSION,
             "profile": "folioview.owner-consent-bridge.v1",
-            "helperVersion": "1.2.0",
+            "helperVersion": version or "1.2.0",
             "issuer": config.issuer,
             "ownerOrigins": origins,
             "consentPath": "/agent/v2/helper/consent.html",
-            "controllerPath": "/agent/v2/helper/controller.html",
-            "workerPath": "/agent/v2/helper/worker.mjs",
+            "controllerPath": f"/agent/v2/helper/{version + '/' if version else ''}controller.html",
+            "workerPath": f"/agent/v2/helper/{version + '/' if version else ''}worker.mjs",
             # Distribution metadata, not an independent root or release pin.
             "workerSha256": worker_hash,
             "clients": [

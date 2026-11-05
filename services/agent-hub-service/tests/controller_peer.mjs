@@ -4,13 +4,15 @@ import { createInterface } from "node:readline";
 import { Worker, MessagePort, MessageChannel } from "node:worker_threads";
 import { readFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
-import { ForegroundController, CiphertextOutbox } from "../helper/dist/controller.mjs";
+const nextRelease = process.env.FOLIOVIEW_TEST_FOREGROUND_TRANSPORT === "1";
+const release = nextRelease ? "../helper/releases/1.3.0/" : "../helper/";
+const { ForegroundController, CiphertextOutbox } = await import(release + "dist/controller.mjs");
 import { IDBFactory, IDBKeyRange } from "./fixtures/idb-runtime.mjs";
 globalThis.MessagePort = MessagePort;
 globalThis.MessageChannel = MessageChannel;
 globalThis.indexedDB = new IDBFactory();
 globalThis.IDBKeyRange = IDBKeyRange;
-const workerBytes = await readFile(new URL("../helper/dist/worker.mjs", import.meta.url)),
+const workerBytes = await readFile(new URL(release + "dist/worker.mjs", import.meta.url)),
   workerSha256 = createHash("sha256").update(workerBytes).digest("hex");
 const pendingHTTP = new Map(),
   workers = [],
@@ -20,7 +22,10 @@ let httpCounter = 0,
   controller,
   storage;
 const fetchImpl = async (url, options = {}) => {
-  if (new URL(url).pathname === "/agent/v2/helper/worker.mjs")
+  if (
+    new URL(url).pathname ===
+    (nextRelease ? "/agent/v2/helper/1.3.0/worker.mjs" : "/agent/v2/helper/worker.mjs")
+  )
     return new Response(workerBytes, {
       headers: { "Content-Type": "text/javascript; charset=utf-8" },
     });
@@ -59,7 +64,7 @@ const fetchImpl = async (url, options = {}) => {
 const create = () => {
   storage = new CiphertextOutbox();
   controller = new ForegroundController({
-    issuer: "https://hub.example",
+    issuer: nextRelease ? "https://synthetic-hub.example" : "https://hub.example",
     fetchImpl,
     outbox: storage,
     clock: () => now,
@@ -95,6 +100,7 @@ async function execute(command) {
     if (
       ![
         "authenticate",
+        "connectTransport",
         "loadPreparation",
         "readPreparedObject",
         "beginRun",
@@ -141,7 +147,7 @@ async function execute(command) {
   const message = command.message;
   if (command.trusted && message.op === "initialize")
     return controller.initialize({
-      helperVersion: "1.2.0",
+      helperVersion: nextRelease ? "1.3.0" : "1.2.0",
       workerSha256,
       anchor: message.args.anchor,
       ttlSeconds: message.args.ttlSeconds,

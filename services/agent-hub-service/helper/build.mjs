@@ -204,4 +204,58 @@ await writeFile(
     "json",
   ),
 );
+// Publish the additive foreground transport release separately. Legacy Web
+// clients keep their exact 1.2.0 Worker bytes and default asset/config paths.
+const release = "releases/1.3.0";
+await mkdir(`${release}/dist`, { recursive: true });
+await mkdir(`${release}/static`, { recursive: true });
+await writeFile(`${release}/static/controller.css`, await read("static/controller.css"));
+for (const entry of ["worker", "controller", "owner-helper", "controller-page"]) {
+  const result = await build({
+    absWorkingDir: root,
+    entryPoints: [`${release}/src/${entry}.mjs`],
+    bundle: true,
+    format: "esm",
+    platform: "browser",
+    target: ["es2022"],
+    write: false,
+    minify: true,
+    legalComments: "none",
+    external:
+      entry === "controller-page"
+        ? ["./controller.mjs", "./owner-helper.mjs"]
+        : entry === "owner-helper"
+          ? ["./controller.mjs"]
+          : [],
+  });
+  await writeFile(`${release}/dist/${entry}.mjs`, await format(result.outputFiles[0].text));
+}
+const releaseFiles = [
+  "src/session.mjs",
+  "src/worker.mjs",
+  "src/controller.mjs",
+  "src/controller-page.mjs",
+  "src/owner-helper.mjs",
+  "static/controller.html",
+  "static/controller.css",
+  "protocol.json",
+  "dist/worker.mjs",
+  "dist/controller.mjs",
+  "dist/controller-page.mjs",
+  "dist/owner-helper.mjs",
+];
+const releaseHashes = {};
+for (const path of releaseFiles) releaseHashes[path] = sha(await read(`${release}/${path}`));
+await writeFile(
+  `${release}/integrity.json`,
+  await format(
+    JSON.stringify({
+      helperVersion: "1.3.0",
+      contractVersion: "folioview.agent-workspace.v2.0",
+      profile: "folioview.agent-preparation.v1",
+      files: releaseHashes,
+    }),
+    "json",
+  ),
+);
 console.log("Built fixed helper assets; integrity hashes updated.");

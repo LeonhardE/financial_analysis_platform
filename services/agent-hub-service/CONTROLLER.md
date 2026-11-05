@@ -1,5 +1,10 @@
 # Trusted foreground controller
 
+The additive [1.3.0 authenticated foreground transport](FOREGROUND_TRANSPORT.md) is published
+under explicit versioned paths. It connects an already approved Muse OAuth bearer to the
+browser through a recipient-encrypted handoff and adds a basic task/report UI. The default
+1.2.0 paths and independently pinned Worker bytes below remain unchanged for older Web clients.
+
 This HUB-009 code stage adds fixed browser distribution and orchestration, not a service that
 executes with user keys. The existing P1 schemas, helper 1.2.0 Worker, OAuth, preparations, Run,
 result/revision and receipt services remain the producers. No cloud resource or configuration is
