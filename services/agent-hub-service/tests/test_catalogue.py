@@ -254,6 +254,36 @@ class CatalogueTests(CatalogueFixture, unittest.TestCase):
             self.assertEqual(group["items"][0]["state"], "uninitialized")
             self.assertEqual(group["items"][0]["encryptedEvidence"], "not_prepared")
 
+    def test_refused_projection_logs_only_stage_and_closed_code_without_metadata(self):
+        marker = "PRIVATE response and credential diagnostic"
+
+        def corrupt_projection(row):
+            if "snapshotId" in row:
+                row["snapshotId"] = marker
+
+        self.portfolio_change = corrupt_projection
+        with self.assertLogs("app.catalogue", level="WARNING") as captured:
+            result = self.read()
+        self.assertEqual(result["groups"][0]["status"], "unavailable")
+        message = "\n".join(captured.output)
+        self.assertIn("service=portfolio stage=projection_contract code=", message)
+        for private in (marker, UID, EMAIL, self.source["resourceId"], self.fixture.owner):
+            self.assertNotIn(private, message)
+
+    def test_upstream_error_bodies_and_exception_messages_never_enter_diagnostics(self):
+        self.fail_source = SOURCE
+        with self.assertLogs("app.catalogue", level="WARNING") as captured:
+            self.read()
+        message = "\n".join(captured.output)
+        self.assertIn("stage=response_status code=source_unavailable", message)
+        self.assertNotIn("synthetic-private-error-marker", message)
+        from app.catalogue import _refusal
+
+        with self.assertLogs("app.catalogue", level="WARNING") as captured:
+            _refusal("portfolio", "projection_contract", ValueError("PRIVATE_CANARY"))
+        self.assertNotIn("PRIVATE_CANARY", "\n".join(captured.output))
+        self.assertIn("code=invalid_metadata", captured.output[0])
+
     def test_one_portfolio_failure_preserves_other_registered_sources_and_user_metadata(self):
         self.vaults.create_source(
             UID,
