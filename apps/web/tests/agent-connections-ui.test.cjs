@@ -286,6 +286,39 @@ test("approval recovery never offers another decision and unknown helper keys do
   assert.doesNotMatch(recoveredWithoutHandoff, /Review this request/);
 });
 
+test("manual Muse setup shows its fixed helper address and published encrypted connection guidance", () => {
+  const helperUrl = configuration.data.hubOrigin + "/agent/v2/helper/1.3.0/controller.html";
+  for (const locale of ["en", "zh"]) {
+    const html = render(
+      "AgentConsentCard",
+      {
+        workspace: workspace(),
+        model: consentModel({
+          mode: "manual",
+          setupCard: { helperVersion: "1.3.0" },
+          helperUrl,
+          published: { deliveryPin: { preparationId: "preparation_A" } },
+        }),
+      },
+      locale,
+    );
+    assert.ok(html.includes(helperUrl));
+    assert.ok(html.includes(catalogs[locale].agentConsent.copyHelperAddress));
+    assert.ok(html.includes(catalogs[locale].agentConsent.transportHelp));
+    assert.doesNotMatch(
+      render(
+        "AgentConsentCard",
+        {
+          workspace: workspace({ phase: "locked" }),
+          model: consentModel({ mode: "manual", setupCard: { helperVersion: "1.3.0" }, helperUrl }),
+        },
+        locale,
+      ),
+      /controller\.html/,
+    );
+  }
+});
+
 test("disabled Muse has a neutral rollout message and keeps successful owner history/revocation", () => {
   for (const locale of ["en", "zh"]) {
     const html = render(

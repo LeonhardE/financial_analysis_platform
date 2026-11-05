@@ -55,7 +55,9 @@ export function AgentConsentCard({
     const started = scope.current;
     if (!model.unlocked || !value) return;
     try {
-      await navigator.clipboard.writeText(JSON.stringify(value, null, 2));
+      await navigator.clipboard.writeText(
+        typeof value === "string" ? value : JSON.stringify(value, null, 2),
+      );
       if (scope.current === started) setCopyStatus(true);
     } catch {
       if (scope.current === started) setCopyStatus(false);
@@ -295,6 +297,18 @@ export function AgentConsentCard({
                   {model.setupCard && (
                     <details className={styles.manual} open={model.mode === "manual"}>
                       <summary>{t("publicSetup")}</summary>
+                      {model.helperUrl && (
+                        <div className={styles.note}>
+                          <p>{t("helperAddressHelp")}</p>
+                          <code aria-label={t("helperAddress")}>{model.helperUrl}</code>
+                          <button
+                            className={styles.secondary}
+                            onClick={() => void copy(model.helperUrl)}
+                          >
+                            {t("copyHelperAddress")}
+                          </button>
+                        </div>
+                      )}
                       <p>{t("publicCardHelp")}</p>
                       <button
                         className={styles.secondary}
@@ -495,6 +509,7 @@ export function AgentConsentCard({
                 <div className={styles.step}>
                   <h3>{t("publishedTitle")}</h3>
                   <p>{t(model.helperConfirmed ? "pairedPublished" : "manualPublished")}</p>
+                  <p>{t("transportHelp")}</p>
                   <button
                     className={styles.secondary}
                     onClick={() => void copy(model.published!.deliveryPin)}

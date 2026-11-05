@@ -49,7 +49,10 @@ async function createHarness() {
       forms = await load("task-forms");
     const { ForegroundSession } = await import(
       pathToFileURL(
-        path.resolve(__dirname, "../../../services/agent-hub-service/helper/dist/worker.mjs"),
+        path.resolve(
+          __dirname,
+          "../../../services/agent-hub-service/helper/releases/1.3.0/dist/worker.mjs",
+        ),
       ).href
     );
     const jose = await import("jose");
@@ -278,7 +281,7 @@ async function enroll(h, f, task, connectionId = "connection_A1") {
   const row = { helper, call };
   h.helpers.push(row);
   const offer = {
-    helperVersion: "1.2.0",
+    helperVersion: keys.helperVersion ?? helper.status().helperVersion,
     sessionId,
     generation: 1,
     anchor,

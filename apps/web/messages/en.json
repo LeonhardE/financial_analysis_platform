@@ -1101,7 +1101,11 @@
     "originalHelperHelp": "Recovery cannot recreate private helper keys. Continue only if the original helper with these exact fingerprints is still open in your other browser; otherwise restart authorization from Muse.",
     "confirmOriginalHelper": "My original helper is still open; continue with its original keys",
     "archiveUnavailable": "A key archive removal needs attention, or the cloud key archive was removed. Open Settings to check the original request or use independent recovery. Your saved content has not been emptied.",
-    "archiveSettings": "Open key archive settings"
+    "archiveSettings": "Open key archive settings",
+    "helperAddressHelp": "Give this reviewed helper address to Muse to open in its own browser. Keep the same session open while approving its public keys.",
+    "helperAddress": "Muse helper address",
+    "copyHelperAddress": "Copy helper address",
+    "transportHelp": "In the original Muse helper, confirm the public delivery card, connect with its encrypted connection packet, read the approved task and save the encrypted report. Open Inbox after the helper confirms the server save."
   },
   "vaultManagement": {
     "title": "Library keys and devices",
