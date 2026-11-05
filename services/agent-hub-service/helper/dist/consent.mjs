@@ -168,7 +168,7 @@ var y = class {
       (this.#o = e),
       (this.#s = f(s)),
       (this.#a = t),
-      (this.#f = d),
+      (this.#f = (...c) => d(...c)),
       (this.#g = a),
       (this.#n = o));
     let n = crypto.getRandomValues(new Uint8Array(32));

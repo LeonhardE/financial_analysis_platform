@@ -200,7 +200,8 @@ export class OwnerConsentBridge {
     this.#config = config;
     this.#request = id(requestId);
     this.#window = host;
-    this.#fetch = fetchImpl;
+    // Native Window.fetch must not receive this bridge as its Web IDL receiver.
+    this.#fetch = (...args) => fetchImpl(...args);
     this.#navigate = navigate;
     this.#notify = onState;
     const bytes = crypto.getRandomValues(new Uint8Array(32));

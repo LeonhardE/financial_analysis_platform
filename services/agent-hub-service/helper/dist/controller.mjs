@@ -46,7 +46,7 @@ var ze = ae((dr, je) => {
     if (e === a) return !0;
     if (e && a && typeof e == "object" && typeof a == "object") {
       if (e.constructor !== a.constructor) return !1;
-      var n, f, u;
+      var n, f, h;
       if (Array.isArray(e)) {
         if (((n = e.length), n != a.length)) return !1;
         for (f = n; f-- !== 0;) if (!t(e[f], a[f])) return !1;
@@ -55,10 +55,10 @@ var ze = ae((dr, je) => {
       if (e.constructor === RegExp) return e.source === a.source && e.flags === a.flags;
       if (e.valueOf !== Object.prototype.valueOf) return e.valueOf() === a.valueOf();
       if (e.toString !== Object.prototype.toString) return e.toString() === a.toString();
-      if (((u = Object.keys(e)), (n = u.length), n !== Object.keys(a).length)) return !1;
-      for (f = n; f-- !== 0;) if (!Object.prototype.hasOwnProperty.call(a, u[f])) return !1;
+      if (((h = Object.keys(e)), (n = h.length), n !== Object.keys(a).length)) return !1;
+      for (f = n; f-- !== 0;) if (!Object.prototype.hasOwnProperty.call(a, h[f])) return !1;
       for (f = n; f-- !== 0;) {
-        var i = u[f];
+        var i = h[f];
         if (!t(e[i], a[i])) return !1;
       }
       return !0;
@@ -85,13 +85,13 @@ var Ne = ae((fe) => {
       parentData: a,
       parentDataProperty: n,
       rootData: f = t,
-      dynamicAnchors: u = {},
+      dynamicAnchors: h = {},
     } = {},
   ) {
     let i = null,
       r = 0,
-      h = q.evaluated;
-    if ((h.dynamicProps && (h.props = void 0), h.dynamicItems && (h.items = void 0), r === 0))
+      u = q.evaluated;
+    if ((u.dynamicProps && (u.props = void 0), u.dynamicItems && (u.items = void 0), r === 0))
       if (t && typeof t == "object" && !Array.isArray(t)) {
         let d;
         if (
@@ -315,13 +315,13 @@ var Ne = ae((fe) => {
       parentData: a,
       parentDataProperty: n,
       rootData: f = t,
-      dynamicAnchors: u = {},
+      dynamicAnchors: h = {},
     } = {},
   ) {
     let i = null,
       r = 0,
-      h = H.evaluated;
-    if ((h.dynamicProps && (h.props = void 0), h.dynamicItems && (h.items = void 0), r === 0))
+      u = H.evaluated;
+    if ((u.dynamicProps && (u.props = void 0), u.dynamicItems && (u.items = void 0), r === 0))
       if (t && typeof t == "object" && !Array.isArray(t)) {
         let d;
         if (
@@ -381,7 +381,7 @@ var Ne = ae((fe) => {
                   parentData: t,
                   parentDataProperty: "signedObject",
                   rootData: f,
-                  dynamicAnchors: u,
+                  dynamicAnchors: h,
                 }) || ((i = i === null ? q.errors : i.concat(q.errors)), (r = i.length));
                 var s = l === r;
               } else var s = !0;
@@ -404,21 +404,21 @@ var Ne = ae((fe) => {
       parentData: a,
       parentDataProperty: n,
       rootData: f = t,
-      dynamicAnchors: u = {},
+      dynamicAnchors: h = {},
     } = {},
   ) {
     let i = null,
       r = 0,
-      h = pe.evaluated;
+      u = pe.evaluated;
     return (
-      h.dynamicProps && (h.props = void 0),
-      h.dynamicItems && (h.items = void 0),
+      u.dynamicProps && (u.props = void 0),
+      u.dynamicItems && (u.items = void 0),
       H(t, {
         instancePath: e,
         parentData: a,
         parentDataProperty: n,
         rootData: f,
-        dynamicAnchors: u,
+        dynamicAnchors: h,
       }) || ((i = i === null ? H.errors : i.concat(H.errors)), (r = i.length)),
       (pe.errors = i),
       r === 0
@@ -549,13 +549,13 @@ var Ne = ae((fe) => {
       parentData: a,
       parentDataProperty: n,
       rootData: f = t,
-      dynamicAnchors: u = {},
+      dynamicAnchors: h = {},
     } = {},
   ) {
     let i = null,
       r = 0,
-      h = M.evaluated;
-    if ((h.dynamicProps && (h.props = void 0), h.dynamicItems && (h.items = void 0), r === 0))
+      u = M.evaluated;
+    if ((u.dynamicProps && (u.props = void 0), u.dynamicItems && (u.items = void 0), r === 0))
       if (typeof t == "string") {
         if (g(t) > 128)
           return (
@@ -742,13 +742,13 @@ var Ne = ae((fe) => {
       parentData: a,
       parentDataProperty: n,
       rootData: f = t,
-      dynamicAnchors: u = {},
+      dynamicAnchors: h = {},
     } = {},
   ) {
     let i = null,
       r = 0,
-      h = S.evaluated;
-    (h.dynamicProps && (h.props = void 0), h.dynamicItems && (h.items = void 0));
+      u = S.evaluated;
+    (u.dynamicProps && (u.props = void 0), u.dynamicItems && (u.items = void 0));
     let s = r,
       d = !0,
       w = r;
@@ -1058,13 +1058,13 @@ var Ne = ae((fe) => {
       parentData: a,
       parentDataProperty: n,
       rootData: f = t,
-      dynamicAnchors: u = {},
+      dynamicAnchors: h = {},
     } = {},
   ) {
     let i = null,
       r = 0,
-      h = N.evaluated;
-    if ((h.dynamicProps && (h.props = void 0), h.dynamicItems && (h.items = void 0), r === 0))
+      u = N.evaluated;
+    if ((u.dynamicProps && (u.props = void 0), u.dynamicItems && (u.items = void 0), r === 0))
       if (t && typeof t == "object" && !Array.isArray(t)) {
         let T;
         if (
@@ -1795,7 +1795,7 @@ var Ne = ae((fe) => {
                                     parentData: t,
                                     parentDataProperty: "resourceRef",
                                     rootData: f,
-                                    dynamicAnchors: u,
+                                    dynamicAnchors: h,
                                   }) ||
                                     ((i = i === null ? S.errors : i.concat(S.errors)),
                                     (r = i.length));
@@ -1992,13 +1992,13 @@ var Ne = ae((fe) => {
       parentData: a,
       parentDataProperty: n,
       rootData: f = t,
-      dynamicAnchors: u = {},
+      dynamicAnchors: h = {},
     } = {},
   ) {
     let i = null,
       r = 0,
-      h = U.evaluated;
-    if ((h.dynamicProps && (h.props = void 0), h.dynamicItems && (h.items = void 0), r === 0))
+      u = U.evaluated;
+    if ((u.dynamicProps && (u.props = void 0), u.dynamicItems && (u.items = void 0), r === 0))
       if (t && typeof t == "object" && !Array.isArray(t)) {
         let d;
         if ((t.ref === void 0 && (d = "ref")) || (t.sourceEpoch === void 0 && (d = "sourceEpoch")))
@@ -2038,7 +2038,7 @@ var Ne = ae((fe) => {
                 parentData: t,
                 parentDataProperty: "ref",
                 rootData: f,
-                dynamicAnchors: u,
+                dynamicAnchors: h,
               }) || ((i = i === null ? S.errors : i.concat(S.errors)), (r = i.length));
               var s = l === r;
             } else var s = !0;
@@ -2148,13 +2148,13 @@ var Ne = ae((fe) => {
       parentData: a,
       parentDataProperty: n,
       rootData: f = t,
-      dynamicAnchors: u = {},
+      dynamicAnchors: h = {},
     } = {},
   ) {
     let i = null,
       r = 0,
-      h = $.evaluated;
-    (h.dynamicProps && (h.props = void 0), h.dynamicItems && (h.items = void 0));
+      u = $.evaluated;
+    (u.dynamicProps && (u.props = void 0), u.dynamicItems && (u.items = void 0));
     let s = r,
       d = !0,
       w = r;
@@ -2573,13 +2573,13 @@ var Ne = ae((fe) => {
       parentData: a,
       parentDataProperty: n,
       rootData: f = t,
-      dynamicAnchors: u = {},
+      dynamicAnchors: h = {},
     } = {},
   ) {
     let i = null,
       r = 0,
-      h = P.evaluated;
-    if ((h.dynamicProps && (h.props = void 0), h.dynamicItems && (h.items = void 0), r === 0))
+      u = P.evaluated;
+    if ((u.dynamicProps && (u.props = void 0), u.dynamicItems && (u.items = void 0), r === 0))
       if (t && typeof t == "object" && !Array.isArray(t)) {
         let c;
         if (
@@ -3334,7 +3334,7 @@ var Ne = ae((fe) => {
                                               parentData: t,
                                               parentDataProperty: "stableOperationId",
                                               rootData: f,
-                                              dynamicAnchors: u,
+                                              dynamicAnchors: h,
                                             }) ||
                                               ((i = i === null ? M.errors : i.concat(M.errors)),
                                               (r = i.length));
@@ -3440,7 +3440,7 @@ var Ne = ae((fe) => {
                                                     parentData: t,
                                                     parentDataProperty: "binding",
                                                     rootData: f,
-                                                    dynamicAnchors: u,
+                                                    dynamicAnchors: h,
                                                   }) ||
                                                     ((i =
                                                       i === null ? N.errors : i.concat(N.errors)),
@@ -3492,7 +3492,7 @@ var Ne = ae((fe) => {
                                                               parentData: p,
                                                               parentDataProperty: y,
                                                               rootData: f,
-                                                              dynamicAnchors: u,
+                                                              dynamicAnchors: h,
                                                             }) ||
                                                               ((i =
                                                                 i === null
@@ -3585,7 +3585,7 @@ var Ne = ae((fe) => {
                                                                 parentData: p,
                                                                 parentDataProperty: y,
                                                                 rootData: f,
-                                                                dynamicAnchors: u,
+                                                                dynamicAnchors: h,
                                                               }) ||
                                                                 ((i =
                                                                   i === null
@@ -3673,13 +3673,13 @@ var Ne = ae((fe) => {
       parentData: a,
       parentDataProperty: n,
       rootData: f = t,
-      dynamicAnchors: u = {},
+      dynamicAnchors: h = {},
     } = {},
   ) {
     let i = null,
       r = 0,
-      h = D.evaluated;
-    if ((h.dynamicProps && (h.props = void 0), h.dynamicItems && (h.items = void 0), r === 0))
+      u = D.evaluated;
+    if ((u.dynamicProps && (u.props = void 0), u.dynamicItems && (u.items = void 0), r === 0))
       if (t && typeof t == "object" && !Array.isArray(t)) {
         let d;
         if (
@@ -3883,13 +3883,13 @@ var Ne = ae((fe) => {
       parentData: a,
       parentDataProperty: n,
       rootData: f = t,
-      dynamicAnchors: u = {},
+      dynamicAnchors: h = {},
     } = {},
   ) {
     let i = null,
       r = 0,
-      h = F.evaluated;
-    if ((h.dynamicProps && (h.props = void 0), h.dynamicItems && (h.items = void 0), r === 0))
+      u = F.evaluated;
+    if ((u.dynamicProps && (u.props = void 0), u.dynamicItems && (u.items = void 0), r === 0))
       if (t && typeof t == "object" && !Array.isArray(t)) {
         let w;
         if (
@@ -4024,7 +4024,7 @@ var Ne = ae((fe) => {
                             parentData: c,
                             parentDataProperty: "epk",
                             rootData: f,
-                            dynamicAnchors: u,
+                            dynamicAnchors: h,
                           }) || ((i = i === null ? D.errors : i.concat(D.errors)), (r = i.length));
                           var s = A === r;
                         } else var s = !0;
@@ -4119,13 +4119,13 @@ var Ne = ae((fe) => {
       parentData: a,
       parentDataProperty: n,
       rootData: f = t,
-      dynamicAnchors: u = {},
+      dynamicAnchors: h = {},
     } = {},
   ) {
     let i = null,
       r = 0,
-      h = z.evaluated;
-    if ((h.dynamicProps && (h.props = void 0), h.dynamicItems && (h.items = void 0), r === 0))
+      u = z.evaluated;
+    if ((u.dynamicProps && (u.props = void 0), u.dynamicItems && (u.items = void 0), r === 0))
       if (t && typeof t == "object" && !Array.isArray(t)) {
         let w;
         if (
@@ -4267,7 +4267,7 @@ var Ne = ae((fe) => {
                           parentData: c,
                           parentDataProperty: A,
                           rootData: f,
-                          dynamicAnchors: u,
+                          dynamicAnchors: h,
                         }) || ((i = i === null ? F.errors : i.concat(F.errors)), (r = i.length));
                         var d = b === r;
                         if (!d) break;
@@ -4534,13 +4534,13 @@ var Ne = ae((fe) => {
       parentData: a,
       parentDataProperty: n,
       rootData: f = t,
-      dynamicAnchors: u = {},
+      dynamicAnchors: h = {},
     } = {},
   ) {
     let i = null,
       r = 0,
-      h = Q.evaluated;
-    if ((h.dynamicProps && (h.props = void 0), h.dynamicItems && (h.items = void 0), r === 0))
+      u = Q.evaluated;
+    if ((u.dynamicProps && (u.props = void 0), u.dynamicItems && (u.items = void 0), r === 0))
       if (t && typeof t == "object" && !Array.isArray(t)) {
         let d;
         if ((t.context === void 0 && (d = "context")) || (t.jwe === void 0 && (d = "jwe")))
@@ -4580,7 +4580,7 @@ var Ne = ae((fe) => {
                 parentData: t,
                 parentDataProperty: "context",
                 rootData: f,
-                dynamicAnchors: u,
+                dynamicAnchors: h,
               }) || ((i = i === null ? P.errors : i.concat(P.errors)), (r = i.length));
               var s = l === r;
             } else var s = !0;
@@ -4592,7 +4592,7 @@ var Ne = ae((fe) => {
                   parentData: t,
                   parentDataProperty: "jwe",
                   rootData: f,
-                  dynamicAnchors: u,
+                  dynamicAnchors: h,
                 }) || ((i = i === null ? z.errors : i.concat(z.errors)), (r = i.length));
                 var s = l === r;
               } else var s = !0;
@@ -4615,21 +4615,21 @@ var Ne = ae((fe) => {
       parentData: a,
       parentDataProperty: n,
       rootData: f = t,
-      dynamicAnchors: u = {},
+      dynamicAnchors: h = {},
     } = {},
   ) {
     let i = null,
       r = 0,
-      h = le.evaluated;
+      u = le.evaluated;
     return (
-      h.dynamicProps && (h.props = void 0),
-      h.dynamicItems && (h.items = void 0),
+      u.dynamicProps && (u.props = void 0),
+      u.dynamicItems && (u.items = void 0),
       Q(t, {
         instancePath: e,
         parentData: a,
         parentDataProperty: n,
         rootData: f,
-        dynamicAnchors: u,
+        dynamicAnchors: h,
       }) || ((i = i === null ? Q.errors : i.concat(Q.errors)), (r = i.length)),
       (le.errors = i),
       r === 0
@@ -4713,13 +4713,13 @@ var Ne = ae((fe) => {
       parentData: a,
       parentDataProperty: n,
       rootData: f = t,
-      dynamicAnchors: u = {},
+      dynamicAnchors: h = {},
     } = {},
   ) {
     let i = null,
       r = 0,
-      h = L.evaluated;
-    if ((h.dynamicProps && (h.props = void 0), h.dynamicItems && (h.items = void 0), r === 0))
+      u = L.evaluated;
+    if ((u.dynamicProps && (u.props = void 0), u.dynamicItems && (u.items = void 0), r === 0))
       if (t && typeof t == "object" && !Array.isArray(t)) {
         let d;
         if (
@@ -5100,7 +5100,7 @@ var Ne = ae((fe) => {
                               parentData: t,
                               parentDataProperty: "stableOperationId",
                               rootData: f,
-                              dynamicAnchors: u,
+                              dynamicAnchors: h,
                             }) ||
                               ((i = i === null ? M.errors : i.concat(M.errors)), (r = i.length));
                             var s = l === r;
@@ -5317,21 +5317,21 @@ var Ne = ae((fe) => {
       parentData: a,
       parentDataProperty: n,
       rootData: f = t,
-      dynamicAnchors: u = {},
+      dynamicAnchors: h = {},
     } = {},
   ) {
     let i = null,
       r = 0,
-      h = ce.evaluated;
+      u = ce.evaluated;
     return (
-      h.dynamicProps && (h.props = void 0),
-      h.dynamicItems && (h.items = void 0),
+      u.dynamicProps && (u.props = void 0),
+      u.dynamicItems && (u.items = void 0),
       L(t, {
         instancePath: e,
         parentData: a,
         parentDataProperty: n,
         rootData: f,
-        dynamicAnchors: u,
+        dynamicAnchors: h,
       }) || ((i = i === null ? L.errors : i.concat(L.errors)), (r = i.length)),
       (ce.errors = i),
       r === 0
@@ -5390,14 +5390,14 @@ function we(t) {
   let n = a.keys === null ? "[" : "{",
     f = [a];
   e: for (; f.length > 0;) {
-    let u = f[f.length - 1],
-      i = u.container;
-    if (u.keys === null) {
-      for (; u.index < i.length;) {
-        let r = u.index++;
+    let h = f[f.length - 1],
+      i = h.container;
+    if (h.keys === null) {
+      for (; h.index < i.length;) {
+        let r = h.index++;
         r > 0 && (n += ",");
-        let h = i[r],
-          s = h === void 0 || typeof h == "symbol" || typeof h == "function" ? null : h;
+        let u = i[r],
+          s = u === void 0 || typeof u == "symbol" || typeof u == "function" ? null : u;
         if (s === null || typeof s != "object") {
           n += oe(s);
           continue;
@@ -5412,18 +5412,18 @@ function we(t) {
       }
       n += "]";
     } else {
-      let r = u.keys;
-      for (; u.index < r.length;) {
-        let h = r[u.index++],
-          s = i[h];
+      let r = h.keys;
+      for (; h.index < r.length;) {
+        let u = r[h.index++],
+          s = i[u];
         if (s === void 0 || typeof s == "symbol" || typeof s == "function") continue;
         if (s === null || typeof s != "object") {
-          (u.first ? (u.first = !1) : (n += ","), (n += ke(h) + ":" + oe(s)));
+          (h.first ? (h.first = !1) : (n += ","), (n += ke(u) + ":" + oe(s)));
           continue;
         }
         let d = ve(s, e);
         if (d !== void 0) {
-          if ((u.first ? (u.first = !1) : (n += ","), (n += ke(h) + ":"), typeof d != "object")) {
+          if ((h.first ? (h.first = !1) : (n += ","), (n += ke(u) + ":"), typeof d != "object")) {
             n += d;
             continue;
           }
@@ -5433,7 +5433,7 @@ function we(t) {
       }
       n += "}";
     }
-    if ((e.delete(i), u.wrappers !== null)) for (let r of u.wrappers) e.delete(r);
+    if ((e.delete(i), h.wrappers !== null)) for (let r of h.wrappers) e.delete(r);
     f.pop();
   }
   return n;
@@ -5549,38 +5549,38 @@ async function ne(t, e) {
     n = qe(a.protected),
     f = qe(a.payload, !0);
   (W(n, ["alg", "typ", "kid", "cty"]), be("ObjectMessage", f));
-  let u = f.context,
-    i = u.binding;
+  let h = f.context,
+    i = h.binding;
   return (
     (n.alg !== "ES256" ||
       n.typ !== "fv-object+jws" ||
       n.cty !== "application/json" ||
-      n.kid !== u.authorSigningKeyId ||
+      n.kid !== h.authorSigningKeyId ||
       Ce(a.signature).length !== 64 ||
-      u.contractVersion !== X ||
-      u.profileId !== "P1" ||
-      u.objectType !== "result_revision" ||
-      u.objectId !== t.resultId ||
-      u.ownerSubject !== e.ownerSubject ||
-      u.vaultId !== e.vaultId ||
+      h.contractVersion !== X ||
+      h.profileId !== "P1" ||
+      h.objectType !== "result_revision" ||
+      h.objectId !== t.resultId ||
+      h.ownerSubject !== e.ownerSubject ||
+      h.vaultId !== e.vaultId ||
       i.connectionId !== e.connectionId ||
       i.taskId !== e.taskId ||
       i.runId !== t.runId ||
-      u.revision !== t.revision ||
-      u.expectedRevision !== t.expectedRevision ||
-      u.stableOperationId !== t.stableOperationId ||
-      u.operationType !== (t.expectedRevision === 0 ? "submit_result" : "revise_result") ||
-      u.deliveryRevision !== 1 ||
-      u.resourceBindings.length ||
-      u.priorEnvelopeFingerprint !== null) &&
+      h.revision !== t.revision ||
+      h.expectedRevision !== t.expectedRevision ||
+      h.stableOperationId !== t.stableOperationId ||
+      h.operationType !== (t.expectedRevision === 0 ? "submit_result" : "revise_result") ||
+      h.deliveryRevision !== 1 ||
+      h.resourceBindings.length ||
+      h.priorEnvelopeFingerprint !== null) &&
       I("record_binding_mismatch"),
     (await ar(t.envelope)) !== t.envelopeFingerprint && I("record_fingerprint_mismatch"),
-    { packet: structuredClone(t), context: u }
+    { packet: structuredClone(t), context: h }
   );
 }
 function ye(t, e, a, n, f) {
   be("ResultReceipt", t);
-  let u = {
+  let h = {
     contractVersion: X,
     vaultId: a.vaultId,
     runId: e.runId,
@@ -5593,7 +5593,7 @@ function ye(t, e, a, n, f) {
     resultPath: `/results/${e.resultId}?revision=${e.revision}`,
   };
   return (
-    (Object.keys(u).some((i) => t[i] !== u[i]) ||
+    (Object.keys(h).some((i) => t[i] !== h[i]) ||
       !Number.isFinite(Date.parse(t.receivedAt)) ||
       Date.parse(t.receivedAt) < Date.parse(f)) &&
       I("receipt_binding_mismatch"),
@@ -5651,19 +5651,19 @@ var ue = class {
   }
   async #s(e, a) {
     let n = await this.#v();
-    return new Promise((f, u) => {
+    return new Promise((f, h) => {
       let i,
         r,
-        h = n.transaction("outbox", e),
-        s = h.objectStore("outbox"),
+        u = n.transaction("outbox", e),
+        s = u.objectStore("outbox"),
         d = (w) => {
           r = De(w);
           try {
-            h.abort();
+            u.abort();
           } catch {}
         };
-      ((h.oncomplete = () => f(i)),
-        (h.onerror = h.onabort = () => u(r ?? new B("storage_unavailable"))));
+      ((u.oncomplete = () => f(i)),
+        (u.onerror = u.onabort = () => h(r ?? new B("storage_unavailable"))));
       try {
         a(
           s,
@@ -5679,19 +5679,19 @@ var ue = class {
   }
   async list(e) {
     let a = re(e),
-      n = await this.#s("readonly", (i, r, h) => {
+      n = await this.#s("readonly", (i, r, u) => {
         let s = i.getAll();
-        ((s.onerror = () => h(s.error)), (s.onsuccess = () => r(s.result)));
+        ((s.onerror = () => u(s.error)), (s.onsuccess = () => r(s.result)));
       });
     (!Array.isArray(n) || n.length > 256) && I("invalid_record");
     let f = n.filter((i) => i.scope === a);
     f.length > 32 && I("invalid_record");
-    let u = [];
+    let h = [];
     for (let i of f) {
       let r = await Fe(i.value, e);
-      (i.key !== de(e, r.packet.stableOperationId) && I("invalid_record"), u.push(r));
+      (i.key !== de(e, r.packet.stableOperationId) && I("invalid_record"), h.push(r));
     }
-    return u;
+    return h;
   }
   async get(e, a) {
     return (await this.list(e)).find((n) => n.packet.stableOperationId === V(a)) ?? null;
@@ -5699,11 +5699,11 @@ var ue = class {
   async stage(e, a) {
     let n = await Fe(a, e),
       f = de(e, n.packet.stableOperationId),
-      u = re(e),
+      h = re(e),
       i = ie(n);
     return (
       n.receipt !== null && I("invalid_record"),
-      this.#s("readwrite", (r, h, s) => {
+      this.#s("readwrite", (r, u, s) => {
         let d = r.getAll();
         ((d.onerror = () => s(d.error)),
           (d.onsuccess = () => {
@@ -5712,14 +5712,14 @@ var ue = class {
               (!Array.isArray(w) || w.length > 256) && I("invalid_record");
               let l = w.find((c) => c.key === f);
               if (l) {
-                ((l.scope !== u || J({ ...l.value, receipt: null }) !== i) && I("outbox_conflict"),
-                  h(structuredClone(l.value)));
+                ((l.scope !== h || J({ ...l.value, receipt: null }) !== i) && I("outbox_conflict"),
+                  u(structuredClone(l.value)));
                 return;
               }
-              ((w.length >= 256 || w.filter((c) => c.scope === u).length >= 32) &&
+              ((w.length >= 256 || w.filter((c) => c.scope === h).length >= 32) &&
                 I("outbox_capacity"),
-                r.add({ key: f, scope: u, value: n }),
-                h(structuredClone(n)));
+                r.add({ key: f, scope: h, value: n }),
+                u(structuredClone(n)));
             } catch (w) {
               s(w);
             }
@@ -5728,21 +5728,21 @@ var ue = class {
     );
   }
   async accept(e, a, n, f) {
-    let u = await this.get(e, a);
-    (!u || u.packet.envelopeFingerprint !== n) && I("outbox_conflict");
-    let { context: i } = await ne(u.packet, e),
-      r = ye(f, u.packet, e, i, u.runCreatedAt),
-      h = de(e, a),
-      s = J(u);
+    let h = await this.get(e, a);
+    (!h || h.packet.envelopeFingerprint !== n) && I("outbox_conflict");
+    let { context: i } = await ne(h.packet, e),
+      r = ye(f, h.packet, e, i, h.runCreatedAt),
+      u = de(e, a),
+      s = J(h);
     return this.#s("readwrite", (d, w, l) => {
-      let c = d.get(h);
+      let c = d.get(u);
       ((c.onerror = () => l(c.error)),
         (c.onsuccess = () => {
           try {
             let _ = c.result;
             if (((!_ || _.scope !== re(e)) && I("outbox_conflict"), J(_.value) !== s)) {
               if (
-                J({ ..._.value, receipt: null }) === J({ ...u, receipt: null }) &&
+                J({ ..._.value, receipt: null }) === J({ ...h, receipt: null }) &&
                 J(_.value.receipt) === J(r)
               ) {
                 w(structuredClone(_.value));
@@ -5762,16 +5762,16 @@ var ue = class {
   }
   async discard(e, a, n) {
     let f = de(e, a);
-    return this.#s("readwrite", (u, i, r) => {
-      let h = u.get(f);
-      ((h.onerror = () => r(h.error)),
-        (h.onsuccess = () => {
+    return this.#s("readwrite", (h, i, r) => {
+      let u = h.get(f);
+      ((u.onerror = () => r(u.error)),
+        (u.onsuccess = () => {
           try {
-            let s = h.result;
+            let s = u.result;
             (s &&
               (s.scope !== re(e) || s.value.packet?.envelopeFingerprint !== n) &&
               I("outbox_conflict"),
-              s && u.delete(f),
+              s && h.delete(f),
               i(null));
           } catch (s) {
             r(s);
@@ -5828,7 +5828,7 @@ async function Be(t, e, a) {
   t.body || I("invalid_response");
   let n = t.body.getReader(),
     f = [],
-    u = 0,
+    h = 0,
     i = () => {
       n.cancel().catch(() => {});
     };
@@ -5837,11 +5837,11 @@ async function Be(t, e, a) {
     for (;;) {
       let s = await n.read();
       if ((e.aborted && I("request_cancelled"), s.done)) break;
-      ((u += s.value.length), u > a && I("invalid_response"), f.push(s.value));
+      ((h += s.value.length), h > a && I("invalid_response"), f.push(s.value));
     }
-    let r = new Uint8Array(u),
-      h = 0;
-    for (let s of f) (r.set(s, h), (h += s.length));
+    let r = new Uint8Array(h),
+      u = 0;
+    for (let s of f) (r.set(s, u), (u += s.length));
     return r;
   } finally {
     (e.removeEventListener("abort", i), n.cancel().catch(() => {}), n.releaseLock());
@@ -5885,15 +5885,15 @@ var Je = class {
     issuer: e,
     developmentLoopback: a = !1,
     fetchImpl: n = fetch,
-    createWorker: f = (h) => new Worker(h, { type: "module" }),
-    outbox: u = new ue(),
+    createWorker: f = (u) => new Worker(u, { type: "module" }),
+    outbox: h = new ue(),
     clock: i = Date.now,
     onState: r = () => {},
   }) {
     ((this.#l = pr(e, a)),
-      (this.#i = n),
+      (this.#i = (...u) => n(...u)),
       (this.#v = f),
-      (this.#s = u),
+      (this.#s = h),
       (this.#k = i),
       (this.#f = r));
   }
@@ -5957,7 +5957,7 @@ var Je = class {
     let n = this.#t,
       f = new AbortController();
     this.#o.add(f);
-    let u = setTimeout(() => f.abort(), 1e4);
+    let h = setTimeout(() => f.abort(), 1e4);
     try {
       let i = await this.#i(this.#l + "/agent/v2/helper/worker.mjs", {
         credentials: "omit",
@@ -5975,17 +5975,17 @@ var Je = class {
         this.#e(n),
         (this.#P = URL.createObjectURL(new Blob([r], { type: "text/javascript" }))),
         (this.#c = this.#v(this.#P)));
-      let h = new MessageChannel(),
+      let u = new MessageChannel(),
         s = new MessageChannel();
-      ((this.#d = h.port1), (this.#u = s.port1));
+      ((this.#d = u.port1), (this.#u = s.port1));
       let d = (l) => this.#S(l.data);
       ((this.#d.onmessage = d),
         (this.#u.onmessage = d),
         this.#d.start(),
         this.#u.start(),
         (this.#c.onerror = () => this.lock("worker_failed")),
-        this.#c.postMessage({ op: "attach", ownerPort: h.port2, agentPort: s.port2 }, [
-          h.port2,
+        this.#c.postMessage({ op: "attach", ownerPort: u.port2, agentPort: s.port2 }, [
+          u.port2,
           s.port2,
         ]));
       let w = await this.#g(
@@ -6015,7 +6015,7 @@ var Je = class {
     } catch (i) {
       throw (this.lock("initialization_failed"), i instanceof B ? i : new B("helper_unavailable"));
     } finally {
-      (clearTimeout(u), this.#o.delete(f));
+      (clearTimeout(h), this.#o.delete(f));
     }
   }
   #S(e) {
@@ -6040,24 +6040,24 @@ var Je = class {
     let f = this.#t;
     (this.#e(f, !n && !["status", "lock"].includes(e)),
       (!this.#c || this.#n.size >= 8) && I("helper_busy"));
-    let u = { id: `rpc_${++this.#R}`, sessionId: this.#x, generation: this.#b, op: e, args: a };
+    let h = { id: `rpc_${++this.#R}`, sessionId: this.#x, generation: this.#b, op: e, args: a };
     return (
-      ie(u),
+      ie(h),
       new Promise((i, r) => {
-        let h = setTimeout(() => {
-          (this.#n.delete(u.id), r(new B("helper_timeout")), this.lock("helper_timeout"));
+        let u = setTimeout(() => {
+          (this.#n.delete(h.id), r(new B("helper_timeout")), this.lock("helper_timeout"));
         }, 2e4);
-        this.#n.set(u.id, {
+        this.#n.set(h.id, {
           resolve: i,
           reject: r,
-          timeout: h,
+          timeout: u,
           epoch: f,
           privateOperation: !n && e !== "status",
         });
         try {
-          (n ? this.#d : this.#u).postMessage(u);
+          (n ? this.#d : this.#u).postMessage(h);
         } catch {
-          (clearTimeout(h), this.#n.delete(u.id), r(new B("helper_unavailable")));
+          (clearTimeout(u), this.#n.delete(h.id), r(new B("helper_unavailable")));
         }
       })
     );
@@ -6156,7 +6156,7 @@ var Je = class {
         (this.lock("authorization_denied"), I("authorization_denied")),
         V(n.clientId),
         V(n.authorizationId));
-      let u = (i) =>
+      let h = (i) =>
         J({
           connectionId: i.connectionId,
           authorizationId: i.authorizationId,
@@ -6166,7 +6166,7 @@ var Je = class {
         });
       return (
         this.#I &&
-          u(this.#I) !== u(n) &&
+          h(this.#I) !== h(n) &&
           (this.lock("authorization_changed"), I("authorization_changed")),
         (this.#w = e),
         (this.#I = Y(n)),
@@ -6179,24 +6179,24 @@ var Je = class {
   }
   async #p(
     e,
-    { method: a = "GET", json: n, operation: f, token: u = this.#w, privateOperation: i = !0 } = {},
+    { method: a = "GET", json: n, operation: f, token: h = this.#w, privateOperation: i = !0 } = {},
   ) {
     let r = this.#t;
     (this.#e(r, i),
-      u || I("authenticated_host_required"),
+      h || I("authenticated_host_required"),
       /^\/agent\/v2\/(?:authorization|tasks\/[A-Za-z0-9_-]+\/(?:preparation|runs)|preparations\/[A-Za-z0-9_-]+\/(?:objects\/[A-Za-z0-9_-]+|registries\/[1-9][0-9]?)|runs\/[A-Za-z0-9_-]+(?:\/(?:inputs(?:\?cursor=[A-Za-z0-9_-]{1,128})?|registries\/[1-9][0-9]?|results|receipts\/[A-Za-z0-9_-]+))?|results\/[A-Za-z0-9_-]+\/revisions)$/.test(
         e,
       ) || I("unsupported_operation"));
-    let h = { Authorization: `Bearer ${u}`, "X-FolioView-Contract": X };
-    (f && (h["Idempotency-Key"] = V(f)),
-      n !== void 0 && ((h["Content-Type"] = "application/json"), ie(n, 589824)));
+    let u = { Authorization: `Bearer ${h}`, "X-FolioView-Contract": X };
+    (f && (u["Idempotency-Key"] = V(f)),
+      n !== void 0 && ((u["Content-Type"] = "application/json"), ie(n, 589824)));
     let s = new AbortController();
     this.#o.add(s);
     let d = setTimeout(() => s.abort(), 2e4);
     try {
       let w = await this.#i(this.#l + e, {
         method: a,
-        headers: h,
+        headers: u,
         credentials: "omit",
         cache: "no-store",
         redirect: "error",
@@ -6244,10 +6244,10 @@ var Je = class {
       I("invalid_response");
     for (let n = 0; n < a.registryProofs.length; n++) {
       let f = n + 1,
-        u = `/agent/v2/preparations/${V(a.preparationId)}/registries/${f}`;
-      (a.registryProofs[n].registrySequence !== f || a.registryProofs[n].path !== u) &&
+        h = `/agent/v2/preparations/${V(a.preparationId)}/registries/${f}`;
+      (a.registryProofs[n].registrySequence !== f || a.registryProofs[n].path !== h) &&
         I("invalid_response");
-      let i = await this.#p(u);
+      let i = await this.#p(h);
       (this.#e(e, !0),
         (i.preparationId !== a.preparationId || i.registrySequence !== f) && I("invalid_response"),
         await this.#g("registry", { bundles: [i.registryBundle] }));
@@ -6311,8 +6311,8 @@ var Je = class {
     return (this.#e(n, !0), f);
   }
   async submitResult(e, a, n, f = 0) {
-    let u = this.#t;
-    (this.#e(u, !0), V(e), V(a));
+    let h = this.#t;
+    (this.#e(h, !0), V(e), V(a));
     let i = await this.dispatchAgent({
       op: f === 0 ? "sealResult" : "reviseResult",
       args: {
@@ -6322,24 +6322,24 @@ var Je = class {
         content: n,
       },
     });
-    return (this.#e(u, !0), this.replay(i.stableOperationId));
+    return (this.#e(h, !0), this.replay(i.stableOperationId));
   }
   async #$(e, a, n) {
     let { context: f } = await ne(e.packet, this.#r);
     this.#e(n, !0);
-    let u = ye(a, e.packet, this.#r, f, e.runCreatedAt);
-    (await this.#s.accept(this.#r, e.packet.stableOperationId, e.packet.envelopeFingerprint, u),
+    let h = ye(a, e.packet, this.#r, f, e.runCreatedAt);
+    (await this.#s.accept(this.#r, e.packet.stableOperationId, e.packet.envelopeFingerprint, h),
       this.#e(n, !0));
     let i = this.#A.has(e.packet.runId + "/" + e.packet.stableOperationId);
     return (
       i &&
         (await this.#g(
           "acceptReceipt",
-          { runId: e.packet.runId, stableOperationId: e.packet.stableOperationId, receipt: u },
+          { runId: e.packet.runId, stableOperationId: e.packet.stableOperationId, receipt: h },
           !0,
         ),
         this.#e(n, !0)),
-      { receipt: u, liveRevisionSession: i, recoveredWithoutPrivateKeys: !i }
+      { receipt: h, liveRevisionSession: i, recoveredWithoutPrivateKeys: !i }
     );
   }
   async replay(e) {
@@ -6348,13 +6348,13 @@ var Je = class {
     let n = await this.#s.get(this.#r, e);
     (this.#e(a, !0), n || I("not_found"));
     let f = n.packet,
-      u = f.expectedRevision > 0,
+      h = f.expectedRevision > 0,
       i = await this.#p(
-        u ? `/agent/v2/results/${f.resultId}/revisions` : `/agent/v2/runs/${f.runId}/results`,
+        h ? `/agent/v2/results/${f.resultId}/revisions` : `/agent/v2/runs/${f.runId}/results`,
         {
           method: "POST",
           operation: e,
-          json: u
+          json: h
             ? {
                 contractVersion: X,
                 expectedRevision: f.expectedRevision,

@@ -5,14 +5,14 @@
   "files": {
     "src/session.mjs": "82404c4de3d4de2c1bb78f4368d5e59c2e0a4a72a6c80d5f61380dfbddfd7dc5",
     "src/worker.mjs": "90ee9302e26157ce00855f732628601e36f3dae5523bc455fd4357006b7c013f",
-    "src/controller.mjs": "d74743f6caa477a2029b49338001900bccd8f673f1db0db0cf644a0bbcad16b4",
+    "src/controller.mjs": "d25734b4c506c6f979eeea3459a0e6a90b6cee085694ddd7dc7b1388a2960e8f",
     "src/controller-page.mjs": "c15d9171e416f06470078177fb97204b9842cbe59ded4236c820968fbcbd4981",
     "src/owner-helper.mjs": "b4437a47563ade7530414d469ac575e66c5899df28c9f20a28b1231f7f14d1be",
     "static/controller.html": "af20aaf62bec9e201569a03043f008d34fbed63b398a8c028c1e945d15283c06",
     "static/controller.css": "6b5390d817b74d47ad0d9b5bb81fbf707e304f32d5608a3c88f221c0af3a346e",
     "protocol.json": "8c757fe7e2e51c5b4b29a1ca705e03786b8bcda377c1a4a1047a660a3672092e",
     "dist/worker.mjs": "435579b7d84c3c78d74ec5096370a22dc402169bb17a3047d626b447931ea734",
-    "dist/controller.mjs": "50012cff63bd4ad4931edcd6e59bd09767eddef73a9d62e2281abc1b1383b1f8",
+    "dist/controller.mjs": "da26e5e1ab4ed83d9bfbdef84299a5a4c0b8260b4ef1e60acdb3708055893282",
     "dist/controller-page.mjs": "2b8ba54693f1d339fff68755740228a9b42ea5ff81fd70a9d6660a69b299c3d0",
     "dist/owner-helper.mjs": "7bbaf165d2a5c20cf0f1de310aaf384f7863ad93dacb39643a1cb02adb9ad3c1"
   }
