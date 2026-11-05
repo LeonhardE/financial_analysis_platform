@@ -1101,7 +1101,11 @@
     "originalHelperHelp": "恢复不会重建 helper 私钥。仅在另一个浏览器中仍打开原 helper，且指纹完全相同时继续，否则请从 Muse 重新授权。",
     "confirmOriginalHelper": "原 helper 仍打开，继续使用其原密钥",
     "archiveUnavailable": "密钥包移除请求尚待处理，或云端密钥包已移除。请到设置核对原请求，或使用独立恢复包恢复；原内容并未因此清空。",
-    "archiveSettings": "前往设置处理密钥包"
+    "archiveSettings": "前往设置处理密钥包",
+    "helperAddressHelp": "将此 helper 地址交给 Muse，在它自己的浏览器中打开。核对并批准公开密钥期间，请保留同一会话。",
+    "helperAddress": "Muse helper 地址",
+    "copyHelperAddress": "复制 helper 地址",
+    "transportHelp": "在 Muse 原来的 helper 中确认公开交付卡，再用加密连接包连接会话、读取获准任务并保存加密报告。helper 确认服务器已保存后，再到 Inbox 阅读。"
   },
   "vaultManagement": {
     "title": "资源库密钥与设备",

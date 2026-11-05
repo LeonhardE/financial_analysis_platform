@@ -485,6 +485,17 @@ vault, revoke the Root, reactivate sources, or enable Muse. This Web slice depen
 merged Hub and Portfolio cancellation producer PRs. Physical device acceptance remains separate
 from synthetic expired-certificate and interrupted-network verification.
 
+## Authenticated Muse foreground helper
+
+The Muse approval flow pins helper 1.3.0 to its reviewed Worker digest and opens
+`/agent/v2/helper/1.3.0/controller.html` on the configured Hub origin. Manual setup shows this
+fixed address for Muse's own browser and retains explicit public-key and delivery-pin review.
+After encrypted inputs are published, Muse obtains the Hub's encrypted foreground transport
+packet and connects that same helper session before reading the task and saving its report.
+The helper confirms an authenticated server receipt before the owner checks Inbox. Legacy
+1.2.0 offers remain verifiable only with their original reviewed digest. This Web-only change
+does not register a client, enable OAuth or approve content access automatically.
+
 ## Automatic image release
 
 `infra/gcp/cloudbuild.web.yaml` runs the existing release guard using the official Google Cloud

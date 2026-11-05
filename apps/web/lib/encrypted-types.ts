@@ -338,7 +338,7 @@ export type AgentAnchor = {
   taskId: string;
 };
 export type HelperPublicOffer = {
-  helperVersion: "1.2.0";
+  helperVersion: "1.2.0" | "1.3.0";
   sessionId: string;
   generation: number;
   anchor: AgentAnchor;

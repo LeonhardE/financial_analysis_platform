@@ -1,5 +1,8 @@
 const assert = require("node:assert/strict");
 const test = require("node:test");
+const { createHash } = require("node:crypto");
+const { readFileSync } = require("node:fs");
+const { resolve } = require("node:path");
 const { MessageChannel, MessagePort } = require("node:worker_threads");
 const { compile, contracts, deferred, settle } = require("./agent-connections-helpers.cjs");
 const ORIGIN = "https://agent-hub-api-123456789.northamerica-northeast2.run.app";
@@ -180,14 +183,40 @@ test("helper owner messages allow only public initialization and sorted minimal 
     taskId: "task_A",
   };
   helper.validateHelperOwnerCommand("initialize", {
-    helperVersion: "1.2.0",
+    helperVersion: helper.HELPER_VERSION,
     workerSha256: helper.HELPER_WORKER_SHA256,
     anchor,
     ttlSeconds: 900,
   });
+  for (const [version, workerPath] of [
+    ["1.2.0", "dist/worker.mjs"],
+    ["1.3.0", "releases/1.3.0/dist/worker.mjs"],
+  ]) {
+    const digest = createHash("sha256")
+      .update(
+        readFileSync(resolve(__dirname, "../../../services/agent-hub-service/helper", workerPath)),
+      )
+      .digest("hex");
+    helper.validateHelperOwnerCommand("initialize", {
+      helperVersion: version,
+      workerSha256: digest,
+      anchor,
+      ttlSeconds: 900,
+    });
+    assert.throws(() =>
+      helper.validateHelperOwnerCommand("initialize", {
+        helperVersion: version === "1.2.0" ? "1.3.0" : "1.2.0",
+        workerSha256: digest,
+        anchor,
+        ttlSeconds: 900,
+      }),
+    );
+    if (version === helper.HELPER_VERSION) assert.equal(digest, helper.HELPER_WORKER_SHA256);
+  }
+  assert.equal(helper.HELPER_CONTROLLER_PATH, "/agent/v2/helper/1.3.0/controller.html");
   assert.throws(() =>
     helper.validateHelperOwnerCommand("initialize", {
-      helperVersion: "1.2.0",
+      helperVersion: helper.HELPER_VERSION,
       workerSha256: helper.HELPER_WORKER_SHA256,
       anchor: { ...anchor, rootJwk: { ...anchor.rootJwk, d: "PRIVATE_CANARY" } },
       ttlSeconds: 900,

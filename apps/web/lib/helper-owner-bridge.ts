@@ -1,10 +1,15 @@
 import { ConnectionError, exact, identifier } from "./agent-connections";
 
 export const HELPER_OWNER_PROFILE = "folioview.foreground-owner.v1";
-// Pinned to the reviewed 1.2.0 release in the repository, not to a Hub HTTP response.
+// Release pins come from reviewed repository bytes, never a Hub HTTP response.
 export const HELPER_WORKER_SHA256 =
-  "930519d391fb3aafc489ab449c50da18991d32a64ff3039a99fa0edf84cd513c";
-export const HELPER_VERSION = "1.2.0";
+  "435579b7d84c3c78d74ec5096370a22dc402169bb17a3047d626b447931ea734";
+export const HELPER_VERSION = "1.3.0";
+export const HELPER_CONTROLLER_PATH = "/agent/v2/helper/1.3.0/controller.html";
+const RELEASE_PINS: Record<string, string> = {
+  "1.2.0": "930519d391fb3aafc489ab449c50da18991d32a64ff3039a99fa0edf84cd513c",
+  "1.3.0": HELPER_WORKER_SHA256,
+};
 export type HelperOwnerOperation = "initialize" | "confirm_delivery" | "status" | "lock";
 const size = (value: unknown) => {
   try {
@@ -24,8 +29,9 @@ export function validateHelperOwnerCommand(op: HelperOwnerOperation, args: unkno
   if (op === "initialize") {
     if (
       !exact(args, ["helperVersion", "workerSha256", "anchor", "ttlSeconds"]) ||
-      args.helperVersion !== HELPER_VERSION ||
-      args.workerSha256 !== HELPER_WORKER_SHA256 ||
+      typeof args.helperVersion !== "string" ||
+      !Object.hasOwn(RELEASE_PINS, args.helperVersion) ||
+      args.workerSha256 !== RELEASE_PINS[args.helperVersion] ||
       !Number.isSafeInteger(args.ttlSeconds) ||
       args.ttlSeconds < 60 ||
       args.ttlSeconds > 3600 ||
@@ -222,7 +228,7 @@ export function openHelperOwnerBridge(
     .replaceAll("+", "-")
     .replaceAll("/", "_")
     .replaceAll("=", "");
-  const url = new URL("/agent/v2/helper/controller.html", hubOrigin);
+  const url = new URL(HELPER_CONTROLLER_PATH, hubOrigin);
   url.searchParams.set("owner_nonce", nonce);
   url.searchParams.set("owner_origin", window.location.origin);
   const popup = window.open(url.toString(), "_blank", "popup,width=780,height=850");

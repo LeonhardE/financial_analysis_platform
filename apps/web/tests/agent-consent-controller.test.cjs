@@ -159,7 +159,7 @@ function harness({
   });
   const helperStatus = () => ({
     profile: "folioview.foreground-controller.v1",
-    helperVersion: "1.2.0",
+    helperVersion: "1.3.0",
     state: helperLive ? "READY" : "LOCKED",
     sessionId: helperLive ? "session_helper" : null,
     generation: 1,
@@ -170,7 +170,7 @@ function harness({
     privateKeysPersistent: false,
   });
   const makeOffer = (anchor) => ({
-    helperVersion: "1.2.0",
+    helperVersion: "1.3.0",
     sessionId: "session_helper",
     generation: 1,
     anchor,
@@ -503,7 +503,8 @@ function harness({
       "@/lib/resource-library": resource.contracts,
       "@/lib/owner-consent-bridge": { connectOwnerConsentBridge: async () => bridge },
       "@/lib/helper-owner-bridge": {
-        HELPER_VERSION: "1.2.0",
+        HELPER_VERSION: "1.3.0",
+        HELPER_CONTROLLER_PATH: "/agent/v2/helper/1.3.0/controller.html",
         HELPER_WORKER_SHA256: "9".repeat(64),
         openHelperOwnerBridge: async () => {
           helperOpenCount++;

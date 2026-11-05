@@ -223,7 +223,10 @@ test("Hub completes only a registered OAuth callback and returns no OAuth code o
 test("the shipped owner/helper bridge accepts minimal independent delivery pins and never carries owner authentication", async () => {
   const helperModule = await import(
     pathToFileURL(
-      path.join(hubRepository, "services/agent-hub-service/helper/dist/owner-helper.mjs"),
+      path.join(
+        hubRepository,
+        "services/agent-hub-service/helper/releases/1.3.0/dist/owner-helper.mjs",
+      ),
     ).href
   );
   const owner = fakeWindow(OWNER),
@@ -232,7 +235,7 @@ test("the shipped owner/helper bridge accepts minimal independent delivery pins 
   let server, client;
   const status = {
     profile: "folioview.foreground-controller.v1",
-    helperVersion: "1.2.0",
+    helperVersion: "1.3.0",
     state: "READY",
     sessionId: "session_synthetic",
     generation: 1,
@@ -246,7 +249,7 @@ test("the shipped owner/helper bridge accepts minimal independent delivery pins 
     initialize: async (card) => {
       calls.push(["initialize", card]);
       return {
-        helperVersion: "1.2.0",
+        helperVersion: "1.3.0",
         sessionId: "session_synthetic",
         generation: 1,
         anchor: card.anchor,
@@ -283,7 +286,7 @@ test("the shipped owner/helper bridge accepts minimal independent delivery pins 
   owner.open = (raw) => {
     const url = new URL(raw);
     assert.equal(url.origin, HUB);
-    assert.equal(url.pathname, "/agent/v2/helper/controller.html");
+    assert.equal(url.pathname, "/agent/v2/helper/1.3.0/controller.html");
     server = new helperModule.OwnerHelperBridge({
       host: helper,
       config: { issuer: HUB, ownerOrigins: [OWNER] },
@@ -321,7 +324,7 @@ test("the shipped owner/helper bridge accepts minimal independent delivery pins 
       taskId: "task_synthetic",
     };
     await client.request("initialize", {
-      helperVersion: "1.2.0",
+      helperVersion: "1.3.0",
       workerSha256: browser.HELPER_WORKER_SHA256,
       anchor,
       ttlSeconds: 600,

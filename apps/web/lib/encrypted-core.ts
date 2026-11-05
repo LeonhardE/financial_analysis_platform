@@ -4216,7 +4216,7 @@ export class VaultCore {
       (bundle) => parsed(unb64(bundle.checkpoint.payload)).registrySequence === a.registrySequence,
     );
     if (
-      offer.helperVersion !== "1.2.0" ||
+      !["1.2.0", "1.3.0"].includes(offer.helperVersion) ||
       offer.keyExportRejected !== true ||
       a.ownerSubject !== (await this.owner) ||
       a.vaultId !== vault.vaultId ||

@@ -50,6 +50,7 @@ import {
 } from "@/lib/owner-consent-bridge";
 import {
   HELPER_VERSION,
+  HELPER_CONTROLLER_PATH,
   HELPER_WORKER_SHA256,
   openHelperOwnerBridge,
   type HelperOwnerBridge,
@@ -75,7 +76,7 @@ type OfferReview = {
   checkpointDigest: string;
 };
 type SetupCard = {
-  helperVersion: "1.2.0";
+  helperVersion: "1.2.0" | "1.3.0";
   workerSha256: string;
   anchor: AgentAnchor;
   ttlSeconds: number;
@@ -1470,6 +1471,10 @@ export function useAgentConsent(
     unlocked: Boolean(scope),
     hasHandoff: Boolean(handoff),
     canWrite: Boolean(scope && workspace.canWriteState && connectionEnabled),
+    helperUrl:
+      configuration?.enabled && configuration.hubOrigin
+        ? configuration.hubOrigin + HELPER_CONTROLLER_PATH
+        : null,
     claim,
     selectTask,
     selectScopes,
