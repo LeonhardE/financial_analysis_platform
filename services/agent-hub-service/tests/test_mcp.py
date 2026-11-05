@@ -74,6 +74,9 @@ class MCPTests(unittest.IsolatedAsyncioTestCase):
         async with self.client() as client:
             tools = await client.list_tools()
             self.assertEqual({t.name for t in tools.tools}, set(INPUTS))
+            transport = await self.tool(client, "get_foreground_transport_v2", taskId=TASK)
+            self.assertEqual(transport["profile"], "folioview.foreground-transport.v1")
+            self.assertNotIn(self.token, json.dumps(transport))
             listed = await self.tool(client, "list_tasks_v2")
             self.assertEqual([row["taskId"] for row in listed["items"]], [TASK])
             self.assertEqual(listed["items"][0]["deliveryRevision"], 2)

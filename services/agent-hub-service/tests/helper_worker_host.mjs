@@ -2,6 +2,10 @@
 import { parentPort, MessagePort } from "node:worker_threads";
 globalThis.self = { onmessage: null };
 globalThis.MessagePort = MessagePort;
-await import("../helper/dist/worker.mjs");
+await import(
+  process.env.FOLIOVIEW_TEST_FOREGROUND_TRANSPORT === "1"
+    ? "../helper/releases/1.3.0/dist/worker.mjs"
+    : "../helper/dist/worker.mjs"
+);
 parentPort.on("message", (data) => self.onmessage({ data }));
 parentPort.postMessage({ ready: true });

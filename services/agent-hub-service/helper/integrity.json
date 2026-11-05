@@ -13,7 +13,7 @@
     "package-lock.json": "b4795c79bf5d87b4d5101bfa0c54daffaedf73f97a0951e4a4b7e333272eb005",
     "protocol.json": "59cf3560239aac1da2181ec587f32c02f944c655b2d111d8f061bc90dbdc4028",
     "schemas.json": "3ed3ba67eddcb077f5f138b9b0e2e47ce6d7ecb7b977071e68bc8d744f8ebf84",
-    "build.mjs": "5856a7164a0fdcffdad79fd5e9157b1d84ecd517d43bb53defea1d44e4da3733",
+    "build.mjs": "590f5d267de1181c446bf0b076ab542aaa9a7cc9c1320bb93e70606484403f5c",
     "../tests/fixtures/idb-runtime.mjs": "37e2188e65f1554c9139242bb52b03793c292680636cb49cd6e62289cc0989da",
     "src/session.mjs": "fa42bd6fc9da1b167dde741dbd75056a5915171539b591ac9ac369ef8f5fb10a",
     "src/worker.mjs": "90ee9302e26157ce00855f732628601e36f3dae5523bc455fd4357006b7c013f",
