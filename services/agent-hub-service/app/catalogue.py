@@ -4,6 +4,7 @@ Upstream calls have one request-scoped deadline and at most four joined workers.
 Neither upstream content nor credentials are cached or persisted by this module.
 """
 
+import logging
 import math
 import os
 import re
@@ -40,6 +41,29 @@ _JWT = re.compile(r"[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\Z")
 _USER_KINDS = ("watchlist", "channel_follows")
 _SOURCE_STATES = {"active", "revoking", "disconnected", "deleted"}
 _USER_FIELDS = {"kind", "sourceService", "state", "ref", "revision", "sourceEpoch", "updatedAt"}
+_LOGGER = logging.getLogger(__name__)
+
+
+def _refusal(service, stage, error):
+    # Only fixed operation stages and a closed code are observable. Never log
+    # exception messages, upstream bodies, identities, references or credentials.
+    code = (
+        error.code
+        if isinstance(error, ContractError)
+        and error.code
+        in {
+            "source_unavailable",
+            "authorization_unavailable",
+            "malformed_request",
+            "payload_too_large",
+            "not_found",
+            "insufficient_scope",
+        }
+        else "transport_error"
+        if isinstance(error, httpx.HTTPError)
+        else "invalid_metadata"
+    )
+    _LOGGER.warning("Resource discovery refused: service=%s stage=%s code=%s", service, stage, code)
 
 
 def remaining(deadline, clock):
@@ -241,34 +265,45 @@ class CatalogueSources:
                     locks[service].release()
 
             def request(service, path, body=None):
-                headers = prepare(service)
-                kwargs = {}
-                if body is not None:
-                    headers = {**headers, "Content-Type": "application/json"}
-                    kwargs["content"] = canonical_json(body)
-                with client.stream(
-                    "GET" if body is None else "POST",
-                    self.origins[service] + path,
-                    headers=headers,
-                    timeout=remaining(deadline, self.clock),
-                    **kwargs,
-                ) as response:
-                    if response.status_code != 200:
-                        # Never read, persist or forward a producer's error body.
-                        raise ContractError("source_unavailable")
-                    if (
-                        response.headers.get("content-type", "").split(";", 1)[0]
-                        != "application/json"
-                    ):
-                        raise ContractError("source_unavailable")
-                    value = strict_json_loads(
-                        bounded_bytes(response, deadline, self.clock), max_bytes=MAX_SOURCE_BYTES
-                    )
-                return value
+                stage = "credentials"
+                try:
+                    headers = prepare(service)
+                    kwargs = {}
+                    if body is not None:
+                        headers = {**headers, "Content-Type": "application/json"}
+                        kwargs["content"] = canonical_json(body)
+                    stage = "producer_request"
+                    with client.stream(
+                        "GET" if body is None else "POST",
+                        self.origins[service] + path,
+                        headers=headers,
+                        timeout=remaining(deadline, self.clock),
+                        **kwargs,
+                    ) as response:
+                        stage = "response_status"
+                        if response.status_code != 200:
+                            # Never read, persist or forward a producer's error body.
+                            raise ContractError("source_unavailable")
+                        stage = "response_media_type"
+                        if (
+                            response.headers.get("content-type", "").split(";", 1)[0]
+                            != "application/json"
+                        ):
+                            raise ContractError("source_unavailable")
+                        stage = "response_bytes"
+                        raw = bounded_bytes(response, deadline, self.clock)
+                        stage = "response_json"
+                        value = strict_json_loads(raw, max_bytes=MAX_SOURCE_BYTES)
+                    return value
+                except Exception as error:
+                    _refusal(service, stage, error)
+                    raise
 
             def user():
+                stage = "catalogue_read"
                 try:
                     value = request("user", "/internal/v2/resources/catalogue")
+                    stage = "catalogue_shape"
                     if (
                         type(value) is not dict
                         or set(value) != {"contractVersion", "items", "readAt"}
@@ -277,9 +312,11 @@ class CatalogueSources:
                         or len(value["items"]) != 2
                     ):
                         raise ContractError("source_unavailable")
+                    stage = "catalogue_timestamp"
                     timestamp(value["readAt"])
                     result = {}
                     for source in value["items"]:
+                        stage = "catalogue_item"
                         if type(source) is not dict or set(source) != _USER_FIELDS:
                             raise ContractError("source_unavailable")
                         kind = source["kind"]
@@ -314,16 +351,19 @@ class CatalogueSources:
                             evidence="not_prepared",
                         )
                     return result
-                except Exception:
+                except Exception as error:
+                    _refusal("user", stage, error)
                     return {kind: failure(evidence="not_prepared") for kind in _USER_KINDS}
 
             def portfolio(source):
                 ref, fence = source["ref"], source["fence"]
                 if fence["state"] in {"disconnected", "deleted"}:
                     return item(ref, state=fence["state"], epoch=fence["sourceEpoch"])
+                stage = "state_read"
                 try:
                     body = {"contractVersion": CONTRACT_VERSION, "refs": [ref]}
                     state = request("portfolio", "/internal/v2/resources/states/read", body)
+                    stage = "state_contract"
                     state = validate_portfolio(state, ref, states=True)
                     if state["sourceEpoch"] != fence["sourceEpoch"]:
                         return item(ref, state="pending", epoch=fence["sourceEpoch"])
@@ -334,10 +374,13 @@ class CatalogueSources:
                             revision=state["revision"],
                             epoch=state["sourceEpoch"],
                         )
+                    stage = "projection_read"
                     projection = request(
                         "portfolio", "/internal/v2/resources/projections/read", body
                     )
+                    stage = "projection_contract"
                     projection = validate_portfolio(projection, ref, states=False)
+                    stage = "projection_binding"
                     if any(
                         projection[k] != state[k]
                         for k in ("ref", "revision", "sourceEpoch", "state")
@@ -353,7 +396,8 @@ class CatalogueSources:
                         if projection["snapshotId"] is None
                         else "not_checked",
                     )
-                except Exception:
+                except Exception as error:
+                    _refusal("portfolio", stage, error)
                     return failure(ref)
 
             try:
