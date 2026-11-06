@@ -50,7 +50,7 @@ class AgentPrincipal:
 
 
 logging.getLogger("authlib.oauth2").setLevel(logging.WARNING)
-PENDING_SECONDS = 600
+PENDING_SECONDS = 1800
 FAMILY_SECONDS = 30 * 86400
 MAX_CONNECTIONS = 32
 MAX_AUTHORIZATIONS = 32

@@ -116,6 +116,23 @@ function send(f, id, op, json, authorization = "aaa.bbb.ccc") {
   });
   return response;
 }
+test("consent remains usable after fifteen minutes and ends exactly at thirty", async (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  const f = await consent(async () => Response.json(pending));
+  try {
+    t.mock.timers.tick(15 * 60_000);
+    assert.equal(f.states.includes("bridge_expired"), false);
+    assert.equal((await send(f, "call_late", "claim", { contractVersion: CONTRACT })).ok, true);
+    t.mock.timers.tick(15 * 60_000 - 1);
+    assert.equal(f.states.includes("bridge_expired"), false);
+    t.mock.timers.tick(1);
+    assert.equal(f.states.includes("bridge_expired"), true);
+  } finally {
+    f.bridge.close();
+    f.port.close();
+    t.mock.timers.reset();
+  }
+});
 test("consent calls fetch without an incompatible receiver; raw JWT and origin/nonce stay bound", async () => {
   const requests = [],
     f = await consent(async function (url, options) {

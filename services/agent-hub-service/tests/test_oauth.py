@@ -275,6 +275,22 @@ class OAuthTests(unittest.TestCase):
             self.service.decide(UID, pending, COOKIE, "approve", [])
         self.assertEqual(self.service.connections(UID)["items"], [])
 
+    def test_interactive_review_survives_fifteen_minutes_but_expires_at_thirty(self):
+        started = self.now
+        pending = self.service.authorize(authorization_params(), COOKIE)
+        first = self.service.claim(UID, pending, COOKIE)
+        self.assertEqual(first["expiresAt"], started + 1800)
+        self.now += 901
+        self.assertEqual(self.service.status(UID, pending, COOKIE)["expiresAt"], first["expiresAt"])
+        with self.assertRaises(ContractError):
+            self.service.claim(OTHER_UID, pending, COOKIE)
+        with self.assertRaises(ContractError):
+            self.service.claim(UID, pending, "x" * 43)
+        self.now = first["expiresAt"]
+        with self.assertRaises(ContractError):
+            self.service.status(UID, pending, COOKIE)
+        self.assertEqual(self.service.connections(UID)["items"], [])
+
     def test_task_edit_does_not_auto_authorize_new_rules(self):
         tokens, _, _ = self.consent()
         self.tasks.update(
@@ -332,7 +348,7 @@ class OAuthTests(unittest.TestCase):
             lambda: self.service.authorize(authorization_params(), COOKIE),
             503,
         )
-        self.now += 601
+        self.now += 1801
         self.service.authorize(authorization_params(), COOKIE)
         with self.assertRaises(ValueError):
             OAuthConfig(ISSUER, "https://other.example/consent", configuration().clients)
@@ -498,7 +514,7 @@ class OAuthAuthorityTests(unittest.TestCase):
             self.service.decide(UID, pending, COOKIE, decision, [])
         pending = self.service.authorize(authorization_params(), COOKIE)
         self.service.claim(UID, pending, COOKIE)
-        self.now += 601
+        self.now += 1801
         attempts = self.service.connections(UID)["authorizationAttempts"]
         self.assertEqual({a["status"] for a in attempts}, {"denied", "cancelled", "expired"})
         raw = repr(attempts)

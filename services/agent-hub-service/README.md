@@ -173,12 +173,18 @@ source unavailable; they do not sign the owner out or expose upstream diagnostic
 Credential preparation and upstream metadata calls share a cooperative 12-second admission budget,
 at most four request-scoped joined workers, and no more than eleven jobs. Queued work and target-lock
 waits check the same budget. Metadata and producer HTTP use fixed URLs, no ambient proxies, no
-redirects, identity encoding, streaming byte limits and at most four seconds per I/O. Optional KMS
+redirects, identity encoding and streaming byte limits. Producer response reads allow up to eight
+seconds, capped by the remaining admission budget, to tolerate a cold source; connection, pool,
+write and credential I/O retain their four-second caps. Optional KMS
 timeouts use remaining budget for cold public-key retrieval and signing with `retry=None`; existing
 signing/JWKS calls retain their four-second defaults. This is **not** an exact twelve-second wall-clock
 guarantee: SDK client/ADC discovery and credential refresh, a final blocking read and the separate
 bounded Hub database transactions are not a fully cancellable asynchronous operation. There is no
 detached worker, retry loop, scheduler or persistent owner/token/metadata cache.
+
+Closed catalogue refusal diagnostics retain WARNING visibility even when the MCP SDK configures
+the root logger at CRITICAL. Only the fixed source, stage and closed error code are logged;
+identities, resource references, credentials, response bodies and exception messages are excluded.
 
 Hub verifies its current vault, signed registry checkpoint/key epoch, source refs and source fences
 before RPCs and again afterward in separate read transactions. Changes return a conflict rather than
@@ -515,8 +521,9 @@ only after the fresh-source and final transaction checks. Metadata/proof reads a
 never set it; it means an API read was authorized, not that an agent decrypted all inputs or ran a
 model. `resultSaved` stays false until a result consumer actually saves a result.
 
-Codes expire within two minutes; access tokens within ten; pending flows within ten; refresh
-families have an absolute thirty-day deadline that rotation cannot extend. Only credential hashes
+Codes expire within two minutes; access tokens within ten; pending flows, their browser-bound
+cookies and the consent bridge within thirty minutes. Refresh families have an absolute thirty-day deadline that rotation cannot
+extend. Only credential hashes
 are persisted, and refresh reuse revokes that family atomically. New consent advances the connection
 authorization identity and task grant generation so old tokens cannot regain permission. A/B
 owners and A1/A2 connections share a client registration without sharing ownership or revocation.

@@ -19,7 +19,7 @@ from folioview_shared.encrypted.errors import ContractError
 from folioview_shared.http import PrivateRoute
 
 from .api import Owner, _invoke, body, transport
-from .oauth import OAuthFailure, get_oauth_service, get_owner_connection_service
+from .oauth import PENDING_SECONDS, OAuthFailure, get_oauth_service, get_owner_connection_service
 from .oauth_config import owner_agent_capabilities
 from .store import StoreUnavailable
 
@@ -184,7 +184,7 @@ async def authorize(request: Request, service: Service):
     response.set_cookie(
         COOKIE,
         browser,
-        max_age=600,
+        max_age=PENDING_SECONDS,
         httponly=True,
         secure=urlsplit(service.config.issuer).scheme == "https",
         samesite="lax",
