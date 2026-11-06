@@ -1105,7 +1105,14 @@
     "helperAddressHelp": "将此 helper 地址交给 Muse，在它自己的浏览器中打开。核对并批准公开密钥期间，请保留同一会话。",
     "helperAddress": "Muse helper 地址",
     "copyHelperAddress": "复制 helper 地址",
-    "transportHelp": "在 Muse 原来的 helper 中确认公开交付卡，再用加密连接包连接会话、读取获准任务并保存加密报告。helper 确认服务器已保存后，再到 Inbox 阅读。"
+    "transportHelp": "在 Muse 原来的 helper 中确认公开交付卡，再用加密连接包连接会话、读取获准任务并保存加密报告。helper 确认服务器已保存后，再到 Inbox 阅读。",
+    "reconnectTitle": "在此已解锁页面审阅新连接",
+    "reconnectHelp": "在 Muse 连接页面复制连接请求链接，粘贴到这里。请保留本页面，资源库会保持解锁。",
+    "reconnectLink": "连接请求链接",
+    "reconnectDraftHelp": "新请求将替换当前连接审阅并关闭原 helper 会话；已保存的加密待办仍可恢复。批准前仍需重新核对任务、资源和新代理密钥。",
+    "reconnectReview": "打开请求并审阅",
+    "reconnecting": "正在打开请求…",
+    "reconnectFailed": "未能连接此请求。请检查复制的链接并允许 FolioView 弹出窗口。保留本页面，无需再次解锁。"
   },
   "vaultManagement": {
     "title": "资源库密钥与设备",

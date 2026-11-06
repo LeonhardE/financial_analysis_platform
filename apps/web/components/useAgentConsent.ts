@@ -240,6 +240,7 @@ export function useAgentConsent(
     workspace,
     configuration,
     connectionEnabled,
+    handoff,
   });
   live.current = {
     owner,
@@ -250,6 +251,7 @@ export function useAgentConsent(
     workspace,
     configuration,
     connectionEnabled,
+    handoff,
   };
   const ownerBridge = useRef<OwnerConsentBridge | null>(null),
     helper = useRef<HelperOwnerBridge | null>(null),
@@ -287,6 +289,7 @@ export function useAgentConsent(
           controller.signal.aborted ||
           !start.owner ||
           now.owner !== start.owner ||
+          now.handoff !== start.handoff ||
           !now.configured ||
           !now.active ||
           (!allowHidden && !now.visible) ||
@@ -1376,7 +1379,7 @@ export function useAgentConsent(
       ownerBridge.current?.close();
       helper.current?.close();
     };
-  }, [owner, configured, configuration?.hubOrigin]);
+  }, [owner, configured, configuration?.hubOrigin, handoff]);
   useEffect(() => {
     for (const request of jobs.current) request.abort();
     job.current = null;
@@ -1399,8 +1402,10 @@ export function useAgentConsent(
       replacementConfirmed: false,
       grantConfirmed: false,
     }));
+  }, [scope, configuration?.hubOrigin, handoff, update]);
+  useEffect(() => {
     if (scope && active && visible) void operation(true, summaries).catch(fail);
-  }, [scope, configuration?.hubOrigin, operation, summaries, fail, update]);
+  }, [scope, configuration?.hubOrigin, handoff, active, visible, operation, summaries, fail]);
   useEffect(() => {
     // This public-only heartbeat keeps the paired owner lease while a popup is focused.
     // It never fetches a Firebase credential or performs content/private-key operations.

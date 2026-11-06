@@ -11,6 +11,9 @@ export type ConsentOperation = "claim" | "prepare_encrypted" | "decision";
 export type ConsentHandoff = { requestId: string; nonce: string };
 const TOKEN = /^[A-Za-z0-9_-]{43}$/;
 const brands = new WeakSet<object>();
+const routed = new WeakSet<object>();
+const destinations = new WeakMap<object, { peer: Window; origin: string }>();
+const HUB_ORIGIN = /^https:\/\/agent-hub-api-[0-9]{1,20}\.[a-z]+(?:-[a-z0-9]+)+[0-9]\.run\.app$/;
 const utf8 = new TextEncoder();
 const byteSize = (value: unknown) => {
   try {
@@ -31,6 +34,88 @@ export function consentHandoff(search: string): ConsentHandoff | null {
   )
     throw new ConnectionError("invalid_handoff");
   return { requestId: query.get("agent_request")!, nonce: query.get("agent_nonce")! };
+}
+
+/** Public request locator only: never accept an authorization/callback URL or credentials. */
+export function ownerReconnectUrl(value: string, hubOrigin: string): URL {
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    throw new ConnectionError("invalid_handoff");
+  }
+  if (
+    !HUB_ORIGIN.test(hubOrigin) ||
+    value.length > 2048 ||
+    url.origin !== hubOrigin ||
+    url.username ||
+    url.password ||
+    url.hash ||
+    url.pathname !== "/agent/v2/helper/consent.html" ||
+    url.searchParams.size !== 1 ||
+    !identifier(url.searchParams.get("request"))
+  )
+    throw new ConnectionError("invalid_handoff");
+  url.searchParams.set("owner_reuse", "1");
+  return url;
+}
+
+export function releaseConsentHandoff(handoff: ConsentHandoff | null) {
+  if (handoff) destinations.delete(handoff);
+}
+
+/** Open a fresh public Hub request from the unlocked page, without replacing its Worker. */
+export function openOwnerReconnect(
+  value: string,
+  hubOrigin: string,
+  signal?: AbortSignal,
+): Promise<ConsentHandoff> {
+  const url = ownerReconnectUrl(value, hubOrigin);
+  if (signal?.aborted) return Promise.reject(new ConnectionError("cancelled"));
+  return new Promise((resolve, reject) => {
+    let peer: Window | null = null;
+    const finish = () => {
+      window.removeEventListener("message", message);
+      signal?.removeEventListener("abort", cancel);
+      clearTimeout(timer);
+    };
+    const cancel = () => {
+      finish();
+      peer?.close();
+      reject(new ConnectionError(signal?.aborted ? "cancelled" : "request_timeout"));
+    };
+    const message = (event: MessageEvent) => {
+      if (
+        !event.isTrusted ||
+        !peer ||
+        event.source !== peer ||
+        event.origin !== hubOrigin ||
+        event.ports.length !== 0 ||
+        !exact(event.data, ["type", "profile", "requestId", "nonce"]) ||
+        event.data.type !== "fv-owner-consent-offer" ||
+        event.data.profile !== OWNER_BRIDGE_PROFILE ||
+        event.data.requestId !== url.searchParams.get("request") ||
+        typeof event.data.nonce !== "string" ||
+        !TOKEN.test(event.data.nonce)
+      )
+        return;
+      const handoff = Object.freeze({ requestId: event.data.requestId, nonce: event.data.nonce });
+      routed.add(handoff);
+      destinations.set(handoff, { peer, origin: hubOrigin });
+      finish();
+      resolve(handoff);
+    };
+    const timer = setTimeout(cancel, 30_000);
+    window.addEventListener("message", message);
+    signal?.addEventListener("abort", cancel, { once: true });
+    try {
+      peer = window.open(url.href, "_blank");
+      if (!peer) throw new ConnectionError("popup_blocked");
+    } catch {
+      finish();
+      reject(new ConnectionError("invalid_handoff"));
+    }
+  });
 }
 export function validateConsentCommand(op: ConsentOperation, json: unknown) {
   if (
@@ -205,23 +290,24 @@ export const verifiedOwnerBridge = (value: unknown): value is OwnerConsentBridge
     (value as OwnerConsentBridge).isLive(),
   );
 
-/** Only the actual opener at the configured Hub origin can transfer the owner-only port. */
+/** Only the actual opener or the explicitly opened Hub request can transfer the owner port. */
 export function connectOwnerConsentBridge(
   handoff: ConsentHandoff,
   hubOrigin: string,
   signal?: AbortSignal,
 ): Promise<OwnerConsentBridge> {
+  const destination = destinations.get(handoff);
+  const opener = routed.has(handoff) ? destination?.peer : window.opener;
   if (
     !identifier(handoff.requestId) ||
     !TOKEN.test(handoff.nonce) ||
-    !/^https:\/\/agent-hub-api-[0-9]{1,20}\.[a-z]+(?:-[a-z0-9]+)+[0-9]\.run\.app$/.test(
-      hubOrigin,
-    ) ||
-    !window.opener ||
+    !HUB_ORIGIN.test(hubOrigin) ||
+    (routed.has(handoff) && destination?.origin !== hubOrigin) ||
+    !opener ||
+    opener.closed ||
     signal?.aborted
   )
     return Promise.reject(new ConnectionError("invalid_handoff"));
-  const opener = window.opener;
   return new Promise((resolve, reject) => {
     const finish = () => {
       window.removeEventListener("message", message);

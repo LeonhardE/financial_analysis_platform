@@ -253,3 +253,156 @@ test("helper owner messages allow only public initialization and sorted minimal 
     }),
   );
 });
+
+function reconnectHarness() {
+  const listeners = new Set(),
+    opened = [],
+    ready = [],
+    timers = new Map();
+  let serial = 0;
+  const peer = {
+    closed: false,
+    close() {
+      this.closed = true;
+    },
+    postMessage: (...args) => ready.push(args),
+  };
+  const window = {
+    opener: null,
+    open: (...args) => {
+      opened.push(args);
+      return peer;
+    },
+    addEventListener: (_name, fn) => listeners.add(fn),
+    removeEventListener: (_name, fn) => listeners.delete(fn),
+  };
+  const api = compile(
+    "../lib/owner-consent-bridge.ts",
+    { "./agent-connections": contracts },
+    {
+      window,
+      URL,
+      URLSearchParams,
+      MessagePort,
+      setTimeout: (fn) => {
+        timers.set(++serial, fn);
+        return serial;
+      },
+      clearTimeout: (id) => timers.delete(id),
+    },
+  );
+  const offer = (patch = {}) => {
+    for (const listener of [...listeners])
+      listener({
+        isTrusted: true,
+        origin: ORIGIN,
+        source: peer,
+        ports: [],
+        data: {
+          type: "fv-owner-consent-offer",
+          profile: PROFILE,
+          requestId: "request_B",
+          nonce: "b".repeat(43),
+        },
+        ...patch,
+      });
+  };
+  return { api, window, peer, opened, ready, timers, listeners, offer };
+}
+const requestLink = `${ORIGIN}/agent/v2/helper/consent.html?request=request_B`;
+test("reconnect accepts only the configured Hub public request locator", () => {
+  const { api } = reconnectHarness();
+  assert.equal(api.ownerReconnectUrl(requestLink, ORIGIN).href, requestLink + "&owner_reuse=1");
+  for (const value of [
+    requestLink.replace(ORIGIN, "https://attacker.example"),
+    requestLink + "&token=CANARY",
+    requestLink + "&request=request_C",
+    requestLink + "#code=CANARY",
+    requestLink + "&owner_reuse=1",
+    requestLink.replace("consent.html", "controller.html"),
+    ORIGIN + "/oauth/authorize?request=request_B",
+    requestLink.replace("request_B", "../other"),
+    "not a URL",
+    requestLink.replace("https://", "https://user@"),
+  ])
+    assert.throws(() => api.ownerReconnectUrl(value, ORIGIN));
+});
+test("reconnect authenticates the actual opened Hub source before retaining its public handoff", async () => {
+  const h = reconnectHarness();
+  const pending = h.api.openOwnerReconnect(requestLink, ORIGIN);
+  assert.equal(h.opened.length, 1);
+  assert.equal(h.window.opener, null);
+  for (const patch of [
+    { source: {} },
+    { origin: "https://attacker.example" },
+    { isTrusted: false },
+    { ports: [{}] },
+    {
+      data: {
+        type: "fv-owner-consent-offer",
+        profile: PROFILE,
+        requestId: "request_C",
+        nonce: "b".repeat(43),
+      },
+    },
+    {
+      data: {
+        type: "fv-owner-consent-offer",
+        profile: PROFILE,
+        requestId: "request_B",
+        nonce: "b".repeat(43),
+        token: "CANARY",
+      },
+    },
+  ]) {
+    h.offer(patch);
+    assert.equal(h.listeners.size, 1);
+  }
+  h.offer();
+  const handoff = await pending;
+  assert.equal(handoff.requestId, "request_B");
+  assert.equal(h.listeners.size, 0);
+  const channel = new MessageChannel();
+  const connecting = h.api.connectOwnerConsentBridge(handoff, ORIGIN);
+  assert.deepEqual(JSON.parse(JSON.stringify(h.ready[0])), [
+    { type: "fv-owner-consent-ready", requestId: "request_B", nonce: "b".repeat(43) },
+    ORIGIN,
+  ]);
+  h.offer({
+    data: {
+      type: "fv-owner-consent-attached",
+      profile: PROFILE,
+      requestId: "request_B",
+      nonce: "b".repeat(43),
+    },
+    ports: [channel.port1],
+  });
+  const bridge = await connecting;
+  assert.equal(h.api.verifiedOwnerBridge(bridge), true);
+  bridge.close();
+  channel.port2.close();
+  h.api.releaseConsentHandoff(handoff);
+  h.window.opener = h.peer;
+  await assert.rejects(
+    h.api.connectOwnerConsentBridge(handoff, ORIGIN),
+    (e) => e.code === "invalid_handoff",
+  );
+});
+test("reconnect abort and unsupported-Hub timeout close only the newly opened popup", async () => {
+  for (const abort of [true, false]) {
+    const h = reconnectHarness(),
+      signal = new AbortController();
+    const pending = h.api.openOwnerReconnect(requestLink, ORIGIN, signal.signal);
+    const rejected = assert.rejects(
+      pending,
+      (e) => e.code === (abort ? "cancelled" : "request_timeout"),
+    );
+    if (abort) signal.abort();
+    else [...h.timers.values()][0]();
+    await rejected;
+    assert.equal(h.peer.closed, true);
+    assert.equal(h.listeners.size, 0);
+    assert.equal(h.timers.size, 0);
+    assert.equal(h.window.opener, null);
+  }
+});
