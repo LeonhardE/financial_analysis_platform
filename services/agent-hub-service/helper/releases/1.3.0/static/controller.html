@@ -53,8 +53,15 @@
         <h2 id="connected-analysis">Run the approved analysis</h2>
         <p>
           After FolioView confirms the selected delivery, ask the connected Muse tool for
-          <code>get_foreground_transport_v2</code> with this task ID. Paste its encrypted packet
-          below. Never paste a token, password or private key.
+          <code>get_foreground_transport_v2</code> with this task ID. Select its encrypted packet
+          JSON file or paste the packet below, then connect. Use the tool's original six-field
+          packet without transcribing the ciphertext. Never paste a token, password or private key.
+        </p>
+        <label for="transport-packet-file">Encrypted connection packet file (.json)</label>
+        <input id="transport-packet-file" type="file" accept=".json,application/json" />
+        <p class="note">
+          File selection does not connect or upload the file. Connect reads one packet locally,
+          checks it against the approved session and clears both inputs. Maximum file size: 12 KiB.
         </p>
         <label for="transport-packet">Encrypted connection packet</label>
         <textarea id="transport-packet" spellcheck="false" autocomplete="off"></textarea>

@@ -26,6 +26,15 @@ function fixture() {
     node.replaceChildren = () => {};
     node.append = () => {};
   }
+  const fileInput = fields.get("transport-packet-file");
+  fileInput.files = [];
+  Object.defineProperty(fileInput, "value", {
+    get: () => (fileInput.files.length ? "synthetic-packet.json" : ""),
+    set: (value) => {
+      assert.equal(value, "");
+      fileInput.files = [];
+    },
+  });
   const events = new Map(),
     calls = [],
     pending = [];
@@ -180,6 +189,10 @@ function fixture() {
       doc.visibilityState = "hidden";
       events.get("visibilitychange")();
     },
+    show() {
+      doc.visibilityState = "visible";
+      events.get("visibilitychange")();
+    },
     fill() {
       for (const [id, value] of [
         ["report-title", "Synthetic title"],
@@ -214,6 +227,133 @@ test("explicit basic flow reads frozen approved inputs and only reports saved af
   assert(f.fields.get("save-state").textContent.includes("Saved to Inbox"));
   assert.equal(f.fields.get("report-section-0")?.value ?? "", "");
   assert.equal(f.fields.get("analysis-inputs").textContent, "");
+});
+test("an original packet file is read only on connect and reaches the existing controller unchanged", async () => {
+  const f = fixture();
+  f.fields.get("owner-card").value = "{}";
+  await f.click("initialize");
+  const packet = {
+    contractVersion: "folioview.agent-workspace.v2.0",
+    profile: "folioview.foreground-transport.v1",
+    taskId: "task_synthetic",
+    connectionId: "connection_synthetic",
+    preparationId: "preparation_synthetic",
+    credential: [
+      "SYNTHETIC_HEADER",
+      "SYNTHETIC_KEY",
+      "SYNTHETIC_IV",
+      "a".repeat(2000),
+      "SYNTHETIC_TAG",
+    ].join("."),
+  };
+  let reads = 0;
+  const file = new Blob([JSON.stringify(packet, null, 2)], { type: "application/json" });
+  f.fields.get("transport-packet-file").files = [
+    {
+      size: file.size,
+      async text() {
+        reads++;
+        assert.equal(f.fields.get("transport-packet-file").value, "");
+        return await file.text();
+      },
+    },
+  ];
+  assert.equal(reads, 0);
+  assert.equal(f.calls.filter((c) => c[0] === "connectTransport").length, 0);
+  await f.click("connect-transport");
+  assert.equal(reads, 1);
+  const connected = f.calls.filter((c) => c[0] === "connectTransport");
+  assert.equal(connected.length, 1);
+  assert.deepEqual(connected[0][1], packet);
+  assert.equal(f.fields.get("transport-packet-file").files.length, 0);
+  assert.equal(f.fields.get("transport-packet").value, "");
+  await f.click("read-analysis");
+  f.fill();
+  await f.click("save-analysis");
+  assert(f.fields.get("save-state").textContent.includes("Saved to Inbox"));
+});
+test("empty, oversized, ambiguous or multiple packet files are rejected before reading", async () => {
+  for (const scenario of ["empty", "oversized", "ambiguous", "multiple"]) {
+    const f = fixture();
+    await f.setup();
+    f.calls.length = 0;
+    let reads = 0;
+    const file = {
+      size: scenario === "empty" ? 0 : scenario === "oversized" ? 12289 : 2,
+      text: async () => {
+        reads++;
+        return "{}";
+      },
+    };
+    f.fields.get("transport-packet-file").files = scenario === "multiple" ? [file, file] : [file];
+    if (scenario === "ambiguous") f.fields.get("transport-packet").value = "{}";
+    await f.click("connect-transport");
+    assert.equal(reads, 0, scenario);
+    assert.equal(f.calls.length, 0, scenario);
+    assert(f.fields.get("status").textContent.includes("invalid_transport"), scenario);
+    assert.equal(f.fields.get("transport-packet-file").files.length, 0, scenario);
+    assert.equal(f.fields.get("transport-packet").value, "", scenario);
+  }
+});
+test("invalid or unreadable packet files clear inputs and never connect", async () => {
+  for (const contents of ["not JSON", "x".repeat(12289), null]) {
+    const f = fixture();
+    await f.setup();
+    f.calls.length = 0;
+    f.fields.get("transport-packet-file").files = [
+      {
+        size: 20,
+        async text() {
+          if (contents === null) throw new Error("SYNTHETIC_FILE_FAILURE");
+          return contents;
+        },
+      },
+    ];
+    await f.click("connect-transport");
+    assert.equal(f.calls.length, 0);
+    assert.equal(f.fields.get("transport-packet-file").files.length, 0);
+    assert.equal(f.fields.get("transport-packet").value, "");
+    assert(!f.fields.get("status").textContent.includes("SYNTHETIC_FILE_FAILURE"));
+  }
+});
+test("lock or a hide/show cycle cancels a late file read without connecting", async () => {
+  for (const action of ["lock", "hide/show"]) {
+    const f = fixture();
+    await f.setup();
+    f.calls.length = 0;
+    let resolve;
+    f.fields.get("transport-packet-file").files = [
+      {
+        size: 2,
+        text: () =>
+          new Promise((r) => {
+            resolve = r;
+          }),
+      },
+    ];
+    const connecting = f.click("connect-transport");
+    assert(resolve);
+    if (action === "lock") await f.click("lock");
+    else {
+      f.hide();
+      f.show();
+    }
+    resolve("{}");
+    await connecting;
+    assert.equal(f.calls.filter((c) => c[0] === "connectTransport").length, 0, action);
+    assert.equal(f.fields.get("transport-packet-file").files.length, 0, action);
+  }
+});
+test("hiding the page clears an unsubmitted file and pasted packet", async () => {
+  const f = fixture();
+  await f.setup();
+  f.fields.get("transport-packet-file").files = [new Blob(["{}"], { type: "application/json" })];
+  f.fields.get("transport-packet").value = "{}";
+  const before = f.calls.length;
+  f.hide();
+  assert.equal(f.fields.get("transport-packet-file").files.length, 0);
+  assert.equal(f.fields.get("transport-packet").value, "");
+  assert.equal(f.calls.length, before);
 });
 test("lost save response retains one original operation; explicit receipt/retry never seals another report", async () => {
   const f = fixture();
