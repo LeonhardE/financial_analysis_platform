@@ -5,7 +5,7 @@ const test = require("node:test");
 const vm = require("node:vm");
 const { transformSync } = require("next/dist/build/swc");
 
-function compile(file, imports) {
+function compile(file, imports, globals = {}) {
   const { code } = transformSync(readFileSync(path.join(__dirname, file), "utf8"), {
     filename: file,
     jsc: {
@@ -23,6 +23,7 @@ function compile(file, imports) {
       assert.ok(name in imports, name);
       return imports[name];
     },
+    ...globals,
   });
   return module.exports;
 }
@@ -39,7 +40,7 @@ function find(tree, predicate, trail = [], parent = null) {
   return find(tree.props?.children, predicate, [...trail, "children"], tree);
 }
 
-test("Market, Resources, Tasks and Inbox reuse one mounted encrypted owner workspace", () => {
+test("workspace navigation keeps one owner session without server transitions after deployment", () => {
   const cells = [];
   let index = 0;
   const ResourcePanel = () => null;
@@ -48,74 +49,84 @@ test("Market, Resources, Tasks and Inbox reuse one mounted encrypted owner works
   const sharedWorkspace = { lock() {}, owner: "session_A", authenticated: true };
   let workspaceCalls = 0;
   let pathname = "/";
-  const router = {
-    push: (href) => {
-      pathname = href;
-    },
-    replace: (href) => {
-      pathname = href;
+  const historyCalls = [];
+  const window = {
+    history: {
+      pushState: (_state, _title, href) => {
+        historyCalls.push(href);
+        pathname = href;
+      },
     },
   };
   const Sidebar = () => null;
   const noData = () => ({ data: null, loading: false, hasSettled: true, error: "" });
   const jsx = (type, props, key) => ({ type, props, key });
-  const module = compile("../components/WorkspaceShell.tsx", {
-    "next/navigation": { usePathname: () => pathname, useRouter: () => router },
-    "@/lib/workspace-routes": compile("../lib/workspace-routes.ts", {}),
-    react: {
-      useState(initial) {
-        const slot = index++;
-        if (!(slot in cells)) cells[slot] = { value: initial };
-        return [
-          cells[slot].value,
-          (next) => {
-            cells[slot].value = typeof next === "function" ? next(cells[slot].value) : next;
-          },
-        ];
+  const module = compile(
+    "../components/WorkspaceShell.tsx",
+    {
+      "next/navigation": {
+        usePathname: () => pathname,
+        useRouter: () => {
+          throw new Error("Server navigation would reload the stale client and lose its keys");
+        },
       },
-      useRef(value) {
-        const slot = index++;
-        cells[slot] ??= { current: value };
-        return cells[slot];
+      "@/lib/workspace-routes": compile("../lib/workspace-routes.ts", {}),
+      react: {
+        useState(initial) {
+          const slot = index++;
+          if (!(slot in cells)) cells[slot] = { value: initial };
+          return [
+            cells[slot].value,
+            (next) => {
+              cells[slot].value = typeof next === "function" ? next(cells[slot].value) : next;
+            },
+          ];
+        },
+        useRef(value) {
+          const slot = index++;
+          cells[slot] ??= { current: value };
+          return cells[slot];
+        },
+        useEffect() {},
       },
-      useEffect() {},
-    },
-    "react/jsx-runtime": { jsx, jsxs: jsx, Fragment: "fragment" },
-    "next-intl": { useLocale: () => "en", useTranslations: () => (key) => key },
-    "@/components/PreferencesProvider": {
-      usePreferences: () => ({ preferences: { defaultChartRange: "1m" }, resolvedTheme: "dark" }),
-    },
-    "@/components/SettingsPanel": { __esModule: true, default: () => null },
-    "@/components/ResourcesPanel": { __esModule: true, default: ResourcePanel },
-    "@/components/AgentsPanel": { __esModule: true, default: () => null },
-    "@/components/TasksPanel": { __esModule: true, default: TasksPanel },
-    "@/components/InboxPanel": { __esModule: true, default: InboxPanel },
-    "@/components/useHoldingsWorkspace": {
-      useHoldingsWorkspace: () => {
-        workspaceCalls++;
-        return sharedWorkspace;
+      "react/jsx-runtime": { jsx, jsxs: jsx, Fragment: "fragment" },
+      "next-intl": { useLocale: () => "en", useTranslations: () => (key) => key },
+      "@/components/PreferencesProvider": {
+        usePreferences: () => ({ preferences: { defaultChartRange: "1m" }, resolvedTheme: "dark" }),
       },
+      "@/components/SettingsPanel": { __esModule: true, default: () => null },
+      "@/components/ResourcesPanel": { __esModule: true, default: ResourcePanel },
+      "@/components/AgentsPanel": { __esModule: true, default: () => null },
+      "@/components/TasksPanel": { __esModule: true, default: TasksPanel },
+      "@/components/InboxPanel": { __esModule: true, default: InboxPanel },
+      "@/components/useHoldingsWorkspace": {
+        useHoldingsWorkspace: () => {
+          workspaceCalls++;
+          return sharedWorkspace;
+        },
+      },
+      "@/lib/ui-messages": { localizeMessage: (message) => message ?? "" },
+      "@/lib/inbox-link": {
+        clearInboxResultLink() {},
+        isAgentConsentHandoff: () => false,
+        readInboxResultLink: () => null,
+      },
+      "@/components/CandlestickChart": { CandlestickChart: () => null },
+      "@/components/InstrumentMetrics": { InstrumentMetrics: () => null },
+      "@/components/WorkspaceSidebar": { WorkspaceSidebar: Sidebar },
+      "@/components/useCachedMarketResource": { useCachedMarketResource: noData },
+      "@/components/useMarketResource": { useMarketResource: noData },
+      "@/components/PersonalWatchlist": {
+        PersonalWatchlist: () => null,
+        WatchlistAction: () => null,
+      },
+      "@/components/useWatchlist": { useWatchlist: () => ({ items: [], authenticated: false }) },
+      "@/components/useWatchlistQuotes": { useWatchlistQuotes: () => ({ quotes: {} }) },
+      "@/components/WatchlistNotification": { WatchlistNotification: () => null },
+      "@/lib/market-data": compile("../lib/market-data.ts", {}),
     },
-    "@/lib/ui-messages": { localizeMessage: (message) => message ?? "" },
-    "@/lib/inbox-link": {
-      clearInboxResultLink() {},
-      isAgentConsentHandoff: () => false,
-      readInboxResultLink: () => null,
-    },
-    "@/components/CandlestickChart": { CandlestickChart: () => null },
-    "@/components/InstrumentMetrics": { InstrumentMetrics: () => null },
-    "@/components/WorkspaceSidebar": { WorkspaceSidebar: Sidebar },
-    "@/components/useCachedMarketResource": { useCachedMarketResource: noData },
-    "@/components/useMarketResource": { useMarketResource: noData },
-    "@/components/PersonalWatchlist": {
-      PersonalWatchlist: () => null,
-      WatchlistAction: () => null,
-    },
-    "@/components/useWatchlist": { useWatchlist: () => ({ items: [], authenticated: false }) },
-    "@/components/useWatchlistQuotes": { useWatchlistQuotes: () => ({ quotes: {} }) },
-    "@/components/WatchlistNotification": { WatchlistNotification: () => null },
-    "@/lib/market-data": compile("../lib/market-data.ts", {}),
-  });
+    { window },
+  );
   const render = () => {
     index = 0;
     return module.default();
@@ -173,6 +184,7 @@ test("Market, Resources, Tasks and Inbox reuse one mounted encrypted owner works
   assert.equal(seeded.props.active, true);
   assert.equal(seeded.props.request.owner, "session_A");
   assert.deepEqual(seeded.props.request.binding, selection);
+  assert.deepEqual(historyCalls, ["/resources", "/inbox", "/tasks", "/market", "/tasks"]);
   sharedWorkspace.owner = "session_B";
   tree = render();
   assert.equal(find(tree, (node) => node.type === TasksPanel).tree.props.request, null);

@@ -302,3 +302,43 @@ test("workspace navigation exposes canonical links and retains native modified-c
   assert.deepEqual(sidebar.navigations, []);
   sidebar.unmount();
 });
+
+test("home and section links share local navigation while modified clicks keep their native destinations", () => {
+  const sidebar = mountSidebar();
+  const tree = sidebar.render();
+  for (const [name, href, view] of [
+    ["FolioView home", "/market", "markets"],
+    ["Resources", "/resources", "resources"],
+  ]) {
+    const link = button(tree, name);
+    assert.equal(link.type, "a");
+    assert.equal(link.props.href, href);
+    let prevented = false;
+    link.props.onClick({
+      button: 0,
+      preventDefault() {
+        prevented = true;
+      },
+    });
+    assert.equal(prevented, true);
+    assert.equal(sidebar.navigations.at(-1), view);
+    const before = sidebar.navigations.length;
+    for (const patch of [
+      { button: 1 },
+      { metaKey: true },
+      { ctrlKey: true },
+      { shiftKey: true },
+      { altKey: true },
+    ]) {
+      link.props.onClick({
+        button: 0,
+        ...patch,
+        preventDefault() {
+          throw Error("Modified click must stay native");
+        },
+      });
+      assert.equal(sidebar.navigations.length, before);
+    }
+  }
+  sidebar.unmount();
+});

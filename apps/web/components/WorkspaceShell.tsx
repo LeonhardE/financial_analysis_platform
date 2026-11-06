@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { workspaceHref, workspaceView } from "@/lib/workspace-routes";
 import { useLocale, useTranslations } from "next-intl";
 import { usePreferences } from "@/components/PreferencesProvider";
@@ -60,10 +60,10 @@ export default function WorkspaceShell() {
   const [overviewReload, setOverviewReload] = useState(0);
   const [chartReload, setChartReload] = useState(0);
   const pathname = usePathname();
-  const router = useRouter();
   const activeView = workspaceView(pathname) ?? "markets";
   const encryptedWorkspace = useHoldingsWorkspace();
   useEffect(() => {
+    let disposed = false;
     const route = () => {
       const target = isAgentConsentHandoff(window.location.search)
         ? "/agents"
@@ -71,16 +71,25 @@ export default function WorkspaceShell() {
           ? "/inbox"
           : null;
       if (target && target !== pathname)
-        router.replace(target + window.location.search + window.location.hash, { scroll: false });
+        window.history.replaceState(
+          null,
+          "",
+          target + window.location.search + window.location.hash,
+        );
     };
-    route();
+    // Let the parent App Router install its history integration before a
+    // first-load handoff changes the URL, so usePathname stays synchronized.
+    void Promise.resolve().then(() => {
+      if (!disposed) route();
+    });
     window.addEventListener("hashchange", route);
     window.addEventListener("popstate", route);
     return () => {
+      disposed = true;
       window.removeEventListener("hashchange", route);
       window.removeEventListener("popstate", route);
     };
-  }, [pathname, router]);
+  }, [pathname]);
   const linkedOwner = useRef<string | null>(null);
   useEffect(() => {
     if (linkedOwner.current && linkedOwner.current !== encryptedWorkspace.owner)
@@ -89,7 +98,10 @@ export default function WorkspaceShell() {
   }, [encryptedWorkspace.owner]);
   const navigate = (view: WorkspaceView) => {
     if (view !== "inbox") clearInboxResultLink();
-    router.push(workspaceHref(view), { scroll: false });
+    // All workspace views already live in this layout. A server transition can
+    // reload an older client after deployment and destroy its in-memory keys.
+    // Next's native-history integration updates usePathname without that fetch.
+    window.history.pushState(null, "", workspaceHref(view));
   };
   const [taskRequest, setTaskRequest] = useState<TaskRequest | null>(null);
   const taskRequestSerial = useRef(0);

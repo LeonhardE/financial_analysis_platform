@@ -176,6 +176,9 @@ function flow({ hash = "", search = "", owner = "A:1", locked = false, hidden = 
     ...windows,
     location,
     history: {
+      pushState(_state, _title, value) {
+        this.replaceState(_state, _title, value);
+      },
       replaceState(_state, _title, value) {
         const url = new URL(value, location.origin);
         Object.assign(location, { pathname: url.pathname, search: url.search, hash: url.hash });
@@ -367,10 +370,9 @@ function flow({ hash = "", search = "", owner = "A:1", locked = false, hidden = 
       react: pageHooks.react,
       "next/navigation": {
         usePathname: () => location.pathname,
-        useRouter: () => ({
-          push: (href) => window.history.replaceState(null, "", href),
-          replace: (href) => window.history.replaceState(null, "", href),
-        }),
+        useRouter: () => {
+          throw new Error("Workspace routes must not request a new server build");
+        },
       },
       "@/lib/workspace-routes": compile("../lib/workspace-routes.ts"),
       "react/jsx-runtime": { jsx, jsxs: jsx },
@@ -713,4 +715,28 @@ test("logout discards the old intent but a new anonymous link can be opened by t
   assert.equal(state.inbox.selected.metadata.revision, 2);
   assert.equal(state.inbox.selected.metadata.connectionId, "agent_B1");
   h.close();
+});
+
+test("first-load Agent and Inbox handoffs wait for parent router setup and ignore a disposed mount", async () => {
+  for (const [options, expected] of [
+    [{ search: "?agent_request=synthetic_request&agent_nonce=" + "n".repeat(43) }, "/agents"],
+    [{ hash: "#inbox/result/synthetic_result/revisions/1" }, "/inbox"],
+  ]) {
+    const h = flow({ ...options, owner: null });
+    h.render();
+    assert.equal(h.location.pathname, "/", "History cannot change during the initial child effect");
+    await h.settle();
+    assert.equal(h.location.pathname, expected);
+    assert.equal(h.render().active, expected.slice(1));
+    assert.equal(h.opens.length, 0);
+    h.close();
+  }
+  const h = flow({
+    owner: null,
+    search: "?agent_request=synthetic_request&agent_nonce=" + "n".repeat(43),
+  });
+  h.render();
+  h.close();
+  await settle();
+  assert.equal(h.location.pathname, "/");
 });
