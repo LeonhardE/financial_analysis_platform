@@ -6,7 +6,7 @@ const doc = document,
   status = doc.getElementById("status"),
   output = doc.getElementById("output"),
   offer = doc.getElementById("public-offer");
-let controller, ownerBridge, currentRun, reportOperation;
+let controller, ownerBridge, currentRun, reportOperation, analysisOperation;
 let pageGeneration = 0,
   busy = false;
 const reportFields = ["report-title", "report-summary", "report-limits"];
@@ -19,7 +19,8 @@ const clearPrivate = () => {
 const showState = (state) => {
   if (state.state === "LOCKED") {
     pageGeneration++;
-    currentRun = reportOperation = null;
+    currentRun = reportOperation = analysisOperation = null;
+    doc.getElementById("read-analysis").textContent = "Read approved task and start analysis";
     clearPrivate();
     sectionFields = [];
     doc.getElementById("report-sections").replaceChildren();
@@ -171,7 +172,11 @@ async function start() {
           await active.readPreparedObject(descriptor.objectId);
           check();
         }
-        const result = await active.beginRun(operation("analysis"));
+        analysisOperation ??= operation("analysis");
+        doc.getElementById("read-analysis").textContent = "Continue the original analysis";
+        doc.getElementById("analysis-state").textContent =
+          "Checking this analysis. If it is interrupted, continue the original analysis to check the same request.";
+        const result = await active.beginRun(analysisOperation);
         check();
         currentRun = result.run.runId;
         const pages = [],

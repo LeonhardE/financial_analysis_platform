@@ -1,27 +1,29 @@
 import { ForegroundController as A, ControllerDenied as s } from "./controller.mjs";
 import { OwnerHelperBridge as N } from "./owner-helper.mjs";
 var e = document,
-  y = window,
+  u = window,
   f = e.getElementById("status"),
   w = e.getElementById("output"),
   m = e.getElementById("public-offer"),
   o,
-  S,
+  k,
   h,
   p,
-  C = 0,
-  k = !1,
-  q = ["report-title", "report-summary", "report-limits"],
+  O,
+  x = 0,
+  S = !1,
+  J = ["report-title", "report-summary", "report-limits"],
   b = [],
   v = () => {
     e.getElementById("analysis-inputs").textContent = "";
-    for (let n of q) e.getElementById(n).value = "";
+    for (let n of J) e.getElementById(n).value = "";
     for (let n of b) n.input.value = "";
   },
-  J = (n) => {
+  P = (n) => {
     (n.state === "LOCKED" &&
-      (C++,
-      (h = p = null),
+      (x++,
+      (h = p = O = null),
+      (e.getElementById("read-analysis").textContent = "Read approved task and start analysis"),
       v(),
       (b = []),
       e.getElementById("report-sections").replaceChildren(),
@@ -40,37 +42,37 @@ var e = document,
             ? "Foreground session active. Agent access still requires your FolioView approval and exact encrypted delivery."
             : "Waiting for independent owner setup."));
   },
-  u = (n) => {
+  y = (n) => {
     f.textContent = `Operation refused: ${n instanceof s ? n.code : "controller_rejected"}.`;
   },
-  L = () =>
+  R = () =>
     new A({
-      issuer: y.location.origin,
-      developmentLoopback: ["localhost", "127.0.0.1", "[::1]"].includes(y.location.hostname),
-      onState: J,
+      issuer: u.location.origin,
+      developmentLoopback: ["localhost", "127.0.0.1", "[::1]"].includes(u.location.hostname),
+      onState: P,
     }),
-  x = async (n) => {
-    if (k || !o || e.visibilityState === "hidden") return;
-    k = !0;
+  C = async (n) => {
+    if (S || !o || e.visibilityState === "hidden") return;
+    S = !0;
     let E = o,
-      t = C,
+      t = x,
       a = () => {
-        if (E !== o || t !== C || E.status().state === "LOCKED" || e.visibilityState === "hidden")
+        if (E !== o || t !== x || E.status().state === "LOCKED" || e.visibilityState === "hidden")
           throw new s("foreground_required");
       };
     try {
       await n(E, a);
     } catch (i) {
-      t === C && u(i);
+      t === x && y(i);
     } finally {
-      k = !1;
+      S = !1;
     }
   },
-  R = (n) => `${n}_${crypto.randomUUID().replaceAll("-", "")}`;
-async function P() {
+  q = (n) => `${n}_${crypto.randomUUID().replaceAll("-", "")}`;
+async function T() {
   try {
-    if (y.top !== y || y.location.hash) throw new s("top_level_required");
-    let n = new URLSearchParams(y.location.search);
+    if (u.top !== u || u.location.hash) throw new s("top_level_required");
+    let n = new URLSearchParams(u.location.search);
     if (n.has("owner_nonce") || n.has("owner_origin")) {
       if ([...n.keys()].sort().join() !== "owner_nonce,owner_origin")
         throw new s("invalid_owner_pairing");
@@ -92,8 +94,8 @@ async function P() {
       } finally {
         clearTimeout(a);
       }
-      ((o = L()),
-        (S = new N({
+      ((o = R()),
+        (k = new N({
           config: i,
           controller: o,
           ownerOrigin: n.get("owner_origin"),
@@ -112,11 +114,11 @@ async function P() {
       (e.getElementById("initialize").addEventListener("click", async () => {
         try {
           if (o && o.status().state !== "LOCKED") throw new s("session_already_initialized");
-          o = L();
+          o = R();
           let t = await o.initialize(JSON.parse(e.getElementById("owner-card").value));
           m.textContent = JSON.stringify(t, null, 2);
         } catch (t) {
-          u(t);
+          y(t);
         }
       }),
         e.getElementById("confirm-delivery").addEventListener("click", async () => {
@@ -124,7 +126,7 @@ async function P() {
             if (!o) throw new s("owner_setup_required");
             await o.confirmDelivery({ pin: JSON.parse(e.getElementById("delivery-pin").value) });
           } catch (t) {
-            u(t);
+            y(t);
           }
         }));
     }
@@ -135,11 +137,11 @@ async function P() {
           (f.textContent =
             "Public key offer copied. Review it in your signed-in FolioView window."));
       } catch (t) {
-        u(t);
+        y(t);
       }
     }),
       e.getElementById("connect-transport").addEventListener("click", () =>
-        x(async (t, a) => {
+        C(async (t, a) => {
           let i = e.getElementById("transport-packet").value;
           if (((e.getElementById("transport-packet").value = ""), i.length > 12288))
             throw new s("invalid_transport");
@@ -150,13 +152,17 @@ async function P() {
         }),
       ),
       e.getElementById("read-analysis").addEventListener("click", () =>
-        x(async (t, a) => {
+        C(async (t, a) => {
           if (h || p) throw new s("analysis_already_started");
           v();
           let i = await t.loadPreparation();
           a();
           for (let c of i.objects) (await t.readPreparedObject(c.objectId), a());
-          let l = await t.beginRun(R("analysis"));
+          ((O ??= q("analysis")),
+            (e.getElementById("read-analysis").textContent = "Continue the original analysis"),
+            (e.getElementById("analysis-state").textContent =
+              "Checking this analysis. If it is interrupted, continue the original analysis to check the same request."));
+          let l = await t.beginRun(O);
           (a(), (h = l.run.runId));
           let r = [],
             I = new Set(),
@@ -170,15 +176,15 @@ async function P() {
           let B = r.find((c) => c.componentIndex === 0)?.payload?.outputSpec?.sections;
           if (!Array.isArray(B) || !B.length || B.length > 8) throw new s("invalid_response");
           (e.getElementById("report-sections").replaceChildren(),
-            (b = B.map((c, O) => {
+            (b = B.map((c, L) => {
               let _ = e.createElement("label"),
                 g = e.createElement("textarea");
               return (
-                (g.id = `report-section-${O}`),
+                (g.id = `report-section-${L}`),
                 (g.maxLength = 16384),
                 (g.autocomplete = "off"),
                 (_.htmlFor = g.id),
-                (_.textContent = `Section ${O + 1}`),
+                (_.textContent = `Section ${L + 1}`),
                 e.getElementById("report-sections").append(_, g),
                 { sectionId: c.sectionId, input: g }
               );
@@ -189,7 +195,7 @@ async function P() {
         }),
       ),
       e.getElementById("save-analysis").addEventListener("click", () =>
-        x(async (t, a) => {
+        C(async (t, a) => {
           if (!h || p) throw new s("run_required");
           let i = {
             title: e.getElementById("report-title").value,
@@ -212,7 +218,7 @@ async function P() {
             i.sections.some((r) => !r.markdown.trim())
           )
             throw new s("report_required");
-          let l = R("report");
+          let l = q("report");
           v();
           try {
             let r = await t.submitResult(h, l, i);
@@ -239,7 +245,7 @@ async function P() {
       ["retry-analysis", "replay"],
     ])
       e.getElementById(t).addEventListener("click", () =>
-        x(async (i, l) => {
+        C(async (i, l) => {
           if (!p) throw new s("run_required");
           let r = await i[a](p);
           (l(),
@@ -252,7 +258,7 @@ async function P() {
       try {
         m.textContent = JSON.stringify(o.publicOffer(), null, 2);
       } catch (t) {
-        u(t);
+        y(t);
       }
     }),
       e.getElementById("agent-run").addEventListener("click", async () => {
@@ -268,22 +274,22 @@ async function P() {
               (f.textContent =
                 "Original encrypted result saved to this device's outbox. This page has NOT verified a server save. Use the authenticated agent API; receipt/revision confirmation needs a trusted authenticated host.")));
         } catch (t) {
-          u(t);
+          y(t);
         }
       }),
       e.getElementById("lock").addEventListener("click", () => {
-        (S?.close("user_locked"), o?.lock(), (w.textContent = ""), (m.textContent = ""));
+        (k?.close("user_locked"), o?.lock(), (w.textContent = ""), (m.textContent = ""));
       }),
       e.addEventListener("visibilitychange", () => {
         (o?.setVisible(e.visibilityState !== "hidden"),
           e.visibilityState === "hidden" &&
             (v(), (w.textContent = ""), (e.getElementById("agent-args").value = "")));
       }),
-      y.addEventListener("pagehide", () => {
-        (S?.close("page_closed"), o?.lock(), v(), (w.textContent = ""), (m.textContent = ""));
+      u.addEventListener("pagehide", () => {
+        (k?.close("page_closed"), o?.lock(), v(), (w.textContent = ""), (m.textContent = ""));
       }));
   } catch (n) {
-    (u(n), (e.getElementById("agent-run").disabled = !0));
+    (y(n), (e.getElementById("agent-run").disabled = !0));
   }
 }
-P();
+T();

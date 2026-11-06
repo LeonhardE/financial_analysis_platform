@@ -128,6 +128,7 @@ export class ForegroundController {
   #pending = new Map();
   #requests = new Set();
   #metadata;
+  #pendingRun;
   #runs = new Map();
   #liveResults = new Set();
   #ttl;
@@ -339,6 +340,7 @@ export class ForegroundController {
     this.#assert(epoch);
     this.#pin = clone(pin);
     this.#metadata = undefined;
+    this.#pendingRun = undefined;
     this.#runs.clear();
     this.#liveResults.clear();
     this.#notify(this.status());
@@ -621,20 +623,48 @@ export class ForegroundController {
     const epoch = this.#epoch;
     this.#assert(epoch, true);
     identifier(operation);
-    const begin = await this.dispatchAgent({
-      op: "beginRun",
-      args: { stableOperationId: operation },
-    });
-    this.#assert(epoch, true);
-    const response = await this.#http(`/agent/v2/tasks/${this.#scope.taskId}/runs`, {
-      method: "POST",
-      json: { contractVersion: CONTRACT, signedBeginIntent: begin.signedBeginIntent },
-      operation,
-    });
-    this.#assert(epoch, true);
-    await this.dispatchAgent({ op: "installRun", args: { response } });
-    this.#assert(epoch, true);
-    return clone(response);
+    if (this.#pendingRun && this.#pendingRun.operation !== operation)
+      reject("original_run_pending");
+    if (this.#pendingRun?.busy) reject("transport_busy");
+    const pending = (this.#pendingRun ??= { operation, busy: false });
+    const check = () => {
+      this.#assert(epoch, true);
+      if (this.#pendingRun !== pending) reject("authority_changed");
+    };
+    pending.busy = true;
+    try {
+      if (!pending.begin) {
+        const begin = await this.dispatchAgent({
+          op: "beginRun",
+          args: { stableOperationId: operation },
+        });
+        check();
+        pending.begin = clone(begin);
+      }
+      if (!pending.response) {
+        const response = await this.#http(`/agent/v2/tasks/${this.#scope.taskId}/runs`, {
+          method: "POST",
+          json: { contractVersion: CONTRACT, signedBeginIntent: pending.begin.signedBeginIntent },
+          operation,
+        });
+        check();
+        pending.response = clone(response);
+      }
+      // A server-created Run can still fail local verification. Keep its exact
+      // response and original signed operation so an explicit continuation only
+      // rechecks that Run. An unknown POST outcome replays the same signed bytes.
+      const response = clone(pending.response);
+      await this.dispatchAgent({ op: "installRun", args: { response } });
+      check();
+      this.#pendingRun = undefined;
+      return response;
+    } catch (error) {
+      // No request can have reached the server before BeginRunIntent signing.
+      if (!pending.begin && this.#pendingRun === pending) this.#pendingRun = undefined;
+      throw error;
+    } finally {
+      pending.busy = false;
+    }
   }
   async readRunPage(runId, cursor = null) {
     const epoch = this.#epoch;
@@ -798,6 +828,7 @@ export class ForegroundController {
     if (this.#objectUrl) URL.revokeObjectURL(this.#objectUrl);
     this.#worker = this.#owner = this.#agent = undefined;
     this.#token = this.#principal = this.#metadata = this.#pin = this.#offer = undefined;
+    this.#pendingRun = undefined;
     this.#runs.clear();
     this.#liveResults.clear();
     this.#notify({ ...this.status(), reason });

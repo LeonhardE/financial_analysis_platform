@@ -44,6 +44,15 @@ starts a signed Run and decrypts its frozen input pages. Muse reads those inputs
 report title, summary, analysis and limitations. The explicit save action encrypts to the
 existing approved owner/recovery recipients and submits via the existing result API.
 
+If starting the analysis is interrupted, **Continue the original analysis** retains the same
+operation. The controller keeps one unresolved signed Begin Run request in memory. After receiving
+a server response, continuation rechecks those identical bytes in the Worker without another
+Begin Run POST. When the POST outcome is unknown, it replays the original signed request under
+the same operation. Another operation is refused until that Run is accepted or the session ends.
+Every continuation still performs the original lifetime, signature and scope checks; it cannot
+extend an expiry or turn an untrusted Run into an accepted one. These records do not survive a
+closed, locked or expired helper session and contain no decrypted input or report.
+
 The UI says saved only after an authenticated, verified server receipt. A lost response retains
 the existing exact signed ciphertext outbox and original operation; check/retry never reseals
 another report. Hidden/locked/closed sessions clear private views and late callbacks cannot

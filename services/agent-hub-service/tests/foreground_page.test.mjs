@@ -32,6 +32,7 @@ function fixture() {
   let state = "ABSENT",
     notify = () => {},
     readHold,
+    beginFailures = 0,
     loseSave = false;
   class Denied extends Error {
     constructor(code) {
@@ -73,6 +74,10 @@ function fixture() {
     }
     beginRun(id) {
       calls.push(["beginRun", id]);
+      if (beginFailures > 0) {
+        beginFailures--;
+        throw new Denied("run_expired_or_untrusted");
+      }
       return { run: { runId: "run_synthetic" } };
     }
     async readRunPage() {
@@ -165,6 +170,9 @@ function fixture() {
     lose() {
       loseSave = true;
     },
+    refuseBegin() {
+      beginFailures++;
+    },
     hold(value) {
       readHold = value;
     },
@@ -224,6 +232,36 @@ test("lost save response retains one original operation; explicit receipt/retry 
     f.calls.filter((c) => ["recoverReceipt", "replay"].includes(c[0])).map((c) => c[1]),
     [id, id],
   );
+});
+test("a refused Run continuation keeps the original operation and still completes the report", async () => {
+  const f = fixture();
+  await f.setup();
+  f.refuseBegin();
+  await f.click("read-analysis");
+  assert(f.fields.get("status").textContent.includes("run_expired_or_untrusted"));
+  assert.equal(f.fields.get("read-analysis").textContent, "Continue the original analysis");
+  const first = f.calls.find((c) => c[0] === "beginRun")[1];
+  await f.click("read-analysis");
+  assert.deepEqual(
+    f.calls.filter((c) => c[0] === "beginRun").map((c) => c[1]),
+    [first, first],
+  );
+  f.fill();
+  await f.click("save-analysis");
+  assert.equal(f.calls.filter((c) => c[0] === "submitResult").length, 1);
+  assert(f.fields.get("save-state").textContent.includes("Saved to Inbox"));
+});
+test("ending a session clears its original analysis operation", async () => {
+  const f = fixture();
+  await f.setup();
+  f.refuseBegin();
+  await f.click("read-analysis");
+  const first = f.calls.find((c) => c[0] === "beginRun")[1];
+  await f.click("lock");
+  await f.setup();
+  await f.click("read-analysis");
+  const last = f.calls.filter((c) => c[0] === "beginRun").at(-1)[1];
+  assert.notEqual(last, first);
 });
 test("hidden or locked sessions clear private fields and reject a late input result", async () => {
   const f = fixture();

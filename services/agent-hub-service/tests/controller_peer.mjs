@@ -6,7 +6,9 @@ import { readFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
 const nextRelease = process.env.FOLIOVIEW_TEST_FOREGROUND_TRANSPORT === "1";
 const release = nextRelease ? "../helper/releases/1.3.0/" : "../helper/";
-const { ForegroundController, CiphertextOutbox } = await import(release + "dist/controller.mjs");
+const { ForegroundController, CiphertextOutbox, ControllerDenied } = await import(
+  release + "dist/controller.mjs"
+);
 import { IDBFactory, IDBKeyRange } from "./fixtures/idb-runtime.mjs";
 globalThis.MessagePort = MessagePort;
 globalThis.MessageChannel = MessageChannel;
@@ -19,6 +21,7 @@ const pendingHTTP = new Map(),
   requests = [];
 let httpCounter = 0,
   now = 1000000,
+  runInstallRefusals = 0,
   controller,
   storage;
 async function fetchImpl(url, options = {}) {
@@ -77,9 +80,23 @@ const create = () => {
       return worker;
     },
   });
+  const dispatch = controller.dispatchAgent.bind(controller);
+  controller.dispatchAgent = async (message) => {
+    if (message.op === "installRun" && runInstallRefusals > 0) {
+      runInstallRefusals--;
+      throw new ControllerDenied("run_expired_or_untrusted");
+    }
+    return dispatch(message);
+  };
 };
 create();
 async function execute(command) {
+  if (command.refuseRunInstalls !== undefined) {
+    if (!Number.isSafeInteger(command.refuseRunInstalls) || command.refuseRunInstalls < 0)
+      throw new Error("test_run_install_refusals");
+    runInstallRefusals = command.refuseRunInstalls;
+    return true;
+  }
   if (command.authRace) {
     if (command.authRace.mode === "whileRequest") {
       const reading = controller.loadPreparation();
