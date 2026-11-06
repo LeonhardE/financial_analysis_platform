@@ -16,6 +16,8 @@ from folioview_shared.encrypted.jsonutil import b64url_decode, b64url_encode
 
 
 class RunHelperTests(unittest.TestCase):
+    max_fetched_age_seconds = 60
+
     def setUp(self):
         from test_encrypted_schema import wrapper
 
@@ -25,7 +27,7 @@ class RunHelperTests(unittest.TestCase):
                 value["payload"]["inputPolicy"] = {
                     "allowPartial": False,
                     "allowUnknownAsOf": False,
-                    "maxFetchedAgeSeconds": 60,
+                    "maxFetchedAgeSeconds": self.max_fetched_age_seconds,
                 }
             else:
                 p = value["payload"]

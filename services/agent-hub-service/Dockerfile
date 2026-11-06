@@ -20,6 +20,10 @@ COPY services/agent-hub-service/helper/releases/1.3.0/dist ./helper/releases/1.3
 COPY services/agent-hub-service/helper/releases/1.3.0/static ./helper/releases/1.3.0/static
 COPY services/agent-hub-service/helper/releases/1.3.0/integrity.json ./helper/releases/1.3.0/integrity.json
 COPY services/agent-hub-service/helper/releases/1.3.0/protocol.json ./helper/releases/1.3.0/protocol.json
+COPY services/agent-hub-service/helper/releases/1.4.0/dist ./helper/releases/1.4.0/dist
+COPY services/agent-hub-service/helper/releases/1.4.0/static ./helper/releases/1.4.0/static
+COPY services/agent-hub-service/helper/releases/1.4.0/integrity.json ./helper/releases/1.4.0/integrity.json
+COPY services/agent-hub-service/helper/releases/1.4.0/protocol.json ./helper/releases/1.4.0/protocol.json
 
 USER appuser
 EXPOSE 8080

@@ -12,7 +12,7 @@ from jwcrypto import jwe
 from test_oauth import TASK
 
 from app.agent_tools import AgentTools
-from app.foreground_transport import PROFILE, ForegroundTransportService
+from app.foreground_transport import EXTENDED_PROFILE, PROFILE, ForegroundTransportService
 from app.oauth import OAuthFailure
 from folioview_shared.encrypted.constants import CONTRACT_VERSION
 from folioview_shared.encrypted.errors import ContractError
@@ -117,6 +117,16 @@ class ForegroundTransportControllerTests(unittest.TestCase):
         )
         self.assertFalse(result["ok"])
         self.assertEqual(result["error"], "unsupported_operation")
+        self.assertFalse(self.peer.api("status")["authenticatedTransport"])
+
+    def test_extended_profile_cannot_silently_upgrade_the_original_worker(self):
+        packet = ForegroundTransportService(self.case.oauth).seal(
+            self.token, TASK, profile=EXTENDED_PROFILE
+        )
+        self.assertEqual(
+            self.peer.api("connectTransport", packet, ok=False)["error"],
+            "transport_binding_mismatch",
+        )
         self.assertFalse(self.peer.api("status")["authenticatedTransport"])
 
     def test_wrong_scope_corrupt_ciphertext_and_expiry_never_authenticate(self):

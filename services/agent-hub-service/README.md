@@ -603,8 +603,10 @@ real remote Muse and broker integration remain separate acceptance scopes.
 
 ## Foreground controller code stage
 
-The additive [authenticated foreground release 1.3.0](FOREGROUND_TRANSPORT.md) provides the
-closed `get_foreground_transport_v2` MCP tool and versioned browser assets. It transfers only
+The additive [authenticated foreground releases](FOREGROUND_TRANSPORT.md) provide the
+closed `get_foreground_transport_v2` (helper 1.3.0, 60 seconds) and
+`get_foreground_transport_v3` (helper 1.4.0, at most 300 seconds) MCP tools and versioned assets.
+Both handoffs are capped by original credential and approval expiry. They transfer only
 recipient-encrypted connection ciphertext through the model, then reuses the existing
 authenticated preparation/Run/result APIs. Legacy helper paths and bytes remain available.
 Production Muse registration/activation and the Web hash consumer are separate rollout steps.

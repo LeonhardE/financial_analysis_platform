@@ -13,6 +13,8 @@ from folioview_shared.encrypted.jsonutil import canonical_json
 from .preparations import PreparationService
 
 PROFILE = "folioview.foreground-transport.v1"
+EXTENDED_PROFILE = "folioview.foreground-transport.v2"
+HANDOFF_SECONDS = {PROFILE: 60, EXTENDED_PROFILE: 300}
 TYPE = "fv-foreground-transport+jwe"
 MAX_BYTES = 8192
 
@@ -22,7 +24,9 @@ class ForegroundTransportService:
         self.oauth, self.store = oauth, oauth.store
         self.preparations = PreparationService(oauth)
 
-    def seal(self, token, task_id):
+    def seal(self, token, task_id, *, profile=PROFILE):
+        if profile not in HANDOFF_SECONDS:
+            raise ContractError("malformed_request")
         # Read producer/source authority before the transaction, then compare
         # the exact snapshot against fresh token, task, grant and registry state.
         before = self.preparations.metadata(token, task_id)
@@ -46,11 +50,16 @@ class ForegroundTransportService:
             recipient_id = grant["agentEncryptionKeyId"]
             recipient = registry.certificates[recipient_id]["publicJwk"]
             now = self.oauth.now()
-            expires = min(now + 60, principal.expires_at, grant["expiresAt"], conn["expiresAt"])
+            expires = min(
+                now + HANDOFF_SECONDS[profile],
+                principal.expires_at,
+                grant["expiresAt"],
+                conn["expiresAt"],
+            )
             if expires <= now:
                 raise ContractError("insufficient_scope")
             value = {
-                "profile": PROFILE,
+                "profile": profile,
                 "contractVersion": CONTRACT_VERSION,
                 "issuer": self.oauth.config.issuer,
                 "ownerSubject": principal.owner_subject,
@@ -86,7 +95,7 @@ class ForegroundTransportService:
             credential = message.serialize(compact=True)
             result = {
                 "contractVersion": CONTRACT_VERSION,
-                "profile": PROFILE,
+                "profile": profile,
                 "taskId": task_id,
                 "connectionId": principal.connection_id,
                 "preparationId": prepared["preparationId"],

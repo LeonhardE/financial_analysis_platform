@@ -1,5 +1,28 @@
 # Authenticated foreground Muse transport
 
+## Versioned browser handoff window
+
+Helper 1.4.0 uses the additive `get_foreground_transport_v3` tool and
+`folioview.foreground-transport.v2` packet profile. Its handoff lasts at most 300 seconds,
+clipped to the existing access token, task grant and connection expiry. This accommodates
+the actual Muse file-permission and browser handoff latency observed in production.
+It never refreshes or extends a credential, grant, Run or foreground Worker session.
+
+The tool still accepts only `contractVersion` and `taskId`; callers cannot choose a lifetime,
+recipient or URL. The new Worker rejects expired packets, a validity window over 300 seconds,
+wrong profile/bindings and model-port token access. It authenticates the original bearer
+against the same issuer before use. Profile v1 and helper 1.3.0 remain a matched, unchanged
+60-second path; sending one version's packet to the other helper fails closed.
+
+The explicit new config is `/agent/v2/controller/config/1.4.0`, with assets under
+`/agent/v2/helper/1.4.0/`. The Web consumer must independently pin the new Worker in a separate
+PR. Existing open helpers keep their original Worker and expiry; upgrading requires a new
+helper and explicit recipient review. The owner library's private keys never migrate through
+the helper or this packet. A fresh-packet retry after expiry preserves live original helper
+keys, Run and ciphertext outbox; a locked or expired Worker cannot be revived.
+
+## Legacy 1.3.0 path
+
 Helper 1.3.0 adds a browser-consumable connection to the existing approved OAuth grant. Legacy
 1.2.0 default config/asset paths and Worker bytes remain available. The new config is
 `/agent/v2/controller/config/1.3.0`; assets use `/agent/v2/helper/1.3.0/`. A separate Web delivery

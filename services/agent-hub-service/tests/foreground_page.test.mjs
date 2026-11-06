@@ -2,7 +2,9 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import vm from "node:vm";
-const root = new URL("../helper/releases/1.3.0/", import.meta.url);
+const releaseVersion = process.env.FOLIOVIEW_TEST_HELPER_RELEASE ?? "1.3.0";
+if (!["1.3.0", "1.4.0"].includes(releaseVersion)) throw new Error("test_release_not_allowed");
+const root = new URL(`../helper/releases/${releaseVersion}/`, import.meta.url);
 const html = await readFile(new URL("static/controller.html", root), "utf8");
 const script = (await readFile(new URL("src/controller-page.mjs", root), "utf8"))
   .replace(/^import .* from "\.\/controller.mjs";$/m, "")
@@ -44,7 +46,8 @@ function fixture() {
     beginFailures = 0,
     pageFailures = 0,
     expiredAccess = false,
-    loseSave = false;
+    loseSave = false,
+    expirePacket = false;
   class Denied extends Error {
     constructor(code) {
       super(code);
@@ -73,6 +76,7 @@ function fixture() {
     }
     connectTransport(packet) {
       calls.push(["connectTransport", packet]);
+      if (expirePacket) throw new Denied("transport_expired");
       return {};
     }
     loadPreparation() {
@@ -193,6 +197,9 @@ function fixture() {
     expireAccess() {
       expiredAccess = true;
     },
+    expirePacket() {
+      expirePacket = true;
+    },
     expirePageRead() {
       pageFailures++;
     },
@@ -222,6 +229,22 @@ function fixture() {
     },
   };
 }
+
+test("packet expiry keeps the original initialized helper and report draft", async () => {
+  const f = fixture();
+  await f.setup();
+  await f.click("read-analysis");
+  f.fill();
+  f.expirePacket();
+  f.fields.get("transport-packet").value = JSON.stringify({ credential: "synthetic_expired" });
+  await f.click("connect-transport");
+  assert.equal(f.fields.get("report-title").value, "Synthetic title");
+  assert.equal(f.calls.filter((c) => c[0] === "initialize").length, 1);
+  if (releaseVersion === "1.4.0") {
+    assert.match(f.fields.get("status").textContent, /same session/);
+    assert.match(html, /get_foreground_transport_v3/);
+  } else assert.match(f.fields.get("status").textContent, /transport_expired/);
+});
 test("rendering never authenticates or performs an agent/network operation", () => {
   const f = fixture();
   assert.equal(f.calls.length, 0);

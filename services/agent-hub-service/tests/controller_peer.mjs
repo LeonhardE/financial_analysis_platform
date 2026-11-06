@@ -5,7 +5,10 @@ import { Worker, MessagePort, MessageChannel } from "node:worker_threads";
 import { readFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
 const nextRelease = process.env.FOLIOVIEW_TEST_FOREGROUND_TRANSPORT === "1";
-const release = nextRelease ? "../helper/releases/1.3.0/" : "../helper/";
+const releaseVersion = process.env.FOLIOVIEW_TEST_HELPER_RELEASE ?? (nextRelease ? "1.3.0" : null);
+if (releaseVersion !== null && !["1.3.0", "1.4.0"].includes(releaseVersion))
+  throw new Error("test_release_not_allowed");
+const release = releaseVersion ? `../helper/releases/${releaseVersion}/` : "../helper/";
 const { ForegroundController, CiphertextOutbox, ControllerDenied } = await import(
   release + "dist/controller.mjs"
 );
@@ -31,7 +34,9 @@ async function fetchImpl(url, options = {}) {
   if (this !== undefined) throw new TypeError("Illegal invocation");
   if (
     new URL(url).pathname ===
-    (nextRelease ? "/agent/v2/helper/1.3.0/worker.mjs" : "/agent/v2/helper/worker.mjs")
+    (releaseVersion
+      ? `/agent/v2/helper/${releaseVersion}/worker.mjs`
+      : "/agent/v2/helper/worker.mjs")
   )
     return new Response(workerBytes, {
       headers: { "Content-Type": "text/javascript; charset=utf-8" },
@@ -96,6 +101,25 @@ const create = () => {
 };
 create();
 async function execute(command) {
+  if (command.advanceTime !== undefined) {
+    if (!Number.isSafeInteger(command.advanceTime) || command.advanceTime < 0)
+      throw new Error("test_clock_advance");
+    now += command.advanceTime;
+    await Promise.all(
+      workers.map(
+        (worker) =>
+          new Promise((resolve, reject) => {
+            worker.once("message", (reply) =>
+              reply?.fixtureClockAdvanced === true
+                ? resolve()
+                : reject(new Error("test_clock_ack")),
+            );
+            worker.postMessage({ fixtureAdvanceTime: command.advanceTime });
+          }),
+      ),
+    );
+    return true;
+  }
   if (command.clockAfterResponse) {
     const value = command.clockAfterResponse;
     if (!value.path?.startsWith("/agent/v2/") || !Number.isSafeInteger(value.now))
@@ -179,7 +203,7 @@ async function execute(command) {
   const message = command.message;
   if (command.trusted && message.op === "initialize")
     return controller.initialize({
-      helperVersion: nextRelease ? "1.3.0" : "1.2.0",
+      helperVersion: releaseVersion ?? "1.2.0",
       workerSha256,
       anchor: message.args.anchor,
       ttlSeconds: message.args.ttlSeconds,
