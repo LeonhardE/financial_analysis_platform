@@ -34,6 +34,16 @@ OP, REVISION_OP = result_fixtures.OP, result_fixtures.REVISION_OP
 
 
 class MCPTests(unittest.IsolatedAsyncioTestCase):
+    async def test_versioned_handoff_tools_are_explicit_over_actual_sdk(self):
+        async with self.client() as client:
+            for tool, profile in [
+                ("get_foreground_transport_v2", "folioview.foreground-transport.v1"),
+                ("get_foreground_transport_v3", "folioview.foreground-transport.v2"),
+            ]:
+                packet = await self.tool(client, tool, taskId=TASK)
+                self.assertEqual(packet["profile"], profile)
+                self.assertNotIn(self.token, json.dumps(packet))
+
     def setUp(self):
         self.case = result_fixtures.ResultTests()
         self.case.setUp()

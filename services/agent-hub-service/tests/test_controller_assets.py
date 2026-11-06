@@ -12,6 +12,43 @@ from app.main import app
 
 
 class ControllerAssetsTests(unittest.TestCase):
+    def test_extended_release_is_pinned_gated_and_does_not_replace_legacy_assets(self):
+        import hashlib
+
+        old = self.client.get("/agent/v2/controller/config/1.3.0").json()
+        new = self.client.get("/agent/v2/controller/config/1.4.0").json()
+        self.assertEqual(new["helperVersion"], "1.4.0")
+        self.assertEqual(new["workerPath"], "/agent/v2/helper/1.4.0/worker.mjs")
+        self.assertNotEqual(new["workerSha256"], old["workerSha256"])
+        manifest = self.client.get("/agent/v2/helper/1.4.0/integrity.json").json()
+        for name in [
+            "controller.html",
+            "controller.css",
+            "controller.mjs",
+            "worker.mjs",
+            "owner-helper.mjs",
+            "controller-page.mjs",
+            "protocol.json",
+        ]:
+            response = self.client.get("/agent/v2/helper/1.4.0/" + name)
+            self.assertEqual(response.status_code, 200)
+            prefix = (
+                "static/"
+                if name.endswith((".html", ".css"))
+                else "dist/"
+                if name.endswith(".mjs")
+                else ""
+            )
+            self.assertEqual(
+                hashlib.sha256(response.content).hexdigest(), manifest["files"][prefix + name]
+            )
+        self.assertEqual(self.client.get("/agent/v2/helper/1.4.0/idb-runtime.mjs").status_code, 404)
+        with patch.dict(os.environ, {"HUB_OAUTH_ENABLED": "0"}):
+            self.assertEqual(self.client.get("/agent/v2/controller/config/1.4.0").status_code, 503)
+            self.assertEqual(
+                self.client.get("/agent/v2/helper/1.4.0/controller.html").status_code, 503
+            )
+
     def setUp(self):
         self.environment = {
             "HUB_ENCRYPTED_ADAPTER_ENABLED": "1",

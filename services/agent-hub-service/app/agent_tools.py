@@ -21,7 +21,7 @@ from folioview_shared.encrypted.jsonutil import (
 )
 from folioview_shared.encrypted.schema import load_schema, validate_schema
 
-from .foreground_transport import ForegroundTransportService
+from .foreground_transport import EXTENDED_PROFILE, ForegroundTransportService
 from .oauth import OAuthFailure
 from .preparations import PreparationService, copy
 from .results import ResultService
@@ -38,6 +38,7 @@ INPUTS = {
     ),
     "get_task_v2": ({"taskId": ID}, ("taskId",)),
     "get_foreground_transport_v2": ({"taskId": ID}, ("taskId",)),
+    "get_foreground_transport_v3": ({"taskId": ID}, ("taskId",)),
     "begin_run_v2": ({"signedIntent": SIGNED}, ("signedIntent",)),
     "get_run_inputs_v2": ({"runId": ID, "cursor": CURSOR}, ("runId",)),
     "submit_task_result_v2": ({"runId": ID, "signedObject": SIGNED}, ("runId", "signedObject")),
@@ -65,6 +66,7 @@ SCOPES = {
     "list_tasks_v2": "tasks:read",
     "get_task_v2": "tasks:read",
     "get_foreground_transport_v2": "tasks:read",
+    "get_foreground_transport_v3": "tasks:read",
     "begin_run_v2": "runs:create",
     "get_run_inputs_v2": "runs:read",
     "submit_task_result_v2": "results:create",
@@ -251,6 +253,10 @@ class AgentTools:
             value = self.get_task(token, a["taskId"])
         elif name == "get_foreground_transport_v2":
             value = ForegroundTransportService(self.oauth).seal(token, a["taskId"])
+        elif name == "get_foreground_transport_v3":
+            value = ForegroundTransportService(self.oauth).seal(
+                token, a["taskId"], profile=EXTENDED_PROFILE
+            )
         elif name == "begin_run_v2":
             _, intent = _signed_parts(a["signedIntent"], max_bytes=MAX_CONTROL_BYTES)
             validate_schema("BeginRunIntent", intent)

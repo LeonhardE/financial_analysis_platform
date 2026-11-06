@@ -34,6 +34,7 @@ FILES = {
 }
 router = APIRouter(dependencies=[Depends(require_adapter)])
 NEXT = ROOT / "releases" / "1.3.0"
+EXTENDED = ROOT / "releases" / "1.4.0"
 NEXT_FILES = {
     key: value
     for key, value in FILES.items()
@@ -48,11 +49,20 @@ def helper_asset(asset: str):
 
 @router.get("/agent/v2/helper/1.3.0/{asset}", include_in_schema=False)
 def foreground_asset(asset: str):
+    return _foreground_asset(asset, NEXT)
+
+
+@router.get("/agent/v2/helper/1.4.0/{asset}", include_in_schema=False)
+def extended_foreground_asset(asset: str):
+    return _foreground_asset(asset, EXTENDED)
+
+
+def _foreground_asset(asset, root):
     try:
         OAuthConfig.environment()
     except (ValueError, ContractError):
         raise HTTPException(503, "Foreground transport unavailable") from None
-    return _asset_response(asset, NEXT, NEXT_FILES)
+    return _asset_response(asset, root, NEXT_FILES)
 
 
 def _asset_response(asset, root, files):
@@ -131,13 +141,18 @@ def foreground_configuration(request: Request):
     return _configuration(request, "1.3.0")
 
 
+@router.get("/agent/v2/controller/config/1.4.0", include_in_schema=False)
+def extended_foreground_configuration(request: Request):
+    return _configuration(request, "1.4.0")
+
+
 def _configuration(request, version=None):
     try:
         if request.query_params:
             raise ValueError
         config = OAuthConfig.environment()
         origins = _owner_origins()
-        root = NEXT if version else ROOT
+        root = {None: ROOT, "1.3.0": NEXT, "1.4.0": EXTENDED}[version]
         integrity = strict_json_loads((root / "integrity.json").read_bytes(), max_bytes=131_072)
         worker_hash = integrity["files"]["dist/worker.mjs"]
         if len(worker_hash) != 64 or any(c not in "0123456789abcdef" for c in worker_hash):
