@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
-import Link from "next/link";
 import { workspaceHref, type WorkspaceView } from "@/lib/workspace-routes";
 import { useTranslations } from "next-intl";
 import { AccountControls } from "@/components/AccountControls";
@@ -142,7 +141,7 @@ export function WorkspaceSidebar({
         onKeyDown={handleKeyDown}
       >
         <div className={styles.brandArea}>
-          <Link
+          <a
             className={styles.brand}
             href="/market"
             onClick={(event) => {
@@ -151,10 +150,12 @@ export function WorkspaceSidebar({
                 !event.metaKey &&
                 !event.ctrlKey &&
                 !event.shiftKey &&
-                !event.altKey &&
-                compactScreen
-              )
-                setMobileOpen(false);
+                !event.altKey
+              ) {
+                event.preventDefault();
+                onNavigate("markets");
+                if (compactScreen) setMobileOpen(false);
+              }
             }}
             aria-label={t("nav.home")}
             title={compact ? "FolioView" : undefined}
@@ -166,7 +167,7 @@ export function WorkspaceSidebar({
             <strong className={styles.label}>
               Folio<span>View</span>
             </strong>
-          </Link>
+          </a>
           <p className={`${styles.slogan} ${styles.label}`}>{t("nav.workspace")}</p>
           <button
             ref={toggle}
@@ -202,7 +203,7 @@ export function WorkspaceSidebar({
           <nav className={styles.navigation} aria-label={t("nav.primary")}>
             {(["markets", "resources", "tasks", "agents", "inbox", "settings"] as const).map(
               (view) => (
-                <Link
+                <a
                   key={view}
                   href={workspaceHref(view)}
                   aria-label={t(`nav.${view}`)}
@@ -225,7 +226,7 @@ export function WorkspaceSidebar({
                 >
                   <NavigationIcon view={view} />
                   <span className={styles.label}>{t(`nav.${view}`)}</span>
-                </Link>
+                </a>
               ),
             )}
           </nav>
