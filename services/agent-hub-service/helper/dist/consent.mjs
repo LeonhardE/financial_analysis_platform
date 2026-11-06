@@ -1,6 +1,6 @@
-var m = "folioview.owner-consent-bridge.v1",
-  g = "folioview.agent-workspace.v2.0",
-  x = new TextEncoder(),
+var m = "folioview.owner-consent-bridge.v1";
+var g = "folioview.agent-workspace.v2.0",
+  C = new TextEncoder(),
   u = class extends Error {
     constructor(e = "bridge_rejected") {
       (super(e), (this.code = e));
@@ -20,7 +20,7 @@ var m = "folioview.owner-consent-bridge.v1",
     (typeof i != "string" || !/^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/.test(i)) && r("invalid_message"),
     i
   ),
-  z = new Set([
+  x = new Set([
     "tasks:read",
     "runs:create",
     "runs:read",
@@ -31,7 +31,7 @@ var m = "folioview.owner-consent-bridge.v1",
     "channel_follows:read",
     "portfolio:read",
   ]),
-  C = (i, e) => {
+  z = (i, e) => {
     if (
       (h(
         e,
@@ -52,7 +52,7 @@ var m = "folioview.owner-consent-bridge.v1",
         !e.approvedScopes.length ||
         e.approvedScopes.length > 9 ||
         new Set(e.approvedScopes).size !== e.approvedScopes.length ||
-        e.approvedScopes.some((s) => !z.has(s)) ||
+        e.approvedScopes.some((s) => !x.has(s)) ||
         e.historyPolicy !== "selected") &&
         r("invalid_message"),
         e.taskIds.forEach(f));
@@ -178,7 +178,7 @@ var y = class {
       .replaceAll("=", "")),
       t.addEventListener("message", this.#m),
       t.addEventListener("pagehide", this.#_),
-      (this.#y = setTimeout(() => this.close("bridge_expired"), 6e5)));
+      (this.#y = setTimeout(() => this.close("bridge_expired"), 18e5)));
   }
   open(e) {
     ((this.#i || this.#e || !this.#o.ownerOrigins.includes(e)) && r("invalid_owner_origin"),
@@ -236,7 +236,7 @@ var y = class {
       d = !1;
     try {
       ((this.#i || this.#h) && r("bridge_busy"),
-        x.encode(JSON.stringify(e)).length > 131072 && r("payload_too_large"),
+        C.encode(JSON.stringify(e)).length > 131072 && r("payload_too_large"),
         h(e, ["id", "profile", "requestId", "op", "authorization", "json"]),
         (s = f(e.id)),
         (e.profile !== m ||
@@ -248,7 +248,7 @@ var y = class {
           this.#p.has(s) ||
           this.#p.size >= 128) &&
           r("invalid_message"),
-        C(e.op, e.json),
+        z(e.op, e.json),
         e.op !== "claim" && !this.#r && r("claim_required"),
         this.#p.add(s),
         (this.#h = !0),

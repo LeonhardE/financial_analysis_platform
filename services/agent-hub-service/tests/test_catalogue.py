@@ -1,6 +1,7 @@
 """Owner discovery over real synthetic two-token proofs and metadata-only producers."""
 
 import json
+import logging
 import tempfile
 import threading
 import unittest
@@ -198,6 +199,54 @@ class CatalogueFixture:
 
 
 class CatalogueTests(CatalogueFixture, unittest.TestCase):
+    def test_cold_producer_read_fits_budget_but_over_budget_source_stays_unavailable(self):
+        for delay, expected in ((6.3, "active"), (8.1, "unavailable")):
+            clock, timeouts = [100.0], []
+
+            def cold_source(request, clock=clock, timeouts=timeouts, delay=delay):
+                if request.url.host == "portfolio.synthetic.example":
+                    timeout = request.extensions["timeout"]
+                    timeouts.append(timeout)
+                    self.assertLessEqual(timeout["read"], 112.0 - clock[0])
+                    self.assertLessEqual(timeout["connect"], 4.0)
+                    if request.url.path.endswith("states/read"):
+                        if timeout["read"] < delay:
+                            raise httpx.ReadTimeout("PRIVATE_COLD_START", request=request)
+                        clock[0] += delay
+                return self.handle(request)
+
+            result = self.read(
+                sources=self.make_sources(
+                    clock=lambda clock=clock: clock[0], transport=httpx.MockTransport(cold_source)
+                )
+            )
+            self.assertEqual(result["groups"][0]["items"][0]["state"], expected)
+            self.assertEqual(timeouts[0]["read"], 8.0)
+            if expected == "active":
+                self.assertAlmostEqual(timeouts[1]["read"], 5.7)
+
+    def test_closed_refusal_diagnostic_survives_mcp_root_logging_level(self):
+        records = []
+
+        class Capture(logging.Handler):
+            def emit(self, record):
+                records.append(record.getMessage())
+
+        root, logger = logging.getLogger(), logging.getLogger("app.catalogue")
+        previous = root.level
+        handler = Capture()
+        logger.addHandler(handler)
+        root.setLevel(logging.CRITICAL)
+        self.fail_source = SOURCE
+        try:
+            self.read()
+        finally:
+            root.setLevel(previous)
+            logger.removeHandler(handler)
+        self.assertTrue(any("service=portfolio stage=response_status" in row for row in records))
+        for marker in ("synthetic-private-error-marker", UID, EMAIL, self.source["resourceId"]):
+            self.assertNotIn(marker, "\n".join(records))
+
     def test_three_groups_use_real_narrow_proofs_and_never_return_content_or_archive(self):
         result = self.read()
         self.assertEqual(result["profile"], PROFILE)

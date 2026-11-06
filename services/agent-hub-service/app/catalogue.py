@@ -42,6 +42,9 @@ _USER_KINDS = ("watchlist", "channel_follows")
 _SOURCE_STATES = {"active", "revoking", "disconnected", "deleted"}
 _USER_FIELDS = {"kind", "sourceService", "state", "ref", "revision", "sourceEpoch", "updatedAt"}
 _LOGGER = logging.getLogger(__name__)
+# The MCP SDK configures the root logger at CRITICAL. These closed diagnostics
+# must still be emitted without enabling SDK request or exception logging.
+_LOGGER.setLevel(logging.WARNING)
 
 
 def _refusal(service, stage, error):
@@ -66,11 +69,11 @@ def _refusal(service, stage, error):
     _LOGGER.warning("Resource discovery refused: service=%s stage=%s code=%s", service, stage, code)
 
 
-def remaining(deadline, clock):
+def remaining(deadline, clock, *, maximum=4.0):
     value = deadline - clock()
     if not math.isfinite(value) or value <= 0:
         raise ContractError("source_unavailable")
-    return min(4.0, value)
+    return min(maximum, value)
 
 
 def timestamp(value):
@@ -273,11 +276,12 @@ class CatalogueSources:
                         headers = {**headers, "Content-Type": "application/json"}
                         kwargs["content"] = canonical_json(body)
                     stage = "producer_request"
+                    read_budget = remaining(deadline, self.clock, maximum=8.0)
                     with client.stream(
                         "GET" if body is None else "POST",
                         self.origins[service] + path,
                         headers=headers,
-                        timeout=remaining(deadline, self.clock),
+                        timeout=httpx.Timeout(min(4.0, read_budget), read=read_budget),
                         **kwargs,
                     ) as response:
                         stage = "response_status"

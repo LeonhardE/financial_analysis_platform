@@ -98,7 +98,7 @@ class OAuthTransportTests(unittest.TestCase):
             "HttpOnly",
             "Secure",
             "SameSite=lax",
-            "Max-Age=600",
+            "Max-Age=1800",
             "Path=/api/v2/agent-authorizations",
         ):
             self.assertIn(expected, cookie)

@@ -1,5 +1,7 @@
 /** Same-origin OAuth-cookie bridge. Never a proxy for agent/private-content APIs. */
 export const OWNER_BRIDGE_PROFILE = "folioview.owner-consent-bridge.v1";
+// Match the server's pending authorization and browser flow-cookie window.
+const CONSENT_WINDOW_MS = 30 * 60_000;
 const CONTRACT = "folioview.agent-workspace.v2.0";
 const encoder = new TextEncoder();
 export class BridgeDenied extends Error {
@@ -211,7 +213,7 @@ export class OwnerConsentBridge {
       .replaceAll("=", "");
     host.addEventListener("message", this.#message);
     host.addEventListener("pagehide", this.#pagehide);
-    this.#timer = setTimeout(() => this.close("bridge_expired"), 600000);
+    this.#timer = setTimeout(() => this.close("bridge_expired"), CONSENT_WINDOW_MS);
   }
   open(ownerOrigin) {
     if (this.#closed || this.#peer || !this.#config.ownerOrigins.includes(ownerOrigin))
