@@ -556,7 +556,12 @@ export default function AgentsPanel({
               )}
             </details>
           )}
-          <AgentConsentCard workspace={workspace} model={consent} invalidHandoff={invalidHandoff} />
+          <AgentConsentCard
+            key={`${handoff?.requestId ?? ""}:${handoff?.nonce ?? ""}`}
+            workspace={workspace}
+            model={consent}
+            invalidHandoff={invalidHandoff}
+          />
         </>
       }
     />
