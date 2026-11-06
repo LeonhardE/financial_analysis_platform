@@ -1007,7 +1007,7 @@
     },
     "helperTitle": "2. 核对前台 helper",
     "helperHelp": "Helper 在内存中生成独立的 agent 密钥。你的 Passkey 和本人私钥不会交给 agent。",
-    "foregroundLimits": "请保持 helper 打开，再回到此页面核对公开指纹。关闭或锁定后，其密钥会失效；这不会启用无人值守排程。",
+    "foregroundLimits": "请保持 helper 打开，再回到此页面核对公开指纹。前台会话与登记密钥各最多有效一小时。关闭、锁定或到期后访问结束；这不会启用无人值守排程。",
     "pairHelper": "配对新的 helper 窗口",
     "manualSetup": "使用另一个浏览器中的 helper",
     "lockHelper": "锁定 helper",

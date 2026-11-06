@@ -49,6 +49,7 @@ function harness({
     ownerCalls = [],
     cryptoCalls = [],
     helperCalls = [],
+    registrationTtls = [],
     timers = new Map(),
     intervals = new Map(),
     events = new Map(),
@@ -163,7 +164,9 @@ function harness({
     state: helperLive ? "READY" : "LOCKED",
     sessionId: helperLive ? "session_helper" : null,
     generation: 1,
-    expiresAt: helperLive ? now + 900 : null,
+    expiresAt: helperLive
+      ? now + (helperCalls.find((call) => call.op === "initialize")?.args.ttlSeconds ?? 900)
+      : null,
     foreground: true,
     authenticatedTransport: false,
     independentDeliveryConfirmed: committed,
@@ -251,7 +254,7 @@ function harness({
       cryptoCalls.push("inspect");
       return {
         registered,
-        registeredExpiresAt: registered ? now + 900 : null,
+        registeredExpiresAt: registered ? now + registrationTtls.at(-1) : null,
         offerFingerprint: "f".repeat(64),
         existingConnectionKeyIds: registered
           ? [candidate.agentEncryptionKeyId, candidate.agentSigningKeyId].sort()
@@ -262,8 +265,9 @@ function harness({
         checkpointDigest: (registered ? "d" : "a").repeat(64),
       };
     },
-    async prepareAgentRegistration({ offer: candidate }) {
+    async prepareAgentRegistration({ offer: candidate, ttlSeconds }) {
       cryptoCalls.push("register");
+      registrationTtls.push(ttlSeconds);
       const value = {
         operationId: "registration_operation",
         expectedVersion: 1,
@@ -274,7 +278,7 @@ function harness({
         },
         offer: candidate,
         offerFingerprint: "f".repeat(64),
-        expiresAt: now + 900,
+        expiresAt: now + ttlSeconds,
         replacedKeyIds: [],
       };
       saved.set("registration", clone(value));
@@ -545,6 +549,7 @@ function harness({
     ownerCalls,
     cryptoCalls,
     helperCalls,
+    registrationTtls,
     intervals,
     timers,
     saved,
@@ -622,6 +627,22 @@ test("the complete one-task flow registers keys before freezing grant scope and 
   const write = h.requests.find((call) => call.route.includes("/preparation/objects/"));
   assert.equal(write.options.headers["Idempotency-Key"], "object_operation_0");
   h.unmount();
+});
+test("paired and remote helper setup use the same bounded hour as key registration", async () => {
+  for (const paired of [false, true]) {
+    const h = harness();
+    const m = await h.throughKeys({ paired });
+    assert.equal(m.setupCard.ttlSeconds, 3600);
+    assert.deepEqual(h.registrationTtls, [m.setupCard.ttlSeconds]);
+    if (paired)
+      assert.equal(
+        h.helperCalls.find((call) => call.op === "initialize").args.ttlSeconds,
+        m.setupCard.ttlSeconds,
+      );
+    assert.equal(m.registered, true);
+    assert.equal(h.ownerCalls.filter((call) => call.op === "decision").length, 0);
+    h.unmount();
+  }
 });
 test("a lost decision acknowledgement is never resubmitted or resigned; original approval recovery uses owner reads", async () => {
   const h = harness({ lostDecision: true });

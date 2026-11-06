@@ -138,6 +138,8 @@ const initial = (owner: string | null = null): State => ({
   pendingPreparation: null,
 });
 type Context = { signal: AbortSignal; assert: () => void };
+// Human review and remote Muse setup share the protocol's bounded one-hour window.
+const FOREGROUND_TTL_SECONDS = 3600;
 const nonceId = (prefix: string) => `${prefix}_${crypto.randomUUID().replaceAll("-", "")}`;
 const fieldError = (error: unknown) => {
   const code = error && typeof error === "object" && "code" in error ? String(error.code) : "";
@@ -545,7 +547,7 @@ export function useAgentConsent(
         helperVersion: HELPER_VERSION,
         workerSha256: HELPER_WORKER_SHA256,
         anchor,
-        ttlSeconds: 900,
+        ttlSeconds: FOREGROUND_TTL_SECONDS,
       };
       update((previous) => ({
         ...previous,
@@ -780,7 +782,7 @@ export function useAgentConsent(
         }
         const packet = await live.current.workspace.prepareAgentRegistration({
           offer: snapshot.offer,
-          ttlSeconds: 900,
+          ttlSeconds: FOREGROUND_TTL_SECONDS,
           ...(snapshot.offerReview.existingConnectionKeyIds.length
             ? { replaceKeyIds: snapshot.offerReview.existingConnectionKeyIds }
             : {}),
