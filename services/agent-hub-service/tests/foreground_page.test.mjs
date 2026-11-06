@@ -42,6 +42,8 @@ function fixture() {
     notify = () => {},
     readHold,
     beginFailures = 0,
+    pageFailures = 0,
+    expiredAccess = false,
     loseSave = false;
   class Denied extends Error {
     constructor(code) {
@@ -90,6 +92,11 @@ function fixture() {
       return { run: { runId: "run_synthetic" } };
     }
     async readRunPage() {
+      calls.push(["readRunPage"]);
+      if (pageFailures > 0) {
+        pageFailures--;
+        throw new Denied("access_token_refresh_required");
+      }
       if (readHold) await readHold;
       return {
         nextCursor: null,
@@ -101,6 +108,10 @@ function fixture() {
     submitResult(run, id, content) {
       calls.push(["submitResult", run, id, structuredClone(content)]);
       pending.push({ stableOperationId: id });
+      if (expiredAccess) {
+        expiredAccess = false;
+        throw new Denied("access_token_refresh_required");
+      }
       if (loseSave) throw new Denied("request_failed");
       return { receipt: { resultId: "result_synthetic", revision: 1 } };
     }
@@ -178,6 +189,12 @@ function fixture() {
     },
     lose() {
       loseSave = true;
+    },
+    expireAccess() {
+      expiredAccess = true;
+    },
+    expirePageRead() {
+      pageFailures++;
     },
     refuseBegin() {
       beginFailures++;
@@ -372,6 +389,51 @@ test("lost save response retains one original operation; explicit receipt/retry 
     f.calls.filter((c) => ["recoverReceipt", "replay"].includes(c[0])).map((c) => c[1]),
     [id, id],
   );
+});
+test("access expiry prompts a same-session reconnect and preserves the original report operation", async () => {
+  const f = fixture();
+  await f.setup();
+  await f.click("read-analysis");
+  f.fill();
+  f.expireAccess();
+  await f.click("save-analysis");
+  assert(f.fields.get("status").textContent.includes("fresh encrypted connection packet"));
+  assert(!f.fields.get("save-state").textContent.includes("Saved to Inbox"));
+  const id = f.pending[0].stableOperationId;
+  f.fields.get("transport-packet").value = JSON.stringify({
+    credential: "synthetic_refreshed_ciphertext",
+  });
+  await f.click("connect-transport");
+  assert(f.fields.get("analysis-state").textContent.includes("Continue the original"));
+  await f.click("retry-analysis");
+  assert.equal(f.calls.filter((c) => c[0] === "beginRun").length, 1);
+  assert.equal(f.calls.filter((c) => c[0] === "submitResult").length, 1);
+  assert.deepEqual(
+    f.calls.filter((c) => c[0] === "replay").map((c) => c[1]),
+    [id],
+  );
+  assert(f.fields.get("save-state").textContent.includes("Saved to Inbox"));
+});
+test("renewal during frozen input reading resumes the existing Run without replacing a ready draft", async () => {
+  const f = fixture();
+  await f.setup();
+  f.expirePageRead();
+  await f.click("read-analysis");
+  assert(f.fields.get("status").textContent.includes("fresh encrypted connection packet"));
+  f.fields.get("transport-packet").value = JSON.stringify({
+    credential: "synthetic_refreshed_ciphertext",
+  });
+  await f.click("connect-transport");
+  await f.click("read-analysis");
+  assert.equal(f.calls.filter((c) => c[0] === "beginRun").length, 1);
+  assert.equal(f.calls.filter((c) => c[0] === "loadPreparation").length, 1);
+  assert.equal(f.calls.filter((c) => c[0] === "readRunPage").length, 2);
+  f.fill();
+  await f.click("read-analysis");
+  assert.equal(f.fields.get("report-title").value, "Synthetic title");
+  await f.click("save-analysis");
+  assert.equal(f.calls.filter((c) => c[0] === "submitResult").length, 1);
+  assert(f.fields.get("save-state").textContent.includes("Saved to Inbox"));
 });
 test("a refused Run continuation keeps the original operation and still completes the report", async () => {
   const f = fixture();

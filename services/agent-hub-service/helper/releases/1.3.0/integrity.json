@@ -5,15 +5,15 @@
   "files": {
     "src/session.mjs": "82404c4de3d4de2c1bb78f4368d5e59c2e0a4a72a6c80d5f61380dfbddfd7dc5",
     "src/worker.mjs": "90ee9302e26157ce00855f732628601e36f3dae5523bc455fd4357006b7c013f",
-    "src/controller.mjs": "ca1b0aa2d649f5fc5013eada447c7596e12bf0eff76406d77b3c3ddec1955cf8",
-    "src/controller-page.mjs": "66bc50a9a39e8d95d86bd770ffb022e93f791d985f2de075fe72785e3c325f5a",
+    "src/controller.mjs": "3b916e7d03537b833f80d750cb045776f2a6ec039a2e5d4b6e547aa7bae3d41f",
+    "src/controller-page.mjs": "2b82912afc57737656f51dcbb122c6b74ef1d02efd9ee9c2140484a223a8251a",
     "src/owner-helper.mjs": "b4437a47563ade7530414d469ac575e66c5899df28c9f20a28b1231f7f14d1be",
     "static/controller.html": "b3a454ec8b19408b01488c556da15589eadc070c8db771c1e67e9dfc145b5aea",
     "static/controller.css": "6b5390d817b74d47ad0d9b5bb81fbf707e304f32d5608a3c88f221c0af3a346e",
     "protocol.json": "8c757fe7e2e51c5b4b29a1ca705e03786b8bcda377c1a4a1047a660a3672092e",
     "dist/worker.mjs": "435579b7d84c3c78d74ec5096370a22dc402169bb17a3047d626b447931ea734",
-    "dist/controller.mjs": "6f63d3f67ebf3c8030032b11e522766acf7066b0cde91f3c9eae0d38f910970f",
-    "dist/controller-page.mjs": "aba0db6d42887714fdfd18e35c5207aa2e704068ed165e946ef2def0a9e5ccf8",
+    "dist/controller.mjs": "1accd705c4e862119af372c0c828d3643486a9b9faee62754b666ebee8cebc5c",
+    "dist/controller-page.mjs": "954d2d5c63fb8f1055eaa0f8867ace9fde071d45c04e4844cdeda4a1ef0ca72c",
     "dist/owner-helper.mjs": "7bbaf165d2a5c20cf0f1de310aaf384f7863ad93dacb39643a1cb02adb9ad3c1"
   }
 }

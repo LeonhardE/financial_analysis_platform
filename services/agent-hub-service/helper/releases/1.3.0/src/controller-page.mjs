@@ -9,6 +9,7 @@ const doc = document,
 let controller, ownerBridge, currentRun, reportOperation, analysisOperation;
 let pageGeneration = 0,
   transportGeneration = 0,
+  analysisLoaded = false,
   busy = false;
 const reportFields = ["report-title", "report-summary", "report-limits"];
 let sectionFields = [];
@@ -26,6 +27,7 @@ const showState = (state) => {
   if (state.state === "LOCKED") {
     pageGeneration++;
     currentRun = reportOperation = analysisOperation = null;
+    analysisLoaded = false;
     doc.getElementById("read-analysis").textContent = "Read approved task and start analysis";
     clearPrivate();
     sectionFields = [];
@@ -47,7 +49,10 @@ const showState = (state) => {
         : "Waiting for independent owner setup.";
 };
 const failure = (error) => {
-  status.textContent = `Operation refused: ${error instanceof ControllerDenied ? error.code : "controller_rejected"}.`;
+  status.textContent =
+    error instanceof ControllerDenied && error.code === "access_token_refresh_required"
+      ? "Access token needs renewal. Reconnect this session with a fresh encrypted connection packet, then continue the original analysis or report."
+      : `Operation refused: ${error instanceof ControllerDenied ? error.code : "controller_rejected"}.`;
 };
 const freshController = () =>
   new ForegroundController({
@@ -180,26 +185,31 @@ async function start() {
         await active.connectTransport(JSON.parse(text));
         check();
         doc.getElementById("analysis-state").textContent =
-          "Approved session connected. Read the selected task to begin.";
+          currentRun || analysisOperation
+            ? "Approved session reconnected. Continue the original analysis or report."
+            : "Approved session connected. Read the selected task to begin.";
       }),
     );
     doc.getElementById("read-analysis").addEventListener("click", () =>
       permittedAction(async (active, check) => {
-        if (currentRun || reportOperation) throw new ControllerDenied("analysis_already_started");
+        if (analysisLoaded || reportOperation)
+          throw new ControllerDenied("analysis_already_started");
         clearPrivate();
-        const prepared = await active.loadPreparation();
-        check();
-        for (const descriptor of prepared.objects) {
-          await active.readPreparedObject(descriptor.objectId);
+        if (!currentRun) {
+          const prepared = await active.loadPreparation();
           check();
+          for (const descriptor of prepared.objects) {
+            await active.readPreparedObject(descriptor.objectId);
+            check();
+          }
+          analysisOperation ??= operation("analysis");
+          doc.getElementById("read-analysis").textContent = "Continue the original analysis";
+          doc.getElementById("analysis-state").textContent =
+            "Checking this analysis. If it is interrupted, continue the original analysis to check the same request.";
+          const result = await active.beginRun(analysisOperation);
+          check();
+          currentRun = result.run.runId;
         }
-        analysisOperation ??= operation("analysis");
-        doc.getElementById("read-analysis").textContent = "Continue the original analysis";
-        doc.getElementById("analysis-state").textContent =
-          "Checking this analysis. If it is interrupted, continue the original analysis to check the same request.";
-        const result = await active.beginRun(analysisOperation);
-        check();
-        currentRun = result.run.runId;
         const pages = [],
           seen = new Set();
         let cursor = null;
@@ -229,6 +239,7 @@ async function start() {
           return { sectionId: section.sectionId, input };
         });
         doc.getElementById("analysis-inputs").textContent = JSON.stringify(pages, null, 2);
+        analysisLoaded = true;
         doc.getElementById("analysis-state").textContent =
           "Approved frozen task and resources are ready. Read them and write the report below.";
       }),
