@@ -51,6 +51,9 @@ class AgentPrincipal:
 
 logging.getLogger("authlib.oauth2").setLevel(logging.WARNING)
 PENDING_SECONDS = 1800
+# Allow the real client callback to finish while keeping codes short-lived and
+# single-use. Stored deadlines remain absolute across restarts and deployments.
+AUTHORIZATION_CODE_SECONDS = 300
 FAMILY_SECONDS = 30 * 86400
 MAX_CONNECTIONS = 32
 MAX_AUTHORIZATIONS = 32
@@ -235,7 +238,7 @@ class _CodeGrant(AuthorizationCodeGrant):
                 "code_challenge": data["code_challenge"],
                 "code_challenge_method": "S256",
                 "context": request.user,
-                "expiresAt": server.service.now() + 120,
+                "expiresAt": server.service.now() + AUTHORIZATION_CODE_SECONDS,
                 "used": False,
                 "resource": server.service.config.resource,
             },
