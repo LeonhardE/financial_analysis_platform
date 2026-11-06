@@ -1007,7 +1007,7 @@
     },
     "helperTitle": "2. Verify the foreground helper",
     "helperHelp": "The helper creates separate agent keys in memory. Your own Passkey and private keys are never given to the agent.",
-    "foregroundLimits": "Keep the helper open and return here to review its public fingerprints. Closing or locking it ends its keys; this does not enable unattended schedules.",
+    "foregroundLimits": "Keep the helper open and return here to review its public fingerprints. The session and registered keys each last at most one hour. Closing, locking or expiry ends access; this does not enable unattended schedules.",
     "pairHelper": "Pair a new helper window",
     "manualSetup": "Use a helper in another browser",
     "lockHelper": "Lock helper",
