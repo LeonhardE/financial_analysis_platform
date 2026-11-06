@@ -27,6 +27,9 @@ export {
 };
 const encoder = new TextEncoder();
 const REQUEST_TIMEOUT_MS = 20000;
+// Bootstrap transfers a public pinned bundle before any credential is installed.
+// Keep its bounded download budget separate from authenticated API requests.
+const HELPER_DOWNLOAD_TIMEOUT_MS = 60000;
 export const HELPER_VERSION = "1.3.0";
 const AGENT_OPERATIONS = {
   status: [],
@@ -215,7 +218,7 @@ export class ForegroundController {
     const epoch = this.#epoch,
       controller = new AbortController();
     this.#requests.add(controller);
-    const timeout = setTimeout(() => controller.abort(), 10000);
+    const timeout = setTimeout(() => controller.abort(), HELPER_DOWNLOAD_TIMEOUT_MS);
     try {
       const response = await this.#fetch(this.#issuer + "/agent/v2/helper/1.3.0/worker.mjs", {
         credentials: "omit",

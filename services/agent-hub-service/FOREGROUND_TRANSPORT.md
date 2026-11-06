@@ -6,6 +6,11 @@ Helper 1.3.0 adds a browser-consumable connection to the existing approved OAuth
 must independently pin the new Worker before using it. Neither release enables OAuth or the
 encrypted adapter, registers a production client, or approves an owner grant automatically.
 
+Bootstrap allows up to sixty seconds to download and read the fixed public Worker bundle before
+any credential is installed. The two-MiB limit and independently pinned SHA256 still apply before
+Worker creation; lock cancels the transfer immediately. This download budget is separate from
+the unchanged twenty-second authenticated request budget and does not extend any grant or token.
+
 ## The connection packet
 
 `get_foreground_transport_v2` accepts only the v2 contract and selected `taskId`. The same
