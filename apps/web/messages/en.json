@@ -1105,7 +1105,14 @@
     "helperAddressHelp": "Give this reviewed helper address to Muse to open in its own browser. Keep the same session open while approving its public keys.",
     "helperAddress": "Muse helper address",
     "copyHelperAddress": "Copy helper address",
-    "transportHelp": "In the original Muse helper, confirm the public delivery card, connect with its encrypted connection packet, read the approved task and save the encrypted report. Open Inbox after the helper confirms the server save."
+    "transportHelp": "In the original Muse helper, confirm the public delivery card, connect with its encrypted connection packet, read the approved task and save the encrypted report. Open Inbox after the helper confirms the server save.",
+    "reconnectTitle": "Review a new connection in this unlocked page",
+    "reconnectHelp": "On the Muse connection page, copy the connection request link and paste it here. Keep this page open; its library stays unlocked.",
+    "reconnectLink": "Connection request link",
+    "reconnectDraftHelp": "A new request replaces the current connection review and closes its helper session. Saved encrypted pending operations remain available for recovery. Review the task, resources and new agent keys again before approving.",
+    "reconnectReview": "Open request for review",
+    "reconnecting": "Opening request…",
+    "reconnectFailed": "Could not attach this request. Check the copied link and allow the FolioView popup. Keep this page open; you do not need to unlock again."
   },
   "vaultManagement": {
     "title": "Library keys and devices",

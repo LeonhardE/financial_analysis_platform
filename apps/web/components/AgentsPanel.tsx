@@ -9,7 +9,12 @@ import type { AgentLinkConfiguration } from "@/lib/agent-link";
 import styles from "./AgentsPanel.module.css";
 import { AgentConsentCard } from "./AgentConsentCard";
 import { useAgentConsent } from "./useAgentConsent";
-import { consentHandoff, type ConsentHandoff } from "@/lib/owner-consent-bridge";
+import {
+  consentHandoff,
+  openOwnerReconnect,
+  releaseConsentHandoff,
+  type ConsentHandoff,
+} from "@/lib/owner-consent-bridge";
 
 type PublicConfiguration = {
   data: AgentLinkConfiguration | null;
@@ -436,8 +441,34 @@ export default function AgentsPanel({
 }) {
   const model = useAgentConnections(workspace, { active });
   const configuration = useAgentLinkConfiguration(active);
+  const t = useTranslations("agentConsent");
   const [handoff, setHandoff] = useState<ConsentHandoff | null>(null);
   const [invalidHandoff, setInvalidHandoff] = useState(false);
+  const [link, setLink] = useState("");
+  const [reconnecting, setReconnecting] = useState(false);
+  const [reconnectFailed, setReconnectFailed] = useState(false);
+  const reconnectJob = useRef<AbortController | null>(null);
+  const unlocked = Boolean(
+    workspace.authenticated &&
+    workspace.owner &&
+    workspace.phase === "unlocked" &&
+    !workspace.needsDeviceApproval,
+  );
+  const reconnectScope = unlocked
+    ? `${workspace.owner}:${workspace.vaultGeneration}:${configuration.data?.hubOrigin}`
+    : null;
+  const currentScope = useRef(reconnectScope);
+  currentScope.current = reconnectScope;
+  useEffect(() => {
+    setLink("");
+    setReconnecting(false);
+    setReconnectFailed(false);
+    return () => {
+      reconnectJob.current?.abort();
+      reconnectJob.current = null;
+    };
+  }, [reconnectScope]);
+  useEffect(() => () => releaseConsentHandoff(handoff), [handoff, reconnectScope]);
   useEffect(() => {
     try {
       setHandoff(consentHandoff(window.location.search));
@@ -452,13 +483,81 @@ export default function AgentsPanel({
     active,
     model.museConnectionOperationsEnabled,
   );
+  const busy = Boolean(reconnecting || consent.busy || workspace.busy || model.busy);
+  const reconnect = async () => {
+    const origin = configuration.data?.hubOrigin,
+      scope = reconnectScope;
+    if (
+      !active ||
+      !scope ||
+      !origin ||
+      !configuration.data?.enabled ||
+      !model.museConnectionOperationsEnabled ||
+      busy ||
+      reconnectJob.current
+    )
+      return;
+    const controller = new AbortController();
+    reconnectJob.current = controller;
+    setReconnecting(true);
+    setReconnectFailed(false);
+    try {
+      const next = await openOwnerReconnect(link.trim(), origin, controller.signal);
+      if (controller.signal.aborted || currentScope.current !== scope) {
+        releaseConsentHandoff(next);
+        return;
+      }
+      setHandoff(next);
+      setInvalidHandoff(false);
+      setLink("");
+    } catch {
+      if (!controller.signal.aborted && currentScope.current === scope) setReconnectFailed(true);
+    } finally {
+      if (reconnectJob.current === controller) {
+        reconnectJob.current = null;
+        setReconnecting(false);
+      }
+    }
+  };
   return (
     <AgentsView
       workspace={workspace}
       model={model}
       configuration={configuration}
       consent={
-        <AgentConsentCard workspace={workspace} model={consent} invalidHandoff={invalidHandoff} />
+        <>
+          {unlocked && configuration.data?.enabled && (
+            <details className={styles.reconnect}>
+              <summary>{t("reconnectTitle")}</summary>
+              <p>{t("reconnectHelp")}</p>
+              <label htmlFor="owner-reconnect-link">{t("reconnectLink")}</label>
+              <input
+                id="owner-reconnect-link"
+                type="url"
+                autoComplete="off"
+                spellCheck={false}
+                maxLength={2048}
+                value={link}
+                disabled={busy}
+                onChange={(event) => setLink(event.target.value)}
+              />
+              <p className={styles.note}>{t("reconnectDraftHelp")}</p>
+              <button
+                className={styles.primary}
+                disabled={busy || !active || !link.trim() || !model.museConnectionOperationsEnabled}
+                onClick={() => void reconnect()}
+              >
+                {t(reconnecting ? "reconnecting" : "reconnectReview")}
+              </button>
+              {reconnectFailed && (
+                <p role="alert" className={styles.warning}>
+                  {t("reconnectFailed")}
+                </p>
+              )}
+            </details>
+          )}
+          <AgentConsentCard workspace={workspace} model={consent} invalidHandoff={invalidHandoff} />
+        </>
       }
     />
   );

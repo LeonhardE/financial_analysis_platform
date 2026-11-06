@@ -520,7 +520,7 @@ function harness({
     { window, document, crypto: require("node:crypto").webcrypto },
   );
   const configuration = { schemaVersion: 1, enabled: true, hubOrigin: ORIGIN };
-  const handoff = hasHandoff ? { requestId: "request_A", nonce: "n".repeat(43) } : null;
+  let handoff = hasHandoff ? { requestId: "request_A", nonce: "n".repeat(43) } : null;
   const render = ({ flush = true } = {}) => {
     let output;
     do {
@@ -557,6 +557,7 @@ function harness({
     packet: () => packet,
     helper: () => helperLive,
     helperOpenings: () => helperOpenCount,
+    handoff: (value) => (handoff = value),
     connectionGate: (value) => (connectionEnabled = value),
     owner: (value) => (owner = value),
     active: (value) => (active = value),
@@ -844,5 +845,50 @@ test("rollout revalidation retains original pending approval and resumes without
   assert.equal(h.ownerCalls.filter((call) => call.op === "decision").length, 1);
   assert.equal(h.cryptoCalls.filter((call) => call === "sign").length, 1);
   assert.deepEqual(clone(h.saved.get("approval")), original);
+  h.unmount();
+});
+
+test("a new request clears prior key and grant review, retains the unlocked workspace and reloads sealed pending work", async () => {
+  const h = harness();
+  let m = await h.throughGrant({ paired: true });
+  await m.approve();
+  m = await h.drain();
+  assert.equal(m.unlocked, true);
+  assert.equal(h.helper(), true);
+  const savedBefore = clone([...h.saved]);
+  h.handoff({ requestId: "request_B", nonce: "b".repeat(43) });
+  m = await h.drain();
+  assert.equal(m.unlocked, true);
+  assert.equal(m.stage, "incoming");
+  assert.equal(m.selected, null);
+  assert.equal(m.signedGrant, null);
+  assert.equal(m.offer, null);
+  assert.equal(m.keysConfirmed, false);
+  assert.equal(m.grantConfirmed, false);
+  assert.equal(h.helper(), false);
+  assert.deepEqual([...h.saved], savedBefore);
+  assert.ok(m.outbox.length > 0);
+  h.unmount();
+});
+
+test("a late response from the previous request cannot populate the new connection review", async () => {
+  const gate = deferred();
+  const h = harness({
+    transport: async (call) => (call.route === "/api/v2/tasks?limit=32" ? gate.promise : undefined),
+  });
+  let m = await h.ready();
+  const oldClaim = m.claim();
+  await settle();
+  h.handoff({ requestId: "request_B", nonce: "b".repeat(43) });
+  m = await h.drain();
+  gate.resolve(
+    response({ contractVersion: CONTRACT, items: [taskPacket().metadata], nextCursor: null }),
+  );
+  await oldClaim;
+  m = await h.drain();
+  assert.equal(m.unlocked, true);
+  assert.equal(m.stage, "incoming");
+  assert.equal(m.authorization, null);
+  assert.deepEqual(Array.from(m.tasks), []);
   h.unmount();
 });

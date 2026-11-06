@@ -5,6 +5,36 @@
   margin: 0 auto;
   padding: 12px 0 32px;
 }
+.reconnect {
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  padding: 16px;
+  margin-bottom: 20px;
+  background: var(--panel);
+}
+.reconnect summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+.reconnect p {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.75;
+}
+.reconnect label {
+  display: block;
+  margin: 12px 0 6px;
+  font-size: 12px;
+}
+.reconnect input {
+  width: 100%;
+  min-width: 0;
+  padding: 9px;
+  color: var(--text);
+  background: var(--raised);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+}
 .heading,
 .detailTop,
 .actions {
