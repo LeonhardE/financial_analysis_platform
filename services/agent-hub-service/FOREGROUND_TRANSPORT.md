@@ -38,8 +38,15 @@ JavaScript string memory does not provide a physical erasure guarantee.
 ## Basic browser flow
 
 After explicit owner setup, recipient review and encrypted delivery confirmation, Muse calls
-the tool and transfers the complete encrypted response to the helper's connection field. The
-page clears this field before connecting. One explicit action reads approved preparation,
+the tool and transfers its original six-field encrypted response through the helper's JSON file
+input or connection text field. File selection does not read or upload the file or connect the
+session. **Connect approved session** reads one file locally (at most 12 KiB) and passes the parsed
+packet to the same controller and Worker checks. A file and nonblank pasted packet together are
+refused. Both inputs clear before reading/connecting, on lock, when hidden and on page exit;
+a late file read cannot connect after a lock or hide/show cycle. The file is not persisted or
+uploaded. This avoids model transcription of opaque ciphertext and does not extend the 60-second
+handoff, bearer or session lifetime. Prepare the file input before requesting a fresh packet,
+then upload the original tool artifact and connect promptly. One explicit action reads approved preparation,
 starts a signed Run and decrypts its frozen input pages. Muse reads those inputs and fills a
 report title, summary, analysis and limitations. The explicit save action encrypts to the
 existing approved owner/recovery recipients and submits via the existing result API.

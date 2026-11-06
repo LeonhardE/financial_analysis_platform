@@ -8,9 +8,15 @@ const doc = document,
   offer = doc.getElementById("public-offer");
 let controller, ownerBridge, currentRun, reportOperation, analysisOperation;
 let pageGeneration = 0,
+  transportGeneration = 0,
   busy = false;
 const reportFields = ["report-title", "report-summary", "report-limits"];
 let sectionFields = [];
+const clearTransport = () => {
+  transportGeneration++;
+  doc.getElementById("transport-packet").value = "";
+  doc.getElementById("transport-packet-file").value = "";
+};
 const clearPrivate = () => {
   doc.getElementById("analysis-inputs").textContent = "";
   for (const id of reportFields) doc.getElementById(id).value = "";
@@ -24,7 +30,7 @@ const showState = (state) => {
     clearPrivate();
     sectionFields = [];
     doc.getElementById("report-sections").replaceChildren();
-    doc.getElementById("transport-packet").value = "";
+    clearTransport();
     doc.getElementById("analysis-state").textContent =
       "Session ended. Start a new approved session before reading.";
     doc.getElementById("save-state").textContent =
@@ -153,8 +159,23 @@ async function start() {
     });
     doc.getElementById("connect-transport").addEventListener("click", () =>
       permittedAction(async (active, check) => {
-        const text = doc.getElementById("transport-packet").value;
-        doc.getElementById("transport-packet").value = "";
+        let text = doc.getElementById("transport-packet").value;
+        const files = [...(doc.getElementById("transport-packet-file").files ?? [])];
+        clearTransport();
+        const generation = transportGeneration;
+        if (files.length > 1 || (files.length && text.trim()))
+          throw new ControllerDenied("invalid_transport");
+        if (files.length) {
+          const file = files[0];
+          if (file.size < 1 || file.size > 12288) throw new ControllerDenied("invalid_transport");
+          try {
+            text = await file.text();
+          } catch {
+            throw new ControllerDenied("invalid_transport");
+          }
+          check();
+          if (generation !== transportGeneration) throw new ControllerDenied("foreground_required");
+        }
         if (text.length > 12288) throw new ControllerDenied("invalid_transport");
         await active.connectTransport(JSON.parse(text));
         check();
@@ -304,6 +325,7 @@ async function start() {
     doc.addEventListener("visibilitychange", () => {
       controller?.setVisible(doc.visibilityState !== "hidden");
       if (doc.visibilityState === "hidden") {
+        clearTransport();
         clearPrivate();
         output.textContent = "";
         doc.getElementById("agent-args").value = "";
@@ -312,6 +334,7 @@ async function start() {
     host.addEventListener("pagehide", () => {
       ownerBridge?.close("page_closed");
       controller?.lock();
+      clearTransport();
       clearPrivate();
       output.textContent = "";
       offer.textContent = "";
