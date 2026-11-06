@@ -553,8 +553,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const verifyUser = useCallback(async (user: User | null, forceRefresh = false) => {
     // A refresh notification for the old user can arrive while sign-out is pending.
     if (user && signingOutRef.current) return;
+    // Reverify token rotation without replacing the already verified SDK owner's
+    // session. A different User instance or explicit retry starts a new session.
+    const verified = verifiedSessionRef.current;
+    const retained =
+      !forceRefresh &&
+      user &&
+      verified?.user === user &&
+      firebaseUserRef.current === user &&
+      authRef.current?.currentUser === user
+        ? verified
+        : null;
     const generation = ++generationRef.current;
-    verifiedSessionRef.current = null;
+    if (!retained) verifiedSessionRef.current = null;
     requestRef.current?.abort();
     const controller = new AbortController();
     requestRef.current = controller;
@@ -565,13 +576,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    setState({ status: "verifying", profile: null, error: null, hasFirebaseUser: true });
+    if (!retained)
+      setState({ status: "verifying", profile: null, error: null, hasFirebaseUser: true });
     let message = "Could not verify your account. Please try again.";
     let timedOut = false;
     const timeout = window.setTimeout(() => {
       timedOut = true;
       controller.abort();
       if (generation === generationRef.current) {
+        verifiedSessionRef.current = null;
         setState({
           status: "error",
           profile: null,
@@ -597,10 +610,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!response.ok) throw new Error("Account verification failed");
       const profile = readProfile(await response.json(), user.uid);
       if (generation !== generationRef.current || controller.signal.aborted) return;
-      verifiedSessionRef.current = { key: `${user.uid}:${generation}`, user };
+      verifiedSessionRef.current = retained ?? { key: `${user.uid}:${generation}`, user };
       setState({ status: "authenticated", profile, error: null, hasFirebaseUser: true });
     } catch {
       if (generation !== generationRef.current || (controller.signal.aborted && !timedOut)) return;
+      verifiedSessionRef.current = null;
       setState({ status: "error", profile: null, error: message, hasFirebaseUser: true });
     } finally {
       window.clearTimeout(timeout);
