@@ -21,16 +21,16 @@
     "src/controller-storage.mjs": "6c35daff6f6f08d6a27ddf91035220a478b82b5e51c48223af21a672d3911608",
     "src/controller-page.mjs": "8375757a63589468c1458a7850909e7ffd84da52928d03f82f786fbc62d0a34c",
     "src/owner-helper.mjs": "b4437a47563ade7530414d469ac575e66c5899df28c9f20a28b1231f7f14d1be",
-    "src/consent.mjs": "1304311413793f53945a80e32c467d61e97e99b9967ad45dced14718e92679c3",
+    "src/consent.mjs": "59fa1b2d97945fe65f060d23962415bb3d41c78123149194992eca7b8dab28a8",
     "src/consent-page.mjs": "7bb58c5673341bf08870780a63a960f4eb1a8dbfca037ef80c24b967e9f6e90d",
     "static/controller.html": "d37273f639be0c0687a90efc4e929bd67b2a201999324a32232288c77c23c650",
-    "static/consent.html": "d18d39db06be39fd3ccba24ce540d1e0eefe9fb51eaeceb6d686def805da3d93",
+    "static/consent.html": "8efc64e9858e5c746ccce359d7f28a047addeab80e15d6a6e9b3da8ef57a06a7",
     "static/controller.css": "6b5390d817b74d47ad0d9b5bb81fbf707e304f32d5608a3c88f221c0af3a346e",
     "dist/worker.mjs": "930519d391fb3aafc489ab449c50da18991d32a64ff3039a99fa0edf84cd513c",
     "dist/controller.mjs": "2dc0cb2160bccb13237db62ab8d2f2e8222732375e5ad5dd362bf37093ae6a36",
     "dist/owner-helper.mjs": "7bbaf165d2a5c20cf0f1de310aaf384f7863ad93dacb39643a1cb02adb9ad3c1",
     "dist/controller-page.mjs": "93032ff287264ba0285e04d405e46a852e9d71b411e43e8fc156d9e0ac33734a",
-    "dist/consent.mjs": "9386ac0813899c56fc8b0e22142a6f78abfbed7c314c8808b4317545022f08a9",
+    "dist/consent.mjs": "f943fb3ed919bee9cacdd29e86e55dd119a09cb4faed7a058fbf812c6ba9cd90",
     "THIRD_PARTY_NOTICES.md": "16b1768276d7eed2a7ce1142f5766c211da784615fa004a36853f2658e18dd4d"
   }
 }
