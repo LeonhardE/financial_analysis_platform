@@ -521,7 +521,7 @@ only after the fresh-source and final transaction checks. Metadata/proof reads a
 never set it; it means an API read was authorized, not that an agent decrypted all inputs or ran a
 model. `resultSaved` stays false until a result consumer actually saves a result.
 
-Codes expire within two minutes; access tokens within ten; pending flows, their browser-bound
+Codes expire within five minutes; access tokens within ten; pending flows, their browser-bound
 cookies and the consent bridge within thirty minutes. Refresh families have an absolute thirty-day deadline that rotation cannot
 extend. Only credential hashes
 are persisted, and refresh reuse revokes that family atomically. New consent advances the connection

@@ -717,9 +717,10 @@ class OAuthProtocolSafetyTests(unittest.TestCase):
 
     def test_code_access_and_family_deadlines_are_absolute(self):
         code = self.code()
-        self.now += 120
+        self.now += 300
         status, value, _ = self.service.protocol(exchange_form(code), {}, "token")
         self.assertEqual((status, value["error"]), (400, "invalid_grant"))
+
         self.now = 1000
         tokens, _, _ = self.consent(paired=False)
         self.now = 1600
@@ -737,6 +738,42 @@ class OAuthProtocolSafetyTests(unittest.TestCase):
         self.now = 1000 + 30 * 86400
         refresh["refresh_token"] = renewed["refresh_token"]
         status, value, _ = self.service.protocol(refresh, {}, "token")
+        self.assertEqual((status, value["error"]), (400, "invalid_grant"))
+
+    def test_observed_delayed_exchange_is_one_use_with_unchanged_access_lifetime(self):
+        code = self.code()
+        self.now += 172
+        status, tokens, _ = self.service.protocol(exchange_form(code), {}, "token")
+        self.assertEqual(status, 200, tokens)
+        self.assertEqual(tokens["expires_in"], 600)
+        self.service.authenticate(tokens["access_token"])
+        self.assert_oauth(
+            "insufficient_scope",
+            lambda: self.service.authenticate(tokens["access_token"], TASK, "tasks:read"),
+            403,
+        )
+        status, value, _ = self.service.protocol(exchange_form(code), {}, "token")
+        self.assertEqual((status, value["error"]), (400, "invalid_grant"))
+        self.assert_oauth(
+            "invalid_token", lambda: self.service.authenticate(tokens["access_token"])
+        )
+
+    def test_code_remains_usable_just_before_the_absolute_deadline(self):
+        code = self.code()
+        self.now += 299
+        status, value, _ = self.service.protocol(exchange_form(code), {}, "token")
+        self.assertEqual(status, 200, value)
+
+    def test_restart_does_not_extend_an_existing_shorter_code_deadline(self):
+        from unittest.mock import patch
+
+        with patch("app.oauth.AUTHORIZATION_CODE_SECONDS", 120):
+            code = self.code()
+        self.now += 121
+        restarted = OAuthService(
+            SQLiteHubStore(self.store.path), configuration(), clock=lambda: self.now
+        )
+        status, value, _ = restarted.protocol(exchange_form(code), {}, "token")
         self.assertEqual((status, value["error"]), (400, "invalid_grant"))
 
     def test_capacity_denial_preserves_existing_authority_and_revocation(self):
