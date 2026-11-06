@@ -40,7 +40,7 @@ var je = ae((Ie) => {
   Ie.default = Ee;
   Ee.code = 'require("ajv/dist/runtime/ucs2length").default';
 });
-var $e = ae((ur, ze) => {
+var Re = ae((hr, ze) => {
   "use strict";
   ze.exports = function t(e, a) {
     if (e === a) return !0;
@@ -69,9 +69,9 @@ var $e = ae((ur, ze) => {
 var Se = ae((Pe) => {
   "use strict";
   Object.defineProperty(Pe, "__esModule", { value: !0 });
-  var Re = $e();
-  Re.code = 'require("ajv/dist/runtime/equal").default';
-  Pe.default = Re;
+  var $e = Re();
+  $e.code = 'require("ajv/dist/runtime/equal").default';
+  Pe.default = $e;
 });
 var qe = ae((fe) => {
   "use strict";
@@ -542,7 +542,7 @@ var qe = ae((fe) => {
     K = new RegExp("^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$", "u"),
     te = new RegExp("^[A-Za-z0-9_-]{43}$", "u"),
     se = new RegExp("^[a-f0-9]{64}$", "u");
-  function M(
+  function J(
     t,
     {
       instancePath: e = "",
@@ -554,12 +554,12 @@ var qe = ae((fe) => {
   ) {
     let i = null,
       r = 0,
-      h = M.evaluated;
+      h = J.evaluated;
     if ((h.dynamicProps && (h.props = void 0), h.dynamicItems && (h.items = void 0), r === 0))
       if (typeof t == "string") {
         if (g(t) > 128)
           return (
-            (M.errors = [
+            (J.errors = [
               {
                 instancePath: e,
                 schemaPath: "#/maxLength",
@@ -571,7 +571,7 @@ var qe = ae((fe) => {
           );
         if (g(t) < 22)
           return (
-            (M.errors = [
+            (J.errors = [
               {
                 instancePath: e,
                 schemaPath: "#/minLength",
@@ -583,7 +583,7 @@ var qe = ae((fe) => {
           );
         if (!X.test(t))
           return (
-            (M.errors = [
+            (J.errors = [
               {
                 instancePath: e,
                 schemaPath: "#/pattern",
@@ -595,14 +595,14 @@ var qe = ae((fe) => {
           );
       } else
         return (
-          (M.errors = [
+          (J.errors = [
             { instancePath: e, schemaPath: "#/type", keyword: "type", params: { type: "string" } },
           ]),
           !1
         );
-    return ((M.errors = i), r === 0);
+    return ((J.errors = i), r === 0);
   }
-  M.evaluated = { dynamicProps: !1, dynamicItems: !1 };
+  J.evaluated = { dynamicProps: !1, dynamicItems: !1 };
   var er = {
       type: "object",
       properties: {
@@ -1931,8 +1931,8 @@ var qe = ae((fe) => {
                                           (i === null ? (i = [o]) : i.push(o), r++);
                                         }
                                       }
-                                      var R = E === r;
-                                      v = v || R;
+                                      var $ = E === r;
+                                      v = v || $;
                                       let Z = r;
                                       if (m !== null) {
                                         let o = {
@@ -1943,8 +1943,8 @@ var qe = ae((fe) => {
                                         };
                                         (i === null ? (i = [o]) : i.push(o), r++);
                                       }
-                                      var R = Z === r;
-                                      if (((v = v || R), v))
+                                      var $ = Z === r;
+                                      if (((v = v || $), v))
                                         ((r = x), i !== null && (x ? (i.length = x) : (i = null)));
                                       else {
                                         let o = {
@@ -2141,7 +2141,7 @@ var qe = ae((fe) => {
       },
     ],
   };
-  function $(
+  function R(
     t,
     {
       instancePath: e = "",
@@ -2153,7 +2153,7 @@ var qe = ae((fe) => {
   ) {
     let i = null,
       r = 0,
-      h = $.evaluated;
+      h = R.evaluated;
     (h.dynamicProps && (h.props = void 0), h.dynamicItems && (h.items = void 0));
     let s = r,
       u = !0,
@@ -2179,7 +2179,7 @@ var qe = ae((fe) => {
           if (typeof y == "string") {
             if (g(y) > 128)
               return (
-                ($.errors = [
+                (R.errors = [
                   {
                     instancePath: e + "/connectionId",
                     schemaPath: "#/allOf/0/then/properties/connectionId/maxLength",
@@ -2191,7 +2191,7 @@ var qe = ae((fe) => {
               );
             if (g(y) < 1)
               return (
-                ($.errors = [
+                (R.errors = [
                   {
                     instancePath: e + "/connectionId",
                     schemaPath: "#/allOf/0/then/properties/connectionId/minLength",
@@ -2203,7 +2203,7 @@ var qe = ae((fe) => {
               );
             if (!K.test(y))
               return (
-                ($.errors = [
+                (R.errors = [
                   {
                     instancePath: e + "/connectionId",
                     schemaPath: "#/allOf/0/then/properties/connectionId/pattern",
@@ -2215,7 +2215,7 @@ var qe = ae((fe) => {
               );
           } else
             return (
-              ($.errors = [
+              (R.errors = [
                 {
                   instancePath: e + "/connectionId",
                   schemaPath: "#/allOf/0/then/properties/connectionId/type",
@@ -2242,7 +2242,7 @@ var qe = ae((fe) => {
         t.connectionId !== null
       )
         return (
-          ($.errors = [
+          (R.errors = [
             {
               instancePath: e + "/connectionId",
               schemaPath: "#/allOf/0/else/properties/connectionId/type",
@@ -2262,7 +2262,7 @@ var qe = ae((fe) => {
         keyword: "if",
         params: { failingKeyword: c },
       };
-      return (i === null ? (i = [A]) : i.push(A), r++, ($.errors = i), !1);
+      return (i === null ? (i = [A]) : i.push(A), r++, (R.errors = i), !1);
     }
     if (r === 0)
       if (t && typeof t == "object" && !Array.isArray(t)) {
@@ -2275,7 +2275,7 @@ var qe = ae((fe) => {
           (t.keyEpoch === void 0 && (A = "keyEpoch"))
         )
           return (
-            ($.errors = [
+            (R.errors = [
               {
                 instancePath: e,
                 schemaPath: "#/required",
@@ -2296,7 +2296,7 @@ var qe = ae((fe) => {
               y === "keyEpoch"
             )) {
               return (
-                ($.errors = [
+                (R.errors = [
                   {
                     instancePath: e,
                     schemaPath: "#/additionalProperties",
@@ -2316,7 +2316,7 @@ var qe = ae((fe) => {
                 if (typeof y == "string") {
                   if (g(y) > 43)
                     return (
-                      ($.errors = [
+                      (R.errors = [
                         {
                           instancePath: e + "/keyId",
                           schemaPath: "#/properties/keyId/maxLength",
@@ -2328,7 +2328,7 @@ var qe = ae((fe) => {
                     );
                   if (g(y) < 43)
                     return (
-                      ($.errors = [
+                      (R.errors = [
                         {
                           instancePath: e + "/keyId",
                           schemaPath: "#/properties/keyId/minLength",
@@ -2340,7 +2340,7 @@ var qe = ae((fe) => {
                     );
                   if (!te.test(y))
                     return (
-                      ($.errors = [
+                      (R.errors = [
                         {
                           instancePath: e + "/keyId",
                           schemaPath: "#/properties/keyId/pattern",
@@ -2352,7 +2352,7 @@ var qe = ae((fe) => {
                     );
                 } else
                   return (
-                    ($.errors = [
+                    (R.errors = [
                       {
                         instancePath: e + "/keyId",
                         schemaPath: "#/properties/keyId/type",
@@ -2370,7 +2370,7 @@ var qe = ae((fe) => {
                   j = r;
                 if (!(y === "device_enc" || y === "agent_enc" || y === "recovery_enc"))
                   return (
-                    ($.errors = [
+                    (R.errors = [
                       {
                         instancePath: e + "/role",
                         schemaPath: "#/properties/role/enum",
@@ -2390,7 +2390,7 @@ var qe = ae((fe) => {
                     if (typeof y == "string") {
                       if (g(y) > 128)
                         return (
-                          ($.errors = [
+                          (R.errors = [
                             {
                               instancePath: e + "/principalId",
                               schemaPath: "#/properties/principalId/maxLength",
@@ -2402,7 +2402,7 @@ var qe = ae((fe) => {
                         );
                       if (g(y) < 1)
                         return (
-                          ($.errors = [
+                          (R.errors = [
                             {
                               instancePath: e + "/principalId",
                               schemaPath: "#/properties/principalId/minLength",
@@ -2414,7 +2414,7 @@ var qe = ae((fe) => {
                         );
                       if (!K.test(y))
                         return (
-                          ($.errors = [
+                          (R.errors = [
                             {
                               instancePath: e + "/principalId",
                               schemaPath: "#/properties/principalId/pattern",
@@ -2426,7 +2426,7 @@ var qe = ae((fe) => {
                         );
                     } else
                       return (
-                        ($.errors = [
+                        (R.errors = [
                           {
                             instancePath: e + "/principalId",
                             schemaPath: "#/properties/principalId/type",
@@ -2443,7 +2443,7 @@ var qe = ae((fe) => {
                     let y = t.connectionId,
                       j = r,
                       ee = r,
-                      R = !1,
+                      $ = !1,
                       T = r;
                     if (r === T)
                       if (typeof y == "string") {
@@ -2482,7 +2482,7 @@ var qe = ae((fe) => {
                         (i === null ? (i = [O]) : i.push(O), r++);
                       }
                     var k = T === r;
-                    R = R || k;
+                    $ = $ || k;
                     let ge = r;
                     if (y !== null) {
                       let O = {
@@ -2494,7 +2494,7 @@ var qe = ae((fe) => {
                       (i === null ? (i = [O]) : i.push(O), r++);
                     }
                     var k = ge === r;
-                    if (((R = R || k), R))
+                    if ((($ = $ || k), $))
                       ((r = ee), i !== null && (ee ? (i.length = ee) : (i = null)));
                     else {
                       let O = {
@@ -2503,7 +2503,7 @@ var qe = ae((fe) => {
                         keyword: "anyOf",
                         params: {},
                       };
-                      return (i === null ? (i = [O]) : i.push(O), r++, ($.errors = i), !1);
+                      return (i === null ? (i = [O]) : i.push(O), r++, (R.errors = i), !1);
                     }
                     var p = j === r;
                   } else var p = !0;
@@ -2513,7 +2513,7 @@ var qe = ae((fe) => {
                         j = r;
                       if (!(typeof y == "number" && !(y % 1) && !isNaN(y)))
                         return (
-                          ($.errors = [
+                          (R.errors = [
                             {
                               instancePath: e + "/keyEpoch",
                               schemaPath: "#/properties/keyEpoch/type",
@@ -2526,7 +2526,7 @@ var qe = ae((fe) => {
                       if (r === j && typeof y == "number") {
                         if (y > 9007199254740991 || isNaN(y))
                           return (
-                            ($.errors = [
+                            (R.errors = [
                               {
                                 instancePath: e + "/keyEpoch",
                                 schemaPath: "#/properties/keyEpoch/maximum",
@@ -2538,7 +2538,7 @@ var qe = ae((fe) => {
                           );
                         if (y < 1 || isNaN(y))
                           return (
-                            ($.errors = [
+                            (R.errors = [
                               {
                                 instancePath: e + "/keyEpoch",
                                 schemaPath: "#/properties/keyEpoch/minimum",
@@ -2558,14 +2558,14 @@ var qe = ae((fe) => {
         }
       } else
         return (
-          ($.errors = [
+          (R.errors = [
             { instancePath: e, schemaPath: "#/type", keyword: "type", params: { type: "object" } },
           ]),
           !1
         );
-    return (($.errors = i), r === 0);
+    return ((R.errors = i), r === 0);
   }
-  $.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
+  R.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
   function P(
     t,
     {
@@ -3206,62 +3206,62 @@ var qe = ae((fe) => {
                                         if (r === y)
                                           if (typeof p == "string") {
                                             if (g(p) > 64) {
-                                              let R = {
+                                              let $ = {
                                                 instancePath: e + "/priorEnvelopeFingerprint",
                                                 schemaPath:
                                                   "#/properties/priorEnvelopeFingerprint/anyOf/0/maxLength",
                                                 keyword: "maxLength",
                                                 params: { limit: 64 },
                                               };
-                                              (i === null ? (i = [R]) : i.push(R), r++);
+                                              (i === null ? (i = [$]) : i.push($), r++);
                                             } else if (g(p) < 64) {
-                                              let R = {
+                                              let $ = {
                                                 instancePath: e + "/priorEnvelopeFingerprint",
                                                 schemaPath:
                                                   "#/properties/priorEnvelopeFingerprint/anyOf/0/minLength",
                                                 keyword: "minLength",
                                                 params: { limit: 64 },
                                               };
-                                              (i === null ? (i = [R]) : i.push(R), r++);
+                                              (i === null ? (i = [$]) : i.push($), r++);
                                             } else if (!se.test(p)) {
-                                              let R = {
+                                              let $ = {
                                                 instancePath: e + "/priorEnvelopeFingerprint",
                                                 schemaPath:
                                                   "#/properties/priorEnvelopeFingerprint/anyOf/0/pattern",
                                                 keyword: "pattern",
                                                 params: { pattern: "^[a-f0-9]{64}$" },
                                               };
-                                              (i === null ? (i = [R]) : i.push(R), r++);
+                                              (i === null ? (i = [$]) : i.push($), r++);
                                             }
                                           } else {
-                                            let R = {
+                                            let $ = {
                                               instancePath: e + "/priorEnvelopeFingerprint",
                                               schemaPath:
                                                 "#/properties/priorEnvelopeFingerprint/anyOf/0/type",
                                               keyword: "type",
                                               params: { type: "string" },
                                             };
-                                            (i === null ? (i = [R]) : i.push(R), r++);
+                                            (i === null ? (i = [$]) : i.push($), r++);
                                           }
                                         var u = y === r;
                                         b = b || u;
                                         let j = r;
                                         if (p !== null) {
-                                          let R = {
+                                          let $ = {
                                             instancePath: e + "/priorEnvelopeFingerprint",
                                             schemaPath:
                                               "#/properties/priorEnvelopeFingerprint/anyOf/1/type",
                                             keyword: "type",
                                             params: { type: "null" },
                                           };
-                                          (i === null ? (i = [R]) : i.push(R), r++);
+                                          (i === null ? (i = [$]) : i.push($), r++);
                                         }
                                         var u = j === r;
                                         if (((b = b || u), b))
                                           ((r = A),
                                             i !== null && (A ? (i.length = A) : (i = null)));
                                         else {
-                                          let R = {
+                                          let $ = {
                                             instancePath: e + "/priorEnvelopeFingerprint",
                                             schemaPath:
                                               "#/properties/priorEnvelopeFingerprint/anyOf",
@@ -3269,7 +3269,7 @@ var qe = ae((fe) => {
                                             params: {},
                                           };
                                           return (
-                                            i === null ? (i = [R]) : i.push(R),
+                                            i === null ? (i = [$]) : i.push($),
                                             r++,
                                             (P.errors = i),
                                             !1
@@ -3329,14 +3329,14 @@ var qe = ae((fe) => {
                                         if (s) {
                                           if (t.stableOperationId !== void 0) {
                                             let p = r;
-                                            M(t.stableOperationId, {
+                                            J(t.stableOperationId, {
                                               instancePath: e + "/stableOperationId",
                                               parentData: t,
                                               parentDataProperty: "stableOperationId",
                                               rootData: f,
                                               dynamicAnchors: d,
                                             }) ||
-                                              ((i = i === null ? M.errors : i.concat(M.errors)),
+                                              ((i = i === null ? J.errors : i.concat(J.errors)),
                                               (r = i.length));
                                             var s = p === r;
                                           } else var s = !0;
@@ -3579,7 +3579,7 @@ var qe = ae((fe) => {
                                                             let b = p.length;
                                                             for (let y = 0; y < b; y++) {
                                                               let j = r;
-                                                              $(p[y], {
+                                                              R(p[y], {
                                                                 instancePath:
                                                                   e + "/recipients/" + y,
                                                                 parentData: p,
@@ -3589,8 +3589,8 @@ var qe = ae((fe) => {
                                                               }) ||
                                                                 ((i =
                                                                   i === null
-                                                                    ? $.errors
-                                                                    : i.concat($.errors)),
+                                                                    ? R.errors
+                                                                    : i.concat(R.errors)),
                                                                 (r = i.length));
                                                               var l = j === r;
                                                               if (!l) break;
@@ -5095,14 +5095,14 @@ var qe = ae((fe) => {
                         if (s) {
                           if (t.stableOperationId !== void 0) {
                             let l = r;
-                            M(t.stableOperationId, {
+                            J(t.stableOperationId, {
                               instancePath: e + "/stableOperationId",
                               parentData: t,
                               parentDataProperty: "stableOperationId",
                               rootData: f,
                               dynamicAnchors: d,
                             }) ||
-                              ((i = i === null ? M.errors : i.concat(M.errors)), (r = i.length));
+                              ((i = i === null ? J.errors : i.concat(J.errors)), (r = i.length));
                             var s = l === r;
                           } else var s = !0;
                           if (s) {
@@ -5465,7 +5465,7 @@ function V(t) {
     t
   );
 }
-function J(t) {
+function M(t) {
   let e;
   try {
     e = we(t);
@@ -5475,7 +5475,7 @@ function J(t) {
   return (typeof e != "string" && w("invalid_json"), e);
 }
 function ie(t, e = 1048576) {
-  let a = J(t);
+  let a = M(t);
   return (Ce.encode(a).length > e && w("payload_too_large"), a);
 }
 function be(t, e) {
@@ -5502,7 +5502,7 @@ function Fe(t, e = !1) {
   try {
     let a = ar.decode(Ke(t)),
       n = JSON.parse(a);
-    return ((e ? J(n) : JSON.stringify(n)) !== a && w("invalid_record"), n);
+    return ((e ? M(n) : JSON.stringify(n)) !== a && w("invalid_record"), n);
   } catch {
     w("invalid_record");
   }
@@ -5520,7 +5520,7 @@ function me(t) {
   return structuredClone(t);
 }
 function re(t) {
-  return J(me(t));
+  return M(me(t));
 }
 async function ne(t, e) {
   (ie(t, 589824),
@@ -5712,7 +5712,7 @@ var ue = class {
               (!Array.isArray(I) || I.length > 256) && w("invalid_record");
               let l = I.find((c) => c.key === f);
               if (l) {
-                ((l.scope !== d || J({ ...l.value, receipt: null }) !== i) && w("outbox_conflict"),
+                ((l.scope !== d || M({ ...l.value, receipt: null }) !== i) && w("outbox_conflict"),
                   h(structuredClone(l.value)));
                 return;
               }
@@ -5733,24 +5733,24 @@ var ue = class {
     let { context: i } = await ne(d.packet, e),
       r = ye(f, d.packet, e, i, d.runCreatedAt),
       h = de(e, a),
-      s = J(d);
+      s = M(d);
     return this.#s("readwrite", (u, I, l) => {
       let c = u.get(h);
       ((c.onerror = () => l(c.error)),
         (c.onsuccess = () => {
           try {
             let _ = c.result;
-            if (((!_ || _.scope !== re(e)) && w("outbox_conflict"), J(_.value) !== s)) {
+            if (((!_ || _.scope !== re(e)) && w("outbox_conflict"), M(_.value) !== s)) {
               if (
-                J({ ..._.value, receipt: null }) === J({ ...d, receipt: null }) &&
-                J(_.value.receipt) === J(r)
+                M({ ..._.value, receipt: null }) === M({ ...d, receipt: null }) &&
+                M(_.value.receipt) === M(r)
               ) {
                 I(structuredClone(_.value));
                 return;
               }
               w("outbox_conflict");
             }
-            (_.value.receipt !== null && J(_.value.receipt) !== J(r) && w("receipt_replacement"),
+            (_.value.receipt !== null && M(_.value.receipt) !== M(r) && w("receipt_replacement"),
               (_.value.receipt = r),
               u.put(_),
               I(structuredClone(_.value)));
@@ -5783,8 +5783,9 @@ var ue = class {
     this.#i && ((await this.#i).close(), (this.#i = void 0));
   }
 };
-var kr = new TextEncoder(),
+var wr = new TextEncoder(),
   Le = 2e4,
+  pr = 6e4,
   Ae = "1.3.0",
   Be = {
     status: [],
@@ -5799,12 +5800,12 @@ var kr = new TextEncoder(),
     reviseResult: ["runId", "stableOperationId", "expectedRevision", "content"],
     resultOutbox: ["runId", "stableOperationId"],
   };
-async function pr(t) {
+async function lr(t) {
   return [...new Uint8Array(await crypto.subtle.digest("SHA-256", t))]
     .map((e) => e.toString(16).padStart(2, "0"))
     .join("");
 }
-function lr(t, e) {
+function cr(t, e) {
   let a;
   try {
     a = new URL(t);
@@ -5825,7 +5826,7 @@ function lr(t, e) {
     a.origin
   );
 }
-async function Je(t, e, a) {
+async function Me(t, e, a) {
   t.body || w("invalid_response");
   let n = t.body.getReader(),
     f = [],
@@ -5851,7 +5852,7 @@ async function Je(t, e, a) {
 function H(t) {
   return structuredClone(t);
 }
-var Me = class {
+var Je = class {
   #p;
   #i;
   #P;
@@ -5882,7 +5883,7 @@ var Me = class {
   #o;
   #I = new Map();
   #O = new Set();
-  #$;
+  #R;
   constructor({
     issuer: e,
     developmentLoopback: a = !1,
@@ -5892,7 +5893,7 @@ var Me = class {
     clock: i = Date.now,
     onState: r = () => {},
   }) {
-    ((this.#p = lr(e, a)),
+    ((this.#p = cr(e, a)),
       (this.#i = (...h) => n(...h)),
       (this.#P = f),
       (this.#s = d),
@@ -5959,7 +5960,7 @@ var Me = class {
     let n = this.#t,
       f = new AbortController();
     this.#l.add(f);
-    let d = setTimeout(() => f.abort(), 1e4);
+    let d = setTimeout(() => f.abort(), pr);
     try {
       let i = await this.#i(this.#p + "/agent/v2/helper/1.3.0/worker.mjs", {
         credentials: "omit",
@@ -5971,9 +5972,9 @@ var Me = class {
         i.headers.get("content-type")?.split(";", 1)[0].trim().toLowerCase() !==
           "text/javascript") &&
         w("helper_unavailable");
-      let r = await Je(i, f.signal, 2097152);
+      let r = await Me(i, f.signal, 2097152);
       (this.#e(n),
-        (await pr(r)) !== e.workerSha256 && w("helper_integrity_mismatch"),
+        (await lr(r)) !== e.workerSha256 && w("helper_integrity_mismatch"),
         this.#e(n),
         (this.#_ = URL.createObjectURL(new Blob([r], { type: "text/javascript" }))),
         (this.#d = this.#P(this.#_)));
@@ -6010,7 +6011,7 @@ var Me = class {
         }),
         (I.keyExportRejected !== !0 || I.privateKeysPresent !== !0) && w("unsafe_helper"),
         (this.#z = Math.floor(this.#h() / 1e3) + e.ttlSeconds),
-        (this.#$ = setTimeout(() => this.lock("session_expired"), e.ttlSeconds * 1e3)),
+        (this.#R = setTimeout(() => this.lock("session_expired"), e.ttlSeconds * 1e3)),
         this.#f(this.status()),
         this.publicOffer()
       );
@@ -6160,7 +6161,7 @@ var Me = class {
         V(n.clientId),
         V(n.authorizationId));
       let d = (i) =>
-        J({
+        M({
           connectionId: i.connectionId,
           authorizationId: i.authorizationId,
           clientId: i.clientId,
@@ -6246,7 +6247,7 @@ var Me = class {
           )),
         I.headers.get("content-type")?.split(";", 1)[0].trim().toLowerCase() !==
           "application/json" && w("invalid_response"));
-      let l = await Je(I, s.signal, 1048576);
+      let l = await Me(I, s.signal, 1048576);
       this.#e(r, i);
       let c;
       try {
@@ -6373,7 +6374,7 @@ var Me = class {
     });
     return (this.#e(d, !0), this.replay(i.stableOperationId));
   }
-  async #R(e, a, n) {
+  async #$(e, a, n) {
     let { context: f } = await ne(e.packet, this.#r);
     this.#e(n, !0);
     let d = ye(a, e.packet, this.#r, f, e.runCreatedAt);
@@ -6412,7 +6413,7 @@ var Me = class {
             : f.envelope,
         },
       );
-    return (this.#e(a, !0), this.#R(n, i, a));
+    return (this.#e(a, !0), this.#$(n, i, a));
   }
   async recoverReceipt(e) {
     let a = this.#t;
@@ -6420,7 +6421,7 @@ var Me = class {
     let n = await this.#s.get(this.#r, e);
     (this.#e(a, !0), n || w("not_found"));
     let f = await this.#c(`/agent/v2/runs/${n.packet.runId}/receipts/${e}`);
-    return (this.#e(a, !0), f === null ? { receipt: null, pending: !0 } : this.#R(n, f, a));
+    return (this.#e(a, !0), f === null ? { receipt: null, pending: !0 } : this.#$(n, f, a));
   }
   async listOutbox() {
     let e = this.#t;
@@ -6451,7 +6452,7 @@ var Me = class {
   }
   lock(e = "locked") {
     if (!this.#v) {
-      ((this.#v = !0), this.#t++, this.#L++, clearTimeout(this.#$));
+      ((this.#v = !0), this.#t++, this.#L++, clearTimeout(this.#R));
       for (let a of this.#l) a.abort();
       this.#l.clear();
       for (let a of this.#n.values()) (clearTimeout(a.timeout), a.reject(new B("session_ended")));
@@ -6474,7 +6475,7 @@ export {
   he as CONTROLLER_PROFILE,
   ue as CiphertextOutbox,
   B as ControllerDenied,
-  Me as ForegroundController,
+  Je as ForegroundController,
   Ae as HELPER_VERSION,
   ie as bounded,
   W as exact,
