@@ -18,6 +18,13 @@ current Worker/session. A full refresh still requires unlocking as before. Logou
 lock and leaving the workspace retain the existing key-disposal rules; remembering a route does
 not persist private key material or replace owner authentication.
 
+Automatic token refresh for the same verified Firebase SDK user revalidates the account without
+replacing this owner session or interrupting current private requests and consent responses.
+Each private request still obtains a current SDK token. Failed or timed-out account verification,
+an authentication rejection, a different SDK user and explicit account retry invalidate the
+previous session. This keeps normal credential rotation from causing another Passkey prompt
+inside the same open workspace; a new tab or full page reload still starts its own session.
+
 Legacy `#inbox/result/...` links normalize to `/inbox` while retaining the fragment. Existing
 `agent_request`/`agent_nonce` handoffs normalize to `/agents` while retaining the query; this
 handoff keeps its prior precedence over an Inbox fragment. Login stays on the selected path.

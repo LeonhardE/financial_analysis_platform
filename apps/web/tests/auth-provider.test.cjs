@@ -217,6 +217,11 @@ function mountProvider({
       assert.ok(timer, "owner config timeout exists");
       timer.callback();
     },
+    expireVerification: () => {
+      const timer = [...timers.values()].find((item) => item.milliseconds === 15_000);
+      assert.ok(timer, "account verification timeout exists");
+      timer.callback();
+    },
     unmount: () => {
       mounted = false;
       cells.forEach((cell) => cell.cleanup?.());
@@ -331,6 +336,205 @@ test("a delayed response from a previous account cannot replace the current acco
   await settle();
   assert.equal(harness.state().profile.uid, "b");
   assert.equal(harness.requests[0][1].signal.aborted, true);
+});
+
+test("automatic token refresh keeps the owner session while reverifying with fresh credentials", async () => {
+  const refresh = deferred();
+  let token = "test-token-a-initial";
+  let profiles = 0;
+  const account = { uid: "a", getIdToken: async () => token };
+  const h = mountProvider({
+    fetchProfile: async (url) => {
+      if (url.endsWith("/api/v1/me"))
+        return ++profiles === 1 ? profileResponse("a") : refresh.promise;
+      return new Response("[]");
+    },
+  });
+  h.emitUser(account);
+  await settle();
+  const original = h.state();
+  token = "test-token-a-refreshed";
+  h.emitUser(account);
+  assert.equal(h.state().status, "authenticated");
+  assert.equal(h.state().sessionKey, original.sessionKey);
+  assert.equal(h.state().profile, original.profile);
+  await settle();
+  assert.equal(h.requests[1][1].headers.Authorization, "Bearer test-token-a-refreshed");
+  await h.actions.requestPrivate("user", "/api/v1/watchlist", original.sessionKey);
+  assert.equal(h.requests[2][1].headers.Authorization, "Bearer test-token-a-refreshed");
+  refresh.resolve(profileResponse("a"));
+  await settle();
+  assert.equal(h.state().sessionKey, original.sessionKey);
+  assert.equal(h.state().status, "authenticated");
+  h.unmount();
+});
+
+test("a refresh emitted inside SDK token retrieval does not cancel the original private request", async () => {
+  let rotate = false;
+  let token = "initial";
+  const h = mountProvider({
+    fetchProfile: async (url) =>
+      url.endsWith("/api/v1/me") ? profileResponse("a") : new Response("[]"),
+  });
+  const account = {
+    uid: "a",
+    getIdToken: async () => {
+      if (rotate) {
+        rotate = false;
+        token = "fresh";
+        h.emitUser(account);
+      }
+      return "test-token-a-" + token;
+    },
+  };
+  h.emitUser(account);
+  await settle();
+  const key = h.actions.sessionKey;
+  rotate = true;
+  const response = await h.actions.requestPrivate("user", "/api/v1/watchlist", key);
+  await settle();
+  assert.equal(response.status, 200);
+  assert.equal(h.state().sessionKey, key);
+  const request = h.requests.find(([url]) => url.endsWith("/api/v1/watchlist"));
+  assert.equal(request[1].headers.Authorization, "Bearer test-token-a-fresh");
+  h.unmount();
+});
+
+test("a replacement SDK user with the same uid must verify again and fences the previous session", async () => {
+  const replacement = deferred();
+  let profiles = 0;
+  const h = mountProvider({
+    fetchProfile: async () => (++profiles === 1 ? profileResponse("a") : replacement.promise),
+  });
+  h.emitUser(user("a"));
+  await settle();
+  const key = h.actions.sessionKey;
+  h.emitUser(user("a"));
+  assert.equal(h.state().sessionKey, null);
+  assert.equal(h.state().profile, null);
+  await assert.rejects(h.actions.requestPrivate("user", "/api/v1/watchlist", key), {
+    name: "SessionChangedError",
+  });
+  replacement.resolve(profileResponse("a"));
+  await settle();
+  assert.notEqual(h.state().sessionKey, key);
+  h.unmount();
+});
+
+for (const failure of ["rejected", "wrong-owner", "network", "timeout"])
+  test(`automatic refresh verification failure (${failure}) clears the retained session`, async () => {
+    const refresh = deferred();
+    let profiles = 0;
+    const h = mountProvider({
+      fetchProfile: async () => (++profiles === 1 ? profileResponse("a") : refresh.promise),
+    });
+    const account = user("a");
+    h.emitUser(account);
+    await settle();
+    const key = h.actions.sessionKey;
+    h.emitUser(account);
+    await settle();
+    assert.equal(h.state().sessionKey, key);
+    if (failure === "timeout") h.expireVerification();
+    else if (failure === "network") refresh.reject(new TypeError("Network unavailable"));
+    else
+      refresh.resolve(
+        failure === "wrong-owner" ? profileResponse("b") : { ok: false, status: 401 },
+      );
+    await settle();
+    assert.equal(h.state().status, "error");
+    assert.equal(h.state().sessionKey, null);
+    assert.equal(h.state().profile, null);
+    await assert.rejects(h.actions.requestPrivate("user", "/api/v1/watchlist", key), {
+      name: "SessionChangedError",
+    });
+    // Even a transport that ignores cancellation cannot restore timed-out access.
+    if (failure === "timeout") {
+      refresh.resolve(profileResponse("a"));
+      await settle();
+      assert.equal(h.state().sessionKey, null);
+    }
+    h.unmount();
+  });
+
+test("a late successful refresh cannot restore a session rejected by a private API", async () => {
+  const refresh = deferred();
+  let profiles = 0;
+  const h = mountProvider({
+    fetchProfile: async (url) => {
+      if (url.endsWith("/api/v1/me"))
+        return ++profiles === 1 ? profileResponse("a") : refresh.promise;
+      return { ok: false, status: 401 };
+    },
+  });
+  const account = user("a");
+  h.emitUser(account);
+  await settle();
+  const key = h.actions.sessionKey;
+  h.emitUser(account);
+  await settle();
+  await assert.rejects(h.actions.requestPrivate("user", "/api/v1/watchlist", key), {
+    name: "SessionChangedError",
+  });
+  refresh.resolve(profileResponse("a"));
+  await settle();
+  assert.equal(h.state().sessionKey, null);
+  assert.equal(h.state().status, "error");
+  h.unmount();
+});
+
+test("an explicit account retry revalidates and replaces even the same SDK user's session", async () => {
+  const forced = [];
+  const account = {
+    uid: "a",
+    getIdToken: async (force) => {
+      forced.push(force);
+      return "test-token-a";
+    },
+  };
+  const h = mountProvider();
+  h.emitUser(account);
+  await settle();
+  const key = h.actions.sessionKey;
+  const retry = h.actions.retry();
+  assert.equal(h.state().sessionKey, null);
+  await retry;
+  assert.equal(forced.at(-1), true);
+  assert.notEqual(h.state().sessionKey, key);
+  assert.equal(h.state().status, "authenticated");
+  h.unmount();
+});
+
+test("same-owner token refresh preserves an in-flight consent bridge response", async () => {
+  const response = deferred();
+  let sends = 0;
+  const h = mountProvider({ fetchOwnerConfig: async () => configResponse(true, true) });
+  const account = user("a");
+  h.emitUser(account);
+  await settle();
+  const key = h.actions.sessionKey;
+  const pending = h.actions.requestAgentConsent(
+    {
+      testVerifiedOwnerBridge: true,
+      hubOrigin: "https://agent-hub-api-123456789.northamerica-northeast2.run.app",
+      isLive: () => true,
+      request: async () => {
+        sends++;
+        return response.promise;
+      },
+    },
+    "claim",
+    { contractVersion: "folioview.agent-workspace.v2.0" },
+    key,
+  );
+  await settle();
+  assert.equal(sends, 1);
+  h.emitUser(account);
+  await settle();
+  response.resolve({ recorded: true });
+  assert.equal((await pending).recorded, true);
+  assert.equal(h.state().sessionKey, key);
+  h.unmount();
 });
 
 test("failed sign-out keeps identity hidden and retries the SDK's current account", async () => {
