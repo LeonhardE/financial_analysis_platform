@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { OwnerConsentBridge, checkedCallback } from "../helper/dist/consent.mjs";
+import { OwnerConsentBridge, checkedCallback, startConsentPage } from "../helper/dist/consent.mjs";
 import { OwnerHelperBridge } from "../helper/dist/owner-helper.mjs";
 const PROFILE = "folioview.owner-consent-bridge.v1",
   OWNER = "folioview.foreground-owner.v1",
@@ -332,5 +332,197 @@ test("owner-helper channel exposes only four public owner operations, keeps auth
     bridge.close();
     channel.port1.close();
     channel.port2.close();
+  }
+});
+
+test("an owner-opened reconnect offers only public locators and binds the port to that exact source and configured origin", async () => {
+  const f = fakeHost(),
+    calls = [],
+    states = [];
+  const bridge = new OwnerConsentBridge({
+    config,
+    requestId: "request_synthetic_A",
+    host: f.host,
+    fetchImpl: async (url, options) => {
+      calls.push({ url, options });
+      return Response.json(pending);
+    },
+    onState: (state) => states.push(state),
+  });
+  let port;
+  try {
+    bridge.offer();
+    assert.equal(f.host.opener, null);
+    assert.equal(f.host.opened, undefined);
+    assert.equal(calls.length, 0);
+    const [offer, origin] = f.posted[0];
+    assert.equal(origin, config.ownerOrigins[0]);
+    assert.deepEqual(Object.keys(offer).sort(), ["nonce", "profile", "requestId", "type"]);
+    assert.equal(offer.type, "fv-owner-consent-offer");
+    assert.match(offer.nonce, /^[A-Za-z0-9_-]{43}$/);
+    const ready = {
+      origin,
+      source: f.peer,
+      ports: [],
+      data: { type: "fv-owner-consent-ready", requestId: offer.requestId, nonce: offer.nonce },
+    };
+    for (const patch of [
+      { isTrusted: false },
+      { source: {} },
+      { origin: "https://attacker.example" },
+      { ports: [{}] },
+      { data: { ...ready.data, nonce: "x".repeat(43) } },
+      { data: { ...ready.data, requestId: "other" } },
+      { data: { ...ready.data, authorization: "CANARY" } },
+    ]) {
+      f.host.emit("message", { ...ready, ...patch });
+      assert.equal(f.posted.length, 1);
+    }
+    f.host.emit("message", ready);
+    assert.equal(f.posted.length, 2);
+    port = f.posted[1][2][0];
+    assert.equal(f.posted[1][1], origin);
+    const value = await send({ port }, "call_reused", "claim", { contractVersion: CONTRACT });
+    assert.equal(value.ok, true);
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].url, "/api/v2/agent-authorizations/request_synthetic_A/claim");
+    assert.equal(calls[0].options.credentials, "same-origin");
+    assert.equal(states.includes("owner_attached"), true);
+    assert.throws(() => bridge.offer());
+    assert.throws(() => bridge.open(origin));
+  } finally {
+    bridge.close();
+    port?.close();
+  }
+});
+
+test("reconnect never uses a missing, closed or non-isolated opener and creates no owner page", () => {
+  for (const kind of ["missing", "closed", "fixed"]) {
+    const f = fakeHost();
+    if (kind === "missing") f.host.opener = null;
+    if (kind === "closed") f.peer.closed = true;
+    if (kind === "fixed")
+      Object.defineProperty(f.host, "opener", {
+        get: () => f.peer,
+        set: () => {
+          throw Error("fixed");
+        },
+      });
+    const bridge = new OwnerConsentBridge({
+      config,
+      requestId: "request_synthetic_A",
+      host: f.host,
+    });
+    try {
+      assert.throws(() => bridge.offer());
+      assert.equal(f.posted.length, 0);
+      assert.equal(f.host.opened, undefined);
+    } finally {
+      bridge.close();
+    }
+  }
+});
+
+test("closing the original owner page ends a reconnect before any credential is requested", (t) => {
+  t.mock.timers.enable({ apis: ["setInterval", "setTimeout"] });
+  const f = fakeHost(),
+    states = [];
+  const bridge = new OwnerConsentBridge({
+    config,
+    requestId: "request_synthetic_A",
+    host: f.host,
+    onState: (x) => states.push(x),
+  });
+  try {
+    bridge.offer();
+    f.peer.closed = true;
+    t.mock.timers.tick(1000);
+    assert.equal(states.at(-1), "owner_closed");
+  } finally {
+    bridge.close();
+    t.mock.timers.reset();
+  }
+});
+
+function consentPageHarness(search) {
+  const f = fakeHost(),
+    nodes = new Map(),
+    copied = [],
+    calls = [];
+  const node = (id) => {
+    if (!nodes.has(id))
+      nodes.set(id, {
+        hidden: false,
+        disabled: true,
+        value: "https://web.example",
+        textContent: "",
+        handlers: new Map(),
+        append() {},
+        addEventListener(name, fn) {
+          this.handlers.set(name, fn);
+        },
+      });
+    return nodes.get(id);
+  };
+  f.host.location.search = search;
+  f.host.location.hash = "";
+  f.host.navigator = { clipboard: { writeText: async (value) => copied.push(value) } };
+  const document = {
+    getElementById: node,
+    createElement: () => ({}),
+    querySelector: () => node("origin-label"),
+  };
+  const fetchImpl = async (url, options) => {
+    calls.push({ url, options });
+    return Response.json(config);
+  };
+  return { ...f, node, document, fetchImpl, copied, calls };
+}
+test("normal consent presents only a public request link and retains the legacy first-unlock path", async () => {
+  const f = consentPageHarness("?request=request_synthetic_A");
+  await startConsentPage({ host: f.host, document: f.document, fetchImpl: f.fetchImpl });
+  try {
+    assert.equal(
+      f.node("request-link").value,
+      `${config.issuer}/agent/v2/helper/consent.html?request=request_synthetic_A`,
+    );
+    await f.node("copy-request").handlers.get("click")();
+    assert.deepEqual(f.copied, [f.node("request-link").value]);
+    f.node("continue").handlers.get("click")();
+    assert.equal(new URL(f.host.opened).origin, config.ownerOrigins[0]);
+    assert.equal(new URL(f.host.opened).searchParams.get("agent_request"), "request_synthetic_A");
+  } finally {
+    f.node("cancel").handlers.get("click")();
+  }
+});
+test("owner reuse mode offers to the original page without opening or navigating an owner window", async () => {
+  const f = consentPageHarness("?request=request_synthetic_A&owner_reuse=1");
+  await startConsentPage({ host: f.host, document: f.document, fetchImpl: f.fetchImpl });
+  try {
+    assert.equal(f.host.opened, undefined);
+    assert.equal(f.host.opener, null);
+    assert.equal(f.node("continue").hidden, true);
+    assert.match(f.node("status").textContent, /original unlocked/);
+    assert.equal(f.posted[0][0].type, "fv-owner-consent-offer");
+    assert.deepEqual(
+      f.calls.map((x) => x.url),
+      ["/agent/v2/controller/config"],
+    );
+  } finally {
+    f.node("cancel").handlers.get("click")();
+  }
+});
+test("consent rejects extra credentials, duplicate fields and malformed reuse mode before any request", async () => {
+  for (const query of [
+    "?request=request_synthetic_A&owner_reuse=0",
+    "?request=request_synthetic_A&owner_reuse=1&token=CANARY",
+    "?request=request_synthetic_A&request=other",
+    "?request=request_synthetic_A&owner_reuse=1&owner_reuse=1",
+  ]) {
+    const f = consentPageHarness(query);
+    await startConsentPage({ host: f.host, document: f.document, fetchImpl: f.fetchImpl });
+    assert.equal(f.calls.length, 0);
+    assert.equal(f.node("continue").disabled, true);
+    assert.equal(f.host.opened, undefined);
   }
 });

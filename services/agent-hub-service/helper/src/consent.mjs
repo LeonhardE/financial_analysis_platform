@@ -161,6 +161,7 @@ export class OwnerConsentBridge {
   #nonce;
   #peer;
   #origin;
+  #offered = false;
   #port;
   #used = false;
   #closed = false;
@@ -227,10 +228,44 @@ export class OwnerConsentBridge {
       this.#origin = undefined;
       deny("popup_blocked");
     }
+    this.#watchPeer();
+    this.#notify("owner_opened");
+  }
+  /** Public-only offer to the original page that explicitly opened this Hub window. */
+  offer() {
+    const peer = this.#window.opener;
+    if (this.#closed || this.#peer || !peer || peer === this.#window || peer.closed)
+      deny("invalid_owner_origin");
+    this.#peer = peer;
+    this.#offered = true;
+    try {
+      this.#window.opener = null;
+    } catch {
+      this.close();
+      deny("invalid_owner_origin");
+    }
+    if (this.#window.opener !== null) {
+      this.close();
+      deny("invalid_owner_origin");
+    }
+    for (const origin of this.#config.ownerOrigins) {
+      peer.postMessage(
+        {
+          type: "fv-owner-consent-offer",
+          profile: OWNER_BRIDGE_PROFILE,
+          requestId: this.#request,
+          nonce: this.#nonce,
+        },
+        origin,
+      );
+    }
+    this.#watchPeer();
+    this.#notify("owner_offered");
+  }
+  #watchPeer() {
     this.#poll = setInterval(() => {
       if (this.#peer?.closed) this.close("owner_closed");
     }, 1000);
-    this.#notify("owner_opened");
   }
   #pagehide = () => this.close("bridge_closed");
   #message = (event) => {
@@ -240,7 +275,9 @@ export class OwnerConsentBridge {
       this.#used ||
       !this.#peer ||
       event.source !== this.#peer ||
-      event.origin !== this.#origin ||
+      (this.#offered
+        ? !this.#config.ownerOrigins.includes(event.origin)
+        : event.origin !== this.#origin) ||
       event.ports?.length
     )
       return;
@@ -255,6 +292,7 @@ export class OwnerConsentBridge {
     } catch {
       return;
     }
+    this.#origin = event.origin;
     this.#used = true;
     const channel = new MessageChannel();
     this.#port = channel.port1;
@@ -407,6 +445,8 @@ export async function startConsentPage({
   const update = (state) => {
     status.textContent =
       {
+        owner_offered:
+          "Return to your original unlocked FolioView page and review this request there.",
         owner_opened: "Review the connection in your FolioView window.",
         owner_attached: "Connected to your owner window. Review and approve there.",
         completed: "Decision completed. Returning to Muse…",
@@ -425,10 +465,13 @@ export async function startConsentPage({
     )
       button.disabled = true;
   };
+  let bridge;
   try {
     if (host.top !== host || host.location.hash) deny("top_level_required");
     const query = new URLSearchParams(host.location.search);
-    if ([...query.keys()].join() !== "request") deny("invalid_request");
+    const reuse = query.get("owner_reuse") === "1";
+    if ([...query.keys()].sort().join() !== (reuse ? "owner_reuse,request" : "request"))
+      deny("invalid_request");
     const requestId = id(query.get("request"));
     const controller = new AbortController(),
       timeout = setTimeout(() => controller.abort(), 10000);
@@ -445,7 +488,28 @@ export async function startConsentPage({
     } finally {
       clearTimeout(timeout);
     }
-    const bridge = new OwnerConsentBridge({ config, requestId, host, fetchImpl, onState: update });
+    bridge = new OwnerConsentBridge({ config, requestId, host, fetchImpl, onState: update });
+    const requestLink = new URL("/agent/v2/helper/consent.html", config.issuer);
+    requestLink.searchParams.set("request", requestId);
+    const link = doc.getElementById("request-link");
+    link.value = requestLink.href;
+    doc.getElementById("copy-request").addEventListener("click", async () => {
+      try {
+        await host.navigator.clipboard.writeText(requestLink.href);
+        doc.getElementById("copy-status").textContent = "Request link copied.";
+      } catch {
+        doc.getElementById("copy-status").textContent = "Select and copy the request link above.";
+      }
+    });
+    doc.getElementById("cancel").addEventListener("click", () => bridge.close());
+    if (reuse) {
+      select.hidden = true;
+      doc.querySelector('label[for="owner-origin"]').hidden = true;
+      button.hidden = true;
+      doc.getElementById("existing-page").hidden = true;
+      bridge.offer();
+      return;
+    }
     for (const origin of config.ownerOrigins) {
       const option = doc.createElement("option");
       option.value = origin;
@@ -464,8 +528,8 @@ export async function startConsentPage({
           "Could not open the owner window. Allow this popup and restart the connection.";
       }
     });
-    doc.getElementById("cancel").addEventListener("click", () => bridge.close());
   } catch {
+    bridge?.close();
     status.textContent =
       "This connection page is unavailable or expired. Return to Muse and restart the connection.";
     button.disabled = true;

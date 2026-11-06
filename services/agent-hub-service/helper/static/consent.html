@@ -16,6 +16,18 @@
         Your FolioView window handles Google sign-in, Passkey unlock and approval. Your Passkey and
         private keys stay there.
       </p>
+      <section id="existing-page">
+        <h2>Already unlocked in FolioView?</h2>
+        <p>
+          Keep that page open. Copy this request link, open Agent in the same page, and choose
+          “Review a new connection in this unlocked page”. Paste the link there to review without
+          another Passkey prompt. The request keeps its original expiry.
+        </p>
+        <label for="request-link">Connection request link</label>
+        <input id="request-link" type="url" readonly autocomplete="off" />
+        <button id="copy-request" class="secondary">Copy request link</button>
+        <p id="copy-status" role="status"></p>
+      </section>
       <label for="owner-origin">Your FolioView site</label
       ><select id="owner-origin"></select>
       <p id="status" role="status">Checking this connection…</p>
