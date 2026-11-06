@@ -151,3 +151,85 @@ class ForegroundTransportControllerTests(unittest.TestCase):
     def test_lock_destroys_the_only_helper_key_that_can_open_the_handoff(self):
         self.peer.api("lock")
         self.assertFalse(self.peer.api("connectTransport", self.transport, ok=False)["ok"])
+
+    def prepared_controller(self):
+        self.peer.api("connectTransport", self.transport)
+        prepared = self.peer.api("loadPreparation")
+        for descriptor in prepared["objects"]:
+            self.peer.api("readPreparedObject", descriptor["objectId"])
+
+    def run_posts(self):
+        return [
+            request
+            for request in self.peer.traffic
+            if request["method"] == "POST" and request["path"] == f"/agent/v2/tasks/{TASK}/runs"
+        ]
+
+    def test_created_run_refusal_rechecks_original_response_then_saves_same_run(self):
+        self.prepared_controller()
+        self.peer.raw({"refuseRunInstalls": 1})
+        operation = "synthetic_original_run_acceptance"
+        self.assertEqual(
+            self.peer.api("beginRun", operation, ok=False)["error"],
+            "run_expired_or_untrusted",
+        )
+        self.assertEqual(len(self.run_posts()), 1)
+        self.assertEqual(
+            self.peer.api("beginRun", "synthetic_different_run", ok=False)["error"],
+            "original_run_pending",
+        )
+        response = self.peer.api("beginRun", operation)
+        self.assertEqual(len(self.run_posts()), 1)
+        cursor = None
+        while True:
+            page = self.peer.api("readRunPage", response["run"]["runId"], cursor)
+            cursor = page["nextCursor"]
+            if cursor is None:
+                break
+        saved = self.peer.api(
+            "submitResult",
+            response["run"]["runId"],
+            "synthetic_original_run_report",
+            self.content,
+        )
+        self.assertEqual(saved["receipt"]["resultId"], response["run"]["initialResultId"])
+        self.assertEqual(saved["receipt"]["revision"], 1)
+        self.assertTrue(saved["liveRevisionSession"])
+
+    def test_unknown_begin_outcome_replays_original_signed_bytes_and_blocks_new_run(self):
+        self.prepared_controller()
+        self.peer.lose_next_post = True
+        operation = "synthetic_unknown_begin_outcome"
+        self.assertEqual(self.peer.api("beginRun", operation, ok=False)["error"], "request_failed")
+        self.assertEqual(len(self.run_posts()), 1)
+        self.assertEqual(
+            self.peer.api("beginRun", "synthetic_different_run", ok=False)["error"],
+            "original_run_pending",
+        )
+        recovered = self.peer.api("beginRun", operation)
+        posts = self.run_posts()
+        self.assertEqual(len(posts), 2)
+        self.assertEqual(posts[0]["body"], posts[1]["body"])
+        self.assertEqual(recovered["run"]["state"], "ready")
+
+    def test_continuation_never_accepts_an_out_of_bounds_run_lifetime(self):
+        self.prepared_controller()
+        original = self.harness.service._response
+
+        def invalid_lifetime(*args):
+            response = original(*args)
+            response["run"]["expiresAt"] = "2099-01-01T00:00:00Z"
+            response["manifest"]["expiresAt"] = "2099-01-01T00:00:00Z"
+            return response
+
+        operation = "synthetic_untrusted_run_lifetime"
+        with patch.object(self.harness.service, "_response", side_effect=invalid_lifetime):
+            self.assertEqual(
+                self.peer.api("beginRun", operation, ok=False)["error"],
+                "run_expired_or_untrusted",
+            )
+        self.assertEqual(
+            self.peer.api("beginRun", operation, ok=False)["error"],
+            "run_expired_or_untrusted",
+        )
+        self.assertEqual(len(self.run_posts()), 1)
