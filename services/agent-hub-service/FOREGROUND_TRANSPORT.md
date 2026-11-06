@@ -65,6 +65,25 @@ the existing exact signed ciphertext outbox and original operation; check/retry 
 another report. Hidden/locked/closed sessions clear private views and late callbacks cannot
 restore them. Private keys remain memory-only and TTL-bounded. No unattended execution is added.
 
+## Access-token renewal within the approved session
+
+The authenticated authorization response supplies the access token's expiry. Before each HTTP
+request using the installed token, the 1.3.0 controller reserves its full existing 20-second
+request budget. An expired token, or one with too little time remaining, is cleared locally and
+returns `access_token_refresh_required` without issuing that request. The original grant identity,
+Worker keys, delivery pin, Run and encrypted retry records remain available within their original
+lifetimes. A multi-page preparation read can stop between registry pages and be explicitly retried
+after renewal; previously verified registry pages still undergo the original history checks.
+
+On that prompt, the authorized trusted host performs an ordinary same-grant OAuth refresh,
+obtains a fresh encrypted connection packet, imports the original packet file and reconnects
+the existing controller. Authentication must match the original connection, authorization, client,
+tasks and scopes. Continue the original analysis/report operation after reconnecting. A partially
+read frozen Run resumes its input pages without another Begin Run; an already loaded report draft
+is protected against another read. The helper
+does not acquire a refresh token or extend any grant, key, Run or Worker lifetime. Server-side
+401/403 denials and authority conflicts retain their existing session-ending behavior.
+
 ## Rollout and evidence
 
 Deliver the Hub producer and versioned assets first, then the Web version/hash consumer in a

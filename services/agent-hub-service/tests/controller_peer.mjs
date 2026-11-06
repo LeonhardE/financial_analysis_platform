@@ -22,6 +22,7 @@ const pendingHTTP = new Map(),
 let httpCounter = 0,
   now = 1000000,
   runInstallRefusals = 0,
+  clockAfterResponse = null,
   controller,
   storage;
 async function fetchImpl(url, options = {}) {
@@ -53,6 +54,10 @@ async function fetchImpl(url, options = {}) {
     options.signal?.addEventListener("abort", abort, { once: true });
     pendingHTTP.set(id, (reply) => {
       options.signal?.removeEventListener("abort", abort);
+      if (clockAfterResponse?.path === request.path) {
+        now = clockAfterResponse.now;
+        clockAfterResponse = null;
+      }
       if (reply.failure) {
         reject(new Error("synthetic_lost_response"));
         return;
@@ -91,6 +96,13 @@ const create = () => {
 };
 create();
 async function execute(command) {
+  if (command.clockAfterResponse) {
+    const value = command.clockAfterResponse;
+    if (!value.path?.startsWith("/agent/v2/") || !Number.isSafeInteger(value.now))
+      throw new Error("test_clock_after_response");
+    clockAfterResponse = value;
+    return true;
+  }
   if (command.refuseRunInstalls !== undefined) {
     if (!Number.isSafeInteger(command.refuseRunInstalls) || command.refuseRunInstalls < 0)
       throw new Error("test_run_install_refusals");

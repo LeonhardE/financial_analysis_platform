@@ -1,47 +1,49 @@
-import { ForegroundController as J, ControllerDenied as i } from "./controller.mjs";
-import { OwnerHelperBridge as T } from "./owner-helper.mjs";
+import { ForegroundController as N, ControllerDenied as o } from "./controller.mjs";
+import { OwnerHelperBridge as J } from "./owner-helper.mjs";
 var e = document,
   g = window,
-  v = e.getElementById("status"),
-  m = e.getElementById("output"),
-  h = e.getElementById("public-offer"),
-  s,
+  m = e.getElementById("status"),
+  h = e.getElementById("output"),
+  f = e.getElementById("public-offer"),
+  l,
   S,
-  f,
+  p,
   y,
-  L,
-  C = 0,
-  R = 0,
+  x,
+  _ = 0,
+  L = 0,
+  R = !1,
   O = !1,
-  P = ["report-title", "report-summary", "report-limits"],
-  b = [],
-  _ = () => {
-    (R++,
+  T = ["report-title", "report-summary", "report-limits"],
+  k = [],
+  b = () => {
+    (L++,
       (e.getElementById("transport-packet").value = ""),
       (e.getElementById("transport-packet-file").value = ""));
   },
   E = () => {
     e.getElementById("analysis-inputs").textContent = "";
-    for (let r of P) e.getElementById(r).value = "";
-    for (let r of b) r.input.value = "";
+    for (let r of T) e.getElementById(r).value = "";
+    for (let r of k) r.input.value = "";
   },
-  $ = (r) => {
+  P = (r) => {
     (r.state === "LOCKED" &&
-      (C++,
-      (f = y = L = null),
+      (_++,
+      (p = y = x = null),
+      (R = !1),
       (e.getElementById("read-analysis").textContent = "Read approved task and start analysis"),
       E(),
-      (b = []),
+      (k = []),
       e.getElementById("report-sections").replaceChildren(),
-      _(),
+      b(),
       (e.getElementById("analysis-state").textContent =
         "Session ended. Start a new approved session before reading."),
       (e.getElementById("save-state").textContent =
         "Session ended. Original encrypted retry records remain on this device."),
-      (m.textContent = ""),
       (h.textContent = ""),
+      (f.textContent = ""),
       (e.getElementById("agent-args").value = "")),
-      (v.textContent =
+      (m.textContent =
         r.state === "LOCKED"
           ? "Locked. Private key handles were discarded. Pending encrypted operations stay on this device."
           : r.state === "READY"
@@ -49,88 +51,91 @@ var e = document,
             : "Waiting for independent owner setup."));
   },
   u = (r) => {
-    v.textContent = `Operation refused: ${r instanceof i ? r.code : "controller_rejected"}.`;
+    m.textContent =
+      r instanceof o && r.code === "access_token_refresh_required"
+        ? "Access token needs renewal. Reconnect this session with a fresh encrypted connection packet, then continue the original analysis or report."
+        : `Operation refused: ${r instanceof o ? r.code : "controller_rejected"}.`;
   },
-  A = () =>
-    new J({
+  q = () =>
+    new N({
       issuer: g.location.origin,
       developmentLoopback: ["localhost", "127.0.0.1", "[::1]"].includes(g.location.hostname),
-      onState: $,
+      onState: P,
     }),
-  x = async (r) => {
-    if (O || !s || e.visibilityState === "hidden") return;
+  C = async (r) => {
+    if (O || !l || e.visibilityState === "hidden") return;
     O = !0;
-    let I = s,
-      t = C,
+    let I = l,
+      t = _,
       a = () => {
-        if (I !== s || t !== C || I.status().state === "LOCKED" || e.visibilityState === "hidden")
-          throw new i("foreground_required");
+        if (I !== l || t !== _ || I.status().state === "LOCKED" || e.visibilityState === "hidden")
+          throw new o("foreground_required");
       };
     try {
       await r(I, a);
-    } catch (o) {
-      t === C && u(o);
+    } catch (i) {
+      t === _ && u(i);
     } finally {
       O = !1;
     }
   },
-  N = (r) => `${r}_${crypto.randomUUID().replaceAll("-", "")}`;
-async function D() {
+  A = (r) => `${r}_${crypto.randomUUID().replaceAll("-", "")}`;
+async function $() {
   try {
-    if (g.top !== g || g.location.hash) throw new i("top_level_required");
+    if (g.top !== g || g.location.hash) throw new o("top_level_required");
     let r = new URLSearchParams(g.location.search);
     if (r.has("owner_nonce") || r.has("owner_origin")) {
       if ([...r.keys()].sort().join() !== "owner_nonce,owner_origin")
-        throw new i("invalid_owner_pairing");
+        throw new o("invalid_owner_pairing");
       e.getElementById("manual-owner").remove();
       let t = new AbortController(),
         a = setTimeout(() => t.abort(), 1e4),
-        o;
+        i;
       try {
-        let l = await fetch("/agent/v2/controller/config/1.3.0", {
+        let s = await fetch("/agent/v2/controller/config/1.3.0", {
           credentials: "omit",
           cache: "no-store",
           redirect: "error",
           signal: t.signal,
         });
-        if (!l.ok) throw new i("configuration_unavailable");
-        let n = await l.text();
-        if (new TextEncoder().encode(n).length > 32768) throw new i("invalid_configuration");
-        o = JSON.parse(n);
+        if (!s.ok) throw new o("configuration_unavailable");
+        let n = await s.text();
+        if (new TextEncoder().encode(n).length > 32768) throw new o("invalid_configuration");
+        i = JSON.parse(n);
       } finally {
         clearTimeout(a);
       }
-      ((s = A()),
-        (S = new T({
-          config: o,
-          controller: s,
+      ((l = q()),
+        (S = new J({
+          config: i,
+          controller: l,
           ownerOrigin: r.get("owner_origin"),
           nonce: r.get("owner_nonce"),
-          onState: (l) => {
-            l !== "owner_attached" &&
-              ((m.textContent = ""),
-              (h.textContent = ""),
-              (v.textContent = "The owner connection closed. Start a new foreground session."));
+          onState: (s) => {
+            s !== "owner_attached" &&
+              ((h.textContent = ""),
+              (f.textContent = ""),
+              (m.textContent = "The owner connection closed. Start a new foreground session."));
           },
         })),
-        (v.textContent =
+        (m.textContent =
           "Waiting for your paired FolioView window. Keep both windows open; private views are hidden when this helper is in the background."));
     } else {
-      if ([...r.keys()].length) throw new i("invalid_owner_pairing");
+      if ([...r.keys()].length) throw new o("invalid_owner_pairing");
       (e.getElementById("initialize").addEventListener("click", async () => {
         try {
-          if (s && s.status().state !== "LOCKED") throw new i("session_already_initialized");
-          s = A();
-          let t = await s.initialize(JSON.parse(e.getElementById("owner-card").value));
-          h.textContent = JSON.stringify(t, null, 2);
+          if (l && l.status().state !== "LOCKED") throw new o("session_already_initialized");
+          l = q();
+          let t = await l.initialize(JSON.parse(e.getElementById("owner-card").value));
+          f.textContent = JSON.stringify(t, null, 2);
         } catch (t) {
           u(t);
         }
       }),
         e.getElementById("confirm-delivery").addEventListener("click", async () => {
           try {
-            if (!s) throw new i("owner_setup_required");
-            await s.confirmDelivery({ pin: JSON.parse(e.getElementById("delivery-pin").value) });
+            if (!l) throw new o("owner_setup_required");
+            await l.confirmDelivery({ pin: JSON.parse(e.getElementById("delivery-pin").value) });
           } catch (t) {
             u(t);
           }
@@ -138,88 +143,92 @@ async function D() {
     }
     (e.getElementById("copy-offer").addEventListener("click", async () => {
       try {
-        if (!s) throw new i("owner_setup_required");
-        (await navigator.clipboard.writeText(JSON.stringify(s.publicOffer())),
-          (v.textContent =
+        if (!l) throw new o("owner_setup_required");
+        (await navigator.clipboard.writeText(JSON.stringify(l.publicOffer())),
+          (m.textContent =
             "Public key offer copied. Review it in your signed-in FolioView window."));
       } catch (t) {
         u(t);
       }
     }),
       e.getElementById("connect-transport").addEventListener("click", () =>
-        x(async (t, a) => {
-          let o = e.getElementById("transport-packet").value,
-            l = [...(e.getElementById("transport-packet-file").files ?? [])];
-          _();
-          let n = R;
-          if (l.length > 1 || (l.length && o.trim())) throw new i("invalid_transport");
-          if (l.length) {
-            let d = l[0];
-            if (d.size < 1 || d.size > 12288) throw new i("invalid_transport");
+        C(async (t, a) => {
+          let i = e.getElementById("transport-packet").value,
+            s = [...(e.getElementById("transport-packet-file").files ?? [])];
+          b();
+          let n = L;
+          if (s.length > 1 || (s.length && i.trim())) throw new o("invalid_transport");
+          if (s.length) {
+            let d = s[0];
+            if (d.size < 1 || d.size > 12288) throw new o("invalid_transport");
             try {
-              o = await d.text();
+              i = await d.text();
             } catch {
-              throw new i("invalid_transport");
+              throw new o("invalid_transport");
             }
-            if ((a(), n !== R)) throw new i("foreground_required");
+            if ((a(), n !== L)) throw new o("foreground_required");
           }
-          if (o.length > 12288) throw new i("invalid_transport");
-          (await t.connectTransport(JSON.parse(o)),
+          if (i.length > 12288) throw new o("invalid_transport");
+          (await t.connectTransport(JSON.parse(i)),
             a(),
             (e.getElementById("analysis-state").textContent =
-              "Approved session connected. Read the selected task to begin."));
+              p || x
+                ? "Approved session reconnected. Continue the original analysis or report."
+                : "Approved session connected. Read the selected task to begin."));
         }),
       ),
       e.getElementById("read-analysis").addEventListener("click", () =>
-        x(async (t, a) => {
-          if (f || y) throw new i("analysis_already_started");
-          E();
-          let o = await t.loadPreparation();
-          a();
-          for (let p of o.objects) (await t.readPreparedObject(p.objectId), a());
-          ((L ??= N("analysis")),
-            (e.getElementById("read-analysis").textContent = "Continue the original analysis"),
-            (e.getElementById("analysis-state").textContent =
-              "Checking this analysis. If it is interrupted, continue the original analysis to check the same request."));
-          let l = await t.beginRun(L);
-          (a(), (f = l.run.runId));
-          let n = [],
-            d = new Set(),
-            c = null;
+        C(async (t, a) => {
+          if (R || y) throw new o("analysis_already_started");
+          if ((E(), !p)) {
+            let c = await t.loadPreparation();
+            a();
+            for (let v of c.objects) (await t.readPreparedObject(v.objectId), a());
+            ((x ??= A("analysis")),
+              (e.getElementById("read-analysis").textContent = "Continue the original analysis"),
+              (e.getElementById("analysis-state").textContent =
+                "Checking this analysis. If it is interrupted, continue the original analysis to check the same request."));
+            let B = await t.beginRun(x);
+            (a(), (p = B.run.runId));
+          }
+          let i = [],
+            s = new Set(),
+            n = null;
           do {
-            if (n.length >= 16 || (c !== null && d.has(c))) throw new i("invalid_response");
-            d.add(c);
-            let p = await t.readRunPage(f, c);
-            (a(), n.push(p), (c = p.nextCursor));
-          } while (c !== null);
-          let B = n.find((p) => p.componentIndex === 0)?.payload?.outputSpec?.sections;
-          if (!Array.isArray(B) || !B.length || B.length > 8) throw new i("invalid_response");
+            if (i.length >= 16 || (n !== null && s.has(n))) throw new o("invalid_response");
+            s.add(n);
+            let c = await t.readRunPage(p, n);
+            (a(), i.push(c), (n = c.nextCursor));
+          } while (n !== null);
+          let d = i.find((c) => c.componentIndex === 0)?.payload?.outputSpec?.sections;
+          if (!Array.isArray(d) || !d.length || d.length > 8) throw new o("invalid_response");
           (e.getElementById("report-sections").replaceChildren(),
-            (b = B.map((p, q) => {
-              let k = e.createElement("label"),
+            (k = d.map((c, B) => {
+              let v = e.createElement("label"),
                 w = e.createElement("textarea");
               return (
-                (w.id = `report-section-${q}`),
+                (w.id = `report-section-${B}`),
                 (w.maxLength = 16384),
                 (w.autocomplete = "off"),
-                (k.htmlFor = w.id),
-                (k.textContent = `Section ${q + 1}`),
-                e.getElementById("report-sections").append(k, w),
-                { sectionId: p.sectionId, input: w }
+                (v.htmlFor = w.id),
+                (v.textContent = `Section ${B + 1}`),
+                e.getElementById("report-sections").append(v, w),
+                { sectionId: c.sectionId, input: w }
               );
             })),
-            (e.getElementById("analysis-inputs").textContent = JSON.stringify(n, null, 2)),
+            (e.getElementById("analysis-inputs").textContent = JSON.stringify(i, null, 2)),
+            (R = !0),
             (e.getElementById("analysis-state").textContent =
               "Approved frozen task and resources are ready. Read them and write the report below."));
         }),
       ),
       e.getElementById("save-analysis").addEventListener("click", () =>
-        x(async (t, a) => {
-          if (!f || y) throw new i("run_required");
-          let o = {
+        C(async (t, a) => {
+          if (!p || y) throw new o("run_required");
+          let i = {
             title: e.getElementById("report-title").value,
             summary: e.getElementById("report-summary").value,
-            sections: b.map((n) => ({ sectionId: n.sectionId, markdown: n.input.value })),
+            sections: k.map((n) => ({ sectionId: n.sectionId, markdown: n.input.value })),
             citations: [],
             limitations: e
               .getElementById("report-limits")
@@ -231,27 +240,27 @@ async function D() {
               .filter(Boolean),
           };
           if (
-            !o.title.trim() ||
-            !o.summary.trim() ||
-            !o.sections.length ||
-            o.sections.some((n) => !n.markdown.trim())
+            !i.title.trim() ||
+            !i.summary.trim() ||
+            !i.sections.length ||
+            i.sections.some((n) => !n.markdown.trim())
           )
-            throw new i("report_required");
-          let l = N("report");
+            throw new o("report_required");
+          let s = A("report");
           E();
           try {
-            let n = await t.submitResult(f, l, o);
+            let n = await t.submitResult(p, s, i);
             (a(),
-              (y = l),
+              (y = s),
               (e.getElementById("save-state").textContent =
                 `Saved to Inbox. Result ${n.receipt.resultId}, revision ${n.receipt.revision}.`));
           } catch (n) {
             a();
-            let d = (await t.listOutbox()).some((c) => c.stableOperationId === l);
+            let d = (await t.listOutbox()).some((c) => c.stableOperationId === s);
             throw (
               a(),
               d &&
-                ((y = l),
+                ((y = s),
                 (e.getElementById("save-state").textContent =
                   "Save outcome is unknown. Check or retry this original encrypted report; do not create another report.")),
               n
@@ -264,10 +273,10 @@ async function D() {
       ["retry-analysis", "replay"],
     ])
       e.getElementById(t).addEventListener("click", () =>
-        x(async (o, l) => {
-          if (!y) throw new i("run_required");
-          let n = await o[a](y);
-          (l(),
+        C(async (i, s) => {
+          if (!y) throw new o("run_required");
+          let n = await i[a](y);
+          (s(),
             (e.getElementById("save-state").textContent = n.receipt
               ? `Saved to Inbox. Result ${n.receipt.resultId}, revision ${n.receipt.revision}.`
               : "The original report is still unconfirmed. Keep its encrypted retry record."));
@@ -275,40 +284,40 @@ async function D() {
       );
     (e.getElementById("show-offer").addEventListener("click", () => {
       try {
-        h.textContent = JSON.stringify(s.publicOffer(), null, 2);
+        f.textContent = JSON.stringify(l.publicOffer(), null, 2);
       } catch (t) {
         u(t);
       }
     }),
       e.getElementById("agent-run").addEventListener("click", async () => {
         try {
-          if (!s) throw new i("owner_setup_required");
+          if (!l) throw new o("owner_setup_required");
           let t = e.getElementById("agent-operation").value,
             a = JSON.parse(e.getElementById("agent-args").value || "{}"),
-            o = await s.dispatchAgent({ op: t, args: a });
+            i = await l.dispatchAgent({ op: t, args: a });
           if (e.visibilityState === "hidden") return;
-          ((m.textContent = JSON.stringify(o, null, 2)),
+          ((h.textContent = JSON.stringify(i, null, 2)),
             ["sealResult", "reviseResult"].includes(t) &&
               ((e.getElementById("agent-args").value = ""),
-              (v.textContent =
+              (m.textContent =
                 "Original encrypted result saved to this device's outbox. This page has NOT verified a server save. Use the authenticated agent API; receipt/revision confirmation needs a trusted authenticated host.")));
         } catch (t) {
           u(t);
         }
       }),
       e.getElementById("lock").addEventListener("click", () => {
-        (S?.close("user_locked"), s?.lock(), (m.textContent = ""), (h.textContent = ""));
+        (S?.close("user_locked"), l?.lock(), (h.textContent = ""), (f.textContent = ""));
       }),
       e.addEventListener("visibilitychange", () => {
-        (s?.setVisible(e.visibilityState !== "hidden"),
+        (l?.setVisible(e.visibilityState !== "hidden"),
           e.visibilityState === "hidden" &&
-            (_(), E(), (m.textContent = ""), (e.getElementById("agent-args").value = "")));
+            (b(), E(), (h.textContent = ""), (e.getElementById("agent-args").value = "")));
       }),
       g.addEventListener("pagehide", () => {
-        (S?.close("page_closed"), s?.lock(), _(), E(), (m.textContent = ""), (h.textContent = ""));
+        (S?.close("page_closed"), l?.lock(), b(), E(), (h.textContent = ""), (f.textContent = ""));
       }));
   } catch (r) {
     (u(r), (e.getElementById("agent-run").disabled = !0));
   }
 }
-D();
+$();

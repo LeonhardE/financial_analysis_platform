@@ -1,9 +1,9 @@
-var Me = Object.create;
-var Ae = Object.defineProperty;
-var Ue = Object.getOwnPropertyDescriptor;
-var We = Object.getOwnPropertyNames;
-var He = Object.getPrototypeOf,
-  Ge = Object.prototype.hasOwnProperty;
+var Ue = Object.create;
+var Oe = Object.defineProperty;
+var We = Object.getOwnPropertyDescriptor;
+var He = Object.getOwnPropertyNames;
+var Ge = Object.getPrototypeOf,
+  Qe = Object.prototype.hasOwnProperty;
 var ae = (t, e) => () => {
   try {
     return (e || t((e = { exports: {} }).exports, e), e.exports);
@@ -13,20 +13,20 @@ var ae = (t, e) => () => {
 };
 var Xe = (t, e, a, n) => {
   if ((e && typeof e == "object") || typeof e == "function")
-    for (let f of We(e))
-      !Ge.call(t, f) &&
+    for (let f of He(e))
+      !Qe.call(t, f) &&
         f !== a &&
-        Ae(t, f, { get: () => e[f], enumerable: !(n = Ue(e, f)) || n.enumerable });
+        Oe(t, f, { get: () => e[f], enumerable: !(n = We(e, f)) || n.enumerable });
   return t;
 };
 var Ye = (t, e, a) => (
-  (a = t != null ? Me(He(t)) : {}),
-  Xe(e || !t || !t.__esModule ? Ae(a, "default", { value: t, enumerable: !0 }) : a, t)
+  (a = t != null ? Ue(Ge(t)) : {}),
+  Xe(e || !t || !t.__esModule ? Oe(a, "default", { value: t, enumerable: !0 }) : a, t)
 );
-var Ee = ae((Ie) => {
+var je = ae((Ie) => {
   "use strict";
   Object.defineProperty(Ie, "__esModule", { value: !0 });
-  function Oe(t) {
+  function Ee(t) {
     let e = t.length,
       a = 0,
       n = 0,
@@ -37,12 +37,12 @@ var Ee = ae((Ie) => {
         f >= 55296 && f <= 56319 && n < e && ((f = t.charCodeAt(n)), (f & 64512) === 56320 && n++));
     return a;
   }
-  Ie.default = Oe;
-  Oe.code = 'require("ajv/dist/runtime/ucs2length").default';
+  Ie.default = Ee;
+  Ee.code = 'require("ajv/dist/runtime/ucs2length").default';
 });
-var ze = ae((dr, je) => {
+var $e = ae((ur, ze) => {
   "use strict";
-  je.exports = function t(e, a) {
+  ze.exports = function t(e, a) {
     if (e === a) return !0;
     if (e && a && typeof e == "object" && typeof a == "object") {
       if (e.constructor !== a.constructor) return !1;
@@ -66,18 +66,18 @@ var ze = ae((dr, je) => {
     return e !== e && a !== a;
   };
 });
-var Re = ae((Pe) => {
+var Se = ae((Pe) => {
   "use strict";
   Object.defineProperty(Pe, "__esModule", { value: !0 });
-  var $e = ze();
-  $e.code = 'require("ajv/dist/runtime/equal").default';
-  Pe.default = $e;
+  var Re = $e();
+  Re.code = 'require("ajv/dist/runtime/equal").default';
+  Pe.default = Re;
 });
-var Ne = ae((fe) => {
+var qe = ae((fe) => {
   "use strict";
   fe.Carrier = pe;
-  var g = Ee().default,
-    Y = new RegExp("^[A-Za-z0-9_-]+$", "u");
+  var g = je().default,
+    X = new RegExp("^[A-Za-z0-9_-]+$", "u");
   function q(
     t,
     {
@@ -157,7 +157,7 @@ var Ne = ae((fe) => {
                       ]),
                       !1
                     );
-                  if (!Y.test(l))
+                  if (!X.test(l))
                     return (
                       (q.errors = [
                         {
@@ -213,7 +213,7 @@ var Ne = ae((fe) => {
                         ]),
                         !1
                       );
-                    if (!Y.test(l))
+                    if (!X.test(l))
                       return (
                         (q.errors = [
                           {
@@ -269,7 +269,7 @@ var Ne = ae((fe) => {
                           ]),
                           !1
                         );
-                      if (!Y.test(l))
+                      if (!X.test(l))
                         return (
                           (q.errors = [
                             {
@@ -308,7 +308,7 @@ var Ne = ae((fe) => {
     return ((q.errors = i), r === 0);
   }
   q.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
-  function X(
+  function Q(
     t,
     {
       instancePath: e = "",
@@ -320,7 +320,7 @@ var Ne = ae((fe) => {
   ) {
     let i = null,
       r = 0,
-      h = X.evaluated;
+      h = Q.evaluated;
     if ((h.dynamicProps && (h.props = void 0), h.dynamicItems && (h.items = void 0), r === 0))
       if (t && typeof t == "object" && !Array.isArray(t)) {
         let u;
@@ -329,7 +329,7 @@ var Ne = ae((fe) => {
           (t.signedObject === void 0 && (u = "signedObject"))
         )
           return (
-            (X.errors = [
+            (Q.errors = [
               {
                 instancePath: e,
                 schemaPath: "#/required",
@@ -344,7 +344,7 @@ var Ne = ae((fe) => {
           for (let l in t)
             if (!(l === "contractVersion" || l === "signedObject")) {
               return (
-                (X.errors = [
+                (Q.errors = [
                   {
                     instancePath: e,
                     schemaPath: "#/additionalProperties",
@@ -361,7 +361,7 @@ var Ne = ae((fe) => {
               let l = r;
               if (t.contractVersion !== "folioview.agent-workspace.v2.0")
                 return (
-                  (X.errors = [
+                  (Q.errors = [
                     {
                       instancePath: e + "/contractVersion",
                       schemaPath: "#/properties/contractVersion/const",
@@ -389,14 +389,14 @@ var Ne = ae((fe) => {
         }
       } else
         return (
-          (X.errors = [
+          (Q.errors = [
             { instancePath: e, schemaPath: "#/type", keyword: "type", params: { type: "object" } },
           ]),
           !1
         );
-    return ((X.errors = i), r === 0);
+    return ((Q.errors = i), r === 0);
   }
-  X.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
+  Q.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
   function pe(
     t,
     {
@@ -413,13 +413,13 @@ var Ne = ae((fe) => {
     return (
       h.dynamicProps && (h.props = void 0),
       h.dynamicItems && (h.items = void 0),
-      X(t, {
+      Q(t, {
         instancePath: e,
         parentData: a,
         parentDataProperty: n,
         rootData: f,
         dynamicAnchors: d,
-      }) || ((i = i === null ? X.errors : i.concat(X.errors)), (r = i.length)),
+      }) || ((i = i === null ? Q.errors : i.concat(Q.errors)), (r = i.length)),
       (pe.errors = i),
       r === 0
     );
@@ -538,7 +538,7 @@ var Ne = ae((fe) => {
       additionalProperties: !1,
     },
     xe = Object.prototype.hasOwnProperty,
-    Se = Re().default,
+    Ze = Se().default,
     K = new RegExp("^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$", "u"),
     te = new RegExp("^[A-Za-z0-9_-]{43}$", "u"),
     se = new RegExp("^[a-f0-9]{64}$", "u");
@@ -581,7 +581,7 @@ var Ne = ae((fe) => {
             ]),
             !1
           );
-        if (!Y.test(t))
+        if (!X.test(t))
           return (
             (M.errors = [
               {
@@ -603,7 +603,7 @@ var Ne = ae((fe) => {
     return ((M.errors = i), r === 0);
   }
   M.evaluated = { dynamicProps: !1, dynamicItems: !1 };
-  var Qe = {
+  var er = {
       type: "object",
       properties: {
         taskId: {
@@ -707,7 +707,7 @@ var Ne = ae((fe) => {
       ],
       additionalProperties: !1,
     },
-    Ze = {
+    Ne = {
       type: "object",
       properties: {
         kind: { type: "string", enum: ["watchlist", "channel_follows", "holdings"] },
@@ -888,7 +888,7 @@ var Ne = ae((fe) => {
                       instancePath: e + "/kind",
                       schemaPath: "#/properties/kind/enum",
                       keyword: "enum",
-                      params: { allowedValues: Ze.properties.kind.enum },
+                      params: { allowedValues: Ne.properties.kind.enum },
                     },
                   ]),
                   !1
@@ -918,7 +918,7 @@ var Ne = ae((fe) => {
                         instancePath: e + "/sourceService",
                         schemaPath: "#/properties/sourceService/enum",
                         keyword: "enum",
-                        params: { allowedValues: Ze.properties.sourceService.enum },
+                        params: { allowedValues: Ne.properties.sourceService.enum },
                       },
                     ]),
                     !1
@@ -1096,7 +1096,7 @@ var Ne = ae((fe) => {
         {
           let ge = r;
           for (let m in t)
-            if (!xe.call(Qe.properties, m)) {
+            if (!xe.call(er.properties, m)) {
               return (
                 (N.errors = [
                   {
@@ -2098,7 +2098,7 @@ var Ne = ae((fe) => {
     return ((U.errors = i), r === 0);
   }
   U.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
-  var er = {
+  var rr = {
     type: "object",
     properties: {
       keyId: { type: "string", minLength: 43, maxLength: 43, pattern: "^[A-Za-z0-9_-]{43}$" },
@@ -2375,7 +2375,7 @@ var Ne = ae((fe) => {
                         instancePath: e + "/role",
                         schemaPath: "#/properties/role/enum",
                         keyword: "enum",
-                        params: { allowedValues: er.properties.role.enum },
+                        params: { allowedValues: rr.properties.role.enum },
                       },
                     ]),
                     !1
@@ -3508,7 +3508,7 @@ var Ne = ae((fe) => {
                                                             if (y > 1) {
                                                               e: for (; y--;)
                                                                 for (j = y; j--;)
-                                                                  if (Se(p[y], p[j])) {
+                                                                  if (Ze(p[y], p[j])) {
                                                                     return (
                                                                       (P.errors = [
                                                                         {
@@ -3601,7 +3601,7 @@ var Ne = ae((fe) => {
                                                               if (y > 1) {
                                                                 e: for (; y--;)
                                                                   for (j = y; j--;)
-                                                                    if (Se(p[y], p[j])) {
+                                                                    if (Ze(p[y], p[j])) {
                                                                       return (
                                                                         (P.errors = [
                                                                           {
@@ -4074,7 +4074,7 @@ var Ne = ae((fe) => {
                         ]),
                         !1
                       );
-                    if (!Y.test(c))
+                    if (!X.test(c))
                       return (
                         (F.errors = [
                           {
@@ -4201,7 +4201,7 @@ var Ne = ae((fe) => {
                       ]),
                       !1
                     );
-                  if (!Y.test(c))
+                  if (!X.test(c))
                     return (
                       (z.errors = [
                         {
@@ -4317,7 +4317,7 @@ var Ne = ae((fe) => {
                           ]),
                           !1
                         );
-                      if (!Y.test(c))
+                      if (!X.test(c))
                         return (
                           (z.errors = [
                             {
@@ -4373,7 +4373,7 @@ var Ne = ae((fe) => {
                             ]),
                             !1
                           );
-                        if (!Y.test(c))
+                        if (!X.test(c))
                           return (
                             (z.errors = [
                               {
@@ -4429,7 +4429,7 @@ var Ne = ae((fe) => {
                               ]),
                               !1
                             );
-                          if (!Y.test(c))
+                          if (!X.test(c))
                             return (
                               (z.errors = [
                                 {
@@ -4485,7 +4485,7 @@ var Ne = ae((fe) => {
                                 ]),
                                 !1
                               );
-                            if (!Y.test(c))
+                            if (!X.test(c))
                               return (
                                 (z.errors = [
                                   {
@@ -4527,7 +4527,7 @@ var Ne = ae((fe) => {
     return ((z.errors = i), r === 0);
   }
   z.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
-  function Q(
+  function Y(
     t,
     {
       instancePath: e = "",
@@ -4539,13 +4539,13 @@ var Ne = ae((fe) => {
   ) {
     let i = null,
       r = 0,
-      h = Q.evaluated;
+      h = Y.evaluated;
     if ((h.dynamicProps && (h.props = void 0), h.dynamicItems && (h.items = void 0), r === 0))
       if (t && typeof t == "object" && !Array.isArray(t)) {
         let u;
         if ((t.context === void 0 && (u = "context")) || (t.jwe === void 0 && (u = "jwe")))
           return (
-            (Q.errors = [
+            (Y.errors = [
               {
                 instancePath: e,
                 schemaPath: "#/required",
@@ -4560,7 +4560,7 @@ var Ne = ae((fe) => {
           for (let l in t)
             if (!(l === "context" || l === "jwe")) {
               return (
-                (Q.errors = [
+                (Y.errors = [
                   {
                     instancePath: e,
                     schemaPath: "#/additionalProperties",
@@ -4600,14 +4600,14 @@ var Ne = ae((fe) => {
         }
       } else
         return (
-          (Q.errors = [
+          (Y.errors = [
             { instancePath: e, schemaPath: "#/type", keyword: "type", params: { type: "object" } },
           ]),
           !1
         );
-    return ((Q.errors = i), r === 0);
+    return ((Y.errors = i), r === 0);
   }
-  Q.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
+  Y.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
   function le(
     t,
     {
@@ -4624,20 +4624,20 @@ var Ne = ae((fe) => {
     return (
       h.dynamicProps && (h.props = void 0),
       h.dynamicItems && (h.items = void 0),
-      Q(t, {
+      Y(t, {
         instancePath: e,
         parentData: a,
         parentDataProperty: n,
         rootData: f,
         dynamicAnchors: d,
-      }) || ((i = i === null ? Q.errors : i.concat(Q.errors)), (r = i.length)),
+      }) || ((i = i === null ? Y.errors : i.concat(Y.errors)), (r = i.length)),
       (le.errors = i),
       r === 0
     );
   }
   le.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
   fe.ResultReceipt = ce;
-  var rr = {
+  var tr = {
       type: "object",
       properties: {
         contractVersion: { const: "folioview.agent-workspace.v2.0" },
@@ -4703,9 +4703,9 @@ var Ne = ae((fe) => {
       ],
       additionalProperties: !1,
     },
-    tr = new RegExp("Z$", "u"),
-    ir = new RegExp("^/results/[A-Za-z0-9][A-Za-z0-9_-]{0,127}\\?revision=[1-9][0-9]*$", "u"),
-    sr = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?Z$/;
+    ir = new RegExp("Z$", "u"),
+    sr = new RegExp("^/results/[A-Za-z0-9][A-Za-z0-9_-]{0,127}\\?revision=[1-9][0-9]*$", "u"),
+    nr = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?Z$/;
   function L(
     t,
     {
@@ -4749,7 +4749,7 @@ var Ne = ae((fe) => {
         {
           let I = r;
           for (let l in t)
-            if (!xe.call(rr.properties, l)) {
+            if (!xe.call(tr.properties, l)) {
               return (
                 (L.errors = [
                   {
@@ -5191,8 +5191,8 @@ var Ne = ae((fe) => {
                                         ]),
                                         !1
                                       );
-                                    if (tr.test(l)) {
-                                      if (!sr.test(l))
+                                    if (ir.test(l)) {
+                                      if (!nr.test(l))
                                         return (
                                           (L.errors = [
                                             {
@@ -5260,7 +5260,7 @@ var Ne = ae((fe) => {
                                           ]),
                                           !1
                                         );
-                                      if (!ir.test(l))
+                                      if (!sr.test(l))
                                         return (
                                           (L.errors = [
                                             {
@@ -5438,11 +5438,11 @@ function we(t) {
   }
   return n;
 }
-var Ve = Ye(Ne(), 1),
+var Te = Ye(qe(), 1),
   G = "folioview.agent-workspace.v2.0",
   he = "folioview.foreground-controller.v1",
-  Te = new TextEncoder(),
-  nr = new TextDecoder("utf-8", { fatal: !0 }),
+  Ce = new TextEncoder(),
+  ar = new TextDecoder("utf-8", { fatal: !0 }),
   B = class extends Error {
     constructor(e = "controller_rejected") {
       (super(e), (this.code = e));
@@ -5476,12 +5476,12 @@ function J(t) {
 }
 function ie(t, e = 1048576) {
   let a = J(t);
-  return (Te.encode(a).length > e && w("payload_too_large"), a);
+  return (Ce.encode(a).length > e && w("payload_too_large"), a);
 }
 function be(t, e) {
-  Ve.default[t]?.(e) || w("invalid_record");
+  Te.default[t]?.(e) || w("invalid_record");
 }
-function Ce(t) {
+function Ke(t) {
   (typeof t != "string" || !/^[A-Za-z0-9_-]+$/.test(t) || t.length > 786432) && w("invalid_record");
   let e;
   try {
@@ -5498,19 +5498,19 @@ function Ce(t) {
     e
   );
 }
-function qe(t, e = !1) {
+function Fe(t, e = !1) {
   try {
-    let a = nr.decode(Ce(t)),
+    let a = ar.decode(Ke(t)),
       n = JSON.parse(a);
     return ((e ? J(n) : JSON.stringify(n)) !== a && w("invalid_record"), n);
   } catch {
     w("invalid_record");
   }
 }
-async function ar(t) {
+async function or(t) {
   let e = await crypto.subtle.digest(
     "SHA-256",
-    Te.encode(t.signedObject.protected + "." + t.signedObject.payload),
+    Ce.encode(t.signedObject.protected + "." + t.signedObject.payload),
   );
   return [...new Uint8Array(e)].map((a) => a.toString(16).padStart(2, "0")).join("");
 }
@@ -5546,8 +5546,8 @@ async function ne(t, e) {
     be("Carrier", t.envelope),
     t.envelope.contractVersion !== G && w("invalid_record"));
   let a = t.envelope.signedObject,
-    n = qe(a.protected),
-    f = qe(a.payload, !0);
+    n = Fe(a.protected),
+    f = Fe(a.payload, !0);
   (W(n, ["alg", "typ", "kid", "cty"]), be("ObjectMessage", f));
   let d = f.context,
     i = d.binding;
@@ -5556,7 +5556,7 @@ async function ne(t, e) {
       n.typ !== "fv-object+jws" ||
       n.cty !== "application/json" ||
       n.kid !== d.authorSigningKeyId ||
-      Ce(a.signature).length !== 64 ||
+      Ke(a.signature).length !== 64 ||
       d.contractVersion !== G ||
       d.profileId !== "P1" ||
       d.objectType !== "result_revision" ||
@@ -5574,7 +5574,7 @@ async function ne(t, e) {
       d.resourceBindings.length ||
       d.priorEnvelopeFingerprint !== null) &&
       w("record_binding_mismatch"),
-    (await ar(t.envelope)) !== t.envelopeFingerprint && w("record_fingerprint_mismatch"),
+    (await or(t.envelope)) !== t.envelopeFingerprint && w("record_fingerprint_mismatch"),
     { packet: structuredClone(t), context: d }
   );
 }
@@ -5600,7 +5600,7 @@ function ye(t, e, a, n, f) {
     structuredClone(t)
   );
 }
-async function Fe(t, e) {
+async function De(t, e) {
   (ie(t),
     W(t, ["profile", "scope", "packet", "receipt", "runCreatedAt"]),
     (t.profile !== he ||
@@ -5618,7 +5618,7 @@ async function Fe(t, e) {
 function de(t, e) {
   return re(t) + ":" + V(e);
 }
-function De(t) {
+function Ve(t) {
   return t instanceof B ? t : new B("storage_unavailable");
 }
 var ue = class {
@@ -5627,7 +5627,7 @@ var ue = class {
   constructor({ indexedDB: e = globalThis.indexedDB } = {}) {
     this.#p = e;
   }
-  async #k() {
+  async #P() {
     return (
       this.#p || w("storage_unavailable"),
       this.#i ||
@@ -5644,20 +5644,20 @@ var ue = class {
                 e(f));
             }));
         }).catch((e) => {
-          throw ((this.#i = void 0), De(e));
+          throw ((this.#i = void 0), Ve(e));
         })),
       this.#i
     );
   }
   async #s(e, a) {
-    let n = await this.#k();
+    let n = await this.#P();
     return new Promise((f, d) => {
       let i,
         r,
         h = n.transaction("outbox", e),
         s = h.objectStore("outbox"),
         u = (I) => {
-          r = De(I);
+          r = Ve(I);
           try {
             h.abort();
           } catch {}
@@ -5688,7 +5688,7 @@ var ue = class {
     f.length > 32 && w("invalid_record");
     let d = [];
     for (let i of f) {
-      let r = await Fe(i.value, e);
+      let r = await De(i.value, e);
       (i.key !== de(e, r.packet.stableOperationId) && w("invalid_record"), d.push(r));
     }
     return d;
@@ -5697,7 +5697,7 @@ var ue = class {
     return (await this.list(e)).find((n) => n.packet.stableOperationId === V(a)) ?? null;
   }
   async stage(e, a) {
-    let n = await Fe(a, e),
+    let n = await De(a, e),
       f = de(e, n.packet.stableOperationId),
       d = re(e),
       i = ie(n);
@@ -5783,9 +5783,10 @@ var ue = class {
     this.#i && ((await this.#i).close(), (this.#i = void 0));
   }
 };
-var vr = new TextEncoder(),
-  Le = "1.3.0",
-  Ke = {
+var kr = new TextEncoder(),
+  Le = 2e4,
+  Ae = "1.3.0",
+  Be = {
     status: [],
     lock: [],
     registry: ["bundles"],
@@ -5798,12 +5799,12 @@ var vr = new TextEncoder(),
     reviseResult: ["runId", "stableOperationId", "expectedRevision", "content"],
     resultOutbox: ["runId", "stableOperationId"],
   };
-async function or(t) {
+async function pr(t) {
   return [...new Uint8Array(await crypto.subtle.digest("SHA-256", t))]
     .map((e) => e.toString(16).padStart(2, "0"))
     .join("");
 }
-function pr(t, e) {
+function lr(t, e) {
   let a;
   try {
     a = new URL(t);
@@ -5824,7 +5825,7 @@ function pr(t, e) {
     a.origin
   );
 }
-async function Be(t, e, a) {
+async function Je(t, e, a) {
   t.body || w("invalid_response");
   let n = t.body.getReader(),
     f = [],
@@ -5850,22 +5851,22 @@ async function Be(t, e, a) {
 function H(t) {
   return structuredClone(t);
 }
-var Je = class {
+var Me = class {
   #p;
   #i;
-  #k;
+  #P;
   #s;
-  #w;
-  #d;
-  #f;
-  #u;
   #h;
+  #f;
+  #d;
+  #m;
+  #y;
   #r;
   #j;
   #a;
+  #w;
   #g;
-  #I;
-  #P;
+  #u;
   #_;
   #z = null;
   #x = !1;
@@ -5873,13 +5874,13 @@ var Je = class {
   #S = 0;
   #b;
   #L = 1;
-  #m = !1;
+  #v = !1;
   #E = !0;
   #n = new Map();
   #l = new Set();
   #A;
   #o;
-  #v = new Map();
+  #I = new Map();
   #O = new Set();
   #$;
   constructor({
@@ -5891,41 +5892,41 @@ var Je = class {
     clock: i = Date.now,
     onState: r = () => {},
   }) {
-    ((this.#p = pr(e, a)),
+    ((this.#p = lr(e, a)),
       (this.#i = (...h) => n(...h)),
-      (this.#k = f),
+      (this.#P = f),
       (this.#s = d),
-      (this.#w = i),
-      (this.#d = r));
+      (this.#h = i),
+      (this.#f = r));
   }
   #e(e, a = !1) {
-    ((this.#m || e !== this.#t || !this.#r) && w("session_ended"),
+    ((this.#v || e !== this.#t || !this.#r) && w("session_ended"),
       a && !this.#E && w("foreground_required"),
       a && this.#x && w("transport_refreshing"));
   }
   status() {
     return {
       profile: he,
-      helperVersion: Le,
+      helperVersion: Ae,
       sessionId: this.#b ?? null,
       generation: this.#L,
       expiresAt: this.#z,
-      state: this.#m ? "LOCKED" : this.#g ? "READY" : "ABSENT",
+      state: this.#v ? "LOCKED" : this.#w ? "READY" : "ABSENT",
       foreground: this.#E,
-      authenticatedTransport: !!this.#I,
+      authenticatedTransport: !!this.#g && this.#u?.expiresAt * 1e3 > this.#h() + Le,
       independentDeliveryConfirmed: !!this.#a,
       privateKeysPersistent: !1,
     };
   }
   publicOffer() {
-    return ((!this.#g || this.#m) && w("session_ended"), H(this.#g));
+    return ((!this.#w || this.#v) && w("session_ended"), H(this.#w));
   }
   async initialize(e) {
     (W(e, ["helperVersion", "workerSha256", "anchor", "ttlSeconds"]),
-      (this.#m ||
-        this.#f ||
+      (this.#v ||
+        this.#d ||
         this.#r ||
-        e.helperVersion !== Le ||
+        e.helperVersion !== Ae ||
         typeof e.workerSha256 != "string" ||
         !/^[a-f0-9]{64}$/.test(e.workerSha256) ||
         !Number.isSafeInteger(e.ttlSeconds) ||
@@ -5970,34 +5971,34 @@ var Je = class {
         i.headers.get("content-type")?.split(";", 1)[0].trim().toLowerCase() !==
           "text/javascript") &&
         w("helper_unavailable");
-      let r = await Be(i, f.signal, 2097152);
+      let r = await Je(i, f.signal, 2097152);
       (this.#e(n),
-        (await or(r)) !== e.workerSha256 && w("helper_integrity_mismatch"),
+        (await pr(r)) !== e.workerSha256 && w("helper_integrity_mismatch"),
         this.#e(n),
         (this.#_ = URL.createObjectURL(new Blob([r], { type: "text/javascript" }))),
-        (this.#f = this.#k(this.#_)));
+        (this.#d = this.#P(this.#_)));
       let h = new MessageChannel(),
         s = new MessageChannel();
-      ((this.#u = h.port1), (this.#h = s.port1));
+      ((this.#m = h.port1), (this.#y = s.port1));
       let u = (l) => this.#Z(l.data);
-      ((this.#u.onmessage = u),
-        (this.#h.onmessage = u),
-        this.#u.start(),
-        this.#h.start(),
-        (this.#f.onerror = () => this.lock("worker_failed")),
-        this.#f.postMessage({ op: "attach", ownerPort: h.port2, agentPort: s.port2 }, [
+      ((this.#m.onmessage = u),
+        (this.#y.onmessage = u),
+        this.#m.start(),
+        this.#y.start(),
+        (this.#d.onerror = () => this.lock("worker_failed")),
+        this.#d.postMessage({ op: "attach", ownerPort: h.port2, agentPort: s.port2 }, [
           h.port2,
           s.port2,
         ]));
-      let I = await this.#y(
+      let I = await this.#k(
         "initialize",
-        { anchor: e.anchor, now: Math.floor(this.#w() / 1e3), ttlSeconds: e.ttlSeconds },
+        { anchor: e.anchor, now: Math.floor(this.#h() / 1e3), ttlSeconds: e.ttlSeconds },
         !0,
       );
       return (
         this.#e(n),
-        (this.#g = {
-          helperVersion: Le,
+        (this.#w = {
+          helperVersion: Ae,
           sessionId: this.#b,
           generation: this.#L,
           anchor: H(this.#j),
@@ -6008,9 +6009,9 @@ var Je = class {
           keyExportRejected: I.keyExportRejected,
         }),
         (I.keyExportRejected !== !0 || I.privateKeysPresent !== !0) && w("unsafe_helper"),
-        (this.#z = Math.floor(this.#w() / 1e3) + e.ttlSeconds),
+        (this.#z = Math.floor(this.#h() / 1e3) + e.ttlSeconds),
         (this.#$ = setTimeout(() => this.lock("session_expired"), e.ttlSeconds * 1e3)),
-        this.#d(this.status()),
+        this.#f(this.status()),
         this.publicOffer()
       );
     } catch (i) {
@@ -6037,10 +6038,10 @@ var Je = class {
       }
     }
   }
-  async #y(e, a, n = !1) {
+  async #k(e, a, n = !1) {
     let f = this.#t;
     (this.#e(f, !n && !["status", "lock"].includes(e)),
-      (!this.#f || this.#n.size >= 8) && w("helper_busy"));
+      (!this.#d || this.#n.size >= 8) && w("helper_busy"));
     let d = { id: `rpc_${++this.#S}`, sessionId: this.#b, generation: this.#L, op: e, args: a };
     return (
       ie(d),
@@ -6056,7 +6057,7 @@ var Je = class {
           privateOperation: !n && e !== "status",
         });
         try {
-          (n ? this.#u : this.#h).postMessage(d);
+          (n ? this.#m : this.#y).postMessage(d);
         } catch {
           (clearTimeout(h), this.#n.delete(d.id), r(new B("helper_unavailable")));
         }
@@ -6067,37 +6068,37 @@ var Je = class {
     let a = this.#t;
     return (
       this.#e(a),
-      await this.#y("confirmDelivery", { pin: e }, !0),
+      await this.#k("confirmDelivery", { pin: e }, !0),
       this.#e(a),
       (this.#a = H(e)),
       (this.#A = void 0),
       (this.#o = void 0),
-      this.#v.clear(),
+      this.#I.clear(),
       this.#O.clear(),
-      this.#d(this.status()),
+      this.#f(this.status()),
       this.status()
     );
   }
   async dispatchAgent(e) {
     if (
       (W(e, ["op", "args"]),
-      Object.hasOwn(Ke, e.op) || w("unsupported_operation"),
-      W(e.args, Ke[e.op]),
+      Object.hasOwn(Be, e.op) || w("unsupported_operation"),
+      W(e.args, Be[e.op]),
       e.op === "status")
     )
       return this.status();
     if (e.op === "lock") return (this.lock(), this.status());
     let a = this.#t;
     this.#e(a, !0);
-    let n = await this.#y(e.op, e.args);
+    let n = await this.#k(e.op, e.args);
     if (
       (this.#e(a, !0), e.op === "install" && (this.#A = H(e.args.metadata)), e.op === "installRun")
     ) {
       let f = e.args.response;
-      this.#v.set(f.run.runId, { createdAt: f.run.createdAt, response: H(f) });
+      this.#I.set(f.run.runId, { createdAt: f.run.createdAt, response: H(f) });
     }
     if (e.op === "sealResult" || e.op === "reviseResult") {
-      let f = this.#v.get(e.args.runId);
+      let f = this.#I.get(e.args.runId);
       (f || w("run_required"),
         await this.#N(n, f.createdAt, a),
         this.#e(a, !0),
@@ -6112,7 +6113,7 @@ var Je = class {
         n.privateOperation &&
           (clearTimeout(n.timeout), n.reject(new B("foreground_required")), this.#n.delete(a));
     }
-    this.#d(this.status());
+    this.#f(this.status());
   }
   async authenticate(e) {
     (typeof e != "string" || !/^[A-Za-z0-9_-]{43}$/.test(e)) && w("invalid_token");
@@ -6153,7 +6154,7 @@ var Je = class {
         n.scopes.some((i) => !f.has(i)) ||
         new Set(n.scopes).size !== n.scopes.length ||
         !Number.isSafeInteger(n.expiresAt) ||
-        n.expiresAt <= Math.floor(this.#w() / 1e3) ||
+        n.expiresAt <= Math.floor(this.#h() / 1e3) ||
         (this.#a && n.authorizationId !== this.#a.authorizationId)) &&
         (this.lock("authorization_denied"), w("authorization_denied")),
         V(n.clientId),
@@ -6167,12 +6168,12 @@ var Je = class {
           taskIds: [...i.taskIds].sort(),
         });
       return (
-        this.#P &&
-          d(this.#P) !== d(n) &&
+        this.#u &&
+          d(this.#u) !== d(n) &&
           (this.lock("authorization_changed"), w("authorization_changed")),
-        (this.#I = e),
-        (this.#P = H(n)),
-        this.#d(this.status()),
+        (this.#g = e),
+        (this.#u = H(n)),
+        this.#f(this.status()),
         { connectionId: n.connectionId, authorizationId: n.authorizationId, expiresAt: n.expiresAt }
       );
     } finally {
@@ -6194,7 +6195,7 @@ var Je = class {
     let f;
     try {
       return (
-        (f = await this.#y("openTransport", { credential: n, issuer: this.#p }, !0)),
+        (f = await this.#k("openTransport", { credential: n, issuer: this.#p }, !0)),
         this.#e(a, !0),
         await this.authenticate(f.accessToken)
       );
@@ -6204,11 +6205,14 @@ var Je = class {
   }
   async #c(
     e,
-    { method: a = "GET", json: n, operation: f, token: d = this.#I, privateOperation: i = !0 } = {},
+    { method: a = "GET", json: n, operation: f, token: d = this.#g, privateOperation: i = !0 } = {},
   ) {
     let r = this.#t;
     (this.#e(r, i),
-      d || w("authenticated_host_required"),
+      d || w(this.#u ? "access_token_refresh_required" : "authenticated_host_required"),
+      d === this.#g &&
+        this.#u?.expiresAt * 1e3 <= this.#h() + Le &&
+        ((this.#g = null), this.#f(this.status()), w("access_token_refresh_required")),
       /^\/agent\/v2\/(?:authorization|tasks\/[A-Za-z0-9_-]+\/(?:preparation|runs)|preparations\/[A-Za-z0-9_-]+\/(?:objects\/[A-Za-z0-9_-]+|registries\/[1-9][0-9]?)|runs\/[A-Za-z0-9_-]+(?:\/(?:inputs(?:\?cursor=[A-Za-z0-9_-]{1,128})?|registries\/[1-9][0-9]?|results|receipts\/[A-Za-z0-9_-]+))?|results\/[A-Za-z0-9_-]+\/revisions)$/.test(
         e,
       ) || w("unsupported_operation"));
@@ -6217,7 +6221,7 @@ var Je = class {
       n !== void 0 && ((h["Content-Type"] = "application/json"), ie(n, 589824)));
     let s = new AbortController();
     this.#l.add(s);
-    let u = setTimeout(() => s.abort(), 2e4);
+    let u = setTimeout(() => s.abort(), Le);
     try {
       let I = await this.#i(this.#p + e, {
         method: a,
@@ -6242,7 +6246,7 @@ var Je = class {
           )),
         I.headers.get("content-type")?.split(";", 1)[0].trim().toLowerCase() !==
           "application/json" && w("invalid_response"));
-      let l = await Be(I, s.signal, 1048576);
+      let l = await Je(I, s.signal, 1048576);
       this.#e(r, i);
       let c;
       try {
@@ -6275,7 +6279,7 @@ var Je = class {
       let i = await this.#c(d);
       (this.#e(e, !0),
         (i.preparationId !== a.preparationId || i.registrySequence !== f) && w("invalid_response"),
-        await this.#y("registry", { bundles: [i.registryBundle] }));
+        await this.#k("registry", { bundles: [i.registryBundle] }));
     }
     return (
       await this.dispatchAgent({ op: "install", args: { metadata: a } }),
@@ -6338,7 +6342,7 @@ var Je = class {
     let n = this.#t;
     (this.#e(n, !0),
       V(e),
-      (!this.#v.has(e) ||
+      (!this.#I.has(e) ||
         (a !== null && (typeof a != "string" || !/^[A-Za-z0-9_-]{1,128}$/.test(a)))) &&
         w("run_required"));
     let f = await this.#c(`/agent/v2/runs/${e}/inputs${a === null ? "" : "?cursor=" + a}`);
@@ -6378,7 +6382,7 @@ var Je = class {
     let i = this.#O.has(e.packet.runId + "/" + e.packet.stableOperationId);
     return (
       i &&
-        (await this.#y(
+        (await this.#k(
           "acceptReceipt",
           { runId: e.packet.runId, stableOperationId: e.packet.stableOperationId, receipt: d },
           !0,
@@ -6446,22 +6450,22 @@ var Je = class {
     );
   }
   lock(e = "locked") {
-    if (!this.#m) {
-      ((this.#m = !0), this.#t++, this.#L++, clearTimeout(this.#$));
+    if (!this.#v) {
+      ((this.#v = !0), this.#t++, this.#L++, clearTimeout(this.#$));
       for (let a of this.#l) a.abort();
       this.#l.clear();
       for (let a of this.#n.values()) (clearTimeout(a.timeout), a.reject(new B("session_ended")));
       (this.#n.clear(),
-        this.#f?.terminate(),
-        this.#u?.close(),
-        this.#h?.close(),
+        this.#d?.terminate(),
+        this.#m?.close(),
+        this.#y?.close(),
         this.#_ && URL.revokeObjectURL(this.#_),
-        (this.#f = this.#u = this.#h = void 0),
-        (this.#I = this.#P = this.#A = this.#a = this.#g = void 0),
+        (this.#d = this.#m = this.#y = void 0),
+        (this.#g = this.#u = this.#A = this.#a = this.#w = void 0),
         (this.#o = void 0),
-        this.#v.clear(),
+        this.#I.clear(),
         this.#O.clear(),
-        this.#d({ ...this.status(), reason: e }));
+        this.#f({ ...this.status(), reason: e }));
     }
   }
 };
@@ -6470,8 +6474,8 @@ export {
   he as CONTROLLER_PROFILE,
   ue as CiphertextOutbox,
   B as ControllerDenied,
-  Je as ForegroundController,
-  Le as HELPER_VERSION,
+  Me as ForegroundController,
+  Ae as HELPER_VERSION,
   ie as bounded,
   W as exact,
   V as identifier,

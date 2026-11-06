@@ -233,3 +233,114 @@ class ForegroundTransportControllerTests(unittest.TestCase):
             "run_expired_or_untrusted",
         )
         self.assertEqual(len(self.run_posts()), 1)
+
+
+class ForegroundAccessExpiryTests(unittest.TestCase):
+    begin = foreground.ForegroundControllerTests.begin
+
+    def setUp(self):
+        # Mirror production: the helper/grant outlive the 600-second access token.
+        fixture = foreground.preparations.PreparationFixture
+        original_grant = fixture.grant
+        original_call = foreground.helpers.Peer.call
+
+        def grant(instance, *args, **kwargs):
+            return original_grant(instance, *args, **{**kwargs, "expiresAt": 2000})
+
+        def call(peer, op, args=None, **kwargs):
+            if op == "initialize" and kwargs.get("trusted"):
+                args = {**args, "ttlSeconds": 3600}
+            return original_call(peer, op, args, **kwargs)
+
+        with (
+            patch.object(fixture, "grant", grant),
+            patch.object(foreground.helpers.Peer, "call", call),
+        ):
+            ForegroundTransportControllerTests.setUp(self)
+
+    def refresh_access(self):
+        self.case.now = 1601
+        status, tokens, _ = self.case.oauth.protocol(
+            {
+                "grant_type": "refresh_token",
+                "client_id": self.case.oauth.config.clients[0].client_id,
+                "refresh_token": self.case.tokens["refresh_token"],
+                "resource": self.case.oauth.config.resource,
+            },
+            {},
+            "token",
+        )
+        self.assertEqual(status, 200)
+        self.peer.api("authenticate", tokens["access_token"])
+
+    def test_expiry_between_registry_pages_stops_before_http_and_same_grant_resumes(self):
+        self.peer.api("connectTransport", self.transport)
+        offer, before = self.peer.api("publicOffer"), self.peer.api("status")
+        preparation_id = self.transport["preparationId"]
+        first = f"/agent/v2/preparations/{preparation_id}/registries/1"
+        self.peer.raw({"clockAfterResponse": {"path": first, "now": 1580000}})
+        start = len(self.peer.traffic)
+        refused = self.peer.api("loadPreparation", ok=False)
+        self.assertEqual(refused["error"], "access_token_refresh_required")
+        traffic = self.peer.traffic[start:]
+        self.assertEqual(traffic[-1]["path"], first)
+        self.assertFalse(any(row["path"].endswith("/registries/2") for row in traffic))
+        current = self.peer.api("status")
+        self.assertEqual(current["state"], "READY")
+        self.assertFalse(current["authenticatedTransport"])
+        self.assertTrue(current["independentDeliveryConfirmed"])
+        self.assertEqual(current["expiresAt"], before["expiresAt"])
+        self.assertEqual(self.peer.api("publicOffer"), offer)
+        start = len(self.peer.traffic)
+        self.assertEqual(
+            self.peer.api("loadPreparation", ok=False)["error"], "access_token_refresh_required"
+        )
+        self.assertEqual(len(self.peer.traffic), start)
+        self.refresh_access()
+        self.assertEqual(self.peer.api("loadPreparation")["preparationId"], preparation_id)
+        self.assertEqual(self.peer.api("publicOffer"), offer)
+        self.assertEqual(self.peer.api("status")["expiresAt"], before["expiresAt"])
+
+    def test_expired_access_preserves_original_run_and_ciphertext_receipt_recovery(self):
+        self.peer.api("connectTransport", self.transport)
+        run = self.begin()
+        operation = "synthetic_expired_access_report"
+        self.peer.lose_next_post = True
+        self.assertEqual(
+            self.peer.api("submitResult", run["run"]["runId"], operation, self.content, ok=False)[
+                "error"
+            ],
+            "request_failed",
+        )
+        offer, before = self.peer.api("publicOffer"), self.peer.api("status")
+        rows = self.peer.raw({"inspect": True})["value"]["rows"]
+        self.peer.raw({"now": 1600000})
+        start = len(self.peer.traffic)
+        self.assertEqual(
+            self.peer.api("recoverReceipt", operation, ok=False)["error"],
+            "access_token_refresh_required",
+        )
+        self.assertEqual(len(self.peer.traffic), start)
+        self.assertEqual(self.peer.raw({"inspect": True})["value"]["rows"], rows)
+        self.assertEqual(self.peer.api("publicOffer"), offer)
+        self.refresh_access()
+        receipt = self.peer.api("recoverReceipt", operation)
+        self.assertTrue(receipt["liveRevisionSession"])
+        self.assertEqual(receipt["receipt"]["runId"], run["run"]["runId"])
+        self.assertEqual(receipt["receipt"]["revision"], 1)
+        self.assertEqual(self.peer.api("status")["expiresAt"], before["expiresAt"])
+        self.assertEqual(self.peer.api("publicOffer"), offer)
+        self.assertEqual(sum(row["path"].endswith("/runs") for row in self.peer.traffic), 1)
+
+    def test_unexpired_access_denied_by_server_still_ends_the_session(self):
+        self.peer.api("connectTransport", self.transport)
+        self.peer.denied = 401
+        refused = self.peer.api("loadPreparation", ok=False)
+        self.assertEqual(refused["error"], "authorization_denied")
+        self.assertEqual(self.peer.api("status")["state"], "LOCKED")
+
+    def test_server_denial_still_preserves_only_the_encrypted_outbox(self):
+        self.peer.api("connectTransport", self.transport)
+        foreground.ForegroundControllerTests.test_current_http_denial_locks_and_retains_ciphertext_outbox(
+            self
+        )

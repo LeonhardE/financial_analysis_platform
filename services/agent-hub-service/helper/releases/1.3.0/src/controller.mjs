@@ -26,6 +26,7 @@ export {
   bounded,
 };
 const encoder = new TextEncoder();
+const REQUEST_TIMEOUT_MS = 20000;
 export const HELPER_VERSION = "1.3.0";
 const AGENT_OPERATIONS = {
   status: [],
@@ -163,7 +164,9 @@ export class ForegroundController {
       expiresAt: this.#expiresAt,
       state: this.#ended ? "LOCKED" : this.#offer ? "READY" : "ABSENT",
       foreground: this.#visible,
-      authenticatedTransport: Boolean(this.#token),
+      authenticatedTransport:
+        Boolean(this.#token) &&
+        this.#principal?.expiresAt * 1000 > this.#clock() + REQUEST_TIMEOUT_MS,
       independentDeliveryConfirmed: Boolean(this.#pin),
       privateKeysPersistent: false,
     };
@@ -506,7 +509,20 @@ export class ForegroundController {
   ) {
     const epoch = this.#epoch;
     this.#assert(epoch, privateOperation);
-    if (!token) reject("authenticated_host_required");
+    if (!token)
+      reject(this.#principal ? "access_token_refresh_required" : "authenticated_host_required");
+    // Access expiry is known locally. Reserve the entire bounded request budget,
+    // stopping before another request while retaining
+    // the exact grant identity and live Worker for a trusted same-grant refresh.
+    // A server-side denial still ends the session below.
+    if (
+      token === this.#token &&
+      this.#principal?.expiresAt * 1000 <= this.#clock() + REQUEST_TIMEOUT_MS
+    ) {
+      this.#token = null;
+      this.#notify(this.status());
+      reject("access_token_refresh_required");
+    }
     // Paths are produced only by named operations below, never model/user URLs.
     if (
       !/^\/agent\/v2\/(?:authorization|tasks\/[A-Za-z0-9_-]+\/(?:preparation|runs)|preparations\/[A-Za-z0-9_-]+\/(?:objects\/[A-Za-z0-9_-]+|registries\/[1-9][0-9]?)|runs\/[A-Za-z0-9_-]+(?:\/(?:inputs(?:\?cursor=[A-Za-z0-9_-]{1,128})?|registries\/[1-9][0-9]?|results|receipts\/[A-Za-z0-9_-]+))?|results\/[A-Za-z0-9_-]+\/revisions)$/.test(
@@ -522,7 +538,7 @@ export class ForegroundController {
     }
     const controller = new AbortController();
     this.#requests.add(controller);
-    const timeout = setTimeout(() => controller.abort(), 20000);
+    const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
     try {
       const response = await this.#fetch(this.#issuer + path, {
         method,
