@@ -1,0 +1,19 @@
+{
+  "runtimeVersion": "1.0.0",
+  "contractVersion": "folioview.agent-workspace.v2.0",
+  "profile": "folioview.persistent-content.v1",
+  "files": {
+    "package.json": "8566201f350cbbb3645f8c6dbf95b697c93231262ab91c254a90774475566204",
+    "package-lock.json": "9d9a3ee52f6659404ef2c30117d9c90fbc4b1cddf0f20e5202d34da2ab522f58",
+    "schemas.json": "942ded2afec749c843c45b36bc463ee0ccc7e7a0f53692d58e2e04c2c4697e51",
+    "build.mjs": "24f063cea6ed3038c418641f7008431614e075e42040e345e2b67e9ed801b6d7",
+    "THIRD_PARTY_NOTICES.md": "16b1768276d7eed2a7ce1142f5766c211da784615fa004a36853f2658e18dd4d",
+    "src/core.mjs": "bc979c99a138fa967075515259abdaa0346fe3df3ed0a47dac6a4fe174cc0f10",
+    "src/crypto.mjs": "a6409c35a6e8c3feaf7d06612e445b48784a1200ea2584b9eafadba2a6646cd9",
+    "src/registry.mjs": "8a6c1e955e52c4668c498351cb5503843fc93d313fdae0b54202e961ba0f951d",
+    "src/consents.mjs": "5e99c0ded8de48c45a0ea6fc630488adc14f91588a4a6806e671eacc87ca3061",
+    "src/authority.mjs": "f39359a1aae97968a0e28ea64a66144ee958081e1689b90e1ddf07f6f6d66862",
+    "src/storage.mjs": "85ec1c20c99a6db33c8af58773a9c8f47d9cb54fd3edeb3846a0d3ab2ce58494",
+    "dist/core.mjs": "85f251c9da56040a8bef6314ea8889d0bead8a60be80e2ad00bb99879b449478"
+  }
+}
