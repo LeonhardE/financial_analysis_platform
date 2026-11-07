@@ -6,6 +6,7 @@ from .api import internal_router, owner_router, public_router
 from .catalogue import router as catalogue_router
 from .errors import HubErrors
 from .helper_assets import router as helper_router
+from .identity_recovery_routes import router as identity_recovery_router
 from .inbox import router as inbox_router
 from .mcp_transport import install_mcp
 from .oauth_routes import agent_router
@@ -44,6 +45,7 @@ app.include_router(agent_router)
 app.include_router(preparation_owner_router)
 app.include_router(preparation_agent_router)
 app.include_router(persistent_owner_router)
+app.include_router(identity_recovery_router)
 app.include_router(runs_router)
 app.include_router(results_router)
 app.include_router(inbox_router)
