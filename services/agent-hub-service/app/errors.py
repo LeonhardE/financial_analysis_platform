@@ -40,6 +40,7 @@ class HubErrors:
                 "/.well-known/",
                 "/agent/v2/tasks/",
                 "/agent/v2/persistent/identity-recovery/",
+                "/agent/v3/persistent/",
                 "/agent/v2/preparations/",
                 "/agent/v2/runs/",
                 "/agent/v2/results/",
