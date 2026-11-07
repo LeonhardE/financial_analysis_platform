@@ -11,6 +11,7 @@ from .mcp_transport import install_mcp
 from .oauth_routes import agent_router
 from .oauth_routes import owner_router as oauth_owner_router
 from .oauth_routes import router as oauth_router
+from .persistent_routes import router as persistent_owner_router
 from .preparations import agent_router as preparation_agent_router
 from .preparations import owner_router as preparation_owner_router
 from .results import router as results_router
@@ -42,6 +43,7 @@ app.include_router(oauth_owner_router)
 app.include_router(agent_router)
 app.include_router(preparation_owner_router)
 app.include_router(preparation_agent_router)
+app.include_router(persistent_owner_router)
 app.include_router(runs_router)
 app.include_router(results_router)
 app.include_router(inbox_router)

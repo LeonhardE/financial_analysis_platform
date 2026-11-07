@@ -631,3 +631,7 @@ The existing `deploy_existing_service.py` arguments, source and release-order ch
 identity, runtime settings, IAM and build-only opt-in behavior are unchanged. Validate this target's
 automatic main-branch build through successful deployment and exact ready image/traffic checks;
 a manual recovery does not establish automatic pipeline success.
+
+The separately gated [durable Agent identity store](PERSISTENT_AGENTS.md) retains
+explicitly approved public identities independently of OAuth transport expiry.
+It does not enable persistent resource access or background execution.
