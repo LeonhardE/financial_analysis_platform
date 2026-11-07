@@ -34,3 +34,15 @@ regexes = [
   '''^223\-hgbJIY8mvEpZnU6wQu\-5WfWetHvsc7NTV85o4sbvGqHPIrSw5A$''',
   '''^LyXMNgX2i0j4Q_T2y1RknvBEsxw6mCusighVkxONOao29xKwuMad4A$''',
 ]
+
+# These exact values are public AES-wrapped CEK ciphertext in the independently
+# generated persistent-content fixture. They are not plaintext keys/credentials.
+[[rules.allowlists]]
+description = "Exact public wrapped-key lines in the persistent content interoperability fixture"
+condition = "AND"
+paths = ['''^services/common/tests/fixtures/persistent_content_node\.json$''']
+regexTarget = "line"
+regexes = [
+  '''^\r?\n?[ \t]*"encrypted_key":[ \t]*"D5GfmqEVj8riDTQajlMHMxeydaM7jgy0M3F6U2szh\-DFpOqdi4wCEg",?[ \t]*\r?\n?$''',
+  '''^\r?\n?[ \t]*"encrypted_key":[ \t]*"3DzYqCqZwYZbjI1489L1Z5OyoPJQWqO\-YyPkI7G5k7ttMyChp5\-93g",?[ \t]*\r?\n?$''',
+]

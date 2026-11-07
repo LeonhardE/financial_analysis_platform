@@ -194,3 +194,7 @@ An additional Python-to-Node test can be enabled with an isolated fixture-tool
 install; see [interop instructions](../../tests/interop/README.md). The two-way
 test uses only publicly known synthetic test keys and an anonymous pipe. This
 does not claim a new real-Muse run or browser key-management implementation.
+
+The separate [persistent content and operation-proof profile](PERSISTENT_CONTENT.md)
+provides Root-approved exact deliveries, current Agent request proofs and frozen
+manifest contracts. It does not change P1 grants or enable any consumer.
