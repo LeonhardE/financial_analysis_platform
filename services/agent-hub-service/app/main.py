@@ -25,6 +25,7 @@ from .preparations import agent_router as preparation_agent_router
 from .preparations import owner_router as preparation_owner_router
 from .results import router as results_router
 from .runs import router as runs_router
+from .runtime_assets import router as runtime_assets_router
 from .runtime_setup_routes import owner_router as runtime_setup_owner_router
 from .runtime_setup_routes import public_router as runtime_setup_router
 from .tasks import router as tasks_router
@@ -63,6 +64,7 @@ app.include_router(native_transport_router)
 app.include_router(native_transport_owner_router)
 app.include_router(native_connections_router)
 app.include_router(runtime_setup_router)
+app.include_router(runtime_assets_router)
 app.include_router(runtime_setup_owner_router)
 app.include_router(identity_recovery_router)
 app.include_router(runs_router)

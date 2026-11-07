@@ -1,9 +1,9 @@
-var _a = Object.create;
-var An = Object.defineProperty;
-var xa = Object.getOwnPropertyDescriptor;
-var Ea = Object.getOwnPropertyNames;
-var Aa = Object.getPrototypeOf,
-  Sa = Object.prototype.hasOwnProperty;
+var Ea = Object.create;
+var Kn = Object.defineProperty;
+var Aa = Object.getOwnPropertyDescriptor;
+var Sa = Object.getOwnPropertyNames;
+var Ka = Object.getPrototypeOf,
+  Da = Object.prototype.hasOwnProperty;
 var j = (e, t, a) => () => {
   if (a) throw a[0];
   try {
@@ -12,27 +12,27 @@ var j = (e, t, a) => () => {
     throw ((a = [d]), d);
   }
 };
-var si = (e, t) => () => {
+var oi = (e, t) => () => {
     try {
       return (t || e((t = { exports: {} }).exports, t), t.exports);
     } catch (a) {
       throw ((t = 0), a);
     }
   },
-  oi = (e, t) => {
-    for (var a in t) An(e, a, { get: t[a], enumerable: !0 });
+  ai = (e, t) => {
+    for (var a in t) Kn(e, a, { get: t[a], enumerable: !0 });
   },
-  Ka = (e, t, a, d) => {
+  Na = (e, t, a, d) => {
     if ((t && typeof t == "object") || typeof t == "function")
-      for (let c of Ea(t))
-        !Sa.call(e, c) &&
+      for (let c of Sa(t))
+        !Da.call(e, c) &&
           c !== a &&
-          An(e, c, { get: () => t[c], enumerable: !(d = xa(t, c)) || d.enumerable });
+          Kn(e, c, { get: () => t[c], enumerable: !(d = Aa(t, c)) || d.enumerable });
     return e;
   };
-var Da = (e, t, a) => (
-  (a = e != null ? _a(Aa(e)) : {}),
-  Ka(t || !e || !e.__esModule ? An(a, "default", { value: e, enumerable: !0 }) : a, e)
+var ja = (e, t, a) => (
+  (a = e != null ? Ea(Ka(e)) : {}),
+  Na(t || !e || !e.__esModule ? Kn(a, "default", { value: e, enumerable: !0 }) : a, e)
 );
 function Fe(...e) {
   let t = e.reduce((c, { length: f }) => c + f, 0),
@@ -41,24 +41,24 @@ function Fe(...e) {
   for (let c of e) (a.set(c, d), (d += c.length));
   return a;
 }
-function Sn(e, t, a) {
-  if (t < 0 || t >= ai) throw new RangeError(`value must be >= 0 and <= ${ai - 1}. Received ${t}`);
+function Dn(e, t, a) {
+  if (t < 0 || t >= pi) throw new RangeError(`value must be >= 0 and <= ${pi - 1}. Received ${t}`);
   e.set([t >>> 24, t >>> 16, t >>> 8, t & 255], a);
 }
-function Kn(e) {
-  let t = Math.floor(e / ai),
-    a = e % ai,
+function Nn(e) {
+  let t = Math.floor(e / pi),
+    a = e % pi,
     d = new Uint8Array(8);
-  return (Sn(d, t, 0), Sn(d, a, 4), d);
+  return (Dn(d, t, 0), Dn(d, a, 4), d);
 }
-function pi(e) {
+function ci(e) {
   let t = new Uint8Array(4);
-  return (Sn(t, e), t);
+  return (Dn(t, e), t);
 }
 function Je(e) {
   if (typeof e == "string" && e.length >= 128) {
-    if (Na.test(e)) throw new TypeError("non-ASCII string encountered in encode()");
-    return br.encode(e);
+    if ($a.test(e)) throw new TypeError("non-ASCII string encountered in encode()");
+    return _r.encode(e);
   }
   let t = new Uint8Array(e.length);
   for (let a = 0; a < e.length; a++) {
@@ -68,7 +68,7 @@ function Je(e) {
   }
   return t;
 }
-function ci(e, t = !1) {
+function li(e, t = !1) {
   if (Uint8Array.prototype.toBase64)
     return e.toBase64({ alphabet: t ? "base64url" : "base64", omitPadding: t });
   let a = 32768,
@@ -78,7 +78,7 @@ function ci(e, t = !1) {
   let c = btoa(d.join(""));
   return t ? c.replace(/=/g, "").replace(/\+/g, "-").replace(/\//g, "_") : c;
 }
-function li(e, t = !1) {
+function fi(e, t = !1) {
   if (Uint8Array.fromBase64)
     return Uint8Array.fromBase64(e, { alphabet: t ? "base64url" : "base64" });
   if (t) {
@@ -90,55 +90,55 @@ function li(e, t = !1) {
   for (let c = 0; c < a.length; c++) d[c] = a.charCodeAt(c);
   return d;
 }
-async function fi(e, t) {
+async function di(e, t) {
   let a = `SHA-${e.slice(-3)}`;
   return new Uint8Array(await crypto.subtle.digest(a, t));
 }
-var br,
-  ot,
+var _r,
   at,
-  ai,
-  Na,
-  Be = j(() => {
-    ((br = new TextEncoder()),
-      (ot = new TextDecoder()),
-      (at = new TextDecoder("utf-8", { fatal: !0 })),
-      (ai = 2 ** 32));
-    Na = /[^\x00-\x7f]/;
+  pt,
+  pi,
+  $a,
+  Ze = j(() => {
+    ((_r = new TextEncoder()),
+      (at = new TextDecoder()),
+      (pt = new TextDecoder("utf-8", { fatal: !0 })),
+      (pi = 2 ** 32));
+    $a = /[^\x00-\x7f]/;
   });
-var Dn = {};
-oi(Dn, {
-  JOSEAlgNotAllowed: () => jr,
+var jn = {};
+ai(jn, {
+  JOSEAlgNotAllowed: () => $r,
   JOSEError: () => _e,
   JOSENotSupported: () => W,
-  JWEDecryptionFailed: () => _r,
+  JWEDecryptionFailed: () => xr,
   JWEInvalid: () => S,
-  JWKInvalid: () => ct,
-  JWKSInvalid: () => zr,
-  JWKSMultipleMatchingKeys: () => Dt,
+  JWKInvalid: () => lt,
+  JWKSInvalid: () => Zr,
+  JWKSMultipleMatchingKeys: () => Nt,
   JWKSNoMatchingKey: () => Br,
-  JWKSTimeout: () => Nt,
+  JWKSTimeout: () => jt,
   JWSInvalid: () => D,
-  JWSSignatureVerificationFailed: () => xr,
+  JWSSignatureVerificationFailed: () => Er,
   JWTClaimValidationFailed: () => rr,
-  JWTExpired: () => pt,
+  JWTExpired: () => ct,
   JWTInvalid: () => de,
 });
 var _e,
   rr,
-  pt,
-  jr,
+  ct,
+  $r,
   W,
-  _r,
+  xr,
   S,
   D,
   de,
-  ct,
-  zr,
+  lt,
+  Zr,
   Br,
-  Dt,
   Nt,
-  xr,
+  jt,
+  Er,
   U = j(() => {
     ((_e = class extends Error {
       static code = "ERR_JOSE_GENERIC";
@@ -162,7 +162,7 @@ var _e,
             (this.payload = a));
         }
       }),
-      (pt = class extends _e {
+      (ct = class extends _e {
         static code = "ERR_JWT_EXPIRED";
         code = "ERR_JWT_EXPIRED";
         claim;
@@ -175,7 +175,7 @@ var _e,
             (this.payload = a));
         }
       }),
-      (jr = class extends _e {
+      ($r = class extends _e {
         static code = "ERR_JOSE_ALG_NOT_ALLOWED";
         code = "ERR_JOSE_ALG_NOT_ALLOWED";
       }),
@@ -183,7 +183,7 @@ var _e,
         static code = "ERR_JOSE_NOT_SUPPORTED";
         code = "ERR_JOSE_NOT_SUPPORTED";
       }),
-      (_r = class extends _e {
+      (xr = class extends _e {
         static code = "ERR_JWE_DECRYPTION_FAILED";
         code = "ERR_JWE_DECRYPTION_FAILED";
         constructor(t = "decryption operation failed", a) {
@@ -202,11 +202,11 @@ var _e,
         static code = "ERR_JWT_INVALID";
         code = "ERR_JWT_INVALID";
       }),
-      (ct = class extends _e {
+      (lt = class extends _e {
         static code = "ERR_JWK_INVALID";
         code = "ERR_JWK_INVALID";
       }),
-      (zr = class extends _e {
+      (Zr = class extends _e {
         static code = "ERR_JWKS_INVALID";
         code = "ERR_JWKS_INVALID";
       }),
@@ -217,7 +217,7 @@ var _e,
           super(t, a);
         }
       }),
-      (Dt = class extends _e {
+      (Nt = class extends _e {
         [Symbol.asyncIterator] = async function* () {};
         static code = "ERR_JWKS_MULTIPLE_MATCHING_KEYS";
         code = "ERR_JWKS_MULTIPLE_MATCHING_KEYS";
@@ -225,14 +225,14 @@ var _e,
           super(t, a);
         }
       }),
-      (Nt = class extends _e {
+      (jt = class extends _e {
         static code = "ERR_JWKS_TIMEOUT";
         code = "ERR_JWKS_TIMEOUT";
         constructor(t = "request timed out", a) {
           super(t, a);
         }
       }),
-      (xr = class extends _e {
+      (Er = class extends _e {
         static code = "ERR_JWS_SIGNATURE_VERIFICATION_FAILED";
         code = "ERR_JWS_SIGNATURE_VERIFICATION_FAILED";
         constructor(t = "signature verification failed", a) {
@@ -240,24 +240,24 @@ var _e,
         }
       }));
   });
-var Zr = {};
-oi(Zr, { decode: () => mr, encode: () => ee });
-function mr(e) {
+var Mr = {};
+ai(Mr, { decode: () => yr, encode: () => ee });
+function yr(e) {
   try {
-    return li(typeof e == "string" ? e : ot.decode(e), !0);
+    return fi(typeof e == "string" ? e : at.decode(e), !0);
   } catch (t) {
-    throw new TypeError(ja, { cause: t });
+    throw new TypeError(La, { cause: t });
   }
 }
 function ee(e) {
-  return ci(typeof e == "string" ? br.encode(e) : e, !0);
+  return li(typeof e == "string" ? _r.encode(e) : e, !0);
 }
-var ja,
+var La,
   Xe = j(() => {
-    Be();
-    ja = "The input to be decoded is not correctly encoded.";
+    Ze();
+    La = "The input to be decoded is not correctly encoded.";
   });
-function Ae(e, t) {
+function Se(e, t) {
   if (!(e instanceof Uint8Array)) throw new TypeError(`${t} must be an instance of Uint8Array`);
 }
 function J(e) {
@@ -266,10 +266,10 @@ function J(e) {
   let t = Object.getPrototypeOf(e);
   return t === null || Object.getPrototypeOf(t) === null;
 }
-function di(e) {
+function ui(e) {
   return J(e) && Array.isArray(e.keys) && Array.from(e.keys).every(J);
 }
-function $r(...e) {
+function Lr(...e) {
   let t = new Set();
   for (let a of e)
     if (a)
@@ -284,39 +284,39 @@ function z(e, t) {
 }
 function Re(e, t, a) {
   try {
-    return mr(e);
+    return yr(e);
   } catch (d) {
     throw new a(`Failed to base64url decode the ${t}`, { cause: d });
   }
 }
-function ui(e, t, a) {
+function mi(e, t, a) {
   try {
     return Je(e);
   } catch (d) {
     throw new a(`The ${t} is not a valid base64url string`, { cause: d });
   }
 }
-function Lr(e, t, a) {
+function Or(e, t, a) {
   let d;
   try {
-    d = JSON.parse(at.decode(mr(e)));
+    d = JSON.parse(pt.decode(yr(e)));
   } catch (c) {
     throw new t(a, { cause: c });
   }
   if (!J(d)) throw new t(a);
   return d;
 }
-function jt(e, t) {
+function $t(e, t) {
   if (t !== void 0 && (!Array.isArray(t) || t.some((a) => typeof a != "string")))
     throw new TypeError(`"${e}" option must be an array of strings`);
   return t === void 0 ? void 0 : new Set(t);
 }
-function yi(e, t) {
+function hi(e, t) {
   let { crit: a } = t ?? {};
   if (Array.isArray(a) && new Set(a).size !== a.length)
     throw new e('"crit" (Critical) Header Parameter MUST NOT contain duplicate values');
 }
-function yr(e, t, a, d, c) {
+function hr(e, t, a, d, c) {
   if (c.crit !== void 0 && d?.crit === void 0)
     throw new e('"crit" (Critical) Header Parameter MUST be integrity protected');
   if (!d || d.crit === void 0) return [];
@@ -338,7 +338,7 @@ function yr(e, t, a, d, c) {
   }
   return d.crit;
 }
-function ft(e, t) {
+function dt(e, t) {
   if (t.includes("b64")) {
     let a = e.b64;
     if (typeof a != "boolean")
@@ -347,7 +347,7 @@ function ft(e, t) {
   }
   return !0;
 }
-function Mr(e, t) {
+function Gr(e, t) {
   let a, d;
   try {
     ((a = JSON.stringify(t)), (d = JSON.parse(a)));
@@ -357,13 +357,13 @@ function Mr(e, t) {
   if (!J(d)) throw new e("JOSE Header is not a JSON object");
   return [d, a];
 }
-var lt,
-  mi,
+var ft,
+  yi,
   re = j(() => {
     U();
     Xe();
-    Be();
-    ((lt = { __proto__: null, b64: !0 }), (mi = { __proto__: null }));
+    Ze();
+    ((ft = { __proto__: null, b64: !0 }), (yi = { __proto__: null }));
   });
 async function ar(e, t, a) {
   let { alg: d, secret: c } = e,
@@ -371,7 +371,7 @@ async function ar(e, t, a) {
   if (c && t instanceof Uint8Array) return t;
   let i, r;
   if (J(t)) {
-    if (((i = Lt(t)), typeof i.kty != "string")) throw _s(d, t, c);
+    if (((i = Ot(t)), typeof i.kty != "string")) throw Es(d, t, c);
     if (
       !(c
         ? i.kty === "oct" && typeof i.k == "string"
@@ -385,35 +385,35 @@ async function ar(e, t, a) {
           ? 'JSON Web Key for symmetric algorithms must have JWK "kty" (Key Type) equal to "oct" and the JWK "k" (Key Value) present'
           : `JSON Web Key for this operation must be a ${f ? "private" : "public"} JWK`,
       );
-    if ((La(e, i, a), i.kty === "oct")) return mr(i.k);
+    if ((Va(e, i, a), i.kty === "oct")) return yr(i.k);
     if (!Object.isFrozen(t)) {
       let { key_ops: y } = t;
       (Array.isArray(y) && Object.freeze(y), Object.freeze(t));
     }
   } else {
-    if (!jn(t)) throw _s(d, t, c);
+    if (!Ln(t)) throw Es(d, t, c);
     let y = c ? "secret" : f ? "private" : "public";
     if (t.type !== y && (c || ["secret", "public", "private"].includes(t.type)))
-      throw new TypeError(`${$a(t)} instances must be of type "${y}" for the ${d} algorithm`);
-    if (hr(t)) return t;
+      throw new TypeError(`${Oa(t)} instances must be of type "${y}" for the ${d} algorithm`);
+    if (gr(t)) return t;
     if (((r = t), r.type === "secret")) return r.export();
   }
-  Nn ||= new WeakMap();
+  $n ||= new WeakMap();
   let u = t,
-    n = Nn.get(u);
+    n = $n.get(u);
   if (n?.[d]) return n[d];
-  if ((n || Nn.set(u, (n = {})), r && typeof r.toCryptoKey == "function")) {
+  if ((n || $n.set(u, (n = {})), r && typeof r.toCryptoKey == "function")) {
     let y = r.type === "public",
-      m = Oa[r.asymmetricKeyDetails?.namedCurve],
+      m = Ca[r.asymmetricKeyDetails?.namedCurve],
       p = e.resolve?.({ crv: m, asymmetricKeyType: r.asymmetricKeyType }) ?? e.subtle;
     return (n[d] = r.toCryptoKey(p, y, e.usages[y ? 0 : 1]));
   }
-  return ((i ??= r.export({ format: "jwk" })), (i.alg = d), (n[d] = await gr(e, i)));
+  return ((i ??= r.export({ format: "jwk" })), (i.alg = d), (n[d] = await vr(e, i)));
 }
-function gi(e) {
-  if (!hr(e)) throw new Error("CryptoKey instance expected");
+function vi(e) {
+  if (!gr(e)) throw new Error("CryptoKey instance expected");
 }
-function xs(e, t, ...a) {
+function As(e, t, ...a) {
   if (a.length > 2) {
     let d = a.pop();
     e += `one of type ${a.join(", ")}, or ${d}.`;
@@ -430,35 +430,35 @@ function xs(e, t, ...a) {
     e
   );
 }
-function _s(e, t, a) {
+function Es(e, t, a) {
   let d = ["CryptoKey", "KeyObject", "JSON Web Key"];
   return (
     a && d.push("Uint8Array"),
-    new TypeError(xs(`Key for the ${e} algorithm must be `, t, ...d))
+    new TypeError(As(`Key for the ${e} algorithm must be `, t, ...d))
   );
 }
-function $n(e, t) {
+function On(e, t) {
   if (t && !e.usages.includes(t))
     throw new TypeError(`CryptoKey does not support this operation, its usages must include ${t}.`);
 }
-function dt(e, t) {
+function ut(e, t) {
   let { modulusLength: a } = t.algorithm;
   if (typeof a != "number" || a < 2048)
     throw new TypeError(`${e} requires key modulusLength to be 2048 bits or larger`);
 }
-function Ln(e, t, a) {
+function Vn(e, t, a) {
   let d = e.algorithm;
-  if (d.name !== t.name) throw hi(t.name);
-  if (t.hash && d.hash?.name !== t.hash) throw hi(t.hash, "algorithm.hash");
-  if (t.namedCurve && d.namedCurve !== t.namedCurve) throw hi(t.namedCurve, "algorithm.namedCurve");
-  if (t.length !== void 0 && d.length !== t.length) throw hi(t.length, "algorithm.length");
-  $n(e, a);
+  if (d.name !== t.name) throw gi(t.name);
+  if (t.hash && d.hash?.name !== t.hash) throw gi(t.hash, "algorithm.hash");
+  if (t.namedCurve && d.namedCurve !== t.namedCurve) throw gi(t.namedCurve, "algorithm.namedCurve");
+  if (t.length !== void 0 && d.length !== t.length) throw gi(t.length, "algorithm.length");
+  On(e, a);
 }
-function ut(e) {
+function mt(e) {
   return { __proto__: null, ...e };
 }
-function Lt(e) {
-  let t = ut(e);
+function Ot(e) {
+  let t = mt(e);
   if (t.ext !== void 0 && typeof t.ext != "boolean")
     throw new TypeError('"ext" (Extractable) Parameter must be a boolean');
   if (t.key_ops !== void 0) {
@@ -472,12 +472,12 @@ function Lt(e) {
   }
   return t;
 }
-function Or(e) {
+function Vr(e) {
   if (e !== void 0 && typeof e != "boolean")
     throw new TypeError('"extractable" option must be a boolean');
   return e;
 }
-async function gr(e, t, a) {
+async function vr(e, t, a) {
   if (!e.kty.includes(t.kty))
     throw new W('Invalid or unsupported JWK "alg" (Algorithm) Parameter value');
   let d = e.resolve?.({ kty: t.kty, crv: t.crv }) ?? e.subtle,
@@ -492,25 +492,25 @@ async function gr(e, t, a) {
 async function cr(e, t, a, d = !1) {
   return (
     e instanceof Uint8Array && (e = await crypto.subtle.importKey("raw", e, t, d, [a])),
-    Ln(e, t, a),
+    Vn(e, t, a),
     e
   );
 }
-var $a,
-  La,
-  Nn,
-  Oa,
-  hr,
-  $t,
-  jn,
+var Oa,
+  Va,
+  $n,
+  Ca,
+  gr,
+  Lt,
+  Ln,
   pr,
-  hi,
+  gi,
   Ue = j(() => {
     re();
     Xe();
     U();
-    (($a = (e) => e[Symbol.toStringTag]),
-      (La = (e, t, a) => {
+    ((Oa = (e) => e[Symbol.toStringTag]),
+      (Va = (e, t, a) => {
         let { alg: d } = e;
         if (t.use !== void 0) {
           let c = a === "sign" || a === "verify" ? "sig" : "enc";
@@ -531,8 +531,8 @@ var $a,
             );
         }
       }));
-    Oa = { __proto__: null, prime256v1: "P-256", secp384r1: "P-384", secp521r1: "P-521" };
-    ((hr = (e) => {
+    Ca = { __proto__: null, prime256v1: "P-256", secp384r1: "P-384", secp521r1: "P-521" };
+    ((gr = (e) => {
       if (e?.[Symbol.toStringTag] === "CryptoKey") return !0;
       try {
         return e instanceof CryptoKey;
@@ -540,21 +540,21 @@ var $a,
         return !1;
       }
     }),
-      ($t = (e) => e?.[Symbol.toStringTag] === "KeyObject"),
-      (jn = (e) => hr(e) || $t(e)));
-    pr = (e, ...t) => xs("Key must be ", e, ...t);
-    hi = (e, t = "algorithm.name") =>
+      (Lt = (e) => e?.[Symbol.toStringTag] === "KeyObject"),
+      (Ln = (e) => gr(e) || Lt(e)));
+    pr = (e, ...t) => As("Key must be ", e, ...t);
+    gi = (e, t = "algorithm.name") =>
       new TypeError(`CryptoKey does not support this operation, its ${t} must be ${e}`);
   });
-function vi(e, t) {
+function wi(e, t) {
   let a = e.byteLength << 3;
   if (a !== t)
     throw new S(`Invalid Content Encryption Key length. Expected ${t} bits, got ${a} bits`);
 }
-function Es(e, t) {
+function Ss(e, t) {
   if (t.length << 3 !== e.ivBits) throw new S("Invalid Initialization Vector length");
 }
-async function As(e, t, a) {
+async function Ks(e, t, a) {
   if (!(t instanceof Uint8Array)) throw new TypeError(pr(t, "Uint8Array"));
   let d = e.cekBits >> 1,
     c = await crypto.subtle.importKey("raw", t.subarray(d >> 3), "AES-CBC", !1, [a]),
@@ -567,39 +567,39 @@ async function As(e, t, a) {
     );
   return [c, f, d];
 }
-async function Ss(e, t, a) {
+async function Ds(e, t, a) {
   return new Uint8Array((await crypto.subtle.sign("HMAC", e, t)).slice(0, a >> 3));
 }
-async function Ca(e, t, a, d, c) {
-  let [f, i, r] = await As(e, a, "encrypt"),
+async function qa(e, t, a, d, c) {
+  let [f, i, r] = await Ks(e, a, "encrypt"),
     u = new Uint8Array(await crypto.subtle.encrypt({ iv: d, name: "AES-CBC" }, f, t)),
-    n = Kn(c.length * 8),
+    n = Nn(c.length * 8),
     y = Fe(c, d, u, n),
-    m = await Ss(i, y, r);
+    m = await Ds(i, y, r);
   return { ciphertext: u, tag: m, iv: d };
 }
-async function Ta(e, t) {
+async function Ja(e, t) {
   let a = { name: "HMAC", hash: "SHA-256" },
     d = await crypto.subtle.generateKey(a, !1, ["sign", "verify"]),
     c = await crypto.subtle.sign(a, d, e);
   return crypto.subtle.verify(a, d, c, t);
 }
-async function qa(e, t, a, d, c, f) {
-  let [i, r, u] = await As(e, t, "decrypt"),
-    n = Kn(f.length * 8),
+async function Ra(e, t, a, d, c, f) {
+  let [i, r, u] = await Ks(e, t, "decrypt"),
+    n = Nn(f.length * 8),
     y = Fe(f, d, a, n),
-    m = await Ss(r, y, u);
+    m = await Ds(r, y, u);
   try {
-    if (await Ta(c, m))
+    if (await Ja(c, m))
       return new Uint8Array(await crypto.subtle.decrypt({ iv: d, name: "AES-CBC" }, i, a));
   } catch {}
-  throw new _r();
+  throw new xr();
 }
-async function wi(e, t, a, d, c) {
-  if (!hr(a) && !(a instanceof Uint8Array))
+async function ki(e, t, a, d, c) {
+  if (!gr(a) && !(a instanceof Uint8Array))
     throw new TypeError(pr(a, "CryptoKey", "KeyObject", "Uint8Array", "JSON Web Key"));
-  if ((d ? Es(e, d) : (d = Va(e)), a instanceof Uint8Array && vi(a, e.cekBits), e.cbc))
-    return Ca(e, t, a, d, c);
+  if ((d ? Ss(e, d) : (d = Ta(e)), a instanceof Uint8Array && wi(a, e.cekBits), e.cbc))
+    return qa(e, t, a, d, c);
   let f = await cr(a, e.subtle, "encrypt"),
     i = new Uint8Array(
       await crypto.subtle.encrypt(
@@ -610,13 +610,13 @@ async function wi(e, t, a, d, c) {
     );
   return { ciphertext: i.subarray(0, -16), tag: i.subarray(-16), iv: d };
 }
-async function ki(e, t, a, d, c, f) {
-  if (!hr(t) && !(t instanceof Uint8Array))
+async function Ii(e, t, a, d, c, f) {
+  if (!gr(t) && !(t instanceof Uint8Array))
     throw new TypeError(pr(t, "CryptoKey", "KeyObject", "Uint8Array", "JSON Web Key"));
   if (!d) throw new S("JWE Initialization Vector missing");
   if (!c) throw new S("JWE Authentication Tag missing");
   if (!e.cbc && c.length !== 16) throw new S("Invalid Authentication Tag length");
-  if ((Es(e, d), t instanceof Uint8Array && vi(t, e.cekBits), e.cbc)) return qa(e, t, a, d, c, f);
+  if ((Ss(e, d), t instanceof Uint8Array && wi(t, e.cekBits), e.cbc)) return Ra(e, t, a, d, c, f);
   let i = await cr(t, e.subtle, "decrypt");
   try {
     return new Uint8Array(
@@ -627,34 +627,34 @@ async function ki(e, t, a, d, c, f) {
       ),
     );
   } catch {
-    throw new _r();
+    throw new xr();
   }
 }
-var Gr,
-  Va,
-  Ot = j(() => {
-    Be();
+var Xr,
+  Ta,
+  Vt = j(() => {
+    Ze();
     Ue();
     U();
-    Gr = (e) => crypto.getRandomValues(new Uint8Array(e.cekBits >> 3));
-    Va = (e) => crypto.getRandomValues(new Uint8Array(e.ivBits >> 3));
+    Xr = (e) => crypto.getRandomValues(new Uint8Array(e.cekBits >> 3));
+    Ta = (e) => crypto.getRandomValues(new Uint8Array(e.ivBits >> 3));
   });
-function Vt(e) {
+function Ct(e) {
   let t = { __proto__: null };
   for (let a in e) t[a] = { ...e[a], alg: a };
   return t;
 }
-var On = j(() => {});
-function Ii(e) {
+var Cn = j(() => {});
+function Pi(e) {
   return {
     kty: ["RSA"],
     mode: "key-encryption",
     subtle: { name: "RSA-OAEP", hash: `SHA-${e}` },
-    usages: Ja,
+    usages: Wa,
     ops: ["wrapKey", "unwrapKey"],
   };
 }
-function Pi(e) {
+function bi(e) {
   return {
     kty: ["EC", "OKP"],
     mode: e,
@@ -664,47 +664,47 @@ function Pi(e) {
       if (t === "OKP") throw new W('Invalid or unsupported JWK "alg" (Algorithm) Parameter value');
       return { name: "ECDH", namedCurve: a };
     },
-    usages: Ra,
+    usages: Ha,
     ops: [void 0, "deriveBits"],
-  };
-}
-function mt(e, t = !1) {
-  return {
-    kty: ["oct"],
-    mode: "key-wrapping",
-    secret: !0,
-    subtle: { name: t ? "AES-GCM" : "AES-KW", length: e },
-    usages: bi,
-    ops: t ? ["encrypt", "decrypt"] : ["wrapKey", "unwrapKey"],
-  };
-}
-function Vn() {
-  return {
-    kty: ["oct"],
-    mode: "key-wrapping",
-    secret: !0,
-    subtle: { name: "PBKDF2" },
-    usages: bi,
-    ops: ["deriveBits", "deriveBits"],
   };
 }
 function yt(e, t = !1) {
   return {
     kty: ["oct"],
+    mode: "key-wrapping",
+    secret: !0,
+    subtle: { name: t ? "AES-GCM" : "AES-KW", length: e },
+    usages: _i,
+    ops: t ? ["encrypt", "decrypt"] : ["wrapKey", "unwrapKey"],
+  };
+}
+function Tn() {
+  return {
+    kty: ["oct"],
+    mode: "key-wrapping",
+    secret: !0,
+    subtle: { name: "PBKDF2" },
+    usages: _i,
+    ops: ["deriveBits", "deriveBits"],
+  };
+}
+function ht(e, t = !1) {
+  return {
+    kty: ["oct"],
     secret: !0,
     subtle: { name: t ? "AES-CBC" : "AES-GCM", length: e },
-    usages: bi,
-    ops: Wa,
+    usages: _i,
+    ops: Fa,
     cekBits: e,
     ivBits: t ? 128 : 96,
     cbc: t,
   };
 }
-function Ks(e, t) {
+function Ns(e, t) {
   throw new W(`Invalid or unsupported "${e}" (JWE ${t}) header value`);
 }
 function lr(e) {
-  return (typeof e == "string" ? Er[e] : void 0) ?? Ks("alg", "Algorithm");
+  return (typeof e == "string" ? Ar[e] : void 0) ?? Ns("alg", "Algorithm");
 }
 function fr(e) {
   return (
@@ -713,74 +713,74 @@ function fr(e) {
     e.mode === "key-agreement-with-key-wrapping"
   );
 }
-function Xr(e) {
-  return (typeof e == "string" ? Ha[e] : void 0) ?? Ks("enc", "Encryption Algorithm");
+function Yr(e) {
+  return (typeof e == "string" ? Ua[e] : void 0) ?? Ns("enc", "Encryption Algorithm");
 }
-var Ja,
-  Ra,
-  bi,
-  Er,
-  Wa,
+var Wa,
   Ha,
-  Yr = j(() => {
+  _i,
+  Ar,
+  Fa,
+  Ua,
+  Qr = j(() => {
     U();
-    On();
-    ((Ja = [
+    Cn();
+    ((Wa = [
       ["encrypt", "wrapKey"],
       ["decrypt", "unwrapKey"],
     ]),
-      (Ra = [[], ["deriveBits"]]),
-      (bi = [[], []]));
-    ((Er = Vt({
+      (Ha = [[], ["deriveBits"]]),
+      (_i = [[], []]));
+    ((Ar = Ct({
       dir: {
         kty: ["oct"],
         mode: "direct-encryption",
         secret: !0,
         subtle: { name: "AES-GCM" },
-        usages: bi,
+        usages: _i,
         ops: ["encrypt", "decrypt"],
       },
-      "RSA-OAEP": Ii(1),
-      "RSA-OAEP-256": Ii(256),
-      "RSA-OAEP-384": Ii(384),
-      "RSA-OAEP-512": Ii(512),
-      "ECDH-ES": Pi("direct-key-agreement"),
-      "ECDH-ES+A128KW": Pi("key-agreement-with-key-wrapping"),
-      "ECDH-ES+A192KW": Pi("key-agreement-with-key-wrapping"),
-      "ECDH-ES+A256KW": Pi("key-agreement-with-key-wrapping"),
-      A128KW: mt(128),
-      A192KW: mt(192),
-      A256KW: mt(256),
-      A128GCMKW: mt(128, !0),
-      A192GCMKW: mt(192, !0),
-      A256GCMKW: mt(256, !0),
-      "PBES2-HS256+A128KW": Vn(),
-      "PBES2-HS384+A192KW": Vn(),
-      "PBES2-HS512+A256KW": Vn(),
+      "RSA-OAEP": Pi(1),
+      "RSA-OAEP-256": Pi(256),
+      "RSA-OAEP-384": Pi(384),
+      "RSA-OAEP-512": Pi(512),
+      "ECDH-ES": bi("direct-key-agreement"),
+      "ECDH-ES+A128KW": bi("key-agreement-with-key-wrapping"),
+      "ECDH-ES+A192KW": bi("key-agreement-with-key-wrapping"),
+      "ECDH-ES+A256KW": bi("key-agreement-with-key-wrapping"),
+      A128KW: yt(128),
+      A192KW: yt(192),
+      A256KW: yt(256),
+      A128GCMKW: yt(128, !0),
+      A192GCMKW: yt(192, !0),
+      A256GCMKW: yt(256, !0),
+      "PBES2-HS256+A128KW": Tn(),
+      "PBES2-HS384+A192KW": Tn(),
+      "PBES2-HS512+A256KW": Tn(),
     })),
-      (Wa = ["encrypt", "decrypt"]));
-    Ha = Vt({
-      A128GCM: yt(128),
-      A192GCM: yt(192),
-      A256GCM: yt(256),
-      "A128CBC-HS256": yt(256, !0),
-      "A192CBC-HS384": yt(384, !0),
-      "A256CBC-HS512": yt(512, !0),
+      (Fa = ["encrypt", "decrypt"]));
+    Ua = Ct({
+      A128GCM: ht(128),
+      A192GCM: ht(192),
+      A256GCM: ht(256),
+      "A128CBC-HS256": ht(256, !0),
+      "A192CBC-HS384": ht(384, !0),
+      "A256CBC-HS512": ht(512, !0),
     });
   });
-function Ds(e, t) {
+function js(e, t) {
   if (e.algorithm.name !== "ECDH" && e.algorithm.name !== "X25519")
     throw new TypeError(
       "CryptoKey does not support this operation, its algorithm.name must be ECDH or X25519",
     );
-  $n(e, t);
+  On(e, t);
 }
-async function Fa(e, t, a) {
+async function za(e, t, a) {
   let d = await cr(t, lr(e).subtle, "wrapKey", !0),
     c = await crypto.subtle.importKey("raw", a, { hash: "SHA-256", name: "HMAC" }, !0, ["sign"]);
   return new Uint8Array(await crypto.subtle.wrapKey("raw", c, d, "AES-KW"));
 }
-async function Ua(e, t, a) {
+async function Za(e, t, a) {
   let d = await cr(t, lr(e).subtle, "unwrapKey", !0),
     c = await crypto.subtle.unwrapKey(
       "raw",
@@ -793,10 +793,10 @@ async function Ua(e, t, a) {
     );
   return new Uint8Array(await crypto.subtle.exportKey("raw", c));
 }
-function js(e, t, a) {
-  (Ln(t, lr(e).subtle, a), dt(e, t));
+function Ls(e, t, a) {
+  (Vn(t, lr(e).subtle, a), ut(e, t));
 }
-async function $s(e, t, a, d) {
+async function Os(e, t, a, d) {
   if (!(e instanceof Uint8Array) || e.length < 8)
     throw new S("PBES2 Salt Input must be 8 or more octets");
   if (!Number.isSafeInteger(a) || Math.sign(a) !== 1)
@@ -807,23 +807,23 @@ async function $s(e, t, a, d) {
     r = await cr(d, lr(t).subtle, "deriveBits");
   return new Uint8Array(await crypto.subtle.deriveBits(i, r, f));
 }
-function Cn(e) {
-  return Fe(pi(e.length), e);
+function qn(e) {
+  return Fe(ci(e.length), e);
 }
-async function za(e, t, a) {
+async function Ba(e, t, a) {
   let d = t >> 3,
     c = 32,
     f = Math.ceil(d / c),
     i = new Uint8Array(f * c);
   for (let r = 1; r <= f; r++) {
-    let u = await fi("sha256", Fe(pi(r), e, a));
+    let u = await di("sha256", Fe(ci(r), e, a));
     i.set(u, (r - 1) * c);
   }
   return i.slice(0, d);
 }
-async function Ls(e, t, a, d, c = new Uint8Array(), f = new Uint8Array()) {
-  (Ds(e), Ds(t, "deriveBits"));
-  let i = Fe(Cn(Je(a)), Cn(c), Cn(f), pi(d)),
+async function Vs(e, t, a, d, c = new Uint8Array(), f = new Uint8Array()) {
+  (js(e), js(t, "deriveBits"));
+  let i = Fe(qn(Je(a)), qn(c), qn(f), ci(d)),
     r = new Uint8Array(
       await crypto.subtle.deriveBits(
         { name: e.algorithm.name, public: e },
@@ -833,17 +833,17 @@ async function Ls(e, t, a, d, c = new Uint8Array(), f = new Uint8Array()) {
           : Math.ceil(parseInt(e.algorithm.namedCurve.slice(-3), 10) / 8) << 3,
       ),
     );
-  return za(r, d, i);
+  return Ba(r, d, i);
 }
-function Os(e) {
-  gi(e);
+function Cs(e) {
+  vi(e);
   let t = e.algorithm.namedCurve;
   if (t !== "P-256" && t !== "P-384" && t !== "P-521" && e.algorithm.name !== "X25519")
     throw new W(
       "ECDH with the provided key is not allowed or not supported by your javascript runtime",
     );
 }
-function _i(e, t) {
+function xi(e, t) {
   let a = e[t];
   if (a !== void 0) {
     if (typeof a != "string")
@@ -851,28 +851,28 @@ function _i(e, t) {
     return Re(a, t, S);
   }
 }
-function Vs(e, t) {
+function Ts(e, t) {
   if (!(e === void 0 || t === void 0 || e.byteLength !== t.byteLength)) {
     for (let a = 0; a < e.byteLength; a++) if (e[a] !== t[a]) return;
     throw new S('JOSE Header "apu" and "apv" values must be distinct');
   }
 }
-function Ba(e) {
+function Ma(e) {
   if (e === void 0) throw new S("JWE Encrypted Key missing");
 }
-function Ns(e) {
+function $s(e) {
   if (e !== void 0) throw new S("Encountered unexpected JWE Encrypted Key");
 }
-function Za(e) {
+function Ga(e) {
   if (e !== void 0 && e !== 1 / 0 && (!Number.isSafeInteger(e) || e < 1))
     throw new TypeError("maxPBES2Count must be a positive safe integer or Infinity");
 }
-async function Cs(e, t, a, d, c, f) {
+async function qs(e, t, a, d, c, f) {
   let { alg: i } = e,
     r = e.mode;
-  if (r === "direct-encryption") return (Ns(d), a);
+  if (r === "direct-encryption") return ($s(d), a);
   let u = r === "direct-key-agreement";
-  switch ((u ? Ns(d) : Ba(d), e.subtle.name)) {
+  switch ((u ? $s(d) : Ma(d), e.subtle.name)) {
     case "ECDH": {
       let { epk: n } = c;
       if (
@@ -880,32 +880,32 @@ async function Cs(e, t, a, d, c, f) {
         ["d", "k", "p", "q", "dp", "dq", "qi", "oth", "priv"].some((o) => Object.hasOwn(n, o))
       )
         throw new S('JOSE Header "epk" (Ephemeral Public Key) missing or invalid');
-      Os(a);
-      let y = await gr(e, n),
-        m = _i(c, "apu"),
-        p = _i(c, "apv");
-      Vs(m, p);
-      let s = await Ls(y, a, u ? t.alg : i, u ? t.cekBits : parseInt(i.slice(-5, -2), 10), m, p);
+      Cs(a);
+      let y = await vr(e, n),
+        m = xi(c, "apu"),
+        p = xi(c, "apv");
+      Ts(m, p);
+      let s = await Vs(y, a, u ? t.alg : i, u ? t.cekBits : parseInt(i.slice(-5, -2), 10), m, p);
       if (u) return s;
       a = s;
       break;
     }
     case "RSA-OAEP":
       return (
-        gi(a),
-        js(i, a, "decrypt"),
+        vi(a),
+        Ls(i, a, "decrypt"),
         new Uint8Array(await crypto.subtle.decrypt("RSA-OAEP", a, d))
       );
     case "PBKDF2": {
       if (typeof c.p2c != "number")
         throw new S('JOSE Header "p2c" (PBES2 Count) missing or invalid');
-      Za(f);
+      Ga(f);
       let n = f ?? 1e4;
       if (c.p2c > n) throw new S('JOSE Header "p2c" (PBES2 Count) out is of acceptable bounds');
       if (typeof c.p2s != "string")
         throw new S('JOSE Header "p2s" (PBES2 Salt) missing or invalid');
       let y = Re(c.p2s, "p2s", S);
-      a = await $s(y, i, c.p2c, a);
+      a = await Os(y, i, c.p2c, a);
       break;
     }
     case "AES-GCM": {
@@ -917,12 +917,12 @@ async function Cs(e, t, a, d, c, f) {
         y = Re(c.tag, "tag", S);
       if (n.byteLength !== 12) throw new S("Invalid Initialization Vector length");
       if (y.byteLength !== 16) throw new S("Invalid Authentication Tag length");
-      return ki(Xr(i.slice(0, -2)), a, d, n, y, new Uint8Array());
+      return Ii(Yr(i.slice(0, -2)), a, d, n, y, new Uint8Array());
     }
   }
-  return Ua(i.slice(-6), a, d);
+  return Za(i.slice(-6), a, d);
 }
-async function xi(e, t, a, d, c, f = {}) {
+async function Ei(e, t, a, d, c, f = {}) {
   let { alg: i, mode: r } = e,
     u = fr(e);
   if (c !== void 0 && !u)
@@ -931,17 +931,17 @@ async function xi(e, t, a, d, c, f = {}) {
     );
   let n = await ar(r === "direct-encryption" ? t : e, a, "encrypt");
   if (r === "direct-encryption") return [n, void 0, void 0];
-  let y = u ? (c ?? Gr(t)) : void 0;
-  y && vi(y, t.cekBits);
+  let y = u ? (c ?? Xr(t)) : void 0;
+  y && wi(y, t.cekBits);
   let m, p;
   switch (e.subtle.name) {
     case "ECDH": {
-      Os(n);
+      Cs(n);
       let { apu: s, apv: o } = f;
-      (s !== void 0 && Ae(s, '"apu"'), o !== void 0 && Ae(o, '"apv"'));
-      let l = s ?? _i(d, "apu"),
-        g = o ?? _i(d, "apv");
-      Vs(l, g);
+      (s !== void 0 && Se(s, '"apu"'), o !== void 0 && Se(o, '"apv"'));
+      let l = s ?? xi(d, "apu"),
+        g = o ?? xi(d, "apv");
+      Ts(l, g);
       let v;
       f.epk !== void 0
         ? (v = await ar(e, f.epk, "decrypt"))
@@ -955,7 +955,7 @@ async function xi(e, t, a, d, c, f = {}) {
       }
       let { x: I, y: P, crv: A, kty: fe } = await h.exportKey("jwk", w),
         R = r === "direct-key-agreement",
-        q = await Ls(n, v, R ? t.alg : i, R ? t.cekBits : parseInt(i.slice(-5, -2), 10), l, g),
+        q = await Vs(n, v, R ? t.alg : i, R ? t.cekBits : parseInt(i.slice(-5, -2), 10), l, g),
         ae = { x: I, crv: A, kty: fe };
       if (
         (fe === "EC" && (ae.y = P),
@@ -969,37 +969,37 @@ async function xi(e, t, a, d, c, f = {}) {
       break;
     }
     case "RSA-OAEP": {
-      (gi(n),
-        js(i, n, "encrypt"),
+      (vi(n),
+        Ls(i, n, "encrypt"),
         (m = new Uint8Array(await crypto.subtle.encrypt("RSA-OAEP", n, y))));
       break;
     }
     case "PBKDF2": {
       let { p2c: s = 2048, p2s: o = crypto.getRandomValues(new Uint8Array(16)) } = f;
-      ((n = await $s(o, i, s, n)), (p = { p2c: s, p2s: ee(o) }));
+      ((n = await Os(o, i, s, n)), (p = { p2c: s, p2s: ee(o) }));
       break;
     }
     case "AES-GCM": {
       let s = f.iv === void 0 ? crypto.getRandomValues(new Uint8Array(12)) : f.iv;
       if (!(s instanceof Uint8Array)) throw new TypeError('"iv" must be an instance of Uint8Array');
-      let o = await wi(Xr(i.slice(0, -2)), y, n, s, new Uint8Array());
+      let o = await ki(Yr(i.slice(0, -2)), y, n, s, new Uint8Array());
       ((m = o.ciphertext), (p = { iv: ee(o.iv), tag: ee(o.tag) }));
     }
   }
-  if (((m ??= await Fa(i.slice(-6), n, y)), !(m instanceof Uint8Array) || !m.byteLength))
+  if (((m ??= await za(i.slice(-6), n, y)), !(m instanceof Uint8Array) || !m.byteLength))
     throw new TypeError("JWE key management algorithm did not produce an Encrypted Key");
   return [y, m, p];
 }
-var Ei = j(() => {
+var Ai = j(() => {
   Xe();
   Ue();
-  Yr();
+  Qr();
   U();
   re();
-  Be();
-  Ot();
+  Ze();
+  Vt();
 });
-function Ai(e, t) {
+function Si(e, t) {
   if (e.zip !== void 0 && e.zip !== "DEF")
     throw new W('Unsupported JWE "zip" (Compression Algorithm) Header Parameter value.');
   if (e.zip !== void 0 && !t?.zip)
@@ -1007,11 +1007,11 @@ function Ai(e, t) {
       'JWE "zip" (Compression Algorithm) Header Parameter MUST be in a protected header.',
     );
 }
-function Ts(e) {
+function Js(e) {
   if (typeof globalThis[e] > "u")
     throw new W(`JWE "zip" (Compression Algorithm) Header Parameter requires the ${e} API.`);
 }
-async function qs(e, t, a = 1 / 0) {
+async function Rs(e, t, a = 1 / 0) {
   let d = e.writable.getWriter();
   (d.write(t).catch(() => {}), d.close().catch(() => {}));
   let c = [],
@@ -1025,17 +1025,17 @@ async function qs(e, t, a = 1 / 0) {
   }
   return Fe(...c);
 }
-async function Js(e) {
-  return (Ts("CompressionStream"), qs(new CompressionStream("deflate-raw"), e));
+async function Ws(e) {
+  return (Js("CompressionStream"), Rs(new CompressionStream("deflate-raw"), e));
 }
-async function Rs(e, t) {
-  return (Ts("DecompressionStream"), qs(new DecompressionStream("deflate-raw"), e, t));
+async function Hs(e, t) {
+  return (Js("DecompressionStream"), Rs(new DecompressionStream("deflate-raw"), e, t));
 }
-var Tn = j(() => {
+var Jn = j(() => {
   U();
-  Be();
+  Ze();
 });
-function Si(e) {
+function Ki(e) {
   let { aad: t, ciphertext: a, iv: d, protected: c, tag: f, unprotected: i } = e;
   if (d !== void 0 && (typeof d != "string" || !d))
     throw new S("JWE Initialization Vector incorrect type");
@@ -1054,7 +1054,7 @@ function Si(e) {
     unprotected: i === void 0 ? void 0 : { ...i },
   };
 }
-function Ki(e) {
+function Di(e) {
   let t, a;
   try {
     let { header: d } = e;
@@ -1070,42 +1070,42 @@ function Ki(e) {
     return [void 0, a, d];
   }
 }
-function Di(e) {
+function Ni(e) {
   let { encrypted_key: t, header: a } = e;
   if (t !== void 0 && typeof t != "string") throw new S("JWE Encrypted Key incorrect type");
   if (a !== void 0 && !J(a)) throw new S("JWE Per-Recipient Unprotected Header incorrect type");
   if (e.protected === void 0 && a === void 0 && e.unprotected === void 0)
     throw new S("JOSE Header missing");
 }
-function qn(e) {
+function Rn(e) {
   let { protected: t, ciphertext: a, iv: d, tag: c, aad: f } = e,
     i;
   return (
-    t !== void 0 && (i = Lr(t, S, "JWE Protected Header is invalid")),
+    t !== void 0 && (i = Or(t, S, "JWE Protected Header is invalid")),
     [
       i,
       Re(a, "ciphertext", S),
       d !== void 0 ? Re(d, "iv", S) : void 0,
       c !== void 0 ? Re(c, "tag", S) : void 0,
-      ui((t ?? "") + (f !== void 0 ? `.${f}` : ""), "aad", S),
+      mi((t ?? "") + (f !== void 0 ? `.${f}` : ""), "aad", S),
     ]
   );
 }
-function Vr(e) {
+function Cr(e) {
   return [
-    e && jt("keyManagementAlgorithms", e.keyManagementAlgorithms),
-    e && jt("contentEncryptionAlgorithms", e.contentEncryptionAlgorithms),
+    e && $t("keyManagementAlgorithms", e.keyManagementAlgorithms),
+    e && $t("contentEncryptionAlgorithms", e.contentEncryptionAlgorithms),
     e?.crit,
     e?.maxPBES2Count,
     e?.maxDecompressedLength,
   ];
 }
-async function Ct(e, t, a, d = qn(e)) {
+async function Tt(e, t, a, d = Rn(e)) {
   let [c, f, i, r, u] = d,
     { header: n, unprotected: y, aad: m } = e,
     p;
   if (n !== void 0 || y !== void 0) {
-    if (!$r(c, n, y))
+    if (!Lr(c, n, y))
       throw new S(
         "JWE Protected, JWE Unprotected Header, and JWE Per-Recipient Unprotected Header Parameter names must be disjoint",
       );
@@ -1113,16 +1113,16 @@ async function Ct(e, t, a, d = qn(e)) {
   } else p = c ?? {};
   let [s, o, l, g, v] = t,
     { encrypted_key: h } = e;
-  (yr(S, mi, l, c, p), Ai(p, c));
+  (hr(S, yi, l, c, p), Si(p, c));
   let { alg: w, enc: I } = p;
   if (typeof w != "string" || !w) throw new S("missing JWE Algorithm (alg) in JWE Header");
-  let P = Er[w];
+  let P = Ar[w];
   if (h === "" && (!P || !fr(P))) throw new S("JWE Encrypted Key incorrect type");
   let A = P?.mode === "integrated-encryption";
   if (!A && (typeof I != "string" || !I))
     throw new S("missing JWE Encryption Algorithm (enc) in JWE Header");
   if ((s && !s.has(w)) || (!s && w.startsWith("PBES2")))
-    throw new jr('"alg" (Algorithm) Header Parameter value not allowed');
+    throw new $r('"alg" (Algorithm) Header Parameter value not allowed');
   let fe;
   if (A) {
     if (I !== void 0)
@@ -1135,8 +1135,8 @@ async function Ct(e, t, a, d = qn(e)) {
       throw new S("JWE Authentication Tag must be empty for integrated encryption");
   } else {
     if (o && !o.has(I))
-      throw new jr('"enc" (Encryption Algorithm) Header Parameter value not allowed');
-    fe = Xr(I);
+      throw new $r('"enc" (Encryption Algorithm) Header Parameter value not allowed');
+    fe = Yr(I);
   }
   let R;
   if (h !== void 0)
@@ -1157,13 +1157,13 @@ async function Ct(e, t, a, d = qn(e)) {
     let He = fe,
       be;
     try {
-      ((be = await Cs(ae, He, V, R, p, g)),
-        fr(ae) && be instanceof Uint8Array && be.byteLength << 3 !== He.cekBits && (be = Gr(He)));
-    } catch (Nr) {
-      if (Nr instanceof TypeError || Nr instanceof S || Nr instanceof W) throw Nr;
-      be = Gr(He);
+      ((be = await qs(ae, He, V, R, p, g)),
+        fr(ae) && be instanceof Uint8Array && be.byteLength << 3 !== He.cekBits && (be = Xr(He)));
+    } catch (jr) {
+      if (jr instanceof TypeError || jr instanceof S || jr instanceof W) throw jr;
+      be = Xr(He);
     }
-    ye = await ki(He, be, f, i, r, u);
+    ye = await Ii(He, be, f, i, r, u);
   }
   if (p.zip === "DEF") {
     let He = v ?? 25e4;
@@ -1171,7 +1171,7 @@ async function Ct(e, t, a, d = qn(e)) {
       throw new W('JWE "zip" (Compression Algorithm) Header Parameter is not supported.');
     if (He !== 1 / 0 && (!Number.isSafeInteger(He) || He < 1))
       throw new TypeError("maxDecompressedLength must be 0, a positive safe integer, or Infinity");
-    ye = await Rs(ye, He).catch((be) => {
+    ye = await Hs(ye, He).catch((be) => {
       throw be instanceof S ? be : new S("Failed to decompress plaintext", { cause: be });
     });
   }
@@ -1184,47 +1184,47 @@ async function Ct(e, t, a, d = qn(e)) {
     ...(q && { key: V }),
   };
 }
-async function Ni(e, t, a) {
-  if ((e instanceof Uint8Array && (e = ot.decode(e)), typeof e != "string"))
+async function ji(e, t, a) {
+  if ((e instanceof Uint8Array && (e = at.decode(e)), typeof e != "string"))
     throw new S("Compact JWE must be a string or Uint8Array");
   let { 0: d, 1: c, 2: f, 3: i, 4: r, length: u } = e.split(".");
   if (u !== 5) throw new S("Invalid Compact JWE");
-  return Ct(
+  return Tt(
     { ciphertext: i, iv: f || void 0, protected: d, tag: r || void 0, encrypted_key: c || void 0 },
     t,
     a,
   );
 }
-var Tt = j(() => {
-  Ot();
+var qt = j(() => {
+  Vt();
   re();
   U();
-  Ei();
-  Be();
+  Ai();
+  Ze();
   Ue();
-  Yr();
-  Tn();
-});
-async function Ws(e, t, a) {
-  return Ni(e, Vr(a), t);
-}
-var Hs = j(() => {
-  Tt();
+  Qr();
+  Jn();
 });
 async function Fs(e, t, a) {
-  if (!J(e)) throw new S("Flattened JWE must be an object");
-  let d = Si(e),
-    [c, , f] = Ki(e);
-  if (!c) throw f;
-  let i = { ...d, ...c };
-  return (Di(i), Ct(i, Vr(a), t));
+  return ji(e, Cr(a), t);
 }
 var Us = j(() => {
+  qt();
+});
+async function zs(e, t, a) {
+  if (!J(e)) throw new S("Flattened JWE must be an object");
+  let d = Ki(e),
+    [c, , f] = Di(e);
+  if (!c) throw f;
+  let i = { ...d, ...c };
+  return (Ni(i), Tt(i, Cr(a), t));
+}
+var Zs = j(() => {
   U();
   re();
-  Tt();
+  qt();
 });
-async function ji(e, t, a) {
+async function $i(e, t, a) {
   if (!J(e)) throw new S("General JWE must be an object");
   let d = e.recipients;
   if (!Array.isArray(d)) throw new S("JWE Recipients missing or incorrect type");
@@ -1233,38 +1233,38 @@ async function ji(e, t, a) {
   if (!c.length) throw new S("JWE Recipients has no members");
   let f, i, r;
   try {
-    ((f = Vr(a)), (i = Si(e)), (r = qn(i)));
+    ((f = Cr(a)), (i = Ki(e)), (r = Rn(i)));
   } catch {
-    throw new _r();
+    throw new xr();
   }
-  let u = c.map((n) => Ki(n));
+  let u = c.map((n) => Di(n));
   if (c.length > 1)
     for (let [, n] of u) {
       let y = r[0]?.alg ?? n ?? i.unprotected?.alg,
-        m = typeof y == "string" ? Er[y] : void 0;
+        m = typeof y == "string" ? Ar[y] : void 0;
       if (m && !fr(m)) throw new S(`"${y}" alg may only have a single recipient`);
     }
   for (let [n] of u)
     if (n)
       try {
         let y = { ...i, ...n };
-        return (Di(y), await Ct(y, f, t, r));
+        return (Ni(y), await Tt(y, f, t, r));
       } catch {}
-  throw new _r();
+  throw new xr();
 }
-var zs = j(() => {
-  Tt();
+var Bs = j(() => {
+  qt();
   U();
   re();
-  Yr();
+  Qr();
 });
-function $i(e, t, a) {
-  if (!$r(e, t, a))
+function Li(e, t, a) {
+  if (!Lr(e, t, a))
     throw new S(
       "JWE Protected, JWE Shared Unprotected and JWE Per-Recipient Header Parameter names must be disjoint",
     );
 }
-function Jn(e, t, a = !1) {
+function Wn(e, t, a = !1) {
   if (!e[1] && !e[2] && !e[3])
     throw new S(
       "either setProtectedHeader, setUnprotectedHeader, or sharedUnprotectedHeader must be called before #encrypt()",
@@ -1272,22 +1272,22 @@ function Jn(e, t, a = !1) {
   t !== void 0 && (e[8] = t?.crit);
   let [, d, c, f, i, r, u, n, y] = e;
   if (
-    (i !== void 0 && Ae(i, "JWE Additional Authenticated Data"),
-    r !== void 0 && Ae(r, "JWE Content Encryption Key"),
-    u !== void 0 && Ae(u, "JWE Initialization Vector"),
-    !a && d !== void 0 && ((d = Mr(S, d)[0]), (e[1] = d)),
-    c !== void 0 && ((c = Mr(S, c)[0]), (e[2] = c)),
-    !a && f !== void 0 && ((f = Mr(S, f)[0]), (e[3] = f)),
+    (i !== void 0 && Se(i, "JWE Additional Authenticated Data"),
+    r !== void 0 && Se(r, "JWE Content Encryption Key"),
+    u !== void 0 && Se(u, "JWE Initialization Vector"),
+    !a && d !== void 0 && ((d = Gr(S, d)[0]), (e[1] = d)),
+    c !== void 0 && ((c = Gr(S, c)[0]), (e[2] = c)),
+    !a && f !== void 0 && ((f = Gr(S, f)[0]), (e[3] = f)),
     n !== void 0 && !J(n))
   )
     throw new TypeError("JWE Key Management Parameters must be an object");
-  $i(d, c, f);
+  Li(d, c, f);
   let m = { ...d, ...c, ...f };
-  (yi(S, d), yr(S, mi, y, d, m), Ai(m, d));
+  (hi(S, d), hr(S, yi, y, d, m), Si(m, d));
   let { alg: p, enc: s } = m;
   if (typeof p != "string" || !p)
     throw new S('JWE "alg" (Algorithm) Header Parameter missing or invalid');
-  let o = Er[p];
+  let o = Ar[p];
   if (o?.mode === "integrated-encryption") {
     if (s !== void 0)
       throw new S(
@@ -1305,9 +1305,9 @@ function Jn(e, t, a = !1) {
   }
   if (typeof s != "string" || !s)
     throw new S('JWE "enc" (Encryption Algorithm) Header Parameter missing or invalid');
-  return [m, Xr(s), o];
+  return [m, Yr(s), o];
 }
-async function Rn(e, t, a) {
+async function Hn(e, t, a) {
   let [d, c, f] = t,
     [i, r, u, n, y, m, p, s, , o] = e,
     l = r,
@@ -1318,20 +1318,20 @@ async function Rn(e, t, a) {
     I;
   (v.mode === "integrated-encryption"
     ? (I = await ar(v, a, "encrypt"))
-    : ([I, h, w] = await xi(v, c, a, d, m, s)),
-    w && (o ? (g = g ? { ...g, ...w } : w) : (l = l ? { ...l, ...w } : w), $i(l, g, n)));
+    : ([I, h, w] = await Ei(v, c, a, d, m, s)),
+    w && (o ? (g = g ? { ...g, ...w } : w) : (l = l ? { ...l, ...w } : w), Li(l, g, n)));
   let P = l ? ee(JSON.stringify(l)) : "",
     A = y?.byteLength ? ee(y) : void 0,
     fe = Je(A ? `${P}.${A}` : P),
     R = i;
   d.zip === "DEF" &&
-    (R = await Js(R).catch((He) => {
+    (R = await Ws(R).catch((He) => {
       throw new S("Failed to compress plaintext", { cause: He });
     }));
   let q, ae, V;
   v.mode === "integrated-encryption"
     ? ([h, q] = await v.encrypt(I, R, fe, l, d, s))
-    : ({ ciphertext: q, tag: ae, iv: V } = await wi(c, R, I, p, fe));
+    : ({ ciphertext: q, tag: ae, iv: V } = await ki(c, R, I, p, fe));
   let ye = { ciphertext: ee(q) };
   return (
     V && (ye.iv = ee(V)),
@@ -1344,34 +1344,34 @@ async function Rn(e, t, a) {
     ye
   );
 }
-async function ht(e, t, a) {
-  return Rn(e, Jn(e, a), t);
+async function gt(e, t, a) {
+  return Hn(e, Wn(e, a), t);
 }
-function Li(e) {
+function Oi(e) {
   return [e.protected, e.encrypted_key, e.iv, e.ciphertext, e.tag].join(".");
 }
-var qt = j(() => {
+var Jt = j(() => {
   Xe();
-  Ot();
-  Ei();
+  Vt();
+  Ai();
   U();
   re();
-  Be();
+  Ze();
   Ue();
-  Yr();
-  Tn();
+  Qr();
+  Jn();
 });
-var Wn,
-  gt,
-  Bs = j(() => {
+var Fn,
+  vt,
+  Ms = j(() => {
     re();
     U();
-    Ot();
+    Vt();
     Xe();
-    qt();
-    Ei();
-    Yr();
-    ((Wn = class {
+    Jt();
+    Ai();
+    Qr();
+    ((Fn = class {
       #e;
       state;
       constructor(t, a, d) {
@@ -1393,7 +1393,7 @@ var Wn,
         return this.#e;
       }
     }),
-      (gt = class {
+      (vt = class {
         #e;
         #r = [];
         #t;
@@ -1403,7 +1403,7 @@ var Wn,
           this.#e = t;
         }
         addRecipient(t, a) {
-          let d = new Wn(this, t, a?.crit);
+          let d = new Fn(this, t, a?.crit);
           return (this.#r.push(d), d);
         }
         setProtectedHeader(t) {
@@ -1417,7 +1417,7 @@ var Wn,
         }
         async encrypt() {
           if (!this.#r.length) throw new S("at least one recipient must be added");
-          Ae(this.#e, "plaintext");
+          Se(this.#e, "plaintext");
           let t = this.#r.length > 1,
             a,
             d = this.#t,
@@ -1426,7 +1426,7 @@ var Wn,
           for (let o of this.#r) {
             let [l, g, v, h] = o.state,
               w = [this.#e, d, l, c, this.#n, void 0, void 0, g, h, t],
-              I = Jn(w, void 0, f.length > 0);
+              I = Wn(w, void 0, f.length > 0);
             (f.length || ((d = w[1]), (c = w[3])), f.push([w, I, v]));
             let [{ alg: P, enc: A }, , fe] = I;
             if (t && fe && !fr(fe)) throw new S(`"${P}" alg may only have a single recipient`);
@@ -1438,19 +1438,19 @@ var Wn,
           }
           for (let [, o] of f) o[2] ??= lr(o[0].alg);
           let [i, r, u] = f[0],
-            n = t ? Gr(r[1]) : void 0;
+            n = t ? Xr(r[1]) : void 0;
           i[5] = n;
-          let { encrypted_key: y, header: m, ...p } = await Rn(i, r, u),
+          let { encrypted_key: y, header: m, ...p } = await Hn(i, r, u),
             s = { ...p, recipients: [{}] };
           (y && (s.recipients[0].encrypted_key = y), m && (s.recipients[0].header = m));
           for (let o = 1; o < f.length; o++) {
             let [l, [g, v, h], w] = f[o],
               I = l[2],
-              [, P, A] = await xi(h, v, w, g, n, l[7]),
+              [, P, A] = await Ei(h, v, w, g, n, l[7]),
               fe = { encrypted_key: ee(P) };
             if (I || A) {
               let R = { ...I, ...A };
-              (A && $i(l[1], R, l[3]), (fe.header = R));
+              (A && Li(l[1], R, l[3]), (fe.header = R));
             }
             s.recipients.push(fe);
           }
@@ -1458,69 +1458,69 @@ var Wn,
         }
       }));
   });
-function Hn(e) {
+function Un(e) {
   let t = { name: "HMAC", hash: `SHA-${e}` };
-  return { kty: ["oct"], secret: !0, subtle: t, signing: t, usages: Jt };
+  return { kty: ["oct"], secret: !0, subtle: t, signing: t, usages: Rt };
 }
-function vt(e, t) {
+function wt(e, t) {
   let a = { name: t ? "RSA-PSS" : "RSASSA-PKCS1-v1_5", hash: `SHA-${e}` };
   return {
     kty: ["RSA"],
     subtle: a,
     signing: t ? { ...a, saltLength: t } : a,
-    usages: Jt,
+    usages: Rt,
     minRsaBits: 2048,
   };
 }
-function Fn(e, t) {
+function zn(e, t) {
   return {
     kty: ["EC"],
     crv: e,
     subtle: { name: "ECDSA", namedCurve: e },
     signing: { name: "ECDSA", hash: `SHA-${t}` },
-    usages: Jt,
+    usages: Rt,
   };
 }
-function Zs() {
+function Gs() {
   let e = { name: "Ed25519" };
-  return { kty: ["OKP"], crv: "Ed25519", subtle: e, signing: e, usages: Jt };
+  return { kty: ["OKP"], crv: "Ed25519", subtle: e, signing: e, usages: Rt };
 }
-function Un(e) {
+function Zn(e) {
   let t = { name: `ML-DSA-${e}` };
-  return { kty: ["AKP"], subtle: t, signing: t, usages: Jt };
+  return { kty: ["AKP"], subtle: t, signing: t, usages: Rt };
 }
-function wt(e) {
-  let t = typeof e == "string" ? Rt[e] : void 0;
+function kt(e) {
+  let t = typeof e == "string" ? Wt[e] : void 0;
   if (!t) throw new W(`alg ${e} is not supported either by JOSE or your javascript runtime`);
   return t;
 }
-var Jt,
-  Rt,
-  kt = j(() => {
+var Rt,
+  Wt,
+  It = j(() => {
     U();
-    On();
-    Jt = [["verify"], ["sign"]];
-    Rt = Vt({
-      HS256: Hn(256),
-      HS384: Hn(384),
-      HS512: Hn(512),
-      RS256: vt(256),
-      RS384: vt(384),
-      RS512: vt(512),
-      PS256: vt(256, 32),
-      PS384: vt(384, 48),
-      PS512: vt(512, 64),
-      ES256: Fn("P-256", 256),
-      ES384: Fn("P-384", 384),
-      ES512: Fn("P-521", 512),
-      EdDSA: Zs(),
-      Ed25519: Zs(),
-      "ML-DSA-44": Un(44),
-      "ML-DSA-65": Un(65),
-      "ML-DSA-87": Un(87),
+    Cn();
+    Rt = [["verify"], ["sign"]];
+    Wt = Ct({
+      HS256: Un(256),
+      HS384: Un(384),
+      HS512: Un(512),
+      RS256: wt(256),
+      RS384: wt(384),
+      RS512: wt(512),
+      PS256: wt(256, 32),
+      PS384: wt(384, 48),
+      PS512: wt(512, 64),
+      ES256: zn("P-256", 256),
+      ES384: zn("P-384", 384),
+      ES512: zn("P-521", 512),
+      EdDSA: Gs(),
+      Ed25519: Gs(),
+      "ML-DSA-44": Zn(44),
+      "ML-DSA-65": Zn(65),
+      "ML-DSA-87": Zn(87),
     });
   });
-function Oi(e, t) {
+function Vi(e, t) {
   let a = e.protected,
     d = e.header,
     c = J(d) ? { ...d } : d,
@@ -1540,13 +1540,13 @@ function Oi(e, t) {
   if (c !== void 0 && !J(c)) throw new D("JWS Unprotected Header incorrect type");
   return r;
 }
-function Cr(e) {
-  return [e && jt("algorithms", e.algorithms), e?.crit];
+function Tr(e) {
+  return [e && $t("algorithms", e.algorithms), e?.crit];
 }
-function zn(e) {
-  return e === void 0 ? {} : Lr(e, D, "JWS Protected Header is invalid");
+function Bn(e) {
+  return e === void 0 ? {} : Or(e, D, "JWS Protected Header is invalid");
 }
-function Vi(e) {
+function Ci(e) {
   let t = /[\p{Cs}\p{Cn}]/u.exec(e)?.[0];
   if (t !== void 0)
     throw new D(
@@ -1554,26 +1554,26 @@ function Vi(e) {
         ? "JWS Payload must be a well-formed Unicode string"
         : "JWS Payload must not contain unassigned Unicode code points",
     );
-  return br.encode(e);
+  return _r.encode(e);
 }
-function Ma(e) {
+function Xa(e) {
   try {
     return Je(e);
   } catch (t) {
     throw new D("JWS Compact Serialization payload must use only ASCII characters", { cause: t });
   }
 }
-async function Wt(e, t, a, d, c) {
+async function Ht(e, t, a, d, c) {
   let { protected: f, header: i, payload: r } = e,
-    u = c ?? zn(f);
-  if (!$r(u, i))
+    u = c ?? Bn(f);
+  if (!Lr(u, i))
     throw new D("JWS Protected and JWS Unprotected Header Parameter names must be disjoint");
   let n = { ...u, ...i },
-    y = ft(u, yr(D, lt, t[1], u, n)),
+    y = dt(u, hr(D, ft, t[1], u, n)),
     { alg: m } = n;
   if (typeof m != "string" || !m)
     throw new D('JWS "alg" (Algorithm) Header Parameter missing or invalid');
-  if (t[0] && !t[0].has(m)) throw new jr('"alg" (Algorithm) Header Parameter value not allowed');
+  if (t[0] && !t[0].has(m)) throw new $r('"alg" (Algorithm) Header Parameter value not allowed');
   if (y) {
     if (typeof r != "string") throw new D("JWS Payload must be a string");
   } else if (typeof r != "string" && !(r instanceof Uint8Array))
@@ -1581,23 +1581,23 @@ async function Wt(e, t, a, d, c) {
   let p = y || typeof r != "string" ? r : d(r),
     s = !1;
   typeof a == "function" && ((a = await a(u, e)), (s = !0));
-  let o = wt(m),
+  let o = kt(m),
     l = Fe(
       f !== void 0 ? Je(f) : new Uint8Array(),
       Je("."),
-      typeof p == "string" ? (t[2] ??= ui(p, "payload", D)) : p,
+      typeof p == "string" ? (t[2] ??= mi(p, "payload", D)) : p,
     ),
     g = Re(e.signature, "signature", D),
     v = await ar(o, a, "verify"),
     h = await cr(v, o.subtle, "verify");
-  o.minRsaBits && dt(o.alg, h);
+  o.minRsaBits && ut(o.alg, h);
   let w = !1;
   try {
     w = await crypto.subtle.verify(o.signing, h, g, l);
   } catch (P) {
-    throw new xr(void 0, { cause: P });
+    throw new Er(void 0, { cause: P });
   }
-  if (!w) throw new xr();
+  if (!w) throw new Er();
   let I = { payload: typeof p == "string" ? Re(p, "payload", D) : p };
   return (
     f !== void 0 && (I.protectedHeader = u),
@@ -1605,42 +1605,42 @@ async function Wt(e, t, a, d, c) {
     s ? [{ ...I, key: v }, y] : [I, y]
   );
 }
-async function Ci(e, t, a) {
-  if ((e instanceof Uint8Array && (e = ot.decode(e)), typeof e != "string"))
+async function Ti(e, t, a) {
+  if ((e instanceof Uint8Array && (e = at.decode(e)), typeof e != "string"))
     throw new D("Compact JWS must be a string or Uint8Array");
   let { 0: d, 1: c, 2: f, length: i } = e.split(".");
   if (i !== 3) throw new D("Invalid Compact JWS");
-  return Wt({ payload: c, protected: d, signature: f }, t, a, Ma);
+  return Ht({ payload: c, protected: d, signature: f }, t, a, Xa);
 }
-var Ht = j(() => {
-  kt();
+var Ft = j(() => {
+  It();
   U();
-  Be();
+  Ze();
   re();
   Ue();
 });
-async function Ms(e, t, a) {
-  let [d] = await Ci(e, Cr(a), t);
+async function Xs(e, t, a) {
+  let [d] = await Ti(e, Tr(a), t);
   return d;
 }
-var Gs = j(() => {
-  Ht();
+var Ys = j(() => {
+  Ft();
 });
-async function Ti(e, t, a) {
+async function qi(e, t, a) {
   if (!J(e)) throw new D("Flattened JWS must be an object");
-  let d = Oi(e),
-    [c] = await Wt(d, Cr(a), t, Vi);
+  let d = Vi(e),
+    [c] = await Ht(d, Tr(a), t, Ci);
   return c;
 }
-var Xs = j(() => {
+var Qs = j(() => {
   U();
   re();
-  Ht();
+  Ft();
 });
-function Ga(e, t) {
+function Ya(e, t) {
   try {
-    let a = Oi(e, [t]),
-      d = zn(a.protected),
+    let a = Vi(e, [t]),
+      d = Bn(a.protected),
       { b64: c, crit: f } = d;
     return [
       a,
@@ -1651,7 +1651,7 @@ function Ga(e, t) {
     return;
   }
 }
-async function Ys(e, t, a) {
+async function eo(e, t, a) {
   if (!J(e)) throw new D("General JWS must be an object");
   let { signatures: d, payload: c } = e;
   if (!Array.isArray(d)) throw new D("JWS Signatures missing or incorrect type");
@@ -1660,80 +1660,80 @@ async function Ys(e, t, a) {
   let i;
   try {
     if (c === void 0) throw new Error();
-    i = Cr(a);
+    i = Tr(a);
   } catch {
-    throw new xr();
+    throw new Er();
   }
   let r = c instanceof Uint8Array ? new Uint8Array(c) : c,
-    u = f.map((y) => Ga(y, r)).filter((y) => y !== void 0),
+    u = f.map((y) => Ya(y, r)).filter((y) => y !== void 0),
     n = 0;
   for (let [, , y] of u)
     if (((n |= y), n === 3)) throw new D("inconsistent use of JWS Unencoded Payload (RFC7797)");
   for (let y of u)
     try {
-      let [m] = await Wt(y[0], i, t, Vi, y[1]);
+      let [m] = await Ht(y[0], i, t, Ci, y[1]);
       return m;
     } catch {}
-  throw new xr();
+  throw new Er();
 }
-var Qs = j(() => {
-  Ht();
+var ro = j(() => {
+  Ft();
   U();
   re();
 });
-function Bn() {
+function Mn() {
   throw new TypeError("Invalid time period format");
 }
-function qi(e) {
-  typeof e != "string" && Bn();
-  let t = Ya.exec(e);
-  (!t || (t[4] && t[1])) && Bn();
+function Ji(e) {
+  typeof e != "string" && Mn();
+  let t = ep.exec(e);
+  (!t || (t[4] && t[1])) && Mn();
   let a = parseFloat(t[2]),
-    d = Math.round(a * Xa[t[3][0].toLowerCase()]);
-  return (Number.isFinite(d) || Bn(), t[1] === "-" || t[4] === "ago" ? -d : d);
+    d = Math.round(a * Qa[t[3][0].toLowerCase()]);
+  return (Number.isFinite(d) || Mn(), t[1] === "-" || t[4] === "ago" ? -d : d);
 }
-function Pt(e, t) {
+function bt(e, t) {
   if (!Number.isFinite(t)) throw new TypeError(`Invalid ${e} input`);
   return t;
 }
-function Zn(e, t) {
+function Gn(e, t) {
   if (typeof t != "string") throw new TypeError(`"${e}" claim must be a string`);
 }
-function Qa(e) {
+function rp(e) {
   if (
     typeof e != "string" &&
     (!Array.isArray(e) || Array.from(e).some((t) => typeof t != "string"))
   )
     throw new TypeError('"aud" claim must be a string or an array of strings');
 }
-function Mn(e, t) {
+function Xn(e, t) {
   return typeof e == "number"
-    ? Pt(t, e)
+    ? bt(t, e)
     : e instanceof Date
-      ? Pt(t, Ft(e))
-      : Ft(new Date()) + qi(e);
+      ? bt(t, Ut(e))
+      : Ut(new Date()) + Ji(e);
 }
-function Gn(e, t, a = !1) {
+function Yn(e, t, a = !1) {
   let d = e[t];
   if (!(d === void 0 && !a)) {
     if (typeof d != "number") throw new rr(`"${t}" claim must be a number`, e, t, "invalid");
     return d;
   }
 }
-function Xn(e, t) {
-  throw new rr(`unexpected "${t}" claim value`, e, t, It);
+function Qn(e, t) {
+  throw new rr(`unexpected "${t}" claim value`, e, t, Pt);
 }
-function bt(e, t, a = {}) {
+function _t(e, t, a = {}) {
   let d;
   try {
-    d = JSON.parse(at.decode(t));
+    d = JSON.parse(pt.decode(t));
   } catch (h) {
     throw new de("JWT Claims Set must be a top-level JSON object", { cause: h });
   }
   if (!J(d)) throw new de("JWT Claims Set must be a top-level JSON object");
   let { typ: c } = a;
-  if (c !== void 0 && (typeof e.typ != "string" || eo(e.typ) !== eo(c)))
-    throw new rr('unexpected "typ" JWT header value', d, "typ", It);
+  if (c !== void 0 && (typeof e.typ != "string" || to(e.typ) !== to(c)))
+    throw new rr('unexpected "typ" JWT header value', d, "typ", Pt);
   let { requiredClaims: f = [], issuer: i, subject: r, audience: u, maxTokenAge: n } = a,
     y = [...f];
   (n !== void 0 && y.push("iat"),
@@ -1742,127 +1742,127 @@ function bt(e, t, a = {}) {
     i !== void 0 && y.push("iss"));
   for (let h of new Set(y.reverse()))
     if (!Object.hasOwn(d, h)) throw new rr(`missing required "${h}" claim`, d, h, "missing");
-  (i !== void 0 && !(Array.isArray(i) ? i : [i]).includes(d.iss) && Xn(d, "iss"),
-    r !== void 0 && d.sub !== r && Xn(d, "sub"),
-    u !== void 0 && !ep(d.aud, typeof u == "string" ? [u] : u) && Xn(d, "aud"));
+  (i !== void 0 && !(Array.isArray(i) ? i : [i]).includes(d.iss) && Qn(d, "iss"),
+    r !== void 0 && d.sub !== r && Qn(d, "sub"),
+    u !== void 0 && !tp(d.aud, typeof u == "string" ? [u] : u) && Qn(d, "aud"));
   let { clockTolerance: m } = a,
     p = 0;
-  if (typeof m == "string") p = qi(m);
+  if (typeof m == "string") p = Ji(m);
   else if (m !== void 0) {
     if (typeof m != "number") throw new TypeError("Invalid clockTolerance option type");
     p = m;
   }
-  Pt("clockTolerance option", p);
+  bt("clockTolerance option", p);
   let { currentDate: s } = a,
-    o = Pt("currentDate option", Ft(s === void 0 ? new Date() : s)),
-    l = Gn(d, "iat", n !== void 0),
-    g = Gn(d, "nbf");
-  if (g !== void 0 && g > o + p) throw new rr('"nbf" claim timestamp check failed', d, "nbf", It);
-  let v = Gn(d, "exp");
-  if (v !== void 0 && v <= o - p) throw new pt('"exp" claim timestamp check failed', d, "exp", It);
+    o = bt("currentDate option", Ut(s === void 0 ? new Date() : s)),
+    l = Yn(d, "iat", n !== void 0),
+    g = Yn(d, "nbf");
+  if (g !== void 0 && g > o + p) throw new rr('"nbf" claim timestamp check failed', d, "nbf", Pt);
+  let v = Yn(d, "exp");
+  if (v !== void 0 && v <= o - p) throw new ct('"exp" claim timestamp check failed', d, "exp", Pt);
   if (n !== void 0) {
     let h = o - l,
-      w = Pt("maxTokenAge option", typeof n == "number" ? n : qi(n));
+      w = bt("maxTokenAge option", typeof n == "number" ? n : Ji(n));
     if (h - p > w)
-      throw new pt('"iat" claim timestamp check failed (too far in the past)', d, "iat", It);
+      throw new ct('"iat" claim timestamp check failed (too far in the past)', d, "iat", Pt);
     if (h < -p)
-      throw new rr('"iat" claim timestamp check failed (it should be in the past)', d, "iat", It);
+      throw new rr('"iat" claim timestamp check failed (it should be in the past)', d, "iat", Pt);
   }
   return d;
 }
-function Ar(e) {
-  return ro.get(e);
+function Sr(e) {
+  return io.get(e);
 }
-function _t(e) {
-  let t = Ar(e);
+function xt(e) {
+  let t = Sr(e);
   for (let a of ["iat", "nbf", "exp"]) {
     let d = t[a];
     if (typeof d == "number" && !Number.isFinite(d))
       throw new TypeError(`"${a}" claim must be a finite number`);
   }
-  return br.encode(JSON.stringify(t));
+  return _r.encode(JSON.stringify(t));
 }
-function Ji(e, t) {
-  return Ar(e)[t];
+function Ri(e, t) {
+  return Sr(e)[t];
 }
-var Ft,
-  Xa,
-  Ya,
-  It,
-  eo,
+var Ut,
+  Qa,
   ep,
-  ro,
-  Tr,
-  xt = j(() => {
+  Pt,
+  to,
+  tp,
+  io,
+  qr,
+  Et = j(() => {
     U();
-    Be();
+    Ze();
     re();
-    ((Ft = (e) => Math.floor(e.getTime() / 1e3)),
-      (Xa = { s: 1, m: 60, h: 3600, d: 86400, w: 604800, y: 31557600 }),
-      (Ya =
+    ((Ut = (e) => Math.floor(e.getTime() / 1e3)),
+      (Qa = { s: 1, m: 60, h: 3600, d: 86400, w: 604800, y: 31557600 }),
+      (ep =
         /^(\+|\-)? ?(\d+|\d+\.\d+) ?(seconds?|secs?|s|minutes?|mins?|m|hours?|hrs?|h|days?|d|weeks?|w|years?|yrs?|y)(?: (ago|from now))?$/i),
-      (It = "check_failed"));
-    ((eo = (e) => {
+      (Pt = "check_failed"));
+    ((to = (e) => {
       let t = e.toLowerCase();
       return e.includes("/") ? t : `application/${t}`;
     }),
-      (ep = (e, t) =>
+      (tp = (e, t) =>
         typeof e == "string"
           ? t.includes(e)
           : Array.isArray(e)
             ? t.some((a) => e.includes(a))
             : !1));
-    Tr = class {
+    qr = class {
       constructor(t = {}) {
         if (!J(t)) throw new TypeError("JWT Claims Set MUST be an object");
-        (ro ||= new WeakMap()).set(this, structuredClone(t));
+        (io ||= new WeakMap()).set(this, structuredClone(t));
       }
       setIssuer(t) {
-        return (Zn("iss", t), (Ar(this).iss = t), this);
+        return (Gn("iss", t), (Sr(this).iss = t), this);
       }
       setSubject(t) {
-        return (Zn("sub", t), (Ar(this).sub = t), this);
+        return (Gn("sub", t), (Sr(this).sub = t), this);
       }
       setAudience(t) {
-        return (Qa(t), (Ar(this).aud = t), this);
+        return (rp(t), (Sr(this).aud = t), this);
       }
       setJti(t) {
-        return (Zn("jti", t), (Ar(this).jti = t), this);
+        return (Gn("jti", t), (Sr(this).jti = t), this);
       }
       setNotBefore(t) {
-        return ((Ar(this).nbf = Mn(t, "setNotBefore")), this);
+        return ((Sr(this).nbf = Xn(t, "setNotBefore")), this);
       }
       setExpirationTime(t) {
-        return ((Ar(this).exp = Mn(t, "setExpirationTime")), this);
+        return ((Sr(this).exp = Xn(t, "setExpirationTime")), this);
       }
       setIssuedAt(t) {
-        let a = Ar(this);
+        let a = Sr(this);
         return (
           t === void 0
-            ? (a.iat = Ft(new Date()))
+            ? (a.iat = Ut(new Date()))
             : typeof t == "string"
-              ? (a.iat = Pt("setIssuedAt", Ft(new Date()) + qi(t)))
-              : (a.iat = Mn(t, "setIssuedAt")),
+              ? (a.iat = bt("setIssuedAt", Ut(new Date()) + Ji(t)))
+              : (a.iat = Xn(t, "setIssuedAt")),
           this
         );
       }
     };
   });
-async function to(e, t, a) {
-  let [d, c] = await Ci(e, Cr(a), t);
+async function no(e, t, a) {
+  let [d, c] = await Ti(e, Tr(a), t);
   if (!c) throw new de("JWTs MUST NOT use unencoded payload");
-  let f = bt(d.protectedHeader, d.payload, a);
+  let f = _t(d.protectedHeader, d.payload, a);
   return { ...d, payload: f };
 }
-var io = j(() => {
-  Ht();
-  xt();
+var so = j(() => {
+  Ft();
+  Et();
   U();
 });
-async function no(e, t, a) {
-  let { plaintext: d, ...c } = await Ni(e, Vr(a), t),
+async function oo(e, t, a) {
+  let { plaintext: d, ...c } = await ji(e, Cr(a), t),
     { protectedHeader: f } = c,
-    i = bt(f, d, a);
+    i = _t(f, d, a);
   for (let r of ["iss", "sub", "aud"])
     if (
       f[r] !== void 0 &&
@@ -1871,19 +1871,19 @@ async function no(e, t, a) {
       throw new rr(`replicated "${r}" claim header parameter mismatch`, i, r, "mismatch");
   return { payload: i, ...c };
 }
-var so = j(() => {
-  Tt();
-  xt();
+var ao = j(() => {
+  qt();
+  Et();
   U();
 });
-var Ri,
-  oo = j(() => {
+var Wi,
+  po = j(() => {
     re();
-    qt();
-    Ri = class {
+    Jt();
+    Wi = class {
       #e;
       constructor(t) {
-        (Ae(t, "plaintext"), (this.#e = [t]));
+        (Se(t, "plaintext"), (this.#e = [t]));
       }
       setContentEncryptionKey(t) {
         return (z(this.#e[5], "setContentEncryptionKey"), (this.#e[5] = t), this);
@@ -1898,18 +1898,18 @@ var Ri,
         return (z(this.#e[7], "setKeyManagementParameters"), (this.#e[7] = t), this);
       }
       async encrypt(t, a) {
-        return Li(await ht([...this.#e], t, a));
+        return Oi(await gt([...this.#e], t, a));
       }
     };
   });
-var Wi,
-  ao = j(() => {
+var Hi,
+  co = j(() => {
     re();
-    qt();
-    Wi = class {
+    Jt();
+    Hi = class {
       #e;
       constructor(t) {
-        (Ae(t, "plaintext"), (this.#e = [t]));
+        (Se(t, "plaintext"), (this.#e = [t]));
       }
       setKeyManagementParameters(t) {
         return (z(this.#e[7], "setKeyManagementParameters"), (this.#e[7] = t), this);
@@ -1933,82 +1933,82 @@ var Wi,
         return (z(this.#e[6], "setInitializationVector"), (this.#e[6] = t), this);
       }
       async encrypt(t, a) {
-        return ht([...this.#e], t, a);
+        return gt([...this.#e], t, a);
       }
     };
   });
-async function Ut(e, t, a) {
+async function zt(e, t, a) {
   let [d, c, f, i] = e,
     r = "";
   if (c !== void 0) {
-    let v = Mr(D, c);
+    let v = Gr(D, c);
     ((c = v[0]), (r = ee(v[1])));
   }
-  if ((f !== void 0 && (f = Mr(D, f)[0]), !c && !f))
+  if ((f !== void 0 && (f = Gr(D, f)[0]), !c && !f))
     throw new D("either setProtectedHeader or setUnprotectedHeader must be called before #sign()");
-  if (!$r(c, f))
+  if (!Lr(c, f))
     throw new D("JWS Protected and JWS Unprotected Header Parameter names must be disjoint");
   let u = { ...c, ...f };
-  yi(D, c);
-  let n = ft(c, yr(D, lt, i, c, u));
+  hi(D, c);
+  let n = dt(c, hr(D, ft, i, c, u));
   n || a?.();
   let { alg: y } = u;
   if (typeof y != "string" || !y)
     throw new D('JWS "alg" (Algorithm) Header Parameter missing or invalid');
-  let m = wt(y),
+  let m = kt(y),
     p = "",
     s = d,
     o;
   if (n) {
     let v = e[4];
-    v ? ((p = v[0] ??= ee(d)), (s = v[1] ??= Je(p))) : ((p = ee(d)), (o = br.encode(`${r}.${p}`)));
+    v ? ((p = v[0] ??= ee(d)), (s = v[1] ??= Je(p))) : ((p = ee(d)), (o = _r.encode(`${r}.${p}`)));
   }
   o ??= Fe(Je(r), Je("."), s);
   let l = await cr(await ar(m, t, "sign"), m.subtle, "sign");
-  m.minRsaBits && dt(m.alg, l);
+  m.minRsaBits && ut(m.alg, l);
   let g = { signature: ee(new Uint8Array(await crypto.subtle.sign(m.signing, l, o))), payload: p };
   return (c && (g.protected = r), f && (g.header = f), [g, n]);
 }
-async function Hi(e, t, a, d, c) {
-  let [f] = await Ut([e, t, void 0, a], d, c);
+async function Fi(e, t, a, d, c) {
+  let [f] = await zt([e, t, void 0, a], d, c);
   return `${f.protected}.${f.payload}.${f.signature}`;
 }
-var zt = j(() => {
+var Zt = j(() => {
   Xe();
-  kt();
+  It();
   re();
   U();
-  Be();
+  Ze();
   Ue();
 });
-var Fi,
-  po = j(() => {
-    zt();
+var Ui,
+  lo = j(() => {
+    Zt();
     re();
-    Fi = class {
+    Ui = class {
       #e;
       #r;
       constructor(t) {
-        (Ae(t, "payload"), (this.#e = t));
+        (Se(t, "payload"), (this.#e = t));
       }
       setProtectedHeader(t) {
         return (z(this.#r, "setProtectedHeader"), (this.#r = t), this);
       }
       async sign(t, a) {
-        return Hi(this.#e, this.#r, a?.crit, t, () => {
+        return Fi(this.#e, this.#r, a?.crit, t, () => {
           throw new TypeError("use the flattened module for creating JWS with b64: false");
         });
       }
     };
   });
-var Et,
-  co = j(() => {
-    zt();
+var At,
+  fo = j(() => {
+    Zt();
     re();
-    Et = class {
+    At = class {
       #e;
       constructor(t) {
-        (Ae(t, "payload"), (this.#e = [t]));
+        (Se(t, "payload"), (this.#e = [t]));
       }
       setProtectedHeader(t) {
         return (z(this.#e[1], "setProtectedHeader"), (this.#e[1] = t), this);
@@ -2019,18 +2019,18 @@ var Et,
       async sign(t, a) {
         let d = [...this.#e];
         d[3] = a?.crit;
-        let [c] = await Ut(d, t);
+        let [c] = await zt(d, t);
         return c;
       }
     };
   });
-var Yn,
-  Ui,
-  lo = j(() => {
-    zt();
+var es,
+  zi,
+  uo = j(() => {
+    Zt();
     U();
     re();
-    ((Yn = class {
+    ((es = class {
       #e;
       state;
       constructor(t, a, d) {
@@ -2052,25 +2052,25 @@ var Yn,
         return this.#e;
       }
     }),
-      (Ui = class {
+      (zi = class {
         #e;
         #r = [];
         constructor(t) {
           this.#e = t;
         }
         addSignature(t, a) {
-          let d = new Yn(this, t, a);
+          let d = new es(this, t, a);
           return (this.#r.push(d), d);
         }
         async sign() {
           if (!this.#r.length) throw new D("at least one signature must be added");
-          Ae(this.#e, "payload");
+          Se(this.#e, "payload");
           let t = { signatures: [], payload: "" },
             a = [],
             d;
           for (let c of this.#r) {
             let [f, i, r, u] = c.state,
-              [{ payload: n, ...y }, m] = await Ut([this.#e, f, i, u, a], r);
+              [{ payload: n, ...y }, m] = await zt([this.#e, f, i, u, a], r);
             if (d === void 0) ((d = m), (t.payload = n));
             else if (d !== m) throw new D("inconsistent use of JWS Unencoded Payload (RFC7797)");
             t.signatures.push(y);
@@ -2079,34 +2079,34 @@ var Yn,
         }
       }));
   });
-var rp,
-  zi,
-  fo = j(() => {
-    zt();
+var ip,
+  Zi,
+  mo = j(() => {
+    Zt();
     U();
-    xt();
+    Et();
     re();
-    ((rp = Tr),
-      (zi = class extends rp {
+    ((ip = qr),
+      (Zi = class extends ip {
         #e;
         setProtectedHeader(t) {
           return (z(this.#e, "setProtectedHeader"), (this.#e = t), this);
         }
         async sign(t, a) {
-          return Hi(_t(this), this.#e, a?.crit, t, () => {
+          return Fi(xt(this), this.#e, a?.crit, t, () => {
             throw new de("JWTs MUST NOT use unencoded payload");
           });
         }
       }));
   });
-var tp,
+var np,
   Bi,
-  uo = j(() => {
-    qt();
-    xt();
+  yo = j(() => {
+    Jt();
+    Et();
     re();
-    ((tp = Tr),
-      (Bi = class extends tp {
+    ((np = qr),
+      (Bi = class extends np {
         #e = [void 0];
         #r;
         #t;
@@ -2133,294 +2133,294 @@ var tp,
           return ((this.#i = !0), this);
         }
         async encrypt(t, a) {
-          let d = _t(this);
+          let d = xt(this);
           this.#e[1] &&
             (this.#r || this.#t || this.#i) &&
             (this.#e[1] = {
               ...this.#e[1],
-              iss: this.#r ? Ji(this, "iss") : void 0,
-              sub: this.#t ? Ji(this, "sub") : void 0,
-              aud: this.#i ? Ji(this, "aud") : void 0,
+              iss: this.#r ? Ri(this, "iss") : void 0,
+              sub: this.#t ? Ri(this, "sub") : void 0,
+              aud: this.#i ? Ri(this, "aud") : void 0,
             });
           let c = [...this.#e];
-          return ((c[0] = d), Li(await ht(c, t, a)));
+          return ((c[0] = d), Oi(await gt(c, t, a)));
         }
       }));
   });
-function Qr(e = 'JWK "alg" (Algorithm) Parameter') {
+function et(e = 'JWK "alg" (Algorithm) Parameter') {
   throw new W(`Invalid or unsupported ${e} value`);
 }
-function et(e, t) {
-  return (typeof e == "string" ? (Rt[e] ?? Er[e]) : void 0) ?? Qr(t);
+function rt(e, t) {
+  return (typeof e == "string" ? (Wt[e] ?? Ar[e]) : void 0) ?? et(t);
 }
-var qr,
+var Jr,
   Bt = j(() => {
     U();
-    kt();
-    Yr();
-    qr = '"alg" (Algorithm)';
+    It();
+    Qr();
+    Jr = '"alg" (Algorithm)';
   });
-function sp(e, t) {
-  if ((Jr(e, 48, `Invalid ${t === "spki" ? "SPKI" : "PKCS#8"} structure`), Sr(e), t === "pkcs8")) {
-    Jr(e, 2, "Expected version field");
-    let a = Sr(e);
+function ap(e, t) {
+  if ((Rr(e, 48, `Invalid ${t === "spki" ? "SPKI" : "PKCS#8"} structure`), Kr(e), t === "pkcs8")) {
+    Rr(e, 2, "Expected version field");
+    let a = Kr(e);
     e.pos += a;
   }
-  (Jr(e, 48, "Expected algorithm identifier"), Sr(e));
+  (Rr(e, 48, "Expected algorithm identifier"), Kr(e));
 }
-function ap(e) {
-  let t = vo(e);
-  Jr(t, 48, "Invalid certificate structure");
-  let a = Sr(t);
+function cp(e) {
+  let t = ko(e);
+  Rr(t, 48, "Invalid certificate structure");
+  let a = Kr(t);
   if (a < 0 || t.pos + a > t.data.length) throw new Error("Unexpected end of ASN.1 input");
-  (Jr(t, 48, "Invalid tbsCertificate structure"), Sr(t), e[t.pos] === 160 ? mo(t, 6) : mo(t, 5));
+  (Rr(t, 48, "Invalid tbsCertificate structure"), Kr(t), e[t.pos] === 160 ? ho(t, 6) : ho(t, 5));
   let d = t.pos;
-  Jr(t, 48, "Invalid SPKI structure");
-  let c = Sr(t);
+  Rr(t, 48, "Invalid SPKI structure");
+  let c = Kr(t);
   return e.subarray(d, d + c + (t.pos - d));
 }
-var ip,
-  yo,
-  ho,
+var sp,
   go,
-  Zt,
   vo,
-  Qn,
-  Sr,
-  mo,
-  Jr,
   wo,
-  np,
-  op,
-  es,
-  rs,
+  Mt,
   ko,
+  rs,
+  Kr,
+  ho,
+  Rr,
   Io,
+  op,
+  pp,
+  ts,
+  is,
   Po,
-  ts = j(() => {
+  bo,
+  _o,
+  ns = j(() => {
     Ue();
-    Be();
+    Ze();
     U();
     Bt();
-    ((ip = (e, t) => {
+    ((sp = (e, t) => {
       let a = (e.match(/.{1,64}/g) || []).join(`
 `);
       return `-----BEGIN ${t}-----
 ${a}
 -----END ${t}-----`;
     }),
-      (yo = async (e, t, a) => {
-        if ($t(a)) {
+      (go = async (e, t, a) => {
+        if (Lt(a)) {
           if (a.type !== e) throw new TypeError(`key is not a ${e} key`);
           return a.export({ format: "pem", type: t });
         }
-        if (!hr(a)) throw new TypeError(pr(a, "CryptoKey", "KeyObject"));
+        if (!gr(a)) throw new TypeError(pr(a, "CryptoKey", "KeyObject"));
         if (!a.extractable) throw new TypeError("CryptoKey is not extractable");
         if (a.type !== e) throw new TypeError(`key is not a ${e} key`);
-        return ip(
-          ci(new Uint8Array(await crypto.subtle.exportKey(t, a))),
+        return sp(
+          li(new Uint8Array(await crypto.subtle.exportKey(t, a))),
           `${e.toUpperCase()} KEY`,
         );
       }),
-      (ho = (e) => yo("public", "spki", e)),
-      (go = (e) => yo("private", "pkcs8", e)),
-      (Zt = (e, t) => {
+      (vo = (e) => go("public", "spki", e)),
+      (wo = (e) => go("private", "pkcs8", e)),
+      (Mt = (e, t) => {
         if (e.byteLength !== t.length) return !1;
         for (let a = 0; a < e.byteLength; a++) if (e[a] !== t[a]) return !1;
         return !0;
       }),
-      (vo = (e) => ({ data: e, pos: 0 })),
-      (Qn = (e) => {
+      (ko = (e) => ({ data: e, pos: 0 })),
+      (rs = (e) => {
         let t = e.data[e.pos++];
         if (t === void 0) throw new Error("Unexpected end of ASN.1 input");
         return t;
       }),
-      (Sr = (e) => {
-        let t = Qn(e);
+      (Kr = (e) => {
+        let t = rs(e);
         if (t & 128) {
           let a = t & 127,
             d = 0;
-          for (let c = 0; c < a; c++) d = (d << 8) | Qn(e);
+          for (let c = 0; c < a; c++) d = (d << 8) | rs(e);
           return d;
         }
         return t;
       }),
-      (mo = (e, t = 1) => {
+      (ho = (e, t = 1) => {
         for (; t-- > 0;) {
           e.pos++;
-          let a = Sr(e);
+          let a = Kr(e);
           e.pos += a;
         }
       }),
-      (Jr = (e, t, a) => {
-        if (Qn(e) !== t) throw new Error(a);
+      (Rr = (e, t, a) => {
+        if (rs(e) !== t) throw new Error(a);
       }),
-      (wo = (e, t) => {
+      (Io = (e, t) => {
         if (t < 0 || e.pos + t > e.data.length) throw new Error("Unexpected end of ASN.1 input");
         let a = e.data.subarray(e.pos, e.pos + t);
         return ((e.pos += t), a);
       }),
-      (np = (e) => {
-        Jr(e, 6, "Expected algorithm OID");
-        let t = Sr(e);
-        return wo(e, t);
+      (op = (e) => {
+        Rr(e, 6, "Expected algorithm OID");
+        let t = Kr(e);
+        return Io(e, t);
       }));
-    ((op = (e) => {
-      let t = np(e);
-      if (Zt(t, [43, 101, 110])) return "X25519";
-      if (!Zt(t, [42, 134, 72, 206, 61, 2, 1])) throw new Error("Unsupported key algorithm");
-      Jr(e, 6, "Expected curve OID");
-      let a = Sr(e),
-        d = wo(e, a);
-      if (Zt(d, [42, 134, 72, 206, 61, 3, 1, 7])) return "P-256";
-      if (Zt(d, [43, 129, 4, 0, 34])) return "P-384";
-      if (Zt(d, [43, 129, 4, 0, 35])) return "P-521";
+    ((pp = (e) => {
+      let t = op(e);
+      if (Mt(t, [43, 101, 110])) return "X25519";
+      if (!Mt(t, [42, 134, 72, 206, 61, 2, 1])) throw new Error("Unsupported key algorithm");
+      Rr(e, 6, "Expected curve OID");
+      let a = Kr(e),
+        d = Io(e, a);
+      if (Mt(d, [42, 134, 72, 206, 61, 3, 1, 7])) return "P-256";
+      if (Mt(d, [43, 129, 4, 0, 34])) return "P-384";
+      if (Mt(d, [43, 129, 4, 0, 35])) return "P-521";
       throw new Error("Unsupported named curve");
     }),
-      (es = async (e, t, a, d) => {
-        let c = Or(d?.extractable),
-          f = et(a, qr);
-        f.secret && Qr(qr);
+      (ts = async (e, t, a, d) => {
+        let c = Vr(d?.extractable),
+          f = rt(a, Jr);
+        f.secret && et(Jr);
         let i = e === "spki",
           r;
         if (f.resolve)
           try {
-            let u = vo(t);
-            (sp(u, e), (r = f.resolve({ crv: op(u) })));
+            let u = ko(t);
+            (ap(u, e), (r = f.resolve({ crv: pp(u) })));
           } catch (u) {
             throw new W("Invalid or unsupported key format", { cause: u });
           }
         else r = f.subtle;
         return crypto.subtle.importKey(e, t, r, c ?? i, f.usages[i ? 0 : 1]);
       }),
-      (rs = (e, t) => li(e.replace(t, ""))),
-      (ko = (e, t, a) => {
-        let d = rs(e, /(?:-----(?:BEGIN|END) PRIVATE KEY-----|\s)/g);
-        return es("pkcs8", d, t, a);
+      (is = (e, t) => fi(e.replace(t, ""))),
+      (Po = (e, t, a) => {
+        let d = is(e, /(?:-----(?:BEGIN|END) PRIVATE KEY-----|\s)/g);
+        return ts("pkcs8", d, t, a);
       }),
-      (Io = (e, t, a) => {
-        let d = rs(e, /(?:-----(?:BEGIN|END) PUBLIC KEY-----|\s)/g);
-        return es("spki", d, t, a);
+      (bo = (e, t, a) => {
+        let d = is(e, /(?:-----(?:BEGIN|END) PUBLIC KEY-----|\s)/g);
+        return ts("spki", d, t, a);
       }));
-    Po = (e, t, a) => {
+    _o = (e, t, a) => {
       let d;
       try {
-        let c = rs(e, /(?:-----(?:BEGIN|END) CERTIFICATE-----|\s)/g);
-        d = ap(c);
+        let c = is(e, /(?:-----(?:BEGIN|END) CERTIFICATE-----|\s)/g);
+        d = cp(c);
       } catch (c) {
         throw new TypeError("Failed to parse the X.509 certificate", { cause: c });
       }
-      return es("spki", d, t, a);
+      return ts("spki", d, t, a);
     };
   });
-function bo(e) {
-  return ho(e);
+function xo(e) {
+  return vo(e);
 }
-function _o(e) {
-  return go(e);
+function Eo(e) {
+  return wo(e);
 }
-async function Zi(e) {
-  if ($t(e))
+async function Mi(e) {
+  if (Lt(e))
     if (e.type === "secret") e = e.export();
     else return e.export({ format: "jwk" });
   if (e instanceof Uint8Array) return { kty: "oct", k: ee(e) };
-  if (!hr(e)) throw new TypeError(pr(e, "CryptoKey", "KeyObject", "Uint8Array"));
+  if (!gr(e)) throw new TypeError(pr(e, "CryptoKey", "KeyObject", "Uint8Array"));
   if (!e.extractable) throw new TypeError("non-extractable CryptoKey cannot be exported as a JWK");
   let t = await crypto.subtle.exportKey("jwk", e);
   (delete t.ext, delete t.key_ops, delete t.use, t.kty !== "AKP" && delete t.alg);
   for (let a of Object.keys(t)) t[a] === void 0 && delete t[a];
   return t;
 }
-var is = j(() => {
-  ts();
+var ss = j(() => {
+  ns();
   Ue();
   Xe();
 });
-async function Mt(e, t) {
+async function Gt(e, t) {
   let a;
   if (J(e)) {
-    if (((a = ut(e)), typeof a.kty != "string"))
+    if (((a = mt(e)), typeof a.kty != "string"))
       throw new TypeError(pr(e, "CryptoKey", "KeyObject", "JSON Web Key"));
-  } else if (jn(e)) a = ut(await Zi(e));
+  } else if (Ln(e)) a = mt(await Mi(e));
   else throw new TypeError(pr(e, "CryptoKey", "KeyObject", "JSON Web Key"));
   if (((t ??= "sha256"), t !== "sha256" && t !== "sha384" && t !== "sha512"))
     throw new TypeError('digestAlgorithm must one of "sha256", "sha384", or "sha512"');
   let d;
   switch (a.kty) {
     case "AKP":
-      (Kr(a.alg, '"alg" (Algorithm) Parameter'),
-        Kr(a.pub, '"pub" (Public key) Parameter'),
+      (Dr(a.alg, '"alg" (Algorithm) Parameter'),
+        Dr(a.pub, '"pub" (Public key) Parameter'),
         (d = { alg: a.alg, kty: a.kty, pub: a.pub }));
       break;
     case "EC":
-      (Kr(a.crv, '"crv" (Curve) Parameter'),
-        Kr(a.x, '"x" (X Coordinate) Parameter'),
-        Kr(a.y, '"y" (Y Coordinate) Parameter'),
+      (Dr(a.crv, '"crv" (Curve) Parameter'),
+        Dr(a.x, '"x" (X Coordinate) Parameter'),
+        Dr(a.y, '"y" (Y Coordinate) Parameter'),
         (d = { crv: a.crv, kty: a.kty, x: a.x, y: a.y }));
       break;
     case "OKP":
-      (Kr(a.crv, '"crv" (Subtype of Key Pair) Parameter'),
-        Kr(a.x, '"x" (Public Key) Parameter'),
+      (Dr(a.crv, '"crv" (Subtype of Key Pair) Parameter'),
+        Dr(a.x, '"x" (Public Key) Parameter'),
         (d = { crv: a.crv, kty: a.kty, x: a.x }));
       break;
     case "RSA":
-      (Kr(a.e, '"e" (Exponent) Parameter'),
-        Kr(a.n, '"n" (Modulus) Parameter'),
+      (Dr(a.e, '"e" (Exponent) Parameter'),
+        Dr(a.n, '"n" (Modulus) Parameter'),
         (d = { e: a.e, kty: a.kty, n: a.n }));
       break;
     case "oct":
-      if (typeof a.k != "string") throw new ct('"k" (Key Value) Parameter missing or invalid');
+      if (typeof a.k != "string") throw new lt('"k" (Key Value) Parameter missing or invalid');
       d = { k: a.k, kty: a.kty };
       break;
     default:
       throw new W('"kty" (Key Type) Parameter missing or unsupported');
   }
   let c = Je(JSON.stringify(d));
-  return ee(await fi(t, c));
+  return ee(await di(t, c));
 }
-async function xo(e, t) {
+async function Ao(e, t) {
   t ??= "sha256";
-  let a = await Mt(e, t);
+  let a = await Gt(e, t);
   return `urn:ietf:params:oauth:jwk-thumbprint:sha-${t.slice(-3)}:${a}`;
 }
-var Kr,
-  Eo = j(() => {
-    Be();
+var Dr,
+  So = j(() => {
+    Ze();
     Xe();
     U();
     Ue();
     re();
-    is();
-    Kr = (e, t) => {
-      if (typeof e != "string" || !e) throw new ct(`${t} missing or invalid`);
+    ss();
+    Dr = (e, t) => {
+      if (typeof e != "string" || !e) throw new lt(`${t} missing or invalid`);
     };
   });
-async function Ao(e, t) {
+async function Ko(e, t) {
   let a = { ...e, ...t?.header };
   if (!J(a.jwk)) throw new D('"jwk" (JSON Web Key) Header Parameter must be a JSON object');
   let d;
   try {
-    d = Lt(a.jwk);
+    d = Ot(a.jwk);
   } catch (i) {
     throw new D("Invalid Embedded JWK", { cause: i });
   }
-  let c = wt(a.alg);
+  let c = kt(a.alg);
   if (d.use !== void 0 && d.use !== "sig")
     throw new D('Invalid Embedded JWK, its "use" must be "sig" when present');
   if (d.alg !== void 0 && d.alg !== c.alg)
     throw new D(`Invalid Embedded JWK, its "alg" must be "${c.alg}" when present`);
-  let f = await gr(c, d, !0);
+  let f = await vr(c, d, !0);
   if (f.type !== "public")
     throw new D('"jwk" (JSON Web Key) Header Parameter must be a public key');
   return f;
 }
-var So = j(() => {
+var Do = j(() => {
   Ue();
-  kt();
+  It();
   re();
   U();
 });
-function pp(e, t, a, d) {
+function lp(e, t, a, d) {
   let { kty: c, key_ops: f, ext: i, kid: r, alg: u, use: n, crv: y } = e;
   return (
     (i === void 0 || typeof i == "boolean") &&
@@ -2435,13 +2435,13 @@ function pp(e, t, a, d) {
     (!t.crv || y === t.crv)
   );
 }
-async function Ko(e, t, a) {
+async function No(e, t, a) {
   let d = e.get(t) || e.set(t, {}).get(t),
     { alg: c } = a;
   if (d[c] === void 0) {
-    let f = gr(a, t, !0)
+    let f = vr(a, t, !0)
       .then((i) => {
-        if (i.type !== "public") throw new zr("JSON Web Key Set members must be public keys");
+        if (i.type !== "public") throw new Zr("JSON Web Key Set members must be public keys");
         return ((d[c] = i), i);
       })
       .catch((i) => {
@@ -2451,61 +2451,61 @@ async function Ko(e, t, a) {
   }
   return d[c];
 }
-function Gt(e) {
+function Xt(e) {
   let t;
   try {
     t = structuredClone(e);
   } catch (c) {
-    throw new zr("JSON Web Key Set malformed", { cause: c });
+    throw new Zr("JSON Web Key Set malformed", { cause: c });
   }
-  if (!di(t)) throw new zr("JSON Web Key Set malformed");
+  if (!ui(t)) throw new Zr("JSON Web Key Set malformed");
   let a = t.keys.map((c) => {
-      let f = ut(c);
+      let f = mt(c);
       return (Array.isArray(f.key_ops) && (f.key_ops = [...f.key_ops]), f);
     }),
     d = new WeakMap();
   return Object.defineProperty(
     async (c, f) => {
       let { alg: i, kid: r } = { ...c, ...f?.header },
-        u = typeof i == "string" ? Rt[i] : void 0;
+        u = typeof i == "string" ? Wt[i] : void 0;
       if (!u || u.secret) throw new W('Unsupported "alg" value for a JSON Web Key Set');
-      let n = t.keys.filter((p, s) => pp(a[s], u, i, r)),
+      let n = t.keys.filter((p, s) => lp(a[s], u, i, r)),
         { 0: y, length: m } = n;
       if (!m) throw new Br();
       if (m !== 1) {
-        let p = new Dt();
+        let p = new Nt();
         throw (
           (p[Symbol.asyncIterator] = async function* () {
             for (let s of n)
               try {
-                yield await Ko(d, s, u);
+                yield await No(d, s, u);
               } catch {}
           }),
           p
         );
       }
-      return Ko(d, y, u);
+      return No(d, y, u);
     },
     "jwks",
     { value: () => structuredClone(t) },
   );
 }
-var ns = j(() => {
+var os = j(() => {
   Ue();
-  kt();
+  It();
   U();
   re();
 });
-function cp() {
+function fp() {
   return (
     typeof WebSocketPair < "u" ||
     (typeof navigator < "u" && navigator.userAgent === "Cloudflare-Workers") ||
     (typeof EdgeRuntime < "u" && EdgeRuntime === "vercel")
   );
 }
-async function lp(e, t, a, d = fetch) {
+async function dp(e, t, a, d = fetch) {
   let c = await d(e, { method: "GET", signal: a, redirect: "manual", headers: t }).catch((f) => {
-    throw f.name === "TimeoutError" ? new Nt(void 0, { cause: f }) : f;
+    throw f.name === "TimeoutError" ? new jt(void 0, { cause: f }) : f;
   });
   if (c.status !== 200) throw new _e("Expected 200 OK from the JSON Web Key Set HTTP response");
   try {
@@ -2514,14 +2514,14 @@ async function lp(e, t, a, d = fetch) {
     throw new _e("Failed to parse the JSON Web Key Set HTTP response as JSON", { cause: f });
   }
 }
-function Xt(e, t) {
+function Yt(e, t) {
   return Number.isFinite(e) && Date.now() < e + t;
 }
-function Do(e, t, a) {
+function jo(e, t, a) {
   if (Number.isNaN(e)) throw new TypeError(`"${a}" option must not be NaN`);
   return typeof e == "number" ? e : t;
 }
-function No(e, t) {
+function $o(e, t) {
   if (!(e instanceof URL)) throw new TypeError("url must be an instance of URL");
   let a = new URL(e.href).href,
     d = t ?? {},
@@ -2529,13 +2529,13 @@ function No(e, t) {
   if (typeof c == "number" && (!Number.isInteger(c) || c < 0))
     throw new TypeError('"timeoutDuration" option must be a non-negative integer');
   let f = typeof c == "number" ? c : 5e3,
-    i = Do(d.cooldownDuration, 3e4, "cooldownDuration"),
-    r = Do(d.cacheMaxAge, 6e5, "cacheMaxAge"),
+    i = jo(d.cooldownDuration, 3e4, "cooldownDuration"),
+    r = jo(d.cacheMaxAge, 6e5, "cacheMaxAge"),
     u = new Headers(d.headers);
-  (ss && !u.has("User-Agent") && u.set("User-Agent", ss),
+  (as && !u.has("User-Agent") && u.set("User-Agent", as),
     u.has("accept") || u.set("accept", "application/json, application/jwk-set+json"));
-  let n = d[os],
-    y = d[as],
+  let n = d[ps],
+    y = d[cs],
     m,
     p,
     s = 0,
@@ -2543,14 +2543,14 @@ function No(e, t) {
     l;
   if (y && typeof y == "object") {
     let { uat: v, jwks: h } = y;
-    Xt(v, r) && di(h) && ((m = v), (l = Gt(h)));
+    Yt(v, r) && ui(h) && ((m = v), (l = Xt(h)));
   }
   let g = async () => {
-    if ((p && cp() && (p = void 0), !p)) {
+    if ((p && fp() && (p = void 0), !p)) {
       let v = ++s,
-        h = (p = lp(a, u, AbortSignal.timeout(f), n)
+        h = (p = dp(a, u, AbortSignal.timeout(f), n)
           .then((w) => {
-            let I = Gt(w);
+            let I = Xt(w);
             if (v <= o) return;
             l = I;
             let P = Date.now();
@@ -2564,47 +2564,47 @@ function No(e, t) {
   };
   return Object.defineProperties(
     async (v, h) => {
-      (!l || !Xt(m, r)) && (await g());
+      (!l || !Yt(m, r)) && (await g());
       try {
         return await l(v, h);
       } catch (w) {
-        if (w instanceof Br && !Xt(m, i)) return (await g(), l(v, h));
+        if (w instanceof Br && !Yt(m, i)) return (await g(), l(v, h));
         throw w;
       }
     },
     {
-      coolingDown: { get: () => Xt(m, i), enumerable: !0 },
-      fresh: { get: () => Xt(m, r), enumerable: !0 },
+      coolingDown: { get: () => Yt(m, i), enumerable: !0 },
+      fresh: { get: () => Yt(m, r), enumerable: !0 },
       reload: { value: g, enumerable: !0 },
       reloading: { get: () => !!p, enumerable: !0 },
       jwks: { value: () => l?.jwks(), enumerable: !0 },
     },
   );
 }
-var ss,
-  os,
-  as,
-  jo = j(() => {
+var as,
+  ps,
+  cs,
+  Lo = j(() => {
     U();
-    ns();
+    os();
     re();
     (typeof navigator > "u" || !navigator.userAgent?.startsWith?.("Mozilla/5.0 ")) &&
-      (ss = "jose/v6.2.13");
-    os = Symbol();
-    as = Symbol();
+      (as = "jose/v6.2.13");
+    ps = Symbol();
+    cs = Symbol();
   });
-var fp,
-  Mi,
-  $o = j(() => {
+var up,
+  Gi,
+  Oo = j(() => {
     Xe();
     re();
     U();
-    xt();
-    ((fp = Tr),
-      (Mi = class extends fp {
+    Et();
+    ((up = qr),
+      (Gi = class extends up {
         encode() {
           let t = ee(JSON.stringify({ alg: "none" })),
-            a = ee(_t(this));
+            a = ee(xt(this));
           return `${t}.${a}.`;
         }
         static decode(t, a) {
@@ -2613,67 +2613,67 @@ var fp,
           if (i !== 3 || f !== "") throw new de("Invalid Unsecured JWT");
           let r, u;
           try {
-            r = Lr(d, D, "JWS Protected Header is invalid");
-            let n = yr(D, lt, void 0, r, r);
-            u = ft(r, n);
+            r = Or(d, D, "JWS Protected Header is invalid");
+            let n = hr(D, ft, void 0, r, r);
+            u = dt(r, n);
           } catch (n) {
             throw n instanceof D ? new de("Invalid Unsecured JWT", { cause: n }) : n;
           }
           if (r.alg !== "none") throw new de("Invalid Unsecured JWT");
           if (!u) throw new de("JWTs MUST NOT use unencoded payload");
-          return { payload: bt(r, Re(c, "payload", de), a), header: r };
+          return { payload: _t(r, Re(c, "payload", de), a), header: r };
         }
       }));
   });
-async function Lo(e, t, a) {
+async function Vo(e, t, a) {
   if (typeof e != "string" || e.indexOf("-----BEGIN PUBLIC KEY-----") !== 0)
     throw new TypeError('"spki" must be SPKI formatted string');
-  return Io(e, t, a);
+  return bo(e, t, a);
 }
-async function Oo(e, t, a) {
+async function Co(e, t, a) {
   if (typeof e != "string" || e.indexOf("-----BEGIN CERTIFICATE-----") !== 0)
     throw new TypeError('"x509" must be X.509 formatted string');
-  return Po(e, t, a);
+  return _o(e, t, a);
 }
-async function Vo(e, t, a) {
+async function To(e, t, a) {
   if (typeof e != "string" || e.indexOf("-----BEGIN PRIVATE KEY-----") !== 0)
     throw new TypeError('"pkcs8" must be PKCS#8 formatted string');
-  return ko(e, t, a);
+  return Po(e, t, a);
 }
-async function At(e, t, a) {
+async function St(e, t, a) {
   if (!J(e)) throw new TypeError("JWK must be an object");
-  let d = Lt(e),
-    c = Or(a?.extractable),
+  let d = Ot(e),
+    c = Vr(a?.extractable),
     { alg: f } = d;
   if (((t ??= f), d.kty !== "oct" && !t))
     throw new TypeError('"alg" argument is required when "jwk.alg" is not present');
   switch (d.kty) {
     case "oct":
       if (typeof d.k != "string") throw new TypeError('missing "k" (Key Value) Parameter value');
-      return mr(d.k);
+      return yr(d.k);
     case "AKP": {
       if (typeof f != "string" || !f)
         throw new TypeError('missing "alg" (Algorithm) Parameter value');
       if (t !== f) throw new TypeError("JWK alg and alg option value mismatch");
-      return gr(et(t), d, c);
+      return vr(rt(t), d, c);
     }
     case "RSA":
     case "EC":
     case "OKP":
-      return gr(et(t), d, c);
+      return vr(rt(t), d, c);
     default:
       throw new W('Unsupported "kty" (Key Type) Parameter value');
   }
 }
-var Co = j(() => {
+var qo = j(() => {
   Xe();
-  ts();
+  ns();
   Ue();
   Bt();
   U();
   re();
 });
-function To(e) {
+function Jo(e) {
   let t;
   if (typeof e == "string") {
     let d = e.split(".");
@@ -2683,12 +2683,12 @@ function To(e) {
     else throw new TypeError("Token does not contain a Protected Header");
   let a = "Invalid Token or Protected Header formatting";
   if (typeof t != "string" || !t) throw new TypeError(a);
-  return Lr(t, TypeError, a);
+  return Or(t, TypeError, a);
 }
-var qo = j(() => {
+var Ro = j(() => {
   re();
 });
-function Jo(e) {
+function Wo(e) {
   if (typeof e != "string")
     throw new de("JWTs must use Compact JWS serialization, JWT must be a string");
   let { 1: t, length: a } = e.split(".");
@@ -2697,26 +2697,26 @@ function Jo(e) {
   if (!t) throw new de("JWTs must contain a payload");
   let d;
   try {
-    d = mr(t);
+    d = yr(t);
   } catch (f) {
     throw new de("Failed to base64url decode the payload", { cause: f });
   }
   let c;
   try {
-    c = JSON.parse(at.decode(d));
+    c = JSON.parse(pt.decode(d));
   } catch (f) {
     throw new de("Failed to parse the decoded payload as JSON", { cause: f });
   }
   if (!J(c)) throw new de("Invalid JWT Claims Set");
   return c;
 }
-var Ro = j(() => {
+var Ho = j(() => {
   Xe();
-  Be();
+  Ze();
   re();
   U();
 });
-function dp(e) {
+function mp(e) {
   let t = e?.modulusLength ?? 2048;
   if (typeof t != "number" || !Number.isInteger(t) || t < 2048)
     throw new W(
@@ -2724,10 +2724,10 @@ function dp(e) {
     );
   return t;
 }
-async function Wo(e, t) {
-  let a = Or(t?.extractable),
-    d = et(e, qr);
-  d.secret && Qr(qr);
+async function Fo(e, t) {
+  let a = Vr(t?.extractable),
+    d = rt(e, Jr);
+  d.secret && et(Jr);
   let c;
   if (d.resolve) {
     let f = t?.crv ?? "P-256";
@@ -2743,18 +2743,18 @@ async function Wo(e, t) {
       );
     c =
       d.kty[0] === "RSA"
-        ? { ...d.subtle, publicExponent: Uint8Array.of(1, 0, 1), modulusLength: dp(t) }
+        ? { ...d.subtle, publicExponent: Uint8Array.of(1, 0, 1), modulusLength: mp(t) }
         : d.subtle;
   }
   return crypto.subtle.generateKey(c, a ?? !1, [...d.usages[1], ...d.usages[0]]);
 }
-var Ho = j(() => {
+var Uo = j(() => {
   U();
   Ue();
   Bt();
 });
-async function Fo(e, t) {
-  let a = Or(t?.extractable),
+async function zo(e, t) {
+  let a = Vr(t?.extractable),
     d,
     c,
     f;
@@ -2784,107 +2784,107 @@ async function Fo(e, t) {
       ((d = +e.slice(1, 4)), (c = { name: "AES-GCM", length: d }), (f = ["encrypt", "decrypt"]));
       break;
     default:
-      Qr(qr);
+      et(Jr);
   }
   return crypto.subtle.generateKey(c, a ?? !1, f);
 }
-var Uo = j(() => {
+var Zo = j(() => {
   Bt();
   Ue();
 });
-var ps = {};
-oi(ps, {
-  CompactEncrypt: () => Ri,
-  CompactSign: () => Fi,
-  EmbeddedJWK: () => Ao,
+var ls = {};
+ai(ls, {
+  CompactEncrypt: () => Wi,
+  CompactSign: () => Ui,
+  EmbeddedJWK: () => Ko,
   EncryptJWT: () => Bi,
-  FlattenedEncrypt: () => Wi,
-  FlattenedSign: () => Et,
-  GeneralEncrypt: () => gt,
-  GeneralSign: () => Ui,
-  SignJWT: () => zi,
-  UnsecuredJWT: () => Mi,
-  base64url: () => Zr,
-  calculateJwkThumbprint: () => Mt,
-  calculateJwkThumbprintUri: () => xo,
-  compactDecrypt: () => Ws,
-  compactVerify: () => Ms,
-  createLocalJWKSet: () => Gt,
-  createRemoteJWKSet: () => No,
-  cryptoRuntime: () => up,
-  customFetch: () => os,
-  decodeJwt: () => Jo,
-  decodeProtectedHeader: () => To,
-  errors: () => Dn,
-  exportJWK: () => Zi,
-  exportPKCS8: () => _o,
-  exportSPKI: () => bo,
-  flattenedDecrypt: () => Fs,
-  flattenedVerify: () => Ti,
-  generalDecrypt: () => ji,
-  generalVerify: () => Ys,
-  generateKeyPair: () => Wo,
-  generateSecret: () => Fo,
-  importJWK: () => At,
-  importPKCS8: () => Vo,
-  importSPKI: () => Lo,
-  importX509: () => Oo,
-  jwksCache: () => as,
-  jwtDecrypt: () => no,
-  jwtVerify: () => to,
+  FlattenedEncrypt: () => Hi,
+  FlattenedSign: () => At,
+  GeneralEncrypt: () => vt,
+  GeneralSign: () => zi,
+  SignJWT: () => Zi,
+  UnsecuredJWT: () => Gi,
+  base64url: () => Mr,
+  calculateJwkThumbprint: () => Gt,
+  calculateJwkThumbprintUri: () => Ao,
+  compactDecrypt: () => Fs,
+  compactVerify: () => Xs,
+  createLocalJWKSet: () => Xt,
+  createRemoteJWKSet: () => $o,
+  cryptoRuntime: () => yp,
+  customFetch: () => ps,
+  decodeJwt: () => Wo,
+  decodeProtectedHeader: () => Jo,
+  errors: () => jn,
+  exportJWK: () => Mi,
+  exportPKCS8: () => Eo,
+  exportSPKI: () => xo,
+  flattenedDecrypt: () => zs,
+  flattenedVerify: () => qi,
+  generalDecrypt: () => $i,
+  generalVerify: () => eo,
+  generateKeyPair: () => Fo,
+  generateSecret: () => zo,
+  importJWK: () => St,
+  importPKCS8: () => To,
+  importSPKI: () => Vo,
+  importX509: () => Co,
+  jwksCache: () => cs,
+  jwtDecrypt: () => oo,
+  jwtVerify: () => no,
 });
-var up,
-  zo = j(() => {
-    Hs();
+var yp,
+  Bo = j(() => {
     Us();
-    zs();
+    Zs();
     Bs();
-    Gs();
-    Xs();
+    Ms();
+    Ys();
     Qs();
-    io();
+    ro();
     so();
-    oo();
     ao();
     po();
     co();
     lo();
     fo();
     uo();
-    Eo();
+    mo();
+    yo();
     So();
-    ns();
-    jo();
-    $o();
-    is();
-    Co();
+    Do();
+    os();
+    Lo();
+    Oo();
+    ss();
     qo();
     Ro();
-    U();
     Ho();
+    U();
     Uo();
+    Zo();
     Xe();
-    up = "WebCryptoAPI";
+    yp = "WebCryptoAPI";
   });
-function ls(e) {
+function ds(e) {
   if (!e.isWellFormed()) throw new Error("Lone surrogate is not allowed");
   return JSON.stringify(e);
 }
-function Gi(e) {
+function Xi(e) {
   switch (typeof e) {
     case "number":
       if (isNaN(e)) throw new Error("NaN is not allowed");
       if (!isFinite(e)) throw new Error("Infinity is not allowed");
       return JSON.stringify(e);
     case "string":
-      return ls(e);
+      return ds(e);
     case "boolean":
       return e ? "true" : "false";
     default:
       return JSON.stringify(e);
   }
 }
-function cs(e, t) {
+function fs(e, t) {
   let a = null;
   for (; e !== null && typeof e == "object" && typeof e.toJSON == "function";) {
     if (t.has(e)) throw new Error("Circular reference detected");
@@ -2895,7 +2895,7 @@ function cs(e, t) {
     e === null || typeof e != "object")
   ) {
     if (a !== null) for (let d of a) t.delete(d);
-    return Gi(e);
+    return Xi(e);
   }
   if (t.has(e)) throw new Error("Circular reference detected");
   return (
@@ -2909,10 +2909,10 @@ function cs(e, t) {
     }
   );
 }
-function St(e) {
-  if (e === null || typeof e != "object") return Gi(e);
+function Kt(e) {
+  if (e === null || typeof e != "object") return Xi(e);
   let t = new Set(),
-    a = cs(e, t);
+    a = fs(e, t);
   if (typeof a != "object") return a;
   let d = a.keys === null ? "[" : "{",
     c = [a];
@@ -2926,10 +2926,10 @@ function St(e) {
         let u = i[r],
           n = u === void 0 || typeof u == "symbol" || typeof u == "function" ? null : u;
         if (n === null || typeof n != "object") {
-          d += Gi(n);
+          d += Xi(n);
           continue;
         }
-        let y = cs(n, t);
+        let y = fs(n, t);
         if (typeof y != "object") {
           d += y === void 0 ? "null" : y;
           continue;
@@ -2945,12 +2945,12 @@ function St(e) {
           n = i[u];
         if (n === void 0 || typeof n == "symbol" || typeof n == "function") continue;
         if (n === null || typeof n != "object") {
-          (f.first ? (f.first = !1) : (d += ","), (d += ls(u) + ":" + Gi(n)));
+          (f.first ? (f.first = !1) : (d += ","), (d += ds(u) + ":" + Xi(n)));
           continue;
         }
-        let y = cs(n, t);
+        let y = fs(n, t);
         if (y !== void 0) {
-          if ((f.first ? (f.first = !1) : (d += ","), (d += ls(u) + ":"), typeof y != "object")) {
+          if ((f.first ? (f.first = !1) : (d += ","), (d += ds(u) + ":"), typeof y != "object")) {
             d += y;
             continue;
           }
@@ -2965,11 +2965,11 @@ function St(e) {
   }
   return d;
 }
-var Bo = j(() => {});
-var Mo = si((fs) => {
+var Mo = j(() => {});
+var Xo = oi((us) => {
   "use strict";
-  Object.defineProperty(fs, "__esModule", { value: !0 });
-  function Zo(e) {
+  Object.defineProperty(us, "__esModule", { value: !0 });
+  function Go(e) {
     let t = e.length,
       a = 0,
       d = 0,
@@ -2980,12 +2980,12 @@ var Mo = si((fs) => {
         c >= 55296 && c <= 56319 && d < t && ((c = e.charCodeAt(d)), (c & 64512) === 56320 && d++));
     return a;
   }
-  fs.default = Zo;
-  Zo.code = 'require("ajv/dist/runtime/ucs2length").default';
+  us.default = Go;
+  Go.code = 'require("ajv/dist/runtime/ucs2length").default';
 });
-var Xo = si((Qd, Go) => {
+var Qo = oi((ru, Yo) => {
   "use strict";
-  Go.exports = function e(t, a) {
+  Yo.exports = function e(t, a) {
     if (t === a) return !0;
     if (t && a && typeof t == "object" && typeof a == "object") {
       if (t.constructor !== a.constructor) return !1;
@@ -3009,19 +3009,19 @@ var Xo = si((Qd, Go) => {
     return t !== t && a !== a;
   };
 });
-var Qo = si((ds) => {
+var ra = oi((ms) => {
   "use strict";
-  Object.defineProperty(ds, "__esModule", { value: !0 });
-  var Yo = Xo();
-  Yo.code = 'require("ajv/dist/runtime/equal").default';
-  ds.default = Yo;
+  Object.defineProperty(ms, "__esModule", { value: !0 });
+  var ea = Qo();
+  ea.code = 'require("ajv/dist/runtime/equal").default';
+  ms.default = ea;
 });
-var ca = si((Le) => {
+var fa = oi((Ee) => {
   "use strict";
-  Le.PublicJWK = Xi;
-  var b = Mo().default,
-    ur = new RegExp("^[A-Za-z0-9_-]{43}$", "u");
-  function Se(
+  Ee.PublicJWK = Yi;
+  var b = Xo().default,
+    mr = new RegExp("^[A-Za-z0-9_-]{43}$", "u");
+  function Ke(
     e,
     {
       instancePath: t = "",
@@ -3033,7 +3033,7 @@ var ca = si((Le) => {
   ) {
     let i = null,
       r = 0,
-      u = Se.evaluated;
+      u = Ke.evaluated;
     if ((u.dynamicProps && (u.props = void 0), u.dynamicItems && (u.items = void 0), r === 0))
       if (e && typeof e == "object" && !Array.isArray(e)) {
         let y;
@@ -3044,7 +3044,7 @@ var ca = si((Le) => {
           (e.y === void 0 && (y = "y"))
         )
           return (
-            (Se.errors = [
+            (Ke.errors = [
               {
                 instancePath: t,
                 schemaPath: "#/required",
@@ -3059,7 +3059,7 @@ var ca = si((Le) => {
           for (let p in e)
             if (!(p === "kty" || p === "crv" || p === "x" || p === "y")) {
               return (
-                (Se.errors = [
+                (Ke.errors = [
                   {
                     instancePath: t,
                     schemaPath: "#/additionalProperties",
@@ -3076,7 +3076,7 @@ var ca = si((Le) => {
               let p = r;
               if (e.kty !== "EC")
                 return (
-                  (Se.errors = [
+                  (Ke.errors = [
                     {
                       instancePath: t + "/kty",
                       schemaPath: "#/properties/kty/const",
@@ -3093,7 +3093,7 @@ var ca = si((Le) => {
                 let p = r;
                 if (e.crv !== "P-256")
                   return (
-                    (Se.errors = [
+                    (Ke.errors = [
                       {
                         instancePath: t + "/crv",
                         schemaPath: "#/properties/crv/const",
@@ -3113,7 +3113,7 @@ var ca = si((Le) => {
                     if (typeof p == "string") {
                       if (b(p) > 43)
                         return (
-                          (Se.errors = [
+                          (Ke.errors = [
                             {
                               instancePath: t + "/x",
                               schemaPath: "#/properties/x/maxLength",
@@ -3125,7 +3125,7 @@ var ca = si((Le) => {
                         );
                       if (b(p) < 43)
                         return (
-                          (Se.errors = [
+                          (Ke.errors = [
                             {
                               instancePath: t + "/x",
                               schemaPath: "#/properties/x/minLength",
@@ -3135,9 +3135,9 @@ var ca = si((Le) => {
                           ]),
                           !1
                         );
-                      if (!ur.test(p))
+                      if (!mr.test(p))
                         return (
-                          (Se.errors = [
+                          (Ke.errors = [
                             {
                               instancePath: t + "/x",
                               schemaPath: "#/properties/x/pattern",
@@ -3149,7 +3149,7 @@ var ca = si((Le) => {
                         );
                     } else
                       return (
-                        (Se.errors = [
+                        (Ke.errors = [
                           {
                             instancePath: t + "/x",
                             schemaPath: "#/properties/x/type",
@@ -3169,7 +3169,7 @@ var ca = si((Le) => {
                       if (typeof p == "string") {
                         if (b(p) > 43)
                           return (
-                            (Se.errors = [
+                            (Ke.errors = [
                               {
                                 instancePath: t + "/y",
                                 schemaPath: "#/properties/y/maxLength",
@@ -3181,7 +3181,7 @@ var ca = si((Le) => {
                           );
                         if (b(p) < 43)
                           return (
-                            (Se.errors = [
+                            (Ke.errors = [
                               {
                                 instancePath: t + "/y",
                                 schemaPath: "#/properties/y/minLength",
@@ -3191,9 +3191,9 @@ var ca = si((Le) => {
                             ]),
                             !1
                           );
-                        if (!ur.test(p))
+                        if (!mr.test(p))
                           return (
-                            (Se.errors = [
+                            (Ke.errors = [
                               {
                                 instancePath: t + "/y",
                                 schemaPath: "#/properties/y/pattern",
@@ -3205,7 +3205,7 @@ var ca = si((Le) => {
                           );
                       } else
                         return (
-                          (Se.errors = [
+                          (Ke.errors = [
                             {
                               instancePath: t + "/y",
                               schemaPath: "#/properties/y/type",
@@ -3223,15 +3223,15 @@ var ca = si((Le) => {
         }
       } else
         return (
-          (Se.errors = [
+          (Ke.errors = [
             { instancePath: t, schemaPath: "#/type", keyword: "type", params: { type: "object" } },
           ]),
           !1
         );
-    return ((Se.errors = i), r === 0);
+    return ((Ke.errors = i), r === 0);
   }
-  Se.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
-  function Xi(
+  Ke.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
+  function Yi(
     e,
     {
       instancePath: t = "",
@@ -3243,24 +3243,114 @@ var ca = si((Le) => {
   ) {
     let i = null,
       r = 0,
-      u = Xi.evaluated;
+      u = Yi.evaluated;
     return (
       u.dynamicProps && (u.props = void 0),
       u.dynamicItems && (u.items = void 0),
-      Se(e, {
+      Ke(e, {
         instancePath: t,
         parentData: a,
         parentDataProperty: d,
         rootData: c,
         dynamicAnchors: f,
-      }) || ((i = i === null ? Se.errors : i.concat(Se.errors)), (r = i.length)),
-      (Xi.errors = i),
+      }) || ((i = i === null ? Ke.errors : i.concat(Ke.errors)), (r = i.length)),
+      (Yi.errors = i),
       r === 0
     );
   }
-  Xi.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
-  Le.RegistryBundle = Yi;
-  var wr = new RegExp("^[A-Za-z0-9_-]+$", "u");
+  Yi.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
+  Ee.OperationIdentifier = Qi;
+  var ur = new RegExp("^[A-Za-z0-9_-]+$", "u");
+  function wr(
+    e,
+    {
+      instancePath: t = "",
+      parentData: a,
+      parentDataProperty: d,
+      rootData: c = e,
+      dynamicAnchors: f = {},
+    } = {},
+  ) {
+    let i = null,
+      r = 0,
+      u = wr.evaluated;
+    if ((u.dynamicProps && (u.props = void 0), u.dynamicItems && (u.items = void 0), r === 0))
+      if (typeof e == "string") {
+        if (b(e) > 128)
+          return (
+            (wr.errors = [
+              {
+                instancePath: t,
+                schemaPath: "#/maxLength",
+                keyword: "maxLength",
+                params: { limit: 128 },
+              },
+            ]),
+            !1
+          );
+        if (b(e) < 22)
+          return (
+            (wr.errors = [
+              {
+                instancePath: t,
+                schemaPath: "#/minLength",
+                keyword: "minLength",
+                params: { limit: 22 },
+              },
+            ]),
+            !1
+          );
+        if (!ur.test(e))
+          return (
+            (wr.errors = [
+              {
+                instancePath: t,
+                schemaPath: "#/pattern",
+                keyword: "pattern",
+                params: { pattern: "^[A-Za-z0-9_-]+$" },
+              },
+            ]),
+            !1
+          );
+      } else
+        return (
+          (wr.errors = [
+            { instancePath: t, schemaPath: "#/type", keyword: "type", params: { type: "string" } },
+          ]),
+          !1
+        );
+    return ((wr.errors = i), r === 0);
+  }
+  wr.evaluated = { dynamicProps: !1, dynamicItems: !1 };
+  function Qi(
+    e,
+    {
+      instancePath: t = "",
+      parentData: a,
+      parentDataProperty: d,
+      rootData: c = e,
+      dynamicAnchors: f = {},
+    } = {},
+  ) {
+    let i = null,
+      r = 0,
+      u = Qi.evaluated;
+    return (
+      u.dynamicProps && (u.props = void 0),
+      u.dynamicItems && (u.items = void 0),
+      wr(e, {
+        instancePath: t,
+        parentData: a,
+        parentDataProperty: d,
+        rootData: c,
+        dynamicAnchors: f,
+      }) || ((i = i === null ? wr.errors : i.concat(wr.errors)), (r = i.length)),
+      (Qi.errors = i),
+      r === 0
+    );
+  }
+  Qi.evaluated = { dynamicProps: !1, dynamicItems: !1 };
+  Ee.RegistryBundle = en;
   function oe(
     e,
     {
@@ -3340,7 +3430,7 @@ var ca = si((Le) => {
                       ]),
                       !1
                     );
-                  if (!wr.test(p))
+                  if (!ur.test(p))
                     return (
                       (oe.errors = [
                         {
@@ -3396,7 +3486,7 @@ var ca = si((Le) => {
                         ]),
                         !1
                       );
-                    if (!wr.test(p))
+                    if (!ur.test(p))
                       return (
                         (oe.errors = [
                           {
@@ -3452,7 +3542,7 @@ var ca = si((Le) => {
                           ]),
                           !1
                         );
-                      if (!wr.test(p))
+                      if (!ur.test(p))
                         return (
                           (oe.errors = [
                             {
@@ -3491,7 +3581,7 @@ var ca = si((Le) => {
     return ((oe.errors = i), r === 0);
   }
   oe.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
-  function vr(
+  function kr(
     e,
     {
       instancePath: t = "",
@@ -3503,7 +3593,7 @@ var ca = si((Le) => {
   ) {
     let i = null,
       r = 0,
-      u = vr.evaluated;
+      u = kr.evaluated;
     if ((u.dynamicProps && (u.props = void 0), u.dynamicItems && (u.items = void 0), r === 0))
       if (e && typeof e == "object" && !Array.isArray(e)) {
         let y;
@@ -3512,7 +3602,7 @@ var ca = si((Le) => {
           (e.active === void 0 && (y = "active"))
         )
           return (
-            (vr.errors = [
+            (kr.errors = [
               {
                 instancePath: t,
                 schemaPath: "#/required",
@@ -3527,7 +3617,7 @@ var ca = si((Le) => {
           for (let p in e)
             if (!(p === "certificate" || p === "active")) {
               return (
-                (vr.errors = [
+                (kr.errors = [
                   {
                     instancePath: t,
                     schemaPath: "#/additionalProperties",
@@ -3556,7 +3646,7 @@ var ca = si((Le) => {
                 let p = r;
                 if (typeof e.active != "boolean")
                   return (
-                    (vr.errors = [
+                    (kr.errors = [
                       {
                         instancePath: t + "/active",
                         schemaPath: "#/properties/active/type",
@@ -3572,14 +3662,14 @@ var ca = si((Le) => {
         }
       } else
         return (
-          (vr.errors = [
+          (kr.errors = [
             { instancePath: t, schemaPath: "#/type", keyword: "type", params: { type: "object" } },
           ]),
           !1
         );
-    return ((vr.errors = i), r === 0);
+    return ((kr.errors = i), r === 0);
   }
-  vr.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
+  kr.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
   function Ye(
     e,
     {
@@ -3693,14 +3783,14 @@ var ca = si((Le) => {
                         let g = s.length;
                         for (let v = 0; v < g; v++) {
                           let h = r;
-                          vr(s[v], {
+                          kr(s[v], {
                             instancePath: t + "/entries/" + v,
                             parentData: s,
                             parentDataProperty: v,
                             rootData: c,
                             dynamicAnchors: f,
                           }) ||
-                            ((i = i === null ? vr.errors : i.concat(vr.errors)), (r = i.length));
+                            ((i = i === null ? kr.errors : i.concat(kr.errors)), (r = i.length));
                           var y = h === r;
                           if (!y) break;
                         }
@@ -3732,7 +3822,7 @@ var ca = si((Le) => {
     return ((Ye.errors = i), r === 0);
   }
   Ye.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
-  function Yi(
+  function en(
     e,
     {
       instancePath: t = "",
@@ -3744,7 +3834,7 @@ var ca = si((Le) => {
   ) {
     let i = null,
       r = 0,
-      u = Yi.evaluated;
+      u = en.evaluated;
     return (
       u.dynamicProps && (u.props = void 0),
       u.dynamicItems && (u.items = void 0),
@@ -3755,13 +3845,13 @@ var ca = si((Le) => {
         rootData: c,
         dynamicAnchors: f,
       }) || ((i = i === null ? Ye.errors : i.concat(Ye.errors)), (r = i.length)),
-      (Yi.errors = i),
+      (en.errors = i),
       r === 0
     );
   }
-  Yi.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
-  Le.RegistryCheckpointPayload = Qi;
-  var mp = {
+  en.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
+  Ee.RegistryCheckpointPayload = rn;
+  var hp = {
       type: "object",
       properties: {
         artifactType: { const: "registry_checkpoint" },
@@ -3815,8 +3905,8 @@ var ca = si((Le) => {
       additionalProperties: !1,
     },
     Ge = Object.prototype.hasOwnProperty,
-    $e = new RegExp("^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$", "u"),
-    ys = new RegExp("^[a-f0-9]{64}$", "u");
+    Le = new RegExp("^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$", "u"),
+    gs = new RegExp("^[a-f0-9]{64}$", "u");
   function $(
     e,
     {
@@ -3861,7 +3951,7 @@ var ca = si((Le) => {
         {
           let s = r;
           for (let o in e)
-            if (!Ge.call(mp.properties, o)) {
+            if (!Ge.call(hp.properties, o)) {
               return (
                 ($.errors = [
                   {
@@ -3939,7 +4029,7 @@ var ca = si((Le) => {
                           ]),
                           !1
                         );
-                      if (!$e.test(o))
+                      if (!Le.test(o))
                         return (
                           ($.errors = [
                             {
@@ -3995,7 +4085,7 @@ var ca = si((Le) => {
                             ]),
                             !1
                           );
-                        if (!$e.test(o))
+                        if (!Le.test(o))
                           return (
                             ($.errors = [
                               {
@@ -4051,7 +4141,7 @@ var ca = si((Le) => {
                               ]),
                               !1
                             );
-                          if (!ur.test(o))
+                          if (!mr.test(o))
                             return (
                               ($.errors = [
                                 {
@@ -4190,7 +4280,7 @@ var ca = si((Le) => {
                                     params: { limit: 64 },
                                   };
                                   (i === null ? (i = [P]) : i.push(P), r++);
-                                } else if (!ys.test(o)) {
+                                } else if (!gs.test(o)) {
                                   let P = {
                                     instancePath: t + "/previousDigest",
                                     schemaPath: "#/properties/previousDigest/anyOf/0/pattern",
@@ -4264,7 +4354,7 @@ var ca = si((Le) => {
                                       ]),
                                       !1
                                     );
-                                  if (!ys.test(o))
+                                  if (!gs.test(o))
                                     return (
                                       ($.errors = [
                                         {
@@ -4398,7 +4488,7 @@ var ca = si((Le) => {
                                                   ]),
                                                   !1
                                                 );
-                                              if (!ur.test(w))
+                                              if (!mr.test(w))
                                                 return (
                                                   ($.errors = [
                                                     {
@@ -4537,7 +4627,7 @@ var ca = si((Le) => {
     return (($.errors = i), r === 0);
   }
   $.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
-  function Qi(
+  function rn(
     e,
     {
       instancePath: t = "",
@@ -4549,7 +4639,7 @@ var ca = si((Le) => {
   ) {
     let i = null,
       r = 0,
-      u = Qi.evaluated;
+      u = rn.evaluated;
     return (
       u.dynamicProps && (u.props = void 0),
       u.dynamicItems && (u.items = void 0),
@@ -4560,13 +4650,13 @@ var ca = si((Le) => {
         rootData: c,
         dynamicAnchors: f,
       }) || ((i = i === null ? $.errors : i.concat($.errors)), (r = i.length)),
-      (Qi.errors = i),
+      (rn.errors = i),
       r === 0
     );
   }
-  Qi.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
-  Le.KeyCertificatePayload = en;
-  var us = {
+  rn.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
+  Ee.KeyCertificatePayload = tn;
+  var ys = {
       type: "object",
       properties: {
         artifactType: { const: "key_certificate" },
@@ -4649,7 +4739,7 @@ var ca = si((Le) => {
       ],
       additionalProperties: !1,
     },
-    yp = Qo().default;
+    gp = ra().default;
   function we(
     e,
     {
@@ -4764,7 +4854,7 @@ var ca = si((Le) => {
                           ]),
                           !1
                         );
-                      if (!ur.test(p))
+                      if (!mr.test(p))
                         return (
                           (we.errors = [
                             {
@@ -4820,7 +4910,7 @@ var ca = si((Le) => {
                             ]),
                             !1
                           );
-                        if (!ur.test(p))
+                        if (!mr.test(p))
                           return (
                             (we.errors = [
                               {
@@ -4907,7 +4997,7 @@ var ca = si((Le) => {
         {
           let s = r;
           for (let o in e)
-            if (!Ge.call(us.properties, o)) {
+            if (!Ge.call(ys.properties, o)) {
               return (
                 (N.errors = [
                   {
@@ -4985,7 +5075,7 @@ var ca = si((Le) => {
                           ]),
                           !1
                         );
-                      if (!$e.test(o))
+                      if (!Le.test(o))
                         return (
                           (N.errors = [
                             {
@@ -5041,7 +5131,7 @@ var ca = si((Le) => {
                             ]),
                             !1
                           );
-                        if (!$e.test(o))
+                        if (!Le.test(o))
                           return (
                             (N.errors = [
                               {
@@ -5097,7 +5187,7 @@ var ca = si((Le) => {
                               ]),
                               !1
                             );
-                          if (!$e.test(o))
+                          if (!Le.test(o))
                             return (
                               (N.errors = [
                                 {
@@ -5153,7 +5243,7 @@ var ca = si((Le) => {
                                 ]),
                                 !1
                               );
-                            if (!ur.test(o))
+                            if (!mr.test(o))
                               return (
                                 (N.errors = [
                                   {
@@ -5197,7 +5287,7 @@ var ca = si((Le) => {
                                   instancePath: t + "/role",
                                   schemaPath: "#/properties/role/enum",
                                   keyword: "enum",
-                                  params: { allowedValues: us.properties.role.enum },
+                                  params: { allowedValues: ys.properties.role.enum },
                                 },
                               ]),
                               !1
@@ -5247,7 +5337,7 @@ var ca = si((Le) => {
                                       ]),
                                       !1
                                     );
-                                  if (!$e.test(o))
+                                  if (!Le.test(o))
                                     return (
                                       (N.errors = [
                                         {
@@ -5298,7 +5388,7 @@ var ca = si((Le) => {
                                         params: { limit: 1 },
                                       };
                                       (i === null ? (i = [P]) : i.push(P), r++);
-                                    } else if (!$e.test(o)) {
+                                    } else if (!Le.test(o)) {
                                       let P = {
                                         instancePath: t + "/connectionId",
                                         schemaPath: "#/properties/connectionId/anyOf/0/pattern",
@@ -5421,7 +5511,7 @@ var ca = si((Le) => {
                                             ]),
                                             !1
                                           );
-                                        if (!ur.test(o))
+                                        if (!mr.test(o))
                                           return (
                                             (N.errors = [
                                               {
@@ -5595,7 +5685,7 @@ var ca = si((Le) => {
                                                           keyword: "enum",
                                                           params: {
                                                             allowedValues:
-                                                              us.properties.capabilities.items.enum,
+                                                              ys.properties.capabilities.items.enum,
                                                           },
                                                         },
                                                       ]),
@@ -5610,7 +5700,7 @@ var ca = si((Le) => {
                                                   if (h > 1) {
                                                     e: for (; h--;)
                                                       for (w = h; w--;)
-                                                        if (yp(o[h], o[w])) {
+                                                        if (gp(o[h], o[w])) {
                                                           return (
                                                             (N.errors = [
                                                               {
@@ -5667,7 +5757,7 @@ var ca = si((Le) => {
     return ((N.errors = i), r === 0);
   }
   N.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
-  function en(
+  function tn(
     e,
     {
       instancePath: t = "",
@@ -5679,7 +5769,7 @@ var ca = si((Le) => {
   ) {
     let i = null,
       r = 0,
-      u = en.evaluated;
+      u = tn.evaluated;
     return (
       u.dynamicProps && (u.props = void 0),
       u.dynamicItems && (u.items = void 0),
@@ -5690,13 +5780,13 @@ var ca = si((Le) => {
         rootData: c,
         dynamicAnchors: f,
       }) || ((i = i === null ? N.errors : i.concat(N.errors)), (r = i.length)),
-      (en.errors = i),
+      (tn.errors = i),
       r === 0
     );
   }
-  en.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
-  Le.PersistentAgentIdentity = rn;
-  var ea = {
+  tn.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
+  Ee.PersistentAgentIdentity = nn;
+  var ta = {
     type: "object",
     properties: {
       contractVersion: { const: "folioview.agent-workspace.v2.0" },
@@ -5775,7 +5865,7 @@ var ca = si((Le) => {
             ]),
             !1
           );
-        if (!$e.test(e))
+        if (!Le.test(e))
           return (
             (k.errors = [
               {
@@ -5836,7 +5926,7 @@ var ca = si((Le) => {
             ]),
             !1
           );
-        if (!ur.test(e))
+        if (!mr.test(e))
           return (
             (x.errors = [
               {
@@ -5897,7 +5987,7 @@ var ca = si((Le) => {
             ]),
             !1
           );
-        if (!ys.test(e))
+        if (!gs.test(e))
           return (
             (E.errors = [
               {
@@ -5919,7 +6009,7 @@ var ca = si((Le) => {
     return ((E.errors = i), r === 0);
   }
   E.evaluated = { dynamicProps: !1, dynamicItems: !1 };
-  function Ke(
+  function De(
     e,
     {
       instancePath: t = "",
@@ -5931,7 +6021,7 @@ var ca = si((Le) => {
   ) {
     let i = null,
       r = 0,
-      u = Ke.evaluated;
+      u = De.evaluated;
     if ((u.dynamicProps && (u.props = void 0), u.dynamicItems && (u.items = void 0), r === 0))
       if (e && typeof e == "object" && !Array.isArray(e)) {
         let m;
@@ -5953,7 +6043,7 @@ var ca = si((Le) => {
           (e.revokedAt === void 0 && (m = "revokedAt"))
         )
           return (
-            (Ke.errors = [
+            (De.errors = [
               {
                 instancePath: t,
                 schemaPath: "#/required",
@@ -5966,9 +6056,9 @@ var ca = si((Le) => {
         {
           let p = r;
           for (let s in e)
-            if (!Ge.call(ea.properties, s)) {
+            if (!Ge.call(ta.properties, s)) {
               return (
-                (Ke.errors = [
+                (De.errors = [
                   {
                     instancePath: t,
                     schemaPath: "#/additionalProperties",
@@ -5985,7 +6075,7 @@ var ca = si((Le) => {
               let s = r;
               if (e.contractVersion !== "folioview.agent-workspace.v2.0")
                 return (
-                  (Ke.errors = [
+                  (De.errors = [
                     {
                       instancePath: t + "/contractVersion",
                       schemaPath: "#/properties/contractVersion/const",
@@ -6002,7 +6092,7 @@ var ca = si((Le) => {
                 let s = r;
                 if (e.profile !== "folioview.persistent-agent-identity.v1")
                   return (
-                    (Ke.errors = [
+                    (De.errors = [
                       {
                         instancePath: t + "/profile",
                         schemaPath: "#/properties/profile/const",
@@ -6120,7 +6210,7 @@ var ca = si((Le) => {
                                     o = r;
                                   if (!(typeof s == "number" && !(s % 1) && !isNaN(s)))
                                     return (
-                                      (Ke.errors = [
+                                      (De.errors = [
                                         {
                                           instancePath: t + "/identityEpoch",
                                           schemaPath: "#/properties/identityEpoch/type",
@@ -6133,7 +6223,7 @@ var ca = si((Le) => {
                                   if (r === o && typeof s == "number") {
                                     if (s > 9007199254740991 || isNaN(s))
                                       return (
-                                        (Ke.errors = [
+                                        (De.errors = [
                                           {
                                             instancePath: t + "/identityEpoch",
                                             schemaPath: "#/properties/identityEpoch/maximum",
@@ -6145,7 +6235,7 @@ var ca = si((Le) => {
                                       );
                                     if (s < 1 || isNaN(s))
                                       return (
-                                        (Ke.errors = [
+                                        (De.errors = [
                                           {
                                             instancePath: t + "/identityEpoch",
                                             schemaPath: "#/properties/identityEpoch/minimum",
@@ -6178,12 +6268,12 @@ var ca = si((Le) => {
                                         o = r;
                                       if (!(s === "active" || s === "revoked"))
                                         return (
-                                          (Ke.errors = [
+                                          (De.errors = [
                                             {
                                               instancePath: t + "/status",
                                               schemaPath: "#/properties/status/enum",
                                               keyword: "enum",
-                                              params: { allowedValues: ea.properties.status.enum },
+                                              params: { allowedValues: ta.properties.status.enum },
                                             },
                                           ]),
                                           !1
@@ -6196,7 +6286,7 @@ var ca = si((Le) => {
                                           o = r;
                                         if (!(typeof s == "number" && !(s % 1) && !isNaN(s)))
                                           return (
-                                            (Ke.errors = [
+                                            (De.errors = [
                                               {
                                                 instancePath: t + "/registeredAt",
                                                 schemaPath: "#/properties/registeredAt/type",
@@ -6209,7 +6299,7 @@ var ca = si((Le) => {
                                         if (r === o && typeof s == "number") {
                                           if (s > 9007199254740991 || isNaN(s))
                                             return (
-                                              (Ke.errors = [
+                                              (De.errors = [
                                                 {
                                                   instancePath: t + "/registeredAt",
                                                   schemaPath: "#/properties/registeredAt/maximum",
@@ -6224,7 +6314,7 @@ var ca = si((Le) => {
                                             );
                                           if (s < 0 || isNaN(s))
                                             return (
-                                              (Ke.errors = [
+                                              (De.errors = [
                                                 {
                                                   instancePath: t + "/registeredAt",
                                                   schemaPath: "#/properties/registeredAt/minimum",
@@ -6303,7 +6393,7 @@ var ca = si((Le) => {
                                             return (
                                               i === null ? (i = [I]) : i.push(I),
                                               r++,
-                                              (Ke.errors = i),
+                                              (De.errors = i),
                                               !1
                                             );
                                           }
@@ -6326,15 +6416,15 @@ var ca = si((Le) => {
         }
       } else
         return (
-          (Ke.errors = [
+          (De.errors = [
             { instancePath: t, schemaPath: "#/type", keyword: "type", params: { type: "object" } },
           ]),
           !1
         );
-    return ((Ke.errors = i), r === 0);
+    return ((De.errors = i), r === 0);
   }
-  Ke.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
-  function rn(
+  De.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
+  function nn(
     e,
     {
       instancePath: t = "",
@@ -6346,24 +6436,24 @@ var ca = si((Le) => {
   ) {
     let i = null,
       r = 0,
-      u = rn.evaluated;
+      u = nn.evaluated;
     return (
       u.dynamicProps && (u.props = void 0),
       u.dynamicItems && (u.items = void 0),
-      Ke(e, {
+      De(e, {
         instancePath: t,
         parentData: a,
         parentDataProperty: d,
         rootData: c,
         dynamicAnchors: f,
-      }) || ((i = i === null ? Ke.errors : i.concat(Ke.errors)), (r = i.length)),
-      (rn.errors = i),
+      }) || ((i = i === null ? De.errors : i.concat(De.errors)), (r = i.length)),
+      (nn.errors = i),
       r === 0
     );
   }
-  rn.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
-  Le.PersistentAgentBindingPayload = tn;
-  var hp = {
+  nn.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
+  Ee.PersistentAgentBindingPayload = sn;
+  var vp = {
     type: "object",
     properties: {
       contractVersion: { const: "folioview.agent-workspace.v2.0" },
@@ -6446,7 +6536,7 @@ var ca = si((Le) => {
             ]),
             !1
           );
-        if (!wr.test(e))
+        if (!ur.test(e))
           return (
             (C.errors = [
               {
@@ -6518,7 +6608,7 @@ var ca = si((Le) => {
         {
           let m = r;
           for (let p in e)
-            if (!Ge.call(hp.properties, p)) {
+            if (!Ge.call(vp.properties, p)) {
               return (
                 (ge.errors = [
                   {
@@ -6921,7 +7011,7 @@ var ca = si((Le) => {
     return ((ge.errors = i), r === 0);
   }
   ge.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
-  function tn(
+  function sn(
     e,
     {
       instancePath: t = "",
@@ -6933,7 +7023,7 @@ var ca = si((Le) => {
   ) {
     let i = null,
       r = 0,
-      u = tn.evaluated;
+      u = sn.evaluated;
     return (
       u.dynamicProps && (u.props = void 0),
       u.dynamicItems && (u.items = void 0),
@@ -6944,13 +7034,13 @@ var ca = si((Le) => {
         rootData: c,
         dynamicAnchors: f,
       }) || ((i = i === null ? ge.errors : i.concat(ge.errors)), (r = i.length)),
-      (tn.errors = i),
+      (sn.errors = i),
       r === 0
     );
   }
-  tn.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
-  Le.PersistentContentContext = sn;
-  var ra = {
+  sn.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
+  Ee.PersistentContentContext = an;
+  var ia = {
       type: "object",
       properties: {
         contractVersion: { const: "folioview.agent-workspace.v2.0" },
@@ -7034,7 +7124,7 @@ var ca = si((Le) => {
       ],
       additionalProperties: !1,
     },
-    gp = {
+    wp = {
       type: "object",
       properties: {
         keyId: { $ref: "#/$defs/KeyId" },
@@ -7111,7 +7201,7 @@ var ca = si((Le) => {
                         instancePath: t + "/role",
                         schemaPath: "#/properties/role/enum",
                         keyword: "enum",
-                        params: { allowedValues: gp.properties.role.enum },
+                        params: { allowedValues: wp.properties.role.enum },
                       },
                     ]),
                     !1
@@ -7130,7 +7220,7 @@ var ca = si((Le) => {
     return ((We.errors = i), r === 0);
   }
   We.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
-  var nn = {
+  var on = {
     type: "object",
     properties: {
       kind: { type: "string", enum: ["watchlist", "channel_follows", "holdings"] },
@@ -7311,7 +7401,7 @@ var ca = si((Le) => {
                       instancePath: t + "/kind",
                       schemaPath: "#/properties/kind/enum",
                       keyword: "enum",
-                      params: { allowedValues: nn.properties.kind.enum },
+                      params: { allowedValues: on.properties.kind.enum },
                     },
                   ]),
                   !1
@@ -7341,7 +7431,7 @@ var ca = si((Le) => {
                         instancePath: t + "/sourceService",
                         schemaPath: "#/properties/sourceService/enum",
                         keyword: "enum",
-                        params: { allowedValues: nn.properties.sourceService.enum },
+                        params: { allowedValues: on.properties.sourceService.enum },
                       },
                     ]),
                     !1
@@ -7378,7 +7468,7 @@ var ca = si((Le) => {
                           ]),
                           !1
                         );
-                      if (!$e.test(h))
+                      if (!Le.test(h))
                         return (
                           (T.errors = [
                             {
@@ -7434,7 +7524,7 @@ var ca = si((Le) => {
                             ]),
                             !1
                           );
-                        if (!$e.test(h))
+                        if (!Le.test(h))
                           return (
                             (T.errors = [
                               {
@@ -7652,7 +7742,7 @@ var ca = si((Le) => {
         {
           let o = r;
           for (let l in e)
-            if (!Ge.call(ra.properties, l)) {
+            if (!Ge.call(ia.properties, l)) {
               return (
                 (K.errors = [
                   {
@@ -8275,7 +8365,7 @@ var ca = si((Le) => {
                                                                     keyword: "enum",
                                                                     params: {
                                                                       allowedValues:
-                                                                        ra.properties.resultPolicy
+                                                                        ia.properties.resultPolicy
                                                                           .enum,
                                                                     },
                                                                   },
@@ -8857,7 +8947,7 @@ var ca = si((Le) => {
     return ((K.errors = i), r === 0);
   }
   K.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
-  var ta = {
+  var na = {
     type: "object",
     properties: {
       contractVersion: { const: "folioview.agent-workspace.v2.0" },
@@ -8989,7 +9079,7 @@ var ca = si((Le) => {
         {
           let p = r;
           for (let s in e)
-            if (!Ge.call(ta.properties, s)) {
+            if (!Ge.call(na.properties, s)) {
               return (
                 (L.errors = [
                   {
@@ -9575,7 +9665,7 @@ var ca = si((Le) => {
                                                                 keyword: "enum",
                                                                 params: {
                                                                   allowedValues:
-                                                                    ta.properties.objectType.enum,
+                                                                    na.properties.objectType.enum,
                                                                 },
                                                               },
                                                             ]),
@@ -9906,7 +9996,7 @@ var ca = si((Le) => {
     return ((L.errors = i), r === 0);
   }
   L.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
-  var vp = {
+  var kp = {
     type: "object",
     properties: {
       contractVersion: { const: "folioview.agent-workspace.v2.0" },
@@ -10041,7 +10131,7 @@ var ca = si((Le) => {
         {
           let p = r;
           for (let s in e)
-            if (!Ge.call(vp.properties, s)) {
+            if (!Ge.call(kp.properties, s)) {
               return (
                 (O.errors = [
                   {
@@ -10967,7 +11057,7 @@ var ca = si((Le) => {
     return ((O.errors = i), r === 0);
   }
   O.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
-  function Rr(
+  function Wr(
     e,
     {
       instancePath: t = "",
@@ -10979,7 +11069,7 @@ var ca = si((Le) => {
   ) {
     let i = null,
       r = 0,
-      u = Rr.evaluated;
+      u = Wr.evaluated;
     (u.dynamicProps && (u.props = void 0), u.dynamicItems && (u.items = void 0));
     let n = r,
       y = !1,
@@ -11028,12 +11118,12 @@ var ca = si((Le) => {
         keyword: "oneOf",
         params: { passingSchemas: m },
       };
-      return (i === null ? (i = [g]) : i.push(g), r++, (Rr.errors = i), !1);
+      return (i === null ? (i = [g]) : i.push(g), r++, (Wr.errors = i), !1);
     }
-    return ((Rr.errors = i), (u.props = s), r === 0);
+    return ((Wr.errors = i), (u.props = s), r === 0);
   }
-  Rr.evaluated = { dynamicProps: !0, dynamicItems: !1 };
-  function sn(
+  Wr.evaluated = { dynamicProps: !0, dynamicItems: !1 };
+  function an(
     e,
     {
       instancePath: t = "",
@@ -11045,11 +11135,11 @@ var ca = si((Le) => {
   ) {
     let i = null,
       r = 0,
-      u = sn.evaluated;
+      u = an.evaluated;
     if (
       (u.dynamicProps && (u.props = void 0),
       u.dynamicItems && (u.items = void 0),
-      !Rr(e, {
+      !Wr(e, {
         instancePath: t,
         parentData: a,
         parentDataProperty: d,
@@ -11057,12 +11147,12 @@ var ca = si((Le) => {
         dynamicAnchors: f,
       }))
     )
-      ((i = i === null ? Rr.errors : i.concat(Rr.errors)), (r = i.length));
-    else var n = Rr.evaluated.props;
-    return ((sn.errors = i), (u.props = n), r === 0);
+      ((i = i === null ? Wr.errors : i.concat(Wr.errors)), (r = i.length));
+    else var n = Wr.evaluated.props;
+    return ((an.errors = i), (u.props = n), r === 0);
   }
-  sn.evaluated = { dynamicProps: !0, dynamicItems: !1 };
-  Le.ResourceRef = on;
+  an.evaluated = { dynamicProps: !0, dynamicItems: !1 };
+  Ee.ResourceRef = pn;
   function me(
     e,
     {
@@ -11216,7 +11306,7 @@ var ca = si((Le) => {
                       instancePath: t + "/kind",
                       schemaPath: "#/properties/kind/enum",
                       keyword: "enum",
-                      params: { allowedValues: nn.properties.kind.enum },
+                      params: { allowedValues: on.properties.kind.enum },
                     },
                   ]),
                   !1
@@ -11246,7 +11336,7 @@ var ca = si((Le) => {
                         instancePath: t + "/sourceService",
                         schemaPath: "#/properties/sourceService/enum",
                         keyword: "enum",
-                        params: { allowedValues: nn.properties.sourceService.enum },
+                        params: { allowedValues: on.properties.sourceService.enum },
                       },
                     ]),
                     !1
@@ -11283,7 +11373,7 @@ var ca = si((Le) => {
                           ]),
                           !1
                         );
-                      if (!$e.test(h))
+                      if (!Le.test(h))
                         return (
                           (me.errors = [
                             {
@@ -11339,7 +11429,7 @@ var ca = si((Le) => {
                             ]),
                             !1
                           );
-                        if (!$e.test(h))
+                        if (!Le.test(h))
                           return (
                             (me.errors = [
                               {
@@ -11379,7 +11469,7 @@ var ca = si((Le) => {
     return ((me.errors = i), r === 0);
   }
   me.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
-  function on(
+  function pn(
     e,
     {
       instancePath: t = "",
@@ -11391,7 +11481,7 @@ var ca = si((Le) => {
   ) {
     let i = null,
       r = 0,
-      u = on.evaluated;
+      u = pn.evaluated;
     return (
       u.dynamicProps && (u.props = void 0),
       u.dynamicItems && (u.items = void 0),
@@ -11402,13 +11492,13 @@ var ca = si((Le) => {
         rootData: c,
         dynamicAnchors: f,
       }) || ((i = i === null ? me.errors : i.concat(me.errors)), (r = i.length)),
-      (on.errors = i),
+      (pn.errors = i),
       r === 0
     );
   }
-  on.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
-  Le.PersistentPrivatePayload = an;
-  var wp = {
+  pn.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
+  Ee.PersistentPrivatePayload = cn;
+  var Ip = {
       type: "object",
       properties: {
         privateSchemaVersion: { const: 1 },
@@ -11458,7 +11548,7 @@ var ca = si((Le) => {
         },
       ],
     },
-    kp = {
+    Pp = {
       type: "object",
       properties: {
         name: { type: "string", minLength: 1, maxLength: 80 },
@@ -11471,7 +11561,7 @@ var ca = si((Le) => {
       required: ["name", "template", "goal", "inputPolicy", "outputSpec", "deliveryExpectation"],
       additionalProperties: !1,
     };
-  function Ze(
+  function Be(
     e,
     {
       instancePath: t = "",
@@ -11483,7 +11573,7 @@ var ca = si((Le) => {
   ) {
     let i = null,
       r = 0,
-      u = Ze.evaluated;
+      u = Be.evaluated;
     if ((u.dynamicProps && (u.props = void 0), u.dynamicItems && (u.items = void 0), r === 0))
       if (e && typeof e == "object" && !Array.isArray(e)) {
         let y;
@@ -11493,7 +11583,7 @@ var ca = si((Le) => {
           (e.maxFetchedAgeSeconds === void 0 && (y = "maxFetchedAgeSeconds"))
         )
           return (
-            (Ze.errors = [
+            (Be.errors = [
               {
                 instancePath: t,
                 schemaPath: "#/required",
@@ -11512,7 +11602,7 @@ var ca = si((Le) => {
               p === "maxFetchedAgeSeconds"
             )) {
               return (
-                (Ze.errors = [
+                (Be.errors = [
                   {
                     instancePath: t,
                     schemaPath: "#/additionalProperties",
@@ -11529,7 +11619,7 @@ var ca = si((Le) => {
               let p = r;
               if (typeof e.allowPartial != "boolean")
                 return (
-                  (Ze.errors = [
+                  (Be.errors = [
                     {
                       instancePath: t + "/allowPartial",
                       schemaPath: "#/properties/allowPartial/type",
@@ -11546,7 +11636,7 @@ var ca = si((Le) => {
                 let p = r;
                 if (typeof e.allowUnknownAsOf != "boolean")
                   return (
-                    (Ze.errors = [
+                    (Be.errors = [
                       {
                         instancePath: t + "/allowUnknownAsOf",
                         schemaPath: "#/properties/allowUnknownAsOf/type",
@@ -11564,7 +11654,7 @@ var ca = si((Le) => {
                     s = r;
                   if (!(typeof p == "number" && !(p % 1) && !isNaN(p)))
                     return (
-                      (Ze.errors = [
+                      (Be.errors = [
                         {
                           instancePath: t + "/maxFetchedAgeSeconds",
                           schemaPath: "#/properties/maxFetchedAgeSeconds/type",
@@ -11577,7 +11667,7 @@ var ca = si((Le) => {
                   if (r === s && typeof p == "number") {
                     if (p > 604800 || isNaN(p))
                       return (
-                        (Ze.errors = [
+                        (Be.errors = [
                           {
                             instancePath: t + "/maxFetchedAgeSeconds",
                             schemaPath: "#/properties/maxFetchedAgeSeconds/maximum",
@@ -11589,7 +11679,7 @@ var ca = si((Le) => {
                       );
                     if (p < 60 || isNaN(p))
                       return (
-                        (Ze.errors = [
+                        (Be.errors = [
                           {
                             instancePath: t + "/maxFetchedAgeSeconds",
                             schemaPath: "#/properties/maxFetchedAgeSeconds/minimum",
@@ -11607,15 +11697,15 @@ var ca = si((Le) => {
         }
       } else
         return (
-          (Ze.errors = [
+          (Be.errors = [
             { instancePath: t, schemaPath: "#/type", keyword: "type", params: { type: "object" } },
           ]),
           !1
         );
-    return ((Ze.errors = i), r === 0);
+    return ((Be.errors = i), r === 0);
   }
-  Ze.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
-  var ia = {
+  Be.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
+  var sa = {
     type: "object",
     properties: {
       label: { type: "string", minLength: 1, maxLength: 40 },
@@ -11626,7 +11716,7 @@ var ca = si((Le) => {
     required: ["label", "sections", "language", "verbosity"],
     additionalProperties: !1,
   };
-  function De(
+  function Ne(
     e,
     {
       instancePath: t = "",
@@ -11638,7 +11728,7 @@ var ca = si((Le) => {
   ) {
     let i = null,
       r = 0,
-      u = De.evaluated;
+      u = Ne.evaluated;
     if ((u.dynamicProps && (u.props = void 0), u.dynamicItems && (u.items = void 0), r === 0))
       if (e && typeof e == "object" && !Array.isArray(e)) {
         let y;
@@ -11648,7 +11738,7 @@ var ca = si((Le) => {
           (e.instructions === void 0 && (y = "instructions"))
         )
           return (
-            (De.errors = [
+            (Ne.errors = [
               {
                 instancePath: t,
                 schemaPath: "#/required",
@@ -11663,7 +11753,7 @@ var ca = si((Le) => {
           for (let p in e)
             if (!(p === "sectionId" || p === "title" || p === "instructions")) {
               return (
-                (De.errors = [
+                (Ne.errors = [
                   {
                     instancePath: t,
                     schemaPath: "#/additionalProperties",
@@ -11683,7 +11773,7 @@ var ca = si((Le) => {
                 if (typeof p == "string") {
                   if (b(p) > 128)
                     return (
-                      (De.errors = [
+                      (Ne.errors = [
                         {
                           instancePath: t + "/sectionId",
                           schemaPath: "#/properties/sectionId/maxLength",
@@ -11695,7 +11785,7 @@ var ca = si((Le) => {
                     );
                   if (b(p) < 1)
                     return (
-                      (De.errors = [
+                      (Ne.errors = [
                         {
                           instancePath: t + "/sectionId",
                           schemaPath: "#/properties/sectionId/minLength",
@@ -11705,9 +11795,9 @@ var ca = si((Le) => {
                       ]),
                       !1
                     );
-                  if (!$e.test(p))
+                  if (!Le.test(p))
                     return (
-                      (De.errors = [
+                      (Ne.errors = [
                         {
                           instancePath: t + "/sectionId",
                           schemaPath: "#/properties/sectionId/pattern",
@@ -11719,7 +11809,7 @@ var ca = si((Le) => {
                     );
                 } else
                   return (
-                    (De.errors = [
+                    (Ne.errors = [
                       {
                         instancePath: t + "/sectionId",
                         schemaPath: "#/properties/sectionId/type",
@@ -11739,7 +11829,7 @@ var ca = si((Le) => {
                   if (typeof p == "string") {
                     if (b(p) > 120)
                       return (
-                        (De.errors = [
+                        (Ne.errors = [
                           {
                             instancePath: t + "/title",
                             schemaPath: "#/properties/title/maxLength",
@@ -11751,7 +11841,7 @@ var ca = si((Le) => {
                       );
                     if (b(p) < 1)
                       return (
-                        (De.errors = [
+                        (Ne.errors = [
                           {
                             instancePath: t + "/title",
                             schemaPath: "#/properties/title/minLength",
@@ -11763,7 +11853,7 @@ var ca = si((Le) => {
                       );
                   } else
                     return (
-                      (De.errors = [
+                      (Ne.errors = [
                         {
                           instancePath: t + "/title",
                           schemaPath: "#/properties/title/type",
@@ -11783,7 +11873,7 @@ var ca = si((Le) => {
                     if (typeof p == "string") {
                       if (b(p) > 1e3)
                         return (
-                          (De.errors = [
+                          (Ne.errors = [
                             {
                               instancePath: t + "/instructions",
                               schemaPath: "#/properties/instructions/maxLength",
@@ -11795,7 +11885,7 @@ var ca = si((Le) => {
                         );
                       if (b(p) < 0)
                         return (
-                          (De.errors = [
+                          (Ne.errors = [
                             {
                               instancePath: t + "/instructions",
                               schemaPath: "#/properties/instructions/minLength",
@@ -11807,7 +11897,7 @@ var ca = si((Le) => {
                         );
                     } else
                       return (
-                        (De.errors = [
+                        (Ne.errors = [
                           {
                             instancePath: t + "/instructions",
                             schemaPath: "#/properties/instructions/type",
@@ -11824,15 +11914,15 @@ var ca = si((Le) => {
         }
       } else
         return (
-          (De.errors = [
+          (Ne.errors = [
             { instancePath: t, schemaPath: "#/type", keyword: "type", params: { type: "object" } },
           ]),
           !1
         );
-    return ((De.errors = i), r === 0);
+    return ((Ne.errors = i), r === 0);
   }
-  De.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
-  function Ne(
+  Ne.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
+  function je(
     e,
     {
       instancePath: t = "",
@@ -11844,7 +11934,7 @@ var ca = si((Le) => {
   ) {
     let i = null,
       r = 0,
-      u = Ne.evaluated;
+      u = je.evaluated;
     if ((u.dynamicProps && (u.props = void 0), u.dynamicItems && (u.items = void 0), r === 0))
       if (e && typeof e == "object" && !Array.isArray(e)) {
         let m;
@@ -11855,7 +11945,7 @@ var ca = si((Le) => {
           (e.verbosity === void 0 && (m = "verbosity"))
         )
           return (
-            (Ne.errors = [
+            (je.errors = [
               {
                 instancePath: t,
                 schemaPath: "#/required",
@@ -11870,7 +11960,7 @@ var ca = si((Le) => {
           for (let s in e)
             if (!(s === "label" || s === "sections" || s === "language" || s === "verbosity")) {
               return (
-                (Ne.errors = [
+                (je.errors = [
                   {
                     instancePath: t,
                     schemaPath: "#/additionalProperties",
@@ -11890,7 +11980,7 @@ var ca = si((Le) => {
                 if (typeof s == "string") {
                   if (b(s) > 40)
                     return (
-                      (Ne.errors = [
+                      (je.errors = [
                         {
                           instancePath: t + "/label",
                           schemaPath: "#/properties/label/maxLength",
@@ -11902,7 +11992,7 @@ var ca = si((Le) => {
                     );
                   if (b(s) < 1)
                     return (
-                      (Ne.errors = [
+                      (je.errors = [
                         {
                           instancePath: t + "/label",
                           schemaPath: "#/properties/label/minLength",
@@ -11914,7 +12004,7 @@ var ca = si((Le) => {
                     );
                 } else
                   return (
-                    (Ne.errors = [
+                    (je.errors = [
                       {
                         instancePath: t + "/label",
                         schemaPath: "#/properties/label/type",
@@ -11934,7 +12024,7 @@ var ca = si((Le) => {
                   if (Array.isArray(s)) {
                     if (s.length > 8)
                       return (
-                        (Ne.errors = [
+                        (je.errors = [
                           {
                             instancePath: t + "/sections",
                             schemaPath: "#/properties/sections/maxItems",
@@ -11946,7 +12036,7 @@ var ca = si((Le) => {
                       );
                     if (s.length < 1)
                       return (
-                        (Ne.errors = [
+                        (je.errors = [
                           {
                             instancePath: t + "/sections",
                             schemaPath: "#/properties/sections/minItems",
@@ -11961,20 +12051,20 @@ var ca = si((Le) => {
                       let g = s.length;
                       for (let v = 0; v < g; v++) {
                         let h = r;
-                        De(s[v], {
+                        Ne(s[v], {
                           instancePath: t + "/sections/" + v,
                           parentData: s,
                           parentDataProperty: v,
                           rootData: c,
                           dynamicAnchors: f,
-                        }) || ((i = i === null ? De.errors : i.concat(De.errors)), (r = i.length));
+                        }) || ((i = i === null ? Ne.errors : i.concat(Ne.errors)), (r = i.length));
                         var y = h === r;
                         if (!y) break;
                       }
                     }
                   } else
                     return (
-                      (Ne.errors = [
+                      (je.errors = [
                         {
                           instancePath: t + "/sections",
                           schemaPath: "#/properties/sections/type",
@@ -11992,7 +12082,7 @@ var ca = si((Le) => {
                     o = r;
                   if (typeof s != "string")
                     return (
-                      (Ne.errors = [
+                      (je.errors = [
                         {
                           instancePath: t + "/language",
                           schemaPath: "#/properties/language/type",
@@ -12004,12 +12094,12 @@ var ca = si((Le) => {
                     );
                   if (!(s === "zh" || s === "en"))
                     return (
-                      (Ne.errors = [
+                      (je.errors = [
                         {
                           instancePath: t + "/language",
                           schemaPath: "#/properties/language/enum",
                           keyword: "enum",
-                          params: { allowedValues: ia.properties.language.enum },
+                          params: { allowedValues: sa.properties.language.enum },
                         },
                       ]),
                       !1
@@ -12022,7 +12112,7 @@ var ca = si((Le) => {
                       o = r;
                     if (typeof s != "string")
                       return (
-                        (Ne.errors = [
+                        (je.errors = [
                           {
                             instancePath: t + "/verbosity",
                             schemaPath: "#/properties/verbosity/type",
@@ -12034,12 +12124,12 @@ var ca = si((Le) => {
                       );
                     if (!(s === "concise" || s === "standard"))
                       return (
-                        (Ne.errors = [
+                        (je.errors = [
                           {
                             instancePath: t + "/verbosity",
                             schemaPath: "#/properties/verbosity/enum",
                             keyword: "enum",
-                            params: { allowedValues: ia.properties.verbosity.enum },
+                            params: { allowedValues: sa.properties.verbosity.enum },
                           },
                         ]),
                         !1
@@ -12052,15 +12142,15 @@ var ca = si((Le) => {
         }
       } else
         return (
-          (Ne.errors = [
+          (je.errors = [
             { instancePath: t, schemaPath: "#/type", keyword: "type", params: { type: "object" } },
           ]),
           !1
         );
-    return ((Ne.errors = i), r === 0);
+    return ((je.errors = i), r === 0);
   }
-  Ne.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
-  var Ip = {
+  je.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
+  var bp = {
       type: "object",
       properties: {
         cadence: { type: "string", enum: ["daily", "weekdays", "weekly"] },
@@ -12084,8 +12174,8 @@ var ca = si((Le) => {
         },
       ],
     },
-    Pp = new RegExp("^([01][0-9]|2[0-3]):[0-5][0-9]$", "u"),
-    bp = /^[A-Za-z0-9_+./-]{1,80}$/;
+    _p = new RegExp("^([01][0-9]|2[0-3]):[0-5][0-9]$", "u"),
+    xp = /^[A-Za-z0-9_+./-]{1,80}$/;
   function te(
     e,
     {
@@ -12233,7 +12323,7 @@ var ca = si((Le) => {
                       instancePath: t + "/cadence",
                       schemaPath: "#/properties/cadence/enum",
                       keyword: "enum",
-                      params: { allowedValues: Ip.properties.cadence.enum },
+                      params: { allowedValues: bp.properties.cadence.enum },
                     },
                   ]),
                   !1
@@ -12270,7 +12360,7 @@ var ca = si((Le) => {
                         ]),
                         !1
                       );
-                    if (!Pp.test(h))
+                    if (!_p.test(h))
                       return (
                         (te.errors = [
                           {
@@ -12326,7 +12416,7 @@ var ca = si((Le) => {
                           ]),
                           !1
                         );
-                      if (!bp.test(h))
+                      if (!xp.test(h))
                         return (
                           (te.errors = [
                             {
@@ -12581,7 +12671,7 @@ var ca = si((Le) => {
                         instancePath: t + "/template",
                         schemaPath: "#/properties/template/enum",
                         keyword: "enum",
-                        params: { allowedValues: kp.properties.template.enum },
+                        params: { allowedValues: Pp.properties.template.enum },
                       },
                     ]),
                     !1
@@ -12635,25 +12725,25 @@ var ca = si((Le) => {
                 if (n) {
                   if (e.inputPolicy !== void 0) {
                     let s = r;
-                    Ze(e.inputPolicy, {
+                    Be(e.inputPolicy, {
                       instancePath: t + "/inputPolicy",
                       parentData: e,
                       parentDataProperty: "inputPolicy",
                       rootData: c,
                       dynamicAnchors: f,
-                    }) || ((i = i === null ? Ze.errors : i.concat(Ze.errors)), (r = i.length));
+                    }) || ((i = i === null ? Be.errors : i.concat(Be.errors)), (r = i.length));
                     var n = s === r;
                   } else var n = !0;
                   if (n) {
                     if (e.outputSpec !== void 0) {
                       let s = r;
-                      Ne(e.outputSpec, {
+                      je(e.outputSpec, {
                         instancePath: t + "/outputSpec",
                         parentData: e,
                         parentDataProperty: "outputSpec",
                         rootData: c,
                         dynamicAnchors: f,
-                      }) || ((i = i === null ? Ne.errors : i.concat(Ne.errors)), (r = i.length));
+                      }) || ((i = i === null ? je.errors : i.concat(je.errors)), (r = i.length));
                       var n = s === r;
                     } else var n = !0;
                     if (n)
@@ -12712,7 +12802,7 @@ var ca = si((Le) => {
     return ((Oe.errors = i), r === 0);
   }
   Oe.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
-  function je(
+  function $e(
     e,
     {
       instancePath: t = "",
@@ -12724,7 +12814,7 @@ var ca = si((Le) => {
   ) {
     let i = null,
       r = 0,
-      u = je.evaluated;
+      u = $e.evaluated;
     if ((u.dynamicProps && (u.props = void 0), u.dynamicItems && (u.items = void 0), r === 0))
       if (e && typeof e == "object" && !Array.isArray(e)) {
         let y;
@@ -12733,7 +12823,7 @@ var ca = si((Le) => {
           (e.markdown === void 0 && (y = "markdown"))
         )
           return (
-            (je.errors = [
+            ($e.errors = [
               {
                 instancePath: t,
                 schemaPath: "#/required",
@@ -12748,7 +12838,7 @@ var ca = si((Le) => {
           for (let p in e)
             if (!(p === "sectionId" || p === "markdown")) {
               return (
-                (je.errors = [
+                ($e.errors = [
                   {
                     instancePath: t,
                     schemaPath: "#/additionalProperties",
@@ -12768,7 +12858,7 @@ var ca = si((Le) => {
                 if (typeof p == "string") {
                   if (b(p) > 128)
                     return (
-                      (je.errors = [
+                      ($e.errors = [
                         {
                           instancePath: t + "/sectionId",
                           schemaPath: "#/properties/sectionId/maxLength",
@@ -12780,7 +12870,7 @@ var ca = si((Le) => {
                     );
                   if (b(p) < 1)
                     return (
-                      (je.errors = [
+                      ($e.errors = [
                         {
                           instancePath: t + "/sectionId",
                           schemaPath: "#/properties/sectionId/minLength",
@@ -12790,9 +12880,9 @@ var ca = si((Le) => {
                       ]),
                       !1
                     );
-                  if (!$e.test(p))
+                  if (!Le.test(p))
                     return (
-                      (je.errors = [
+                      ($e.errors = [
                         {
                           instancePath: t + "/sectionId",
                           schemaPath: "#/properties/sectionId/pattern",
@@ -12804,7 +12894,7 @@ var ca = si((Le) => {
                     );
                 } else
                   return (
-                    (je.errors = [
+                    ($e.errors = [
                       {
                         instancePath: t + "/sectionId",
                         schemaPath: "#/properties/sectionId/type",
@@ -12824,7 +12914,7 @@ var ca = si((Le) => {
                   if (typeof p == "string") {
                     if (b(p) > 16384)
                       return (
-                        (je.errors = [
+                        ($e.errors = [
                           {
                             instancePath: t + "/markdown",
                             schemaPath: "#/properties/markdown/maxLength",
@@ -12836,7 +12926,7 @@ var ca = si((Le) => {
                       );
                     if (b(p) < 0)
                       return (
-                        (je.errors = [
+                        ($e.errors = [
                           {
                             instancePath: t + "/markdown",
                             schemaPath: "#/properties/markdown/minLength",
@@ -12848,7 +12938,7 @@ var ca = si((Le) => {
                       );
                   } else
                     return (
-                      (je.errors = [
+                      ($e.errors = [
                         {
                           instancePath: t + "/markdown",
                           schemaPath: "#/properties/markdown/type",
@@ -12864,18 +12954,18 @@ var ca = si((Le) => {
         }
       } else
         return (
-          (je.errors = [
+          ($e.errors = [
             { instancePath: t, schemaPath: "#/type", keyword: "type", params: { type: "object" } },
           ]),
           !1
         );
-    return ((je.errors = i), r === 0);
+    return (($e.errors = i), r === 0);
   }
-  je.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
-  var _p = new RegExp("^https://", "u"),
-    Yt = new RegExp("Z$", "u"),
-    pa = /^https:\/\/[^\s\\]+$/,
-    Qt = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?Z$/;
+  $e.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
+  var Ep = new RegExp("^https://", "u"),
+    Qt = new RegExp("Z$", "u"),
+    la = /^https:\/\/[^\s\\]+$/,
+    ei = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?Z$/;
   function le(
     e,
     {
@@ -12963,7 +13053,7 @@ var ca = si((Le) => {
                       ]),
                       !1
                     );
-                  if (!$e.test(s))
+                  if (!Le.test(s))
                     return (
                       (le.errors = [
                         {
@@ -13063,8 +13153,8 @@ var ca = si((Le) => {
                           ]),
                           !1
                         );
-                      if (_p.test(s)) {
-                        if (!pa.test(s))
+                      if (Ep.test(s)) {
+                        if (!la.test(s))
                           return (
                             (le.errors = [
                               {
@@ -13128,8 +13218,8 @@ var ca = si((Le) => {
                         v = r;
                       if (r === v && r === v)
                         if (typeof s == "string")
-                          if (Yt.test(s)) {
-                            if (!Qt.test(s)) {
+                          if (Qt.test(s)) {
+                            if (!ei.test(s)) {
                               let I = {
                                 instancePath: t + "/publishedAt",
                                 schemaPath: "#/properties/publishedAt/anyOf/0/format",
@@ -13377,14 +13467,14 @@ var ca = si((Le) => {
                         let h = l.length;
                         for (let w = 0; w < h; w++) {
                           let I = r;
-                          je(l[w], {
+                          $e(l[w], {
                             instancePath: t + "/sections/" + w,
                             parentData: l,
                             parentDataProperty: w,
                             rootData: c,
                             dynamicAnchors: f,
                           }) ||
-                            ((i = i === null ? je.errors : i.concat(je.errors)), (r = i.length));
+                            ((i = i === null ? $e.errors : i.concat($e.errors)), (r = i.length));
                           var y = I === r;
                           if (!y) break;
                         }
@@ -13571,7 +13661,7 @@ var ca = si((Le) => {
     return ((ie.errors = i), r === 0);
   }
   ie.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
-  var na = {
+  var oa = {
       type: "object",
       properties: {
         state: { enum: ["ready", "empty"] },
@@ -13595,7 +13685,7 @@ var ca = si((Le) => {
       required: ["state", "coverage", "sourceAsOf", "fetchedAt", "freshness", "data"],
       additionalProperties: !1,
     },
-    xp = {
+    Ap = {
       type: "object",
       properties: {
         state: { type: "string", enum: ["complete", "partial", "unknown"] },
@@ -13678,7 +13768,7 @@ var ca = si((Le) => {
                       instancePath: t + "/state",
                       schemaPath: "#/properties/state/enum",
                       keyword: "enum",
-                      params: { allowedValues: xp.properties.state.enum },
+                      params: { allowedValues: Ap.properties.state.enum },
                     },
                   ]),
                   !1
@@ -13817,7 +13907,7 @@ var ca = si((Le) => {
     return ((Ve.errors = i), r === 0);
   }
   Ve.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
-  var Ep = {
+  var Sp = {
       type: "object",
       properties: {
         currency: { type: "string", enum: ["CAD", "USD"] },
@@ -13847,7 +13937,7 @@ var ca = si((Le) => {
       required: ["currency", "cashBalance", "buyingPower"],
       additionalProperties: !1,
     },
-    hs = new RegExp("^-?(0|[1-9][0-9]{0,19})(\\.[0-9]{1,12})?$", "u");
+    vs = new RegExp("^-?(0|[1-9][0-9]{0,19})(\\.[0-9]{1,12})?$", "u");
   function Qe(
     e,
     {
@@ -13920,7 +14010,7 @@ var ca = si((Le) => {
                       instancePath: t + "/currency",
                       schemaPath: "#/properties/currency/enum",
                       keyword: "enum",
-                      params: { allowedValues: Ep.properties.currency.enum },
+                      params: { allowedValues: Sp.properties.currency.enum },
                     },
                   ]),
                   !1
@@ -13952,7 +14042,7 @@ var ca = si((Le) => {
                         params: { limit: 1 },
                       };
                       (i === null ? (i = [P]) : i.push(P), r++);
-                    } else if (!hs.test(o)) {
+                    } else if (!vs.test(o)) {
                       let P = {
                         instancePath: t + "/cashBalance",
                         schemaPath: "#/properties/cashBalance/anyOf/0/pattern",
@@ -14020,7 +14110,7 @@ var ca = si((Le) => {
                           params: { limit: 1 },
                         };
                         (i === null ? (i = [P]) : i.push(P), r++);
-                      } else if (!hs.test(o)) {
+                      } else if (!vs.test(o)) {
                         let P = {
                           instancePath: t + "/buyingPower",
                           schemaPath: "#/properties/buyingPower/anyOf/0/pattern",
@@ -14076,7 +14166,7 @@ var ca = si((Le) => {
     return ((Qe.errors = i), r === 0);
   }
   Qe.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
-  var ms = {
+  var hs = {
       type: "object",
       properties: {
         assetId: {
@@ -14112,8 +14202,8 @@ var ca = si((Le) => {
       ],
       additionalProperties: !1,
     },
-    Ap = new RegExp("^(0|[1-9][0-9]{0,19})(\\.[0-9]{1,12})?$", "u"),
-    Sp = {
+    Kp = new RegExp("^(0|[1-9][0-9]{0,19})(\\.[0-9]{1,12})?$", "u"),
+    Dp = {
       type: "object",
       properties: {
         currency: { type: "string", enum: ["CAD", "USD"] },
@@ -14195,7 +14285,7 @@ var ca = si((Le) => {
                       instancePath: t + "/currency",
                       schemaPath: "#/properties/currency/enum",
                       keyword: "enum",
-                      params: { allowedValues: Sp.properties.currency.enum },
+                      params: { allowedValues: Dp.properties.currency.enum },
                     },
                   ]),
                   !1
@@ -14232,7 +14322,7 @@ var ca = si((Le) => {
                         ]),
                         !1
                       );
-                    if (!hs.test(p))
+                    if (!vs.test(p))
                       return (
                         (ze.errors = [
                           {
@@ -14311,7 +14401,7 @@ var ca = si((Le) => {
         {
           let o = r;
           for (let l in e)
-            if (!Ge.call(ms.properties, l)) {
+            if (!Ge.call(hs.properties, l)) {
               return (
                 (Y.errors = [
                   {
@@ -14355,7 +14445,7 @@ var ca = si((Le) => {
                       ]),
                       !1
                     );
-                  if (!$e.test(l))
+                  if (!Le.test(l))
                     return (
                       (Y.errors = [
                         {
@@ -14613,7 +14703,7 @@ var ca = si((Le) => {
                                 instancePath: t + "/assetType",
                                 schemaPath: "#/properties/assetType/enum",
                                 keyword: "enum",
-                                params: { allowedValues: ms.properties.assetType.enum },
+                                params: { allowedValues: hs.properties.assetType.enum },
                               },
                             ]),
                             !1
@@ -14650,7 +14740,7 @@ var ca = si((Le) => {
                                   ]),
                                   !1
                                 );
-                              if (!Ap.test(l))
+                              if (!Kp.test(l))
                                 return (
                                   (Y.errors = [
                                     {
@@ -14701,7 +14791,7 @@ var ca = si((Le) => {
                                     instancePath: t + "/currency",
                                     schemaPath: "#/properties/currency/enum",
                                     keyword: "enum",
-                                    params: { allowedValues: ms.properties.currency.enum },
+                                    params: { allowedValues: hs.properties.currency.enum },
                                   },
                                 ]),
                                 !1
@@ -14859,7 +14949,7 @@ var ca = si((Le) => {
                       ]),
                       !1
                     );
-                  if (!$e.test(o))
+                  if (!Le.test(o))
                     return (
                       (ve.errors = [
                         {
@@ -15167,7 +15257,7 @@ var ca = si((Le) => {
                         ]),
                         !1
                       );
-                    if (!$e.test(l))
+                    if (!Le.test(l))
                       return (
                         (Q.errors = [
                           {
@@ -15472,7 +15562,7 @@ var ca = si((Le) => {
     return ((Q.errors = i), r === 0);
   }
   Q.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
-  var Kp = {
+  var Np = {
     type: "object",
     properties: {
       symbol: { type: "string", minLength: 1, maxLength: 14 },
@@ -15652,7 +15742,7 @@ var ca = si((Le) => {
                           instancePath: t + "/instrumentType",
                           schemaPath: "#/properties/instrumentType/enum",
                           keyword: "enum",
-                          params: { allowedValues: Kp.properties.instrumentType.enum },
+                          params: { allowedValues: Np.properties.instrumentType.enum },
                         },
                       ]),
                       !1
@@ -15682,8 +15772,8 @@ var ca = si((Le) => {
                         s = r;
                       if (r === s && r === s)
                         if (typeof p == "string")
-                          if (Yt.test(p)) {
-                            if (!Qt.test(p))
+                          if (Qt.test(p)) {
+                            if (!ei.test(p))
                               return (
                                 (Ie.errors = [
                                   {
@@ -15959,7 +16049,7 @@ var ca = si((Le) => {
                       ]),
                       !1
                     );
-                  if (!$e.test(p))
+                  if (!Le.test(p))
                     return (
                       (pe.errors = [
                         {
@@ -16140,8 +16230,8 @@ var ca = si((Le) => {
                           s = r;
                         if (r === s && r === s)
                           if (typeof p == "string")
-                            if (Yt.test(p)) {
-                              if (!Qt.test(p))
+                            if (Qt.test(p)) {
+                              if (!ei.test(p))
                                 return (
                                   (pe.errors = [
                                     {
@@ -16351,7 +16441,7 @@ var ca = si((Le) => {
     return ((Me.errors = i), r === 0);
   }
   Me.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
-  function rt(
+  function tt(
     e,
     {
       instancePath: t = "",
@@ -16363,7 +16453,7 @@ var ca = si((Le) => {
   ) {
     let i = null,
       r = 0,
-      u = rt.evaluated;
+      u = tt.evaluated;
     (u.dynamicProps && (u.props = void 0), u.dynamicItems && (u.items = void 0));
     let n = r,
       y = !1,
@@ -16412,11 +16502,11 @@ var ca = si((Le) => {
         keyword: "oneOf",
         params: { passingSchemas: m },
       };
-      return (i === null ? (i = [g]) : i.push(g), r++, (rt.errors = i), !1);
+      return (i === null ? (i = [g]) : i.push(g), r++, (tt.errors = i), !1);
     }
-    return ((rt.errors = i), (u.props = s), r === 0);
+    return ((tt.errors = i), (u.props = s), r === 0);
   }
-  rt.evaluated = { dynamicProps: !0, dynamicItems: !1 };
+  tt.evaluated = { dynamicProps: !0, dynamicItems: !1 };
   function he(
     e,
     {
@@ -16487,7 +16577,7 @@ var ca = si((Le) => {
                       instancePath: t + "/state",
                       schemaPath: "#/properties/state/enum",
                       keyword: "enum",
-                      params: { allowedValues: na.properties.state.enum },
+                      params: { allowedValues: oa.properties.state.enum },
                     },
                   ]),
                   !1
@@ -16531,8 +16621,8 @@ var ca = si((Le) => {
                           params: { limit: 1 },
                         };
                         (i === null ? (i = [I]) : i.push(I), r++);
-                      } else if (Yt.test(s)) {
-                        if (!Qt.test(s)) {
+                      } else if (Qt.test(s)) {
+                        if (!ei.test(s)) {
                           let I = {
                             instancePath: t + "/sourceAsOf",
                             schemaPath: "#/properties/sourceAsOf/anyOf/0/format",
@@ -16614,8 +16704,8 @@ var ca = si((Le) => {
                             ]),
                             !1
                           );
-                        if (Yt.test(s)) {
-                          if (!Qt.test(s))
+                        if (Qt.test(s)) {
+                          if (!ei.test(s))
                             return (
                               (he.errors = [
                                 {
@@ -16664,7 +16754,7 @@ var ca = si((Le) => {
                               instancePath: t + "/freshness",
                               schemaPath: "#/properties/freshness/enum",
                               keyword: "enum",
-                              params: { allowedValues: na.properties.freshness.enum },
+                              params: { allowedValues: oa.properties.freshness.enum },
                             },
                           ]),
                           !1
@@ -16674,13 +16764,13 @@ var ca = si((Le) => {
                     if (n)
                       if (e.data !== void 0) {
                         let s = r;
-                        rt(e.data, {
+                        tt(e.data, {
                           instancePath: t + "/data",
                           parentData: e,
                           parentDataProperty: "data",
                           rootData: c,
                           dynamicAnchors: f,
-                        }) || ((i = i === null ? rt.errors : i.concat(rt.errors)), (r = i.length));
+                        }) || ((i = i === null ? tt.errors : i.concat(tt.errors)), (r = i.length));
                         var n = s === r;
                       } else var n = !0;
                   }
@@ -16807,9 +16897,9 @@ var ca = si((Le) => {
       if (l) {
         o !== !0 && v !== void 0 && (v === !0 ? (o = !0) : ((o = o || {}), Object.assign(o, v)));
         let be = r,
-          Nr = r,
-          Pn = !0,
-          Ia = r;
+          jr = r,
+          _n = !0,
+          ba = r;
         if (
           e &&
           typeof e == "object" &&
@@ -16817,12 +16907,12 @@ var ca = si((Le) => {
           e.objectType !== void 0 &&
           e.objectType !== "holdings_snapshot"
         ) {
-          let Ir = {};
-          (i === null ? (i = [Ir]) : i.push(Ir), r++);
+          let Pr = {};
+          (i === null ? (i = [Pr]) : i.push(Pr), r++);
         }
-        var h = Ia === r;
-        if (((r = Nr), i !== null && (Nr ? (i.length = Nr) : (i = null)), h)) {
-          let Ir = r;
+        var h = ba === r;
+        if (((r = jr), i !== null && (jr ? (i.length = jr) : (i = null)), h)) {
+          let Pr = r;
           e &&
             typeof e == "object" &&
             !Array.isArray(e) &&
@@ -16835,28 +16925,28 @@ var ca = si((Le) => {
               dynamicAnchors: f,
             }) ||
               ((i = i === null ? he.errors : i.concat(he.errors)), (r = i.length)));
-          var h = Ir === r;
-          if (((Pn = h), Pn)) {
+          var h = Pr === r;
+          if (((_n = h), _n)) {
             var w = {};
             ((w.payload = !0), (w.objectType = !0));
           }
         }
-        if (!Pn) {
-          let Ir = {
+        if (!_n) {
+          let Pr = {
             instancePath: t,
             schemaPath: "#/allOf/2/if",
             keyword: "if",
             params: { failingKeyword: "then" },
           };
-          return (i === null ? (i = [Ir]) : i.push(Ir), r++, (Pe.errors = i), !1);
+          return (i === null ? (i = [Pr]) : i.push(Pr), r++, (Pe.errors = i), !1);
         }
         var l = be === r;
         if (l) {
           o !== !0 && w !== void 0 && (w === !0 ? (o = !0) : ((o = o || {}), Object.assign(o, w)));
-          let Ir = r,
-            bn = r,
-            _n = !0,
-            Pa = r;
+          let Pr = r,
+            xn = r,
+            En = !0,
+            _a = r;
           if (
             e &&
             typeof e == "object" &&
@@ -16864,12 +16954,12 @@ var ca = si((Le) => {
             e.objectType !== void 0 &&
             e.objectType !== "watchlist_evidence"
           ) {
-            let Pr = {};
-            (i === null ? (i = [Pr]) : i.push(Pr), r++);
+            let br = {};
+            (i === null ? (i = [br]) : i.push(br), r++);
           }
-          var I = Pa === r;
-          if (((r = bn), i !== null && (bn ? (i.length = bn) : (i = null)), I)) {
-            let Pr = r;
+          var I = _a === r;
+          if (((r = xn), i !== null && (xn ? (i.length = xn) : (i = null)), I)) {
+            let br = r;
             e &&
               typeof e == "object" &&
               !Array.isArray(e) &&
@@ -16882,30 +16972,30 @@ var ca = si((Le) => {
                 dynamicAnchors: f,
               }) ||
                 ((i = i === null ? he.errors : i.concat(he.errors)), (r = i.length)));
-            var I = Pr === r;
-            if (((_n = I), _n)) {
+            var I = br === r;
+            if (((En = I), En)) {
               var P = {};
               ((P.payload = !0), (P.objectType = !0));
             }
           }
-          if (!_n) {
-            let Pr = {
+          if (!En) {
+            let br = {
               instancePath: t,
               schemaPath: "#/allOf/3/if",
               keyword: "if",
               params: { failingKeyword: "then" },
             };
-            return (i === null ? (i = [Pr]) : i.push(Pr), r++, (Pe.errors = i), !1);
+            return (i === null ? (i = [br]) : i.push(br), r++, (Pe.errors = i), !1);
           }
-          var l = Ir === r;
+          var l = Pr === r;
           if (l) {
             o !== !0 &&
               P !== void 0 &&
               (P === !0 ? (o = !0) : ((o = o || {}), Object.assign(o, P)));
-            let Pr = r,
-              xn = r,
-              En = !0,
-              ba = r;
+            let br = r,
+              An = r,
+              Sn = !0,
+              xa = r;
             if (
               e &&
               typeof e == "object" &&
@@ -16913,12 +17003,12 @@ var ca = si((Le) => {
               e.objectType !== void 0 &&
               e.objectType !== "channel_follows_evidence"
             ) {
-              let Ur = {};
-              (i === null ? (i = [Ur]) : i.push(Ur), r++);
+              let zr = {};
+              (i === null ? (i = [zr]) : i.push(zr), r++);
             }
-            var A = ba === r;
-            if (((r = xn), i !== null && (xn ? (i.length = xn) : (i = null)), A)) {
-              let Ur = r;
+            var A = xa === r;
+            if (((r = An), i !== null && (An ? (i.length = An) : (i = null)), A)) {
+              let zr = r;
               e &&
                 typeof e == "object" &&
                 !Array.isArray(e) &&
@@ -16931,22 +17021,22 @@ var ca = si((Le) => {
                   dynamicAnchors: f,
                 }) ||
                   ((i = i === null ? he.errors : i.concat(he.errors)), (r = i.length)));
-              var A = Ur === r;
-              if (((En = A), En)) {
+              var A = zr === r;
+              if (((Sn = A), Sn)) {
                 var fe = {};
                 ((fe.payload = !0), (fe.objectType = !0));
               }
             }
-            if (!En) {
-              let Ur = {
+            if (!Sn) {
+              let zr = {
                 instancePath: t,
                 schemaPath: "#/allOf/4/if",
                 keyword: "if",
                 params: { failingKeyword: "then" },
               };
-              return (i === null ? (i = [Ur]) : i.push(Ur), r++, (Pe.errors = i), !1);
+              return (i === null ? (i = [zr]) : i.push(zr), r++, (Pe.errors = i), !1);
             }
-            var l = Pr === r;
+            var l = br === r;
             l &&
               o !== !0 &&
               fe !== void 0 &&
@@ -17064,7 +17154,7 @@ var ca = si((Le) => {
                             instancePath: t + "/objectType",
                             schemaPath: "#/properties/objectType/enum",
                             keyword: "enum",
-                            params: { allowedValues: wp.properties.objectType.enum },
+                            params: { allowedValues: Ip.properties.objectType.enum },
                           },
                         ]),
                         !1
@@ -17149,7 +17239,7 @@ var ca = si((Le) => {
     return ((Pe.errors = i), r === 0);
   }
   Pe.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
-  function an(
+  function cn(
     e,
     {
       instancePath: t = "",
@@ -17161,7 +17251,7 @@ var ca = si((Le) => {
   ) {
     let i = null,
       r = 0,
-      u = an.evaluated;
+      u = cn.evaluated;
     return (
       u.dynamicProps && (u.props = void 0),
       u.dynamicItems && (u.items = void 0),
@@ -17172,12 +17262,12 @@ var ca = si((Le) => {
         rootData: c,
         dynamicAnchors: f,
       }) || ((i = i === null ? Pe.errors : i.concat(Pe.errors)), (r = i.length)),
-      (an.errors = i),
+      (cn.errors = i),
       r === 0
     );
   }
-  an.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
-  Le.PersistentContentCarrier = pn;
+  cn.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
+  Ee.PersistentContentCarrier = ln;
   function xe(
     e,
     {
@@ -17292,7 +17382,7 @@ var ca = si((Le) => {
                                 ]),
                                 !1
                               );
-                            if (!ur.test(v))
+                            if (!mr.test(v))
                               return (
                                 (xe.errors = [
                                   {
@@ -17377,7 +17467,7 @@ var ca = si((Le) => {
                         ]),
                         !1
                       );
-                    if (!wr.test(s))
+                    if (!ur.test(s))
                       return (
                         (xe.errors = [
                           {
@@ -17415,7 +17505,7 @@ var ca = si((Le) => {
     return ((xe.errors = i), r === 0);
   }
   xe.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
-  function B(
+  function Z(
     e,
     {
       instancePath: t = "",
@@ -17427,7 +17517,7 @@ var ca = si((Le) => {
   ) {
     let i = null,
       r = 0,
-      u = B.evaluated;
+      u = Z.evaluated;
     if ((u.dynamicProps && (u.props = void 0), u.dynamicItems && (u.items = void 0), r === 0))
       if (e && typeof e == "object" && !Array.isArray(e)) {
         let m;
@@ -17440,7 +17530,7 @@ var ca = si((Le) => {
           (e.aad === void 0 && (m = "aad"))
         )
           return (
-            (B.errors = [
+            (Z.errors = [
               {
                 instancePath: t,
                 schemaPath: "#/required",
@@ -17462,7 +17552,7 @@ var ca = si((Le) => {
               s === "aad"
             )) {
               return (
-                (B.errors = [
+                (Z.errors = [
                   {
                     instancePath: t,
                     schemaPath: "#/additionalProperties",
@@ -17482,7 +17572,7 @@ var ca = si((Le) => {
                 if (typeof s == "string") {
                   if (b(s) > 1024)
                     return (
-                      (B.errors = [
+                      (Z.errors = [
                         {
                           instancePath: t + "/protected",
                           schemaPath: "#/properties/protected/maxLength",
@@ -17494,7 +17584,7 @@ var ca = si((Le) => {
                     );
                   if (b(s) < 1)
                     return (
-                      (B.errors = [
+                      (Z.errors = [
                         {
                           instancePath: t + "/protected",
                           schemaPath: "#/properties/protected/minLength",
@@ -17504,9 +17594,9 @@ var ca = si((Le) => {
                       ]),
                       !1
                     );
-                  if (!wr.test(s))
+                  if (!ur.test(s))
                     return (
-                      (B.errors = [
+                      (Z.errors = [
                         {
                           instancePath: t + "/protected",
                           schemaPath: "#/properties/protected/pattern",
@@ -17518,7 +17608,7 @@ var ca = si((Le) => {
                     );
                 } else
                   return (
-                    (B.errors = [
+                    (Z.errors = [
                       {
                         instancePath: t + "/protected",
                         schemaPath: "#/properties/protected/type",
@@ -17538,7 +17628,7 @@ var ca = si((Le) => {
                   if (Array.isArray(s)) {
                     if (s.length > 8)
                       return (
-                        (B.errors = [
+                        (Z.errors = [
                           {
                             instancePath: t + "/recipients",
                             schemaPath: "#/properties/recipients/maxItems",
@@ -17550,7 +17640,7 @@ var ca = si((Le) => {
                       );
                     if (s.length < 1)
                       return (
-                        (B.errors = [
+                        (Z.errors = [
                           {
                             instancePath: t + "/recipients",
                             schemaPath: "#/properties/recipients/minItems",
@@ -17578,7 +17668,7 @@ var ca = si((Le) => {
                     }
                   } else
                     return (
-                      (B.errors = [
+                      (Z.errors = [
                         {
                           instancePath: t + "/recipients",
                           schemaPath: "#/properties/recipients/type",
@@ -17598,7 +17688,7 @@ var ca = si((Le) => {
                     if (typeof s == "string") {
                       if (b(s) > 16)
                         return (
-                          (B.errors = [
+                          (Z.errors = [
                             {
                               instancePath: t + "/iv",
                               schemaPath: "#/properties/iv/maxLength",
@@ -17610,7 +17700,7 @@ var ca = si((Le) => {
                         );
                       if (b(s) < 16)
                         return (
-                          (B.errors = [
+                          (Z.errors = [
                             {
                               instancePath: t + "/iv",
                               schemaPath: "#/properties/iv/minLength",
@@ -17620,9 +17710,9 @@ var ca = si((Le) => {
                           ]),
                           !1
                         );
-                      if (!wr.test(s))
+                      if (!ur.test(s))
                         return (
-                          (B.errors = [
+                          (Z.errors = [
                             {
                               instancePath: t + "/iv",
                               schemaPath: "#/properties/iv/pattern",
@@ -17634,7 +17724,7 @@ var ca = si((Le) => {
                         );
                     } else
                       return (
-                        (B.errors = [
+                        (Z.errors = [
                           {
                             instancePath: t + "/iv",
                             schemaPath: "#/properties/iv/type",
@@ -17654,7 +17744,7 @@ var ca = si((Le) => {
                       if (typeof s == "string") {
                         if (b(s) > 262144)
                           return (
-                            (B.errors = [
+                            (Z.errors = [
                               {
                                 instancePath: t + "/ciphertext",
                                 schemaPath: "#/properties/ciphertext/maxLength",
@@ -17666,7 +17756,7 @@ var ca = si((Le) => {
                           );
                         if (b(s) < 1)
                           return (
-                            (B.errors = [
+                            (Z.errors = [
                               {
                                 instancePath: t + "/ciphertext",
                                 schemaPath: "#/properties/ciphertext/minLength",
@@ -17676,9 +17766,9 @@ var ca = si((Le) => {
                             ]),
                             !1
                           );
-                        if (!wr.test(s))
+                        if (!ur.test(s))
                           return (
-                            (B.errors = [
+                            (Z.errors = [
                               {
                                 instancePath: t + "/ciphertext",
                                 schemaPath: "#/properties/ciphertext/pattern",
@@ -17690,7 +17780,7 @@ var ca = si((Le) => {
                           );
                       } else
                         return (
-                          (B.errors = [
+                          (Z.errors = [
                             {
                               instancePath: t + "/ciphertext",
                               schemaPath: "#/properties/ciphertext/type",
@@ -17710,7 +17800,7 @@ var ca = si((Le) => {
                         if (typeof s == "string") {
                           if (b(s) > 22)
                             return (
-                              (B.errors = [
+                              (Z.errors = [
                                 {
                                   instancePath: t + "/tag",
                                   schemaPath: "#/properties/tag/maxLength",
@@ -17722,7 +17812,7 @@ var ca = si((Le) => {
                             );
                           if (b(s) < 22)
                             return (
-                              (B.errors = [
+                              (Z.errors = [
                                 {
                                   instancePath: t + "/tag",
                                   schemaPath: "#/properties/tag/minLength",
@@ -17732,9 +17822,9 @@ var ca = si((Le) => {
                               ]),
                               !1
                             );
-                          if (!wr.test(s))
+                          if (!ur.test(s))
                             return (
-                              (B.errors = [
+                              (Z.errors = [
                                 {
                                   instancePath: t + "/tag",
                                   schemaPath: "#/properties/tag/pattern",
@@ -17746,7 +17836,7 @@ var ca = si((Le) => {
                             );
                         } else
                           return (
-                            (B.errors = [
+                            (Z.errors = [
                               {
                                 instancePath: t + "/tag",
                                 schemaPath: "#/properties/tag/type",
@@ -17766,7 +17856,7 @@ var ca = si((Le) => {
                           if (typeof s == "string") {
                             if (b(s) > 21846)
                               return (
-                                (B.errors = [
+                                (Z.errors = [
                                   {
                                     instancePath: t + "/aad",
                                     schemaPath: "#/properties/aad/maxLength",
@@ -17778,7 +17868,7 @@ var ca = si((Le) => {
                               );
                             if (b(s) < 1)
                               return (
-                                (B.errors = [
+                                (Z.errors = [
                                   {
                                     instancePath: t + "/aad",
                                     schemaPath: "#/properties/aad/minLength",
@@ -17788,9 +17878,9 @@ var ca = si((Le) => {
                                 ]),
                                 !1
                               );
-                            if (!wr.test(s))
+                            if (!ur.test(s))
                               return (
-                                (B.errors = [
+                                (Z.errors = [
                                   {
                                     instancePath: t + "/aad",
                                     schemaPath: "#/properties/aad/pattern",
@@ -17802,7 +17892,7 @@ var ca = si((Le) => {
                               );
                           } else
                             return (
-                              (B.errors = [
+                              (Z.errors = [
                                 {
                                   instancePath: t + "/aad",
                                   schemaPath: "#/properties/aad/type",
@@ -17822,14 +17912,14 @@ var ca = si((Le) => {
         }
       } else
         return (
-          (B.errors = [
+          (Z.errors = [
             { instancePath: t, schemaPath: "#/type", keyword: "type", params: { type: "object" } },
           ]),
           !1
         );
-    return ((B.errors = i), r === 0);
+    return ((Z.errors = i), r === 0);
   }
-  B.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
+  Z.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
   function dr(
     e,
     {
@@ -17929,13 +18019,13 @@ var ca = si((Le) => {
                 if (n)
                   if (e.jwe !== void 0) {
                     let p = r;
-                    B(e.jwe, {
+                    Z(e.jwe, {
                       instancePath: t + "/jwe",
                       parentData: e,
                       parentDataProperty: "jwe",
                       rootData: c,
                       dynamicAnchors: f,
-                    }) || ((i = i === null ? B.errors : i.concat(B.errors)), (r = i.length));
+                    }) || ((i = i === null ? Z.errors : i.concat(Z.errors)), (r = i.length));
                     var n = p === r;
                   } else var n = !0;
               }
@@ -17952,7 +18042,7 @@ var ca = si((Le) => {
     return ((dr.errors = i), r === 0);
   }
   dr.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
-  function pn(
+  function ln(
     e,
     {
       instancePath: t = "",
@@ -17964,7 +18054,7 @@ var ca = si((Le) => {
   ) {
     let i = null,
       r = 0,
-      u = pn.evaluated;
+      u = ln.evaluated;
     return (
       u.dynamicProps && (u.props = void 0),
       u.dynamicItems && (u.items = void 0),
@@ -17975,13 +18065,13 @@ var ca = si((Le) => {
         rootData: c,
         dynamicAnchors: f,
       }) || ((i = i === null ? dr.errors : i.concat(dr.errors)), (r = i.length)),
-      (pn.errors = i),
+      (ln.errors = i),
       r === 0
     );
   }
-  pn.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
-  Le.PersistentContentProofPayload = cn;
-  function tt(
+  ln.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
+  Ee.PersistentContentProofPayload = fn;
+  function it(
     e,
     {
       instancePath: t = "",
@@ -17993,7 +18083,7 @@ var ca = si((Le) => {
   ) {
     let i = null,
       r = 0,
-      u = tt.evaluated;
+      u = it.evaluated;
     (u.dynamicProps && (u.props = void 0), u.dynamicItems && (u.items = void 0));
     let n = r,
       y = !1,
@@ -18042,11 +18132,11 @@ var ca = si((Le) => {
         keyword: "oneOf",
         params: { passingSchemas: m },
       };
-      return (i === null ? (i = [g]) : i.push(g), r++, (tt.errors = i), !1);
+      return (i === null ? (i = [g]) : i.push(g), r++, (it.errors = i), !1);
     }
-    return ((tt.errors = i), (u.props = s), r === 0);
+    return ((it.errors = i), (u.props = s), r === 0);
   }
-  tt.evaluated = { dynamicProps: !0, dynamicItems: !1 };
+  it.evaluated = { dynamicProps: !0, dynamicItems: !1 };
   function ir(
     e,
     {
@@ -18158,13 +18248,13 @@ var ca = si((Le) => {
                 if (n) {
                   if (e.context !== void 0) {
                     let p = r;
-                    tt(e.context, {
+                    it(e.context, {
                       instancePath: t + "/context",
                       parentData: e,
                       parentDataProperty: "context",
                       rootData: c,
                       dynamicAnchors: f,
-                    }) || ((i = i === null ? tt.errors : i.concat(tt.errors)), (r = i.length));
+                    }) || ((i = i === null ? it.errors : i.concat(it.errors)), (r = i.length));
                     var n = p === r;
                   } else var n = !0;
                   if (n)
@@ -18194,7 +18284,7 @@ var ca = si((Le) => {
     return ((ir.errors = i), r === 0);
   }
   ir.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
-  function cn(
+  function fn(
     e,
     {
       instancePath: t = "",
@@ -18206,7 +18296,7 @@ var ca = si((Le) => {
   ) {
     let i = null,
       r = 0,
-      u = cn.evaluated;
+      u = fn.evaluated;
     return (
       u.dynamicProps && (u.props = void 0),
       u.dynamicItems && (u.items = void 0),
@@ -18217,12 +18307,12 @@ var ca = si((Le) => {
         rootData: c,
         dynamicAnchors: f,
       }) || ((i = i === null ? ir.errors : i.concat(ir.errors)), (r = i.length)),
-      (cn.errors = i),
+      (fn.errors = i),
       r === 0
     );
   }
-  cn.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
-  Le.ResultContent = ln;
+  fn.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
+  Ee.ResultContent = dn;
   function ne(
     e,
     {
@@ -18403,14 +18493,14 @@ var ca = si((Le) => {
                         let h = l.length;
                         for (let w = 0; w < h; w++) {
                           let I = r;
-                          je(l[w], {
+                          $e(l[w], {
                             instancePath: t + "/sections/" + w,
                             parentData: l,
                             parentDataProperty: w,
                             rootData: c,
                             dynamicAnchors: f,
                           }) ||
-                            ((i = i === null ? je.errors : i.concat(je.errors)), (r = i.length));
+                            ((i = i === null ? $e.errors : i.concat($e.errors)), (r = i.length));
                           var y = I === r;
                           if (!y) break;
                         }
@@ -18597,7 +18687,7 @@ var ca = si((Le) => {
     return ((ne.errors = i), r === 0);
   }
   ne.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
-  function ln(
+  function dn(
     e,
     {
       instancePath: t = "",
@@ -18609,7 +18699,7 @@ var ca = si((Le) => {
   ) {
     let i = null,
       r = 0,
-      u = ln.evaluated;
+      u = dn.evaluated;
     return (
       u.dynamicProps && (u.props = void 0),
       u.dynamicItems && (u.items = void 0),
@@ -18620,13 +18710,13 @@ var ca = si((Le) => {
         rootData: c,
         dynamicAnchors: f,
       }) || ((i = i === null ? ne.errors : i.concat(ne.errors)), (r = i.length)),
-      (ln.errors = i),
+      (dn.errors = i),
       r === 0
     );
   }
-  ln.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
-  Le.PersistentResourceConsent = fn;
-  var Dp = {
+  dn.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
+  Ee.PersistentResourceConsent = un;
+  var jp = {
       type: "object",
       properties: {
         contractVersion: { const: "folioview.agent-workspace.v2.0" },
@@ -18679,7 +18769,7 @@ var ca = si((Le) => {
       ],
       additionalProperties: !1,
     },
-    sa = {
+    aa = {
       type: "object",
       properties: {
         permissionId: { $ref: "#/$defs/Identifier" },
@@ -18719,7 +18809,7 @@ var ca = si((Le) => {
       ],
       additionalProperties: !1,
     };
-  function Z(
+  function B(
     e,
     {
       instancePath: t = "",
@@ -18731,7 +18821,7 @@ var ca = si((Le) => {
   ) {
     let i = null,
       r = 0,
-      u = Z.evaluated;
+      u = B.evaluated;
     if ((u.dynamicProps && (u.props = void 0), u.dynamicItems && (u.items = void 0), r === 0))
       if (e && typeof e == "object" && !Array.isArray(e)) {
         let s;
@@ -18750,7 +18840,7 @@ var ca = si((Le) => {
           (e.revocationFingerprint === void 0 && (s = "revocationFingerprint"))
         )
           return (
-            (Z.errors = [
+            (B.errors = [
               {
                 instancePath: t,
                 schemaPath: "#/required",
@@ -18763,9 +18853,9 @@ var ca = si((Le) => {
         {
           let o = r;
           for (let l in e)
-            if (!Ge.call(sa.properties, l)) {
+            if (!Ge.call(aa.properties, l)) {
               return (
-                (Z.errors = [
+                (B.errors = [
                   {
                     instancePath: t,
                     schemaPath: "#/additionalProperties",
@@ -18807,7 +18897,7 @@ var ca = si((Le) => {
                     g = r;
                   if (!(typeof l == "number" && !(l % 1) && !isNaN(l)))
                     return (
-                      (Z.errors = [
+                      (B.errors = [
                         {
                           instancePath: t + "/sourceEpoch",
                           schemaPath: "#/properties/sourceEpoch/type",
@@ -18820,7 +18910,7 @@ var ca = si((Le) => {
                   if (r === g && typeof l == "number") {
                     if (l > 9007199254740991 || isNaN(l))
                       return (
-                        (Z.errors = [
+                        (B.errors = [
                           {
                             instancePath: t + "/sourceEpoch",
                             schemaPath: "#/properties/sourceEpoch/maximum",
@@ -18832,7 +18922,7 @@ var ca = si((Le) => {
                       );
                     if (l < 1 || isNaN(l))
                       return (
-                        (Z.errors = [
+                        (B.errors = [
                           {
                             instancePath: t + "/sourceEpoch",
                             schemaPath: "#/properties/sourceEpoch/minimum",
@@ -18851,7 +18941,7 @@ var ca = si((Le) => {
                       g = r;
                     if (!(typeof l == "number" && !(l % 1) && !isNaN(l)))
                       return (
-                        (Z.errors = [
+                        (B.errors = [
                           {
                             instancePath: t + "/fromRevision",
                             schemaPath: "#/properties/fromRevision/type",
@@ -18864,7 +18954,7 @@ var ca = si((Le) => {
                     if (r === g && typeof l == "number") {
                       if (l > 9007199254740991 || isNaN(l))
                         return (
-                          (Z.errors = [
+                          (B.errors = [
                             {
                               instancePath: t + "/fromRevision",
                               schemaPath: "#/properties/fromRevision/maximum",
@@ -18876,7 +18966,7 @@ var ca = si((Le) => {
                         );
                       if (l < 1 || isNaN(l))
                         return (
-                          (Z.errors = [
+                          (B.errors = [
                             {
                               instancePath: t + "/fromRevision",
                               schemaPath: "#/properties/fromRevision/minimum",
@@ -18894,7 +18984,7 @@ var ca = si((Le) => {
                       let l = r;
                       if (e.versionPolicy !== "current_and_future")
                         return (
-                          (Z.errors = [
+                          (B.errors = [
                             {
                               instancePath: t + "/versionPolicy",
                               schemaPath: "#/properties/versionPolicy/const",
@@ -18914,7 +19004,7 @@ var ca = si((Le) => {
                           if (Array.isArray(l)) {
                             if (l.length > 50)
                               return (
-                                (Z.errors = [
+                                (B.errors = [
                                   {
                                     instancePath: t + "/selectedHistory",
                                     schemaPath: "#/properties/selectedHistory/maxItems",
@@ -18926,7 +19016,7 @@ var ca = si((Le) => {
                               );
                             if (l.length < 0)
                               return (
-                                (Z.errors = [
+                                (B.errors = [
                                   {
                                     instancePath: t + "/selectedHistory",
                                     schemaPath: "#/properties/selectedHistory/minItems",
@@ -18944,7 +19034,7 @@ var ca = si((Le) => {
                                   P = r;
                                 if (!(typeof I == "number" && !(I % 1) && !isNaN(I)))
                                   return (
-                                    (Z.errors = [
+                                    (B.errors = [
                                       {
                                         instancePath: t + "/selectedHistory/" + w,
                                         schemaPath: "#/properties/selectedHistory/items/type",
@@ -18957,7 +19047,7 @@ var ca = si((Le) => {
                                 if (r === P && typeof I == "number") {
                                   if (I > 9007199254740991 || isNaN(I))
                                     return (
-                                      (Z.errors = [
+                                      (B.errors = [
                                         {
                                           instancePath: t + "/selectedHistory/" + w,
                                           schemaPath: "#/properties/selectedHistory/items/maximum",
@@ -18969,7 +19059,7 @@ var ca = si((Le) => {
                                     );
                                   if (I < 1 || isNaN(I))
                                     return (
-                                      (Z.errors = [
+                                      (B.errors = [
                                         {
                                           instancePath: t + "/selectedHistory/" + w,
                                           schemaPath: "#/properties/selectedHistory/items/minimum",
@@ -18994,7 +19084,7 @@ var ca = si((Le) => {
                                       if (typeof P[A] == "number") {
                                         return (
                                           (I = P[A]),
-                                          (Z.errors = [
+                                          (B.errors = [
                                             {
                                               instancePath: t + "/selectedHistory",
                                               schemaPath:
@@ -19015,7 +19105,7 @@ var ca = si((Le) => {
                             }
                           } else
                             return (
-                              (Z.errors = [
+                              (B.errors = [
                                 {
                                   instancePath: t + "/selectedHistory",
                                   schemaPath: "#/properties/selectedHistory/type",
@@ -19033,7 +19123,7 @@ var ca = si((Le) => {
                             g = r;
                           if (!(typeof l == "number" && !(l % 1) && !isNaN(l)))
                             return (
-                              (Z.errors = [
+                              (B.errors = [
                                 {
                                   instancePath: t + "/permissionEpoch",
                                   schemaPath: "#/properties/permissionEpoch/type",
@@ -19046,7 +19136,7 @@ var ca = si((Le) => {
                           if (r === g && typeof l == "number") {
                             if (l > 9007199254740991 || isNaN(l))
                               return (
-                                (Z.errors = [
+                                (B.errors = [
                                   {
                                     instancePath: t + "/permissionEpoch",
                                     schemaPath: "#/properties/permissionEpoch/maximum",
@@ -19058,7 +19148,7 @@ var ca = si((Le) => {
                               );
                             if (l < 1 || isNaN(l))
                               return (
-                                (Z.errors = [
+                                (B.errors = [
                                   {
                                     instancePath: t + "/permissionEpoch",
                                     schemaPath: "#/properties/permissionEpoch/minimum",
@@ -19077,12 +19167,12 @@ var ca = si((Le) => {
                               g = r;
                             if (!(l === "active" || l === "revoked"))
                               return (
-                                (Z.errors = [
+                                (B.errors = [
                                   {
                                     instancePath: t + "/status",
                                     schemaPath: "#/properties/status/enum",
                                     keyword: "enum",
-                                    params: { allowedValues: sa.properties.status.enum },
+                                    params: { allowedValues: aa.properties.status.enum },
                                   },
                                 ]),
                                 !1
@@ -19095,7 +19185,7 @@ var ca = si((Le) => {
                                 g = r;
                               if (!(typeof l == "number" && !(l % 1) && !isNaN(l)))
                                 return (
-                                  (Z.errors = [
+                                  (B.errors = [
                                     {
                                       instancePath: t + "/approvedAt",
                                       schemaPath: "#/properties/approvedAt/type",
@@ -19108,7 +19198,7 @@ var ca = si((Le) => {
                               if (r === g && typeof l == "number") {
                                 if (l > 9007199254740991 || isNaN(l))
                                   return (
-                                    (Z.errors = [
+                                    (B.errors = [
                                       {
                                         instancePath: t + "/approvedAt",
                                         schemaPath: "#/properties/approvedAt/maximum",
@@ -19120,7 +19210,7 @@ var ca = si((Le) => {
                                   );
                                 if (l < 0 || isNaN(l))
                                   return (
-                                    (Z.errors = [
+                                    (B.errors = [
                                       {
                                         instancePath: t + "/approvedAt",
                                         schemaPath: "#/properties/approvedAt/minimum",
@@ -19207,7 +19297,7 @@ var ca = si((Le) => {
                                     return (
                                       i === null ? (i = [A]) : i.push(A),
                                       r++,
-                                      (Z.errors = i),
+                                      (B.errors = i),
                                       !1
                                     );
                                   }
@@ -19255,7 +19345,7 @@ var ca = si((Le) => {
                                       return (
                                         i === null ? (i = [A]) : i.push(A),
                                         r++,
-                                        (Z.errors = i),
+                                        (B.errors = i),
                                         !1
                                       );
                                     }
@@ -19275,14 +19365,14 @@ var ca = si((Le) => {
         }
       } else
         return (
-          (Z.errors = [
+          (B.errors = [
             { instancePath: t, schemaPath: "#/type", keyword: "type", params: { type: "object" } },
           ]),
           !1
         );
-    return ((Z.errors = i), r === 0);
+    return ((B.errors = i), r === 0);
   }
-  Z.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
+  B.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
   function se(
     e,
     {
@@ -19335,7 +19425,7 @@ var ca = si((Le) => {
         {
           let p = r;
           for (let s in e)
-            if (!Ge.call(Dp.properties, s)) {
+            if (!Ge.call(jp.properties, s)) {
               return (
                 (se.errors = [
                   {
@@ -19781,7 +19871,7 @@ var ca = si((Le) => {
                                                           let g = s.length;
                                                           for (let v = 0; v < g; v++) {
                                                             let h = r;
-                                                            Z(s[v], {
+                                                            B(s[v], {
                                                               instancePath: t + "/permissions/" + v,
                                                               parentData: s,
                                                               parentDataProperty: v,
@@ -19790,8 +19880,8 @@ var ca = si((Le) => {
                                                             }) ||
                                                               ((i =
                                                                 i === null
-                                                                  ? Z.errors
-                                                                  : i.concat(Z.errors)),
+                                                                  ? B.errors
+                                                                  : i.concat(B.errors)),
                                                               (r = i.length));
                                                             var y = h === r;
                                                             if (!y) break;
@@ -19842,7 +19932,7 @@ var ca = si((Le) => {
     return ((se.errors = i), r === 0);
   }
   se.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
-  function fn(
+  function un(
     e,
     {
       instancePath: t = "",
@@ -19854,7 +19944,7 @@ var ca = si((Le) => {
   ) {
     let i = null,
       r = 0,
-      u = fn.evaluated;
+      u = un.evaluated;
     return (
       u.dynamicProps && (u.props = void 0),
       u.dynamicItems && (u.items = void 0),
@@ -19865,13 +19955,13 @@ var ca = si((Le) => {
         rootData: c,
         dynamicAnchors: f,
       }) || ((i = i === null ? se.errors : i.concat(se.errors)), (r = i.length)),
-      (fn.errors = i),
+      (un.errors = i),
       r === 0
     );
   }
-  fn.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
-  Le.PersistentResourceApprovalPayload = dn;
-  var Np = {
+  un.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
+  Ee.PersistentResourceApprovalPayload = mn;
+  var $p = {
     type: "object",
     properties: {
       contractVersion: { const: "folioview.agent-workspace.v2.0" },
@@ -20360,7 +20450,7 @@ var ca = si((Le) => {
         {
           let s = r;
           for (let o in e)
-            if (!Ge.call(Np.properties, o)) {
+            if (!Ge.call($p.properties, o)) {
               return (
                 (M.errors = [
                   {
@@ -21035,7 +21125,7 @@ var ca = si((Le) => {
     return ((M.errors = i), r === 0);
   }
   M.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
-  function dn(
+  function mn(
     e,
     {
       instancePath: t = "",
@@ -21047,7 +21137,7 @@ var ca = si((Le) => {
   ) {
     let i = null,
       r = 0,
-      u = dn.evaluated;
+      u = mn.evaluated;
     return (
       u.dynamicProps && (u.props = void 0),
       u.dynamicItems && (u.items = void 0),
@@ -21058,13 +21148,13 @@ var ca = si((Le) => {
         rootData: c,
         dynamicAnchors: f,
       }) || ((i = i === null ? M.errors : i.concat(M.errors)), (r = i.length)),
-      (dn.errors = i),
+      (mn.errors = i),
       r === 0
     );
   }
-  dn.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
-  Le.PersistentResourceRevocationPayload = un;
-  var jp = {
+  mn.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
+  Ee.PersistentResourceRevocationPayload = yn;
+  var Lp = {
     type: "object",
     properties: {
       contractVersion: { const: "folioview.agent-workspace.v2.0" },
@@ -21311,7 +21401,7 @@ var ca = si((Le) => {
         {
           let s = r;
           for (let o in e)
-            if (!Ge.call(jp.properties, o)) {
+            if (!Ge.call(Lp.properties, o)) {
               return (
                 (G.errors = [
                   {
@@ -21984,7 +22074,7 @@ var ca = si((Le) => {
     return ((G.errors = i), r === 0);
   }
   G.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
-  function un(
+  function yn(
     e,
     {
       instancePath: t = "",
@@ -21996,7 +22086,7 @@ var ca = si((Le) => {
   ) {
     let i = null,
       r = 0,
-      u = un.evaluated;
+      u = yn.evaluated;
     return (
       u.dynamicProps && (u.props = void 0),
       u.dynamicItems && (u.items = void 0),
@@ -22007,13 +22097,13 @@ var ca = si((Le) => {
         rootData: c,
         dynamicAnchors: f,
       }) || ((i = i === null ? G.errors : i.concat(G.errors)), (r = i.length)),
-      (un.errors = i),
+      (yn.errors = i),
       r === 0
     );
   }
-  un.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
-  Le.ConsentSourceState = mn;
-  var $p = {
+  yn.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
+  Ee.ConsentSourceState = hn;
+  var Op = {
     type: "object",
     properties: {
       ownerSubject: { $ref: "#/$defs/Identifier" },
@@ -22264,7 +22354,7 @@ var ca = si((Le) => {
                                 instancePath: t + "/state",
                                 schemaPath: "#/properties/state/enum",
                                 keyword: "enum",
-                                params: { allowedValues: $p.properties.state.enum },
+                                params: { allowedValues: Op.properties.state.enum },
                               },
                             ]),
                             !1
@@ -22287,7 +22377,7 @@ var ca = si((Le) => {
     return ((sr.errors = i), r === 0);
   }
   sr.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
-  function mn(
+  function hn(
     e,
     {
       instancePath: t = "",
@@ -22299,7 +22389,7 @@ var ca = si((Le) => {
   ) {
     let i = null,
       r = 0,
-      u = mn.evaluated;
+      u = hn.evaluated;
     return (
       u.dynamicProps && (u.props = void 0),
       u.dynamicItems && (u.items = void 0),
@@ -22310,13 +22400,13 @@ var ca = si((Le) => {
         rootData: c,
         dynamicAnchors: f,
       }) || ((i = i === null ? sr.errors : i.concat(sr.errors)), (r = i.length)),
-      (mn.errors = i),
+      (hn.errors = i),
       r === 0
     );
   }
-  mn.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
-  Le.PersistentAgentRequestPayload = yn;
-  var oa = {
+  hn.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
+  Ee.PersistentAgentRequestPayload = gn;
+  var pa = {
       type: "object",
       properties: {
         contractVersion: { const: "folioview.agent-workspace.v2.0" },
@@ -22368,7 +22458,7 @@ var ca = si((Le) => {
       ],
       additionalProperties: !1,
     },
-    Lp = new RegExp("^/agent/v3/persistent/[A-Za-z0-9/_-]+$", "u");
+    Vp = new RegExp("^/agent/v3/persistent/[A-Za-z0-9/_-]+$", "u");
   function X(
     e,
     {
@@ -22423,7 +22513,7 @@ var ca = si((Le) => {
         {
           let m = r;
           for (let p in e)
-            if (!Ge.call(oa.properties, p)) {
+            if (!Ge.call(pa.properties, p)) {
               return (
                 (X.errors = [
                   {
@@ -22688,7 +22778,7 @@ var ca = si((Le) => {
                                                   ]),
                                                   !1
                                                 );
-                                              if (!pa.test(p))
+                                              if (!la.test(p))
                                                 return (
                                                   (X.errors = [
                                                     {
@@ -22726,7 +22816,7 @@ var ca = si((Le) => {
                                                     schemaPath: "#/properties/method/enum",
                                                     keyword: "enum",
                                                     params: {
-                                                      allowedValues: oa.properties.method.enum,
+                                                      allowedValues: pa.properties.method.enum,
                                                     },
                                                   },
                                                 ]),
@@ -22752,7 +22842,7 @@ var ca = si((Le) => {
                                                       ]),
                                                       !1
                                                     );
-                                                  if (!Lp.test(p))
+                                                  if (!Vp.test(p))
                                                     return (
                                                       (X.errors = [
                                                         {
@@ -22829,7 +22919,7 @@ var ca = si((Le) => {
                                                             ]),
                                                             !1
                                                           );
-                                                        if (!ur.test(p))
+                                                        if (!mr.test(p))
                                                           return (
                                                             (X.errors = [
                                                               {
@@ -23004,7 +23094,7 @@ var ca = si((Le) => {
     return ((X.errors = i), r === 0);
   }
   X.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
-  function yn(
+  function gn(
     e,
     {
       instancePath: t = "",
@@ -23016,7 +23106,7 @@ var ca = si((Le) => {
   ) {
     let i = null,
       r = 0,
-      u = yn.evaluated;
+      u = gn.evaluated;
     return (
       u.dynamicProps && (u.props = void 0),
       u.dynamicItems && (u.items = void 0),
@@ -23027,13 +23117,13 @@ var ca = si((Le) => {
         rootData: c,
         dynamicAnchors: f,
       }) || ((i = i === null ? X.errors : i.concat(X.errors)), (r = i.length)),
-      (yn.errors = i),
+      (gn.errors = i),
       r === 0
     );
   }
-  yn.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
-  Le.PersistentRunManifest = hn;
-  var aa = {
+  gn.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
+  Ee.PersistentRunManifest = vn;
+  var ca = {
     type: "object",
     properties: {
       contractVersion: { const: "folioview.agent-workspace.v2.0" },
@@ -23433,7 +23523,7 @@ var ca = si((Le) => {
         {
           let p = r;
           for (let s in e)
-            if (!Ge.call(aa.properties, s)) {
+            if (!Ge.call(ca.properties, s)) {
               return (
                 (H.errors = [
                   {
@@ -23509,7 +23599,7 @@ var ca = si((Le) => {
                             instancePath: t + "/resultPolicy",
                             schemaPath: "#/properties/resultPolicy/enum",
                             keyword: "enum",
-                            params: { allowedValues: aa.properties.resultPolicy.enum },
+                            params: { allowedValues: ca.properties.resultPolicy.enum },
                           },
                         ]),
                         !1
@@ -24195,7 +24285,7 @@ var ca = si((Le) => {
     return ((H.errors = i), r === 0);
   }
   H.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
-  function hn(
+  function vn(
     e,
     {
       instancePath: t = "",
@@ -24207,7 +24297,7 @@ var ca = si((Le) => {
   ) {
     let i = null,
       r = 0,
-      u = hn.evaluated;
+      u = vn.evaluated;
     return (
       u.dynamicProps && (u.props = void 0),
       u.dynamicItems && (u.items = void 0),
@@ -24218,53 +24308,53 @@ var ca = si((Le) => {
         rootData: c,
         dynamicAnchors: f,
       }) || ((i = i === null ? H.errors : i.concat(H.errors)), (r = i.length)),
-      (hn.errors = i),
+      (vn.errors = i),
       r === 0
     );
   }
-  hn.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
+  vn.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
 });
-var ma = {};
-oi(ma, {
-  BINDING: () => Dr,
-  CONTRACT: () => it,
-  JWE_HEADER: () => vn,
-  PROFILE: () => Kt,
-  RuntimeDenied: () => gn,
-  array: () => ws,
+var ha = {};
+ai(ha, {
+  BINDING: () => Nr,
+  CONTRACT: () => nt,
+  JWE_HEADER: () => kn,
+  PROFILE: () => Dt,
+  RuntimeDenied: () => wn,
+  array: () => Is,
   bytes: () => Te,
   canonical: () => ue,
-  context: () => In,
+  context: () => bn,
   deny: () => _,
   digest: () => qe,
-  digestString: () => Cp,
-  exact: () => Wr,
-  fingerprint: () => nt,
-  identifier: () => Vp,
-  inspect: () => ni,
-  integer: () => Hr,
-  jose: () => ps,
-  keyId: () => Fr,
-  object: () => gs,
-  open: () => Jp,
+  digestString: () => qp,
+  exact: () => Hr,
+  fingerprint: () => st,
+  identifier: () => Tp,
+  inspect: () => si,
+  integer: () => Fr,
+  jose: () => ls,
+  keyId: () => Ur,
+  object: () => ws,
+  open: () => Wp,
   parsed: () => or,
-  privatePayload: () => ks,
-  publicKey: () => ii,
-  reference: () => ti,
-  resultContent: () => ua,
-  safeUrl: () => kn,
+  privatePayload: () => Ps,
+  publicKey: () => ni,
+  reference: () => ii,
+  resultContent: () => ya,
+  safeUrl: () => Pn,
   same: () => F,
-  seal: () => Rp,
-  sign: () => wn,
-  unique: () => Ee,
-  utc: () => ri,
+  seal: () => Hp,
+  sign: () => In,
+  unique: () => Ae,
+  utc: () => ti,
   validate: () => ke,
-  verify: () => kr,
+  verify: () => Ir,
 });
 function _(e) {
-  throw new gn(e);
+  throw new wn(e);
 }
-function gs(e) {
+function ws(e) {
   return (
     e !== null &&
     typeof e == "object" &&
@@ -24272,15 +24362,15 @@ function gs(e) {
     (Object.getPrototypeOf(e) === Object.prototype || Object.getPrototypeOf(e) === null)
   );
 }
-function Wr(e, t) {
-  (!gs(e) || Object.keys(e).sort().join("\0") !== [...t].sort().join("\0")) && _("invalid_fields");
+function Hr(e, t) {
+  (!ws(e) || Object.keys(e).sort().join("\0") !== [...t].sort().join("\0")) && _("invalid_fields");
 }
 function ue(e) {
-  ei(e);
-  let t = St(e);
-  return (typeof t != "string" && _("invalid_json"), fa.encode(t));
+  ri(e);
+  let t = Kt(e);
+  return (typeof t != "string" && _("invalid_json"), ua.encode(t));
 }
-function ei(e, t = 0) {
+function ri(e, t = 0) {
   if ((t > 20 && _("json_too_deep"), !(e === null || typeof e == "boolean"))) {
     if (typeof e == "string") {
       e.isWellFormed() || _("invalid_unicode");
@@ -24292,24 +24382,24 @@ function ei(e, t = 0) {
       return;
     }
     if (Array.isArray(e)) {
-      for (let a of e) ei(a, t + 1);
+      for (let a of e) ri(a, t + 1);
       return;
     }
-    gs(e) || _("invalid_json");
-    for (let [a, d] of Object.entries(e)) (ei(a), ei(d, t + 1));
+    ws(e) || _("invalid_json");
+    for (let [a, d] of Object.entries(e)) (ri(a), ri(d, t + 1));
   }
 }
 function F(e, t) {
-  return St(e) === St(t);
+  return Kt(e) === Kt(t);
 }
 function Te(e) {
   (typeof e != "string" || e.includes("=") || !/^[A-Za-z0-9_-]*$/.test(e)) &&
     _("invalid_base64url");
-  let t = Zr.decode(e);
-  return (Zr.encode(t) !== e && _("invalid_base64url"), t);
+  let t = Mr.decode(e);
+  return (Mr.encode(t) !== e && _("invalid_base64url"), t);
 }
 function or(e, t = !1) {
-  let a = Op.decode(e),
+  let a = Cp.decode(e),
     d = 0,
     c = () => {
       for (; /[\x20\x09\x0a\x0d]/.test(a[d] || "!");) d += 1;
@@ -24361,22 +24451,22 @@ function or(e, t = !1) {
     };
   (i(0), c(), d !== a.length && _("malformed_json"));
   let r = JSON.parse(a);
-  return (ei(r), t && !vs(ue(r), e) && _("noncanonical_json"), r);
+  return (ri(r), t && !ks(ue(r), e) && _("noncanonical_json"), r);
 }
-function vs(e, t) {
+function ks(e, t) {
   return e.length === t.length && e.every((a, d) => a === t[d]);
 }
-function Hr(e, t = 0) {
+function Fr(e, t = 0) {
   return ((!Number.isSafeInteger(e) || e < t) && _("invalid_integer"), e);
 }
-function Vp(e) {
+function Tp(e) {
   return (
     (typeof e != "string" || !/^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/.test(e)) &&
       _("invalid_identifier"),
     e
   );
 }
-function Cp(e) {
+function qp(e) {
   return ((typeof e != "string" || !/^[a-f0-9]{64}$/.test(e)) && _("invalid_digest"), e);
 }
 async function qe(e) {
@@ -24384,32 +24474,32 @@ async function qe(e) {
     .map((t) => t.toString(16).padStart(2, "0"))
     .join("");
 }
-async function nt(e) {
-  let t = fa.encode(e.protected + "." + e.payload);
+async function st(e) {
+  let t = ua.encode(e.protected + "." + e.payload);
   return [...new Uint8Array(await crypto.subtle.digest("SHA-256", t))]
     .map((a) => a.toString(16).padStart(2, "0"))
     .join("");
 }
-function ws(e, t, a = 0) {
+function Is(e, t, a = 0) {
   return ((!Array.isArray(e) || e.length < a || e.length > t) && _("invalid_array"), e);
 }
-function Ee(e) {
+function Ae(e) {
   return (new Set(e).size !== e.length && _("duplicate_value"), e);
 }
-async function ii(e) {
+async function ni(e) {
   return (
-    Wr(e, ["kty", "crv", "x", "y"]),
+    Hr(e, ["kty", "crv", "x", "y"]),
     (e.kty !== "EC" || e.crv !== "P-256" || Te(e.x).length !== 32 || Te(e.y).length !== 32) &&
       _("invalid_public_key"),
-    await At(e, "ES256"),
+    await St(e, "ES256"),
     e
   );
 }
-async function Fr(e) {
-  return (await ii(e), Mt(e, "sha256"));
+async function Ur(e) {
+  return (await ni(e), Gt(e, "sha256"));
 }
-function Tp(e, t, a) {
-  Wr(e, ["protected", "payload", "signature"]);
+function Jp(e, t, a) {
+  Hr(e, ["protected", "payload", "signature"]);
   let d = or(Te(e.protected));
   return (
     (!F(d, { alg: "ES256", kid: a, typ: t, cty: "application/json" }) ||
@@ -24418,29 +24508,29 @@ function Tp(e, t, a) {
     d
   );
 }
-async function kr(e, t, a) {
-  let d = await Fr(t);
-  (Tp(e, a, d), ue(e).length > (a === "fv-control+jws" ? 65536 : da) && _("payload_too_large"));
-  let c = await Ti(e, await At(t, "ES256"), { algorithms: ["ES256"] });
+async function Ir(e, t, a) {
+  let d = await Ur(t);
+  (Jp(e, a, d), ue(e).length > (a === "fv-control+jws" ? 65536 : ma) && _("payload_too_large"));
+  let c = await qi(e, await St(t, "ES256"), { algorithms: ["ES256"] });
   return or(c.payload, !0);
 }
-async function wn(e, t, a, d) {
-  return new Et(ue(e))
+async function In(e, t, a, d) {
+  return new At(ue(e))
     .setProtectedHeader({ alg: "ES256", kid: a, typ: d, cty: "application/json" })
     .sign(t);
 }
 function ke(e, t) {
-  let a = la.default[e];
+  let a = da.default[e];
   (!a || !a(t)) && _("invalid_schema");
 }
-function ri(e) {
+function ti(e) {
   (typeof e != "string" ||
     !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?Z$/.test(e) ||
     !Number.isFinite(Date.parse(e)) ||
     new Date(e).toISOString().slice(0, 19) !== e.slice(0, 19)) &&
     _("private_schema_invalid");
 }
-function kn(e) {
+function Pn(e) {
   if (typeof e != "string" || /[\s\\\x00-\x1f]/.test(e)) return !1;
   try {
     let t = new URL(e);
@@ -24455,7 +24545,7 @@ function kn(e) {
     return !1;
   }
 }
-function qp(e) {
+function Rp(e) {
   let t = {
       amp: "&",
       lt: "<",
@@ -24490,34 +24580,34 @@ function qp(e) {
       ...[...a.matchAll(/\]\(\s*(<[^>]+>|[^\s)]+)/g)].map((c) => c[1]),
       ...[...a.matchAll(/^\s*\[[^\]]+\]:\s*(\S+)/gm)].map((c) => c[1]),
       ...[...a.matchAll(/<([^<>\s]+:[^<>\s]*)>/g)].map((c) => c[1]),
-    ].some((c) => !kn(c.replace(/^<|>$/g, ""))) && _("private_schema_invalid"));
+    ].some((c) => !Pn(c.replace(/^<|>$/g, ""))) && _("private_schema_invalid"));
 }
-function ua(e, t) {
+function ya(e, t) {
   (ke("ResultContent", e),
-    Ee(e.sections.map((a) => a.sectionId)),
-    Ee(e.citations.map((a) => a.citationId)),
+    Ae(e.sections.map((a) => a.sectionId)),
+    Ae(e.citations.map((a) => a.citationId)),
     F(
       e.sections.map((a) => a.sectionId),
       t.sections.map((a) => a.sectionId),
     ) || _("private_output_mismatch"));
-  for (let a of e.sections) qp(a.markdown);
+  for (let a of e.sections) Rp(a.markdown);
   for (let a of e.citations)
-    (kn(a.url) || _("private_schema_invalid"), a.publishedAt !== null && ri(a.publishedAt));
+    (Pn(a.url) || _("private_schema_invalid"), a.publishedAt !== null && ti(a.publishedAt));
 }
-function In(e) {
+function bn(e) {
   (ke("PersistentContentContext", e),
     e.revision !== e.expectedRevision + 1 && _("version_conflict"));
   let t = e.recipients.map((a) => a.keyId);
-  if ((Ee(t), F(t, [...t].sort()) || _("recipient_binding_mismatch"), e.objectType === "task"))
+  if ((Ae(t), F(t, [...t].sort()) || _("recipient_binding_mismatch"), e.objectType === "task"))
     ((e.objectId !== e.taskId ||
       e.revision !== e.taskVersion ||
       e.authorityVersion !== e.expectedAuthorityVersion + 1 ||
       (e.expectedAuthorityVersion === 0) != (e.expectedAuthorityDigest === null)) &&
       _("recipient_binding_mismatch"),
-      Ee(e.resourceBindings.map((a) => St(a.ref))),
-      e.resourceBindings.forEach((a) => ti(a.ref)));
+      Ae(e.resourceBindings.map((a) => Kt(a.ref))),
+      e.resourceBindings.forEach((a) => ii(a.ref)));
   else if (e.objectType !== "result_revision") {
-    ti(e.ref);
+    ii(e.ref);
     let a = {
       holdings_snapshot: "holdings",
       watchlist_evidence: "watchlist",
@@ -24541,7 +24631,7 @@ function In(e) {
     e
   );
 }
-function ti(e) {
+function ii(e) {
   return (
     ke("ResourceRef", e),
     e.sourceService !== (e.kind === "holdings" ? "portfolio" : "user") &&
@@ -24549,17 +24639,17 @@ function ti(e) {
     e
   );
 }
-function ks(e, t, a = null) {
-  (In(t), ke("PersistentPrivatePayload", e));
+function Ps(e, t, a = null) {
+  (bn(t), ke("PersistentPrivatePayload", e));
   for (let i of ["objectId", "objectType", "revision"])
     F(e[i], t[i]) || _("private_binding_mismatch");
   let d = t.objectType === "task" ? 65536 : t.objectType === "result_revision" ? 98304 : 196608;
   ue(e).length > d && _("payload_too_large");
   let c = e.payload;
-  if (t.objectType === "result_revision") return (ua(c, a ?? { sections: c.sections }), c);
+  if (t.objectType === "result_revision") return (ya(c, a ?? { sections: c.sections }), c);
   if (t.objectType === "task") {
     if (
-      (Ee(c.outputSpec.sections.map((i) => i.sectionId)),
+      (Ae(c.outputSpec.sections.map((i) => i.sectionId)),
       c.template === "brief" && !t.resourceBindings.length && _("private_schema_invalid"),
       c.deliveryExpectation !== null)
     )
@@ -24571,43 +24661,43 @@ function ks(e, t, a = null) {
     return c;
   }
   (c.data.kind !== t.ref.kind && _("private_schema_invalid"),
-    ri(c.fetchedAt),
-    c.sourceAsOf !== null && ri(c.sourceAsOf));
+    ti(c.fetchedAt),
+    c.sourceAsOf !== null && ti(c.sourceAsOf));
   let f = c.data;
   if (t.ref.kind === "holdings") {
     (f.snapshotId !== t.objectId && _("private_binding_mismatch"),
-      Ee(f.accounts.map((i) => i.accountId)),
+      Ae(f.accounts.map((i) => i.accountId)),
       f.accounts.reduce((i, r) => i + r.positions.length, 0) > 1e3 && _("private_schema_invalid"));
     for (let i of f.accounts)
-      (Ee(i.balances.map((r) => r.currency)),
-        Ee(i.positions.map((r) => r.assetId)),
+      (Ae(i.balances.map((r) => r.currency)),
+        Ae(i.positions.map((r) => r.assetId)),
         i.positions.some((r) => r.marketValue !== null && r.marketValue.currency !== r.currency) &&
           _("private_schema_invalid"));
   } else {
-    Ee(f.items.map((i) => (t.ref.kind === "watchlist" ? i.symbol : i.followId)));
+    Ae(f.items.map((i) => (t.ref.kind === "watchlist" ? i.symbol : i.followId)));
     for (let i of f.items)
-      (ri(i.addedAt),
+      (ti(i.addedAt),
         t.ref.kind === "channel_follows" &&
           !/^@[^\s\x00-\x1f]+$/.test(i.handleOrUrl) &&
-          !kn(i.handleOrUrl) &&
+          !Pn(i.handleOrUrl) &&
           _("private_schema_invalid"));
   }
   return c;
 }
-function ni(e) {
+function si(e) {
   ke("PersistentContentCarrier", e);
   let t = or(Te(e.proof.payload), !0);
   ke("PersistentContentProofPayload", t);
-  let a = In(t.context),
+  let a = bn(t.context),
     d = e.jwe;
-  ((ue(e).length > da ||
+  ((ue(e).length > ma ||
     ue(a).length > 16384 ||
     Te(d.ciphertext).length >
       (a.objectType === "task" ? 65536 : a.objectType === "result_revision" ? 98304 : 196608)) &&
     _("payload_too_large"),
-    Wr(d, ["protected", "aad", "iv", "ciphertext", "tag", "recipients"]),
-    (!F(or(Te(d.protected)), vn) ||
-      !vs(Te(d.aad), ue(a)) ||
+    Hr(d, ["protected", "aad", "iv", "ciphertext", "tag", "recipients"]),
+    (!F(or(Te(d.protected)), kn) ||
+      !ks(Te(d.aad), ue(a)) ||
       Te(d.iv).length !== 12 ||
       Te(d.tag).length !== 16) &&
       _("recipient_binding_mismatch"),
@@ -24616,44 +24706,44 @@ function ni(e) {
       a.recipients.map((c) => c.keyId),
     ) || _("recipient_binding_mismatch"));
   for (let c of d.recipients)
-    (Wr(c, ["header", "encrypted_key"]),
-      Wr(c.header, ["kid", "epk"]),
+    (Hr(c, ["header", "encrypted_key"]),
+      Hr(c.header, ["kid", "epk"]),
       ke("PublicJWK", c.header.epk),
       Te(c.encrypted_key).length !== 40 && _("invalid_envelope"));
   return { carrier: e, context: a, payload: t };
 }
-async function Jp(e, t, a) {
-  let d = ni(e);
+async function Wp(e, t, a) {
+  let d = si(e);
   F(d.context, a) || _("recipient_binding_mismatch");
-  let c = await ji(e.jwe, t, {
+  let c = await $i(e.jwe, t, {
     keyManagementAlgorithms: ["ECDH-ES+A256KW"],
     contentEncryptionAlgorithms: ["A256GCM"],
   });
   return (
-    (!F(c.protectedHeader, vn) || !vs(c.additionalAuthenticatedData, ue(a))) &&
+    (!F(c.protectedHeader, kn) || !ks(c.additionalAuthenticatedData, ue(a))) &&
       _("recipient_binding_mismatch"),
-    ks(or(c.plaintext, !0), a)
+    Ps(or(c.plaintext, !0), a)
   );
 }
-async function Rp(e, t, a, d) {
-  In(t);
+async function Hp(e, t, a, d) {
+  bn(t);
   let c = {
     privateSchemaVersion: 1,
-    profile: Kt,
+    profile: Dt,
     objectId: t.objectId,
     objectType: t.objectType,
     revision: t.revision,
     payload: e,
   };
-  ks(c, t);
-  let f = new gt(ue(c)).setProtectedHeader(vn).setAdditionalAuthenticatedData(ue(t));
+  Ps(c, t);
+  let f = new vt(ue(c)).setProtectedHeader(kn).setAdditionalAuthenticatedData(ue(t));
   for (let n of t.recipients)
-    f.addRecipient(await At(a[n.keyId], "ECDH-ES+A256KW")).setUnprotectedHeader({ kid: n.keyId });
+    f.addRecipient(await St(a[n.keyId], "ECDH-ES+A256KW")).setUnprotectedHeader({ kid: n.keyId });
   let i = await f.encrypt(),
-    r = await wn(
+    r = await In(
       {
-        contractVersion: it,
-        profile: Kt,
+        contractVersion: nt,
+        profile: Dt,
         artifactType: "persistent_content_publication",
         context: t,
         ciphertextDigest: await qe(i),
@@ -24662,28 +24752,28 @@ async function Rp(e, t, a, d) {
       t.objectType === "result_revision" ? t.agentSigningKeyId : t.rootKeyId,
       "fv-control+jws",
     ),
-    u = { contractVersion: it, profile: Kt, proof: r, jwe: i };
-  return (ni(u), u);
+    u = { contractVersion: nt, profile: Dt, proof: r, jwe: i };
+  return (si(u), u);
 }
-var la,
-  fa,
-  Op,
-  da,
-  it,
-  Kt,
-  Dr,
-  vn,
-  gn,
-  st = j(() => {
-    zo();
+var da,
+  ua,
+  Cp,
+  ma,
+  nt,
+  Dt,
+  Nr,
+  kn,
+  wn,
+  ot = j(() => {
     Bo();
-    ((la = Da(ca(), 1)),
-      (fa = new TextEncoder()),
-      (Op = new TextDecoder("utf-8", { fatal: !0 })),
-      (da = 524288),
-      (it = "folioview.agent-workspace.v2.0"),
-      (Kt = "folioview.persistent-content.v1"),
-      (Dr = [
+    Mo();
+    ((da = ja(fa(), 1)),
+      (ua = new TextEncoder()),
+      (Cp = new TextDecoder("utf-8", { fatal: !0 })),
+      (ma = 524288),
+      (nt = "folioview.agent-workspace.v2.0"),
+      (Dt = "folioview.persistent-content.v1"),
+      (Nr = [
         "ownerSubject",
         "vaultId",
         "rootKeyId",
@@ -24695,22 +24785,22 @@ var la,
         "agentEncryptionKeyId",
         "bindingFingerprint",
       ]),
-      (vn = {
+      (kn = {
         alg: "ECDH-ES+A256KW",
         enc: "A256GCM",
         typ: "fv-persistent-private+jwe",
         cty: "application/json",
       }),
-      (gn = class extends Error {
+      (wn = class extends Error {
         constructor(t = "operation_rejected") {
           (super(t), (this.code = t));
         }
       }));
   });
-st();
-st();
-var Wp = ["root_sig", "device_sig", "device_enc", "agent_sig", "agent_enc", "recovery_enc"],
-  ya = class {
+ot();
+ot();
+var Fp = ["root_sig", "device_sig", "device_enc", "agent_sig", "agent_enc", "recovery_enc"],
+  ga = class {
     constructor(t) {
       ((this.anchor = structuredClone(t)),
         (this.sequence = 0),
@@ -24724,11 +24814,11 @@ var Wp = ["root_sig", "device_sig", "device_enc", "agent_sig", "agent_enc", "rec
         _("recipient_binding_mismatch");
     }
     async load(t, a) {
-      ((await Fr(this.anchor.rootJwk)) !== this.anchor.rootKeyId && _("root_pin_mismatch"),
-        ws(t, 32, 1));
+      ((await Ur(this.anchor.rootJwk)) !== this.anchor.rootKeyId && _("root_pin_mismatch"),
+        Is(t, 32, 1));
       for (let d of t) {
         (ke("RegistryBundle", d), ue(d).length > 131072 && _("payload_too_large"));
-        let c = await kr(d.checkpoint, this.anchor.rootJwk, "fv-control+jws");
+        let c = await Ir(d.checkpoint, this.anchor.rootJwk, "fv-control+jws");
         (ke("RegistryCheckpointPayload", c),
           this.checkIdentity(c),
           (c.rootKeyId !== this.anchor.rootKeyId ||
@@ -24755,14 +24845,14 @@ var Wp = ["root_sig", "device_sig", "device_enc", "agent_sig", "agent_enc", "rec
           u = [],
           n = new Set();
         for (let y of d.entries) {
-          let m = await kr(y.certificate, this.anchor.rootJwk, "fv-control+jws");
+          let m = await Ir(y.certificate, this.anchor.rootJwk, "fv-control+jws");
           (ke("KeyCertificatePayload", m),
             this.checkIdentity(m),
             (m.issuerKeyId !== this.anchor.rootKeyId ||
-              m.keyId !== (await Fr(m.publicJwk)) ||
+              m.keyId !== (await Ur(m.publicJwk)) ||
               i.has(m.keyId) ||
               m.expiresAt <= m.notBefore ||
-              !Wp.includes(m.role) ||
+              !Fp.includes(m.role) ||
               m.role.startsWith("agent_") !== (m.connectionId !== null) ||
               y.active === c.revokedKeyIds.includes(m.keyId) ||
               (m.role === "root_sig") != (m.keyId === this.anchor.rootKeyId)) &&
@@ -24793,7 +24883,7 @@ var Wp = ["root_sig", "device_sig", "device_enc", "agent_sig", "agent_enc", "rec
               active: y.active,
             }));
         }
-        (Ee(r),
+        (Ae(r),
           (await qe(
             u.sort((y, m) =>
               y.certificateId < m.certificateId ? -1 : y.certificateId > m.certificateId ? 1 : 0,
@@ -24877,13 +24967,13 @@ var Wp = ["root_sig", "device_sig", "device_enc", "agent_sig", "agent_enc", "rec
         _("registry_conflict");
       let r = this.cert(f.deviceSigningKeyId, "device_sig", null, f.issuedAt, f.registrySequence);
       (r.capabilities.includes("control_write") || _("key_authorization_required"),
-        await kr(t, r.publicJwk, "fv-control+jws"));
+        await Ir(t, r.publicJwk, "fv-control+jws"));
       for (let u of ["ownerSubject", "vaultId", "connectionId", "clientId"])
         (f[u] !== d[u] || a[u] !== d[u]) && _("recipient_binding_mismatch");
-      for (let u of Dr.filter((n) => n !== "bindingFingerprint"))
+      for (let u of Nr.filter((n) => n !== "bindingFingerprint"))
         f[u] !== a[u] && _("recipient_binding_mismatch");
       return (
-        (a.bindingFingerprint !== (await nt(t)) ||
+        (a.bindingFingerprint !== (await st(t)) ||
           a.registeredAt !== f.issuedAt ||
           f.issuedAt < i.issuedAt ||
           f.issuedAt < r.notBefore) &&
@@ -24893,13 +24983,13 @@ var Wp = ["root_sig", "device_sig", "device_enc", "agent_sig", "agent_enc", "rec
       );
     }
   };
-st();
-var Hp = "folioview.persistent-resource-consent.v1",
-  ha = (e, t) => {
-    for (let a of Dr) F(e[a], t[a]) || _("recipient_binding_mismatch");
+ot();
+var Up = "folioview.persistent-resource-consent.v1",
+  va = (e, t) => {
+    for (let a of Nr) F(e[a], t[a]) || _("recipient_binding_mismatch");
   };
-function va(e) {
-  (Ee(e.selectedHistory),
+function ka(e) {
+  (Ae(e.selectedHistory),
     (!F(
       e.selectedHistory,
       [...e.selectedHistory].sort((t, a) => t - a),
@@ -24907,17 +24997,17 @@ function va(e) {
       e.selectedHistory.some((t) => t >= e.fromRevision)) &&
       _("invalid_history"));
 }
-function ga(e) {
+function wa(e) {
   (ke("PersistentResourceConsent", e), e.createdAt > e.updatedAt && _("invalid_consent"));
   let t = [];
-  (Ee(e.permissions.map((a) => a.permissionId)),
+  (Ae(e.permissions.map((a) => a.permissionId)),
     F(
       e.permissions.map((a) => a.permissionId),
       e.permissions.map((a) => a.permissionId).sort(),
     ) || _("invalid_consent"));
   for (let a of e.permissions)
-    (ti(a.ref),
-      va(a),
+    (ii(a.ref),
+      ka(a),
       (a.approvedAt < e.createdAt || a.approvedAt > e.updatedAt) && _("invalid_consent"),
       a.status === "active"
         ? ((a.revokedAt !== null || a.revocationFingerprint !== null) && _("invalid_consent"),
@@ -24928,14 +25018,14 @@ function ga(e) {
             a.revokedAt < a.approvedAt ||
             a.revokedAt > e.updatedAt) &&
           _("invalid_consent"));
-  return (Ee(t), t.length > 10 && _("invalid_consent"), e);
+  return (Ae(t), t.length > 10 && _("invalid_consent"), e);
 }
-async function Fp(e, t, a, d, c) {
+async function zp(e, t, a, d, c) {
   let f = or(Te(e.payload), !0),
     i = f.artifactType === "persistent_resource_approval";
   (ke(i ? "PersistentResourceApprovalPayload" : "PersistentResourceRevocationPayload", f),
     ue(e).length > 65536 && _("payload_too_large"),
-    ha(f, a));
+    va(f, a));
   let r = d.snapshots.get(f.registrySequence);
   (!r || r.digest !== f.checkpointDigest || r.keyEpoch !== f.keyEpoch || f.issuedAt < r.issuedAt) &&
     _("registry_conflict");
@@ -24947,15 +25037,15 @@ async function Fp(e, t, a, d, c) {
     (p.capabilities.includes("control_write") || _("key_authorization_required"),
       (n = p.publicJwk));
   }
-  (await kr(e, n, "fv-control+jws"),
+  (await Ir(e, n, "fv-control+jws"),
     f.authorKeyId !== u.kid && _("recipient_binding_mismatch"),
-    t && (ga(t), ha(t, a), t.consentId !== f.consentId && _("recipient_binding_mismatch")),
+    t && (wa(t), va(t, a), t.consentId !== f.consentId && _("recipient_binding_mismatch")),
     (f.expectedVersion !== (t?.version ?? 0) ||
       f.expectedConsentDigest !== (t ? await qe(t) : null) ||
       f.issuedAt < (t?.updatedAt ?? a.registeredAt)) &&
       _("version_conflict"));
   let y = new Map((t?.permissions ?? []).map((p) => [p.permissionId, structuredClone(p)])),
-    m = await nt(e);
+    m = await st(e);
   if (i) {
     (d.agent(a, f.issuedAt, f.registrySequence),
       (!Array.isArray(c) || c.length !== f.resources.length) && _("invalid_sources"));
@@ -24967,10 +25057,10 @@ async function Fp(e, t, a, d, c) {
       let o = new TextDecoder().decode(ue(s.ref));
       (p.has(o) && _("invalid_sources"), p.set(o, s));
     }
-    (Ee(f.resources.map((s) => s.permissionId)),
-      Ee(f.resources.map((s) => new TextDecoder().decode(ue(s.ref)))));
+    (Ae(f.resources.map((s) => s.permissionId)),
+      Ae(f.resources.map((s) => new TextDecoder().decode(ue(s.ref)))));
     for (let s of f.resources) {
-      va(s);
+      ka(s);
       let o = p.get(new TextDecoder().decode(ue(s.ref)));
       (!o ||
         o.state !== "active" ||
@@ -24989,7 +25079,7 @@ async function Fp(e, t, a, d, c) {
             y.set(s.permissionId, {
               ...l,
               selectedHistory: s.selectedHistory,
-              permissionEpoch: Hr(l.permissionEpoch + 1, 1),
+              permissionEpoch: Fr(l.permissionEpoch + 1, 1),
               approvedAt: f.issuedAt,
               approvalFingerprint: m,
             }));
@@ -25016,7 +25106,7 @@ async function Fp(e, t, a, d, c) {
       }
     }
   } else {
-    (t || _("not_found"), Ee(f.targets.map((p) => p.permissionId)));
+    (t || _("not_found"), Ae(f.targets.map((p) => p.permissionId)));
     for (let p of f.targets) {
       let s = y.get(p.permissionId);
       ((!s ||
@@ -25027,19 +25117,19 @@ async function Fp(e, t, a, d, c) {
         y.set(p.permissionId, {
           ...s,
           status: "revoked",
-          permissionEpoch: Hr(s.permissionEpoch + 1, 1),
+          permissionEpoch: Fr(s.permissionEpoch + 1, 1),
           revokedAt: f.issuedAt,
           revocationFingerprint: m,
         }));
     }
   }
-  return ga({
-    contractVersion: it,
-    profile: Hp,
-    ...Object.fromEntries(Dr.map((p) => [p, a[p]])),
+  return wa({
+    contractVersion: nt,
+    profile: Up,
+    ...Object.fromEntries(Nr.map((p) => [p, a[p]])),
     consentId: f.consentId,
     purpose: "analysis",
-    version: Hr(f.expectedVersion + 1, 1),
+    version: Fr(f.expectedVersion + 1, 1),
     createdAt: t?.createdAt ?? f.issuedAt,
     updatedAt: f.issuedAt,
     lastOperationId: f.stableOperationId,
@@ -25047,14 +25137,14 @@ async function Fp(e, t, a, d, c) {
     permissions: [...y.values()].sort((p, s) => (p.permissionId < s.permissionId ? -1 : 1)),
   });
 }
-async function cu({ consent: e, receipts: t, identity: a, registry: d, pin: c = null }) {
+async function fu({ consent: e, receipts: t, identity: a, registry: d, pin: c = null }) {
   if (e === null) return ((t.length || c) && _("consent_rollback"), null);
   ((!Array.isArray(t) || t.length !== e.version || t.length > 96) && _("invalid_consent_chain"),
-    Ee(t.map((r) => r.operationId)));
+    Ae(t.map((r) => r.operationId)));
   let f = null,
     i = c === null;
   for (let r of t)
-    ((f = await Fp(r.command, f, a, d, r.sourceStates)),
+    ((f = await zp(r.command, f, a, d, r.sourceStates)),
       (r.operationId !== f.lastOperationId ||
         !F(r.consent, f) ||
         r.priorDigest !==
@@ -25066,7 +25156,7 @@ async function cu({ consent: e, receipts: t, identity: a, registry: d, pin: c = 
         ((await qe(f)) !== c.digest && _("consent_rollback"), (i = !0)));
   return ((!i || !F(f, e)) && _("consent_rollback"), f);
 }
-function wa(e, t) {
+function Ia(e, t) {
   let a = e?.permissions.find((d) => d.permissionId === t.permissionId);
   return (
     (!a ||
@@ -25079,15 +25169,15 @@ function wa(e, t) {
     a
   );
 }
-st();
-var Is = ["taskId", "taskVersion", "executionEpoch", "authorityId", "authorityVersion"];
-function Ps(e, t) {
-  for (let a of Dr) F(e[a], t[a]) || _("recipient_binding_mismatch");
+ot();
+var bs = ["taskId", "taskVersion", "executionEpoch", "authorityId", "authorityVersion"];
+function _s(e, t) {
+  for (let a of Nr) F(e[a], t[a]) || _("recipient_binding_mismatch");
 }
-async function yu(e, { registry: t, identity: a, expected: d, now: c, purpose: f = "agent_read" }) {
+async function gu(e, { registry: t, identity: a, expected: d, now: c, purpose: f = "agent_read" }) {
   ["agent_read", "new_publication", "owner_history"].includes(f) || _("invalid_purpose");
-  let { context: i, payload: r } = ni(e);
-  (Ps(i, a), Ps(d, a));
+  let { context: i, payload: r } = si(e);
+  (_s(i, a), _s(d, a));
   let u = [
     "objectType",
     "objectId",
@@ -25095,7 +25185,7 @@ async function yu(e, { registry: t, identity: a, expected: d, now: c, purpose: f
     "recipients",
     ...(i.objectType === "task"
       ? [
-          ...Is,
+          ...bs,
           "expectedAuthorityVersion",
           "expectedAuthorityDigest",
           "resultPolicy",
@@ -25103,7 +25193,7 @@ async function yu(e, { registry: t, identity: a, expected: d, now: c, purpose: f
           "resourceBindings",
         ]
       : i.objectType === "result_revision"
-        ? [...Is, "runId", "manifestFingerprint"]
+        ? [...bs, "runId", "manifestFingerprint"]
         : [
             "ref",
             "sourceEpoch",
@@ -25126,18 +25216,18 @@ async function yu(e, { registry: t, identity: a, expected: d, now: c, purpose: f
     (!m.capabilities.includes("result_write") || i.issuedAt < m.notBefore) &&
       _("key_authorization_required");
     for (let p of i.recipients) t.cert(p.keyId, p.role, null, y);
-    await kr(e.proof, m.publicJwk, "fv-control+jws");
+    await Ir(e.proof, m.publicJwk, "fv-control+jws");
   } else {
     if (f !== "agent_read")
       for (let p of i.recipients) p.role === "recovery_enc" && t.cert(p.keyId, p.role, null, y);
-    await kr(e.proof, t.anchor.rootJwk, "fv-control+jws");
+    await Ir(e.proof, t.anchor.rootJwk, "fv-control+jws");
   }
   return (
     r.ciphertextDigest !== (await qe(e.jwe)) && _("recipient_binding_mismatch"),
-    { context: structuredClone(i), fingerprint: await nt(e.proof) }
+    { context: structuredClone(i), fingerprint: await st(e.proof) }
   );
 }
-async function hu({ identity: e, audience: t, path: a, request: d, now: c, privateKey: f }) {
+async function vu({ identity: e, audience: t, path: a, request: d, now: c, privateKey: f }) {
   let i = new URL(t);
   (i.protocol !== "https:" ||
     i.username ||
@@ -25148,11 +25238,11 @@ async function hu({ identity: e, audience: t, path: a, request: d, now: c, priva
     i.origin !== t) &&
     _("invalid_audience");
   let r = {
-    contractVersion: it,
-    profile: Kt,
+    contractVersion: nt,
+    profile: Dt,
     artifactType: "persistent_agent_request",
     purpose: "authenticated_request",
-    ...Object.fromEntries(Dr.map((u) => [u, e[u]])),
+    ...Object.fromEntries(Nr.map((u) => [u, e[u]])),
     audience: t,
     method: "POST",
     path: a,
@@ -25162,18 +25252,18 @@ async function hu({ identity: e, audience: t, path: a, request: d, now: c, priva
       .replaceAll("+", "-")
       .replaceAll("/", "_")
       .replaceAll("=", ""),
-    issuedAt: Hr(c, 1),
-    expiresAt: Hr(c + 120, 1),
+    issuedAt: Fr(c, 1),
+    expiresAt: Fr(c + 120, 1),
   };
   return (
     ke("PersistentAgentRequestPayload", r),
     (a.includes("//") || a.split("/").some((u) => u === "." || u === "..")) && _("invalid_path"),
-    wn(r, f, e.agentSigningKeyId, "fv-control+jws")
+    In(r, f, e.agentSigningKeyId, "fv-control+jws")
   );
 }
-async function gu(e, { identity: t, taskContext: a, taskFingerprint: d, consent: c, now: f }) {
+async function wu(e, { identity: t, taskContext: a, taskFingerprint: d, consent: c, now: f }) {
   (ke("PersistentRunManifest", e),
-    Ps(e, t),
+    _s(e, t),
     (e.createdAt <= f &&
       f < e.expiresAt &&
       e.createdAt < e.expiresAt &&
@@ -25181,7 +25271,7 @@ async function gu(e, { identity: t, taskContext: a, taskFingerprint: d, consent:
       _("run_expired"),
     e.runId !== "prun_" + (await qe([e.ownerSubject, e.vaultId, e.taskId, e.triggerId])) &&
       _("recipient_binding_mismatch"));
-  for (let r of Is) F(e[r], a[r]) || _("version_conflict");
+  for (let r of bs) F(e[r], a[r]) || _("version_conflict");
   (e.taskPublicationFingerprint !== d || e.resultPolicy !== a.resultPolicy) &&
     _("recipient_binding_mismatch");
   let i = [...e.inputs].sort((r, u) =>
@@ -25195,37 +25285,37 @@ async function gu(e, { identity: t, taskContext: a, taskFingerprint: d, consent:
       ),
     )) &&
     _("recipient_binding_mismatch");
-  for (let r of e.inputs) wa(c, r);
+  for (let r of e.inputs) Ia(c, r);
   return { manifest: structuredClone(e), fingerprint: await qe(e) };
 }
-st();
-var Up = "folioview.persistent-runtime.v1",
-  bs = "profiles";
-function zp(e) {
+ot();
+var Zp = "folioview.persistent-runtime.v1",
+  xs = "profiles";
+function Bp(e) {
   return new Promise((t, a) => {
     ((e.onsuccess = () => t(e.result)),
       (e.onerror = () => a(Error("runtime_storage_unavailable"))));
   });
 }
-async function Bp(e) {
-  let t = e.open(Up, 1);
-  return ((t.onupgradeneeded = () => t.result.createObjectStore(bs)), zp(t));
+async function Mp(e) {
+  let t = e.open(Zp, 1);
+  return ((t.onupgradeneeded = () => t.result.createObjectStore(xs)), Bp(t));
 }
-function Zp(e) {
+function Gp(e) {
   return new Promise((t, a) => {
     ((e.oncomplete = t), (e.onabort = e.onerror = () => a(Error("runtime_storage_unavailable"))));
   });
 }
-var ka = class {
+var Pa = class {
   constructor(t = globalThis.indexedDB) {
     (t || _("runtime_storage_unavailable"), (this.factory = t));
   }
   async transact(t, a) {
-    let d = await Bp(this.factory);
+    let d = await Mp(this.factory);
     try {
-      let c = d.transaction(bs, "readwrite"),
-        f = Zp(c),
-        i = c.objectStore(bs),
+      let c = d.transaction(xs, "readwrite"),
+        f = Gp(c),
+        i = c.objectStore(xs),
         r,
         u,
         n = i.get(t);
@@ -25249,7 +25339,7 @@ var ka = class {
   }
   async profileKey(t) {
     return (
-      Wr(t, ["issuer", "ownerSubject", "vaultId", "connectionId", "clientId"]),
+      Hr(t, ["issuer", "ownerSubject", "vaultId", "connectionId", "clientId"]),
       "profile:" + (await qe(t))
     );
   }
@@ -25294,7 +25384,7 @@ var ka = class {
         n.algorithm.namedCurve !== "P-256" ||
         !F(n.usages, m)) &&
         _("invalid_runtime_profile");
-    (await ii(t.signingPublicJwk), await ii(t.encryptionPublicJwk));
+    (await ni(t.signingPublicJwk), await ni(t.encryptionPublicJwk));
     let d = crypto.getRandomValues(new Uint8Array(32)),
       c = await crypto.subtle.sign({ name: "ECDSA", hash: "SHA-256" }, t.signingPrivateKey, d);
     (await crypto.subtle.verify(
@@ -25333,8 +25423,8 @@ var ka = class {
   }
   async bind(t, a, d) {
     let c = await this.profile(t);
-    (a.agentSigningKeyId !== (await Fr(c.signingPublicJwk)) ||
-      a.agentEncryptionKeyId !== (await Fr(c.encryptionPublicJwk))) &&
+    (a.agentSigningKeyId !== (await Ur(c.signingPublicJwk)) ||
+      a.agentEncryptionKeyId !== (await Ur(c.encryptionPublicJwk))) &&
       _("recipient_binding_mismatch");
     let f = await this.profileKey(t);
     return this.transact(f, (i) => {
@@ -25351,7 +25441,7 @@ var ka = class {
     });
   }
   async originalCiphertext(t, a, d) {
-    let { inspect: c } = await Promise.resolve().then(() => (st(), ma));
+    let { inspect: c } = await Promise.resolve().then(() => (ot(), ha));
     c(d);
     let f = "outbox:" + (await qe([t, a]));
     return this.transact(f, (i) =>
@@ -25363,49 +25453,49 @@ var ka = class {
   }
 };
 export {
-  Dr as BINDING,
-  Hp as CONSENT_PROFILE,
-  it as CONTRACT,
-  vn as JWE_HEADER,
-  Kt as PROFILE,
-  ya as Registry,
-  gn as RuntimeDenied,
-  ka as RuntimeStorage,
-  Fp as applyConsent,
-  ws as array,
+  Nr as BINDING,
+  Up as CONSENT_PROFILE,
+  nt as CONTRACT,
+  kn as JWE_HEADER,
+  Dt as PROFILE,
+  ga as Registry,
+  wn as RuntimeDenied,
+  Pa as RuntimeStorage,
+  zp as applyConsent,
+  Is as array,
   Te as bytes,
   ue as canonical,
-  In as context,
+  bn as context,
   _ as deny,
   qe as digest,
-  Cp as digestString,
-  Wr as exact,
-  nt as fingerprint,
-  Vp as identifier,
-  ni as inspect,
-  Hr as integer,
-  ps as jose,
-  Fr as keyId,
-  Ps as matchBinding,
-  gs as object,
-  Jp as open,
+  qp as digestString,
+  Hr as exact,
+  st as fingerprint,
+  Tp as identifier,
+  si as inspect,
+  Fr as integer,
+  ls as jose,
+  Ur as keyId,
+  _s as matchBinding,
+  ws as object,
+  Wp as open,
   or as parsed,
-  wa as permissionFor,
-  ks as privatePayload,
-  ii as publicKey,
-  ti as reference,
-  hu as requestProof,
-  ua as resultContent,
-  kn as safeUrl,
+  Ia as permissionFor,
+  Ps as privatePayload,
+  ni as publicKey,
+  ii as reference,
+  vu as requestProof,
+  ya as resultContent,
+  Pn as safeUrl,
   F as same,
-  Rp as seal,
-  ga as shape,
-  wn as sign,
-  Ee as unique,
-  ri as utc,
+  Hp as seal,
+  wa as shape,
+  In as sign,
+  Ae as unique,
+  ti as utc,
   ke as validate,
-  kr as verify,
-  cu as verifyConsentChain,
-  yu as verifyEnvelope,
-  gu as verifyManifest,
+  Ir as verify,
+  fu as verifyConsentChain,
+  gu as verifyEnvelope,
+  wu as verifyManifest,
 };

@@ -26,6 +26,7 @@ COPY services/agent-hub-service/helper/releases/1.4.0/integrity.json ./helper/re
 COPY services/agent-hub-service/helper/releases/1.4.0/protocol.json ./helper/releases/1.4.0/protocol.json
 
 COPY services/agent-hub-service/runtime/dist ./runtime/dist
+COPY services/agent-hub-service/runtime/static ./runtime/static
 COPY services/agent-hub-service/runtime/integrity.json ./runtime/integrity.json
 COPY services/agent-hub-service/runtime/THIRD_PARTY_NOTICES.md ./runtime/THIRD_PARTY_NOTICES.md
 
