@@ -567,7 +567,7 @@
       "new_results": "有新的结果或状态变化，刷新即可查看更新后的收件箱。"
     },
     "enableChanges": "在此设备启用修改",
-    "readOnlyHelp": "你可以阅读已保存的报告。修改状态前，请通过 Passkey 授权此设备。",
+    "readOnlyHelp": "资源库已解锁。修改报告状态前，请审阅此浏览器的写入权限。",
     "stateScope": "已读、收藏和归档状态作用于这份结果的全部修订。",
     "countsHelp": "数量以最近一次刷新为准。",
     "archiveUnavailable": "密钥包移除请求尚待处理，或云端密钥包已移除。请到设置核对原请求，或使用独立恢复包恢复；原内容并未因此清空。",
@@ -1235,7 +1235,9 @@
     "recoveryValidityHelp": "这是现有恢复接收者证书的当前有效期，并非永久恢复保证。检查或更换 Passkey 不会为此证书续期。",
     "recoveryFingerprint": "查看恢复接收者指纹",
     "recoveryUnavailable": "当前恢复接收者证书不可用或已过期，因此无法检查当前恢复能力。这不代表管理员可以找回内容。",
-    "enableChanges": "审阅此浏览器的写入资格"
+    "enableChanges": "审阅此浏览器的写入资格",
+    "sharedUnlockHelp": "资源库已解锁，资源、任务、Agent、收件箱和设置可共用。",
+    "lockWorkspace": "锁定所有私密页面"
   },
   "vaultRecovery": {
     "title": "恢复与更换 Passkey",

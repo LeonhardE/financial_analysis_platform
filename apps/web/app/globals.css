@@ -1396,3 +1396,17 @@ html[data-theme="light"] .dialog-close {
     font-size: 12px;
   }
 }
+
+.workspace-unlock-status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-bottom: 1.25rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  color: var(--muted);
+  font-size: 0.875rem;
+}

@@ -118,9 +118,12 @@ function harness({
   hasSource = true,
   resultCanWrite = true,
   needsDeviceRegistration = false,
+  sharedUnlock = false,
+  sharedResume = false,
 } = {}) {
   const requests = [];
   const instances = [];
+  const sharedLocks = [];
   const commits = [];
   const outboxes = new Map();
   const sourcePackets = new Map();
@@ -224,6 +227,8 @@ function harness({
   let cancellationCommands = null;
   let cancellationFailure = null;
   let archiveDiscards = 0;
+  let peerAvailable = () => {},
+    peerLocked = () => {};
   const passkeyOptions = [];
   const passkeyArchives = [];
   let managementFault = null;
@@ -276,6 +281,20 @@ function harness({
   const changed = (before, after) =>
     !before || after.some((value, position) => value !== before[position]);
   class Session {
+    static lockSharedUnlock(uid) {
+      sharedLocks.push(uid);
+      sharedResume = false;
+    }
+    static supportsSharedUnlock() {
+      return sharedUnlock;
+    }
+    static watchUnlock(_uid, available, locked) {
+      peerAvailable = available;
+      peerLocked = locked;
+      return () => {
+        peerAvailable = peerLocked = () => {};
+      };
+    }
     static async hasArchiveDeletion(uid) {
       return deletionPending?.uid === uid;
     }
@@ -286,6 +305,13 @@ function harness({
     }
     lock() {
       this.locked = true;
+    }
+    release() {
+      this.locked = true;
+    }
+    async resumeUnlock() {
+      if (resultHold) await resultHold.promise;
+      return sharedResume ? { canWriteState: resultCanWrite && deviceRegistered } : null;
     }
     async prepareCreate() {
       if (prepareFailure) throw { code: "untrusted_vault" };
@@ -1106,6 +1132,14 @@ function harness({
     render,
     requests,
     instances,
+    peerUnlock() {
+      sharedResume = true;
+      peerAvailable();
+    },
+    peerLock() {
+      sharedResume = false;
+      peerLocked();
+    },
     deletionPending: () => deletionPending,
     deletionCounts: () => ({
       prepares: deletionPrepares,
@@ -1210,6 +1244,7 @@ function harness({
       passkey.reject({ code });
     },
     counts: () => ({
+      sharedLocks: [...sharedLocks],
       seals,
       passkeyCalls,
       creates,
@@ -2951,5 +2986,89 @@ test("explicit locking ends reuse and the next unlock requests a new Passkey", a
   assert.equal(h.counts().passkeyCalls, 2);
   assert.equal(h.instances.length, 2);
   assert.equal(h.instances[0].locked, true);
+  h.unmount();
+});
+
+test("a fresh page resumes its verified owner's shared unlock without a Passkey", async () => {
+  const h = harness({ sharedUnlock: true, sharedResume: true });
+  const model = await ready(h);
+  assert.equal(model.phase, "unlocked");
+  assert.equal(model.canWriteState, true);
+  assert.equal(h.counts().passkeyCalls, 0);
+  assert.equal(h.instances.length, 1);
+  assert.equal((await model.openResult({})).title, "PRIVATE_RESULT");
+  h.peerLock();
+  assert.equal(h.render().phase, "locked");
+  assert.ok(h.instances.every((instance) => instance.locked));
+  h.unmount();
+});
+
+test("a locked peer adopts an unlock notification, but a new login cannot invent an unlocked session", async () => {
+  const h = harness({ sharedUnlock: true });
+  let model = await ready(h);
+  assert.equal(model.phase, "locked");
+  assert.equal(h.counts().passkeyCalls, 0);
+  h.peerUnlock();
+  await settle();
+  model = h.render();
+  assert.equal(model.phase, "unlocked");
+  assert.equal(h.counts().passkeyCalls, 0);
+  h.peerLock();
+  model = h.render();
+  assert.equal(model.phase, "locked");
+  await model.reload();
+  assert.equal(h.render().phase, "locked");
+  assert.equal(h.counts().passkeyCalls, 0);
+  h.unmount();
+});
+
+test("a shared resume cannot restore private state after logout, account switch or explicit lock", async () => {
+  for (const change of ["logout", "owner", "lock"]) {
+    const h = harness({ sharedUnlock: true });
+    await ready(h);
+    const gate = deferred();
+    h.holdResult(gate);
+    h.peerUnlock();
+    await settle();
+    if (change === "lock") h.render().lock();
+    else
+      h.auth(
+        change === "logout"
+          ? { status: "anonymous", sessionKey: null, profile: null }
+          : { status: "authenticated", sessionKey: "owner_b:1", profile: { uid: "owner_b" } },
+      );
+    h.render();
+    gate.resolve();
+    await settle();
+    const model = h.render();
+    assert.equal(model.content, null);
+    assert.equal(model.preview, null);
+    assert.equal(h.counts().passkeyCalls, 0);
+    assert.ok(
+      h.instances
+        .filter((instance) => instance.uid === "owner_a")
+        .every((instance) => instance.locked),
+    );
+    h.unmount();
+  }
+});
+
+test("logout while the initial vault read is pending invalidates the owner's broker without an attached facade", async () => {
+  const h = harness({ sharedUnlock: true, sharedResume: true });
+  const gate = deferred();
+  h.holdCurrent(gate);
+  h.render();
+  await settle();
+  assert.equal(h.instances.length, 0);
+  h.auth({ status: "anonymous", sessionKey: null, profile: null });
+  assert.equal(h.render().authenticated, false);
+  assert.deepEqual(h.counts().sharedLocks, ["owner_a"]);
+  gate.resolve(
+    new Response(JSON.stringify({ contractVersion: CONTRACT, vault, sources: [source] })),
+  );
+  await settle();
+  assert.equal(h.render().phase, "checking");
+  assert.equal(h.instances.length, 0);
+  assert.equal(h.counts().passkeyCalls, 0);
   h.unmount();
 });

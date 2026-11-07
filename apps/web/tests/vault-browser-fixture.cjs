@@ -7,6 +7,7 @@ const os = require("node:os");
 const vm = require("node:vm");
 const { pathToFileURL } = require("node:url");
 const { transformSync } = require("next/dist/build/swc");
+const { compileVaultWorker } = require("./worker-dispatch-helpers.cjs");
 const { createHarness } = require("./full-flow-crypto-fixture.cjs");
 
 async function createBrowserFixture() {
@@ -31,12 +32,7 @@ async function createBrowserFixture() {
   }
   const bridge = await import(pathToFileURL(path.join(directory, "encrypted-vault.mjs")).href);
   const storage = await import(pathToFileURL(path.join(directory, "encrypted-storage.mjs")).href);
-  const filename = path.resolve(__dirname, "../lib/encrypted-vault.worker.ts");
-  const workerCode = transformSync(readFileSync(filename, "utf8"), {
-    filename,
-    jsc: { parser: { syntax: "typescript" }, target: "es2022" },
-    module: { type: "commonjs" },
-  }).code;
+  const workerCode = compileVaultWorker();
   class LocalWorker {
     constructor() {
       const owner = this;

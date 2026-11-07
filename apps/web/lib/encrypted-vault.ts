@@ -109,6 +109,72 @@ type Registration = {
   expectedVersion: number;
   registryBundle: RegistryBundle;
 };
+// Only public owner identity and typed RPC cross these same-origin ports.
+// No key, PRF, login token or decrypted session is written to browser storage.
+type OwnerWorker = {
+  onmessage: ((event: MessageEvent) => void) | null;
+  onerror: ((event: ErrorEvent) => void) | null;
+  postMessage: (message: any, transfer: Transferable[]) => void;
+  terminate: () => void;
+  release?: () => void;
+  publish?: () => void;
+};
+function ownerPort(uid: string): { port: MessagePort; worker: SharedWorker } {
+  const worker = new SharedWorker(new URL("./encrypted-vault.shared.ts", import.meta.url), {
+    type: "module",
+    name:
+      "folioview-owner-unlock-v1:" +
+      (process.env.NEXT_PUBLIC_OWNER_UNLOCK_VERSION ?? "local") +
+      ":" +
+      uid,
+    extendedLifetime: true,
+  } as WorkerOptions & { extendedLifetime: boolean });
+  worker.port.start();
+  return { port: worker.port, worker };
+}
+function sharedOwnerWorker(uid: string): OwnerWorker | null {
+  if (typeof SharedWorker === "undefined") return null;
+  try {
+    const { port, worker } = ownerPort(uid);
+    let closed = false;
+    const send = (action: string) => {
+      if (!closed) port.postMessage({ action, uid });
+    };
+    const adapter: OwnerWorker = {
+      onmessage: null,
+      onerror: null,
+      postMessage(message: any, transfer?: Transferable[]) {
+        if (closed) throw new VaultError("locked");
+        // Preserve ArrayBuffer transfer (not copy) through the broker and into crypto.
+        port.postMessage(
+          { action: "rpc", uid, ...message, transfer: transfer ?? [] },
+          transfer ?? [],
+        );
+      },
+      terminate() {
+        send("lock");
+        adapter.release!();
+      },
+      release() {
+        send("release");
+        closed = true;
+        port.close();
+      },
+      publish() {
+        send("publish");
+      },
+    };
+    port.onmessage = (event) => {
+      if (closed) return;
+      if (event.data?.event === "locked") adapter.onerror?.(new ErrorEvent("error"));
+      else if (Number.isSafeInteger(event.data?.id)) adapter.onmessage?.(event);
+    };
+    worker.onerror = (event) => adapter.onerror?.(event);
+    return adapter;
+  } catch {
+    return null;
+  }
+}
 export class EncryptedVaultSession {
   static async hasArchiveDeletion(uid: string) {
     if (!uid || uid.length > 128) throw new VaultError("wrong_account");
@@ -124,7 +190,64 @@ export class EncryptedVaultSession {
       await storage.close();
     }
   }
-  private readonly worker: Worker;
+  static supportsSharedUnlock() {
+    return typeof SharedWorker !== "undefined";
+  }
+  static lockSharedUnlock(uid: string) {
+    if (!this.supportsSharedUnlock()) return;
+    try {
+      const { port } = ownerPort(uid);
+      port.postMessage({ action: "lock", uid });
+      port.postMessage({ action: "release" });
+      port.close();
+    } catch {
+      // A missing/unavailable broker cannot retain accessible owner keys here.
+    }
+  }
+  static watchUnlock(uid: string, available: () => void, locked: () => void) {
+    if (!this.supportsSharedUnlock()) return () => {};
+    let disposed = false;
+    let active: ReturnType<typeof ownerPort> | null = null;
+    const disconnect = () => {
+      if (!active) return;
+      active.port.onmessage = null;
+      active.worker.onerror = null;
+      active.port.postMessage({ action: "release" });
+      active.port.close();
+      active = null;
+    };
+    const connect = () => {
+      if (disposed) return;
+      try {
+        active = ownerPort(uid);
+        active.port.onmessage = (event) => {
+          if (disposed) return;
+          if (event.data?.event === "available") available();
+          else if (event.data?.event === "locked") {
+            disconnect();
+            locked();
+            // The old global has closed and destroyed its keys. Observe a new,
+            // locked global so a later explicit unlock can update every view.
+            queueMicrotask(connect);
+          }
+        };
+        active.worker.onerror = () => {
+          disconnect();
+          locked();
+        };
+        active.port.postMessage({ action: "observe", uid });
+      } catch {
+        disconnect();
+      }
+    };
+    connect();
+    return () => {
+      disposed = true;
+      disconnect();
+    };
+  }
+  private readonly worker: OwnerWorker;
+  readonly sharedUnlock: boolean;
   private readonly storage: EncryptedStorage;
   private readonly started: Promise<void>;
   private owner = "";
@@ -142,11 +265,19 @@ export class EncryptedVaultSession {
   >();
   constructor(
     uid: string,
-    options: { storage?: EncryptedStorage; workerFactory?: () => Worker } = {},
+    options: {
+      storage?: EncryptedStorage;
+      workerFactory?: () => Worker;
+      sharedUnlock?: boolean;
+      onInvalidated?: () => void;
+    } = {},
   ) {
     this.storage = options.storage ?? new BrowserEncryptedStorage();
+    const shared = options.sharedUnlock && !options.workerFactory ? sharedOwnerWorker(uid) : null;
+    this.sharedUnlock = Boolean(shared);
     this.worker =
       options.workerFactory?.() ??
+      shared ??
       new Worker(new URL("./encrypted-vault.worker.ts", import.meta.url), { type: "module" });
     this.worker.onmessage = (event) => {
       const request = this.pending.get(event.data.id);
@@ -159,10 +290,33 @@ export class EncryptedVaultSession {
       if (event.data.ok) request.resolve(event.data.result);
       else request.reject(new VaultError(event.data.error));
     };
-    this.worker.onerror = () => this.lock();
+    this.worker.onerror = () => {
+      this.lock();
+      options.onInvalidated?.();
+    };
     this.started = this.send("init", { uid }).then((value) => {
       this.owner = value.ownerSubject;
     });
+  }
+  publishUnlock() {
+    this.worker.publish?.();
+  }
+  async resumeUnlock(vault: Vault): Promise<{ canWriteState: boolean } | null> {
+    if (!this.sharedUnlock) return null;
+    const status = await this.rpc("ownerUnlockStatus", {});
+    if (
+      !status.unlocked ||
+      status.vaultId !== vault.vaultId ||
+      status.rootKeyId !== vault.rootKeyId
+    )
+      return null;
+    this.storage.setArchiveContext?.(
+      this.owner,
+      requireArchive(vault.archive).credentialId,
+      requireArchive(vault.archive).prfSalt,
+      requireArchive(vault.archive).iv,
+    );
+    return this.acceptResultVault(vault);
   }
   private send(method: string, args: any, transfer: Transferable[] = []): Promise<any> {
     if (this.closed) return Promise.reject(new VaultError("locked"));
@@ -2220,12 +2374,19 @@ export class EncryptedVaultSession {
       this.assert(g);
     });
   }
+  release() {
+    this.close(true);
+  }
   lock() {
+    this.close(false);
+  }
+  private close(detach: boolean) {
     if (this.closed) return;
     this.closed = true;
     this.generation++;
     this.lifetime.abort();
-    this.worker.terminate();
+    if (detach && this.worker.release) this.worker.release();
+    else this.worker.terminate();
     for (const request of this.pending.values()) request.reject(new VaultError("locked"));
     this.pending.clear();
   }
