@@ -168,7 +168,9 @@ test("wrong account/PRF output/ciphertext/AAD substitutions cannot unlock", asyn
     /unlock_failed/,
   );
   const changed = structuredClone(f.vault);
-  changed.archive.ciphertext = changed.archive.ciphertext.slice(0, -2) + "AA";
+  const ciphertext = Buffer.from(changed.archive.ciphertext, "base64url");
+  ciphertext[0] ^= 1;
+  changed.archive.ciphertext = ciphertext.toString("base64url");
   await assert.rejects(
     new core.VaultCore(f.uid, () => 1000).unlock(changed, f.material()),
     /unlock_failed|invalid_data/,
