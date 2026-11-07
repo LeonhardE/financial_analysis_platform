@@ -9,6 +9,9 @@ from .helper_assets import router as helper_router
 from .identity_recovery_routes import router as identity_recovery_router
 from .inbox import router as inbox_router
 from .mcp_transport import install_mcp
+from .native_transport_routes import connections_router as native_connections_router
+from .native_transport_routes import owner_router as native_transport_owner_router
+from .native_transport_routes import router as native_transport_router
 from .oauth_routes import agent_router
 from .oauth_routes import owner_router as oauth_owner_router
 from .oauth_routes import router as oauth_router
@@ -53,6 +56,9 @@ app.include_router(persistent_publication_router)
 app.include_router(persistent_execution_router)
 app.include_router(persistent_result_agent_router)
 app.include_router(persistent_result_owner_router)
+app.include_router(native_transport_router)
+app.include_router(native_transport_owner_router)
+app.include_router(native_connections_router)
 app.include_router(identity_recovery_router)
 app.include_router(runs_router)
 app.include_router(results_router)

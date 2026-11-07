@@ -16,6 +16,11 @@ COLLECTIONS = frozenset(
     {
         "hub_vaults",
         "hub_agent_recoveries",
+        "hub_native_oauth_pending",
+        "hub_native_oauth_codes",
+        "hub_native_oauth_access",
+        "hub_native_oauth_refresh",
+        "hub_native_oauth_families",
         "hub_persistent_publications",
         "hub_persistent_runs",
         "hub_persistent_results",
