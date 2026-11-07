@@ -6,6 +6,11 @@ trusted client crypto primitives, authority validation and message budgets. It
 does not start a service, resolve arbitrary keys, store secrets, call a model or
 provision infrastructure. Existing HTTP/auth helpers and consumers are unchanged.
 
+The opt-in [persistent Agent identity extension](PERSISTENT_AGENTS.md) separates
+an explicitly approved public identity from short-lived session recovery proofs.
+It has its own packaged schemas and verifier entry points; it does not change
+the P1 grants below, issue credentials or activate a persistent Muse runtime.
+
 ## Wire format and versions
 
 The exact version is `folioview.agent-workspace.v2.0`, profile `P1`:
