@@ -401,7 +401,10 @@ class OwnerConnectionService:
                 if row is None or row["ownerSubject"] != owner:
                     raise StoreUnavailable
                 connections[ident] = row
-                rows.append(self._connection_view(row))
+                # The native bootstrap profile has separate semantics/DTOs;
+                # legacy clients must never receive its non-financial scope.
+                if row.get("transportKind") != "persistent_runtime":
+                    rows.append(self._connection_view(row))
             attempts = []
             for saved in record["attempts"].values():
                 value = _copy(saved)
