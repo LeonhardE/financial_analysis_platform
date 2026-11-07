@@ -33,6 +33,36 @@ export function createVaultKernel(
           )
             throw new VaultError("archive_deletion_pending");
           switch (method) {
+            case "preparePersistentEnrollment":
+              result = await core.preparePersistentEnrollment(args);
+              break;
+            case "verifyPersistentIdentity":
+              result = await core.verifyPersistentIdentity(args);
+              break;
+            case "verifyPersistentPolicy":
+              result = await core.verifyPersistentPolicy(args);
+              break;
+            case "preparePersistentConsent":
+              result = await core.preparePersistentConsent(args);
+              break;
+            case "preparePersistentRevocation":
+              result = await core.preparePersistentRevocation(args);
+              break;
+            case "preparePersistentTask":
+              result = await core.preparePersistentTask(args);
+              break;
+            case "preparePersistentResource":
+              result = await core.preparePersistentResource(args);
+              break;
+            case "openPersistentPending":
+              result = await core.openPersistentPending(args);
+              break;
+            case "verifyPersistentReceipt":
+              result = await core.verifyPersistentReceipt(args);
+              break;
+            case "openPersistentResult":
+              result = await core.openPersistentResult(args);
+              break;
             case "ownerUnlockStatus":
               result = core.ownerUnlockStatus();
               break;

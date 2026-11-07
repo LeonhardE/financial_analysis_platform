@@ -1458,6 +1458,149 @@ export class EncryptedVaultSession {
     this.assert(g);
     return result;
   }
+  private persistentKey(actor: { connectionId: string; clientId: string }) {
+    if (
+      !this.vaultId ||
+      !actor ||
+      Object.keys(actor).sort().join(",") !== "clientId,connectionId" ||
+      ![actor.connectionId, actor.clientId].every((id) =>
+        /^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/.test(id),
+      )
+    )
+      throw new VaultError("invalid_data");
+    return `${this.owner}:persistent-owner:${this.vaultId}:${actor.connectionId}`;
+  }
+  private checkPersistentRow(row: any, actor: { connectionId: string; clientId: string }) {
+    if (
+      row &&
+      (Object.keys(row).sort().join(",") !==
+        "clientId,connectionId,kind,ownerSubject,pending,vaultId" ||
+        row.ownerSubject !== this.owner ||
+        row.vaultId !== this.vaultId ||
+        row.connectionId !== actor.connectionId ||
+        row.clientId !== actor.clientId ||
+        !["identity", "consent", "revocation", "publication"].includes(row.kind) ||
+        !/^[A-Za-z0-9_-]{22,128}$/.test(row.pending?.operationId ?? ""))
+    )
+      throw new VaultError("binding_mismatch");
+  }
+  private async preparePersistent(method: string, args: Json): Promise<Json> {
+    return this.serial(async () => {
+      const g = this.generation;
+      await this.started;
+      const actor = args.actor,
+        key = this.persistentKey(actor),
+        row = await this.storage.get(key);
+      this.assert(g);
+      this.checkPersistentRow(row, actor);
+      if (row) throw new VaultError("persistent_operation_pending");
+      const { localPending, ...packet } = await this.rpc(method, args);
+      this.assert(g);
+      if (packet.kind === "no_change") return packet;
+      if (
+        !localPending ||
+        packet.connectionId !== actor.connectionId ||
+        packet.operationId !== localPending.operationId
+      )
+        throw new VaultError("binding_mismatch");
+      const stored = {
+        ownerSubject: this.owner,
+        vaultId: this.vaultId,
+        ...actor,
+        kind: packet.kind,
+        pending: { operationId: packet.operationId, record: localPending },
+      };
+      this.checkPersistentRow(stored, actor);
+      if (!(await this.storage.insert(key, stored)))
+        throw new VaultError("persistent_operation_pending");
+      this.assert(g);
+      return packet;
+    });
+  }
+  async preparePersistentEnrollment(args: Json) {
+    return this.preparePersistent("preparePersistentEnrollment", args);
+  }
+  async preparePersistentConsent(args: Json) {
+    return this.preparePersistent("preparePersistentConsent", args);
+  }
+  async preparePersistentRevocation(args: Json) {
+    return this.preparePersistent("preparePersistentRevocation", args);
+  }
+  async preparePersistentTask(args: Json) {
+    return this.preparePersistent("preparePersistentTask", args);
+  }
+  async preparePersistentResource(args: Json) {
+    return this.preparePersistent("preparePersistentResource", args);
+  }
+  async verifyPersistentIdentity(args: Json) {
+    const g = this.generation;
+    const value = await this.rpc("verifyPersistentIdentity", args);
+    this.assert(g);
+    return value;
+  }
+  async verifyPersistentPolicy(args: Json) {
+    const g = this.generation;
+    const value = await this.rpc("verifyPersistentPolicy", args);
+    this.assert(g);
+    return value;
+  }
+  async loadPersistentPending(actor: {
+    connectionId: string;
+    clientId: string;
+  }): Promise<Json | null> {
+    const g = this.generation;
+    await this.started;
+    const row = await this.storage.get(this.persistentKey(actor));
+    this.assert(g);
+    this.checkPersistentRow(row, actor);
+    if (!row) return null;
+    const packet = await this.rpc("openPersistentPending", {
+      record: row.pending.record,
+      operationId: row.pending.operationId,
+      connectionId: actor.connectionId,
+    });
+    this.assert(g);
+    if (packet.kind !== row.kind) throw new VaultError("binding_mismatch");
+    return packet;
+  }
+  async listPersistentOutbox() {
+    const g = this.generation;
+    await this.started;
+    if (!this.vaultId) throw new VaultError("locked");
+    const rows = await this.storage.list(`${this.owner}:persistent-owner:${this.vaultId}:`);
+    this.assert(g);
+    if (rows.length > 80) throw new VaultError("invalid_data");
+    return rows.map(({ key, value }) => {
+      const actor = { connectionId: value.connectionId, clientId: value.clientId };
+      this.checkPersistentRow(value, actor);
+      if (key !== this.persistentKey(actor)) throw new VaultError("binding_mismatch");
+      return { ...actor, kind: value.kind, operationId: value.pending.operationId };
+    });
+  }
+  async finishPersistentPending(actor: { connectionId: string; clientId: string }, receipt: Json) {
+    return this.serial(async () => {
+      const g = this.generation,
+        packet = await this.loadPersistentPending(actor);
+      this.assert(g);
+      if (!packet) throw new VaultError("not_found");
+      const result = await this.rpc("verifyPersistentReceipt", { packet, receipt });
+      this.assert(g);
+      if (
+        result.operationId !== packet.operationId ||
+        !(await this.storage.removeOperation(this.persistentKey(actor), result.operationId))
+      )
+        throw new VaultError("operation_conflict");
+      this.assert(g);
+      return result;
+    });
+  }
+  async openPersistentResult(args: Json) {
+    const g = this.generation,
+      value = await this.rpc("openPersistentResult", args);
+    this.assert(g);
+    return value;
+  }
+
   async publicAgentAnchor(args: {
     connectionId: string;
     agentPrincipalId: string;

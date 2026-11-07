@@ -21,6 +21,7 @@ test.before(async () => {
   for (const name of [
     "encrypted-types",
     "encrypted-core",
+    "encrypted-persistent",
     "encrypted-storage",
     "encrypted-vault-engine",
     "encrypted-vault",
@@ -36,6 +37,14 @@ test.before(async () => {
       name.endsWith(".json") ? `from "./${name}" with { type: "json" }` : `from "./${name}.mjs"`,
     );
     code = code.replace('"ajv/dist/2020"', '"ajv/dist/2020.js"');
+    code = code.replace(
+      /(["'])\.\.\/\.\.\/\.\.\/packages\/encrypted-workspace\/dist\/core\.mjs\1/g,
+      JSON.stringify(
+        pathToFileURL(
+          path.resolve(__dirname, "../../../packages/encrypted-workspace/dist/core.mjs"),
+        ).href,
+      ),
+    );
     await fs.writeFile(path.join(directory, name + ".mjs"), code);
   }
   await fs.copyFile(
