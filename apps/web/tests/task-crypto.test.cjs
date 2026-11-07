@@ -285,7 +285,9 @@ test("historical task validation rejects owner, metadata, fingerprint, registry,
       t.keyProofs.certificates.pop();
     },
     (t) => {
-      t.signedObject.signature = t.signedObject.signature.slice(0, -2) + "AA";
+      const bytes = Buffer.from(t.signedObject.signature, "base64url");
+      bytes[0] ^= 1;
+      t.signedObject.signature = bytes.toString("base64url");
     },
   ]) {
     const changed = copy(task);
@@ -294,7 +296,9 @@ test("historical task validation rejects owner, metadata, fingerprint, registry,
   }
   const changed = copy(task),
     message = decoded(changed.signedObject);
-  message.jwe.ciphertext = "AA" + message.jwe.ciphertext.slice(2);
+  const ciphertext = Buffer.from(message.jwe.ciphertext, "base64url");
+  ciphertext[0] ^= 1;
+  message.jwe.ciphertext = ciphertext.toString("base64url");
   changed.signedObject = await signed(
     f,
     message,

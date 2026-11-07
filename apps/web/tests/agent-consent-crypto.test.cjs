@@ -10,6 +10,24 @@ const { transformSync } = require("next/dist/build/swc");
 let core, bridge, storageModule, jose, directory;
 const copy = (v) => structuredClone(v);
 const decoded = (v) => JSON.parse(Buffer.from(v.payload, "base64url"));
+let pythonFixtureId = 0;
+// Test-only synthetic vectors use an owner-readable file. This avoids a large
+// synchronous stdin pipe getting stuck when crypto suites spawn peers in parallel.
+async function pythonFixture(python, source, fixture, env) {
+  const file = path.join(directory, `python-fixture-${++pythonFixtureId}.json`);
+  await fs.writeFile(file, JSON.stringify(fixture), { mode: 0o600 });
+  try {
+    return spawnSync(python, ["-c", source, file], {
+      encoding: "utf8",
+      env,
+      stdio: ["ignore", "pipe", "pipe"],
+      timeout: 20_000,
+      maxBuffer: 1_048_576,
+    });
+  } finally {
+    await fs.rm(file, { force: true });
+  }
+}
 test.before(async () => {
   directory = await fs.mkdtemp(path.join(os.tmpdir(), "folioview-agent-consent-crypto-"));
   await fs.symlink(
@@ -756,7 +774,12 @@ test("browser owner registry, grant and D2 packets match the independent Python 
     t.skip("Declared shared Python environment unavailable");
     return;
   }
-  const probe = spawnSync(python, ["-c", "import jwcrypto"], { encoding: "utf8" });
+  const probe = spawnSync(python, ["-c", "import jwcrypto"], {
+    encoding: "utf8",
+    timeout: 10_000,
+    maxBuffer: 65_536,
+    stdio: ["ignore", "pipe", "pipe"],
+  });
   if (probe.status !== 0) {
     t.skip("Declared shared Python dependencies unavailable");
     return;
@@ -768,15 +791,13 @@ test("browser owner registry, grant and D2 packets match the independent Python 
       signedGrant: p.grants.signedGrants[0],
       sources: p.sources,
     });
-  const result = spawnSync(
+  const result = await pythonFixture(
     python,
-    [
-      "-c",
-      `import json,sys
+    `import json,sys
 from types import SimpleNamespace
 from folioview_shared.encrypted.authority import verify_registry,verify_agent_grant
 from app.preparations import PreparationService
-x=json.load(sys.stdin);r=None
+x=json.load(open(sys.argv[1], encoding="utf-8"));r=None
 for b in x['vault']['registryHistory']:r=verify_registry(b,root_jwk=x['vault']['rootJwk'],pinned_root_key_id=x['vault']['rootKeyId'],owner_subject=x['owner'],vault_id=x['vault']['vaultId'],now=1000,previous=r)
 g=verify_agent_grant(x['signed'],registry=r,owner_subject=x['owner'],vault_id=x['vault']['vaultId'],connection_id=x['grant']['connectionId'],authorization_id=x['grant']['authorizationId'],task_id=x['grant']['taskId'],task_version=1,execution_epoch=1,grant_id=x['grant']['grantId'],grant_epoch=1,now=1000,authorization_expires_at=5000)
 s=object.__new__(PreparationService);s.oauth=SimpleNamespace(now=lambda:1000)
@@ -784,25 +805,21 @@ state=({'ownerSubject':x['owner']},g,x['vault'],r,x['task']['metadata'])
 for d,p in zip(x['intent']['objects'],x['packet']['objects']):
  v=s._verify(p['envelope'],d,state,p['authorKeyId'],p['operationId']);assert v.fingerprint==p['envelopeFingerprint']
 print('verified')`,
-    ],
     {
-      input: JSON.stringify({
-        vault: p.f.vault,
-        owner: await p.f.session.owner,
-        signed: p.grants.signedGrants[0],
-        grant: p.grant,
-        task: p.task,
-        intent: p.intent,
-        packet,
-      }),
-      encoding: "utf8",
-      env: {
-        ...process.env,
-        PYTHONPATH:
-          path.join(root, "services/agent-hub-service") +
-          path.delimiter +
-          path.join(root, "services/common"),
-      },
+      vault: p.f.vault,
+      owner: await p.f.session.owner,
+      signed: p.grants.signedGrants[0],
+      grant: p.grant,
+      task: p.task,
+      intent: p.intent,
+      packet,
+    },
+    {
+      ...process.env,
+      PYTHONPATH:
+        path.join(root, "services/agent-hub-service") +
+        path.delimiter +
+        path.join(root, "services/common"),
     },
   );
   assert.equal(result.status, 0, result.stderr);
@@ -1069,27 +1086,21 @@ test("A1 approved grants and sealed retries survive A2 enrollment, another owner
   const root = path.resolve(__dirname, "../../.."),
     python = path.join(root, "services/market-data-service/.venv/bin/python");
   if (existsSync(python)) {
-    const result = spawnSync(
+    const result = await pythonFixture(
       python,
-      [
-        "-c",
-        `import json,sys
+      `import json,sys
 from folioview_shared.encrypted.authority import verify_registry,verify_agent_grant
-x=json.load(sys.stdin);r=None
+x=json.load(open(sys.argv[1], encoding="utf-8"));r=None
 for b in x['vault']['registryHistory']:r=verify_registry(b,root_jwk=x['vault']['rootJwk'],pinned_root_key_id=x['vault']['rootKeyId'],owner_subject=x['owner'],vault_id=x['vault']['vaultId'],now=1000,previous=r)
 g=x['grant'];verify_agent_grant(x['signed'],registry=r,owner_subject=x['owner'],vault_id=x['vault']['vaultId'],connection_id=g['connectionId'],authorization_id=g['authorizationId'],task_id=g['taskId'],task_version=1,execution_epoch=1,grant_id=g['grantId'],grant_epoch=1,now=1000,authorization_expires_at=5000)
 print('verified')`,
-      ],
       {
-        input: JSON.stringify({
-          vault: p.f.vault,
-          owner: await p.f.session.owner,
-          grant: p.grant,
-          signed: approval.signedGrants[0],
-        }),
-        encoding: "utf8",
-        env: { ...process.env, PYTHONPATH: path.join(root, "services/common") },
+        vault: p.f.vault,
+        owner: await p.f.session.owner,
+        grant: p.grant,
+        signed: approval.signedGrants[0],
       },
+      { ...process.env, PYTHONPATH: path.join(root, "services/common") },
     );
     assert.equal(result.status, 0, result.stderr);
   }
