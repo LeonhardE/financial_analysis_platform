@@ -635,3 +635,7 @@ a manual recovery does not establish automatic pipeline success.
 The separately gated [durable Agent identity store](PERSISTENT_AGENTS.md) retains
 explicitly approved public identities independently of OAuth transport expiry.
 It does not enable persistent resource access or background execution.
+
+The [persistent resource-consent API](RESOURCE_CONSENTS.md) stores root-approved
+logical-resource policies and independent revocations behind a separate default-off
+approval gate; it does not enable encrypted delivery or background execution.
