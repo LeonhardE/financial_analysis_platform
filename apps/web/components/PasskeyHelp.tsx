@@ -45,6 +45,8 @@ export function PasskeyHelp({
         </div>
       </div>
     );
+  if (mode === "unlock" && workspace.phase === "unlocked")
+    return <p className={styles.note}>{t("sharedUnlockHelp")}</p>;
   return (
     <div className={styles.passkeyHelp}>
       <p>{t("identityHelp")}</p>

@@ -1,9 +1,7 @@
 const assert = require("node:assert/strict");
 const test = require("node:test");
-const fs = require("node:fs");
 const vm = require("node:vm");
-const path = require("node:path");
-const { transformSync } = require("next/dist/build/swc");
+const { compileVaultWorker } = require("./worker-dispatch-helpers.cjs");
 const {
   createHarness,
   createOwner,
@@ -354,13 +352,8 @@ test("signed packets with altered binding, history, recipient or JWE framing are
 });
 
 test("the actual serialized Worker dispatcher exposes only the two read-only reconciliation RPCs", async () => {
-  const { f, pending, response, source } = await fixture(),
-    file = path.resolve(__dirname, "../lib/encrypted-vault.worker.ts");
-  let { code } = transformSync(fs.readFileSync(file, "utf8"), {
-    filename: file,
-    jsc: { parser: { syntax: "typescript" }, target: "es2022" },
-    module: { type: "commonjs" },
-  });
+  const { f, pending, response, source } = await fixture();
+  const code = compileVaultWorker();
   let VaultError;
   try {
     new h.core.VaultCore("");

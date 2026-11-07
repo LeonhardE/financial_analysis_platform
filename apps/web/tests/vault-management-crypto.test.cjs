@@ -8,6 +8,7 @@ const { pathToFileURL } = require("node:url");
 const { spawnSync } = require("node:child_process");
 const test = require("node:test");
 const { transformSync } = require("next/dist/build/swc");
+const { compileVaultWorker } = require("./worker-dispatch-helpers.cjs");
 const {
   createHarness,
   createOwner,
@@ -44,12 +45,7 @@ test.before(async () => {
   }
   bridge = await import(pathToFileURL(path.join(directory, "encrypted-vault.mjs")).href);
   storageModule = await import(pathToFileURL(path.join(directory, "encrypted-storage.mjs")).href);
-  const file = path.resolve(__dirname, "../lib/encrypted-vault.worker.ts");
-  workerCode = transformSync(readFileSync(file, "utf8"), {
-    filename: file,
-    jsc: { parser: { syntax: "typescript" }, target: "es2022" },
-    module: { type: "commonjs" },
-  }).code;
+  workerCode = compileVaultWorker();
 });
 test.after(async () => {
   clients.forEach((client) => client.lock());

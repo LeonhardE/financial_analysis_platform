@@ -382,6 +382,16 @@ export default function WorkspaceShell() {
       <WorkspaceSidebar activeView={activeView} onNavigate={navigate} />
       {!pickerOpen && activeView === "markets" && <WatchlistNotification watchlist={watchlist} />}
       <main className="workspace-content" id="workspace-content">
+        {activeView !== "markets" &&
+          encryptedWorkspace.authenticated &&
+          encryptedWorkspace.phase === "unlocked" && (
+            <div className="workspace-unlock-status" role="status">
+              <span>{t("vaultManagement.sharedUnlockHelp")}</span>
+              <button type="button" className="text-button" onClick={encryptedWorkspace.lock}>
+                {t("vaultManagement.lockWorkspace")}
+              </button>
+            </div>
+          )}
         {activeView === "settings" && <SettingsPanel workspace={encryptedWorkspace} />}
         <div hidden={activeView !== "resources"}>
           <ResourcesPanel

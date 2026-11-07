@@ -567,7 +567,7 @@
       "new_results": "New results or changes are available. Refresh to start an updated inbox view."
     },
     "enableChanges": "Enable changes on this device",
-    "readOnlyHelp": "You can read saved reports. Use your Passkey to authorize this device before changing their status.",
+    "readOnlyHelp": "Your library is already unlocked. Review this browser’s write access before changing report status.",
     "stateScope": "Read, star and archive apply to this result across all its revisions.",
     "countsHelp": "Counts reflect the last refresh.",
     "archiveUnavailable": "A key archive removal needs attention, or the cloud key archive was removed. Open Settings to check the original request or use independent recovery. Your saved content has not been emptied.",
@@ -1235,7 +1235,9 @@
     "recoveryValidityHelp": "This is the existing recovery recipient’s current validity, not a perpetual recovery guarantee. Checking or replacing a Passkey does not renew this certificate.",
     "recoveryFingerprint": "Show recovery recipient fingerprint",
     "recoveryUnavailable": "The current recovery recipient certificate is unavailable or expired, so this check cannot confirm current recovery capability. It does not mean an administrator can recover the contents.",
-    "enableChanges": "Review write access for this browser"
+    "enableChanges": "Review write access for this browser",
+    "sharedUnlockHelp": "Library unlocked for Resources, Tasks, Agent, Inbox and Settings.",
+    "lockWorkspace": "Lock all private pages"
   },
   "vaultRecovery": {
     "title": "Recovery and a new Passkey",

@@ -8,7 +8,9 @@ const { createHash } = require("node:crypto");
 const { spawnSync } = require("node:child_process");
 const test = require("node:test");
 const { transformSync } = require("next/dist/build/swc");
-let core, bridge, passkey, directory, nativeStorage;
+const vm = require("node:vm");
+const { MessageChannel } = require("node:worker_threads");
+let core, bridge, passkey, directory, nativeStorage, engine;
 test.before(async () => {
   directory = await fs.mkdtemp(path.join(os.tmpdir(), "folioview-browser-crypto-"));
   await fs.symlink(
@@ -20,6 +22,7 @@ test.before(async () => {
     "encrypted-types",
     "encrypted-core",
     "encrypted-storage",
+    "encrypted-vault-engine",
     "encrypted-vault",
     "encrypted-passkey",
   ]) {
@@ -41,6 +44,7 @@ test.before(async () => {
   );
   core = await import(pathToFileURL(path.join(directory, "encrypted-core.mjs")).href);
   bridge = await import(pathToFileURL(path.join(directory, "encrypted-vault.mjs")).href);
+  engine = await import(pathToFileURL(path.join(directory, "encrypted-vault-engine.mjs")).href);
   nativeStorage = await import(pathToFileURL(path.join(directory, "encrypted-storage.mjs")).href);
   passkey = await import(pathToFileURL(path.join(directory, "encrypted-passkey.mjs")).href);
 });
@@ -936,5 +940,160 @@ test("native IndexedDB transactions keep one outbox winner, compare-delete exact
       if (storage.database) (await storage.database).close();
     if (previous) Object.defineProperty(globalThis, "indexedDB", previous);
     else delete globalThis.indexedDB;
+  }
+});
+
+test("shared owner broker resumes real crypto across documents, isolates accounts and globally fences locking", async () => {
+  const priorSharedWorker = global.SharedWorker;
+  const priorErrorEvent = global.ErrorEvent;
+  const hosts = new Map(),
+    ports = [],
+    workers = [];
+  let unlockEvents = 0,
+    lockEvents = 0;
+  let releaseObserver = () => {};
+  class CryptoWorker {
+    constructor(post) {
+      workers.push(this);
+      this.stopped = false;
+      this.pause = null;
+      this.kernel = engine.createVaultKernel(post, (uid) => new core.VaultCore(uid, () => 1000));
+    }
+    postMessage(message) {
+      Promise.resolve().then(async () => {
+        if (this.pause) await this.pause;
+        if (!this.stopped) this.kernel.postMessage(message);
+      });
+    }
+    terminate() {
+      this.stopped = true;
+      this.kernel.terminate();
+    }
+  }
+  const file = path.resolve(__dirname, "../lib/encrypted-vault.shared.ts");
+  const { code } = transformSync(
+    readFileSync(file, "utf8").replaceAll("import.meta.url", '"file:///synthetic/shared.mjs"'),
+    {
+      filename: file,
+      jsc: { parser: { syntax: "typescript" }, target: "es2022" },
+      module: { type: "commonjs" },
+    },
+  );
+  global.ErrorEvent ??= class {
+    constructor(type) {
+      this.type = type;
+    }
+  };
+  global.SharedWorker = class {
+    constructor(_url, options) {
+      assert.equal(options.extendedLifetime, true);
+      if (!hosts.has(options.name)) {
+        const module = { exports: {} };
+        const host = vm.createContext({
+          module,
+          exports: module.exports,
+          require: (name) => {
+            assert.equal(name, "./encrypted-vault-engine");
+            return { createVaultKernel: (post) => new CryptoWorker(post) };
+          },
+          close: () => hosts.delete(options.name),
+          URL,
+          Error,
+          Promise,
+          Map,
+          Set,
+        });
+        vm.runInContext(code, host);
+        hosts.set(options.name, host);
+      }
+      const channel = new MessageChannel();
+      ports.push(channel.port1, channel.port2);
+      this.port = channel.port1;
+      hosts.get(options.name).onconnect({ ports: [channel.port2] });
+    }
+  };
+  const tick = () => new Promise((resolve) => setImmediate(resolve));
+  try {
+    const f = await fixture();
+    const storage = new MemoryStorage();
+    await storage.commitVault(await f.session.owner, f.local);
+    releaseObserver = bridge.EncryptedVaultSession.watchUnlock(
+      f.uid,
+      () => unlockEvents++,
+      () => lockEvents++,
+    );
+    const first = new bridge.EncryptedVaultSession(f.uid, { storage, sharedUnlock: true });
+    assert.equal(first.sharedUnlock, true);
+    assert.equal(await first.resumeUnlock(f.vault), null);
+    const material = f.material();
+    await first.unlock(f.vault, material);
+    assert.equal(
+      material.secret.byteLength,
+      0,
+      "PRF is transferred through both ports, not retained",
+    );
+    await first.acceptVault(f.vault);
+    first.publishUnlock();
+    const second = new bridge.EncryptedVaultSession(f.uid, { storage, sharedUnlock: true });
+    assert.equal((await second.resumeUnlock(f.vault)).canWriteState, true);
+    const packet = await second.sealSnapshot({ content: content(), source, expectedRevision: 0 });
+    first.release();
+    const afterReload = new bridge.EncryptedVaultSession(f.uid, { storage, sharedUnlock: true });
+    assert.equal((await afterReload.resumeUnlock(f.vault)).canWriteState, true);
+    assert.equal(workers.length, 1, "new documents attach to the original crypto kernel");
+    const decrypted = await afterReload.openSnapshot(await stored(f, packet), source);
+    assert.equal(decrypted.data.kind, "holdings");
+    assert.equal(unlockEvents, 1);
+
+    // Even a port deliberately pointed at the other owner's broker cannot bind a different UID.
+    const wrong = new global.SharedWorker("unused", {
+      name: [...hosts.keys()].find((name) => name.endsWith(":" + f.uid)),
+      extendedLifetime: true,
+    });
+    const denied = new Promise((resolve) => {
+      wrong.port.onmessage = (event) => resolve(event.data);
+    });
+    wrong.port.start();
+    wrong.port.postMessage({
+      action: "rpc",
+      uid: "synthetic_B",
+      id: 1,
+      method: "init",
+      args: { uid: "synthetic_B" },
+    });
+    assert.equal((await denied).error, "wrong_account");
+    assert.equal((await afterReload.resumeUnlock(f.vault)).canWriteState, true);
+
+    let resume;
+    workers[0].pause = new Promise((resolve) => {
+      resume = resolve;
+    });
+    const stale = afterReload.signSource("holdings_paused");
+    await tick();
+    const rejected = assert.rejects(stale, /locked/);
+    // Logout can precede attachment of this document's facade.
+    bridge.EncryptedVaultSession.lockSharedUnlock(f.uid);
+    await rejected;
+    resume();
+    await tick();
+    assert.equal(workers[0].stopped, true);
+    assert.ok(lockEvents >= 1);
+    const nextLogin = new bridge.EncryptedVaultSession(f.uid, { storage, sharedUnlock: true });
+    assert.equal(
+      await nextLogin.resumeUnlock(f.vault),
+      null,
+      "logout/lock cannot restore old keys",
+    );
+    nextLogin.release();
+    assert.equal(workers.length, 2);
+    const saved = JSON.stringify([...storage.records.values()]);
+    for (const privateValue of ['"d":', "PrivateJwk", "Synthetic CSV input"])
+      assert.equal(saved.includes(privateValue), false);
+  } finally {
+    releaseObserver();
+    for (const worker of workers) worker.terminate();
+    for (const port of ports) port.close();
+    global.SharedWorker = priorSharedWorker;
+    global.ErrorEvent = priorErrorEvent;
   }
 });

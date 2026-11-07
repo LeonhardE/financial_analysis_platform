@@ -3323,6 +3323,19 @@ export class VaultCore {
     }
     return registry!;
   }
+  ownerUnlockStatus() {
+    return {
+      unlocked: Boolean(
+        this.root &&
+        this.recovery &&
+        this.wrapping &&
+        !this.renewalOnly &&
+        !this.archiveDeletionRestricted,
+      ),
+      vaultId: this.vault?.vaultId ?? null,
+      rootKeyId: this.vault?.rootKeyId ?? null,
+    };
+  }
   async unlock(
     vault: Vault,
     material: PasskeyMaterial,

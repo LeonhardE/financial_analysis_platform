@@ -412,6 +412,15 @@ export function useHoldingsWorkspace() {
   } | null>(null);
   const vaultGeneration = useRef(0);
   const recoverySession = useRef<EncryptedVaultSession | null>(null);
+  const sharedHandlers = useRef({ lock: () => {}, reload: async () => {} });
+  const ownerSession = useCallback(
+    (subject: string) =>
+      new EncryptedVaultSession(subject, {
+        sharedUnlock: true,
+        onInvalidated: () => sharedHandlers.current.lock(),
+      }),
+    [],
+  );
   const renewalHoldingsReview = useRef<{
     pending: PendingSnapshot;
     receipt: unknown;
@@ -1033,15 +1042,19 @@ export function useHoldingsWorkspace() {
             await reconcileArchiveDeletion(fresh, signal, assertActive);
             return;
           }
-          const retained =
+          let retained =
             stateRef.current.phase === "unlocked" &&
             session.current?.owner === owner &&
             stateRef.current.vault?.vaultId === vault.vaultId
               ? session.current.instance
               : null;
           if (!retained) terminate();
-          const instance = retained ?? new EncryptedVaultSession(uid);
+          const instance = retained ?? ownerSession(uid);
           session.current = { owner, instance };
+          if (!retained && instance.sharedUnlock) {
+            if (await instance.resumeUnlock(vault)) retained = instance;
+            assertActive();
+          }
           if (!retained)
             setState((previous) => ({
               ...previous,
@@ -1203,6 +1216,7 @@ export function useHoldingsWorkspace() {
       terminate,
       uid,
       reconcileArchiveDeletion,
+      ownerSession,
     ],
   );
 
@@ -1215,6 +1229,36 @@ export function useHoldingsWorkspace() {
       terminate();
       if (await reconcileArchiveDeletion(result, signal, assertActive)) return;
       assertActive();
+      if (uid && result.vault?.archive && EncryptedVaultSession.supportsSharedUnlock?.()) {
+        const instance = ownerSession(uid);
+        session.current = { owner: owner!, instance };
+        const access = await instance.resumeUnlock(result.vault);
+        assertActive();
+        if (access) {
+          const lifecycle = await readLifecycle(result.vault, signal);
+          await instance.verifyLifecycle(result.vault, lifecycle);
+          const archiveChange = await instance.getArchiveChange(result.vault, lifecycle);
+          if (archiveChange) throw new WorkspaceError("archive_session_stale");
+          const keyManagement = await instance.deviceManagement(result.vault);
+          const deviceChange = await instance.loadDeviceChange(result.vault);
+          const sourceCreation = await instance.loadSourceCreation();
+          assertActive();
+          setState({
+            ...empty,
+            owner,
+            phase: "unlocked",
+            vault: result.vault,
+            sources: result.sources,
+            canWriteState: access.canWriteState,
+            keyManagement,
+            deviceChange,
+            sourceCreationId: sourceCreation?.sourceId ?? null,
+          });
+          return;
+        }
+        instance.release();
+        session.current = null;
+      }
       setState({
         ...empty,
         owner,
@@ -1224,7 +1268,17 @@ export function useHoldingsWorkspace() {
         busy: "loading",
       });
     });
-  }, [owner, perform, readCurrent, terminate, reconcileArchiveDeletion, unlock]);
+  }, [
+    owner,
+    uid,
+    perform,
+    readCurrent,
+    readLifecycle,
+    terminate,
+    reconcileArchiveDeletion,
+    unlock,
+    ownerSession,
+  ]);
 
   useEffect(() => {
     ++serial.current;
@@ -1238,15 +1292,19 @@ export function useHoldingsWorkspace() {
       current.current?.controller.abort();
       current.current = null;
       terminate();
+      // Identity may disappear before this document has attached its facade.
+      // Clear the owner's existing broker even while its vault read is pending.
+      if (uid && (ownerRef.current !== owner || !capabilitiesRef.current.hub))
+        EncryptedVaultSession.lockSharedUnlock?.(uid);
     };
-  }, [owner, configured, auth.portfolioConfigured, reload, terminate]);
+  }, [owner, uid, configured, auth.portfolioConfigured, reload, terminate]);
 
   const create = useCallback(
     (options?: Pick<PasskeyOptions, "method">) =>
       perform("creating", async ({ assertActive, signal }) => {
         if (!uid || !owner || stateRef.current.vault) throw new WorkspaceError("version_conflict");
         terminate();
-        const instance = new EncryptedVaultSession(uid);
+        const instance = ownerSession(uid);
         session.current = { owner, instance };
         await instance.prepareCreate();
         assertActive();
@@ -1285,7 +1343,7 @@ export function useHoldingsWorkspace() {
           if (material.secret.byteLength) new Uint8Array(material.secret).fill(0);
         }
       }),
-    [api, owner, perform, readCurrent, readLifecycle, terminate, uid],
+    [ownerSession, api, owner, perform, readCurrent, readLifecycle, terminate, uid],
   );
 
   const importFile = useCallback(
@@ -2124,6 +2182,25 @@ export function useHoldingsWorkspace() {
       keyRenewalFailure: false,
     }));
   }, [owner, terminate]);
+
+  sharedHandlers.current = { lock, reload };
+  useEffect(() => {
+    if (!uid || !owner || !configured) return;
+    return EncryptedVaultSession.watchUnlock?.(
+      uid,
+      () => {
+        if (ownerRef.current === owner && stateRef.current.phase === "locked" && !current.current)
+          void sharedHandlers.current.reload();
+      },
+      () => {
+        if (ownerRef.current === owner) sharedHandlers.current.lock();
+      },
+    );
+  }, [uid, owner, configured]);
+  useEffect(() => {
+    if (state.owner === owner && state.phase === "unlocked")
+      session.current?.instance.publishUnlock?.();
+  }, [owner, state.owner, state.phase]);
 
   const assertInboxSession = useCallback(
     (instance: EncryptedVaultSession, generation: number) => {

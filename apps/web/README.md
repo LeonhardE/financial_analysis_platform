@@ -14,16 +14,31 @@ selected page; unknown paths return the normal 404 rather than becoming Market.
 
 The `(workspace)` layout keeps one `WorkspaceShell` mounted across these pages. It owns the
 existing encrypted workspace and Market selection state, so internal navigation preserves the
-current Worker/session. A full refresh still requires unlocking as before. Logout, owner changes,
-lock and leaving the workspace retain the existing key-disposal rules; remembering a route does
-not persist private key material or replace owner authentication.
+current Worker/session. Supported browsers also retain one memory-only owner session across
+reloads and same-account tabs. Logout, owner changes and explicit lock invalidate every connected
+private view. Remembering a route does not persist private key material or replace authentication.
 
 Automatic token refresh for the same verified Firebase SDK user revalidates the account without
 replacing this owner session or interrupting current private requests and consent responses.
 Each private request still obtains a current SDK token. Failed or timed-out account verification,
 an authentication rejection, a different SDK user and explicit account retry invalidate the
 previous session. This keeps normal credential rotation from causing another Passkey prompt
-inside the same open workspace; a new tab or full page reload still starts its own session.
+inside the workspace, across normal reloads and same-account tabs while the browser retains
+the shared runtime. Reentry verifies the account and current vault, lifecycle and device authority
+before exposing private content. New device rights still require explicit review.
+
+### Unlock lifetime
+
+A same-origin SharedWorker runs the existing closed crypto protocol. The broker only
+routes the closed RPC protocol and public availability/lock notifications; it never exports keys.
+Private handles and Passkey PRF output remain outside browser storage and cross-tab broadcasts.
+A runtime-content/dependency fingerprint separates incompatible deployed worker scripts.
+
+SharedWorker's browser-controlled extended lifetime provides bounded reload handoff; it is not
+durable key storage or an unattended Agent runtime. Closing the browser process or losing the
+worker ends the unlock. Unsupported browsers use the existing per-document dedicated Worker and
+may require another unlock after reload. A changed runtime version starts a new memory session.
+See the [HTML worker lifetime rules](https://html.spec.whatwg.org/multipage/workers.html#the-worker's-lifetime).
 
 Legacy `#inbox/result/...` links normalize to `/inbox` while retaining the fragment. Existing
 `agent_request`/`agent_nonce` handoffs normalize to `/agents` while retaining the query; this
@@ -66,7 +81,8 @@ there is no automatic write retry and the local draft remains available for revi
 4. Confirm the selected holdings. A Worker produces the exact formal v2.0/P1 JWE/JWS carrier;
    only public authority/control material and ciphertext go to Hub/Portfolio.
 5. Saved holdings are verified and decrypted in the browser. Navigation within the app preserves
-   the current unlocked session; lock, logout, account change or app unmount terminates the Worker.
+   the current unlocked session; lock, logout or account change terminates the shared crypto
+   Worker and clears private views in every connected document.
 
 Google login establishes identity; it is not content-key derivation material. The system Passkey
 PRF protects the cloud archive containing the owner's root/recovery keys. Browser device keys
