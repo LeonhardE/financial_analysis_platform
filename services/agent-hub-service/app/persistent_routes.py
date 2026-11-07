@@ -11,9 +11,12 @@ from folioview_shared.encrypted.errors import ContractError
 from folioview_shared.http import PrivateRoute
 
 from .api import Owner, _invoke, body, transport
+from .catalogue import CatalogueService, get_sources
 from .oauth_config import OAuthConfig
 from .persistent_agents import PersistentAgentService
+from .resource_consents import ResourceConsentService
 from .store import get_store
+from .vaults import VaultService
 
 router = APIRouter(prefix="/api/v2/persistent-agents", route_class=PrivateRoute)
 
@@ -31,12 +34,29 @@ def require_enrollment():
     return clients
 
 
+def resource_approval_enabled():
+    return os.getenv("HUB_PERSISTENT_RESOURCE_CONSENTS_ENABLED") == "1" and bool(
+        enrollment_clients()
+    )
+
+
+def require_resource_approval():
+    if not resource_approval_enabled():
+        raise ContractError("authorization_unavailable")
+
+
+def get_resource_consent_service():
+    store = get_store()
+    return ResourceConsentService(store, CatalogueService(VaultService(store), get_sources()))
+
+
 def get_persistent_service():
     # History and narrowing controls stay available if enrollment is disabled.
     return PersistentAgentService(get_store())
 
 
 Service = Annotated[PersistentAgentService, Depends(get_persistent_service)]
+Resources = Annotated[ResourceConsentService, Depends(get_resource_consent_service)]
 
 
 def control_transport(request, *, operation=False):
@@ -58,7 +78,7 @@ def capabilities(request: Request, user: Owner):
         "contractVersion": CONTRACT_VERSION,
         "profile": "folioview.persistent-agent-capabilities.v1",
         "enrollmentEnabled": bool(clients),
-        "resourceConsentEnabled": False,
+        "resourceConsentEnabled": _invoke(resource_approval_enabled),
         "executionEnabled": False,
     }
 
@@ -116,6 +136,77 @@ async def revoke(
 ):
     _invoke(lambda: control_transport(request, operation=True))
     value = await body(request, {"contractVersion", "command"}, max_bytes=24576)
+    return await run_in_threadpool(
+        _invoke,
+        lambda: service.command(
+            user.uid,
+            vault_id,
+            connection_id,
+            value["command"],
+            request.headers["idempotency-key"],
+            revoke=True,
+        ),
+    )
+
+
+@router.get("/{vault_id}/{connection_id}/resource-consent")
+def resource_state(
+    vault_id: str,
+    connection_id: str,
+    request: Request,
+    user: Owner,
+    service: Resources,
+):
+    _invoke(lambda: control_transport(request))
+    return _invoke(lambda: service.state(user.uid, vault_id, connection_id))
+
+
+@router.get("/{vault_id}/{connection_id}/resource-operations/{operation_id}")
+def resource_receipt(
+    vault_id: str,
+    connection_id: str,
+    operation_id: str,
+    request: Request,
+    user: Owner,
+    service: Resources,
+):
+    _invoke(lambda: control_transport(request))
+    return _invoke(lambda: service.receipt(user.uid, vault_id, connection_id, operation_id))
+
+
+@router.post("/{vault_id}/{connection_id}/resource-approvals", status_code=201)
+async def approve_resources(
+    vault_id: str,
+    connection_id: str,
+    request: Request,
+    user: Owner,
+    service: Resources,
+):
+    _invoke(lambda: control_transport(request, operation=True))
+    _invoke(require_resource_approval)
+    value = await body(request, {"contractVersion", "command"}, max_bytes=98304)
+    return await run_in_threadpool(
+        _invoke,
+        lambda: service.command(
+            user.uid,
+            vault_id,
+            connection_id,
+            value["command"],
+            request.headers["idempotency-key"],
+        ),
+    )
+
+
+@router.post("/{vault_id}/{connection_id}/resource-revocations", status_code=201)
+async def revoke_resources(
+    vault_id: str,
+    connection_id: str,
+    request: Request,
+    user: Owner,
+    service: Resources,
+):
+    _invoke(lambda: control_transport(request, operation=True))
+    value = await body(request, {"contractVersion", "command"}, max_bytes=98304)
     return await run_in_threadpool(
         _invoke,
         lambda: service.command(

@@ -25,7 +25,8 @@ configuration. It defaults off. Deployment does not set it. Enable only after a
 trusted first-pairing path has passed review and validation; possessing a public
 key card or a model-transcribed fingerprint is not runtime provenance. History and
 revocation remain available without that flag or live OAuth configuration.
-Resource consent and execution readiness remain false in this slice.
+The independent [resource-consent producer](RESOURCE_CONSENTS.md) has its own approval
+activation gate. Execution readiness remains false.
 
 ## Transactions and lifetime
 
