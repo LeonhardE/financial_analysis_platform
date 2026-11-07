@@ -10,6 +10,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
+import test_encrypted_schema as private_payloads
 import test_persistent_publications as publications
 import test_runtime_setup as setups
 from fixtures import UID
@@ -149,7 +150,26 @@ class PersistentRuntimeSessionTests(unittest.TestCase):
             store, catalogue, audience=ORIGIN, client_ids=[CLIENT], clock=lambda: self.fx.now
         )
 
-    def test_registered_identity_restart_unknown_write_receipt_and_revocation(self):
+    def execution(self, *, policy=None, facts=None):
+        task_content, resource_content = (
+            private_payloads.task_content,
+            private_payloads.resource_content,
+        )
+
+        def task():
+            value = task_content()
+            value["inputPolicy"].update({"allowUnknownAsOf": True, **(policy or {})})
+            return value
+
+        def resource(*args, **kwargs):
+            value = resource_content(*args, **kwargs)
+            value.update({"fetchedAt": "1970-01-01T00:16:40Z", **(facts or {})})
+            return value
+
+        for name, factory in (("task_content", task), ("resource_content", resource)):
+            patcher = patch.object(private_payloads, name, factory)
+            patcher.start()
+            self.addCleanup(patcher.stop)
         original = OAuthFixture()
         actor = {
             "issuer": ORIGIN,
@@ -191,6 +211,11 @@ class PersistentRuntimeSessionTests(unittest.TestCase):
         }
         self.assertEqual(self.peer.call("initialize", initialize)["state"], "connected")
         self.assertEqual(len(self.peer.call("tasks")), 1)
+        return case, initialize
+
+    def test_registered_identity_restart_unknown_write_receipt_and_revocation(self):
+        case, initialize = self.execution()
+        f = self.f
         run = self.peer.call("begin", {"taskId": TASK, "triggerId": "synthetic_daily_slot_0001"})
         resource = self.peer.call(
             "input", {"runId": run["runId"], "publicationId": run["inputs"][0]["publicationId"]}
@@ -232,6 +257,47 @@ class PersistentRuntimeSessionTests(unittest.TestCase):
         self.assertEqual(denied["error"], "insufficient_scope")
         self.assertEqual(self.peer.call("submit", submit)["state"], "saved")
         self.assertEqual(self.ciphertexts[0], self.ciphertexts[-1])
+
+    def test_private_unknown_asof_policy_blocks_input_and_direct_report_submission(self):
+        self.execution(policy={"allowUnknownAsOf": False})
+        run = self.peer.call(
+            "begin", {"taskId": TASK, "triggerId": "synthetic_private_policy_0001"}
+        )
+        args = {"runId": run["runId"], "publicationId": run["inputs"][0]["publicationId"]}
+        self.assertEqual(self.peer.call("input", args, ok=False)["error"], "input_policy_asof")
+        report = PersistentContentFixture.private_content(
+            self.f, PersistentContentFixture.content_context(self.f, "result_revision")
+        )["payload"]
+        result = self.peer.call("submit", {"runId": run["runId"], "report": report}, ok=False)
+        self.assertEqual(result["error"], "input_policy_asof")
+        self.assertEqual(self.ciphertexts, [])
+
+    def test_report_rechecks_age_after_previously_successful_read(self):
+        self.execution(policy={"maxFetchedAgeSeconds": 300})
+        run = self.peer.call(
+            "begin", {"taskId": TASK, "triggerId": "synthetic_private_policy_0002"}
+        )
+        self.peer.call(
+            "input", {"runId": run["runId"], "publicationId": run["inputs"][0]["publicationId"]}
+        )
+        self.fx.now += 301
+        report = PersistentContentFixture.private_content(
+            self.f, PersistentContentFixture.content_context(self.f, "result_revision")
+        )["payload"]
+        result = self.peer.call("submit", {"runId": run["runId"], "report": report}, ok=False)
+        self.assertEqual(result["error"], "input_policy_fetched_age")
+        self.assertEqual(self.ciphertexts, [])
+
+    def test_private_policy_coverage_freshness_and_clock_boundaries(self):
+        node = os.getenv("FOLIOVIEW_NODE_BIN") or shutil.which("node")
+        self.assertIsNotNone(node)
+        result = subprocess.run(
+            [node, str(ROOT / "runtime_policy_boundaries.mjs")],
+            capture_output=True,
+            text=True,
+            timeout=12,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr[:1000])
 
     def test_first_setup_has_no_authority_until_root_pairing_and_restart_restores_same_keys(self):
         case = setups.RuntimeSetupTests()

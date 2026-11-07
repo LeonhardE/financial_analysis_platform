@@ -26,6 +26,7 @@ import { verifyConsentChain, permissionFor } from "./consents.mjs";
 import { matchBinding, verifyEnvelope, verifyManifest, requestProof } from "./authority.mjs";
 import { RuntimeStorage } from "./storage.mjs";
 import { dueSlot } from "./schedule.mjs";
+import { checkInputPolicy } from "./policy.mjs";
 const PAIRING = "folioview.runtime-pairing.v1";
 export class PersistentRuntime {
   #fetch;
@@ -478,7 +479,11 @@ export class PersistentRuntime {
   }
   async input({ runId, publicationId }) {
     validate("OperationIdentifier", publicationId);
-    const r = await this.#run(runId),
+    const r = await this.#run(runId);
+    return this.#input(r, publicationId);
+  }
+  async #input(r, publicationId) {
+    const runId = r.manifest.runId,
       item = r.manifest.inputs.find((i) => i.publicationId === publicationId);
     if (!item) deny("insufficient_scope");
     const response = await this.#call("runs/input", { runId, publicationId }),
@@ -498,12 +503,14 @@ export class PersistentRuntime {
       expected: { ...c, ...item },
       now: this.now(),
     });
+    const resource = await open(response.envelope, this.#profile.encryptionPrivateKey, c);
+    checkInputPolicy(r.task.task.inputPolicy, resource, this.now());
     return {
       runId,
       publicationId,
       ref: item.ref,
       sourceRevision: item.sourceRevision,
-      resource: await open(response.envelope, this.#profile.encryptionPrivateKey, c),
+      resource,
     };
   }
   async submit({ runId, report }) {
@@ -516,6 +523,13 @@ export class PersistentRuntime {
       const r = await this.#run(runId);
       if (r.manifest.resultPolicy !== "owner_inbox") deny("insufficient_scope");
       resultContent(report, r.task.task.outputSpec);
+      // First publication verifies every frozen input even if the caller skipped
+      // readInput. Unknown-outcome retries above retain the original ciphertext.
+      const resources = [];
+      for (const item of r.manifest.inputs)
+        resources.push(await this.#input(r, item.publicationId));
+      for (const { resource } of resources)
+        checkInputPolicy(r.task.task.inputPolicy, resource, this.now());
       const registry = this.#registry,
         recipients = [];
       for (const cert of registry.current.keys.values())
