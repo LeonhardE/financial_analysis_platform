@@ -37,7 +37,11 @@ export function AgentsView({
   const [copyNotice, setCopyNotice] = useState(false);
   const currentOwner = useRef(model.owner);
   currentOwner.current = model.owner;
-  const selected = model.selected;
+  const [historyOpen, setHistoryOpen] = useState(false);
+  useEffect(() => setHistoryOpen(false), [model.owner]);
+  const currentConnections = model.items.filter((connection) => connection.status !== "revoked");
+  const retiredConnections = model.items.filter((connection) => connection.status === "revoked");
+  const selected = model.selected?.status === "revoked" && !historyOpen ? null : model.selected;
   const privateTask =
     model.unlocked &&
     workspace.owner === model.owner &&
@@ -209,7 +213,7 @@ export function AgentsView({
               {!model.loading &&
                 !model.error &&
                 model.connectionsLoaded &&
-                model.items.length === 0 && (
+                currentConnections.length === 0 && (
                   <div className={styles.empty}>
                     <h3>{t("noConnections")}</h3>
                     <p>
@@ -221,7 +225,7 @@ export function AgentsView({
                     </p>
                   </div>
                 )}
-              {model.items.map((connection, index) => (
+              {currentConnections.map((connection, index) => (
                 <button
                   key={connection.connectionId}
                   className={styles.connection}
@@ -238,6 +242,30 @@ export function AgentsView({
                   <small>{t("authorizedAt", { date: date(connection.authorizedAt) })}</small>
                 </button>
               ))}
+              {retiredConnections.length > 0 && (
+                <details
+                  className={styles.attempts}
+                  open={historyOpen}
+                  onToggle={(event) => setHistoryOpen(event.currentTarget.open)}
+                >
+                  <summary>{t("connectionHistory", { count: retiredConnections.length })}</summary>
+                  <p className={styles.note}>{t("connectionHistoryHelp")}</p>
+                  {retiredConnections.map((connection, index) => (
+                    <button
+                      key={connection.connectionId}
+                      className={styles.connection}
+                      data-selected={connection.connectionId === selected?.connectionId}
+                      disabled={model.busy}
+                      onClick={() => model.select(connection.connectionId)}
+                    >
+                      <strong>{t("connectionName", { number: index + 1 })}</strong>
+                      <code>{short(connection.connectionId)}</code>
+                      <span>{t("statuses.revoked")}</span>
+                      <small>{t("authorizedAt", { date: date(connection.authorizedAt) })}</small>
+                    </button>
+                  ))}
+                </details>
+              )}
             </aside>
             {selected ? (
               <article className={styles.detail}>
@@ -561,6 +589,11 @@ export default function AgentsPanel({
             workspace={workspace}
             model={consent}
             invalidHandoff={invalidHandoff}
+            connectionHistory={
+              model.connectionsLoaded && !model.loading && !model.error
+                ? { owner: model.owner, items: model.items }
+                : undefined
+            }
           />
         </>
       }

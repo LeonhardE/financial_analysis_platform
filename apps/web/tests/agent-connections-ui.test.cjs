@@ -363,6 +363,139 @@ test("failed or not-yet-loaded owner lists never assert that no connections exis
   }
 });
 
+test("revoked connections start in closed history while expired connections remain actionable", () => {
+  const revoked = connection({ connectionId: "connection_retired", status: "revoked" });
+  for (const locale of ["en", "zh"]) {
+    const html = render(
+      "AgentsPanel",
+      {
+        workspace: workspace(),
+        model: model({ items: [revoked], selected: revoked }),
+        configuration,
+      },
+      locale,
+    );
+    assert.ok(html.includes(catalogs[locale].agents.noConnections));
+    assert.match(html, /<details class="attempts"><summary>/);
+    assert.match(html, /connection_retired/);
+    assert.doesNotMatch(html, /<article|PRIVATE_TASK/);
+    assert.ok(html.includes(catalogs[locale].agents.connectionHistoryHelp));
+  }
+  const html = render("AgentsPanel", {
+    workspace: workspace(),
+    model: model({
+      items: [connection({ status: "expired" })],
+      selected: connection({ status: "expired" }),
+    }),
+    configuration,
+  });
+  assert.ok(!html.includes(catalogs.en.agents.noConnections));
+  assert.ok(html.includes(catalogs.en.agents.reviewRevoke));
+});
+
+test("only confirmed same-owner revocation retires local consent retries without deleting or replaying them", () => {
+  const outbox = ["approval", "preparation", "registration"].map((kind) => ({
+    kind,
+    connectionId: "connection_A",
+    taskId: "task_A",
+    operationId: `operation_${kind}`,
+  }));
+  const source = consentModel({
+    authorization: { ...consentModel().authorization, connectionId: "connection_A" },
+    outbox,
+  });
+  for (const locale of ["en", "zh"]) {
+    const buttons = [];
+    const html = render(
+      "AgentConsentCard",
+      {
+        workspace: workspace(),
+        model: source,
+        connectionHistory: {
+          owner: "session_A",
+          items: [connection({ status: "revoked" })],
+        },
+      },
+      locale,
+      buttons,
+    );
+    assert.ok(html.includes(catalogs[locale].agentConsent.historyTitle));
+    assert.ok(html.includes(catalogs[locale].agentConsent.retiredRecordsHelp));
+    assert.match(html, /<details class="step"><summary>/);
+    assert.doesNotMatch(html, /PRIVATE_TASK|PRIVATE_GOAL/);
+    for (const key of ["recover", "discard", "reviewRequest", "pairHelper", "approve"])
+      assert.equal(
+        buttons.some((button) => button.children === catalogs[locale].agentConsent[key]),
+        false,
+      );
+  }
+  assert.equal(source.outbox.length, 3);
+  for (const history of [
+    undefined,
+    { owner: "session_B", items: [connection({ status: "revoked" })] },
+    { owner: "session_A", items: [] },
+    { owner: "session_A", items: [connection({ status: "expired" })] },
+    { owner: "session_A", items: [connection()] },
+  ]) {
+    const buttons = [];
+    const html = render(
+      "AgentConsentCard",
+      {
+        workspace: workspace(),
+        model: source,
+        connectionHistory: history,
+      },
+      "en",
+      buttons,
+    );
+    assert.ok(!html.includes(catalogs.en.agentConsent.retiredRecordsHelp));
+    assert.equal(
+      buttons.filter((button) => button.children === catalogs.en.agentConsent.recover).length,
+      3,
+    );
+  }
+});
+
+test("mixed local retry history keeps an unknown connection visible for recovery", () => {
+  const buttons = [];
+  const html = render(
+    "AgentConsentCard",
+    {
+      workspace: workspace(),
+      model: consentModel({
+        hasHandoff: false,
+        outbox: [
+          {
+            kind: "approval",
+            connectionId: "connection_A",
+            taskId: "task_old",
+            operationId: "operation_old",
+          },
+          {
+            kind: "preparation",
+            connectionId: "connection_unknown",
+            taskId: "task_pending",
+            operationId: "operation_pending",
+          },
+        ],
+      }),
+      connectionHistory: { owner: "session_A", items: [connection({ status: "revoked" })] },
+    },
+    "en",
+    buttons,
+  );
+  assert.match(html, /task_old/);
+  assert.match(html, /task_pending/);
+  assert.equal(
+    buttons.filter((button) => button.children === catalogs.en.agentConsent.recover).length,
+    1,
+  );
+  assert.equal(
+    buttons.filter((button) => button.children === catalogs.en.agentConsent.discard).length,
+    1,
+  );
+});
+
 test("consent stays mounted behind a hidden inert owner-keyed wrapper during capability revalidation", () => {
   const consent = React.createElement("input", { defaultValue: "UNIMPORTED_OFFER_DRAFT" });
   for (const enabled of [true, null, false]) {
