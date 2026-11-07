@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import type { HoldingsWorkspace } from "./useHoldingsWorkspace";
 import type { AgentConsentModel } from "./useAgentConsent";
-import type { AgentScope } from "@/lib/agent-connections";
+import type { AgentConnection, AgentScope } from "@/lib/agent-connections";
 import styles from "./AgentConsentCard.module.css";
 import { PasskeyHelp } from "./PasskeyHelp";
 
@@ -12,10 +12,12 @@ export function AgentConsentCard({
   workspace,
   model: sourceModel,
   invalidHandoff = false,
+  connectionHistory,
 }: {
   workspace: HoldingsWorkspace;
   model: AgentConsentModel;
   invalidHandoff?: boolean;
+  connectionHistory?: { owner: string | null; items: AgentConnection[] };
 }) {
   const privateVisible =
     sourceModel.owner === workspace.owner &&
@@ -66,6 +68,24 @@ export function AgentConsentCard({
   const busy = Boolean(model.busy || workspace.busy),
     authorization = model.authorization,
     selected = model.selected;
+  // Only a successful, same-owner server read can retire local retry records.
+  // Missing connections, expired sessions and failed reads remain actionable.
+  const retiredConnections = new Set(
+    connectionHistory?.owner === model.owner && model.owner === workspace.owner
+      ? connectionHistory.items
+          .filter((connection) => connection.status === "revoked")
+          .map((connection) => connection.connectionId)
+      : [],
+  );
+  const currentOutbox = model.outbox.filter((entry) => !retiredConnections.has(entry.connectionId));
+  const retiredOutbox = model.outbox.filter((entry) => retiredConnections.has(entry.connectionId));
+  const retiredAuthorization = Boolean(
+    authorization && retiredConnections.has(authorization.connectionId),
+  );
+  const currentConsent = Boolean(
+    (model.hasHandoff || model.signedGrant || model.published) && !retiredAuthorization,
+  );
+  const historyOnly = !currentConsent && currentOutbox.length === 0 && retiredOutbox.length > 0;
   const date = (timestamp: number) =>
     new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeStyle: "short" }).format(
       new Date(timestamp * 1000),
@@ -98,8 +118,8 @@ export function AgentConsentCard({
       <header>
         <div>
           <span className={styles.eyebrow}>{t("eyebrow")}</span>
-          <h2 id="agent-consent-title">{t("title")}</h2>
-          <p>{t("description")}</p>
+          <h2 id="agent-consent-title">{t(historyOnly ? "historyTitle" : "title")}</h2>
+          {!historyOnly && <p>{t("description")}</p>}
         </div>
         {model.unlocked && (
           <button className={styles.secondary} onClick={workspace.lock}>
@@ -117,12 +137,12 @@ export function AgentConsentCard({
           {t(t.has(`errors.${model.error}`) ? `errors.${model.error}` : "errors.request_failed")}
         </p>
       )}
-      {model.notice && t.has(`notices.${model.notice}`) && (
+      {!retiredAuthorization && model.notice && t.has(`notices.${model.notice}`) && (
         <p className={styles.note} role="status">
           {t(`notices.${model.notice}`)}
         </p>
       )}
-      {(model.hasHandoff || model.signedGrant || model.published) && (
+      {currentConsent && (
         <>
           {model.stage === "incoming" && (
             <div className={styles.step}>
@@ -545,11 +565,11 @@ export function AgentConsentCard({
           )}
         </>
       )}
-      {model.outbox.length > 0 && (
+      {currentOutbox.length > 0 && (
         <div className={styles.step}>
           <h3>{t("pendingTitle")}</h3>
           <p>{t("pendingHelp")}</p>
-          {model.outbox.map((entry) => {
+          {currentOutbox.map((entry) => {
             const id = `${entry.kind}:${entry.operationId}`;
             return (
               <div className={styles.pending} key={id}>
@@ -593,6 +613,19 @@ export function AgentConsentCard({
             );
           })}
         </div>
+      )}
+      {retiredOutbox.length > 0 && (
+        <details className={styles.step}>
+          <summary>{t("retiredRecords", { count: retiredOutbox.length })}</summary>
+          <p>{t("retiredRecordsHelp")}</p>
+          <ul>
+            {retiredOutbox.map((entry) => (
+              <li key={`${entry.kind}:${entry.operationId}`}>
+                {t(`pendingKinds.${entry.kind}`)} · {entry.taskId}
+              </li>
+            ))}
+          </ul>
+        </details>
       )}
       {copyStatus && (
         <p className={styles.note} role="status">
