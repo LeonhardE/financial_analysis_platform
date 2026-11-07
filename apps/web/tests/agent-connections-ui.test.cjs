@@ -423,11 +423,15 @@ test("only confirmed same-owner revocation retires local consent retries without
     assert.ok(html.includes(catalogs[locale].agentConsent.retiredRecordsHelp));
     assert.match(html, /<details class="step"><summary>/);
     assert.doesNotMatch(html, /PRIVATE_TASK|PRIVATE_GOAL/);
-    for (const key of ["recover", "discard", "reviewRequest", "pairHelper", "approve"])
+    for (const key of ["recover", "reviewRequest", "pairHelper", "approve", "confirmDiscard"])
       assert.equal(
         buttons.some((button) => button.children === catalogs[locale].agentConsent[key]),
         false,
       );
+    assert.equal(
+      buttons.filter((button) => button.children === catalogs[locale].agentConsent.discard).length,
+      3,
+    );
   }
   assert.equal(source.outbox.length, 3);
   for (const history of [
@@ -492,7 +496,7 @@ test("mixed local retry history keeps an unknown connection visible for recovery
   );
   assert.equal(
     buttons.filter((button) => button.children === catalogs.en.agentConsent.discard).length,
-    1,
+    2,
   );
 });
 

@@ -90,6 +90,38 @@ export function AgentConsentCard({
     new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeStyle: "short" }).format(
       new Date(timestamp * 1000),
     );
+  const discardControls = (entry: AgentConsentModel["outbox"][number]) => {
+    const id = `${entry.kind}:${entry.operationId}`;
+    return (
+      <>
+        <button
+          className={styles.textButton}
+          disabled={busy || !model.unlocked}
+          onClick={() => setDiscarding(id)}
+        >
+          {t("discard")}
+        </button>
+        {discarding === id && (
+          <div className={styles.warning}>
+            <p>{t("discardHelp")}</p>
+            <button
+              className={styles.secondary}
+              disabled={busy}
+              onClick={() => {
+                void model.discardPending(entry);
+                setDiscarding(null);
+              }}
+            >
+              {t("confirmDiscard")}
+            </button>
+            <button className={styles.textButton} onClick={() => setDiscarding(null)}>
+              {t("cancel")}
+            </button>
+          </div>
+        )}
+      </>
+    );
+  };
   if (model.owner && (model.owner !== workspace.owner || !workspace.authenticated)) return null;
   if (
     !model.hasHandoff &&
@@ -583,32 +615,8 @@ export function AgentConsentCard({
                   >
                     {t("recover")}
                   </button>
-                  <button
-                    className={styles.textButton}
-                    disabled={busy || !model.unlocked}
-                    onClick={() => setDiscarding(id)}
-                  >
-                    {t("discard")}
-                  </button>
+                  {discardControls(entry)}
                 </div>
-                {discarding === id && (
-                  <div className={styles.warning}>
-                    <p>{t("discardHelp")}</p>
-                    <button
-                      className={styles.secondary}
-                      disabled={busy}
-                      onClick={() => {
-                        void model.discardPending(entry);
-                        setDiscarding(null);
-                      }}
-                    >
-                      {t("confirmDiscard")}
-                    </button>
-                    <button className={styles.textButton} onClick={() => setDiscarding(null)}>
-                      {t("cancel")}
-                    </button>
-                  </div>
-                )}
               </div>
             );
           })}
@@ -622,6 +630,7 @@ export function AgentConsentCard({
             {retiredOutbox.map((entry) => (
               <li key={`${entry.kind}:${entry.operationId}`}>
                 {t(`pendingKinds.${entry.kind}`)} · {entry.taskId}
+                <div className={styles.actions}>{discardControls(entry)}</div>
               </li>
             ))}
           </ul>

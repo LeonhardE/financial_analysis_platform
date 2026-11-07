@@ -1051,7 +1051,7 @@
     "cancelRequest": "Cancel connection flow",
     "historyTitle": "Authorization history",
     "retiredRecords": "Local records for revoked connections ({count})",
-    "retiredRecordsHelp": "The server confirms that these connections are revoked. Their encrypted local records are retained for review and are not retried. They do not authorize access or confirm that a report was saved.",
+    "retiredRecordsHelp": "The server confirms that these connections are revoked. Their encrypted local records are retained and are not retried. You can discard obsolete retry records here so they no longer block key renewal. Server history and saved resources or reports are kept; these records do not prove that a report was saved.",
     "pendingTitle": "Recover original operations",
     "pendingHelp": "These records are sealed locally. Recovery uses the original signed bytes. Approval recovery checks the server record and never submits another decision.",
     "pendingKinds": {
