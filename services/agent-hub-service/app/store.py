@@ -16,6 +16,9 @@ COLLECTIONS = frozenset(
     {
         "hub_vaults",
         "hub_agent_recoveries",
+        "hub_persistent_publications",
+        "hub_persistent_task_authorities",
+        "hub_persistent_source_publications",
         "hub_resource_consents",
         "hub_resource_consent_operations",
         "hub_agent_identities",

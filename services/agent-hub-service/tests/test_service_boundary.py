@@ -25,6 +25,9 @@ class AgentHubBoundaryTests(unittest.TestCase):
             self.assertEqual(
                 set(client.get("/openapi.json").json()["paths"]),
                 {
+                    "/api/v2/persistent-content/{vault_id}/connections/{connection_id}/publications",
+                    "/api/v2/persistent-content/{vault_id}/tasks/{task_id}/authority",
+                    "/api/v2/persistent-content/{vault_id}/connections/{connection_id}/operations/{operation_id}",
                     "/health",
                     "/api/v2/vaults/current",
                     "/api/v2/vaults",
