@@ -11,6 +11,11 @@ an explicitly approved public identity from short-lived session recovery proofs.
 It has its own packaged schemas and verifier entry points; it does not change
 the P1 grants below, issue credentials or activate a persistent Muse runtime.
 
+The separate [persistent resource consent extension](RESOURCE_CONSENTS.md) defines
+incremental logical-resource approval, current-and-future version policy and
+per-resource revocation. It is an additional current-policy gate, not a legacy
+P1 grant or permission to execute a task. Services and clients adopt it separately.
+
 ## Wire format and versions
 
 The exact version is `folioview.agent-workspace.v2.0`, profile `P1`:
