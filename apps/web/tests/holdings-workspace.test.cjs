@@ -2873,3 +2873,83 @@ test("scope review that observes a racing pending fence never seals or uploads a
   assert.equal(h.render().sourceMutation.operationId, other);
   assert.equal(h.render().error, "version_conflict");
 });
+
+test("ordinary refresh and switching read/write consumers retain one unlocked owner Worker", async () => {
+  const h = harness();
+  let model = await unlocked(h);
+  const generation = model.vaultGeneration;
+  await model.importFile(file);
+  await h.render().reload();
+  model = h.render();
+  assert.equal(model.phase, "unlocked");
+  assert.ok(model.preview, "refresh retains the local unsaved import");
+  assert.equal(model.vaultGeneration, generation);
+  for (const options of [
+    { forResults: true },
+    { forResults: true, enableState: true },
+    undefined,
+  ]) {
+    await h.render().unlock(options);
+    model = h.render();
+    assert.equal(model.phase, "unlocked");
+    assert.equal(model.canWriteState, true);
+    assert.equal(model.vaultGeneration, generation);
+  }
+  assert.equal(h.counts().passkeyCalls, 1);
+  assert.equal(h.counts().strictUnlocks, 1);
+  assert.equal(h.instances.length, 1);
+  assert.equal(h.instances[0].locked, false);
+  h.unmount();
+});
+
+test("enabling changes from a read-only owner session reuses unlock but still requires device review", async () => {
+  const h = harness({ configured: false, needsDeviceRegistration: true });
+  let model = await ready(h);
+  const first = model.unlock({ forResults: true });
+  h.resolvePasskey();
+  await first;
+  model = h.render();
+  assert.equal(model.phase, "unlocked");
+  assert.equal(model.canWriteState, false);
+  await model.unlock({ forResults: true, enableState: true });
+  model = h.render();
+  assert.equal(model.phase, "needs-device");
+  assert.equal(model.needsDeviceApproval, true);
+  assert.equal(model.canWriteState, false);
+  assert.equal(h.counts().passkeyCalls, 1);
+  assert.equal(h.counts().registrationPrepares, 0);
+  assert.equal(h.requests.filter((request) => request.route.endsWith("/registry")).length, 0);
+  assert.equal(h.instances.length, 1);
+  h.unmount();
+});
+
+test("refresh trust failure drops shared keys while a transient read failure retains the unlock", async () => {
+  for (const trustFailure of [false, true]) {
+    const h = harness();
+    await unlocked(h);
+    if (trustFailure) h.managementFault("key_revoked");
+    else h.holdCurrent({ promise: Promise.resolve(new Response("{}", { status: 503 })) });
+    await h.render().reload();
+    const model = h.render();
+    assert.equal(model.phase, trustFailure ? "locked" : "unlocked");
+    assert.equal(model.error, trustFailure ? "key_revoked" : "service_unavailable");
+    assert.equal(h.instances[0].locked, trustFailure);
+    assert.equal(h.counts().passkeyCalls, 1);
+    h.unmount();
+  }
+});
+
+test("explicit locking ends reuse and the next unlock requests a new Passkey", async () => {
+  const h = harness();
+  let model = await unlocked(h);
+  model.lock();
+  h.render();
+  const next = h.render().unlock({ forResults: true });
+  await next;
+  model = h.render();
+  assert.equal(model.phase, "unlocked");
+  assert.equal(h.counts().passkeyCalls, 2);
+  assert.equal(h.instances.length, 2);
+  assert.equal(h.instances[0].locked, true);
+  h.unmount();
+});

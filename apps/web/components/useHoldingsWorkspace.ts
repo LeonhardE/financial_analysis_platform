@@ -1016,25 +1016,215 @@ export function useHoldingsWorkspace() {
     [api, owner, uid, readCurrent, readLifecycle, terminate],
   );
 
-  const reload = useCallback(
-    () =>
-      perform("loading", async ({ assertActive, signal }) => {
-        const result = await readCurrent(signal);
-        assertActive();
-        terminate();
-        if (await reconcileArchiveDeletion(result, signal, assertActive)) return;
-        assertActive();
-        setState({
-          ...empty,
-          owner,
-          vault: result.vault,
-          sources: result.sources,
-          phase: result.vault ? "locked" : "needs-vault",
-          busy: "loading",
-        });
-      }),
-    [owner, perform, readCurrent, terminate, reconcileArchiveDeletion],
+  const unlock = useCallback(
+    (options?: { forResults?: boolean; enableState?: boolean; method?: PasskeyMethod }) =>
+      perform(
+        stateRef.current.phase === "unlocked" ? "loading" : "unlocking",
+        async ({ assertActive, signal }) => {
+          if (stateRef.current.phase === "renewal-only")
+            throw new WorkspaceError("key_renewal_only");
+          const fresh = await readCurrent(signal);
+          assertActive();
+          const vault = stateRef.current.owner === owner ? fresh.vault : null;
+          if (!vault || !uid || !owner) throw new WorkspaceError("unlock_required");
+          if (vault.archive === null || (await EncryptedVaultSession.hasArchiveDeletion(uid))) {
+            assertActive();
+            terminate();
+            await reconcileArchiveDeletion(fresh, signal, assertActive);
+            return;
+          }
+          const retained =
+            stateRef.current.phase === "unlocked" &&
+            session.current?.owner === owner &&
+            stateRef.current.vault?.vaultId === vault.vaultId
+              ? session.current.instance
+              : null;
+          if (!retained) terminate();
+          const instance = retained ?? new EncryptedVaultSession(uid);
+          session.current = { owner, instance };
+          if (!retained)
+            setState((previous) => ({
+              ...previous,
+              phase: "locked",
+              archiveDeletionReview: null,
+              content: null,
+              preview: null,
+              keyManagement: null,
+              deviceReview: null,
+              deviceChange: null,
+              recoveryCheck: null,
+              needsDeviceApproval: false,
+              canWriteState: false,
+            }));
+          const material = retained
+            ? null
+            : await unlockVaultPasskey(requireArchive(vault.archive), {
+                method: options?.method,
+                signal,
+              });
+          try {
+            assertActive();
+            const readOnly = Boolean(options?.forResults);
+            // Ordinary read/write views share the already unlocked owner Worker.
+            // Recheck current authority; a missing device still needs explicit review.
+            const historicalAccess = retained
+              ? await instance.acceptResultVault(vault)
+              : readOnly
+                ? await instance.unlockForResults(vault, material!)
+                : null;
+            const result =
+              retained || readOnly
+                ? {
+                    needsDeviceRegistration: Boolean(
+                      (!readOnly || options?.enableState) && !historicalAccess?.canWriteState,
+                    ),
+                  }
+                : await instance.unlock(vault, material!);
+            assertActive();
+            const lifecycle = await readLifecycle(vault, signal);
+            await instance.verifyLifecycle(vault, lifecycle);
+            assertActive();
+            const archiveChange = await instance.getArchiveChange(vault, lifecycle);
+            assertActive();
+            if (archiveChange) {
+              if (archiveChange.state === "applied") {
+                await instance.finishArchiveChange(
+                  vault,
+                  lifecycle,
+                  archiveChange.packet.operationId,
+                );
+                assertActive();
+                terminate();
+                setState((previous) => ({
+                  ...previous,
+                  vault,
+                  sources: fresh.sources,
+                  phase: "locked",
+                  archiveChange: null,
+                  keyNotice: "archive_change_saved",
+                }));
+              } else {
+                setState((previous) => ({
+                  ...previous,
+                  vault,
+                  sources: fresh.sources,
+                  phase: "locked",
+                  archiveChange: {
+                    operationId: archiveChange.packet.operationId,
+                    mode: archiveChange.packet.mode,
+                    state: archiveChange.state,
+                  },
+                }));
+              }
+              return;
+            }
+            if (result.needsDeviceRegistration) {
+              const refreshed = await readCurrent(signal);
+              assertActive();
+              if (!refreshed.vault) throw new WorkspaceError("invalid_response");
+              await instance.acceptResultVault(refreshed.vault);
+              const deviceChange = await instance.loadDeviceChange(refreshed.vault);
+              const keyManagement = await instance.deviceManagement(refreshed.vault);
+              assertActive();
+              setState((previous) => ({
+                ...previous,
+                phase: deviceChange ? "unlocked" : "needs-device",
+                needsDeviceApproval: !deviceChange,
+                registrationForResults: Boolean(options?.forResults),
+                canWriteState: false,
+                vault: refreshed.vault,
+                sources: refreshed.sources,
+                keyManagement,
+                deviceReview: null,
+                deviceChange,
+                recoveryCheck: null,
+              }));
+              return;
+            }
+            const refreshed = await readCurrent(signal);
+            assertActive();
+            if (!refreshed.vault) throw new WorkspaceError("invalid_response");
+            const resultAccess = readOnly
+              ? await instance.acceptResultVault(refreshed.vault)
+              : null;
+            if (!readOnly) await instance.acceptVault(refreshed.vault);
+            const keyManagement = await instance.deviceManagement(refreshed.vault);
+            const deviceChange = await instance.loadDeviceChange(refreshed.vault);
+            const sourceCreation = await instance.loadSourceCreation();
+            assertActive();
+            setState((previous) => ({
+              ...previous,
+              phase: "unlocked",
+              sourceCreationId: sourceCreation?.sourceId ?? null,
+              vault: refreshed.vault,
+              sources: refreshed.sources,
+              canWriteState: readOnly ? Boolean(resultAccess?.canWriteState) : true,
+              keyManagement,
+              deviceChange,
+              deviceReview: null,
+              needsDeviceApproval: false,
+              recoveryCheck: null,
+            }));
+            if (
+              !options?.forResults &&
+              capabilitiesRef.current.portfolio &&
+              selectedSource(refreshed.sources, stateRef.current.selectedSourceId)
+            ) {
+              try {
+                await readSaved(
+                  selectedSource(refreshed.sources, stateRef.current.selectedSourceId)!,
+                  signal,
+                  assertActive,
+                );
+              } catch (error) {
+                assertActive();
+                if (!(error instanceof WorkspaceError) || error.code !== "service_unavailable")
+                  throw error;
+                setState((previous) => ({
+                  ...previous,
+                  sourceMetadata: null,
+                  content: null,
+                  error: "service_unavailable",
+                }));
+              }
+            }
+          } finally {
+            if (material?.secret.byteLength) new Uint8Array(material.secret).fill(0);
+          }
+        },
+      ),
+    [
+      api,
+      owner,
+      perform,
+      readCurrent,
+      readLifecycle,
+      readSaved,
+      terminate,
+      uid,
+      reconcileArchiveDeletion,
+    ],
   );
+
+  const reload = useCallback(() => {
+    if (stateRef.current.phase === "unlocked" && session.current?.owner === owner)
+      return unlock({ forResults: true });
+    return perform("loading", async ({ assertActive, signal }) => {
+      const result = await readCurrent(signal);
+      assertActive();
+      terminate();
+      if (await reconcileArchiveDeletion(result, signal, assertActive)) return;
+      assertActive();
+      setState({
+        ...empty,
+        owner,
+        vault: result.vault,
+        sources: result.sources,
+        phase: result.vault ? "locked" : "needs-vault",
+        busy: "loading",
+      });
+    });
+  }, [owner, perform, readCurrent, terminate, reconcileArchiveDeletion, unlock]);
 
   useEffect(() => {
     ++serial.current;
@@ -1050,176 +1240,6 @@ export function useHoldingsWorkspace() {
       terminate();
     };
   }, [owner, configured, auth.portfolioConfigured, reload, terminate]);
-
-  const unlock = useCallback(
-    (options?: { forResults?: boolean; enableState?: boolean; method?: PasskeyMethod }) =>
-      perform("unlocking", async ({ assertActive, signal }) => {
-        if (stateRef.current.phase === "renewal-only") throw new WorkspaceError("key_renewal_only");
-        const fresh = await readCurrent(signal);
-        assertActive();
-        const vault = stateRef.current.owner === owner ? fresh.vault : null;
-        if (!vault || !uid || !owner) throw new WorkspaceError("unlock_required");
-        if (vault.archive === null || (await EncryptedVaultSession.hasArchiveDeletion(uid))) {
-          assertActive();
-          terminate();
-          await reconcileArchiveDeletion(fresh, signal, assertActive);
-          return;
-        }
-        terminate();
-        const instance = new EncryptedVaultSession(uid);
-        session.current = { owner, instance };
-        setState((previous) => ({
-          ...previous,
-          phase: "locked",
-          archiveDeletionReview: null,
-          content: null,
-          preview: null,
-          keyManagement: null,
-          deviceReview: null,
-          deviceChange: null,
-          recoveryCheck: null,
-          needsDeviceApproval: false,
-          canWriteState: false,
-        }));
-        const material = await unlockVaultPasskey(requireArchive(vault.archive), {
-          method: options?.method,
-          signal,
-        });
-        try {
-          assertActive();
-          const readOnly = Boolean(options?.forResults);
-          const historicalAccess = readOnly
-            ? await instance.unlockForResults(vault, material)
-            : null;
-          const result = readOnly
-            ? {
-                needsDeviceRegistration: Boolean(
-                  options?.enableState && !historicalAccess?.canWriteState,
-                ),
-              }
-            : await instance.unlock(vault, material);
-          assertActive();
-          const lifecycle = await readLifecycle(vault, signal);
-          await instance.verifyLifecycle(vault, lifecycle);
-          assertActive();
-          const archiveChange = await instance.getArchiveChange(vault, lifecycle);
-          assertActive();
-          if (archiveChange) {
-            if (archiveChange.state === "applied") {
-              await instance.finishArchiveChange(
-                vault,
-                lifecycle,
-                archiveChange.packet.operationId,
-              );
-              assertActive();
-              terminate();
-              setState((previous) => ({
-                ...previous,
-                vault,
-                sources: fresh.sources,
-                phase: "locked",
-                archiveChange: null,
-                keyNotice: "archive_change_saved",
-              }));
-            } else {
-              setState((previous) => ({
-                ...previous,
-                vault,
-                sources: fresh.sources,
-                phase: "locked",
-                archiveChange: {
-                  operationId: archiveChange.packet.operationId,
-                  mode: archiveChange.packet.mode,
-                  state: archiveChange.state,
-                },
-              }));
-            }
-            return;
-          }
-          if (result.needsDeviceRegistration) {
-            const refreshed = await readCurrent(signal);
-            assertActive();
-            if (!refreshed.vault) throw new WorkspaceError("invalid_response");
-            await instance.acceptResultVault(refreshed.vault);
-            const deviceChange = await instance.loadDeviceChange(refreshed.vault);
-            const keyManagement = await instance.deviceManagement(refreshed.vault);
-            assertActive();
-            setState((previous) => ({
-              ...previous,
-              phase: deviceChange ? "unlocked" : "needs-device",
-              needsDeviceApproval: !deviceChange,
-              registrationForResults: Boolean(options?.forResults),
-              canWriteState: false,
-              vault: refreshed.vault,
-              sources: refreshed.sources,
-              keyManagement,
-              deviceReview: null,
-              deviceChange,
-              recoveryCheck: null,
-            }));
-            return;
-          }
-          const refreshed = await readCurrent(signal);
-          assertActive();
-          if (!refreshed.vault) throw new WorkspaceError("invalid_response");
-          const resultAccess = readOnly ? await instance.acceptResultVault(refreshed.vault) : null;
-          if (!readOnly) await instance.acceptVault(refreshed.vault);
-          const keyManagement = await instance.deviceManagement(refreshed.vault);
-          const deviceChange = await instance.loadDeviceChange(refreshed.vault);
-          const sourceCreation = await instance.loadSourceCreation();
-          assertActive();
-          setState((previous) => ({
-            ...previous,
-            phase: "unlocked",
-            sourceCreationId: sourceCreation?.sourceId ?? null,
-            vault: refreshed.vault,
-            sources: refreshed.sources,
-            canWriteState: readOnly ? Boolean(resultAccess?.canWriteState) : true,
-            keyManagement,
-            deviceChange,
-            deviceReview: null,
-            needsDeviceApproval: false,
-            recoveryCheck: null,
-          }));
-          if (
-            !options?.forResults &&
-            capabilitiesRef.current.portfolio &&
-            selectedSource(refreshed.sources, stateRef.current.selectedSourceId)
-          ) {
-            try {
-              await readSaved(
-                selectedSource(refreshed.sources, stateRef.current.selectedSourceId)!,
-                signal,
-                assertActive,
-              );
-            } catch (error) {
-              assertActive();
-              if (!(error instanceof WorkspaceError) || error.code !== "service_unavailable")
-                throw error;
-              setState((previous) => ({
-                ...previous,
-                sourceMetadata: null,
-                content: null,
-                error: "service_unavailable",
-              }));
-            }
-          }
-        } finally {
-          if (material.secret.byteLength) new Uint8Array(material.secret).fill(0);
-        }
-      }),
-    [
-      api,
-      owner,
-      perform,
-      readCurrent,
-      readLifecycle,
-      readSaved,
-      terminate,
-      uid,
-      reconcileArchiveDeletion,
-    ],
-  );
 
   const create = useCallback(
     (options?: Pick<PasskeyOptions, "method">) =>
