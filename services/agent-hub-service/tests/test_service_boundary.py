@@ -63,6 +63,8 @@ class AgentHubBoundaryTests(unittest.TestCase):
                     "/api/v2/agent-authorizations/{request_id}/prepare-encrypted",
                     "/api/v2/agent-authorizations/{request_id}/decision",
                     "/api/v2/agent-capabilities",
+                    "/agent/v2/persistent/identity-recovery/challenges",
+                    "/agent/v2/persistent/identity-recovery/proofs",
                     "/api/v2/persistent-agents/capabilities",
                     "/api/v2/persistent-agents/{vault_id}/{connection_id}",
                     "/api/v2/persistent-agents/{vault_id}/{connection_id}/operations/{operation_id}",

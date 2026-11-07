@@ -54,8 +54,9 @@ Current Agent certificates still bound every new enrollment and later recovery.
 The store contains only public signatures and identity metadata. Old connections
 are not migrated or silently upgraded. Owner clients must verify the original
 signed binding and root-checkpoint history rather than treating an API DTO as
-cryptographic authority. The trusted runtime, atomic recovery producer and resource/
-Run authorization consumers are separate follow-up changes.
+cryptographic authority. The separately gated [atomic identity recovery producer](IDENTITY_RECOVERY.md)
+consumes exact Agent proofs and returns identity-only original receipts. Trusted
+runtime and resource/Run execution consumers remain separate follow-up changes.
 
 Validation uses real synthetic signatures on SQLite and the actual Firestore SDK
 with synthetic RPC conflicts, plus HTTP gate and strict-transport checks. No live

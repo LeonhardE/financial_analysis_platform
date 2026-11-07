@@ -639,3 +639,7 @@ It does not enable persistent resource access or background execution.
 The [persistent resource-consent API](RESOURCE_CONSENTS.md) stores root-approved
 logical-resource policies and independent revocations behind a separate default-off
 approval gate; it does not enable encrypted delivery or background execution.
+
+The default-off [atomic identity recovery proof API](IDENTITY_RECOVERY.md)
+verifies the same enrolled Agent and retains an original identity-only receipt;
+it issues no bearer, content or Run authority.
