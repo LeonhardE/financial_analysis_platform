@@ -1,0 +1,957 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://folioview.example/contracts/persistent-content.v1",
+  "$defs": {
+    "PersistentContentRecipient": {
+      "type": "object",
+      "properties": {
+        "keyId": {
+          "$ref": "#/$defs/KeyId"
+        },
+        "role": {
+          "enum": ["agent_enc", "device_enc", "recovery_enc"]
+        }
+      },
+      "required": ["keyId", "role"],
+      "additionalProperties": false
+    },
+    "PersistentTaskContext": {
+      "type": "object",
+      "properties": {
+        "contractVersion": {
+          "const": "folioview.agent-workspace.v2.0"
+        },
+        "profile": {
+          "const": "folioview.persistent-content.v1"
+        },
+        "ownerSubject": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "vaultId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "connectionId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "agentId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "clientId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "rootKeyId": {
+          "$ref": "#/$defs/KeyId"
+        },
+        "agentSigningKeyId": {
+          "$ref": "#/$defs/KeyId"
+        },
+        "agentEncryptionKeyId": {
+          "$ref": "#/$defs/KeyId"
+        },
+        "identityEpoch": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "bindingFingerprint": {
+          "$ref": "#/$defs/Digest"
+        },
+        "registrySequence": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "checkpointDigest": {
+          "$ref": "#/$defs/Digest"
+        },
+        "keyEpoch": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "stableOperationId": {
+          "$ref": "#/$defs/OperationIdentifier"
+        },
+        "issuedAt": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "objectId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "expectedRevision": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "recipients": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/PersistentContentRecipient"
+          },
+          "minItems": 1,
+          "maxItems": 8
+        },
+        "objectType": {
+          "const": "task"
+        },
+        "purpose": {
+          "const": "execute_task"
+        },
+        "resultPolicy": {
+          "enum": ["none", "owner_inbox"]
+        },
+        "taskId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "taskVersion": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "executionEpoch": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "authorityId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "authorityVersion": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "expectedAuthorityVersion": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "expectedAuthorityDigest": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Digest"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "ownerTaskFingerprint": {
+          "$ref": "#/$defs/Digest"
+        },
+        "resourceBindings": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ResourceBindingMetadata"
+          },
+          "minItems": 1,
+          "maxItems": 10
+        }
+      },
+      "required": [
+        "contractVersion",
+        "profile",
+        "ownerSubject",
+        "vaultId",
+        "connectionId",
+        "agentId",
+        "clientId",
+        "rootKeyId",
+        "agentSigningKeyId",
+        "agentEncryptionKeyId",
+        "identityEpoch",
+        "bindingFingerprint",
+        "registrySequence",
+        "checkpointDigest",
+        "keyEpoch",
+        "stableOperationId",
+        "issuedAt",
+        "objectId",
+        "revision",
+        "expectedRevision",
+        "recipients",
+        "objectType",
+        "purpose",
+        "resultPolicy",
+        "taskId",
+        "taskVersion",
+        "executionEpoch",
+        "authorityId",
+        "authorityVersion",
+        "expectedAuthorityVersion",
+        "expectedAuthorityDigest",
+        "ownerTaskFingerprint",
+        "resourceBindings"
+      ],
+      "additionalProperties": false
+    },
+    "PersistentResourceContext": {
+      "type": "object",
+      "properties": {
+        "contractVersion": {
+          "const": "folioview.agent-workspace.v2.0"
+        },
+        "profile": {
+          "const": "folioview.persistent-content.v1"
+        },
+        "ownerSubject": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "vaultId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "connectionId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "agentId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "clientId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "rootKeyId": {
+          "$ref": "#/$defs/KeyId"
+        },
+        "agentSigningKeyId": {
+          "$ref": "#/$defs/KeyId"
+        },
+        "agentEncryptionKeyId": {
+          "$ref": "#/$defs/KeyId"
+        },
+        "identityEpoch": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "bindingFingerprint": {
+          "$ref": "#/$defs/Digest"
+        },
+        "registrySequence": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "checkpointDigest": {
+          "$ref": "#/$defs/Digest"
+        },
+        "keyEpoch": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "stableOperationId": {
+          "$ref": "#/$defs/OperationIdentifier"
+        },
+        "issuedAt": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "objectId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "expectedRevision": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "recipients": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/PersistentContentRecipient"
+          },
+          "minItems": 1,
+          "maxItems": 8
+        },
+        "objectType": {
+          "enum": ["holdings_snapshot", "watchlist_evidence", "channel_follows_evidence"]
+        },
+        "purpose": {
+          "const": "analysis"
+        },
+        "ref": {
+          "$ref": "#/$defs/ResourceRef"
+        },
+        "sourceEpoch": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "sourceRevision": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "permissionId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "permissionEpoch": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "ownerEnvelopeFingerprint": {
+          "$ref": "#/$defs/Digest"
+        }
+      },
+      "required": [
+        "contractVersion",
+        "profile",
+        "ownerSubject",
+        "vaultId",
+        "connectionId",
+        "agentId",
+        "clientId",
+        "rootKeyId",
+        "agentSigningKeyId",
+        "agentEncryptionKeyId",
+        "identityEpoch",
+        "bindingFingerprint",
+        "registrySequence",
+        "checkpointDigest",
+        "keyEpoch",
+        "stableOperationId",
+        "issuedAt",
+        "objectId",
+        "revision",
+        "expectedRevision",
+        "recipients",
+        "objectType",
+        "purpose",
+        "ref",
+        "sourceEpoch",
+        "sourceRevision",
+        "permissionId",
+        "permissionEpoch",
+        "ownerEnvelopeFingerprint"
+      ],
+      "additionalProperties": false
+    },
+    "PersistentResultContext": {
+      "type": "object",
+      "properties": {
+        "contractVersion": {
+          "const": "folioview.agent-workspace.v2.0"
+        },
+        "profile": {
+          "const": "folioview.persistent-content.v1"
+        },
+        "ownerSubject": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "vaultId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "connectionId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "agentId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "clientId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "rootKeyId": {
+          "$ref": "#/$defs/KeyId"
+        },
+        "agentSigningKeyId": {
+          "$ref": "#/$defs/KeyId"
+        },
+        "agentEncryptionKeyId": {
+          "$ref": "#/$defs/KeyId"
+        },
+        "identityEpoch": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "bindingFingerprint": {
+          "$ref": "#/$defs/Digest"
+        },
+        "registrySequence": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "checkpointDigest": {
+          "$ref": "#/$defs/Digest"
+        },
+        "keyEpoch": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "stableOperationId": {
+          "$ref": "#/$defs/OperationIdentifier"
+        },
+        "issuedAt": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "objectId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "expectedRevision": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "recipients": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/PersistentContentRecipient"
+          },
+          "minItems": 1,
+          "maxItems": 8
+        },
+        "objectType": {
+          "const": "result_revision"
+        },
+        "purpose": {
+          "const": "save_report"
+        },
+        "taskId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "taskVersion": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "executionEpoch": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "authorityId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "authorityVersion": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "runId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "manifestFingerprint": {
+          "$ref": "#/$defs/Digest"
+        }
+      },
+      "required": [
+        "contractVersion",
+        "profile",
+        "ownerSubject",
+        "vaultId",
+        "connectionId",
+        "agentId",
+        "clientId",
+        "rootKeyId",
+        "agentSigningKeyId",
+        "agentEncryptionKeyId",
+        "identityEpoch",
+        "bindingFingerprint",
+        "registrySequence",
+        "checkpointDigest",
+        "keyEpoch",
+        "stableOperationId",
+        "issuedAt",
+        "objectId",
+        "revision",
+        "expectedRevision",
+        "recipients",
+        "objectType",
+        "purpose",
+        "taskId",
+        "taskVersion",
+        "executionEpoch",
+        "authorityId",
+        "authorityVersion",
+        "runId",
+        "manifestFingerprint"
+      ],
+      "additionalProperties": false
+    },
+    "PersistentContentContext": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/PersistentTaskContext"
+        },
+        {
+          "$ref": "#/$defs/PersistentResourceContext"
+        },
+        {
+          "$ref": "#/$defs/PersistentResultContext"
+        }
+      ]
+    },
+    "PersistentContentProofPayload": {
+      "type": "object",
+      "properties": {
+        "contractVersion": {
+          "const": "folioview.agent-workspace.v2.0"
+        },
+        "profile": {
+          "const": "folioview.persistent-content.v1"
+        },
+        "artifactType": {
+          "const": "persistent_content_publication"
+        },
+        "context": {
+          "$ref": "#/$defs/PersistentContentContext"
+        },
+        "ciphertextDigest": {
+          "$ref": "#/$defs/Digest"
+        }
+      },
+      "required": ["contractVersion", "profile", "artifactType", "context", "ciphertextDigest"],
+      "additionalProperties": false
+    },
+    "PersistentContentCarrier": {
+      "type": "object",
+      "properties": {
+        "contractVersion": {
+          "const": "folioview.agent-workspace.v2.0"
+        },
+        "profile": {
+          "const": "folioview.persistent-content.v1"
+        },
+        "proof": {
+          "$ref": "#/$defs/SignedObject"
+        },
+        "jwe": {
+          "$ref": "#/$defs/JWE"
+        }
+      },
+      "required": ["contractVersion", "profile", "proof", "jwe"],
+      "additionalProperties": false
+    },
+    "PersistentPrivatePayload": {
+      "type": "object",
+      "properties": {
+        "privateSchemaVersion": {
+          "const": 1
+        },
+        "profile": {
+          "const": "folioview.persistent-content.v1"
+        },
+        "objectId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "objectType": {
+          "enum": [
+            "task",
+            "holdings_snapshot",
+            "watchlist_evidence",
+            "channel_follows_evidence",
+            "result_revision"
+          ]
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "payload": {
+          "type": "object"
+        }
+      },
+      "required": [
+        "privateSchemaVersion",
+        "profile",
+        "objectId",
+        "objectType",
+        "revision",
+        "payload"
+      ],
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "objectType": {
+                "const": "task"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "payload": {
+                "$ref": "#/$defs/TaskContent"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "objectType": {
+                "const": "result_revision"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "payload": {
+                "$ref": "#/$defs/ResultContent"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "objectType": {
+                "const": "holdings_snapshot"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "payload": {
+                "$ref": "#/$defs/ResourceContent"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "objectType": {
+                "const": "watchlist_evidence"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "payload": {
+                "$ref": "#/$defs/ResourceContent"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "objectType": {
+                "const": "channel_follows_evidence"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "payload": {
+                "$ref": "#/$defs/ResourceContent"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "PersistentAgentRequestPayload": {
+      "type": "object",
+      "properties": {
+        "contractVersion": {
+          "const": "folioview.agent-workspace.v2.0"
+        },
+        "profile": {
+          "const": "folioview.persistent-content.v1"
+        },
+        "artifactType": {
+          "const": "persistent_agent_request"
+        },
+        "purpose": {
+          "const": "authenticated_request"
+        },
+        "ownerSubject": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "vaultId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "connectionId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "agentId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "clientId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "rootKeyId": {
+          "$ref": "#/$defs/KeyId"
+        },
+        "agentSigningKeyId": {
+          "$ref": "#/$defs/KeyId"
+        },
+        "agentEncryptionKeyId": {
+          "$ref": "#/$defs/KeyId"
+        },
+        "identityEpoch": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "bindingFingerprint": {
+          "$ref": "#/$defs/Digest"
+        },
+        "audience": {
+          "type": "string",
+          "format": "uri",
+          "maxLength": 2048
+        },
+        "method": {
+          "enum": ["GET", "POST"]
+        },
+        "path": {
+          "type": "string",
+          "pattern": "^/agent/v3/persistent/[A-Za-z0-9/_-]+$",
+          "maxLength": 768
+        },
+        "bodyDigest": {
+          "$ref": "#/$defs/Digest"
+        },
+        "requestId": {
+          "$ref": "#/$defs/OperationIdentifier"
+        },
+        "nonce": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{43}$",
+          "maxLength": 43
+        },
+        "issuedAt": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "expiresAt": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": [
+        "contractVersion",
+        "profile",
+        "artifactType",
+        "purpose",
+        "ownerSubject",
+        "vaultId",
+        "connectionId",
+        "agentId",
+        "clientId",
+        "rootKeyId",
+        "agentSigningKeyId",
+        "agentEncryptionKeyId",
+        "identityEpoch",
+        "bindingFingerprint",
+        "audience",
+        "method",
+        "path",
+        "bodyDigest",
+        "requestId",
+        "nonce",
+        "issuedAt",
+        "expiresAt"
+      ],
+      "additionalProperties": false
+    },
+    "PersistentRunInput": {
+      "type": "object",
+      "properties": {
+        "ref": {
+          "$ref": "#/$defs/ResourceRef"
+        },
+        "sourceRevision": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "sourceEpoch": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "permissionId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "permissionEpoch": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "publicationId": {
+          "$ref": "#/$defs/OperationIdentifier"
+        },
+        "publicationFingerprint": {
+          "$ref": "#/$defs/Digest"
+        },
+        "objectId": {
+          "$ref": "#/$defs/Identifier"
+        }
+      },
+      "required": [
+        "ref",
+        "sourceRevision",
+        "sourceEpoch",
+        "permissionId",
+        "permissionEpoch",
+        "publicationId",
+        "publicationFingerprint",
+        "objectId"
+      ],
+      "additionalProperties": false
+    },
+    "PersistentRunManifest": {
+      "type": "object",
+      "properties": {
+        "contractVersion": {
+          "const": "folioview.agent-workspace.v2.0"
+        },
+        "profile": {
+          "const": "folioview.persistent-content.v1"
+        },
+        "purpose": {
+          "const": "analysis"
+        },
+        "resultPolicy": {
+          "enum": ["none", "owner_inbox"]
+        },
+        "ownerSubject": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "vaultId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "connectionId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "agentId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "clientId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "rootKeyId": {
+          "$ref": "#/$defs/KeyId"
+        },
+        "agentSigningKeyId": {
+          "$ref": "#/$defs/KeyId"
+        },
+        "agentEncryptionKeyId": {
+          "$ref": "#/$defs/KeyId"
+        },
+        "identityEpoch": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "bindingFingerprint": {
+          "$ref": "#/$defs/Digest"
+        },
+        "taskId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "taskVersion": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "executionEpoch": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "authorityId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "authorityVersion": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "runId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "stableOperationId": {
+          "$ref": "#/$defs/OperationIdentifier"
+        },
+        "triggerId": {
+          "$ref": "#/$defs/OperationIdentifier"
+        },
+        "taskPublicationId": {
+          "$ref": "#/$defs/OperationIdentifier"
+        },
+        "taskPublicationFingerprint": {
+          "$ref": "#/$defs/Digest"
+        },
+        "createdAt": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "expiresAt": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "inputs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/PersistentRunInput"
+          },
+          "minItems": 1,
+          "maxItems": 10
+        }
+      },
+      "required": [
+        "contractVersion",
+        "profile",
+        "purpose",
+        "resultPolicy",
+        "ownerSubject",
+        "vaultId",
+        "connectionId",
+        "agentId",
+        "clientId",
+        "rootKeyId",
+        "agentSigningKeyId",
+        "agentEncryptionKeyId",
+        "identityEpoch",
+        "bindingFingerprint",
+        "taskId",
+        "taskVersion",
+        "executionEpoch",
+        "authorityId",
+        "authorityVersion",
+        "runId",
+        "stableOperationId",
+        "triggerId",
+        "taskPublicationId",
+        "taskPublicationFingerprint",
+        "createdAt",
+        "expiresAt",
+        "inputs"
+      ],
+      "additionalProperties": false
+    }
+  }
+}
