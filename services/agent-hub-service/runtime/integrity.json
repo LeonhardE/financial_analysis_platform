@@ -6,7 +6,7 @@
     "package.json": "8566201f350cbbb3645f8c6dbf95b697c93231262ab91c254a90774475566204",
     "package-lock.json": "9d9a3ee52f6659404ef2c30117d9c90fbc4b1cddf0f20e5202d34da2ab522f58",
     "schemas.json": "942ded2afec749c843c45b36bc463ee0ccc7e7a0f53692d58e2e04c2c4697e51",
-    "build.mjs": "24f063cea6ed3038c418641f7008431614e075e42040e345e2b67e9ed801b6d7",
+    "build.mjs": "45755c7fd4b4f41941822ca5e0d1e05737fbbc8c2643b822f9445fda81c46cb7",
     "THIRD_PARTY_NOTICES.md": "16b1768276d7eed2a7ce1142f5766c211da784615fa004a36853f2658e18dd4d",
     "src/core.mjs": "bc979c99a138fa967075515259abdaa0346fe3df3ed0a47dac6a4fe174cc0f10",
     "src/crypto.mjs": "a6409c35a6e8c3feaf7d06612e445b48784a1200ea2584b9eafadba2a6646cd9",
@@ -14,6 +14,22 @@
     "src/consents.mjs": "5e99c0ded8de48c45a0ea6fc630488adc14f91588a4a6806e671eacc87ca3061",
     "src/authority.mjs": "f39359a1aae97968a0e28ea64a66144ee958081e1689b90e1ddf07f6f6d66862",
     "src/storage.mjs": "85ec1c20c99a6db33c8af58773a9c8f47d9cb54fd3edeb3846a0d3ab2ce58494",
-    "dist/core.mjs": "85f251c9da56040a8bef6314ea8889d0bead8a60be80e2ad00bb99879b449478"
+    "dist/core.mjs": "f2c8fed4c8db584f6723b428f4037b148aeac99d1a55223ae893c70020b17b4f",
+    "src/session.mjs": "fc1d95820eab79d816bb747c670ec27da80821d1bc04c442efa39e47690db22c",
+    "src/schedule.mjs": "c9fcc6c59026de54dcb846d071532316f52ba75bc4cb9e94ff0b6e334caae42e",
+    "src/worker.mjs": "e8a3d9505b1ec8c7e38902b805daee11dbe076015f1560bac029a304b2f159d0",
+    "src/controller.mjs": "cd777087f172db2e4c6618f4485f594756690d3e1f1acbc942667153821db407",
+    "src/controller-page.mjs": "a338e58f48092ebf017f11f08b1249d84de89f8a6180a92ead22732262dac51f",
+    "src/account-bridge.mjs": "6d3d7e44d92335007760641b0ee0fd25c6f5fabc5fcf15404fbdb078600722ec",
+    "src/account-consent-page.mjs": "ac2f1c9111398e3ff40c67f962b7e74938edaa5392afa727846958ad0d3d9477",
+    "dist/session.mjs": "4516267406666c2326b70eb00313d1742fb602fc5ac63df21a44a1eee2f26f1b",
+    "dist/worker.mjs": "eceae13d2dd4aad8d4bfc315eb151c61e26a2f1c8b70ad51cac5f460d8b89d28",
+    "dist/controller.mjs": "fed9a6cc3f6afe1e3c680ebea268565d569c086e698d11f5966f6fb6bc77e28e",
+    "dist/controller-page.mjs": "8c73cf0987470ae410b2369b4bdbf53812fd5ac23b403ebd28edcfa62db7fc45",
+    "dist/account-bridge.mjs": "3bfc16fc4d51fd1dc61c757f091f90b57c0acd1101266baaf7e464cf2d46d1a6",
+    "dist/account-consent-page.mjs": "32689088fd5112c352f6ce9aa76ebd584dc26845d14326257d73d3a2d07fc81f",
+    "static/controller.html": "b474ff1ff17ff9aa8b5672a78c92239f9b0759d0a8799a8a4acf1ef1f3efeee6",
+    "static/account-consent.html": "1ccbb3d196fd10110ed57435e3b47a412f893cbf08b17d26dbd5892a2bf13af6",
+    "static/runtime.css": "4c9da253548db8c091b7d345372428e11b60e46290623776c88c75f3e5557668"
   }
 }

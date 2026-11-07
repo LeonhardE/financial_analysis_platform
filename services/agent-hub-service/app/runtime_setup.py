@@ -15,7 +15,7 @@ from folioview_shared.encrypted.crypto import (
     verify_jws,
 )
 from folioview_shared.encrypted.errors import ContractError
-from folioview_shared.encrypted.jsonutil import b64url_decode, canonical_json
+from folioview_shared.encrypted.jsonutil import b64url_decode, b64url_encode, canonical_json
 from folioview_shared.encrypted.schema import validate_schema
 from folioview_shared.identity import owner_key
 
@@ -137,7 +137,13 @@ class RuntimeSetupService:
                     "identity": identity["identity"],
                     "runtimeUrl": self.native.config.base.issuer
                     + "/agent/v3/runtime/controller.html#"
-                    + urlencode(actor),
+                    + urlencode(
+                        {
+                            **actor,
+                            "rootKeyId": vault["rootKeyId"],
+                            "descriptor": b64url_encode(canonical_json(identity["identity"])),
+                        }
+                    ),
                     "setup": None,
                 }
             head = unit.get(head_path(p.owner_subject, p.vault_id, p.connection_id))
@@ -170,7 +176,7 @@ class RuntimeSetupService:
                 "identity": None,
                 "runtimeUrl": self.native.config.base.issuer
                 + "/agent/v3/runtime/controller.html#"
-                + urlencode({"setup": row["intentId"]}),
+                + urlencode({"setup": row["intentId"], "rootKeyId": vault["rootKeyId"]}),
                 "setup": self._public(row),
             }
 

@@ -22,6 +22,7 @@ ajv.addSchema(schema);
 const mapping = {};
 for (const name of [
   "PublicJWK",
+  "OperationIdentifier",
   "RegistryBundle",
   "RegistryCheckpointPayload",
   "KeyCertificatePayload",
@@ -50,7 +51,15 @@ await writeFile(
   await format((standalone.default ?? standalone)(ajv, mapping)),
 );
 await mkdir(resolve(root, "dist"), { recursive: true });
-for (const entry of ["core"]) {
+for (const entry of [
+  "core",
+  "session",
+  "worker",
+  "controller",
+  "controller-page",
+  "account-bridge",
+  "account-consent-page",
+]) {
   const out = await build({
     absWorkingDir: root,
     entryPoints: ["src/" + entry + ".mjs"],
@@ -61,6 +70,7 @@ for (const entry of ["core"]) {
     minify: true,
     write: false,
     legalComments: "none",
+    external: entry === "controller-page" ? ["./controller.mjs"] : [],
   });
   await writeFile(resolve(root, "dist/" + entry + ".mjs"), await format(out.outputFiles[0].text));
 }
@@ -79,6 +89,22 @@ const files = [
   "src/authority.mjs",
   "src/storage.mjs",
   "dist/core.mjs",
+  "src/session.mjs",
+  "src/schedule.mjs",
+  "src/worker.mjs",
+  "src/controller.mjs",
+  "src/controller-page.mjs",
+  "src/account-bridge.mjs",
+  "src/account-consent-page.mjs",
+  "dist/session.mjs",
+  "dist/worker.mjs",
+  "dist/controller.mjs",
+  "dist/controller-page.mjs",
+  "dist/account-bridge.mjs",
+  "dist/account-consent-page.mjs",
+  "static/controller.html",
+  "static/account-consent.html",
+  "static/runtime.css",
 ];
 const hashes = {};
 for (const file of files)

@@ -39,6 +39,7 @@ class AgentHubBoundaryTests(unittest.TestCase):
                     "/api/v2/persistent-account-authorizations/capabilities",
                     "/api/v2/persistent-account-authorizations/{request_id}",
                     "/api/v2/persistent-account-authorizations/{request_id}/approvals",
+                    "/api/v2/persistent-account-authorizations/{request_id}/pending",
                     "/agent/v3/persistent/owners/{owner}/vaults/{vault}/connections/{connection}/runs/submit",
                     "/agent/v3/persistent/owners/{owner}/vaults/{vault}/connections/{connection}/runs/result-receipt",
                     "/api/v2/persistent-results/{vault_id}",

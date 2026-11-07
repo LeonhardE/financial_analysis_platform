@@ -102,6 +102,33 @@ class NativeTransportRoutes(unittest.TestCase):
             self.calls[-1], ("synthetic_owner", "synthetic_native_request", BROWSER, "vault_A")
         )
 
+    def test_browser_pending_uses_closed_post_with_natural_origin_header(self):
+        self.install()
+        path = self.path + "/pending"
+        response = self.client.post(
+            path, headers=self.headers, json={"contractVersion": CONTRACT_VERSION}
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(self.calls[-1], ("synthetic_owner", "synthetic_native_request", BROWSER))
+        before = len(self.calls)
+        self.assertEqual(
+            self.client.post(
+                path,
+                headers=self.headers,
+                json={"contractVersion": CONTRACT_VERSION, "vaultId": "injected"},
+            ).status_code,
+            400,
+        )
+        self.assertEqual(
+            self.client.post(
+                path,
+                headers={k: v for k, v in self.headers.items() if k != "Origin"},
+                json={"contractVersion": CONTRACT_VERSION},
+            ).status_code,
+            403,
+        )
+        self.assertEqual(len(self.calls), before)
+
     def test_missing_foreign_duplicate_cookies_or_origins_cannot_approve(self):
         self.install()
         variants = [

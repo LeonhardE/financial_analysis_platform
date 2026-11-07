@@ -2,6 +2,7 @@
 
 import copy
 import unittest
+from urllib.parse import parse_qs, urlsplit
 
 import test_native_transport as accounts
 from fixtures import OTHER_UID, UID
@@ -194,6 +195,11 @@ class RuntimeSetupTests(unittest.TestCase):
         self.assertEqual(resumed["mode"], "resume")
         self.assertIsNone(resumed["setup"])
         self.assertIn("ownerSubject=", resumed["runtimeUrl"])
+        fragment = parse_qs(urlsplit(resumed["runtimeUrl"]).fragment)
+        self.assertEqual(fragment["rootKeyId"], [self.f.root_id])
+        from folioview_shared.encrypted.jsonutil import b64url_decode, strict_json_loads
+
+        self.assertEqual(strict_json_loads(b64url_decode(fragment["descriptor"][0])), identity)
 
     def test_account_repair_invalidates_old_setup_but_keeps_same_connection(self):
         self.offer()
