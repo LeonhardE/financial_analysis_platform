@@ -9,6 +9,7 @@ from .helper_assets import router as helper_router
 from .identity_recovery_routes import router as identity_recovery_router
 from .inbox import router as inbox_router
 from .mcp_transport import install_mcp
+from .native_mcp import install_native_mcp
 from .native_transport_routes import connections_router as native_connections_router
 from .native_transport_routes import owner_router as native_transport_owner_router
 from .native_transport_routes import router as native_transport_router
@@ -24,6 +25,8 @@ from .preparations import agent_router as preparation_agent_router
 from .preparations import owner_router as preparation_owner_router
 from .results import router as results_router
 from .runs import router as runs_router
+from .runtime_setup_routes import owner_router as runtime_setup_owner_router
+from .runtime_setup_routes import public_router as runtime_setup_router
 from .tasks import router as tasks_router
 
 app = create_app(
@@ -59,12 +62,15 @@ app.include_router(persistent_result_owner_router)
 app.include_router(native_transport_router)
 app.include_router(native_transport_owner_router)
 app.include_router(native_connections_router)
+app.include_router(runtime_setup_router)
+app.include_router(runtime_setup_owner_router)
 app.include_router(identity_recovery_router)
 app.include_router(runs_router)
 app.include_router(results_router)
 app.include_router(inbox_router)
 app.include_router(helper_router)
 app.add_middleware(HubErrors)
+install_native_mcp(app)
 install_mcp(app)
 
 

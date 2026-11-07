@@ -25,6 +25,10 @@ class AgentHubBoundaryTests(unittest.TestCase):
             self.assertEqual(
                 set(client.get("/openapi.json").json()["paths"]),
                 {
+                    "/agent/v3/runtime/setups/{intent_id}",
+                    "/agent/v3/runtime/setups/{intent_id}/offers",
+                    "/api/v2/runtime-setups/{intent_id}",
+                    "/api/v2/runtime-setups/{intent_id}/completion",
                     "/api/v2/persistent-connections",
                     "/api/v2/persistent-connections/{connection_id}/revocations",
                     "/.well-known/oauth-authorization-server/oauth/persistent",
