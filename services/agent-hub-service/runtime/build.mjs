@@ -1,55 +1,18 @@
 import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import Ajv from "ajv/dist/2020.js";
-import standalone from "ajv/dist/standalone/index.js";
 import { build } from "esbuild";
 import prettier from "prettier";
+import { createHash } from "node:crypto";
 const root = dirname(fileURLToPath(import.meta.url));
-const schema = JSON.parse(await readFile(resolve(root, "schemas.json"), "utf8"));
-const defs = schema.$defs;
-const ajv = new Ajv({
-  strict: false,
-  messages: false,
-  allErrors: false,
-  code: { source: true, optimize: 2 },
-  inlineRefs: false,
-});
-ajv.addFormat("date-time", /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?Z$/);
-ajv.addFormat("iana-timezone", /^[A-Za-z0-9_+./-]{1,80}$/);
-ajv.addFormat("uri", /^https:\/\/[^\s\\]+$/);
-ajv.addSchema(schema);
-const mapping = {};
-for (const name of [
-  "PublicJWK",
-  "OperationIdentifier",
-  "RegistryBundle",
-  "RegistryCheckpointPayload",
-  "KeyCertificatePayload",
-  "PersistentAgentIdentity",
-  "PersistentAgentBindingPayload",
-  "PersistentContentContext",
-  "ResourceRef",
-  "PersistentPrivatePayload",
-  "PersistentContentCarrier",
-  "PersistentContentProofPayload",
-  "ResultContent",
-  "PersistentResourceConsent",
-  "PersistentResourceApprovalPayload",
-  "PersistentResourceRevocationPayload",
-  "ConsentSourceState",
-  "PersistentAgentRequestPayload",
-  "PersistentRunManifest",
-]) {
-  const id = "runtime:" + name;
-  ajv.addSchema({ $ref: schema.$id + "#/$defs/" + name }, id);
-  mapping[name] = id;
-}
+const sharedRoot = resolve(root, "../../../packages/encrypted-workspace");
+const sharedIntegrity = await readFile(resolve(sharedRoot, "integrity.json"));
+const shared = JSON.parse(sharedIntegrity);
+const sha256 = (value) => createHash("sha256").update(value).digest("hex");
+const sharedBundleHash = sha256(await readFile(resolve(sharedRoot, "dist/core.mjs")));
+if (shared.browserContractVersion !== "1.0.0" || shared.files["dist/core.mjs"] !== sharedBundleHash)
+  throw new Error("Shared browser contract integrity mismatch");
 const format = (text, parser = "babel") => prettier.format(text, { parser, printWidth: 100 });
-await writeFile(
-  resolve(root, "src/validators.cjs"),
-  await format((standalone.default ?? standalone)(ajv, mapping)),
-);
 await mkdir(resolve(root, "dist"), { recursive: true });
 for (const entry of [
   "core",
@@ -75,11 +38,9 @@ for (const entry of [
   await writeFile(resolve(root, "dist/" + entry + ".mjs"), await format(out.outputFiles[0].text));
 }
 
-const { createHash } = await import("node:crypto");
 const files = [
   "package.json",
   "package-lock.json",
-  "schemas.json",
   "build.mjs",
   "THIRD_PARTY_NOTICES.md",
   "src/core.mjs",
@@ -91,6 +52,7 @@ const files = [
   "dist/core.mjs",
   "src/session.mjs",
   "src/schedule.mjs",
+  "src/policy.mjs",
   "src/worker.mjs",
   "src/controller.mjs",
   "src/controller-page.mjs",
@@ -118,6 +80,12 @@ await writeFile(
       runtimeVersion: "1.0.0",
       contractVersion: "folioview.agent-workspace.v2.0",
       profile: "folioview.persistent-content.v1",
+      sharedLibrary: {
+        name: "@folioview/encrypted-workspace",
+        version: shared.browserContractVersion,
+        integritySha256: sha256(sharedIntegrity),
+        bundleSha256: sharedBundleHash,
+      },
       files: hashes,
     }),
     "json",

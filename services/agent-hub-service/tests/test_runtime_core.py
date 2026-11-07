@@ -164,6 +164,18 @@ class PersistentRuntimeCoreTests(unittest.TestCase):
         self.assertEqual(manifest["runtimeVersion"], "1.0.0")
         for path, expected in manifest["files"].items():
             self.assertEqual(hashlib.sha256((RUNTIME / path).read_bytes()).hexdigest(), expected)
+        shared = RUNTIME.parents[2] / "packages/encrypted-workspace"
+        self.assertEqual(
+            manifest["sharedLibrary"],
+            {
+                "name": "@folioview/encrypted-workspace",
+                "version": "1.0.0",
+                "integritySha256": hashlib.sha256(
+                    (shared / "integrity.json").read_bytes()
+                ).hexdigest(),
+                "bundleSha256": hashlib.sha256((shared / "dist/core.mjs").read_bytes()).hexdigest(),
+            },
+        )
         bundle = (RUNTIME / "dist/core.mjs").read_text()
         for fragment in ("eval(", "new Function(", 'from "jose"', 'from "canonicalize"'):
             self.assertNotIn(fragment, bundle)
