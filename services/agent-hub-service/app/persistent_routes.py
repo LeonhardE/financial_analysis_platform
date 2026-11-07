@@ -72,6 +72,8 @@ def control_transport(request, *, operation=False):
 
 @router.get("/capabilities")
 def capabilities(request: Request, user: Owner):
+    from .persistent_execution_routes import execution_enabled
+
     _invoke(lambda: control_transport(request))
     clients = _invoke(enrollment_clients)
     return {
@@ -79,7 +81,7 @@ def capabilities(request: Request, user: Owner):
         "profile": "folioview.persistent-agent-capabilities.v1",
         "enrollmentEnabled": bool(clients),
         "resourceConsentEnabled": _invoke(resource_approval_enabled),
-        "executionEnabled": False,
+        "executionEnabled": _invoke(execution_enabled),
     }
 
 
