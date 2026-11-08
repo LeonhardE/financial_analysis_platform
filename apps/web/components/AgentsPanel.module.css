@@ -430,3 +430,8 @@
     width: 100%;
   }
 }
+
+.setup code,
+.confirmation code {
+  overflow-wrap: anywhere;
+}

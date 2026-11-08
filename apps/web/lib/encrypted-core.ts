@@ -5165,7 +5165,7 @@ export class VaultCore {
   }
   async verifyPersistentIdentity(args: { state: Json; actor: PersistentActor }) {
     exact(args, ["state", "actor"]);
-    const { identity } = await (await this.persistentOwner(args.actor)).identity(args.state);
+    const { identity } = await (await this.persistentOwner(args.actor, false)).identity(args.state);
     return identity;
   }
   async verifyPersistentPolicy(args: {
@@ -5176,7 +5176,7 @@ export class VaultCore {
   }) {
     exact(args, ["actor", "identityState", "resourceState", "receipts"]);
     const { consent } = await (
-      await this.persistentOwner(args.actor)
+      await this.persistentOwner(args.actor, false)
     ).policy(args.identityState, args.resourceState, args.receipts);
     return consent;
   }
@@ -5247,7 +5247,15 @@ export class VaultCore {
     const ownerEnvelopeFingerprint =
       source.kind === "holdings"
         ? await signingFingerprint(source.snapshot.carrier.signedObject)
-        : await sha(canonical(source));
+        : await sha(
+            canonical({
+              ref: source.ref,
+              sourceEpoch: source.sourceEpoch,
+              revision: source.revision,
+              response: source.response,
+              sourceAsOf: source.sourceAsOf,
+            }),
+          );
     const packet = await (
       await this.persistentOwner(args.actor)
     ).resource({
@@ -5302,6 +5310,77 @@ export class VaultCore {
     return args.packet.kind === "publication"
       ? owner.publicationReceipt(args.packet, args.receipt)
       : owner.controlReceipt(args.packet, args.receipt);
+  }
+  async verifyPersistentPlan(args: {
+    actor: PersistentActor;
+    state: Json;
+    identityState: Json;
+    taskId: string;
+    hubOrigin: string;
+  }) {
+    exact(args, ["actor", "state", "identityState", "taskId", "hubOrigin"]);
+    return (await this.persistentOwner(args.actor, false)).plan(args);
+  }
+  async signPersistentResultState(args: {
+    metadata: Json;
+    changes: ResultStateChanges;
+  }): Promise<ResultStatePacket> {
+    exact(args, ["metadata", "changes"]);
+    exact(args.metadata, [
+      "resultId",
+      "taskId",
+      "runId",
+      "connectionId",
+      "receivedAt",
+      "stateVersion",
+      "read",
+      "starred",
+      "archived",
+    ]);
+    for (const k of ["resultId", "taskId", "runId", "connectionId"])
+      validate("Identifier", args.metadata[k]);
+    for (const k of ["receivedAt", "stateVersion"])
+      if (!Number.isSafeInteger(args.metadata[k]) || args.metadata[k] < 0)
+        throw new VaultError("invalid_data");
+    for (const k of ["read", "starred", "archived"])
+      if (typeof args.metadata[k] !== "boolean") throw new VaultError("invalid_data");
+    const { registry, device, vault } = this.ready();
+    if (
+      !cert(registry, device.sigId, "device_sig", this.now()).capabilities.includes("control_write")
+    )
+      throw new VaultError("key_revoked");
+    const changes = args.changes;
+    if (
+      !changes ||
+      typeof changes !== "object" ||
+      Array.isArray(changes) ||
+      !Object.keys(changes).length ||
+      Object.keys(changes).some((k) => !["read", "starred", "archived"].includes(k)) ||
+      Object.values(changes).some((v) => typeof v !== "boolean")
+    )
+      throw new VaultError("invalid_data");
+    const operationId = randomId(),
+      command = {
+        artifactType: "control_command",
+        contractVersion: CONTRACT,
+        vaultId: vault.vaultId,
+        ownerSubject: await this.owner,
+        stableOperationId: operationId,
+        action: "result_state_update",
+        targetId: args.metadata.resultId,
+        expectedVersion: args.metadata.stateVersion,
+        expectedSourceEpoch: null,
+        registrySequence: registry.checkpoint.registrySequence,
+        checkpointDigest: registry.digest,
+        keyEpoch: registry.checkpoint.keyEpoch,
+        parameters: { ...changes },
+      };
+    validate("ControlCommandPayload", command);
+    return {
+      operationId,
+      authorKeyId: device.sigId,
+      command: await sign(command, device.sig, device.sigId),
+    };
   }
   async openPersistentResult(args: { record: Json; resultId: string }) {
     exact(args, ["record", "resultId"]);

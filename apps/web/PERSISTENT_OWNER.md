@@ -41,3 +41,40 @@ transient Google credential is sent, preserves AuthProvider session-generation
 checks, and never returns an OAuth code, token, callback URL or financial grant to
 the Web consumer or model. This transport prerequisite does not enable feature
 gates or grant any real account access.
+
+## Persistent workspace consumer
+
+The workspace owns one persistent orchestration hook alongside its existing shared
+vault session. It never creates another vault session or automatically asks for a
+Passkey. Native account linking and one-time runtime enrollment lead to an explicit
+review of selected tasks and their logical resource inputs. Continuing permission
+includes future versions of those same resources; changing source incarnation,
+epoch or task inputs requires review. Task reassignment is a separate explicit
+choice. Connection IDs and key fingerprints live in expandable details.
+
+When the signed-in page is visible and unlocked, reconciliation checks current
+Root consent and task assignment, encrypts current approved resource versions and
+updates already-assigned task authority. It neither grants another resource nor
+assigns a new task automatically. Manual-resource operation IDs exclude retrieval
+timestamps, so an unchanged version recovers its original ciphertext receipt
+instead of creating a fresh publication each poll. New versions can only be
+published while owner keys are available; native execution can continue with
+already synchronized, approved versions after sign-out.
+
+One pending operation per connection is restored before any new mutation. Registry
+registration distinguishes an already-applied directory from a conflicting one;
+identity, consent and publication recovery read original receipts before sending
+original bytes. Account change, lock and visibility changes fence in-flight work
+and immediately mask private views. No recovery path silently replaces keys or
+approves resources.
+
+Persistent reports share the Inbox route with expandable foreground report history.
+The existing Worker verifies historical Root/Agent issuance, frozen Run and receipt
+before decrypting; state changes use a separate closed device-signed operation.
+Unknown state updates retain their exact pending command while the view remains
+open. Report sources use the existing safe Markdown/link renderer.
+
+Requested schedules, independently verified Agent statements and Hub run/result
+observations have separate labels. A report receipt never claims Muse installed a
+native schedule. All activation flags remain off pending owner-approved real Muse,
+restart and cross-day acceptance.

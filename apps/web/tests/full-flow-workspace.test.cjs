@@ -377,6 +377,10 @@ function flow({ hash = "", search = "", owner = "A:1", locked = false, hidden = 
       "@/lib/workspace-routes": compile("../lib/workspace-routes.ts"),
       "react/jsx-runtime": { jsx, jsxs: jsx },
       "next-intl": { useLocale: () => "en", useTranslations: () => (key) => key },
+      "./PersistentAgentsPanel": { PersistentAgentsPanel: () => null },
+      "./PersistentInboxPanel": { PersistentInboxPanel: () => null },
+      "./usePersistentWorkspace": { usePersistentWorkspace: () => ({ enabled: false, views: [] }) },
+      "./useAgentLinkConfiguration": { useAgentLinkConfiguration: () => ({ data: null }) },
       "@/components/PreferencesProvider": {
         usePreferences: () => ({ preferences: { defaultChartRange: "1m" }, resolvedTheme: "dark" }),
       },

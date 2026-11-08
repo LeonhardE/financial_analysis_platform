@@ -155,6 +155,7 @@ type EncryptedRule = {
   authority?: boolean;
   maxBytes?: number;
   rootCommand?: boolean;
+  rootCommandMaxBytes?: number;
   rootCommands?: string[];
 };
 function hubOwnerRule(path: string, method: PrivateMethod): EncryptedRule | null {
@@ -186,6 +187,7 @@ function hubOwnerRule(path: string, method: PrivateMethod): EncryptedRule | null
       author: persistent.author,
       maxBytes: persistent.max,
       rootCommand: persistent.kind === "control" && !persistent.author,
+      rootCommandMaxBytes: persistent.max,
     };
   } else if (method === "GET") {
     if (
@@ -442,7 +444,8 @@ function encryptedRequestHeaders(
       !Object.values(command).every(
         (value) => typeof value === "string" && /^[A-Za-z0-9_-]+$/.test(value),
       ) ||
-      new TextEncoder().encode(JSON.stringify(command)).byteLength > 8192
+      new TextEncoder().encode(JSON.stringify(command)).byteLength >
+        (rule.rootCommandMaxBytes ?? 8192)
     )
       throw new Error("Invalid private API request");
   }

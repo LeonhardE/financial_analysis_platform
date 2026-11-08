@@ -1594,6 +1594,18 @@ export class EncryptedVaultSession {
       return result;
     });
   }
+  async verifyPersistentPlan(args: Json) {
+    const g = this.generation,
+      value = await this.rpc("verifyPersistentPlan", args);
+    this.assert(g);
+    return value;
+  }
+  async signPersistentResultState(args: Json): Promise<ResultStatePacket> {
+    const g = this.generation,
+      value = await this.rpc("signPersistentResultState", args);
+    this.assert(g);
+    return value;
+  }
   async openPersistentResult(args: Json) {
     const g = this.generation,
       value = await this.rpc("openPersistentResult", args);
