@@ -2,7 +2,8 @@
 
 ## Commit conventions
 
-- Use `Xianxin <zxx9808181@gmail.com>` as the author for every commit.
+- Use the contributing developer's Git author name and email configured for this repository.
+  Automated commits made on their behalf must preserve that same identity.
 - Credit Codex as a collaborator by adding `Co-authored-by: Codex <codex@openai.com>` to every commit message.
 - Follow [Conventional Commits 1.0.0](https://www.conventionalcommits.org/en/v1.0.0/) for every commit message.
 - Every commit must include a scope identifying its service or client, such as
@@ -21,6 +22,22 @@
   changelog entry. For a mixed change, record only the material changes outside `local-docs/`.
 - Follow the naming and content convention in `changelog/README.md`.
 - Run `npm run check` from the repository root before committing.
+
+## Branch tracking
+
+- Create feature branches without tracking `main` or `origin/main`; use `--no-track` when
+  branching from `origin/main` and verify the upstream immediately afterward.
+- On first publication, explicitly push the feature branch with `-u` to its same-named remote
+  branch. Only the local `main` branch should track `origin/main`.
+
+## Documentation
+
+- Keep each component's README as an entry point and put maintained topic references under
+  `docs/`. Update or consolidate an existing guide before adding a new topic file.
+- Keep implementation journals, ticket progress and experimental evidence in ignored `local-docs/`;
+  use `changelog/` for tracked material-change records.
+- Preserve required license notices and supported compatibility specifications. Update local
+  links and heading anchors whenever documents move or merge.
 
 ## Pull request scope
 

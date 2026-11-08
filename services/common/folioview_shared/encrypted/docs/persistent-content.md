@@ -74,7 +74,7 @@ apply. New publications must use the current certified owner recovery key.
 Results contain only owner device/recovery recipients, including recovery. Their
 current certificates are checked at write time; no temporary foreground session
 or original enrolling-device signature authorizes unattended report encryption.
-Current Root registry recipient selection is a producer responsibility. This slice
+Current Root registry recipient selection is a producer responsibility. This profile
 does not extend any certificate's expiry or implement key repair/rotation.
 
 The new private wrapper has schema version 1, explicit profile, object ID/type,
@@ -149,12 +149,9 @@ or proof that the input is current/authorized.
 
 ## Adoption and validation
 
-Deliver separately: this foundation; Hub publication/CAS, narrow execution and
-result/receipt producers; the versioned trusted runtime; Web single-review sharing,
-normal-version publication and owner Inbox consumers; then real Muse scheduling
-and cross-day acceptance. Unknown protected-host lifecycle or first-pairing
-capability stays an explicit production gate. No new cloud target, user resource
-permission, real connection, native schedule or persistent execution is enabled here.
+Hub publication/execution/result producers, the fixed runtime and owner Web consumers
+implement this profile. Feature gates and real Muse scheduling/cross-day acceptance remain
+separate. Protected-host lifecycle and first-pairing gaps are explicit acceptance requirements.
 
 Tests use real synthetic keys and signatures, every content type, large encrypted
 resources, immutable expectations, wrong owner/client/authority, current revocation,
