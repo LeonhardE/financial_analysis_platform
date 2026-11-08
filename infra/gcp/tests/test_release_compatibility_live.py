@@ -17,8 +17,8 @@ SPEC = importlib.util.spec_from_file_location(
 LIVE = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(LIVE)
 
-PROJECT = "financial-analysis-512202"
-REGION = "northamerica-northeast2"
+PROJECT = "example-verifier-1234"
+REGION = "europe-west3"
 NAME = "fv-compat-012345abcdef"
 RESOURCE = f"projects/{PROJECT}/locations/{REGION}/services/{NAME}"
 ACCOUNT = f"projects/{PROJECT}/serviceAccounts/{NAME}@{PROJECT}.iam.gserviceaccount.com"
@@ -92,7 +92,17 @@ class InputTests(unittest.TestCase):
 
         with (
             patch(
-                "sys.argv", ["verify", "--live", "--project", PROJECT, "--terraform", "/missing/tf"]
+                "sys.argv",
+                [
+                    "verify",
+                    "--live",
+                    "--project",
+                    PROJECT,
+                    "--region",
+                    REGION,
+                    "--terraform",
+                    "/missing/tf",
+                ],
             ),
             patch("sys.stderr", new_callable=io.StringIO) as error,
             patch.object(LIVE, "Cloud") as cloud,
@@ -103,10 +113,56 @@ class InputTests(unittest.TestCase):
         self.assertNotIn("Traceback", error.getvalue())
         cloud.assert_not_called()
 
-    def test_requires_explicit_live_opt_in_and_fixed_project_region(self):
-        for overrides in ({"live": False}, {"project": "other-project"}, {"region": "us-central1"}):
+    def test_requires_explicit_live_opt_in_and_valid_project_region(self):
+        for overrides in (
+            {"live": False},
+            {"project": None},
+            {"project": ""},
+            {"project": "bad"},
+            {"project": "123456789012"},
+            {"project": "example-project/other"},
+            {"project": " example-project"},
+            {"project": "example-project\n"},
+            {"region": None},
+            {"region": ""},
+            {"region": "global"},
+            {"region": "us-central1/services/other"},
+            {"region": "us-central1\n"},
+        ):
+            api = Mock()
             with self.subTest(overrides=overrides), self.assertRaises(RuntimeError):
-                LIVE.validate_inputs(arguments(**overrides))
+                LIVE.verify(arguments(**overrides), api)
+            api.request.assert_not_called()
+            api.iam.assert_not_called()
+            api.credentials.assert_not_called()
+
+    def test_other_explicit_valid_target_is_allowed_but_images_remain_bound(self):
+        selected = arguments(project="another-verifier-5678", region="us-central1")
+        self.assertEqual(LIVE.validate_inputs(selected), (selected.project, selected.region))
+        with self.assertRaisesRegex(RuntimeError, "same-project"):
+            LIVE.validate_images(selected, IMAGES)
+        images = [
+            image.replace(PROJECT, selected.project).replace(REGION, selected.region)
+            for image in IMAGES
+        ]
+        self.assertEqual(LIVE.validate_images(selected, images), images)
+
+    def test_cli_requires_both_target_fields_before_creating_a_cloud_client(self):
+        import io
+
+        for target in ([], ["--project", PROJECT], ["--region", REGION]):
+            with (
+                self.subTest(target=target),
+                patch("sys.argv", ["verify", "--live", "--terraform", "/verified/tf", *target]),
+                patch.object(LIVE, "terraform_binary", return_value="/verified/tf"),
+                patch("sys.stderr", new_callable=io.StringIO) as error,
+                patch.object(LIVE, "Cloud") as cloud,
+                self.assertRaises(SystemExit) as stopped,
+            ):
+                LIVE.main()
+            self.assertEqual(stopped.exception.code, 2)
+            self.assertIn("required", error.getvalue())
+            cloud.assert_not_called()
 
     def test_all_or_none_explicit_images(self):
         with self.assertRaisesRegex(RuntimeError, "all three"):
@@ -413,6 +469,65 @@ class ReadinessTests(unittest.TestCase):
 
 
 class CleanupTests(unittest.TestCase):
+    def test_cleanup_never_infers_selected_target_from_supplied_resources(self):
+        for resource, account in (
+            (
+                RESOURCE.replace(PROJECT, "another-verifier-5678"),
+                ACCOUNT.replace(PROJECT, "another-verifier-5678"),
+            ),
+            (RESOURCE.replace(REGION, "us-central1"), ACCOUNT),
+            (RESOURCE + "/other", ACCOUNT),
+        ):
+            api = Mock()
+            with self.subTest(resource=resource):
+                self.assertTrue(
+                    LIVE.cleanup(
+                        api, resource, "uid", account, "12345", project=PROJECT, region=REGION
+                    )
+                )
+            api.request.assert_not_called()
+            api.iam.assert_not_called()
+
+    def test_cleanup_requires_valid_explicit_target_and_account_id(self):
+        for project, region, unique_id in (
+            (None, REGION, "12345"),
+            (PROJECT, None, "12345"),
+            (PROJECT + "/other", REGION, "12345"),
+            (PROJECT, REGION + "/other", "12345"),
+            (PROJECT, REGION, "12345/other"),
+        ):
+            api = Mock()
+            with self.subTest(project=project, region=region, unique_id=unique_id):
+                self.assertTrue(
+                    LIVE.cleanup(
+                        api, RESOURCE, "uid", ACCOUNT, unique_id, project=project, region=region
+                    )
+                )
+            api.request.assert_not_called()
+            api.iam.assert_not_called()
+
+    def test_cleanup_accepts_only_the_explicitly_selected_alternate_target(self):
+        project, region = "another-verifier-5678", "us-central1"
+        resource = RESOURCE.replace(PROJECT, project).replace(REGION, region)
+        account = ACCOUNT.replace(PROJECT, project)
+        api = Mock()
+        api.request.side_effect = [
+            {"uid": "owned", "etag": "version+1"},
+            {},
+            HTTPError(resource, 404, "deleted", {}, None),
+        ]
+        api.iam.side_effect = [{"uniqueId": "12345"}, {}]
+        self.assertEqual(
+            LIVE.cleanup(api, resource, "owned", account, "12345", project=project, region=region),
+            [],
+        )
+        self.assertEqual(
+            api.request.call_args_list[1].args, ("DELETE", f"{resource}?etag=version%2B1")
+        )
+        self.assertEqual(
+            api.iam.call_args_list[1].args, ("DELETE", f"projects/{project}/serviceAccounts/12345")
+        )
+
     def test_cleanup_refuses_any_production_name_before_network_calls(self):
         api = Mock()
         for resource, account in (
@@ -420,21 +535,94 @@ class CleanupTests(unittest.TestCase):
             (RESOURCE, ACCOUNT.replace(NAME, "fa-api-runtime")),
         ):
             with self.subTest(resource=resource, account=account):
-                self.assertTrue(LIVE.cleanup(api, resource, "uid", account, "12345"))
+                self.assertTrue(
+                    LIVE.cleanup(
+                        api, resource, "uid", account, "12345", project=PROJECT, region=REGION
+                    )
+                )
         api.request.assert_not_called()
         api.iam.assert_not_called()
 
-    def test_uid_mismatch_never_deletes_recreated_service(self):
+    def test_uid_mismatch_retains_recreated_service_and_original_runtime_account(self):
         api = Mock()
         api.request.return_value = {"uid": "recreated", "etag": "new"}
-        errors = LIVE.cleanup(api, RESOURCE, "original", ACCOUNT, None)
+        api.iam.return_value = {"uniqueId": "12345"}
+        errors = LIVE.cleanup(
+            api, RESOURCE, "original", ACCOUNT, "12345", project=PROJECT, region=REGION
+        )
         self.assertIn("UID changed", errors[0])
         self.assertTrue(all(call.args[0] == "GET" for call in api.request.call_args_list))
+        self.assertIn("account retained", errors[-1])
+        api.iam.assert_not_called()
+
+    def test_failed_or_unverified_service_deletion_retains_runtime_account(self):
+        for responses in (
+            [HTTPError(RESOURCE, 403, "denied", {}, None)],
+            [
+                {"uid": "owned", "etag": "version"},
+                HTTPError(RESOURCE, 403, "denied", {}, None),
+            ],
+            [
+                {"uid": "owned", "etag": "version"},
+                {},
+                HTTPError(RESOURCE, 503, "unavailable", {}, None),
+            ],
+            [
+                {"uid": "owned", "etag": "version"},
+                HTTPError(RESOURCE, 404, "delete not found", {}, None),
+                {"uid": "recreated", "etag": "replacement"},
+            ],
+        ):
+            api = Mock()
+            api.request.side_effect = responses
+            api.iam.return_value = {"uniqueId": "12345"}
+            with self.subTest(responses=responses):
+                errors = LIVE.cleanup(
+                    api, RESOURCE, "owned", ACCOUNT, "12345", project=PROJECT, region=REGION
+                )
+            self.assertIn("account retained", errors[-1])
+            api.iam.assert_not_called()
+
+    def test_service_deletion_timeout_retains_runtime_account(self):
+        api = Mock()
+        api.request.side_effect = [{"uid": "owned", "etag": "version"}, {}]
+        api.iam.return_value = {"uniqueId": "12345"}
+        with patch.object(LIVE.time, "monotonic", side_effect=[0, 301]):
+            errors = LIVE.cleanup(
+                api, RESOURCE, "owned", ACCOUNT, "12345", project=PROJECT, region=REGION
+            )
+        self.assertIn("not completed", errors[0])
+        self.assertIn("account retained", errors[-1])
+        api.iam.assert_not_called()
+
+    def test_account_only_cleanup_requires_explicit_service_absence(self):
+        for service_exists in (False, True):
+            api = Mock()
+            api.request.side_effect = (
+                None if service_exists else HTTPError(RESOURCE, 404, "absent", {}, None)
+            )
+            api.request.return_value = {"uid": "unrecorded", "etag": "version"}
+            api.iam.side_effect = [{"uniqueId": "12345"}, {}]
+            with self.subTest(service_exists=service_exists):
+                errors = LIVE.cleanup(
+                    api, RESOURCE, None, ACCOUNT, "12345", project=PROJECT, region=REGION
+                )
+            api.request.assert_called_once_with("GET", RESOURCE)
+            if service_exists:
+                self.assertIn("No recorded service UID", errors[0])
+                api.iam.assert_not_called()
+            else:
+                self.assertEqual(errors, [])
+                self.assertEqual(
+                    api.iam.call_args_list[1].args,
+                    ("DELETE", f"projects/{PROJECT}/serviceAccounts/12345"),
+                )
 
     def test_account_unique_id_mismatch_never_deletes_recreated_account(self):
         api = Mock()
+        api.request.side_effect = HTTPError(RESOURCE, 404, "absent", {}, None)
         api.iam.return_value = {"uniqueId": "67890"}
-        errors = LIVE.cleanup(api, RESOURCE, None, ACCOUNT, "12345")
+        errors = LIVE.cleanup(api, RESOURCE, None, ACCOUNT, "12345", project=PROJECT, region=REGION)
         self.assertIn("uniqueId changed", errors[0])
         api.iam.assert_called_once_with("GET", ACCOUNT)
 
@@ -446,7 +634,10 @@ class CleanupTests(unittest.TestCase):
             HTTPError(RESOURCE, 404, "deleted", {}, None),
         ]
         api.iam.side_effect = [{"uniqueId": "12345"}, {}]
-        self.assertEqual(LIVE.cleanup(api, RESOURCE, "owned", ACCOUNT, "12345"), [])
+        self.assertEqual(
+            LIVE.cleanup(api, RESOURCE, "owned", ACCOUNT, "12345", project=PROJECT, region=REGION),
+            [],
+        )
         self.assertEqual(
             api.request.call_args_list[1].args, ("DELETE", f"{RESOURCE}?etag=version%2B1")
         )
@@ -457,7 +648,10 @@ class CleanupTests(unittest.TestCase):
     def test_forbidden_cleanup_remains_an_explicit_failure(self):
         api = Mock()
         api.request.side_effect = HTTPError(RESOURCE, 403, "forbidden", {}, None)
-        self.assertIn("HTTP 403", LIVE.cleanup(api, RESOURCE, "owned", ACCOUNT, None)[0])
+        self.assertIn(
+            "HTTP 403",
+            LIVE.cleanup(api, RESOURCE, "owned", ACCOUNT, None, project=PROJECT, region=REGION)[0],
+        )
 
 
 if __name__ == "__main__":

@@ -199,6 +199,18 @@ and [trigger reference](https://docs.cloud.google.com/build/docs/api/reference/r
 
 ## Required secret scanning
 
+Credential scanning and deployment privacy are separate checks. Keep actual project IDs/numbers,
+service and trigger IDs, buckets, endpoints, operator profiles and live verification reports in
+ignored private operator storage. Public fixtures must use fictitious identities with internally
+consistent ownership and digest relationships. The repository CI tests check the committed
+bootstrap and historical regression fixtures against that synthetic boundary.
+
+When publishing a derived historical report, label its identifiers as synthetic aliases and retain
+the original privately; do not present the derivative as exact live deployment provenance. Keep
+required third-party license attribution and intentional repository ownership metadata intact.
+Cleaning the current source tree does not erase old commits. The credential scanner below checks
+reachable history, but its success is not a claim that historical deployment metadata is absent.
+
 `npm run check` and the pre-commit hook run `npm run security:scan` first. A new
 clone downloads the fixed official Gitleaks release into the ignored
 `.security-tools/` directory. Installation validates both the release archive

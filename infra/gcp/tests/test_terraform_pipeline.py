@@ -21,30 +21,30 @@ SPEC.loader.exec_module(pipeline)
 
 PLAN = "12345678-1234-4234-8234-123456789abc"
 APPLY = "87654321-4321-4321-8321-cba987654321"
-PLAN_TRIGGER = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+PLAN_TRIGGER = "00000000-0000-4000-8000-000000000022"
 APPLY_TRIGGER = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
 COMMIT = "a" * 40
 NOW = datetime(2026, 10, 23, 12, tzinfo=UTC)
-PROJECT = "financial-analysis-512202"
+PROJECT = "demo-folio-alpha"
 REPOSITORY = (
     f"projects/{PROJECT}/locations/northamerica-northeast2/"
     "connections/financial-analysis-github/repositories/financial-analysis"
 )
-REPOSITORY_URL = "https://github.com/LeonhardE/financial_analysis_platform.git"
+REPOSITORY_URL = "https://github.com/example/folioview.git"
 POLICY = {
     "schema_version": 2,
-    "project_id": "financial-analysis-512202",
-    "project_number": "630815932903",
+    "project_id": "demo-folio-alpha",
+    "project_number": "111222333444",
     "region": "northamerica-northeast2",
     "terraform_version": "1.16.7",
-    "state_bucket": "financial-analysis-512202-tfstate",
-    "plan_bucket": "financial-analysis-512202-tfplans",
+    "state_bucket": "demo-folio-alpha-tfstate",
+    "plan_bucket": "demo-folio-alpha-tfplans",
     "max_plan_age_seconds": 21600,
     "repository_url": REPOSITORY_URL,
     "targets": {
         "repo": {
             "enabled": True,
-            "state_bucket": "financial-analysis-512202-tfstate",
+            "state_bucket": "demo-folio-alpha-tfstate",
             "configuration_controllers": [],
             "directory": "infra/gcp/terraform/envs/prod/repo",
             "state_prefix": "prod/repo",
@@ -563,7 +563,7 @@ class PipelineTests(unittest.TestCase):
                     self.api, POLICY, POLICY["targets"]["repo"], "plan", PLAN, COMMIT, target="repo"
                 )
         for value in (
-            account("plan").replace("projects/financial-analysis-512202/", "projects/other/"),
+            account("plan").replace("projects/demo-folio-alpha/", "projects/other/"),
             "arbitrary-prefix/" + POLICY["targets"]["repo"]["plan_service_account"],
             account("apply"),
         ):

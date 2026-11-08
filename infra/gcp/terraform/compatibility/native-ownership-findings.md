@@ -1,13 +1,15 @@
 # Historical native-provider ownership findings
 
+Deployment identifiers in the linked fixture are synthetic aliases. Historical outcomes and relationships are preserved; it is not current inventory or an exact public deployment attestation.
 This records the pre-fix implementation tested in PR #14. The current guarded protocol is
 documented in [the compatibility guide](README.md); these findings remain regression coverage.
 
 ## Authenticated GCP result: 2026-10-23
 
 Result: **BLOCKED — do not adopt production services with the current ownership model.**
-The [sanitized live evidence](live-results-2026-10-23.json) records Google provider 7.28.0 and
-Terraform 1.16.7 in Toronto. The disposable service was `fv-compat-64feaca0fa9c`; no existing service,
+The [pseudonymized historical regression fixture](live-results-2026-10-23.json) records Google provider 7.28.0 and
+Terraform 1.16.7 in Toronto. The disposable service is represented in the public fixture as
+`fv-compat-000000000001`; no existing service,
 trigger or IAM grant was modified. No new images were built and no application URLs were called.
 
 | Stage                                                   | Observed GCP result                                                                                                                                                             |

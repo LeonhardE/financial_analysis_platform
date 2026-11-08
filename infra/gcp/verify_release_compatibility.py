@@ -57,12 +57,21 @@ def progress(message):
     print(message, flush=True)
 
 
+def validate_target(project, region):
+    require(
+        isinstance(project, str) and re.fullmatch(r"[a-z][a-z0-9-]{4,28}[a-z0-9]", project),
+        "Select an explicit valid Google Cloud project ID.",
+    )
+    require(
+        isinstance(region, str) and re.fullmatch(r"[a-z]+-[a-z]+[0-9]+", region),
+        "Select an explicit valid Google Cloud region.",
+    )
+    return project, region
+
+
 def validate_inputs(args):
     require(args.live, "Pass --live to create and delete the isolated verification resources.")
-    require(
-        args.project == "financial-analysis-512202" and args.region == "northamerica-northeast2",
-        "This verification is restricted to financial-analysis-512202 in Toronto.",
-    )
+    target = validate_target(args.project, args.region)
     for value in (args.repository, args.image_package):
         require(
             re.fullmatch(r"[a-z][a-z0-9-]{0,62}", value), "Invalid repository or image package."
@@ -73,6 +82,7 @@ def validate_inputs(args):
     )
     if all(images):
         validate_images(args, images)
+    return target
 
 
 def validate_images(args, images):
@@ -378,13 +388,16 @@ def fixture(directory, args, name, image, *, changed=False):
     (directory / "main.tf.json").write_text(json.dumps(config, indent=2) + "\n")
 
 
-def cleanup(api, resource, uid, account, unique_id):
+def cleanup(api, resource, uid, account, unique_id, *, project, region):
     errors = []
-    prefix = "projects/financial-analysis-512202/locations/northamerica-northeast2/services/"
+    try:
+        validate_target(project, region)
+    except RuntimeError:
+        return ["Cleanup requires the explicitly selected valid project and region."]
+    prefix = f"projects/{project}/locations/{region}/services/"
     name = resource.removeprefix(prefix)
     expected_account = (
-        f"projects/financial-analysis-512202/serviceAccounts/"
-        f"{name}@financial-analysis-512202.iam.gserviceaccount.com"
+        f"projects/{project}/serviceAccounts/{name}@{project}.iam.gserviceaccount.com"
     )
     if (
         not resource.startswith(prefix)
@@ -393,29 +406,50 @@ def cleanup(api, resource, uid, account, unique_id):
         or (unique_id is not None and not re.fullmatch(r"[0-9]+", unique_id))
     ):
         return ["Cleanup rejected an unexpected resource name or account identity."]
-    if uid:
+    service_absent = False
+    if uid or unique_id:
         try:
-            service = api.request("GET", resource)
-            require(service.get("uid") == uid, "Service UID changed; automatic cleanup refused.")
-            require(service.get("etag"), "Service has no etag; automatic cleanup refused.")
-            api.request("DELETE", f"{resource}?{urlencode({'etag': service['etag']})}")
-            deadline = time.monotonic() + 300
-            while time.monotonic() < deadline:
-                try:
-                    api.request("GET", resource)
-                except HTTPError as error:
-                    if error.code == 404:
-                        break
+            try:
+                service = api.request("GET", resource)
+            except HTTPError as error:
+                if error.code != 404:
                     raise
-                time.sleep(3)
-            else:
-                raise TimeoutError("Service deletion has not completed.")
+                service_absent = True
+            if not service_absent:
+                require(uid, "No recorded service UID; automatic cleanup refused.")
+                require(
+                    service.get("uid") == uid, "Service UID changed; automatic cleanup refused."
+                )
+                require(service.get("etag"), "Service has no etag; automatic cleanup refused.")
+                try:
+                    api.request("DELETE", f"{resource}?{urlencode({'etag': service['etag']})}")
+                except HTTPError as error:
+                    if error.code != 404:
+                        raise
+                deadline = time.monotonic() + 300
+                while time.monotonic() < deadline:
+                    try:
+                        current = api.request("GET", resource)
+                    except HTTPError as error:
+                        if error.code == 404:
+                            service_absent = True
+                            break
+                        raise
+                    require(
+                        current.get("uid") == uid,
+                        "Service UID changed during deletion; account cleanup refused.",
+                    )
+                    time.sleep(3)
+                else:
+                    raise TimeoutError("Service deletion has not completed.")
         except HTTPError as error:
-            if error.code != 404:
-                errors.append(f"Service cleanup returned HTTP {error.code}: {resource}")
+            errors.append(f"Service cleanup returned HTTP {error.code}: {resource}")
         except Exception as error:
             errors.append(f"Service cleanup: {error}")
     if unique_id:
+        if not service_absent:
+            errors.append("Runtime account retained because service absence was not established.")
+            return errors
         try:
             current = api.iam("GET", account)
             require(
@@ -431,6 +465,7 @@ def cleanup(api, resource, uid, account, unique_id):
 
 
 def verify(args, api):
+    project, region = validate_inputs(args)
     args.terraform = terraform_binary(args.terraform)
     progress("Checking the pinned Terraform CLI before cloud access...")
     version = json.loads(
@@ -448,11 +483,11 @@ def verify(args, api):
     name = f"fv-compat-{uuid.uuid4().hex[:12]}"
     directory = Path(tempfile.mkdtemp(prefix=f"{name}-"))
     directory.chmod(0o700)
-    resource = f"projects/{args.project}/locations/{args.region}/services/{name}"
-    account = (
-        f"projects/{args.project}/serviceAccounts/{name}@{args.project}.iam.gserviceaccount.com"
-    )
+    resource = f"projects/{project}/locations/{region}/services/{name}"
+    account = f"projects/{project}/serviceAccounts/{name}@{project}.iam.gserviceaccount.com"
     report = {
+        "project": project,
+        "region": region,
         "service": resource,
         "account": account,
         "images": images,
@@ -554,7 +589,9 @@ def verify(args, api):
         report["error"] = f"{type(error).__name__}: {error}"
     finally:
         progress("Cleaning up the isolated service and runtime identity...")
-        report["cleanup_errors"] = cleanup(api, resource, uid, account, unique_id)
+        report["cleanup_errors"] = cleanup(
+            api, resource, uid, account, unique_id, project=project, region=region
+        )
         if creating and not uid:
             report["cleanup_errors"].append(
                 "No recorded service UID. Inspect this exact resource manually: " + resource
@@ -575,7 +612,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--live", action="store_true")
     parser.add_argument("--project", required=True)
-    parser.add_argument("--region", default="northamerica-northeast2")
+    parser.add_argument("--region", required=True)
     parser.add_argument(
         "--terraform",
         type=terraform_binary,

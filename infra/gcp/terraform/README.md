@@ -6,19 +6,23 @@ apply workflow. Merging source does not automatically apply infrastructure. The
 `pipeline.json` contains only static protocol registration, toolchain version and plan-age policy.
 It contains no global project, region, source repository, state bucket or plan bucket defaults.
 
-| Target                            | Normal execution                                           | Administrator preparation                                                                                                 |
-| --------------------------------- | ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| `repo`                            | Enabled, `trigger-v1`                                      | Existing foundation and execution identities                                                                              |
-| `market`, `user`, `config`, `web` | Enabled, `trigger-v1`                                      | Existing adopted service/client boundaries                                                                                |
-| `portfolio`                       | Disabled, `trigger-v1`; image publication stays build-only | Existing `service` stage must be preserved in operator inputs                                                             |
-| `agent-hub`                       | Disabled, `inactive-v1`; not runnable                      | Uncreated; `none` creates nothing; existing `execution`/`service` preparation remains separately administrator-controlled |
+| Target                            | Normal execution                                           | Administrator preparation                                                                                      |
+| --------------------------------- | ---------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `repo`                            | Enabled, `trigger-v1`                                      | Existing foundation and execution identities                                                                   |
+| `market`, `user`, `config`, `web` | Enabled, `trigger-v1`                                      | Existing adopted service/client boundaries                                                                     |
+| `portfolio`                       | Disabled, `trigger-v1`; image publication stays build-only | Existing `service` stage must be preserved in operator inputs                                                  |
+| `agent-hub`                       | Disabled, `inactive-v1`; not runnable                      | `none` creates nothing; existing `execution`/`service` preparation remains separately administrator-controlled |
 
 All six `trigger-v1` entries require an explicit canonical projection in
 `deployment_configs[target]`, including disabled Portfolio. Missing configuration fails closed.
 The `inactive-v1` marker is reserved for disabled Agent Hub and carries static metadata only. It
-requires no invented service/trigger UUIDs for uncreated Hub, provides no instance fallback, and
+requires no invented service/trigger UUIDs, provides no instance fallback, and
 does not enable normal execution. Later Hub activation requires its own migration to `trigger-v1`
 with valid configuration.
+
+These entries describe normal-runner eligibility, not whether an administrator-managed service
+already exists. Verify actual resources and activation from the selected private instance and its
+release evidence.
 
 `bootstrap/` is administrator-managed and retains the existing resource addresses. Normal target
 execution cannot provision its own execution IAM, accounts, buckets or approval trigger. The

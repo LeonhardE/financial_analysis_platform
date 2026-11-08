@@ -1,5 +1,6 @@
 # Config database IAM administrator migration
 
+Examples use a fictitious deployment. Replace project and identity values from your reviewed private instance; the historical acceptance notes do not certify any other deployment.
 INF-004 limits only the existing `fa-config-runtime` account's Datastore User
 membership to the existing `(default)` database. The application still uses
 `FIRESTORE_DATABASE=(default)`; this change creates no database, service, account,
@@ -13,14 +14,14 @@ runtime map and creates no duplicate grant. Its fixed condition is:
 
 ```text
 title: database-default
-expression: resource.type == 'firestore.googleapis.com/Database' && resource.name == 'projects/financial-analysis-512202/databases/(default)'
-description: Datastore User access limited to the exact Firestore database projects/financial-analysis-512202/databases/(default).
+expression: resource.type == 'firestore.googleapis.com/Database' && resource.name == 'projects/demo-folio-alpha/databases/(default)'
+description: Datastore User access limited to the exact Firestore database projects/demo-folio-alpha/databases/(default).
 ```
 
 ## Prepare and inspect before changing access
 
 Use the existing administrator, the fixed merge commit of the Config-only
-INF-004 PR, and the already initialized remote bootstrap backend, bucket `financial-analysis-512202-tf-bootstrap`, prefix
+INF-004 PR, and the already initialized remote bootstrap backend, bucket `demo-folio-alpha-tf-bootstrap`, prefix
 `bootstrap`. Follow the [administrator bootstrap setup](../../../README.md#one-time-administrator-bootstrap)
 for the pinned toolchain and private variables. Do not repeat the initial
 local-state bootstrap apply, create a new backend, or use the Config execution
@@ -43,8 +44,8 @@ record the existing remote state and policy and the Config service inventory:
 umask 077
 INF004_EVIDENCE=$(mktemp -d)
 terraform -chdir=infra/gcp/terraform/bootstrap state pull > "$INF004_EVIDENCE/state-before.json"
-gcloud projects get-iam-policy financial-analysis-512202 --format=json > "$INF004_EVIDENCE/iam-before.json"
-gcloud run services describe config-api --project=financial-analysis-512202 --region=northamerica-northeast2 --format=json > "$INF004_EVIDENCE/config-before.json"
+gcloud projects get-iam-policy demo-folio-alpha --format=json > "$INF004_EVIDENCE/iam-before.json"
+gcloud run services describe config-api --project=demo-folio-alpha --region=northamerica-northeast2 --format=json > "$INF004_EVIDENCE/config-before.json"
 terraform -chdir=infra/gcp/terraform/bootstrap state show google_project_iam_member.config_store
 ```
 
@@ -53,7 +54,7 @@ private infrastructure metadata; do not commit it or attach raw state/policies t
 a public PR. Preserve backend versions according to the existing recovery policy.
 
 Inspect the exact runtime member
-`serviceAccount:fa-config-runtime@financial-analysis-512202.iam.gserviceaccount.com`
+`serviceAccount:fa-config-runtime@demo-folio-alpha.iam.gserviceaccount.com`
 in the live project policy and any applicable inherited/group grants. Record all
 roles that can read or write Firestore, including custom/basic roles and other
 conditional or unconditional bindings. A new condition cannot cancel permissions
@@ -77,7 +78,7 @@ Choose the branch matching the inspected live binding and existing remote state:
   first adopt exactly that old membership into the same address:
 
   ```bash
-  terraform -chdir=infra/gcp/terraform/bootstrap import google_project_iam_member.config_store 'financial-analysis-512202 roles/datastore.user serviceAccount:fa-config-runtime@financial-analysis-512202.iam.gserviceaccount.com'
+  terraform -chdir=infra/gcp/terraform/bootstrap import google_project_iam_member.config_store 'demo-folio-alpha roles/datastore.user serviceAccount:fa-config-runtime@demo-folio-alpha.iam.gserviceaccount.com'
   ```
 
   This administrator import writes state and reads IAM; it does not narrow the
@@ -88,7 +89,7 @@ Choose the branch matching the inspected live binding and existing remote state:
   verify all three condition fields exactly, then import its conditional ID:
 
   ```bash
-  terraform -chdir=infra/gcp/terraform/bootstrap import google_project_iam_member.config_store 'financial-analysis-512202 roles/datastore.user serviceAccount:fa-config-runtime@financial-analysis-512202.iam.gserviceaccount.com database-default'
+  terraform -chdir=infra/gcp/terraform/bootstrap import google_project_iam_member.config_store 'demo-folio-alpha roles/datastore.user serviceAccount:fa-config-runtime@demo-folio-alpha.iam.gserviceaccount.com database-default'
   ```
 
   The declarative import supports the same final membership. A same-title
@@ -139,7 +140,7 @@ a separately reviewed administrator cleanup, leaving other members and grants
 intact. For that one direct project binding, the explicit condition selector is:
 
 ```bash
-gcloud projects remove-iam-policy-binding financial-analysis-512202 --member=serviceAccount:fa-config-runtime@financial-analysis-512202.iam.gserviceaccount.com --role=roles/datastore.user --condition=None
+gcloud projects remove-iam-policy-binding demo-folio-alpha --member=serviceAccount:fa-config-runtime@demo-folio-alpha.iam.gserviceaccount.com --role=roles/datastore.user --condition=None
 ```
 
 Run this only after confirming the conditional member exists and state tracks

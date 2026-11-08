@@ -414,12 +414,13 @@ def sanitized_evidence(evidence):
 
 def public_report(report):
     """Only explicit safe fields leave the private report directory."""
+    project, region = LEGACY.validate_target(report["project"], report["region"])
     return {
         "schema_version": 1,
         "verified_at": report["verified_at"],
         "status": report["status"],
-        "project": "financial-analysis-512202",
-        "region": "northamerica-northeast2",
+        "project": project,
+        "region": region,
         "terraform_version": "1.16.7",
         "google_provider_version": "7.28.0",
         "images": list(report["images"]),
@@ -488,7 +489,7 @@ def release(api, resource, image):
 
 
 def verify(args, api):
-    LEGACY.validate_inputs(args)
+    project, region = LEGACY.validate_inputs(args)
     args.terraform = terraform_binary(args.terraform)
     progress("Checking the pinned Terraform CLI before cloud access...")
     version = json.loads(
@@ -510,11 +511,11 @@ def verify(args, api):
     name = f"fv-compat-{uuid.uuid4().hex[:12]}"
     directory = Path(tempfile.mkdtemp(prefix=f"{name}-"))
     directory.chmod(0o700)
-    resource = f"projects/{args.project}/locations/{args.region}/services/{name}"
-    account = (
-        f"projects/{args.project}/serviceAccounts/{name}@{args.project}.iam.gserviceaccount.com"
-    )
+    resource = f"projects/{project}/locations/{region}/services/{name}"
+    account = f"projects/{project}/serviceAccounts/{name}@{project}.iam.gserviceaccount.com"
     report = {
+        "project": project,
+        "region": region,
         "verified_at": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
         "service": resource,
         "account": account,
@@ -716,7 +717,9 @@ def verify(args, api):
                 uid = recover_state_uid(tf)
             except Exception as error:
                 report["identity_recovery_error"] = f"{type(error).__name__}: {error}"
-        report["cleanup_errors"] = LEGACY.cleanup(api, resource, uid, account, unique_id)
+        report["cleanup_errors"] = LEGACY.cleanup(
+            api, resource, uid, account, unique_id, project=project, region=region
+        )
         if creating and not uid:
             report["cleanup_errors"].append("No recorded service UID; inspect only " + resource)
         if account_attempted and not unique_id:
@@ -754,7 +757,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--live", action="store_true")
     parser.add_argument("--project", required=True)
-    parser.add_argument("--region", default="northamerica-northeast2")
+    parser.add_argument("--region", required=True)
     parser.add_argument(
         "--terraform",
         type=terraform_binary,

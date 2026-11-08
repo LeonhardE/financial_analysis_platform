@@ -16,8 +16,8 @@ SPEC = importlib.util.spec_from_file_location(
 )
 LIVE = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(LIVE)
-PROJECT = "financial-analysis-512202"
-REGION = "northamerica-northeast2"
+PROJECT = "example-verifier-1234"
+REGION = "europe-west3"
 NAME = "fv-compat-012345abcdef"
 RESOURCE = f"projects/{PROJECT}/locations/{REGION}/services/{NAME}"
 EMAIL = f"{NAME}@{PROJECT}.iam.gserviceaccount.com"
@@ -84,7 +84,7 @@ def service(image=IMAGES[0], stage="a", revision="initial", traffic_revision=Non
             LIVE.RELEASE.COMMIT_ANNOTATION: "f" * 40,
             "private-annotation": "never-publish",
         },
-        "latestReadyRevision": f"projects/630815932903/locations/{REGION}/revisions/{revision}",
+        "latestReadyRevision": f"projects/123456789012/locations/{REGION}/revisions/{revision}",
         "terminalCondition": {"state": "CONDITION_SUCCEEDED"},
         "traffic": [
             {"type": PINNED, "revision": target, "percent": 100}
@@ -97,13 +97,41 @@ def service(image=IMAGES[0], stage="a", revision="initial", traffic_revision=Non
 
 class PreflightTests(unittest.TestCase):
     def test_explicit_project_region_and_live_opt_in_checked_before_any_api(self):
-        for overrides in ({"live": False}, {"project": "other-project"}, {"region": "us-central1"}):
+        for overrides in (
+            {"live": False},
+            {"project": None},
+            {"project": ""},
+            {"project": "bad"},
+            {"project": "123456789012"},
+            {"project": "example-project/other"},
+            {"region": None},
+            {"region": ""},
+            {"region": "global"},
+            {"region": "us-central1/services/other"},
+        ):
             api = Mock()
             with self.subTest(overrides=overrides), self.assertRaises(RuntimeError):
                 LIVE.verify(arguments(**overrides), api)
             api.request.assert_not_called()
             api.iam.assert_not_called()
             api.credentials.assert_not_called()
+
+    def test_cli_requires_explicit_project_and_region_without_cloud_access(self):
+        import io
+
+        for target in ([], ["--project", PROJECT], ["--region", REGION]):
+            with (
+                self.subTest(target=target),
+                patch("sys.argv", ["verify", "--live", "--terraform", "/verified/tf", *target]),
+                patch.object(LIVE, "terraform_binary", return_value="/verified/tf"),
+                patch("sys.stderr", new_callable=io.StringIO) as error,
+                patch.object(LIVE, "Cloud") as cloud,
+                self.assertRaises(SystemExit) as stopped,
+            ):
+                LIVE.main()
+            self.assertEqual(stopped.exception.code, 2)
+            self.assertIn("required", error.getvalue())
+            cloud.assert_not_called()
 
     def test_invalid_cli_stops_before_cloud_access(self):
         api = Mock()
@@ -297,6 +325,8 @@ class ObservationTests(unittest.TestCase):
         value = LIVE.snapshot(service()) | {"environment": {"SECRET": "private-payload"}}
         value["traffic"][0]["private-key"] = "private-payload"
         report = {
+            "project": PROJECT,
+            "region": REGION,
             "verified_at": "2026-10-23T00:00:00Z",
             "status": "PASS",
             "images": IMAGES,
@@ -316,6 +346,23 @@ class ObservationTests(unittest.TestCase):
         self.assertNotIn("unknown-proof", public["evidence"])
         self.assertTrue(public["execution_error"])
         self.assertEqual(public["cleanup_error_count"], 1)
+        self.assertEqual((public["project"], public["region"]), (PROJECT, REGION))
+
+    def test_public_report_uses_explicit_selected_target_without_inferring_from_service(self):
+        report = {
+            "project": "another-verifier-5678",
+            "region": "us-central1",
+            "verified_at": "2026-10-23T00:00:00Z",
+            "status": "ERROR",
+            "images": [],
+            "service": RESOURCE,
+        }
+        public = LIVE.public_report(report)
+        self.assertEqual(public["project"], report["project"])
+        self.assertEqual(public["region"], report["region"])
+        del report["project"]
+        with self.assertRaises(KeyError):
+            LIVE.public_report(report)
 
     def test_independent_cleanup_get_only_accepts_404(self):
         call = Mock(side_effect=HTTPError("url", 404, "gone", {}, None))
@@ -451,7 +498,11 @@ class SequenceTests(unittest.TestCase):
         self.assertEqual(
             [call.args[2] for call in publish.call_args_list], [IMAGES[1], IMAGES[2], IMAGES[1]]
         )
-        cleanup.assert_called_once_with(api, RESOURCE, "owned-uid", ACCOUNT, "1234")
+        cleanup.assert_called_once_with(
+            api, RESOURCE, "owned-uid", ACCOUNT, "1234", project=PROJECT, region=REGION
+        )
+        self.assertEqual((report["project"], report["region"]), (PROJECT, REGION))
+        self.assertEqual((public["project"], public["region"]), (PROJECT, REGION))
         self.assertNotIn("ownership-stage", json.dumps(public))
         patches = [call for call in api.request.call_args_list if call.args[0] == "PATCH"]
         self.assertEqual(len(patches), 1)

@@ -45,9 +45,9 @@ drift but does not automatically schedule repairs for out-of-band configuration 
 no timestamp or observed-state-hash trigger that would create perpetual plans.
 
 The target execution runner supports only explicitly enabled registry entries and exact registered
-controller addresses. The current catalog enables `repo` alone and gives it no controller exception.
-Each consumer PR must supply its root, isolated state/execution permissions and controller address
-before activation. Actual resource deletion or replacement remains rejected. The saved-plan
+controller addresses. The catalog enables `repo`, `market`, `user`, `config` and `web`; `repo` has
+no controller exception. Each consumer must supply its root, isolated state/execution permissions
+and controller address before activation. Actual resource deletion or replacement remains rejected. The saved-plan
 configuration fingerprint includes both executable helpers.
 
 ## Offline validation
@@ -79,11 +79,19 @@ the command. The individual scripts accept `--jobs 1` to reproduce serial execut
 ## Authenticated isolated verification
 
 ```bash
-python3 infra/gcp/verify_release_ownership.py --live --project financial-analysis-512202 --terraform /absolute/path/to/terraform
+python3 infra/gcp/verify_release_ownership.py --live \
+  --project YOUR_PROJECT_ID --region YOUR_REGION \
+  --terraform /absolute/path/to/terraform
 ```
 
 The legacy executable name forwards to this current verifier. Historical classifier helpers remain
 importable only to retain earlier regression evidence.
+
+Project and region are required and syntax-validated before any cloud request; there is no
+developer-instance fallback. Cleanup is bound to that explicit selection, the disposable service
+name, its recorded UID and the runtime account's unique ID. A different project or region is never
+accepted merely because a resource path names it. Reports remain private operator artifacts until
+their deployment identifiers are deliberately removed for publication.
 
 The explicit opt-in runner discovers three existing same-project immutable images, snapshots all
 four production services, and creates one private min-0/max-1 request-billed service plus one
@@ -106,9 +114,12 @@ end-to-end deployment validation PR.
 ## Authenticated result: 2026-10-23
 
 **PASS: all 22 required checks passed** with Terraform 1.16.7 / Google provider 7.28.0 in Toronto.
-The [sanitized evidence](live-ownership-results-2026-10-23.json) records actual desired and observed
-traffic, images/revisions, plan scope and tested source hashes. The tested sources contained
-uncommitted changes on the recorded base commit; file hashes identify the exact code.
+The [derived regression fixture](live-ownership-results-2026-10-23.json) preserves the historical
+desired/observed traffic relationships, plan scope, outcomes and tested source hashes. Deployment
+identifiers, UUIDs and image digests have been replaced by consistent synthetic aliases; this is
+not current inventory or an exact public deployment attestation. Original evidence belongs in
+private operator storage. The tested sources contained uncommitted changes on the recorded base
+commit; retained file hashes identify that historical code, not the current verifier.
 
 | Stage                                           | Observed result                                                                                                                |
 | ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
@@ -119,7 +130,8 @@ uncommitted changes on the recorded base commit; file hashes identify the exact 
 | Publish the subsequent B image explicitly       | New release carries staged settings and receives 100% latest traffic; final Terraform no-op.                                   |
 | Cleanup and independent production comparison   | Temporary service/account both return 404; all four production configuration fingerprints unchanged.                           |
 
-The disposable service was `fv-compat-e289f01aa28a`. The check used existing immutable image digests
+The disposable service is represented in the public fixture as `fv-compat-000000000002`.
+The check used existing immutable image digests
 and synthetic verification build IDs. Concurrency conflict/polling interleavings passed offline;
 this live sequence did not inject concurrent production traffic or execute Cloud Build triggers.
 

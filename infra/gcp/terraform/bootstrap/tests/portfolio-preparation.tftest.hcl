@@ -3,9 +3,9 @@ mock_provider "google" {
 
   mock_resource "google_service_account" {
     defaults = {
-      id     = "projects/financial-analysis-512202/serviceAccounts/mockbuild@financial-analysis-512202.iam.gserviceaccount.com"
-      email  = "mockbuild@financial-analysis-512202.iam.gserviceaccount.com"
-      member = "serviceAccount:mockbuild@financial-analysis-512202.iam.gserviceaccount.com"
+      id     = "projects/demo-folio-alpha/serviceAccounts/mockbuild@demo-folio-alpha.iam.gserviceaccount.com"
+      email  = "mockbuild@demo-folio-alpha.iam.gserviceaccount.com"
+      member = "serviceAccount:mockbuild@demo-folio-alpha.iam.gserviceaccount.com"
     }
   }
 }
@@ -13,8 +13,8 @@ mock_provider "google" {
 override_resource {
   target = module.market_image_release.google_cloudbuild_trigger.this
   values = {
-    id         = "projects/financial-analysis-512202/locations/northamerica-northeast2/triggers/db77a22e-83bf-45cc-b114-50e32192a9c8"
-    trigger_id = "db77a22e-83bf-45cc-b114-50e32192a9c8"
+    id         = "projects/demo-folio-alpha/locations/northamerica-northeast2/triggers/00000000-0000-4000-8000-000000000027"
+    trigger_id = "00000000-0000-4000-8000-000000000027"
   }
 }
 
@@ -37,7 +37,7 @@ override_resource {
   target          = google_project_iam_custom_role.market_service_read
   override_during = plan
   values = {
-    name = "projects/financial-analysis-512202/roles/folioviewMarketServiceRead"
+    name = "projects/demo-folio-alpha/roles/folioviewMarketServiceRead"
   }
 }
 
@@ -45,7 +45,7 @@ override_resource {
   target          = google_project_iam_custom_role.market_service_configuration
   override_during = plan
   values = {
-    name = "projects/financial-analysis-512202/roles/folioviewMarketServiceConfiguration"
+    name = "projects/demo-folio-alpha/roles/folioviewMarketServiceConfiguration"
   }
 }
 
@@ -53,7 +53,7 @@ override_resource {
   target          = google_project_iam_custom_role.market_image_read
   override_during = plan
   values = {
-    name = "projects/financial-analysis-512202/roles/folioviewMarketConfigurationImageRead"
+    name = "projects/demo-folio-alpha/roles/folioviewMarketConfigurationImageRead"
   }
 }
 
@@ -61,7 +61,7 @@ override_resource {
   target          = google_project_iam_custom_role.market_identity_read
   override_during = plan
   values = {
-    name = "projects/financial-analysis-512202/roles/folioviewMarketIdentityRead"
+    name = "projects/demo-folio-alpha/roles/folioviewMarketIdentityRead"
   }
 }
 
@@ -69,15 +69,15 @@ override_resource {
   target          = google_project_iam_custom_role.market_identity_metadata
   override_during = plan
   values = {
-    name = "projects/financial-analysis-512202/roles/folioviewMarketIdentityMetadata"
+    name = "projects/demo-folio-alpha/roles/folioviewMarketIdentityMetadata"
   }
 }
 
 override_resource {
   target = module.user_image_release.google_cloudbuild_trigger.this
   values = {
-    id         = "projects/financial-analysis-512202/locations/northamerica-northeast2/triggers/4cdbbd0c-94ba-4a47-8fb3-a0c6a73c07e5"
-    trigger_id = "4cdbbd0c-94ba-4a47-8fb3-a0c6a73c07e5"
+    id         = "projects/demo-folio-alpha/locations/northamerica-northeast2/triggers/00000000-0000-4000-8000-000000000010"
+    trigger_id = "00000000-0000-4000-8000-000000000010"
   }
 }
 
@@ -100,7 +100,7 @@ override_resource {
   target          = google_project_iam_custom_role.user_service_read
   override_during = plan
   values = {
-    name = "projects/financial-analysis-512202/roles/folioviewUserServiceRead"
+    name = "projects/demo-folio-alpha/roles/folioviewUserServiceRead"
   }
 }
 
@@ -108,7 +108,7 @@ override_resource {
   target          = google_project_iam_custom_role.user_service_configuration
   override_during = plan
   values = {
-    name = "projects/financial-analysis-512202/roles/folioviewUserServiceConfiguration"
+    name = "projects/demo-folio-alpha/roles/folioviewUserServiceConfiguration"
   }
 }
 
@@ -116,7 +116,7 @@ override_resource {
   target          = google_project_iam_custom_role.user_image_read
   override_during = plan
   values = {
-    name = "projects/financial-analysis-512202/roles/folioviewUserConfigurationImageRead"
+    name = "projects/demo-folio-alpha/roles/folioviewUserConfigurationImageRead"
   }
 }
 
@@ -124,7 +124,7 @@ override_resource {
   target          = google_project_iam_custom_role.user_identity_read
   override_during = plan
   values = {
-    name = "projects/financial-analysis-512202/roles/folioviewUserIdentityRead"
+    name = "projects/demo-folio-alpha/roles/folioviewUserIdentityRead"
   }
 }
 
@@ -132,7 +132,7 @@ override_resource {
   target          = google_project_iam_custom_role.user_identity_metadata
   override_during = plan
   values = {
-    name = "projects/financial-analysis-512202/roles/folioviewUserIdentityMetadata"
+    name = "projects/demo-folio-alpha/roles/folioviewUserIdentityMetadata"
   }
 }
 
@@ -144,8 +144,8 @@ override_resource {
 override_resource {
   target = module.config_image_release.google_cloudbuild_trigger.this
   values = {
-    id         = "projects/financial-analysis-512202/locations/northamerica-northeast2/triggers/67b14a77-dd90-42d3-b61d-0f8993a41060"
-    trigger_id = "67b14a77-dd90-42d3-b61d-0f8993a41060"
+    id         = "projects/demo-folio-alpha/locations/northamerica-northeast2/triggers/00000000-0000-4000-8000-000000000012"
+    trigger_id = "00000000-0000-4000-8000-000000000012"
   }
 }
 
@@ -168,7 +168,7 @@ override_resource {
   target          = google_project_iam_custom_role.config_service_read
   override_during = plan
   values = {
-    name = "projects/financial-analysis-512202/roles/folioviewConfigServiceRead"
+    name = "projects/demo-folio-alpha/roles/folioviewConfigServiceRead"
   }
 }
 
@@ -176,7 +176,7 @@ override_resource {
   target          = google_project_iam_custom_role.config_service_configuration
   override_during = plan
   values = {
-    name = "projects/financial-analysis-512202/roles/folioviewConfigServiceConfiguration"
+    name = "projects/demo-folio-alpha/roles/folioviewConfigServiceConfiguration"
   }
 }
 
@@ -184,7 +184,7 @@ override_resource {
   target          = google_project_iam_custom_role.config_image_read
   override_during = plan
   values = {
-    name = "projects/financial-analysis-512202/roles/folioviewConfigConfigurationImageRead"
+    name = "projects/demo-folio-alpha/roles/folioviewConfigConfigurationImageRead"
   }
 }
 
@@ -192,7 +192,7 @@ override_resource {
   target          = google_project_iam_custom_role.config_identity_read
   override_during = plan
   values = {
-    name = "projects/financial-analysis-512202/roles/folioviewConfigIdentityRead"
+    name = "projects/demo-folio-alpha/roles/folioviewConfigIdentityRead"
   }
 }
 
@@ -200,7 +200,7 @@ override_resource {
   target          = google_project_iam_custom_role.config_identity_metadata
   override_during = plan
   values = {
-    name = "projects/financial-analysis-512202/roles/folioviewConfigIdentityMetadata"
+    name = "projects/demo-folio-alpha/roles/folioviewConfigIdentityMetadata"
   }
 }
 
@@ -210,17 +210,17 @@ override_resource {
 }
 
 variables {
-  project_id         = "financial-analysis-512202"
+  project_id         = "demo-folio-alpha"
   region             = "northamerica-northeast2"
   deployment_configs = jsondecode(file("tests/fixtures/deployment-configs.json"))
-  repository_id      = "projects/financial-analysis-512202/locations/northamerica-northeast2/connections/financial-analysis-github/repositories/financial-analysis"
+  repository_id      = "projects/demo-folio-alpha/locations/northamerica-northeast2/connections/financial-analysis-github/repositories/financial-analysis"
 }
 
 override_resource {
   target = google_cloudbuild_trigger.web_image_release
   values = {
-    id         = "projects/financial-analysis-512202/locations/northamerica-northeast2/triggers/d337875a-823a-47e1-bc6e-e1ba8b3f4f92"
-    trigger_id = "d337875a-823a-47e1-bc6e-e1ba8b3f4f92"
+    id         = "projects/demo-folio-alpha/locations/northamerica-northeast2/triggers/00000000-0000-4000-8000-000000000025"
+    trigger_id = "00000000-0000-4000-8000-000000000025"
   }
 }
 
@@ -238,7 +238,7 @@ override_resource {
   target          = google_project_iam_custom_role.web_service_read
   override_during = plan
   values = {
-    name = "projects/financial-analysis-512202/roles/folioviewWebServiceRead"
+    name = "projects/demo-folio-alpha/roles/folioviewWebServiceRead"
   }
 }
 
@@ -246,7 +246,7 @@ override_resource {
   target          = google_project_iam_custom_role.web_service_configuration
   override_during = plan
   values = {
-    name = "projects/financial-analysis-512202/roles/folioviewWebServiceConfiguration"
+    name = "projects/demo-folio-alpha/roles/folioviewWebServiceConfiguration"
   }
 }
 
@@ -254,7 +254,7 @@ override_resource {
   target          = google_project_iam_custom_role.web_image_read
   override_during = plan
   values = {
-    name = "projects/financial-analysis-512202/roles/folioviewWebConfigurationImageRead"
+    name = "projects/demo-folio-alpha/roles/folioviewWebConfigurationImageRead"
   }
 }
 
@@ -262,7 +262,7 @@ override_resource {
   target          = google_project_iam_custom_role.web_identity_read
   override_during = plan
   values = {
-    name = "projects/financial-analysis-512202/roles/folioviewWebIdentityRead"
+    name = "projects/demo-folio-alpha/roles/folioviewWebIdentityRead"
   }
 }
 
@@ -270,7 +270,7 @@ override_resource {
   target          = google_project_iam_custom_role.web_identity_metadata
   override_during = plan
   values = {
-    name = "projects/financial-analysis-512202/roles/folioviewWebIdentityMetadata"
+    name = "projects/demo-folio-alpha/roles/folioviewWebIdentityMetadata"
   }
 }
 
@@ -279,8 +279,8 @@ override_resource {
   target          = module.portfolio_image_release[0].google_cloudbuild_trigger.this
   override_during = plan
   values = {
-    id         = "projects/financial-analysis-512202/locations/northamerica-northeast2/triggers/bfe780e3-430e-5eba-9915-7932a8fb77fd"
-    trigger_id = "bfe780e3-430e-5eba-9915-7932a8fb77fd"
+    id         = "projects/demo-folio-alpha/locations/northamerica-northeast2/triggers/00000000-0000-4000-8000-000000000023"
+    trigger_id = "00000000-0000-4000-8000-000000000023"
   }
 }
 
@@ -313,7 +313,7 @@ run "portfolio_execution_stage_has_no_missing_service_or_runtime_dependencies" {
   assert {
     condition = (
       contains(keys(module.target_execution), "portfolio") &&
-      module.target_execution["portfolio"].state_bucket == "financial-analysis-512202-tfstate-portfolio" &&
+      module.target_execution["portfolio"].state_bucket == "demo-folio-alpha-tfstate-portfolio" &&
       module.target_execution["portfolio"].state_prefix == "prod/portfolio" &&
       length(module.portfolio_build_identity) == 1 &&
       length(module.portfolio_image_release) == 1 &&
@@ -351,9 +351,9 @@ run "portfolio_service_stage_keeps_normal_execution_narrow_and_clients_denied" {
       alltrue([for grant in google_cloud_run_v2_service_iam_member.portfolio_execution : grant.name == "portfolio-api"]) &&
       alltrue([for grant in google_service_account_iam_member.portfolio_execution_metadata : grant.service_account_id == local.portfolio_runtime]) &&
       google_service_account_iam_member.portfolio_runtime_deployer[0].service_account_id == local.portfolio_runtime &&
-      module.portfolio_database_scope[0].database_resource_name == "projects/financial-analysis-512202/databases/portfolio" &&
-      module.portfolio_database_scope[0].grants.runtime.member == "serviceAccount:fa-portfolio-runtime@financial-analysis-512202.iam.gserviceaccount.com" &&
-      alltrue([for grant in google_project_iam_member.portfolio_execution_database : grant.condition[0].expression == "resource.type == 'firestore.googleapis.com/Database' && resource.name == 'projects/financial-analysis-512202/databases/portfolio'"]) &&
+      module.portfolio_database_scope[0].database_resource_name == "projects/demo-folio-alpha/databases/portfolio" &&
+      module.portfolio_database_scope[0].grants.runtime.member == "serviceAccount:fa-portfolio-runtime@demo-folio-alpha.iam.gserviceaccount.com" &&
+      alltrue([for grant in google_project_iam_member.portfolio_execution_database : grant.condition[0].expression == "resource.type == 'firestore.googleapis.com/Database' && resource.name == 'projects/demo-folio-alpha/databases/portfolio'"]) &&
       google_firebaserules_release.portfolio[0].name == "cloud.firestore/portfolio" &&
       strcontains(one(google_firebaserules_ruleset.portfolio[0].source).files[0].content, "allow read, write: if false;")
     )
@@ -376,7 +376,7 @@ run "portfolio_reject_replaced_build_trigger_identity" {
     target          = module.portfolio_image_release[0].google_cloudbuild_trigger.this
     override_during = plan
     values = {
-      id         = "projects/financial-analysis-512202/locations/northamerica-northeast2/triggers/ffffffff-ffff-4fff-8fff-ffffffffffff"
+      id         = "projects/demo-folio-alpha/locations/northamerica-northeast2/triggers/ffffffff-ffff-4fff-8fff-ffffffffffff"
       trigger_id = "ffffffff-ffff-4fff-8fff-ffffffffffff"
     }
   }
@@ -399,7 +399,7 @@ run "portfolio_exact_web_hub_invokers_are_service_scoped" {
     deployment_configs           = merge(jsondecode(file("tests/fixtures/deployment-configs.json")), { portfolio = jsonencode(jsondecode(file("tests/fixtures/portfolio-trust.json"))) })
   }
   assert {
-    condition     = toset(keys(google_cloud_run_v2_service_iam_member.portfolio_invoker)) == toset(["web", "hub"]) && alltrue([for grant in google_cloud_run_v2_service_iam_member.portfolio_invoker : grant.name == "portfolio-api" && grant.role == "roles/run.invoker"]) && google_cloud_run_v2_service_iam_member.portfolio_invoker["web"].member == "serviceAccount:fa-web-runtime@financial-analysis-512202.iam.gserviceaccount.com" && google_cloud_run_v2_service_iam_member.portfolio_invoker["hub"].member == "serviceAccount:fa-agent-hub-runtime@financial-analysis-512202.iam.gserviceaccount.com" && !output.portfolio_preparation.image_deployment
+    condition     = toset(keys(google_cloud_run_v2_service_iam_member.portfolio_invoker)) == toset(["web", "hub"]) && alltrue([for grant in google_cloud_run_v2_service_iam_member.portfolio_invoker : grant.name == "portfolio-api" && grant.role == "roles/run.invoker"]) && google_cloud_run_v2_service_iam_member.portfolio_invoker["web"].member == "serviceAccount:fa-web-runtime@demo-folio-alpha.iam.gserviceaccount.com" && google_cloud_run_v2_service_iam_member.portfolio_invoker["hub"].member == "serviceAccount:fa-agent-hub-runtime@demo-folio-alpha.iam.gserviceaccount.com" && !output.portfolio_preparation.image_deployment
     error_message = "Only the exact selected Web and Hub receive Portfolio service invocation, with image deployment independently off."
   }
 }
@@ -426,7 +426,7 @@ run "portfolio_invoker_cannot_override_selected_web_account" {
   command = plan
   variables {
     portfolio_provisioning_stage = "service"
-    deployment_configs           = merge(jsondecode(file("tests/fixtures/deployment-configs.json")), { portfolio = replace(jsonencode(jsondecode(file("tests/fixtures/portfolio-trust.json"))), "fa-web-runtime@financial-analysis-512202.iam.gserviceaccount.com", "other-runtime@financial-analysis-512202.iam.gserviceaccount.com") })
+    deployment_configs           = merge(jsondecode(file("tests/fixtures/deployment-configs.json")), { portfolio = replace(jsonencode(jsondecode(file("tests/fixtures/portfolio-trust.json"))), "fa-web-runtime@demo-folio-alpha.iam.gserviceaccount.com", "other-runtime@demo-folio-alpha.iam.gserviceaccount.com") })
   }
   expect_failures = [google_cloud_run_v2_service_iam_member.portfolio_invoker["web"]]
 }
@@ -435,7 +435,7 @@ run "portfolio_auth_lookup_is_runtime_only_and_single_permission" {
   command = plan
   variables { portfolio_provisioning_stage = "service" }
   assert {
-    condition     = toset(google_project_iam_custom_role.portfolio_owner_auth_lookup[0].permissions) == toset(["firebaseauth.users.get"]) && google_project_iam_member.portfolio_owner_auth[0].member == "serviceAccount:fa-portfolio-runtime@financial-analysis-512202.iam.gserviceaccount.com" && alltrue([for grant in google_project_iam_member.portfolio_execution_database : grant.condition[0].expression == "resource.type == 'firestore.googleapis.com/Database' && resource.name == 'projects/financial-analysis-512202/databases/portfolio'"])
+    condition     = toset(google_project_iam_custom_role.portfolio_owner_auth_lookup[0].permissions) == toset(["firebaseauth.users.get"]) && google_project_iam_member.portfolio_owner_auth[0].member == "serviceAccount:fa-portfolio-runtime@demo-folio-alpha.iam.gserviceaccount.com" && alltrue([for grant in google_project_iam_member.portfolio_execution_database : grant.condition[0].expression == "resource.type == 'firestore.googleapis.com/Database' && resource.name == 'projects/demo-folio-alpha/databases/portfolio'"])
     error_message = "Only Portfolio runtime gets account lookup; infra field metadata rights remain restricted to the Portfolio database."
   }
 }
