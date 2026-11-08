@@ -86,7 +86,9 @@ export function usePersistentWorkspace(workspace: HoldingsWorkspace, hubOrigin: 
         const r = await start.auth.requestPrivate(service, path, start.owner!, {
           ...options,
           signal: abort.signal,
-          headers: { "X-FolioView-Contract": PERSISTENT_CONTRACT, ...options.headers },
+          ...(service === "user"
+            ? {}
+            : { headers: { "X-FolioView-Contract": PERSISTENT_CONTRACT, ...options.headers } }),
         });
         assert();
         if (!r.ok)
