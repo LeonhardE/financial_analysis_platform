@@ -3,6 +3,17 @@ locals {
   region        = var.deployment.region
   web_origin    = var.deployment.web_origin
   runtime_email = "${var.deployment.runtime_account_id}@${local.project_id}.iam.gserviceaccount.com"
+  persistent_environment = var.persistent_mode_enabled ? {
+    HUB_PERSISTENT_AGENTS_ENABLED            = "1"
+    HUB_PERSISTENT_IDENTITY_RECOVERY_ENABLED = "1"
+    HUB_PERSISTENT_RESOURCE_CONSENTS_ENABLED = "1"
+    HUB_PERSISTENT_PUBLICATIONS_ENABLED      = "1"
+    HUB_PERSISTENT_EXECUTION_ENABLED         = "1"
+    HUB_PERSISTENT_RESULTS_ENABLED           = "1"
+    HUB_PERSISTENT_TRANSPORT_ENABLED         = "1"
+    HUB_PERSISTENT_MCP_ENABLED               = "1"
+    HUB_PERSISTENT_RUNTIME_ENABLED           = "1"
+  } : {}
   service_configuration = {
     min_instances     = 0
     max_instances     = 1
@@ -12,7 +23,7 @@ locals {
     memory            = "256Mi"
     startup_cpu_boost = true
     ingress           = "INGRESS_TRAFFIC_ALL"
-    environment = {
+    environment = merge({
       FIREBASE_PROJECT_ID           = local.project_id
       FIRESTORE_DATABASE            = "agent-hub"
       AGENT_HUB_STORE_BACKEND       = "firestore"
@@ -35,7 +46,7 @@ locals {
         tokenEndpointAuthMethod = client.token_endpoint_auth_method
         secretSha256            = client.secret_sha256
       }])
-    }
+    }, local.persistent_environment)
   }
 }
 

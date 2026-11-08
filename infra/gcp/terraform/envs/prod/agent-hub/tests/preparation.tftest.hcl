@@ -64,13 +64,17 @@ run "current_opaque_storage_has_index_exemptions_without_ttl" {
   command = plan
   assert {
     condition = (
-      length(google_firestore_field.opaque) == 35 &&
+      length(google_firestore_field.opaque) == 72 &&
       alltrue([for field in google_firestore_field.opaque : field.database == "agent-hub" && length(field.index_config) == 1 && length(field.index_config[0].indexes) == 0 && length(field.ttl_config) == 0]) &&
       length(module.database.ttl_field_names) == 0 &&
       length(module.database.composite_index_names) == 0 &&
       output.index_exemptions.hub_task_versions_carrierJson.field == "carrierJson" &&
       output.index_exemptions.hub_result_revisions_bundleJson.collection == "hub_result_revisions" &&
-      output.index_exemptions.hub_vault_lifecycle_history.field == "history"
+      output.index_exemptions.hub_vault_lifecycle_history.field == "history" &&
+      output.index_exemptions.hub_persistent_publications_carrierJson.field == "carrierJson" &&
+      output.index_exemptions.hub_persistent_runs_registryHistory.field == "registryHistory" &&
+      output.index_exemptions.hub_persistent_plan_operations_proofJson.field == "proofJson" &&
+      output.index_exemptions.hub_runtime_setup_intents_paired.field == "paired"
     )
     error_message = "Only implemented opaque fields lose indexes; no grant/history/operation/cursor document is assigned TTL."
   }
@@ -179,4 +183,47 @@ run "reject_confidential_client_without_hash" {
     connector = { muse_clients = [{ client_id = "synthetic", redirect_uris = ["https://agent.example.invalid/callback"], token_endpoint_auth_method = "client_secret_basic" }] }
   }
   expect_failures = [var.connector]
+}
+
+run "persistent_mode_is_absent_by_default" {
+  command = plan
+  assert {
+    condition = !var.persistent_mode_enabled && alltrue([
+      for name in keys(output.creation_configuration.environment) : !startswith(name, "HUB_PERSISTENT_")
+    ])
+    error_message = "Default rollout preparation must preserve the exact existing runtime environment."
+  }
+}
+
+run "explicit_persistent_mode_emits_only_the_closed_basic_chain" {
+  command = plan
+  variables {
+    persistent_mode_enabled = true
+    connector = {
+      oauth_enabled = true
+      muse_clients  = [{ client_id = "synthetic-muse", redirect_uris = ["https://agent.example.invalid/api/callback"] }]
+    }
+    sources = {
+      user_origin               = "https://user.example.invalid"
+      portfolio_origin          = "https://portfolio.example.invalid"
+      portfolio_caller_email    = "example-portfolio@example-project-1234.iam.gserviceaccount.com"
+      trusted_portfolio_callers = { "112010400000000710080" = "example-portfolio@example-project-1234.iam.gserviceaccount.com" }
+    }
+  }
+  assert {
+    condition = (
+      length([for name in keys(output.creation_configuration.environment) : name if startswith(name, "HUB_PERSISTENT_")]) == 9 &&
+      alltrue([for name, value in output.creation_configuration.environment : value == "1" if startswith(name, "HUB_PERSISTENT_")]) &&
+      output.creation_configuration.environment.HUB_PERSISTENT_RUNTIME_ENABLED == "1" &&
+      output.creation_configuration.environment.HUB_PERSISTENT_RESULTS_ENABLED == "1" &&
+      output.creation_configuration.environment.HUB_ENCRYPTED_ADAPTER_ENABLED == "0"
+    )
+    error_message = "Explicit opt-in enables exactly the native basic chain, without implicitly enabling the legacy adapter or granting content access."
+  }
+}
+
+run "reject_persistent_mode_before_producer_trust_and_registration" {
+  command = plan
+  variables { persistent_mode_enabled = true }
+  expect_failures = [var.persistent_mode_enabled]
 }
