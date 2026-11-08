@@ -1,4 +1,5 @@
 import { connect } from "./controller.mjs";
+import { recoveryDiagnostic } from "./recovery.mjs";
 
 // This page is the protected browser's visible adapter to the existing closed API.
 // It has no credential input, arbitrary operation, URL, crypto or storage interface.
@@ -369,6 +370,8 @@ try {
     state(result.state);
   }
 } catch (error) {
+  const diagnostic = recoveryDiagnostic(error.diagnostic);
+  if (diagnostic) text("connection-result", diagnostic);
   text(
     "status",
     error.message === "lost_private_keys"

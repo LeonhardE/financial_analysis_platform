@@ -82,6 +82,13 @@ identities return the canonical resume URL and public descriptor instead of crea
 another setup or key. Revoked identity state is terminal. The client must report lost
 local private keys explicitly; bootstrap is not permission to generate replacements.
 
+When restoration fails, the protected page's connection details expose only a bounded
+failure stage, the SHA-256 namespace fingerprint and, for identity mismatch, three boolean
+match/status checks. These distinguish a missing local record, an invalid stored profile
+and a different registered identity. They never expose stored records, actor fields,
+private handles, credentials or exception stacks. Failure does not clear or replace any
+profile, reconnect, ask for an owner unlock or authorize financial operations.
+
 The fixed browser SDK directly submits one ES256 self-proof at
 `POST /agent/v3/runtime/setups/{intent}/offers`. Its closed payload binds exact actor,
 native authorization, nonce, time, distinct P-256 public signing/encryption keys and
