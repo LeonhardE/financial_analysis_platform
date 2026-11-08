@@ -8,8 +8,15 @@ const types = compile("../lib/task-types.ts"),
     { Map, Set, Date },
   );
 const tick = () => new Promise((r) => setImmediate(r));
-function harness() {
-  let owner = "owner_A:login1",
+async function waitUntil(check, label) {
+  const deadline = Date.now() + 5000;
+  while (!check()) {
+    assert.ok(Date.now() < deadline, label);
+    await new Promise((resolve) => setTimeout(resolve, 5));
+  }
+}
+function harness(authOverride) {
+  let owner = authOverride?.sessionKey ?? "owner_A:login1",
     visible = true,
     index = 0,
     dirty = false;
@@ -87,12 +94,22 @@ function harness() {
     {
       react,
       "./AuthProvider": {
-        useAuth: () => ({
-          status: owner ? "authenticated" : "anonymous",
-          sessionKey: owner,
-          agentHubConfigured: true,
-          requestPrivate,
-        }),
+        useAuth: () =>
+          authOverride
+            ? {
+                ...authOverride,
+                // Only User transport crosses the actual provider in this harness.
+                requestPrivate: (service, ...args) =>
+                  service === "user"
+                    ? authOverride.requestPrivate(service, ...args)
+                    : requestPrivate(service, ...args),
+              }
+            : {
+                status: owner ? "authenticated" : "anonymous",
+                sessionKey: owner,
+                agentHubConfigured: true,
+                requestPrivate,
+              },
       },
       "@/lib/persistent-experience-controller": controller,
     },
@@ -211,5 +228,72 @@ test("hidden pages mask private connection and task state immediately, abort wor
     assert.equal(h.unlocks, 0);
   } finally {
     h.close();
+  }
+});
+
+test("persistent user-resource synchronization crosses the actual AuthProvider admission without encrypted-service headers", async () => {
+  const { stack } = require("./full-flow-boundaries-helpers.cjs");
+  const boundary = await stack();
+  const account = boundary.mount();
+  await account.login("synthetic_persistent_source_owner");
+  await waitUntil(
+    () => account.value.status === "authenticated" && account.value.agentHubConfigured,
+    "actual owner identity and private-service configuration ready",
+  );
+  const auth = account.value;
+  const h = harness(auth);
+  try {
+    h.render();
+    await waitUntil(() => !h.render().busy, "initial workspace discovery settled");
+    await assert.rejects(
+      auth.requestPrivate("user", "/api/v1/watchlist", auth.sessionKey, {
+        headers: { "X-FolioView-Contract": "folioview.agent-workspace.v2.0" },
+      }),
+      /Invalid private API request/,
+    );
+    for (const kind of ["watchlist", "channel_follows"]) {
+      const item = {
+        ref: {
+          kind,
+          sourceService: "user",
+          resourceId: "resource_" + kind,
+          incarnation: "incarnation_A",
+        },
+        sourceEpoch: 1,
+        revision: 1,
+        state: "ready",
+      };
+      let prepared = null;
+      h.workspace.preparePersistentResource = async (args) => {
+        prepared = args;
+        return { kind: "no_change" };
+      };
+      const result = await h.render().execute(async (c) => {
+        c.catalogue = async () => ({ groups: [{ items: [item] }] });
+        await c.publishResource(
+          {
+            connectionId: "connection_A",
+            clientId: "muse_A",
+            vaultId: "vault_A",
+            provider: "muse",
+            status: "active",
+          },
+          {},
+          item,
+        );
+        return true;
+      });
+      assert.equal(result, true, `${kind}: ${h.render().error}`);
+      assert.equal(prepared.source.kind, kind);
+      assert.equal(
+        boundary.browser.filter((x) =>
+          x.url.endsWith(kind === "watchlist" ? "/api/v1/watchlist" : "/api/v1/channel-follows"),
+        ).length,
+        1,
+      );
+    }
+  } finally {
+    h.close();
+    boundary.close();
   }
 });

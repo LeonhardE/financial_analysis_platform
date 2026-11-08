@@ -226,6 +226,8 @@ async function stack(options = {}) {
       return response({ uid: subject(init), email: null, displayName: null, photoURL: null });
     if (url.origin === USER && url.pathname === "/api/v1/watchlist")
       return response({ items: [], limit: 50 });
+    if (url.origin === USER && url.pathname === "/api/v1/channel-follows")
+      return response({ revision: 1, items: [], limit: 50 });
     if (url.origin === CONFIG && url.pathname === "/api/v1/preferences")
       return response({ marker: "synthetic_config_reply" });
     assert.fail("Unexpected browser target " + value);
