@@ -190,7 +190,7 @@ lifecycle by itself. New feature gates default off; reviewed activation and real
 
 ### Execution and schedules: Closed API and retries
 
-The checked controller exposes `window.folioview`: `status`, `pairingStatus`,
+The checked controller exposes `window.folioview`: `status`, `refreshConnection`, `pairingStatus`,
 `listTasks`, `dueTasks`, `beginRun`, `readInput`, `saveReport`, `resultReceipt` and
 `clearPlaintext`, `planStatus`, `reportPlan` and `retryPlanReport`. The actual Worker accepts only the corresponding closed domain
 requests. There is no raw key, generic signature/decryption/storage/fetch endpoint
@@ -209,6 +209,36 @@ decrypted task's output specification, is encrypted to the current owner recipie
 and is persisted as original ciphertext before submitting. Concurrent retries and
 a restart reuse that ciphertext. Receipt matching is independent of readable inputs,
 so an already committed result remains recoverable after resource revocation.
+
+### Execution and schedules: Browser controls
+
+The fixed `controller.html` also exposes semantic buttons, selects and forms for protected
+browsers that support DOM interaction but cannot execute page JavaScript. It calls only the
+same closed Worker operations; native credentials, private keys, Root enrollment and resource
+approval are absent. Initial pairing creates or restores the existing profile once. “Check
+connection status” reads pairing completion or refreshes the certified session, without rerunning
+bootstrap or replacing keys.
+
+After owner approval, read the approved task list and select a task. For manual execution, use
+a stable Muse execution identifier (22–128 URL-safe characters); retry with the same identifier.
+“Check due tasks” binds its execution buttons to the original verified slot trigger. Read only
+the selected Run's listed inputs, fill the report sections requested by its frozen task, then
+save the encrypted report and check its receipt. Report retries retain the original frozen draft;
+a pending save blocks a second Run until the original result is reconciled. Clearing the page's
+plaintext or leaving it clears visible private fields and ignores late responses, preserving
+identity and encrypted outboxes.
+
+The scheduling controls report an actual Muse plan reference/status and recover the original
+pending observation. They never install a native plan or run a page timer. Desired task schedules,
+Agent statements and Hub run/result receipts remain distinct; a successful observation does
+not attest native schedule installation or a protected-host restart.
+
+For native first-pairing association, the public setup status GET requires
+`X-FolioView-Contract: folioview.agent-workspace.v2.0` and rejects Authorization,
+idempotency/delegation headers and query parameters. It does not use cookie authority. Read `offerFingerprint` from
+the original setup response; use native credentials only on the separate MCP confirmation
+request. Bootstrap returns the connection under `actor.connectionId`, the fixed URL under
+`runtimeUrl` and the original intent under `setup.intentId`.
 
 ### Execution and schedules: Scheduling
 

@@ -24,18 +24,18 @@
     "src/schedule.mjs": "c9fcc6c59026de54dcb846d071532316f52ba75bc4cb9e94ff0b6e334caae42e",
     "src/policy.mjs": "9425478e061142accddbb32502eb4eb17817bf32843ec87693913a12d8e0ba2b",
     "src/worker.mjs": "a6aed814cec4b9d2983704a57d5841c17db3dd9853d4a8850ce2814b52764cff",
-    "src/controller.mjs": "daa0c563ccb4d6d4046d0c1c065bbbcc1412cae63f5b5583e6eb968bd084d775",
-    "src/controller-page.mjs": "a338e58f48092ebf017f11f08b1249d84de89f8a6180a92ead22732262dac51f",
+    "src/controller.mjs": "872ad2dc1deab2a3045a087dfbed6ae730f7eeac576ac3e58646b55e6547818a",
+    "src/controller-page.mjs": "e23eea49fe16c1e1fba84c6266d232eaf4b52f63d689ac0b7b673cb2ddd44cff",
     "src/account-bridge.mjs": "6d3d7e44d92335007760641b0ee0fd25c6f5fabc5fcf15404fbdb078600722ec",
     "src/account-consent-page.mjs": "ac2f1c9111398e3ff40c67f962b7e74938edaa5392afa727846958ad0d3d9477",
     "dist/session.mjs": "af0062e43e81d5bfc89f50eae0183a77365362398df743ac89e7085f3ad83047",
     "dist/worker.mjs": "c6ce3dc44ba7b2ee9a0e26d33dc2d317d9f9595c79af387b46eb9dd3acc49a54",
-    "dist/controller.mjs": "c5409ba03c73fba1554a338b723c143a2e1c355995ae69981057affd52abac96",
-    "dist/controller-page.mjs": "8c73cf0987470ae410b2369b4bdbf53812fd5ac23b403ebd28edcfa62db7fc45",
+    "dist/controller.mjs": "45155c4fd171b9e1da140d69d20481195d0e5603da72da879f1b52e535ce7da1",
+    "dist/controller-page.mjs": "6b8575520019ea5892560c68489d436438777a7d86e3499bb2cda176c097487a",
     "dist/account-bridge.mjs": "3bfc16fc4d51fd1dc61c757f091f90b57c0acd1101266baaf7e464cf2d46d1a6",
     "dist/account-consent-page.mjs": "32689088fd5112c352f6ce9aa76ebd584dc26845d14326257d73d3a2d07fc81f",
-    "static/controller.html": "b474ff1ff17ff9aa8b5672a78c92239f9b0759d0a8799a8a4acf1ef1f3efeee6",
+    "static/controller.html": "fd4efb9dc3a4e8e2b14dca86bceab357bb70ec8b4a105dd9730e699bfe6ef80b",
     "static/account-consent.html": "1ccbb3d196fd10110ed57435e3b47a412f893cbf08b17d26dbd5892a2bf13af6",
-    "static/runtime.css": "4c9da253548db8c091b7d345372428e11b60e46290623776c88c75f3e5557668"
+    "static/runtime.css": "a2f513402601a1ba2b4d0d9aeb9c43441af37177c046fb45e7d120ff193f4baa"
   }
 }

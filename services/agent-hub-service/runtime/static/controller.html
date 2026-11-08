@@ -11,6 +11,85 @@
       <h1>FolioView</h1>
       <p id="status" role="status">正在恢复连接…</p>
       <a id="owner" href="#" target="_blank" rel="noopener noreferrer" hidden>打开 FolioView</a>
+      <button id="refresh-connection" type="button" disabled>检查连接状态</button>
+      <details>
+        <summary>连接详情</summary>
+        <pre id="connection-result"></pre>
+      </details>
+      <fieldset id="workspace" disabled>
+        <legend>获准任务</legend>
+        <button id="load-tasks" type="button">读取获准任务</button>
+        <button id="check-due" type="button">检查到期任务</button>
+        <p id="task-status" role="status"></p>
+        <label for="task">选择任务</label>
+        <select id="task">
+          <option value="">请先读取获准任务</option>
+        </select>
+        <pre id="task-content"></pre>
+        <div id="due-tasks"></div>
+        <form id="begin-form">
+          <label for="trigger">本次执行标识</label>
+          <input
+            id="trigger"
+            required
+            minlength="22"
+            maxlength="128"
+            pattern="[A-Za-z0-9_-]+"
+            autocomplete="off"
+          />
+          <p>使用本次 Muse 执行的固定标识；重试时沿用。到期任务会自动沿用其原始执行标识。</p>
+          <button id="begin-run" type="submit">开始本次分析</button>
+        </form>
+        <section id="run" hidden>
+          <h2>本次分析</h2>
+          <pre id="run-result"></pre>
+          <div id="inputs"></div>
+          <pre id="input-content"></pre>
+          <form id="report-form">
+            <label for="report-title">报告标题</label>
+            <input id="report-title" required maxlength="160" autocomplete="off" />
+            <label for="report-summary">摘要</label>
+            <textarea id="report-summary" required maxlength="600"></textarea>
+            <div id="report-sections"></div>
+            <div id="citations"></div>
+            <button id="add-citation" type="button">添加引用</button>
+            <label for="limitations">限制与不确定性（每行一项）</label>
+            <textarea id="limitations" maxlength="10000"></textarea>
+            <button id="save-report" type="submit">加密保存报告</button>
+          </form>
+          <p id="report-status" role="status"></p>
+          <button id="check-receipt" type="button">核对报告回执</button>
+          <pre id="receipt"></pre>
+        </section>
+        <details>
+          <summary>定时执行</summary>
+          <p>
+            先在 Muse 安装实际计划，再记录状态。这里不会创建计划，也不会用网页计时器代替定时执行。
+          </p>
+          <button id="check-plan" type="button">核对计划状态</button>
+          <form id="plan-form">
+            <label for="plan-state">Muse 实际计划状态</label>
+            <select id="plan-state">
+              <option value="unconfirmed">尚未确认</option>
+              <option value="enabled">已启用</option>
+              <option value="paused">已暂停</option>
+              <option value="removed">已移除</option>
+            </select>
+            <label for="plan-reference">Muse 计划标识</label>
+            <input
+              id="plan-reference"
+              maxlength="128"
+              pattern="[A-Za-z0-9][A-Za-z0-9_-]*"
+              autocomplete="off"
+            />
+            <button id="record-plan" type="submit">记录 Muse 计划状态</button>
+          </form>
+          <button id="retry-plan" type="button">重试原计划状态记录</button>
+          <pre id="plan-result"></pre>
+        </details>
+        <p id="operation-status" role="status"></p>
+      </fieldset>
+      <button id="clear-plaintext" type="button" disabled>清除本页明文</button>
     </main>
     <script type="module" src="/agent/v3/runtime/1.0.0/controller-page.mjs"></script>
   </body>

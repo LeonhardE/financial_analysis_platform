@@ -21,7 +21,7 @@ async function m() {
   if (a.byteLength > 2097152) throw Error("runtime_unavailable");
   if (
     [...new Uint8Array(await crypto.subtle.digest("SHA-256", a))]
-      .map((r) => r.toString(16).padStart(2, "0"))
+      .map((n) => n.toString(16).padStart(2, "0"))
       .join("") !== t.workerSha256
   )
     throw Error("runtime_integrity_mismatch");
@@ -32,21 +32,21 @@ async function m() {
     URL.revokeObjectURL(c);
   }
   return (
-    (p.onmessage = ({ data: r }) => {
-      let e = u.get(r?.id);
+    (p.onmessage = ({ data: n }) => {
+      let e = u.get(n?.id);
       e &&
-        (u.delete(r.id),
+        (u.delete(n.id),
         clearTimeout(e.timer),
-        r.ok ? e.resolve(r.value) : e.reject(Error(r.error)));
+        n.ok ? e.resolve(n.value) : e.reject(Error(n.error)));
     }),
     (p.onerror = () => {
-      for (let r of u.values()) (clearTimeout(r.timer), r.reject(Error("runtime_unavailable")));
+      for (let n of u.values()) (clearTimeout(n.timer), n.reject(Error("runtime_unavailable")));
       u.clear();
     }),
     t
   );
 }
-function n(s, t = {}) {
+function r(s, t = {}) {
   if (!p) return Promise.reject(Error("runtime_unavailable"));
   let o = crypto.randomUUID();
   return new Promise((a, d) => {
@@ -84,27 +84,28 @@ async function f() {
       rootKeyId: t.get("rootKeyId"),
     };
   }
-  let a = await n("initialize", o),
+  let a = await r("initialize", o),
     d = Object.freeze({
-      status: () => n("status"),
-      pairingStatus: () => n("pairing"),
-      listTasks: () => n("tasks"),
-      dueTasks: () => n("due"),
-      planStatus: (e) => n("planStatus", { taskId: e }),
-      reportPlan: (e, i, l = null) => n("reportPlan", { taskId: e, status: i, planReference: l }),
-      retryPlanReport: (e) => n("retryPlanReport", { taskId: e }),
-      beginRun: (e, i) => n("begin", { taskId: e, triggerId: i }),
-      readInput: (e, i) => n("input", { runId: e, publicationId: i }),
-      saveReport: (e, i) => n("submit", { runId: e, report: i }),
-      resultReceipt: (e) => n("receipt", { runId: e }),
-      clearPlaintext: () => n("clear"),
+      status: () => r("status"),
+      refreshConnection: () => r("synchronize"),
+      pairingStatus: () => r("pairing"),
+      listTasks: () => r("tasks"),
+      dueTasks: () => r("due"),
+      planStatus: (e) => r("planStatus", { taskId: e }),
+      reportPlan: (e, i, l = null) => r("reportPlan", { taskId: e, status: i, planReference: l }),
+      retryPlanReport: (e) => r("retryPlanReport", { taskId: e }),
+      beginRun: (e, i) => r("begin", { taskId: e, triggerId: i }),
+      readInput: (e, i) => r("input", { runId: e, publicationId: i }),
+      saveReport: (e, i) => r("submit", { runId: e, report: i }),
+      resultReceipt: (e) => r("receipt", { runId: e }),
+      clearPlaintext: () => r("clear"),
     });
   Object.defineProperty(window, "folioview", { value: d, writable: !1, configurable: !1 });
   let c = s.ownerOrigins[0],
-    r = new URL("/agents", c);
+    n = new URL("/agents", c);
   return (
-    o.intentId && r.searchParams.set("runtime_setup", o.intentId),
-    { state: a, approvalUrl: r.href }
+    o.intentId && n.searchParams.set("runtime_setup", o.intentId),
+    { state: a, approvalUrl: n.href }
   );
 }
 export { f as connect };
