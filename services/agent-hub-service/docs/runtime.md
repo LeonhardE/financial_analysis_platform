@@ -219,6 +219,15 @@ approval are absent. Initial pairing creates or restores the existing profile on
 connection status” reads pairing completion or refreshes the certified session, without rerunning
 bootstrap or replacing keys.
 
+Bootstrap and resume descriptors share a page path and differ in the URL fragment. A fragment
+change now clears the old view and fully reloads the document before initializing the current
+descriptor. A BFCache return also reloads after the prior page's plaintext was cleared. Neither
+path deletes stored keys, reissues owner permission or reuses the old immutable Worker API.
+Use the connection's original protected browser window/tab and profile; a new window claiming
+the same default profile does not itself prove IndexedDB/CryptoKey continuity. Missing-profile
+errors remain explicit. Cross-window, host restart and cross-day continuity require independent
+real-host acceptance; this navigation fix does not establish them.
+
 After owner approval, read the approved task list and select a task. For manual execution, use
 a stable Muse execution identifier (22–128 URL-safe characters); retry with the same identifier.
 “Check due tasks” binds its execution buttons to the original verified slot trigger. Read only

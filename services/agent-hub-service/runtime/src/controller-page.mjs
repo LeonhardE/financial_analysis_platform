@@ -11,6 +11,7 @@ let api,
   busy = false,
   epoch = 0,
   ended = false,
+  reloadRequested = false,
   tasks = [],
   run = null,
   report = null,
@@ -336,19 +337,37 @@ $("clear-plaintext").addEventListener("click", () => {
   text("operation-status", "本页明文已清除。连接身份和原加密重试记录保留。");
   void api.clearPlaintext().catch(() => {});
 });
-window.addEventListener("pagehide", () => {
+function leavePage() {
+  if (ended) return;
   ended = true;
   clearView();
   controlState();
   void api?.clearPlaintext().catch(() => {});
+}
+function reloadRuntime() {
+  if (reloadRequested) return;
+  reloadRequested = true;
+  leavePage();
+  // setup and resume descriptors live in the fragment. Same-document navigation
+  // must not leave the previous immutable API/Worker bound to the old descriptor.
+  window.location.reload();
+}
+window.addEventListener("pagehide", leavePage);
+window.addEventListener("hashchange", reloadRuntime);
+window.addEventListener("pageshow", (event) => {
+  // pagehide deliberately cleared the view. A BFCache restore needs a fresh
+  // document/Worker, using the existing nonextractable profile and current URL.
+  if (event.persisted) reloadRuntime();
 });
 try {
   const result = await connect();
-  api = window.folioview;
-  pairing = result.state.state === "awaiting_owner_approval";
-  $("owner").href = result.approvalUrl;
-  $("owner").hidden = false;
-  state(result.state);
+  if (!ended) {
+    api = window.folioview;
+    pairing = result.state.state === "awaiting_owner_approval";
+    $("owner").href = result.approvalUrl;
+    $("owner").hidden = false;
+    state(result.state);
+  }
 } catch (error) {
   text(
     "status",
