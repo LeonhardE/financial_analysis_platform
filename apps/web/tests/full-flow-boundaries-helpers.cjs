@@ -98,7 +98,22 @@ async function stack(options = {}) {
     "../encrypted-schemas.json": require("../lib/encrypted-schemas.json"),
     "./owner-transport": transport,
   });
+  const persistentRoutes = compile("../lib/persistent-owner-routes.ts");
+  const persistentContracts = server("persistent-owner-contracts", {
+    "server-only": {},
+    "ajv/dist/2020": require("ajv/dist/2020"),
+    "ajv-formats": require("ajv-formats"),
+    "../../../../packages/encrypted-workspace/schemas.json": require("../../../packages/encrypted-workspace/schemas.json"),
+    "./owner-transport": transport,
+  });
+  const nativeBridge = compile(
+    "../lib/native-owner-bridge.ts",
+    { "./agent-connections": connections },
+    globals,
+  );
   const hub = server("hub-owner", {
+    "../persistent-owner-routes": persistentRoutes,
+    "./persistent-owner-contracts": persistentContracts,
     "./upload-cancellation": cancellation,
     "server-only": {},
     "./owner-transport": transport,
@@ -289,6 +304,8 @@ async function stack(options = {}) {
           }),
         },
         "@/lib/owner-consent-bridge": bridge,
+        "@/lib/persistent-owner-routes": persistentRoutes,
+        "@/lib/native-owner-bridge": nativeBridge,
       },
       {
         ...globals,

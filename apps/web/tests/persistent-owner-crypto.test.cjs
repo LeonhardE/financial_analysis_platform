@@ -53,10 +53,47 @@ test("persistent owner and independent Agent complete Root pairing, continuing c
         timeout: 60_000,
         maxBuffer: 1_048_576,
         stdio: ["ignore", "pipe", "pipe"],
-        env: { ...process.env, FOLIOVIEW_NODE_BIN: process.execPath, FOLIOVIEW_OWNER_PEER: peer },
+        env: {
+          ...process.env,
+          FOLIOVIEW_TEST_DTO_FILE: path.join(directory, "dto.json"),
+          FOLIOVIEW_NODE_BIN: process.execPath,
+          FOLIOVIEW_OWNER_PEER: peer,
+        },
       });
     assert.equal(result.status, 0, result.stderr);
     assert.match(result.stdout, /OWNER AND AGENT FULL SYNTHETIC LOOP COMPLETE/);
+    const { compile } = require("./resource-library-helpers.cjs");
+    const transport = compile("../lib/server/owner-transport.ts", {
+      "server-only": {},
+      "node:crypto": require("node:crypto"),
+      jose: {},
+    });
+    const dto = compile("../lib/server/persistent-owner-contracts.ts", {
+      "server-only": {},
+      "ajv/dist/2020": require("ajv/dist/2020"),
+      "ajv-formats": require("ajv-formats"),
+      "../../../../packages/encrypted-workspace/schemas.json": require("../../../packages/encrypted-workspace/schemas.json"),
+      "./owner-transport": transport,
+    });
+    for (const [route, method, body, operation] of JSON.parse(
+      readFileSync(path.join(directory, "dto.json"), "utf8"),
+    )) {
+      assert.equal(
+        dto.persistentResponse(route, method, body, operation ?? undefined),
+        true,
+        route,
+      );
+      assert.equal(
+        dto.persistentResponse(
+          route,
+          method,
+          { ...body, unexpectedCredential: "CANARY" },
+          operation ?? undefined,
+        ),
+        false,
+        route,
+      );
+    }
   } finally {
     rmSync(directory, { recursive: true, force: true });
   }

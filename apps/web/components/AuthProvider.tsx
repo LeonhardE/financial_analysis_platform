@@ -22,6 +22,13 @@ import { getBrowserAuth } from "@/lib/firebase-client";
 import { channelInputs, exact } from "@/lib/resource-library";
 import { loadAgentLinkConfiguration } from "@/lib/agent-link";
 import {
+  verifiedNativeBridge,
+  validateNativeCommand,
+  type NativeOwnerBridge,
+  type NativeOperation,
+} from "@/lib/native-owner-bridge";
+import { persistentOwnerRoute } from "@/lib/persistent-owner-routes";
+import {
   verifiedOwnerBridge,
   validateConsentCommand,
   type OwnerConsentBridge,
@@ -159,7 +166,28 @@ function hubOwnerRule(path: string, method: PrivateMethod): EncryptedRule | null
   const matches = (pattern: string) => new RegExp(`^${pattern}$`).test(pathname);
   let queryKeys: string[] = [];
   let rule: EncryptedRule | null = null;
-  if (method === "GET") {
+  const persistent = persistentOwnerRoute(pathname, method);
+  if (persistent) {
+    queryKeys = Object.keys(persistent.query ?? {});
+    rule = {
+      method: method as EncryptedRule["method"],
+      ...(persistent.kind === "read"
+        ? {}
+        : {
+            keys:
+              persistent.kind === "small"
+                ? ["contractVersion"]
+                : [
+                    "contractVersion",
+                    persistent.kind === "persistent-publication" ? "envelope" : "command",
+                  ],
+          }),
+      idempotent: persistent.operation,
+      author: persistent.author,
+      maxBytes: persistent.max,
+      rootCommand: persistent.kind === "control" && !persistent.author,
+    };
+  } else if (method === "GET") {
     if (
       [
         "/api/v2/vaults/current",
@@ -338,7 +366,12 @@ function hubOwnerRule(path: string, method: PrivateMethod): EncryptedRule | null
       if (!queryKeys.includes(name) || seen.has(name)) return null;
       seen.add(name);
       if (name === "cursor") {
-        if (!/^[A-Za-z0-9_-]{1,2048}$/.test(value)) return null;
+        if (
+          !(
+            persistent ? /^[A-Za-z0-9_-]{22,128}:[1-9][0-9]{0,2}$/ : /^[A-Za-z0-9_-]{1,2048}$/
+          ).test(value)
+        )
+          return null;
       } else if (name === "filter") {
         if (!["all", "unread", "starred", "archived"].includes(value)) return null;
       } else if (name === "taskId") {
@@ -485,6 +518,13 @@ type AuthContextValue = AuthState & {
   requestAgentConsent: (
     bridge: OwnerConsentBridge,
     op: ConsentOperation,
+    json: unknown,
+    sessionKey: string,
+    signal?: AbortSignal,
+  ) => Promise<unknown>;
+  requestNativeAccount: (
+    bridge: NativeOwnerBridge,
+    op: NativeOperation,
     json: unknown,
     sessionKey: string,
     signal?: AbortSignal,
@@ -907,17 +947,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const requestAgentConsent = useCallback(
     async (
-      bridge: OwnerConsentBridge,
-      op: ConsentOperation,
+      bridge: OwnerConsentBridge | NativeOwnerBridge,
+      op: ConsentOperation | NativeOperation,
       json: unknown,
       sessionKey: string,
       signal?: AbortSignal,
     ) => {
       // A fresh credential can reach only the source/origin/nonce-bound Hub owner port.
       // Agent/helper ports and arbitrary callback functions are never accepted here.
-      validateConsentCommand(op, json);
+      const verified = (v: unknown) => verifiedOwnerBridge(v) || verifiedNativeBridge(v);
+      if (verifiedNativeBridge(bridge)) validateNativeCommand(op as NativeOperation, json);
+      else validateConsentCommand(op as ConsentOperation, json);
       if (
-        !verifiedOwnerBridge(bridge) ||
+        !verified(bridge) ||
         ownerConfigRef.current.status !== "ready" ||
         !ownerConfigRef.current.flags.agentHub
       )
@@ -931,7 +973,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         authRef.current?.currentUser?.uid === session.user.uid &&
         !signingOutRef.current &&
         !signal?.aborted &&
-        verifiedOwnerBridge(bridge) &&
+        verified(bridge) &&
         ownerConfigRef.current.status === "ready" &&
         ownerConfigRef.current.flags.agentHub;
       const changed = () => {
@@ -962,7 +1004,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         throw changed();
       }
       if (!ownsSession()) throw changed();
-      const value = await bridge.request(op, json, token, signal);
+      const value = verifiedNativeBridge(bridge)
+        ? await bridge.request(op as NativeOperation, json, token, signal)
+        : await bridge.request(op as ConsentOperation, json, token, signal);
       if (!ownsSession()) throw changed();
       return value;
     },
@@ -984,6 +1028,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         state.status === "authenticated" ? (verifiedSessionRef.current?.key ?? null) : null,
       requestPrivate,
       requestAgentConsent,
+      requestNativeAccount: requestAgentConsent,
       signIn,
       signOut,
       retry,

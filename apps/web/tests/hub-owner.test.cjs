@@ -353,7 +353,17 @@ test.before(async () => {
     "../encrypted-schemas.json": require("../lib/encrypted-schemas.json"),
     "./owner-transport": common,
   });
+  const persistentRoutes = compile("../persistent-owner-routes", {});
+  const persistentContracts = compile("persistent-owner-contracts", {
+    "server-only": {},
+    "ajv/dist/2020": require("ajv/dist/2020"),
+    "ajv-formats": require("ajv-formats"),
+    "../../../../packages/encrypted-workspace/schemas.json": require("../../../packages/encrypted-workspace/schemas.json"),
+    "./owner-transport": common,
+  });
   api = compile("hub-owner", {
+    "../persistent-owner-routes": persistentRoutes,
+    "./persistent-owner-contracts": persistentContracts,
     "./upload-cancellation": cancellation,
     "server-only": {},
     "./owner-transport": common,
@@ -1292,4 +1302,55 @@ test("Root upload cancellation POST/GET keeps the exact profile and rejects sele
     assert.equal(reply.status, 503);
     assert.ok(!(await reply.text()).includes("PRIVATE_CANARY"));
   }
+});
+
+test("persistent owner routes exclude cookie OAuth approvals and arbitrary Agent transports", async () => {
+  const auth = await token();
+  for (const route of [
+    "/api/v2/persistent-account-authorizations/request_A/approvals",
+    "/api/v2/persistent-account-authorizations/request_A/pending",
+    "/agent/v3/persistent/owners/owner_A/vaults/vault_A/connections/connection_A/tasks",
+    "/api/v2/persistent-agents/vault_A/connection_A/sign",
+  ]) {
+    const h = harness();
+    const r = await h.proxy(
+      request(route, { method: "POST", auth, json: { contractVersion: CONTRACT } }),
+    );
+    assert.equal(r.status, 400, route);
+    assert.equal(h.calls.length, 0);
+  }
+});
+test("persistent list uses its bounded opaque pagination and rejects plaintext upstream fields", async () => {
+  const auth = await token();
+  const body = {
+    contractVersion: CONTRACT,
+    profile: "folioview.persistent-content.v1",
+    items: [],
+    nextCursor: null,
+  };
+  const route =
+    "/api/v2/persistent-results/vault_A?cursor=" +
+    encodeURIComponent("a".repeat(43) + ":20") +
+    "&limit=20";
+  const h = harness({ upstream: () => response(body) });
+  assert.equal((await h.proxy(request(route, { auth }))).status, 200);
+  assert.equal(h.hub().length, 1);
+  for (const cursor of ["../other", "a:20", "a".repeat(43) + ":0", "a".repeat(43) + ":1000"]) {
+    const x = harness();
+    assert.equal(
+      (
+        await x.proxy(
+          request("/api/v2/persistent-results/vault_A?cursor=" + encodeURIComponent(cursor), {
+            auth,
+          }),
+        )
+      ).status,
+      400,
+    );
+    assert.equal(x.calls.length, 0);
+  }
+  const x = harness({ upstream: () => response({ ...body, plaintext: "CANARY" }) });
+  const r = await x.proxy(request("/api/v2/persistent-results/vault_A", { auth }));
+  assert.equal(r.status, 503);
+  assert.doesNotMatch(await r.text(), /CANARY/);
 });

@@ -184,6 +184,9 @@ try:
     if proc.returncode:
         raise RuntimeError(proc.stderr)
     packet = json.loads(proc.stdout)
+    dtos = [
+        ("/api/v2/runtime-setups/" + sc.intent, "GET", sc.service.owner_state(UID, sc.intent), None)
+    ]
     from app.persistent_agents import PersistentAgentService
     from app.vaults import VaultService
 
@@ -194,7 +197,14 @@ try:
         UID, f.vault, sc.connection, packet["body"]["command"], packet["operationId"]
     )["identity"]
     assert identity == packet["identity"]
-    sc.service.complete(UID, sc.intent)
+    dtos.append(
+        (
+            "/api/v2/runtime-setups/" + sc.intent + "/completion",
+            "POST",
+            sc.service.complete(UID, sc.intent),
+            None,
+        )
+    )
     paired = call("pairing")
     assert paired["state"] == "connected"
     print("first Root pairing", paired["state"])
@@ -252,6 +262,9 @@ try:
     policies = ResourceConsentService(sc.a.store, cat, client_ids=[CLIENT], clock=lambda: 1000)
     agents = PersistentAgentService(sc.a.store, client_ids=[CLIENT], clock=lambda: 1000)
     identity_state = agents.state(UID, f.vault, sc.connection)
+    dtos.append(
+        (f"/api/v2/persistent-agents/{f.vault}/{sc.connection}", "GET", identity_state, None)
+    )
     policy_state = policies.state(UID, f.vault, sc.connection)
     packet = owner(
         "approve",
@@ -265,9 +278,33 @@ try:
     receipt = policies.command(
         UID, f.vault, sc.connection, packet["body"]["command"], packet["operationId"]
     )
+    dtos.append(
+        (
+            f"/api/v2/persistent-agents/{f.vault}/{sc.connection}/resource-approvals",
+            "POST",
+            receipt,
+            packet["operationId"],
+        )
+    )
     assert receipt["consent"] == packet["expected"]
     print("owner resource approval accepted")
     chain = [policies.receipt(UID, f.vault, sc.connection, packet["operationId"])]
+    dtos.append(
+        (
+            f"/api/v2/persistent-agents/{f.vault}/{sc.connection}/resource-consent",
+            "GET",
+            policies.state(UID, f.vault, sc.connection),
+            None,
+        )
+    )
+    dtos.append(
+        (
+            f"/api/v2/persistent-agents/{f.vault}/{sc.connection}/resource-operations/{packet['operationId']}",
+            "GET",
+            chain[0],
+            None,
+        )
+    )
     common = {
         "identityState": identity_state,
         "resourceState": policies.state(UID, f.vault, sc.connection),
@@ -293,10 +330,26 @@ try:
     response = publications_service.publish(
         UID, f.vault, sc.connection, packet["body"]["envelope"], packet["operationId"]
     )
+    dtos.append(
+        (
+            f"/api/v2/persistent-content/{f.vault}/connections/{sc.connection}/publications",
+            "POST",
+            response,
+            packet["operationId"],
+        )
+    )
     assert response["fingerprint"] == packet["fingerprint"]
     print("owner resource ciphertext accepted")
     owner("publicationReceipt", {"packet": packet, "receipt": response})
     original = publications_service.receipt(UID, f.vault, sc.connection, packet["operationId"])
+    dtos.append(
+        (
+            f"/api/v2/persistent-content/{f.vault}/connections/{sc.connection}/operations/{packet['operationId']}",
+            "GET",
+            original,
+            None,
+        )
+    )
     retry = owner(
         "resource",
         {
@@ -384,6 +437,14 @@ try:
         UID, f.vault, sc.connection, packet["body"]["envelope"], packet["operationId"]
     )
     assert response["fingerprint"] == packet["fingerprint"]
+    dtos.append(
+        (
+            f"/api/v2/persistent-content/{f.vault}/tasks/{TASK}/authority",
+            "GET",
+            publications_service.task_state(UID, f.vault, TASK),
+            None,
+        )
+    )
     print("owner task authority accepted")
     service = PersistentResultService(
         sc.a.store, cat, audience=ORIGIN, client_ids=[CLIENT], clock=lambda: 1000
@@ -402,6 +463,11 @@ try:
     record = PersistentOwnerResultService(sc.a.store, clock=lambda: 1000).owner_get(
         UID, f.vault, saved["resultId"]
     )
+    history = PersistentOwnerResultService(sc.a.store, clock=lambda: 1000)
+    dtos.append(
+        (f"/api/v2/persistent-results/{f.vault}", "GET", history.owner_list(UID, f.vault), None)
+    )
+    dtos.append((f"/api/v2/persistent-results/{f.vault}/{saved['resultId']}", "GET", record, None))
     opened = owner("result", {"record": record, "resultId": saved["resultId"]})
     assert opened == report_content()
     print("owner historical report decrypted")
@@ -450,6 +516,10 @@ try:
         "version advancement kept permission; withdrawal blocked new Runs; owner history retained"
     )
 
+    if os.getenv("FOLIOVIEW_TEST_DTO_FILE"):
+        output = Path(os.environ["FOLIOVIEW_TEST_DTO_FILE"])
+        output.write_text(json.dumps(dtos))
+        output.chmod(0o600)
     print("OWNER AND AGENT FULL SYNTHETIC LOOP COMPLETE")
 
 finally:
