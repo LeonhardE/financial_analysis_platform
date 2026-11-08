@@ -1,6 +1,7 @@
 /** Dedicated protected runtime Worker. Closed domain methods; no key/crypto/fetch RPC. */
 import { PersistentRuntime } from "./session.mjs";
 import { RuntimeDenied, exact, canonical } from "./crypto.mjs";
+import { recoveryDiagnostic } from "./recovery.mjs";
 let runtime = null,
   queued = 0,
   queue = Promise.resolve();
@@ -54,10 +55,13 @@ self.onmessage = (event) => {
       }
       self.postMessage({ id, ok: true, value });
     } catch (error) {
+      const diagnostic =
+        error instanceof RuntimeDenied ? recoveryDiagnostic(error.diagnostic) : null;
       self.postMessage({
         id,
         ok: false,
         error: error instanceof RuntimeDenied ? error.code : "runtime_operation_failed",
+        ...(diagnostic ? { diagnostic } : {}),
       });
     } finally {
       queued--;

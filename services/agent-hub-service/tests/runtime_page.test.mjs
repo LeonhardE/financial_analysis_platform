@@ -2,10 +2,13 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import vm from "node:vm";
+import { recoveryDiagnostic } from "../runtime/src/recovery.mjs";
 const html = await readFile(new URL("../runtime/static/controller.html", import.meta.url), "utf8");
 const script = (
   await readFile(new URL("../runtime/src/controller-page.mjs", import.meta.url), "utf8")
-).replace('import { connect } from "./controller.mjs";', "const connect = connectFixture;");
+)
+  .replace('import { connect } from "./controller.mjs";', "const connect = connectFixture;")
+  .replace('import { recoveryDiagnostic } from "./recovery.mjs";', "");
 const task = {
   taskId: "task_synthetic",
   taskVersion: 2,
@@ -142,9 +145,14 @@ function fixture(options = {}) {
       createElement: (tag) => new Element(tag),
     },
     TextEncoder,
+    recoveryDiagnostic,
     connectFixture: async () => {
       calls.push(["connect"]);
-      if (options.lost) throw Error("lost_private_keys");
+      if (options.lost) {
+        const error = Error("lost_private_keys");
+        error.diagnostic = options.diagnostic;
+        throw error;
+      }
       return {
         state: { state: options.pending ? "awaiting_owner_approval" : "connected" },
         approvalUrl: "https://owner.example/agents?runtime_setup=synthetic",
@@ -200,6 +208,17 @@ test("first pairing and an existing lost profile never reconnect or run financia
     lost.calls.map((c) => c[0]),
     ["connect"],
   );
+});
+test("failed restore displays only bounded diagnostic metadata and retains the closed workspace", async () => {
+  const diagnostic = {
+    stage: "profile_record_missing",
+    namespace: "profile:" + "a".repeat(64),
+  };
+  const f = fixture({ lost: true, diagnostic: { ...diagnostic, token: "never-render-secret" } });
+  await f.ready;
+  assert.deepEqual(JSON.parse(f.$("connection-result").textContent), diagnostic);
+  assert.equal(f.$("workspace").disabled, true);
+  assert.deepEqual(f.calls, [["connect"]]);
 });
 test("DOM-only task, frozen input and encrypted report flow binds original identifiers", async () => {
   const f = fixture();

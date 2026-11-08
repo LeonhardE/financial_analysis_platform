@@ -12,7 +12,12 @@ class PersistentRuntimePageTests(unittest.TestCase):
         node = os.getenv("FOLIOVIEW_NODE_BIN") or shutil.which("node")
         self.assertIsNotNone(node, "Node is required; this suite cannot silently skip")
         result = subprocess.run(
-            [node, "--test", str(Path(__file__).with_name("runtime_page.test.mjs"))],
+            [
+                node,
+                "--test",
+                str(Path(__file__).with_name("runtime_page.test.mjs")),
+                str(Path(__file__).with_name("runtime_recovery.test.mjs")),
+            ],
             capture_output=True,
             text=True,
             timeout=30,

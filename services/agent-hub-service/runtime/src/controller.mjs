@@ -1,4 +1,5 @@
 /** Model-facing domain API. The page never receives private key handles or owner credentials. */
+import { recoveryDiagnostic } from "./recovery.mjs";
 const pending = new Map();
 let worker;
 async function checkedWorker() {
@@ -39,7 +40,12 @@ async function checkedWorker() {
     if (!p) return;
     pending.delete(data.id);
     clearTimeout(p.timer);
-    data.ok ? p.resolve(data.value) : p.reject(Error(data.error));
+    if (data.ok) p.resolve(data.value);
+    else {
+      const error = Error(data.error);
+      error.diagnostic = recoveryDiagnostic(data.diagnostic);
+      p.reject(error);
+    }
   };
   worker.onerror = () => {
     for (const p of pending.values()) {

@@ -1,5 +1,6 @@
 /** Closed persistent runtime: fixed calls only; private handles never cross its boundary. */
 import {
+  RuntimeDenied,
   CONTRACT,
   PROFILE,
   BINDING,
@@ -26,6 +27,7 @@ import { Registry } from "./registry.mjs";
 import { verifyConsentChain, permissionFor } from "./consents.mjs";
 import { matchBinding, verifyEnvelope, verifyManifest, requestProof } from "./authority.mjs";
 import { RuntimeStorage } from "./storage.mjs";
+import { recoveryFailure } from "./recovery.mjs";
 import { dueSlot } from "./schedule.mjs";
 import { checkInputPolicy } from "./policy.mjs";
 const PAIRING = "folioview.runtime-pairing.v1";
@@ -272,12 +274,19 @@ export class PersistentRuntime {
     if (identity.rootKeyId !== this.#root) deny("root_pin_mismatch");
     for (const k of ["ownerSubject", "vaultId", "connectionId", "clientId"])
       if (identity[k] !== this.#actor[k]) deny("recipient_binding_mismatch");
-    if (
-      identity.agentSigningKeyId !== (await keyId(this.#profile.signingPublicJwk)) ||
-      identity.agentEncryptionKeyId !== (await keyId(this.#profile.encryptionPublicJwk)) ||
-      identity.status !== "active"
-    )
-      deny("lost_private_keys");
+    const signingKeyMatches =
+        identity.agentSigningKeyId === (await keyId(this.#profile.signingPublicJwk)),
+      encryptionKeyMatches =
+        identity.agentEncryptionKeyId === (await keyId(this.#profile.encryptionPublicJwk)),
+      identityActive = identity.status === "active";
+    if (!signingKeyMatches || !encryptionKeyMatches || !identityActive)
+      throw recoveryFailure(new RuntimeDenied("lost_private_keys"), {
+        stage: "identity_key_mismatch",
+        namespace: await this.#storage.profileKey(this.#actor),
+        signingKeyMatches,
+        encryptionKeyMatches,
+        identityActive,
+      });
     this.#identity = structuredClone(identity);
   }
   async pairing() {

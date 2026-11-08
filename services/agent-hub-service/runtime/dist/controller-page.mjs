@@ -1,160 +1,171 @@
 import { connect as O } from "./controller.mjs";
-var e = (t) => document.querySelector("#" + t),
-  i = (t, n) => (e(t).textContent = typeof n == "string" ? n : JSON.stringify(n, null, 2)),
+var M = ["profile_record_missing", "profile_validation_failed", "identity_key_mismatch"];
+function C(t) {
+  if (!t || !M.includes(t.stage) || !/^profile:[a-f0-9]{64}$/.test(t.namespace)) return null;
+  let e = { stage: t.stage, namespace: t.namespace };
+  if (t.stage === "identity_key_mismatch")
+    for (let i of ["signingKeyMatches", "encryptionKeyMatches", "identityActive"]) {
+      if (typeof t[i] != "boolean") return null;
+      e[i] = t[i];
+    }
+  return e;
+}
+var n = (t) => document.querySelector("#" + t),
+  r = (t, e) => (n(t).textContent = typeof e == "string" ? e : JSON.stringify(e, null, 2)),
   o,
-  S = !1,
-  I = !1,
-  m = !1,
+  F = !1,
+  b = !1,
+  k = !1,
   w = 0,
   u = !1,
-  C = !1,
-  g = [],
+  S = !1,
+  m = [],
   h = null,
   l = null,
   p = !1,
   v = [],
-  c = [];
-function f(t, n = "") {
-  let r = document.createElement(t);
-  return ((r.textContent = n), r);
+  d = [];
+function f(t, e = "") {
+  let i = document.createElement(t);
+  return ((i.textContent = e), i);
 }
-function k() {
-  ((e("refresh-connection").disabled = !o || m || u),
-    (e("workspace").disabled = !I || m || u),
-    (e("clear-plaintext").disabled = !o || u));
-  for (let t of ["begin-run", "check-plan", "record-plan", "retry-plan"]) e(t).disabled = !E();
-  for (let t of ["task", "load-tasks", "check-due"]) e(t).disabled = l !== null && !p;
-  ((e("begin-run").disabled ||= l !== null && !p),
-    (e("save-report").disabled = !h || p),
-    (e("check-receipt").disabled = !h));
+function g() {
+  ((n("refresh-connection").disabled = !o || k || u),
+    (n("workspace").disabled = !b || k || u),
+    (n("clear-plaintext").disabled = !o || u));
+  for (let t of ["begin-run", "check-plan", "record-plan", "retry-plan"]) n(t).disabled = !_();
+  for (let t of ["task", "load-tasks", "check-due"]) n(t).disabled = l !== null && !p;
+  ((n("begin-run").disabled ||= l !== null && !p),
+    (n("save-report").disabled = !h || p),
+    (n("check-receipt").disabled = !h));
   for (let t of [
-    e("report-title"),
-    e("report-summary"),
-    e("limitations"),
-    ...v.map((n) => n.field),
-    ...c.flatMap((n) => n.fields),
+    n("report-title"),
+    n("report-summary"),
+    n("limitations"),
+    ...v.map((e) => e.field),
+    ...d.flatMap((e) => e.fields),
   ])
     t.readOnly = l !== null;
-  e("add-citation").disabled = l !== null || c.length >= 20;
+  n("add-citation").disabled = l !== null || d.length >= 20;
 }
 function T(t) {
-  ((I = t.state === "connected"),
-    i(
+  ((b = t.state === "connected"),
+    r(
       "status",
-      I
+      b
         ? "\u5DF2\u8FDE\u63A5\uFF0C\u53EF\u4EE5\u4F7F\u7528\u83B7\u51C6\u4EFB\u52A1\u3002"
         : "\u8FDE\u63A5\u5DF2\u51C6\u5907\uFF0C\u8BF7\u5728 FolioView \u4E2D\u786E\u8BA4\u3002",
     ),
-    i("connection-result", t),
-    k());
+    r("connection-result", t),
+    g());
 }
-async function d(t, n = () => {}) {
-  if (m || u || !o) return;
-  m = !0;
-  let r = w;
-  (k(), i("operation-status", "\u6B63\u5728\u5904\u7406\u2026"));
+async function c(t, e = () => {}) {
+  if (k || u || !o) return;
+  k = !0;
+  let i = w;
+  (g(), r("operation-status", "\u6B63\u5728\u5904\u7406\u2026"));
   try {
-    let s = await t();
-    if (r !== w || u) return;
-    (n(s), i("operation-status", "\u5DF2\u5B8C\u6210\u3002"));
-  } catch (s) {
-    if (r !== w || u) return;
-    let a = /^[a-z_]{1,80}$/.test(s.message ?? "") ? s.message : "runtime_operation_failed";
-    (i(
+    let a = await t();
+    if (i !== w || u) return;
+    (e(a), r("operation-status", "\u5DF2\u5B8C\u6210\u3002"));
+  } catch (a) {
+    if (i !== w || u) return;
+    let s = /^[a-z_]{1,80}$/.test(a.message ?? "") ? a.message : "runtime_operation_failed";
+    (r(
       "operation-status",
       "\u64CD\u4F5C\u672A\u5B8C\u6210\uFF1A" +
-        a +
+        s +
         "\u3002\u8BF7\u6838\u5BF9\u72B6\u6001\u540E\u91CD\u8BD5\u539F\u64CD\u4F5C\u3002",
     ),
-      ["private_schema_invalid", "private_output_mismatch"].includes(a) && (l = null),
-      a === "lost_private_keys" &&
-        (y(),
-        (I = !1),
-        i(
+      ["private_schema_invalid", "private_output_mismatch"].includes(s) && (l = null),
+      s === "lost_private_keys" &&
+        (I(),
+        (b = !1),
+        r(
           "status",
           "\u6B64\u8FD0\u884C\u73AF\u5883\u7684\u539F\u5BC6\u94A5\u4E0D\u53EF\u7528\uFF0C\u8BF7\u5728 FolioView \u4FEE\u590D\u8FDE\u63A5\u3002",
         )));
   } finally {
-    ((m = !1), k());
+    ((k = !1), g());
   }
 }
-function E() {
-  return g.find((t) => t.taskId === e("task").value) ?? null;
+function _() {
+  return m.find((t) => t.taskId === n("task").value) ?? null;
 }
 function L() {
   ((h = null), (l = null), (p = !1));
   for (let t of v) t.field.value = "";
-  for (let t of c) for (let n of t.fields) n.value = "";
-  ((v.length = 0), (c.length = 0), (e("run").hidden = !0));
-  for (let t of ["inputs", "report-sections", "citations"]) e(t).replaceChildren();
-  for (let t of ["run-result", "input-content", "receipt", "report-status"]) i(t, "");
-  for (let t of ["report-title", "report-summary", "limitations"]) e(t).value = "";
+  for (let t of d) for (let e of t.fields) e.value = "";
+  ((v.length = 0), (d.length = 0), (n("run").hidden = !0));
+  for (let t of ["inputs", "report-sections", "citations"]) n(t).replaceChildren();
+  for (let t of ["run-result", "input-content", "receipt", "report-status"]) r(t, "");
+  for (let t of ["report-title", "report-summary", "limitations"]) n(t).value = "";
 }
-function y() {
+function I() {
   (w++,
-    (g = []),
+    (m = []),
     L(),
-    e("task").replaceChildren(f("option", "\u8BF7\u5148\u8BFB\u53D6\u83B7\u51C6\u4EFB\u52A1")),
-    (e("task").value = ""),
-    e("due-tasks").replaceChildren());
-  for (let t of ["task-content", "task-status", "plan-result"]) i(t, "");
-  for (let t of ["trigger", "plan-reference"]) e(t).value = "";
-  e("plan-state").value = "unconfirmed";
+    n("task").replaceChildren(f("option", "\u8BF7\u5148\u8BFB\u53D6\u83B7\u51C6\u4EFB\u52A1")),
+    (n("task").value = ""),
+    n("due-tasks").replaceChildren());
+  for (let t of ["task-content", "task-status", "plan-result"]) r(t, "");
+  for (let t of ["trigger", "plan-reference"]) n(t).value = "";
+  n("plan-state").value = "unconfirmed";
 }
 function V() {
   (w++,
     L(),
-    (e("trigger").value = ""),
-    (e("plan-reference").value = ""),
-    (e("plan-state").value = "unconfirmed"),
-    i("plan-result", ""),
-    i("task-content", E()?.task ?? ""),
-    k());
+    (n("trigger").value = ""),
+    (n("plan-reference").value = ""),
+    (n("plan-state").value = "unconfirmed"),
+    r("plan-result", ""),
+    r("task-content", _()?.task ?? ""),
+    g());
 }
-function F(t) {
-  (y(), (g = t));
-  let n = f("option", "\u9009\u62E9\u83B7\u51C6\u4EFB\u52A1");
-  ((n.value = ""), e("task").replaceChildren(n));
-  for (let r of g) {
-    let s = f("option", r.task.name + " \xB7 v" + r.taskVersion);
-    ((s.value = r.taskId), e("task").append(s));
+function R(t) {
+  (I(), (m = t));
+  let e = f("option", "\u9009\u62E9\u83B7\u51C6\u4EFB\u52A1");
+  ((e.value = ""), n("task").replaceChildren(e));
+  for (let i of m) {
+    let a = f("option", i.task.name + " \xB7 v" + i.taskVersion);
+    ((a.value = i.taskId), n("task").append(a));
   }
-  i(
+  r(
     "task-status",
-    g.length
-      ? "\u5DF2\u8BFB\u53D6 " + g.length + " \u9879\u83B7\u51C6\u4EFB\u52A1\u3002"
+    m.length
+      ? "\u5DF2\u8BFB\u53D6 " + m.length + " \u9879\u83B7\u51C6\u4EFB\u52A1\u3002"
       : "\u5C1A\u65E0\u83B7\u51C6\u4EFB\u52A1\uFF0C\u8BF7\u5728 FolioView \u5BA1\u9605\u4EFB\u52A1\u4E0E\u8D44\u6E90\u3002",
   );
 }
-function B(t) {
-  let n = f("label", t.title),
-    r = document.createElement("textarea");
-  ((r.id = "report-section-" + v.length),
-    (r.maxLength = 16384),
-    (n.htmlFor = r.id),
-    e("report-sections").append(n, r),
-    v.push({ id: t.sectionId, field: r }));
+function $(t) {
+  let e = f("label", t.title),
+    i = document.createElement("textarea");
+  ((i.id = "report-section-" + v.length),
+    (i.maxLength = 16384),
+    (e.htmlFor = i.id),
+    n("report-sections").append(e, i),
+    v.push({ id: t.sectionId, field: i }));
 }
-function R(t) {
+function P(t) {
   (L(),
     (h = t),
-    (e("run").hidden = !1),
-    i("run-result", { runId: t.runId, state: t.state, resultId: t.resultId, inputs: t.inputs }));
-  for (let n of t.inputs) {
-    let r = f("button", "\u8BFB\u53D6\u83B7\u51C6\u8F93\u5165 \xB7 " + n.publicationId);
-    r.type = "button";
-    let s = t.runId,
-      a = n.publicationId;
-    (r.addEventListener("click", () =>
-      d(
-        () => o.readInput(s, a),
-        (b) => i("input-content", b),
+    (n("run").hidden = !1),
+    r("run-result", { runId: t.runId, state: t.state, resultId: t.resultId, inputs: t.inputs }));
+  for (let e of t.inputs) {
+    let i = f("button", "\u8BFB\u53D6\u83B7\u51C6\u8F93\u5165 \xB7 " + e.publicationId);
+    i.type = "button";
+    let a = t.runId,
+      s = e.publicationId;
+    (i.addEventListener("click", () =>
+      c(
+        () => o.readInput(a, s),
+        (y) => r("input-content", y),
       ),
     ),
-      e("inputs").append(r));
+      n("inputs").append(i));
   }
-  for (let n of t.task.outputSpec.sections) B(n);
-  (i(
+  for (let e of t.task.outputSpec.sections) $(e);
+  (r(
     "report-status",
     t.resultId
       ? "\u5DF2\u6709\u62A5\u544A\u3002\u8BF7\u5148\u6838\u5BF9\u539F\u62A5\u544A\u56DE\u6267\uFF0C\u907F\u514D\u91CD\u590D\u751F\u6210\u3002"
@@ -162,140 +173,140 @@ function R(t) {
   ),
     (p = !!t.resultId));
 }
-function J() {
-  if (l || c.length >= 20) return;
+function B() {
+  if (l || d.length >= 20) return;
   let t = f("fieldset"),
-    n = [];
-  t.append(f("legend", "\u5F15\u7528 " + (c.length + 1)));
-  for (let [r, s] of [
+    e = [];
+  t.append(f("legend", "\u5F15\u7528 " + (d.length + 1)));
+  for (let [i, a] of [
     ["\u6807\u9898", 180],
     ["HTTPS \u5730\u5740", 2048],
     ["\u53D1\u5E03\u65F6\u95F4\uFF08UTC\uFF0C\u53EF\u7559\u7A7A\uFF09", 30],
   ]) {
-    let a = document.createElement("input"),
-      b = f("label", r);
-    ((a.id = "citation-" + c.length + "-" + n.length),
-      (a.maxLength = s),
-      (a.required = n.length < 2),
-      (a.autocomplete = "off"),
-      (b.htmlFor = a.id),
-      t.append(b, a),
-      n.push(a));
+    let s = document.createElement("input"),
+      y = f("label", i);
+    ((s.id = "citation-" + d.length + "-" + e.length),
+      (s.maxLength = a),
+      (s.required = e.length < 2),
+      (s.autocomplete = "off"),
+      (y.htmlFor = s.id),
+      t.append(y, s),
+      e.push(s));
   }
-  (c.push({ id: "citation_" + (c.length + 1), fields: n }), e("citations").append(t), k());
+  (d.push({ id: "citation_" + (d.length + 1), fields: e }), n("citations").append(t), g());
 }
-function N() {
+function J() {
   let t = {
-    title: e("report-title").value,
-    summary: e("report-summary").value,
-    sections: v.map((n) => ({ sectionId: n.id, markdown: n.field.value })),
-    citations: c.map((n) => ({
-      citationId: n.id,
-      title: n.fields[0].value,
-      url: n.fields[1].value,
-      publishedAt: n.fields[2].value || null,
+    title: n("report-title").value,
+    summary: n("report-summary").value,
+    sections: v.map((e) => ({ sectionId: e.id, markdown: e.field.value })),
+    citations: d.map((e) => ({
+      citationId: e.id,
+      title: e.fields[0].value,
+      url: e.fields[1].value,
+      publishedAt: e.fields[2].value || null,
       provenance: "agent_provided",
     })),
-    limitations: e("limitations")
+    limitations: n("limitations")
       .value.split(/\r?\n/)
-      .map((n) => n.trim())
+      .map((e) => e.trim())
       .filter(Boolean),
   };
   if (
     !t.title ||
     !t.summary ||
     t.limitations.length > 20 ||
-    t.limitations.some((n) => n.length > 500)
+    t.limitations.some((e) => e.length > 500)
   )
     throw Error("invalid_report");
   if (new TextEncoder().encode(JSON.stringify(t)).length > 65536) throw Error("report_too_large");
   return t;
 }
-function P(t, n) {
+function A(t, e) {
   if (l !== null && !p) throw Error("pending_report");
-  return o.beginRun(t, n);
+  return o.beginRun(t, e);
 }
-function _() {
-  if (!E()) throw Error("select_approved_task");
-  return E().taskId;
+function E() {
+  if (!_()) throw Error("select_approved_task");
+  return _().taskId;
 }
-function x(t, n) {
-  e(t).addEventListener("submit", (r) => {
-    (r.preventDefault(), n());
+function x(t, e) {
+  n(t).addEventListener("submit", (i) => {
+    (i.preventDefault(), e());
   });
 }
-e("refresh-connection").addEventListener("click", () =>
-  d(() => (S ? o.pairingStatus() : o.refreshConnection()), T),
+n("refresh-connection").addEventListener("click", () =>
+  c(() => (F ? o.pairingStatus() : o.refreshConnection()), T),
 );
-e("load-tasks").addEventListener("click", () => d(() => o.listTasks(), F));
-e("task").addEventListener("change", () => {
-  m || V();
+n("load-tasks").addEventListener("click", () => c(() => o.listTasks(), R));
+n("task").addEventListener("change", () => {
+  k || V();
 });
-e("check-due").addEventListener("click", () =>
-  d(
+n("check-due").addEventListener("click", () =>
+  c(
     async () => ({ tasks: await o.listTasks(), due: await o.dueTasks() }),
     (t) => {
-      (F(t.tasks),
-        i(
+      (R(t.tasks),
+        r(
           "task-status",
           t.due.length
             ? "\u6709 " + t.due.length + " \u9879\u5230\u671F\u4EFB\u52A1\u3002"
             : "\u5F53\u524D\u6CA1\u6709\u5230\u671F\u4EFB\u52A1\u3002",
         ));
-      for (let n of t.due) {
-        let r = g.find((a) => a.taskId === n.taskId && a.taskVersion === n.taskVersion);
-        if (!r) continue;
-        let s = f("button", "\u6267\u884C\u672C\u6B21\u5230\u671F\u4EFB\u52A1 \xB7 " + r.task.name);
-        ((s.type = "button"),
-          s.addEventListener("click", () => {
-            m ||
+      for (let e of t.due) {
+        let i = m.find((s) => s.taskId === e.taskId && s.taskVersion === e.taskVersion);
+        if (!i) continue;
+        let a = f("button", "\u6267\u884C\u672C\u6B21\u5230\u671F\u4EFB\u52A1 \xB7 " + i.task.name);
+        ((a.type = "button"),
+          a.addEventListener("click", () => {
+            k ||
               (l !== null && !p) ||
-              ((e("task").value = r.taskId),
+              ((n("task").value = i.taskId),
               V(),
-              (e("trigger").value = n.triggerId),
-              d(() => P(r.taskId, n.triggerId), R));
+              (n("trigger").value = e.triggerId),
+              c(() => A(i.taskId, e.triggerId), P));
           }),
-          e("due-tasks").append(s));
+          n("due-tasks").append(a));
       }
     },
   ),
 );
-x("begin-form", () => d(() => P(_(), e("trigger").value), R));
-e("add-citation").addEventListener("click", J);
+x("begin-form", () => c(() => A(E(), n("trigger").value), P));
+n("add-citation").addEventListener("click", B);
 x("report-form", () =>
-  d(
+  c(
     async () => {
       if (!h || p) throw Error("no_pending_report");
-      return ((l ??= N()), k(), o.saveReport(h.runId, l));
+      return ((l ??= J()), g(), o.saveReport(h.runId, l));
     },
     (t) => {
       ((p = !0),
-        i("receipt", t),
-        i(
+        r("receipt", t),
+        r(
           "report-status",
           "\u62A5\u544A\u5DF2\u52A0\u5BC6\u4FDD\u5B58\uFF0C\u56DE\u6267\u5DF2\u6838\u5BF9\u3002",
         ));
     },
   ),
 );
-e("check-receipt").addEventListener("click", () =>
-  d(
+n("check-receipt").addEventListener("click", () =>
+  c(
     () => {
       if (!h) throw Error("select_run");
       return o.resultReceipt(h.runId);
     },
     (t) => {
       ((p = !0),
-        i("receipt", t),
-        i("report-status", "\u5DF2\u6838\u5BF9\u539F\u62A5\u544A\u56DE\u6267\u3002"));
+        r("receipt", t),
+        r("report-status", "\u5DF2\u6838\u5BF9\u539F\u62A5\u544A\u56DE\u6267\u3002"));
     },
   ),
 );
-e("check-plan").addEventListener("click", () =>
-  d(
-    () => o.planStatus(_()),
+n("check-plan").addEventListener("click", () =>
+  c(
+    () => o.planStatus(E()),
     (t) =>
-      i("plan-result", {
+      r("plan-result", {
         desired: t.desired,
         reported: t.reported,
         observed: t.observed,
@@ -304,52 +315,54 @@ e("check-plan").addEventListener("click", () =>
   ),
 );
 x("plan-form", () =>
-  d(
-    () => o.reportPlan(_(), e("plan-state").value, e("plan-reference").value || null),
-    (t) => i("plan-result", t),
+  c(
+    () => o.reportPlan(E(), n("plan-state").value, n("plan-reference").value || null),
+    (t) => r("plan-result", t),
   ),
 );
-e("retry-plan").addEventListener("click", () =>
-  d(
-    () => o.retryPlanReport(_()),
-    (t) => i("plan-result", t),
+n("retry-plan").addEventListener("click", () =>
+  c(
+    () => o.retryPlanReport(E()),
+    (t) => r("plan-result", t),
   ),
 );
-e("clear-plaintext").addEventListener("click", () => {
+n("clear-plaintext").addEventListener("click", () => {
   !o ||
     u ||
-    (y(),
-    k(),
-    i(
+    (I(),
+    g(),
+    r(
       "operation-status",
       "\u672C\u9875\u660E\u6587\u5DF2\u6E05\u9664\u3002\u8FDE\u63A5\u8EAB\u4EFD\u548C\u539F\u52A0\u5BC6\u91CD\u8BD5\u8BB0\u5F55\u4FDD\u7559\u3002",
     ),
     o.clearPlaintext().catch(() => {}));
 });
 function q() {
-  u || ((u = !0), y(), k(), o?.clearPlaintext().catch(() => {}));
+  u || ((u = !0), I(), g(), o?.clearPlaintext().catch(() => {}));
 }
-function A() {
-  C || ((C = !0), q(), window.location.reload());
+function D() {
+  S || ((S = !0), q(), window.location.reload());
 }
 window.addEventListener("pagehide", q);
-window.addEventListener("hashchange", A);
+window.addEventListener("hashchange", D);
 window.addEventListener("pageshow", (t) => {
-  t.persisted && A();
+  t.persisted && D();
 });
 try {
   let t = await O();
   u ||
     ((o = window.folioview),
-    (S = t.state.state === "awaiting_owner_approval"),
-    (e("owner").href = t.approvalUrl),
-    (e("owner").hidden = !1),
+    (F = t.state.state === "awaiting_owner_approval"),
+    (n("owner").href = t.approvalUrl),
+    (n("owner").hidden = !1),
     T(t.state));
 } catch (t) {
-  i(
-    "status",
-    t.message === "lost_private_keys"
-      ? "\u6B64\u8FD0\u884C\u73AF\u5883\u7684\u8FDE\u63A5\u5BC6\u94A5\u4E0D\u53EF\u7528\u3002\u8BF7\u5728 FolioView \u4FEE\u590D\u8FDE\u63A5\uFF1B\u73B0\u6709\u8D44\u6E90\u548C\u62A5\u544A\u4F1A\u4FDD\u7559\u3002"
-      : "\u8FDE\u63A5\u6682\u65F6\u4E0D\u53EF\u7528\uFF0C\u8BF7\u7A0D\u540E\u91CD\u8BD5\u6216\u5728 FolioView \u67E5\u770B\u8FDE\u63A5\u72B6\u6001\u3002",
-  );
+  let e = C(t.diagnostic);
+  (e && r("connection-result", e),
+    r(
+      "status",
+      t.message === "lost_private_keys"
+        ? "\u6B64\u8FD0\u884C\u73AF\u5883\u7684\u8FDE\u63A5\u5BC6\u94A5\u4E0D\u53EF\u7528\u3002\u8BF7\u5728 FolioView \u4FEE\u590D\u8FDE\u63A5\uFF1B\u73B0\u6709\u8D44\u6E90\u548C\u62A5\u544A\u4F1A\u4FDD\u7559\u3002"
+        : "\u8FDE\u63A5\u6682\u65F6\u4E0D\u53EF\u7528\uFF0C\u8BF7\u7A0D\u540E\u91CD\u8BD5\u6216\u5728 FolioView \u67E5\u770B\u8FDE\u63A5\u72B6\u6001\u3002",
+    ));
 }

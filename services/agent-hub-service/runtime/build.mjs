@@ -49,6 +49,7 @@ const files = [
   "src/consents.mjs",
   "src/authority.mjs",
   "src/storage.mjs",
+  "src/recovery.mjs",
   "dist/core.mjs",
   "src/session.mjs",
   "src/schedule.mjs",

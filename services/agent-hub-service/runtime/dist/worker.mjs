@@ -1,5 +1,5 @@
-var Ms = Object.defineProperty;
-var on = (s, n, o) => () => {
+var Xs = Object.defineProperty;
+var cn = (s, n, o) => () => {
   if (o) throw o[0];
   try {
     return (s && (n = s((s = 0))), n);
@@ -7,33 +7,33 @@ var on = (s, n, o) => () => {
     throw ((o = [p]), p);
   }
 };
-var Gs = (s, n) => {
-  for (var o in n) Ms(s, o, { get: n[o], enumerable: !0 });
+var Ys = (s, n) => {
+  for (var o in n) Xs(s, o, { get: n[o], enumerable: !0 });
 };
-function Wr(...s) {
-  let n = s.reduce((c, { length: m }) => c + m, 0),
+function Ur(...s) {
+  let n = s.reduce((c, { length: l }) => c + l, 0),
     o = new Uint8Array(n),
     p = 0;
   for (let c of s) (o.set(c, p), (p += c.length));
   return o;
 }
-function ai(s, n, o) {
-  if (n < 0 || n >= ma) throw new RangeError(`value must be >= 0 and <= ${ma - 1}. Received ${n}`);
+function ii(s, n, o) {
+  if (n < 0 || n >= ya) throw new RangeError(`value must be >= 0 and <= ${ya - 1}. Received ${n}`);
   s.set([n >>> 24, n >>> 16, n >>> 8, n & 255], o);
 }
-function vn(s) {
-  let n = Math.floor(s / ma),
-    o = s % ma,
+function Pn(s) {
+  let n = Math.floor(s / ya),
+    o = s % ya,
     p = new Uint8Array(8);
-  return (ai(p, n, 0), ai(p, o, 4), p);
+  return (ii(p, n, 0), ii(p, o, 4), p);
 }
-function vi(s) {
+function gi(s) {
   let n = new Uint8Array(4);
-  return (ai(n, s), n);
+  return (ii(n, s), n);
 }
-function Rr(s) {
+function Cr(s) {
   if (typeof s == "string" && s.length >= 128) {
-    if (po.test(s)) throw new TypeError("non-ASCII string encountered in encode()");
+    if (mo.test(s)) throw new TypeError("non-ASCII string encountered in encode()");
     return Ot.encode(s);
   }
   let n = new Uint8Array(s.length);
@@ -44,17 +44,17 @@ function Rr(s) {
   }
   return n;
 }
-function gn(s, n = !1) {
+function wn(s, n = !1) {
   if (Uint8Array.prototype.toBase64)
     return s.toBase64({ alphabet: n ? "base64url" : "base64", omitPadding: n });
   let o = 32768,
     p = [];
-  for (let m = 0; m < s.length; m += o)
-    p.push(String.fromCharCode.apply(null, s.subarray(m, m + o)));
+  for (let l = 0; l < s.length; l += o)
+    p.push(String.fromCharCode.apply(null, s.subarray(l, l + o)));
   let c = btoa(p.join(""));
   return n ? c.replace(/=/g, "").replace(/\+/g, "-").replace(/\//g, "_") : c;
 }
-function Pn(s, n = !1) {
+function kn(s, n = !1) {
   if (Uint8Array.fromBase64)
     return Uint8Array.fromBase64(s, { alphabet: n ? "base64url" : "base64" });
   if (n) {
@@ -66,21 +66,21 @@ function Pn(s, n = !1) {
   for (let c = 0; c < o.length; c++) p[c] = o.charCodeAt(c);
   return p;
 }
-async function wn(s, n) {
+async function In(s, n) {
   let o = `SHA-${s.slice(-3)}`;
   return new Uint8Array(await crypto.subtle.digest(o, n));
 }
 function It(s) {
   try {
-    return Pn(typeof s == "string" ? s : ui.decode(s), !0);
+    return kn(typeof s == "string" ? s : fi.decode(s), !0);
   } catch (n) {
-    throw new TypeError(co, { cause: n });
+    throw new TypeError(lo, { cause: n });
   }
 }
 function tr(s) {
-  return gn(typeof s == "string" ? Ot.encode(s) : s, !0);
+  return wn(typeof s == "string" ? Ot.encode(s) : s, !0);
 }
-function Cr(s, n) {
+function Jr(s, n) {
   if (!(s instanceof Uint8Array)) throw new TypeError(`${n} must be an instance of Uint8Array`);
 }
 function Be(s) {
@@ -89,10 +89,10 @@ function Be(s) {
   let n = Object.getPrototypeOf(s);
   return n === null || Object.getPrototypeOf(n) === null;
 }
-function An(s) {
+function xn(s) {
   return Be(s) && Array.isArray(s.keys) && Array.from(s.keys).every(Be);
 }
-function ba(...s) {
+function Aa(...s) {
   let n = new Set();
   for (let o of s)
     if (o)
@@ -105,36 +105,36 @@ function ba(...s) {
 function ze(s, n) {
   if (s !== void 0) throw new TypeError(`${n} can only be called once`);
 }
-function Vr(s, n, o) {
+function Tr(s, n, o) {
   try {
     return It(s);
   } catch (p) {
     throw new o(`Failed to base64url decode the ${n}`, { cause: p });
   }
 }
-function Dn(s, n, o) {
+function En(s, n, o) {
   try {
-    return Rr(s);
+    return Cr(s);
   } catch (p) {
     throw new o(`The ${n} is not a valid base64url string`, { cause: p });
   }
 }
-function Aa(s, n, o) {
+function Da(s, n, o) {
   let p;
   try {
-    p = JSON.parse(fi.decode(It(s)));
+    p = JSON.parse(vi.decode(It(s)));
   } catch (c) {
     throw new n(o, { cause: c });
   }
   if (!Be(p)) throw new n(o);
   return p;
 }
-function ni(s, n) {
+function si(s, n) {
   if (n !== void 0 && (!Array.isArray(n) || n.some((o) => typeof o != "string")))
     throw new TypeError(`"${s}" option must be an array of strings`);
   return n === void 0 ? void 0 : new Set(n);
 }
-function En(s, n) {
+function _n(s, n) {
   let { crit: o } = n ?? {};
   if (Array.isArray(o) && new Set(o).size !== o.length)
     throw new s('"crit" (Critical) Header Parameter MUST NOT contain duplicate values');
@@ -146,22 +146,22 @@ function Vt(s, n, o, p, c) {
   if (
     !Array.isArray(p.crit) ||
     p.crit.length === 0 ||
-    p.crit.some((h) => typeof h != "string" || h.length === 0)
+    p.crit.some((y) => typeof y != "string" || y.length === 0)
   )
     throw new s(
       '"crit" (Critical) Header Parameter MUST be an array of non-empty strings when present',
     );
-  let m = o === void 0 ? n : { __proto__: null, ...o, ...n };
-  for (let h of p.crit) {
-    if (!(h in m)) throw new lr(`Extension Header Parameter "${h}" is not recognized`);
-    if (!Object.hasOwn(c, h) || c[h] === void 0)
-      throw new s(`Extension Header Parameter "${h}" is missing`);
-    if (m[h] && (!Object.hasOwn(p, h) || p[h] === void 0))
-      throw new s(`Extension Header Parameter "${h}" MUST be integrity protected`);
+  let l = o === void 0 ? n : { __proto__: null, ...o, ...n };
+  for (let y of p.crit) {
+    if (!(y in l)) throw new mr(`Extension Header Parameter "${y}" is not recognized`);
+    if (!Object.hasOwn(c, y) || c[y] === void 0)
+      throw new s(`Extension Header Parameter "${y}" is missing`);
+    if (l[y] && (!Object.hasOwn(p, y) || p[y] === void 0))
+      throw new s(`Extension Header Parameter "${y}" MUST be integrity protected`);
   }
   return p.crit;
 }
-function ki(s, n) {
+function Ii(s, n) {
   if (n.includes("b64")) {
     let o = s.b64;
     if (typeof o != "boolean")
@@ -182,53 +182,53 @@ function St(s, n) {
 }
 async function wt(s, n, o) {
   let { alg: p, secret: c } = s,
-    m = o === "decrypt" || o === "sign";
+    l = o === "decrypt" || o === "sign";
   if (c && n instanceof Uint8Array) return n;
-  let h, I;
+  let y, I;
   if (Be(n)) {
-    if (((h = Di(n)), typeof h.kty != "string")) throw pn(p, n, c);
+    if (((y = xi(n)), typeof y.kty != "string")) throw dn(p, n, c);
     if (
       !(c
-        ? h.kty === "oct" && typeof h.k == "string"
-        : h.kty !== "oct" &&
-          (m
-            ? (h.kty === "AKP" && typeof h.priv == "string") || typeof h.d == "string"
-            : h.d === void 0 && h.priv === void 0))
+        ? y.kty === "oct" && typeof y.k == "string"
+        : y.kty !== "oct" &&
+          (l
+            ? (y.kty === "AKP" && typeof y.priv == "string") || typeof y.d == "string"
+            : y.d === void 0 && y.priv === void 0))
     )
       throw new TypeError(
         c
           ? 'JSON Web Key for symmetric algorithms must have JWK "kty" (Key Type) equal to "oct" and the JWK "k" (Key Value) present'
-          : `JSON Web Key for this operation must be a ${m ? "private" : "public"} JWK`,
+          : `JSON Web Key for this operation must be a ${l ? "private" : "public"} JWK`,
       );
-    if ((mo(s, h, o), h.kty === "oct")) return It(h.k);
+    if ((ho(s, y, o), y.kty === "oct")) return It(y.k);
     if (!Object.isFrozen(n)) {
       let { key_ops: _ } = n;
       (Array.isArray(_) && Object.freeze(_), Object.freeze(n));
     }
   } else {
-    if (!Sn(n)) throw pn(p, n, c);
-    let _ = c ? "secret" : m ? "private" : "public";
+    if (!Nn(n)) throw dn(p, n, c);
+    let _ = c ? "secret" : l ? "private" : "public";
     if (n.type !== _ && (c || ["secret", "public", "private"].includes(n.type)))
-      throw new TypeError(`${lo(n)} instances must be of type "${_}" for the ${p} algorithm`);
+      throw new TypeError(`${yo(n)} instances must be of type "${_}" for the ${p} algorithm`);
     if (pt(n)) return n;
     if (((I = n), I.type === "secret")) return I.export();
   }
-  Wa ||= new WeakMap();
+  Ua ||= new WeakMap();
   let N = n,
-    O = Wa.get(N);
+    O = Ua.get(N);
   if (O?.[p]) return O[p];
-  if ((O || Wa.set(N, (O = {})), I && typeof I.toCryptoKey == "function")) {
+  if ((O || Ua.set(N, (O = {})), I && typeof I.toCryptoKey == "function")) {
     let _ = I.type === "public",
-      B = ho[I.asymmetricKeyDetails?.namedCurve],
+      B = uo[I.asymmetricKeyDetails?.namedCurve],
       J = s.resolve?.({ crv: B, asymmetricKeyType: I.asymmetricKeyType }) ?? s.subtle;
     return (O[p] = I.toCryptoKey(J, _, s.usages[_ ? 0 : 1]));
   }
-  return ((h ??= I.export({ format: "jwk" })), (h.alg = p), (O[p] = await kt(s, h)));
+  return ((y ??= I.export({ format: "jwk" })), (y.alg = p), (O[p] = await kt(s, y)));
 }
-function Ii(s) {
+function bi(s) {
   if (!pt(s)) throw new Error("CryptoKey instance expected");
 }
-function _n(s, n, ...o) {
+function Kn(s, n, ...o) {
   if (o.length > 2) {
     let p = o.pop();
     s += `one of type ${o.join(", ")}, or ${p}.`;
@@ -245,35 +245,35 @@ function _n(s, n, ...o) {
     s
   );
 }
-function pn(s, n, o) {
+function dn(s, n, o) {
   let p = ["CryptoKey", "KeyObject", "JSON Web Key"];
   return (
     o && p.push("Uint8Array"),
-    new TypeError(_n(`Key for the ${s} algorithm must be `, n, ...p))
+    new TypeError(Kn(`Key for the ${s} algorithm must be `, n, ...p))
   );
 }
-function Nn(s, n) {
+function jn(s, n) {
   if (n && !s.usages.includes(n))
     throw new TypeError(`CryptoKey does not support this operation, its usages must include ${n}.`);
 }
-function Ai(s, n) {
+function Di(s, n) {
   let { modulusLength: o } = n.algorithm;
   if (typeof o != "number" || o < 2048)
     throw new TypeError(`${s} requires key modulusLength to be 2048 bits or larger`);
 }
-function Kn(s, n, o) {
+function $n(s, n, o) {
   let p = s.algorithm;
-  if (p.name !== n.name) throw pa(n.name);
-  if (n.hash && p.hash?.name !== n.hash) throw pa(n.hash, "algorithm.hash");
-  if (n.namedCurve && p.namedCurve !== n.namedCurve) throw pa(n.namedCurve, "algorithm.namedCurve");
-  if (n.length !== void 0 && p.length !== n.length) throw pa(n.length, "algorithm.length");
-  Nn(s, o);
+  if (p.name !== n.name) throw ca(n.name);
+  if (n.hash && p.hash?.name !== n.hash) throw ca(n.hash, "algorithm.hash");
+  if (n.namedCurve && p.namedCurve !== n.namedCurve) throw ca(n.namedCurve, "algorithm.namedCurve");
+  if (n.length !== void 0 && p.length !== n.length) throw ca(n.length, "algorithm.length");
+  jn(s, o);
 }
-function fa(s) {
+function va(s) {
   return { __proto__: null, ...s };
 }
-function Di(s) {
-  let n = fa(s);
+function xi(s) {
+  let n = va(s);
   if (n.ext !== void 0 && typeof n.ext != "boolean")
     throw new TypeError('"ext" (Extractable) Parameter must be a boolean');
   if (n.key_ops !== void 0) {
@@ -287,159 +287,159 @@ function Di(s) {
   }
   return n;
 }
-function Da(s) {
+function xa(s) {
   if (s !== void 0 && typeof s != "boolean")
     throw new TypeError('"extractable" option must be a boolean');
   return s;
 }
 async function kt(s, n, o) {
   if (!s.kty.includes(n.kty))
-    throw new lr('Invalid or unsupported JWK "alg" (Algorithm) Parameter value');
+    throw new mr('Invalid or unsupported JWK "alg" (Algorithm) Parameter value');
   let p = s.resolve?.({ kty: n.kty, crv: n.crv }) ?? s.subtle,
     c = !!(n.d || n.priv),
-    m = { ...n, ext: o ?? n.ext };
+    l = { ...n, ext: o ?? n.ext };
   return (
-    m.kty !== "AKP" && delete m.alg,
-    delete m.use,
-    crypto.subtle.importKey("jwk", m, p, m.ext ?? !c, n.key_ops ?? s.usages[c ? 1 : 0])
+    l.kty !== "AKP" && delete l.alg,
+    delete l.use,
+    crypto.subtle.importKey("jwk", l, p, l.ext ?? !c, n.key_ops ?? s.usages[c ? 1 : 0])
   );
 }
 async function ct(s, n, o, p = !1) {
   return (
     s instanceof Uint8Array && (s = await crypto.subtle.importKey("raw", s, n, p, [o])),
-    Kn(s, n, o),
+    $n(s, n, o),
     s
   );
 }
-function xi(s, n) {
+function Ei(s, n) {
   let o = s.byteLength << 3;
   if (o !== n)
     throw new re(`Invalid Content Encryption Key length. Expected ${n} bits, got ${o} bits`);
 }
-function jn(s, n) {
+function Ln(s, n) {
   if (n.length << 3 !== s.ivBits) throw new re("Invalid Initialization Vector length");
 }
-async function $n(s, n, o) {
+async function On(s, n, o) {
   if (!(n instanceof Uint8Array)) throw new TypeError(st(n, "Uint8Array"));
   let p = s.cekBits >> 1,
     c = await crypto.subtle.importKey("raw", n.subarray(p >> 3), "AES-CBC", !1, [o]),
-    m = await crypto.subtle.importKey(
+    l = await crypto.subtle.importKey(
       "raw",
       n.subarray(0, p >> 3),
       { hash: `SHA-${p << 1}`, name: "HMAC" },
       !1,
       ["sign"],
     );
-  return [c, m, p];
+  return [c, l, p];
 }
-async function Ln(s, n, o) {
+async function Vn(s, n, o) {
   return new Uint8Array((await crypto.subtle.sign("HMAC", s, n)).slice(0, o >> 3));
 }
-async function uo(s, n, o, p, c) {
-  let [m, h, I] = await $n(s, o, "encrypt"),
-    N = new Uint8Array(await crypto.subtle.encrypt({ iv: p, name: "AES-CBC" }, m, n)),
-    O = vn(c.length * 8),
-    _ = Wr(c, p, N, O),
-    B = await Ln(h, _, I);
+async function vo(s, n, o, p, c) {
+  let [l, y, I] = await On(s, o, "encrypt"),
+    N = new Uint8Array(await crypto.subtle.encrypt({ iv: p, name: "AES-CBC" }, l, n)),
+    O = Pn(c.length * 8),
+    _ = Ur(c, p, N, O),
+    B = await Vn(y, _, I);
   return { ciphertext: N, tag: B, iv: p };
 }
-async function fo(s, n) {
+async function go(s, n) {
   let o = { name: "HMAC", hash: "SHA-256" },
     p = await crypto.subtle.generateKey(o, !1, ["sign", "verify"]),
     c = await crypto.subtle.sign(o, p, s);
   return crypto.subtle.verify(o, p, c, n);
 }
-async function vo(s, n, o, p, c, m) {
-  let [h, I, N] = await $n(s, n, "decrypt"),
-    O = vn(m.length * 8),
-    _ = Wr(m, p, o, O),
-    B = await Ln(I, _, N);
+async function Po(s, n, o, p, c, l) {
+  let [y, I, N] = await On(s, n, "decrypt"),
+    O = Pn(l.length * 8),
+    _ = Ur(l, p, o, O),
+    B = await Vn(I, _, N);
   try {
-    if (await fo(c, B))
-      return new Uint8Array(await crypto.subtle.decrypt({ iv: p, name: "AES-CBC" }, h, o));
+    if (await go(c, B))
+      return new Uint8Array(await crypto.subtle.decrypt({ iv: p, name: "AES-CBC" }, y, o));
   } catch {}
   throw new Nt();
 }
-async function On(s, n, o, p, c) {
+async function Tn(s, n, o, p, c) {
   if (!pt(o) && !(o instanceof Uint8Array))
     throw new TypeError(st(o, "CryptoKey", "KeyObject", "Uint8Array", "JSON Web Key"));
-  if ((p ? jn(s, p) : (p = yo(s)), o instanceof Uint8Array && xi(o, s.cekBits), s.cbc))
-    return uo(s, n, o, p, c);
-  let m = await ct(o, s.subtle, "encrypt"),
-    h = new Uint8Array(
+  if ((p ? Ln(s, p) : (p = fo(s)), o instanceof Uint8Array && Ei(o, s.cekBits), s.cbc))
+    return vo(s, n, o, p, c);
+  let l = await ct(o, s.subtle, "encrypt"),
+    y = new Uint8Array(
       await crypto.subtle.encrypt(
         { additionalData: c, iv: p, name: "AES-GCM", tagLength: 128 },
-        m,
+        l,
         n,
       ),
     );
-  return { ciphertext: h.subarray(0, -16), tag: h.subarray(-16), iv: p };
+  return { ciphertext: y.subarray(0, -16), tag: y.subarray(-16), iv: p };
 }
-async function Vn(s, n, o, p, c, m) {
+async function Rn(s, n, o, p, c, l) {
   if (!pt(n) && !(n instanceof Uint8Array))
     throw new TypeError(st(n, "CryptoKey", "KeyObject", "Uint8Array", "JSON Web Key"));
   if (!p) throw new re("JWE Initialization Vector missing");
   if (!c) throw new re("JWE Authentication Tag missing");
   if (!s.cbc && c.length !== 16) throw new re("Invalid Authentication Tag length");
-  if ((jn(s, p), n instanceof Uint8Array && xi(n, s.cekBits), s.cbc)) return vo(s, n, o, p, c, m);
-  let h = await ct(n, s.subtle, "decrypt");
+  if ((Ln(s, p), n instanceof Uint8Array && Ei(n, s.cekBits), s.cbc)) return Po(s, n, o, p, c, l);
+  let y = await ct(n, s.subtle, "decrypt");
   try {
     return new Uint8Array(
       await crypto.subtle.decrypt(
-        { additionalData: m, iv: p, name: "AES-GCM", tagLength: 128 },
-        h,
-        Wr(o, c),
+        { additionalData: l, iv: p, name: "AES-GCM", tagLength: 128 },
+        y,
+        Ur(o, c),
       ),
     );
   } catch {
     throw new Nt();
   }
 }
-function Ei(s) {
+function Si(s) {
   let n = { __proto__: null };
   for (let o in s) n[o] = { ...s[o], alg: o };
   return n;
 }
-function ca(s) {
+function da(s) {
   return {
     kty: ["RSA"],
     mode: "key-encryption",
     subtle: { name: "RSA-OAEP", hash: `SHA-${s}` },
-    usages: go,
+    usages: wo,
     ops: ["wrapKey", "unwrapKey"],
   };
 }
-function da(s) {
+function ma(s) {
   return {
     kty: ["EC", "OKP"],
     mode: s,
     subtle: { name: "ECDH" },
     resolve: ({ kty: n, crv: o, asymmetricKeyType: p }) => {
       if (o === "X25519" || p === "x25519") return { name: "X25519" };
-      if (n === "OKP") throw new lr('Invalid or unsupported JWK "alg" (Algorithm) Parameter value');
+      if (n === "OKP") throw new mr('Invalid or unsupported JWK "alg" (Algorithm) Parameter value');
       return { name: "ECDH", namedCurve: o };
     },
-    usages: Po,
+    usages: ko,
     ops: [void 0, "deriveBits"],
   };
 }
-function yt(s, n = !1) {
+function ht(s, n = !1) {
   return {
     kty: ["oct"],
     mode: "key-wrapping",
     secret: !0,
     subtle: { name: n ? "AES-GCM" : "AES-KW", length: s },
-    usages: xa,
+    usages: Ea,
     ops: n ? ["encrypt", "decrypt"] : ["wrapKey", "unwrapKey"],
   };
 }
-function Ua() {
+function za() {
   return {
     kty: ["oct"],
     mode: "key-wrapping",
     secret: !0,
     subtle: { name: "PBKDF2" },
-    usages: xa,
+    usages: Ea,
     ops: ["deriveBits", "deriveBits"],
   };
 }
@@ -448,18 +448,18 @@ function ut(s, n = !1) {
     kty: ["oct"],
     secret: !0,
     subtle: { name: n ? "AES-CBC" : "AES-GCM", length: s },
-    usages: xa,
-    ops: wo,
+    usages: Ea,
+    ops: Io,
     cekBits: s,
     ivBits: n ? 128 : 96,
     cbc: n,
   };
 }
-function Tn(s, n) {
-  throw new lr(`Invalid or unsupported "${s}" (JWE ${n}) header value`);
+function qn(s, n) {
+  throw new mr(`Invalid or unsupported "${s}" (JWE ${n}) header value`);
 }
 function dt(s) {
-  return (typeof s == "string" ? Tt[s] : void 0) ?? Tn("alg", "Algorithm");
+  return (typeof s == "string" ? Tt[s] : void 0) ?? qn("alg", "Algorithm");
 }
 function nt(s) {
   return (
@@ -468,22 +468,22 @@ function nt(s) {
     s.mode === "key-agreement-with-key-wrapping"
   );
 }
-function Ea(s) {
-  return (typeof s == "string" ? ko[s] : void 0) ?? Tn("enc", "Encryption Algorithm");
+function Sa(s) {
+  return (typeof s == "string" ? bo[s] : void 0) ?? qn("enc", "Encryption Algorithm");
 }
-function cn(s, n) {
+function mn(s, n) {
   if (s.algorithm.name !== "ECDH" && s.algorithm.name !== "X25519")
     throw new TypeError(
       "CryptoKey does not support this operation, its algorithm.name must be ECDH or X25519",
     );
-  Nn(s, n);
+  jn(s, n);
 }
-async function Io(s, n, o) {
+async function Ao(s, n, o) {
   let p = await ct(n, dt(s).subtle, "wrapKey", !0),
     c = await crypto.subtle.importKey("raw", o, { hash: "SHA-256", name: "HMAC" }, !0, ["sign"]);
   return new Uint8Array(await crypto.subtle.wrapKey("raw", c, p, "AES-KW"));
 }
-async function bo(s, n, o) {
+async function Do(s, n, o) {
   let p = await ct(n, dt(s).subtle, "unwrapKey", !0),
     c = await crypto.subtle.unwrapKey(
       "raw",
@@ -496,37 +496,37 @@ async function bo(s, n, o) {
     );
   return new Uint8Array(await crypto.subtle.exportKey("raw", c));
 }
-function qn(s, n, o) {
-  (Kn(n, dt(s).subtle, o), Ai(s, n));
+function Cn(s, n, o) {
+  ($n(n, dt(s).subtle, o), Di(s, n));
 }
-async function Rn(s, n, o, p) {
+async function Jn(s, n, o, p) {
   if (!(s instanceof Uint8Array) || s.length < 8)
     throw new re("PBES2 Salt Input must be 8 or more octets");
   if (!Number.isSafeInteger(o) || Math.sign(o) !== 1)
     throw new re("PBES2 Count Input must be a positive integer");
-  let c = Wr(Rr(n), Uint8Array.of(0), s),
-    m = parseInt(n.slice(13, 16), 10),
-    h = { hash: `SHA-${n.slice(8, 11)}`, iterations: o, name: "PBKDF2", salt: c },
+  let c = Ur(Cr(n), Uint8Array.of(0), s),
+    l = parseInt(n.slice(13, 16), 10),
+    y = { hash: `SHA-${n.slice(8, 11)}`, iterations: o, name: "PBKDF2", salt: c },
     I = await ct(p, dt(n).subtle, "deriveBits");
-  return new Uint8Array(await crypto.subtle.deriveBits(h, I, m));
+  return new Uint8Array(await crypto.subtle.deriveBits(y, I, l));
 }
-function za(s) {
-  return Wr(vi(s.length), s);
+function Ba(s) {
+  return Ur(gi(s.length), s);
 }
-async function Ao(s, n, o) {
+async function xo(s, n, o) {
   let p = n >> 3,
     c = 32,
-    m = Math.ceil(p / c),
-    h = new Uint8Array(m * c);
-  for (let I = 1; I <= m; I++) {
-    let N = await wn("sha256", Wr(vi(I), s, o));
-    h.set(N, (I - 1) * c);
+    l = Math.ceil(p / c),
+    y = new Uint8Array(l * c);
+  for (let I = 1; I <= l; I++) {
+    let N = await In("sha256", Ur(gi(I), s, o));
+    y.set(N, (I - 1) * c);
   }
-  return h.slice(0, p);
+  return y.slice(0, p);
 }
-async function Cn(s, n, o, p, c = new Uint8Array(), m = new Uint8Array()) {
-  (cn(s), cn(n, "deriveBits"));
-  let h = Wr(za(Rr(o)), za(c), za(m), vi(p)),
+async function Fn(s, n, o, p, c = new Uint8Array(), l = new Uint8Array()) {
+  (mn(s), mn(n, "deriveBits"));
+  let y = Ur(Ba(Cr(o)), Ba(c), Ba(l), gi(p)),
     I = new Uint8Array(
       await crypto.subtle.deriveBits(
         { name: s.algorithm.name, public: s },
@@ -536,46 +536,46 @@ async function Cn(s, n, o, p, c = new Uint8Array(), m = new Uint8Array()) {
           : Math.ceil(parseInt(s.algorithm.namedCurve.slice(-3), 10) / 8) << 3,
       ),
     );
-  return Ao(I, p, h);
+  return xo(I, p, y);
 }
-function Jn(s) {
-  Ii(s);
+function Hn(s) {
+  bi(s);
   let n = s.algorithm.namedCurve;
   if (n !== "P-256" && n !== "P-384" && n !== "P-521" && s.algorithm.name !== "X25519")
-    throw new lr(
+    throw new mr(
       "ECDH with the provided key is not allowed or not supported by your javascript runtime",
     );
 }
-function ga(s, n) {
+function Pa(s, n) {
   let o = s[n];
   if (o !== void 0) {
     if (typeof o != "string")
       throw new re(`JOSE Header "${n}" (Agreement Party${n === "apu" ? "U" : "V"}Info) invalid`);
-    return Vr(o, n, re);
+    return Tr(o, n, re);
   }
 }
-function Fn(s, n) {
+function Wn(s, n) {
   if (!(s === void 0 || n === void 0 || s.byteLength !== n.byteLength)) {
     for (let o = 0; o < s.byteLength; o++) if (s[o] !== n[o]) return;
     throw new re('JOSE Header "apu" and "apv" values must be distinct');
   }
 }
-function Do(s) {
+function Eo(s) {
   if (s === void 0) throw new re("JWE Encrypted Key missing");
 }
-function dn(s) {
+function ln(s) {
   if (s !== void 0) throw new re("Encountered unexpected JWE Encrypted Key");
 }
-function xo(s) {
+function So(s) {
   if (s !== void 0 && s !== 1 / 0 && (!Number.isSafeInteger(s) || s < 1))
     throw new TypeError("maxPBES2Count must be a positive safe integer or Infinity");
 }
-async function Eo(s, n, o, p, c, m) {
-  let { alg: h } = s,
+async function _o(s, n, o, p, c, l) {
+  let { alg: y } = s,
     I = s.mode;
-  if (I === "direct-encryption") return (dn(p), o);
+  if (I === "direct-encryption") return (ln(p), o);
   let N = I === "direct-key-agreement";
-  switch ((N ? dn(p) : Do(p), s.subtle.name)) {
+  switch ((N ? ln(p) : Eo(p), s.subtle.name)) {
     case "ECDH": {
       let { epk: O } = c;
       if (
@@ -583,32 +583,32 @@ async function Eo(s, n, o, p, c, m) {
         ["d", "k", "p", "q", "dp", "dq", "qi", "oth", "priv"].some((G) => Object.hasOwn(O, G))
       )
         throw new re('JOSE Header "epk" (Ephemeral Public Key) missing or invalid');
-      Jn(o);
+      Hn(o);
       let _ = await kt(s, O),
-        B = ga(c, "apu"),
-        J = ga(c, "apv");
-      Fn(B, J);
-      let C = await Cn(_, o, N ? n.alg : h, N ? n.cekBits : parseInt(h.slice(-5, -2), 10), B, J);
+        B = Pa(c, "apu"),
+        J = Pa(c, "apv");
+      Wn(B, J);
+      let C = await Fn(_, o, N ? n.alg : y, N ? n.cekBits : parseInt(y.slice(-5, -2), 10), B, J);
       if (N) return C;
       o = C;
       break;
     }
     case "RSA-OAEP":
       return (
-        Ii(o),
-        qn(h, o, "decrypt"),
+        bi(o),
+        Cn(y, o, "decrypt"),
         new Uint8Array(await crypto.subtle.decrypt("RSA-OAEP", o, p))
       );
     case "PBKDF2": {
       if (typeof c.p2c != "number")
         throw new re('JOSE Header "p2c" (PBES2 Count) missing or invalid');
-      xo(m);
-      let O = m ?? 1e4;
+      So(l);
+      let O = l ?? 1e4;
       if (c.p2c > O) throw new re('JOSE Header "p2c" (PBES2 Count) out is of acceptable bounds');
       if (typeof c.p2s != "string")
         throw new re('JOSE Header "p2s" (PBES2 Salt) missing or invalid');
-      let _ = Vr(c.p2s, "p2s", re);
-      o = await Rn(_, h, c.p2c, o);
+      let _ = Tr(c.p2s, "p2s", re);
+      o = await Jn(_, y, c.p2c, o);
       break;
     }
     case "AES-GCM": {
@@ -616,53 +616,53 @@ async function Eo(s, n, o, p, c, m) {
         throw new re('JOSE Header "iv" (Initialization Vector) missing or invalid');
       if (typeof c.tag != "string")
         throw new re('JOSE Header "tag" (Authentication Tag) missing or invalid');
-      let O = Vr(c.iv, "iv", re),
-        _ = Vr(c.tag, "tag", re);
+      let O = Tr(c.iv, "iv", re),
+        _ = Tr(c.tag, "tag", re);
       if (O.byteLength !== 12) throw new re("Invalid Initialization Vector length");
       if (_.byteLength !== 16) throw new re("Invalid Authentication Tag length");
-      return Vn(Ea(h.slice(0, -2)), o, p, O, _, new Uint8Array());
+      return Rn(Sa(y.slice(0, -2)), o, p, O, _, new Uint8Array());
     }
   }
-  return bo(h.slice(-6), o, p);
+  return Do(y.slice(-6), o, p);
 }
-async function Hn(s, n, o, p, c, m = {}) {
-  let { alg: h, mode: I } = s,
+async function Un(s, n, o, p, c, l = {}) {
+  let { alg: y, mode: I } = s,
     N = nt(s);
   if (c !== void 0 && !N)
     throw new TypeError(
-      `setContentEncryptionKey cannot be called with JWE "alg" (Algorithm) Header ${h}`,
+      `setContentEncryptionKey cannot be called with JWE "alg" (Algorithm) Header ${y}`,
     );
   let O = await wt(I === "direct-encryption" ? n : s, o, "encrypt");
   if (I === "direct-encryption") return [O, void 0, void 0];
-  let _ = N ? (c ?? va(n)) : void 0;
-  _ && xi(_, n.cekBits);
+  let _ = N ? (c ?? ga(n)) : void 0;
+  _ && Ei(_, n.cekBits);
   let B, J;
   switch (s.subtle.name) {
     case "ECDH": {
-      Jn(O);
-      let { apu: C, apv: G } = m;
-      (C !== void 0 && Cr(C, '"apu"'), G !== void 0 && Cr(G, '"apv"'));
-      let de = C ?? ga(p, "apu"),
-        ue = G ?? ga(p, "apv");
-      Fn(de, ue);
-      let me;
-      m.epk !== void 0
-        ? (me = await wt(s, m.epk, "decrypt"))
-        : (me = (await crypto.subtle.generateKey(O.algorithm, !0, ["deriveBits"])).privateKey);
+      Hn(O);
+      let { apu: C, apv: G } = l;
+      (C !== void 0 && Jr(C, '"apu"'), G !== void 0 && Jr(G, '"apv"'));
+      let de = C ?? Pa(p, "apu"),
+        ue = G ?? Pa(p, "apv");
+      Wn(de, ue);
+      let le;
+      l.epk !== void 0
+        ? (le = await wt(s, l.epk, "decrypt"))
+        : (le = (await crypto.subtle.generateKey(O.algorithm, !0, ["deriveBits"])).privateKey);
       let Y = crypto.subtle,
-        se = me;
+        se = le;
       if (!se.extractable) {
         if (typeof Y.getPublicKey != "function")
           throw new TypeError('CryptoKey for "epk" must be extractable');
-        se = await Y.getPublicKey(me, []);
+        se = await Y.getPublicKey(le, []);
       }
       let { x: be, y: Q, crv: ar, kty: We } = await Y.exportKey("jwk", se),
         Ce = I === "direct-key-agreement",
-        br = await Cn(
+        Ar = await Fn(
           O,
-          me,
-          Ce ? n.alg : h,
-          Ce ? n.cekBits : parseInt(h.slice(-5, -2), 10),
+          le,
+          Ce ? n.alg : y,
+          Ce ? n.cekBits : parseInt(y.slice(-5, -2), 10),
           de,
           ue,
         ),
@@ -674,92 +674,92 @@ async function Hn(s, n, o, p, c, m = {}) {
         G !== void 0 && (J.apv = tr(G)),
         Ce)
       )
-        return [br, void 0, J];
-      O = br;
+        return [Ar, void 0, J];
+      O = Ar;
       break;
     }
     case "RSA-OAEP": {
-      (Ii(O),
-        qn(h, O, "encrypt"),
+      (bi(O),
+        Cn(y, O, "encrypt"),
         (B = new Uint8Array(await crypto.subtle.encrypt("RSA-OAEP", O, _))));
       break;
     }
     case "PBKDF2": {
-      let { p2c: C = 2048, p2s: G = crypto.getRandomValues(new Uint8Array(16)) } = m;
-      ((O = await Rn(G, h, C, O)), (J = { p2c: C, p2s: tr(G) }));
+      let { p2c: C = 2048, p2s: G = crypto.getRandomValues(new Uint8Array(16)) } = l;
+      ((O = await Jn(G, y, C, O)), (J = { p2c: C, p2s: tr(G) }));
       break;
     }
     case "AES-GCM": {
-      let C = m.iv === void 0 ? crypto.getRandomValues(new Uint8Array(12)) : m.iv;
+      let C = l.iv === void 0 ? crypto.getRandomValues(new Uint8Array(12)) : l.iv;
       if (!(C instanceof Uint8Array)) throw new TypeError('"iv" must be an instance of Uint8Array');
-      let G = await On(Ea(h.slice(0, -2)), _, O, C, new Uint8Array());
+      let G = await Tn(Sa(y.slice(0, -2)), _, O, C, new Uint8Array());
       ((B = G.ciphertext), (J = { iv: tr(G.iv), tag: tr(G.tag) }));
     }
   }
-  if (((B ??= await Io(h.slice(-6), O, _)), !(B instanceof Uint8Array) || !B.byteLength))
+  if (((B ??= await Ao(y.slice(-6), O, _)), !(B instanceof Uint8Array) || !B.byteLength))
     throw new TypeError("JWE key management algorithm did not produce an Encrypted Key");
   return [_, B, J];
 }
-function Wn(s, n) {
+function zn(s, n) {
   if (s.zip !== void 0 && s.zip !== "DEF")
-    throw new lr('Unsupported JWE "zip" (Compression Algorithm) Header Parameter value.');
+    throw new mr('Unsupported JWE "zip" (Compression Algorithm) Header Parameter value.');
   if (s.zip !== void 0 && !n?.zip)
     throw new re(
       'JWE "zip" (Compression Algorithm) Header Parameter MUST be in a protected header.',
     );
 }
-function Un(s) {
+function Bn(s) {
   if (typeof globalThis[s] > "u")
-    throw new lr(`JWE "zip" (Compression Algorithm) Header Parameter requires the ${s} API.`);
+    throw new mr(`JWE "zip" (Compression Algorithm) Header Parameter requires the ${s} API.`);
 }
-async function zn(s, n, o = 1 / 0) {
+async function Zn(s, n, o = 1 / 0) {
   let p = s.writable.getWriter();
   (p.write(n).catch(() => {}), p.close().catch(() => {}));
   let c = [],
-    m = 0,
-    h = s.readable.getReader();
+    l = 0,
+    y = s.readable.getReader();
   for (;;) {
-    let { value: I, done: N } = await h.read();
+    let { value: I, done: N } = await y.read();
     if (N) break;
-    if ((c.push(I), (m += I.byteLength), o !== 1 / 0 && m > o))
+    if ((c.push(I), (l += I.byteLength), o !== 1 / 0 && l > o))
       throw new re("Decompressed plaintext exceeded the configured limit");
   }
-  return Wr(...c);
+  return Ur(...c);
 }
-async function So(s) {
-  return (Un("CompressionStream"), zn(new CompressionStream("deflate-raw"), s));
+async function No(s) {
+  return (Bn("CompressionStream"), Zn(new CompressionStream("deflate-raw"), s));
 }
-async function _o(s, n) {
-  return (Un("DecompressionStream"), zn(new DecompressionStream("deflate-raw"), s, n));
+async function Ko(s, n) {
+  return (Bn("DecompressionStream"), Zn(new DecompressionStream("deflate-raw"), s, n));
 }
-function Bn(s) {
-  let { aad: n, ciphertext: o, iv: p, protected: c, tag: m, unprotected: h } = s;
+function Mn(s) {
+  let { aad: n, ciphertext: o, iv: p, protected: c, tag: l, unprotected: y } = s;
   if (p !== void 0 && (typeof p != "string" || !p))
     throw new re("JWE Initialization Vector incorrect type");
   if (typeof o != "string") throw new re("JWE Ciphertext missing or incorrect type");
-  if (m !== void 0 && (typeof m != "string" || !m))
+  if (l !== void 0 && (typeof l != "string" || !l))
     throw new re("JWE Authentication Tag incorrect type");
   if (c !== void 0 && typeof c != "string") throw new re("JWE Protected Header incorrect type");
   if (n !== void 0 && (typeof n != "string" || !n)) throw new re("JWE AAD incorrect type");
-  if (h !== void 0 && !Be(h)) throw new re("JWE Shared Unprotected Header incorrect type");
+  if (y !== void 0 && !Be(y)) throw new re("JWE Shared Unprotected Header incorrect type");
   return {
     aad: n,
     ciphertext: o,
     iv: p,
     protected: c,
-    tag: m,
-    unprotected: h === void 0 ? void 0 : { ...h },
+    tag: l,
+    unprotected: y === void 0 ? void 0 : { ...y },
   };
 }
-function Zn(s) {
+function Gn(s) {
   let n, o;
   try {
     let { header: p } = s;
     if (Be(p)) {
       o = p.alg;
-      let m = Object.keys(p);
-      (m.includes("alg") || (o = void 0),
-        (n = Object.fromEntries(m.map((h) => [h, h === "alg" ? o : p[h]]))));
+      let l = Object.keys(p);
+      (l.includes("alg") || (o = void 0),
+        (n = Object.fromEntries(l.map((y) => [y, y === "alg" ? o : p[y]]))));
     } else n = p;
     let { encrypted_key: c } = s;
     return [{ encrypted_key: c, header: n }, o];
@@ -767,50 +767,50 @@ function Zn(s) {
     return [void 0, o, p];
   }
 }
-function Mn(s) {
+function Xn(s) {
   let { encrypted_key: n, header: o } = s;
   if (n !== void 0 && typeof n != "string") throw new re("JWE Encrypted Key incorrect type");
   if (o !== void 0 && !Be(o)) throw new re("JWE Per-Recipient Unprotected Header incorrect type");
   if (s.protected === void 0 && o === void 0 && s.unprotected === void 0)
     throw new re("JOSE Header missing");
 }
-function Gn(s) {
-  let { protected: n, ciphertext: o, iv: p, tag: c, aad: m } = s,
-    h;
+function Yn(s) {
+  let { protected: n, ciphertext: o, iv: p, tag: c, aad: l } = s,
+    y;
   return (
-    n !== void 0 && (h = Aa(n, re, "JWE Protected Header is invalid")),
+    n !== void 0 && (y = Da(n, re, "JWE Protected Header is invalid")),
     [
-      h,
-      Vr(o, "ciphertext", re),
-      p !== void 0 ? Vr(p, "iv", re) : void 0,
-      c !== void 0 ? Vr(c, "tag", re) : void 0,
-      Dn((n ?? "") + (m !== void 0 ? `.${m}` : ""), "aad", re),
+      y,
+      Tr(o, "ciphertext", re),
+      p !== void 0 ? Tr(p, "iv", re) : void 0,
+      c !== void 0 ? Tr(c, "tag", re) : void 0,
+      En((n ?? "") + (l !== void 0 ? `.${l}` : ""), "aad", re),
     ]
   );
 }
-function Sa(s) {
+function _a(s) {
   return [
-    s && ni("keyManagementAlgorithms", s.keyManagementAlgorithms),
-    s && ni("contentEncryptionAlgorithms", s.contentEncryptionAlgorithms),
+    s && si("keyManagementAlgorithms", s.keyManagementAlgorithms),
+    s && si("contentEncryptionAlgorithms", s.contentEncryptionAlgorithms),
     s?.crit,
     s?.maxPBES2Count,
     s?.maxDecompressedLength,
   ];
 }
-async function Si(s, n, o, p = Gn(s)) {
-  let [c, m, h, I, N] = p,
+async function _i(s, n, o, p = Yn(s)) {
+  let [c, l, y, I, N] = p,
     { header: O, unprotected: _, aad: B } = s,
     J;
   if (O !== void 0 || _ !== void 0) {
-    if (!ba(c, O, _))
+    if (!Aa(c, O, _))
       throw new re(
         "JWE Protected, JWE Unprotected Header, and JWE Per-Recipient Unprotected Header Parameter names must be disjoint",
       );
     J = { ...c, ...O, ..._ };
   } else J = c ?? {};
-  let [C, G, de, ue, me] = n,
+  let [C, G, de, ue, le] = n,
     { encrypted_key: Y } = s;
-  (Vt(re, xn, de, c, J), Wn(J, c));
+  (Vt(re, Sn, de, c, J), zn(J, c));
   let { alg: se, enc: be } = J;
   if (typeof se != "string" || !se) throw new re("missing JWE Algorithm (alg) in JWE Header");
   let Q = Tt[se];
@@ -826,137 +826,137 @@ async function Si(s, n, o, p = Gn(s)) {
       throw new re(
         'JWE "enc" (Encryption Algorithm) Header Parameter must not be present for integrated encryption',
       );
-    if (h?.byteLength)
+    if (y?.byteLength)
       throw new re("JWE Initialization Vector must be empty for integrated encryption");
     if (I?.byteLength)
       throw new re("JWE Authentication Tag must be empty for integrated encryption");
   } else {
     if (G && !G.has(be))
       throw new ha('"enc" (Encryption Algorithm) Header Parameter value not allowed');
-    We = Ea(be);
+    We = Sa(be);
   }
   let Ce;
   if (Y !== void 0)
     try {
-      Ce = Vr(Y, "encrypted_key", re);
+      Ce = Tr(Y, "encrypted_key", re);
     } catch (ir) {
       if (!Q || !nt(Q)) throw ir;
       Ce = new Uint8Array();
     }
-  let br = !1;
-  typeof o == "function" && ((o = await o(c, s)), (br = !0));
+  let Ar = !1;
+  typeof o == "function" && ((o = await o(c, s)), (Ar = !0));
   let ge = Q ?? dt(se);
   nt(ge) && Ce === void 0 && (Ce = new Uint8Array());
-  let mr = await wt(ge.mode === "direct-encryption" ? We : ge, o, "decrypt"),
+  let lr = await wt(ge.mode === "direct-encryption" ? We : ge, o, "decrypt"),
     Le;
-  if (ge.mode === "integrated-encryption") Le = await ge.decrypt(mr, Ce, m, N, c, J);
+  if (ge.mode === "integrated-encryption") Le = await ge.decrypt(lr, Ce, l, N, c, J);
   else {
     let ir = We,
-      Kr;
+      jr;
     try {
-      ((Kr = await Eo(ge, ir, mr, Ce, J, ue)),
-        nt(ge) && Kr instanceof Uint8Array && Kr.byteLength << 3 !== ir.cekBits && (Kr = va(ir)));
+      ((jr = await _o(ge, ir, lr, Ce, J, ue)),
+        nt(ge) && jr instanceof Uint8Array && jr.byteLength << 3 !== ir.cekBits && (jr = ga(ir)));
     } catch (ie) {
-      if (ie instanceof TypeError || ie instanceof re || ie instanceof lr) throw ie;
-      Kr = va(ir);
+      if (ie instanceof TypeError || ie instanceof re || ie instanceof mr) throw ie;
+      jr = ga(ir);
     }
-    Le = await Vn(ir, Kr, m, h, I, N);
+    Le = await Rn(ir, jr, l, y, I, N);
   }
   if (J.zip === "DEF") {
-    let ir = me ?? 25e4;
+    let ir = le ?? 25e4;
     if (ir === 0)
-      throw new lr('JWE "zip" (Compression Algorithm) Header Parameter is not supported.');
+      throw new mr('JWE "zip" (Compression Algorithm) Header Parameter is not supported.');
     if (ir !== 1 / 0 && (!Number.isSafeInteger(ir) || ir < 1))
       throw new TypeError("maxDecompressedLength must be 0, a positive safe integer, or Infinity");
-    Le = await _o(Le, ir).catch((Kr) => {
-      throw Kr instanceof re ? Kr : new re("Failed to decompress plaintext", { cause: Kr });
+    Le = await Ko(Le, ir).catch((jr) => {
+      throw jr instanceof re ? jr : new re("Failed to decompress plaintext", { cause: jr });
     });
   }
   return {
     plaintext: Le,
     ...(c && { protectedHeader: c }),
-    ...(B !== void 0 && { additionalAuthenticatedData: Vr(B, "aad", re) }),
+    ...(B !== void 0 && { additionalAuthenticatedData: Tr(B, "aad", re) }),
     ...(_ && { sharedUnprotectedHeader: _ }),
     ...(O && { unprotectedHeader: O }),
-    ...(br && { key: mr }),
+    ...(Ar && { key: lr }),
   };
 }
-async function Xn(s, n, o) {
-  if ((s instanceof Uint8Array && (s = ui.decode(s)), typeof s != "string"))
+async function Qn(s, n, o) {
+  if ((s instanceof Uint8Array && (s = fi.decode(s)), typeof s != "string"))
     throw new re("Compact JWE must be a string or Uint8Array");
-  let { 0: p, 1: c, 2: m, 3: h, 4: I, length: N } = s.split(".");
+  let { 0: p, 1: c, 2: l, 3: y, 4: I, length: N } = s.split(".");
   if (N !== 5) throw new re("Invalid Compact JWE");
-  return Si(
-    { ciphertext: h, iv: m || void 0, protected: p, tag: I || void 0, encrypted_key: c || void 0 },
+  return _i(
+    { ciphertext: y, iv: l || void 0, protected: p, tag: I || void 0, encrypted_key: c || void 0 },
     n,
     o,
   );
 }
-async function No(s, n, o) {
-  return Xn(s, Sa(o), n);
+async function jo(s, n, o) {
+  return Qn(s, _a(o), n);
 }
-async function Ko(s, n, o) {
+async function $o(s, n, o) {
   if (!Be(s)) throw new re("Flattened JWE must be an object");
-  let p = Bn(s),
-    [c, , m] = Zn(s);
-  if (!c) throw m;
-  let h = { ...p, ...c };
-  return (Mn(h), Si(h, Sa(o), n));
+  let p = Mn(s),
+    [c, , l] = Gn(s);
+  if (!c) throw l;
+  let y = { ...p, ...c };
+  return (Xn(y), _i(y, _a(o), n));
 }
-async function Yn(s, n, o) {
+async function es(s, n, o) {
   if (!Be(s)) throw new re("General JWE must be an object");
   let p = s.recipients;
   if (!Array.isArray(p)) throw new re("JWE Recipients missing or incorrect type");
   let c = Array.from(p);
   if (!c.every(Be)) throw new re("JWE Recipients missing or incorrect type");
   if (!c.length) throw new re("JWE Recipients has no members");
-  let m, h, I;
+  let l, y, I;
   try {
-    ((m = Sa(o)), (h = Bn(s)), (I = Gn(h)));
+    ((l = _a(o)), (y = Mn(s)), (I = Yn(y)));
   } catch {
     throw new Nt();
   }
-  let N = c.map((O) => Zn(O));
+  let N = c.map((O) => Gn(O));
   if (c.length > 1)
     for (let [, O] of N) {
-      let _ = I[0]?.alg ?? O ?? h.unprotected?.alg,
+      let _ = I[0]?.alg ?? O ?? y.unprotected?.alg,
         B = typeof _ == "string" ? Tt[_] : void 0;
       if (B && !nt(B)) throw new re(`"${_}" alg may only have a single recipient`);
     }
   for (let [O] of N)
     if (O)
       try {
-        let _ = { ...h, ...O };
-        return (Mn(_), await Si(_, m, n, I));
+        let _ = { ...y, ...O };
+        return (Xn(_), await _i(_, l, n, I));
       } catch {}
   throw new Nt();
 }
-function _i(s, n, o) {
-  if (!ba(s, n, o))
+function Ni(s, n, o) {
+  if (!Aa(s, n, o))
     throw new re(
       "JWE Protected, JWE Shared Unprotected and JWE Per-Recipient Header Parameter names must be disjoint",
     );
 }
-function Qn(s, n, o = !1) {
+function rs(s, n, o = !1) {
   if (!s[1] && !s[2] && !s[3])
     throw new re(
       "either setProtectedHeader, setUnprotectedHeader, or sharedUnprotectedHeader must be called before #encrypt()",
     );
   n !== void 0 && (s[8] = n?.crit);
-  let [, p, c, m, h, I, N, O, _] = s;
+  let [, p, c, l, y, I, N, O, _] = s;
   if (
-    (h !== void 0 && Cr(h, "JWE Additional Authenticated Data"),
-    I !== void 0 && Cr(I, "JWE Content Encryption Key"),
-    N !== void 0 && Cr(N, "JWE Initialization Vector"),
+    (y !== void 0 && Jr(y, "JWE Additional Authenticated Data"),
+    I !== void 0 && Jr(I, "JWE Content Encryption Key"),
+    N !== void 0 && Jr(N, "JWE Initialization Vector"),
     !o && p !== void 0 && ((p = St(re, p)[0]), (s[1] = p)),
     c !== void 0 && ((c = St(re, c)[0]), (s[2] = c)),
-    !o && m !== void 0 && ((m = St(re, m)[0]), (s[3] = m)),
+    !o && l !== void 0 && ((l = St(re, l)[0]), (s[3] = l)),
     O !== void 0 && !Be(O))
   )
     throw new TypeError("JWE Key Management Parameters must be an object");
-  _i(p, c, m);
-  let B = { ...p, ...c, ...m };
-  (En(re, p), Vt(re, xn, _, p, B), Wn(B, p));
+  Ni(p, c, l);
+  let B = { ...p, ...c, ...l };
+  (_n(re, p), Vt(re, Sn, _, p, B), zn(B, p));
   let { alg: J, enc: C } = B;
   if (typeof J != "string" || !J)
     throw new re('JWE "alg" (Algorithm) Header Parameter missing or invalid');
@@ -978,37 +978,37 @@ function Qn(s, n, o = !1) {
   }
   if (typeof C != "string" || !C)
     throw new re('JWE "enc" (Encryption Algorithm) Header Parameter missing or invalid');
-  return [B, Ea(C), G];
+  return [B, Sa(C), G];
 }
-async function es(s, n, o) {
-  let [p, c, m] = n,
-    [h, I, N, O, _, B, J, C, , G] = s,
+async function ts(s, n, o) {
+  let [p, c, l] = n,
+    [y, I, N, O, _, B, J, C, , G] = s,
     de = I,
     ue = N,
-    me = m ?? dt(p.alg),
+    le = l ?? dt(p.alg),
     Y,
     se,
     be;
-  (me.mode === "integrated-encryption"
-    ? (be = await wt(me, o, "encrypt"))
-    : ([be, Y, se] = await Hn(me, c, o, p, B, C)),
+  (le.mode === "integrated-encryption"
+    ? (be = await wt(le, o, "encrypt"))
+    : ([be, Y, se] = await Un(le, c, o, p, B, C)),
     se &&
-      (G ? (ue = ue ? { ...ue, ...se } : se) : (de = de ? { ...de, ...se } : se), _i(de, ue, O)));
+      (G ? (ue = ue ? { ...ue, ...se } : se) : (de = de ? { ...de, ...se } : se), Ni(de, ue, O)));
   let Q = de ? tr(JSON.stringify(de)) : "",
     ar = _?.byteLength ? tr(_) : void 0,
-    We = Rr(ar ? `${Q}.${ar}` : Q),
-    Ce = h;
+    We = Cr(ar ? `${Q}.${ar}` : Q),
+    Ce = y;
   p.zip === "DEF" &&
-    (Ce = await So(Ce).catch((ir) => {
+    (Ce = await No(Ce).catch((ir) => {
       throw new re("Failed to compress plaintext", { cause: ir });
     }));
-  let br, ge, mr;
-  me.mode === "integrated-encryption"
-    ? ([Y, br] = await me.encrypt(be, Ce, We, de, p, C))
-    : ({ ciphertext: br, tag: ge, iv: mr } = await On(c, Ce, be, J, We));
-  let Le = { ciphertext: tr(br) };
+  let Ar, ge, lr;
+  le.mode === "integrated-encryption"
+    ? ([Y, Ar] = await le.encrypt(be, Ce, We, de, p, C))
+    : ({ ciphertext: Ar, tag: ge, iv: lr } = await Tn(c, Ce, be, J, We));
+  let Le = { ciphertext: tr(Ar) };
   return (
-    mr && (Le.iv = tr(mr)),
+    lr && (Le.iv = tr(lr)),
     ge && (Le.tag = tr(ge)),
     Y?.byteLength && (Le.encrypted_key = tr(Y)),
     ar && (Le.aad = ar),
@@ -1018,15 +1018,15 @@ async function es(s, n, o) {
     Le
   );
 }
-async function Ni(s, n, o) {
-  return es(s, Qn(s, o), n);
+async function Ki(s, n, o) {
+  return ts(s, rs(s, o), n);
 }
-function rs(s) {
+function as(s) {
   return [s.protected, s.encrypted_key, s.iv, s.ciphertext, s.tag].join(".");
 }
-function Ba(s) {
+function Za(s) {
   let n = { name: "HMAC", hash: `SHA-${s}` };
-  return { kty: ["oct"], secret: !0, subtle: n, signing: n, usages: qt };
+  return { kty: ["oct"], secret: !0, subtle: n, signing: n, usages: Rt };
 }
 function ft(s, n) {
   let o = { name: n ? "RSA-PSS" : "RSASSA-PKCS1-v1_5", hash: `SHA-${s}` };
@@ -1034,40 +1034,40 @@ function ft(s, n) {
     kty: ["RSA"],
     subtle: o,
     signing: n ? { ...o, saltLength: n } : o,
-    usages: qt,
+    usages: Rt,
     minRsaBits: 2048,
   };
 }
-function Za(s, n) {
+function Ma(s, n) {
   return {
     kty: ["EC"],
     crv: s,
     subtle: { name: "ECDSA", namedCurve: s },
     signing: { name: "ECDSA", hash: `SHA-${n}` },
-    usages: qt,
+    usages: Rt,
   };
 }
-function ln() {
+function yn() {
   let s = { name: "Ed25519" };
-  return { kty: ["OKP"], crv: "Ed25519", subtle: s, signing: s, usages: qt };
+  return { kty: ["OKP"], crv: "Ed25519", subtle: s, signing: s, usages: Rt };
 }
-function Ma(s) {
+function Ga(s) {
   let n = { name: `ML-DSA-${s}` };
-  return { kty: ["AKP"], subtle: n, signing: n, usages: qt };
+  return { kty: ["AKP"], subtle: n, signing: n, usages: Rt };
 }
-function ji(s) {
-  let n = typeof s == "string" ? Ki[s] : void 0;
-  if (!n) throw new lr(`alg ${s} is not supported either by JOSE or your javascript runtime`);
+function $i(s) {
+  let n = typeof s == "string" ? ji[s] : void 0;
+  if (!n) throw new mr(`alg ${s} is not supported either by JOSE or your javascript runtime`);
   return n;
 }
-function as(s, n) {
+function ns(s, n) {
   let o = s.protected,
     p = s.header,
     c = Be(p) ? { ...p } : p,
-    m = n ? n[0] : s.payload;
-  !n && m instanceof Uint8Array && (m = new Uint8Array(m));
-  let h = s.signature,
-    I = { payload: m, signature: h };
+    l = n ? n[0] : s.payload;
+  !n && l instanceof Uint8Array && (l = new Uint8Array(l));
+  let y = s.signature,
+    I = { payload: l, signature: y };
   if (
     (o !== void 0 && (I.protected = o),
     p !== void 0 && (I.header = c),
@@ -1075,18 +1075,18 @@ function as(s, n) {
   )
     throw new Pe('Flattened JWS must have either of the "protected" or "header" members');
   if (o !== void 0 && typeof o != "string") throw new Pe("JWS Protected Header incorrect type");
-  if (m === void 0) throw new Pe("JWS Payload missing");
-  if (typeof h != "string") throw new Pe("JWS Signature missing or incorrect type");
+  if (l === void 0) throw new Pe("JWS Payload missing");
+  if (typeof y != "string") throw new Pe("JWS Signature missing or incorrect type");
   if (c !== void 0 && !Be(c)) throw new Pe("JWS Unprotected Header incorrect type");
   return I;
 }
-function _a(s) {
-  return [s && ni("algorithms", s.algorithms), s?.crit];
+function Na(s) {
+  return [s && si("algorithms", s.algorithms), s?.crit];
 }
-function is(s) {
-  return s === void 0 ? {} : Aa(s, Pe, "JWS Protected Header is invalid");
+function ss(s) {
+  return s === void 0 ? {} : Da(s, Pe, "JWS Protected Header is invalid");
 }
-function ns(s) {
+function os(s) {
   let n = /[\p{Cs}\p{Cn}]/u.exec(s)?.[0];
   if (n !== void 0)
     throw new Pe(
@@ -1096,20 +1096,20 @@ function ns(s) {
     );
   return Ot.encode(s);
 }
-function $o(s) {
+function Oo(s) {
   try {
-    return Rr(s);
+    return Cr(s);
   } catch (n) {
     throw new Pe("JWS Compact Serialization payload must use only ASCII characters", { cause: n });
   }
 }
-async function $i(s, n, o, p, c) {
-  let { protected: m, header: h, payload: I } = s,
-    N = c ?? is(m);
-  if (!ba(N, h))
+async function Li(s, n, o, p, c) {
+  let { protected: l, header: y, payload: I } = s,
+    N = c ?? ss(l);
+  if (!Aa(N, y))
     throw new Pe("JWS Protected and JWS Unprotected Header Parameter names must be disjoint");
-  let O = { ...N, ...h },
-    _ = ki(N, Vt(Pe, wi, n[1], N, O)),
+  let O = { ...N, ...y },
+    _ = Ii(N, Vt(Pe, ki, n[1], N, O)),
     { alg: B } = O;
   if (typeof B != "string" || !B)
     throw new Pe('JWS "alg" (Algorithm) Header Parameter missing or invalid');
@@ -1121,16 +1121,16 @@ async function $i(s, n, o, p, c) {
   let J = _ || typeof I != "string" ? I : p(I),
     C = !1;
   typeof o == "function" && ((o = await o(N, s)), (C = !0));
-  let G = ji(B),
-    de = Wr(
-      m !== void 0 ? Rr(m) : new Uint8Array(),
-      Rr("."),
-      typeof J == "string" ? (n[2] ??= Dn(J, "payload", Pe)) : J,
+  let G = $i(B),
+    de = Ur(
+      l !== void 0 ? Cr(l) : new Uint8Array(),
+      Cr("."),
+      typeof J == "string" ? (n[2] ??= En(J, "payload", Pe)) : J,
     ),
-    ue = Vr(s.signature, "signature", Pe),
-    me = await wt(G, o, "verify"),
-    Y = await ct(me, G.subtle, "verify");
-  G.minRsaBits && Ai(G.alg, Y);
+    ue = Tr(s.signature, "signature", Pe),
+    le = await wt(G, o, "verify"),
+    Y = await ct(le, G.subtle, "verify");
+  G.minRsaBits && Di(G.alg, Y);
   let se = !1;
   try {
     se = await crypto.subtle.verify(G.signing, Y, ue, de);
@@ -1138,136 +1138,136 @@ async function $i(s, n, o, p, c) {
     throw new Kt(void 0, { cause: Q });
   }
   if (!se) throw new Kt();
-  let be = { payload: typeof J == "string" ? Vr(J, "payload", Pe) : J };
+  let be = { payload: typeof J == "string" ? Tr(J, "payload", Pe) : J };
   return (
-    m !== void 0 && (be.protectedHeader = N),
-    h !== void 0 && (be.unprotectedHeader = h),
-    C ? [{ ...be, key: me }, _] : [be, _]
+    l !== void 0 && (be.protectedHeader = N),
+    y !== void 0 && (be.unprotectedHeader = y),
+    C ? [{ ...be, key: le }, _] : [be, _]
   );
 }
-async function ss(s, n, o) {
-  if ((s instanceof Uint8Array && (s = ui.decode(s)), typeof s != "string"))
+async function ps(s, n, o) {
+  if ((s instanceof Uint8Array && (s = fi.decode(s)), typeof s != "string"))
     throw new Pe("Compact JWS must be a string or Uint8Array");
-  let { 0: p, 1: c, 2: m, length: h } = s.split(".");
-  if (h !== 3) throw new Pe("Invalid Compact JWS");
-  return $i({ payload: c, protected: p, signature: m }, n, o, $o);
+  let { 0: p, 1: c, 2: l, length: y } = s.split(".");
+  if (y !== 3) throw new Pe("Invalid Compact JWS");
+  return Li({ payload: c, protected: p, signature: l }, n, o, Oo);
 }
-async function Lo(s, n, o) {
-  let [p] = await ss(s, _a(o), n);
+async function Vo(s, n, o) {
+  let [p] = await ps(s, Na(o), n);
   return p;
 }
-async function os(s, n, o) {
+async function cs(s, n, o) {
   if (!Be(s)) throw new Pe("Flattened JWS must be an object");
-  let p = as(s),
-    [c] = await $i(p, _a(o), n, ns);
+  let p = ns(s),
+    [c] = await Li(p, Na(o), n, os);
   return c;
 }
-function Oo(s, n) {
+function To(s, n) {
   try {
-    let o = as(s, [n]),
-      p = is(o.protected),
-      { b64: c, crit: m } = p;
+    let o = ns(s, [n]),
+      p = ss(o.protected),
+      { b64: c, crit: l } = p;
     return [
       o,
       p,
-      Array.isArray(m) && m.includes("b64") ? (typeof c == "boolean" ? (c ? 1 : 2) : 0) : 1,
+      Array.isArray(l) && l.includes("b64") ? (typeof c == "boolean" ? (c ? 1 : 2) : 0) : 1,
     ];
   } catch {
     return;
   }
 }
-async function Vo(s, n, o) {
+async function Ro(s, n, o) {
   if (!Be(s)) throw new Pe("General JWS must be an object");
   let { signatures: p, payload: c } = s;
   if (!Array.isArray(p)) throw new Pe("JWS Signatures missing or incorrect type");
-  let m = Array.from(p);
-  if (!m.every(Be)) throw new Pe("JWS Signatures missing or incorrect type");
-  let h;
+  let l = Array.from(p);
+  if (!l.every(Be)) throw new Pe("JWS Signatures missing or incorrect type");
+  let y;
   try {
     if (c === void 0) throw new Error();
-    h = _a(o);
+    y = Na(o);
   } catch {
     throw new Kt();
   }
   let I = c instanceof Uint8Array ? new Uint8Array(c) : c,
-    N = m.map((_) => Oo(_, I)).filter((_) => _ !== void 0),
+    N = l.map((_) => To(_, I)).filter((_) => _ !== void 0),
     O = 0;
   for (let [, , _] of N)
     if (((O |= _), O === 3)) throw new Pe("inconsistent use of JWS Unencoded Payload (RFC7797)");
   for (let _ of N)
     try {
-      let [B] = await $i(_[0], h, n, ns, _[1]);
+      let [B] = await Li(_[0], y, n, os, _[1]);
       return B;
     } catch {}
   throw new Kt();
 }
-function Ga() {
+function Xa() {
   throw new TypeError("Invalid time period format");
 }
-function Pa(s) {
-  typeof s != "string" && Ga();
-  let n = qo.exec(s);
-  (!n || (n[4] && n[1])) && Ga();
+function wa(s) {
+  typeof s != "string" && Xa();
+  let n = Co.exec(s);
+  (!n || (n[4] && n[1])) && Xa();
   let o = parseFloat(n[2]),
-    p = Math.round(o * To[n[3][0].toLowerCase()]);
-  return (Number.isFinite(p) || Ga(), n[1] === "-" || n[4] === "ago" ? -p : p);
+    p = Math.round(o * qo[n[3][0].toLowerCase()]);
+  return (Number.isFinite(p) || Xa(), n[1] === "-" || n[4] === "ago" ? -p : p);
 }
 function gt(s, n) {
   if (!Number.isFinite(n)) throw new TypeError(`Invalid ${s} input`);
   return n;
 }
-function Xa(s, n) {
+function Ya(s, n) {
   if (typeof n != "string") throw new TypeError(`"${s}" claim must be a string`);
 }
-function Ro(s) {
+function Jo(s) {
   if (
     typeof s != "string" &&
     (!Array.isArray(s) || Array.from(s).some((n) => typeof n != "string"))
   )
     throw new TypeError('"aud" claim must be a string or an array of strings');
 }
-function Ya(s, n) {
+function Qa(s, n) {
   return typeof s == "number"
     ? gt(n, s)
     : s instanceof Date
       ? gt(n, jt(s))
-      : jt(new Date()) + Pa(s);
+      : jt(new Date()) + wa(s);
 }
-function Qa(s, n, o = !1) {
+function ei(s, n, o = !1) {
   let p = s[n];
   if (!(p === void 0 && !o)) {
-    if (typeof p != "number") throw new Yr(`"${n}" claim must be a number`, s, n, "invalid");
+    if (typeof p != "number") throw new Qr(`"${n}" claim must be a number`, s, n, "invalid");
     return p;
   }
 }
-function ei(s, n) {
-  throw new Yr(`unexpected "${n}" claim value`, s, n, vt);
+function ri(s, n) {
+  throw new Qr(`unexpected "${n}" claim value`, s, n, vt);
 }
-function Li(s, n, o = {}) {
+function Oi(s, n, o = {}) {
   let p;
   try {
-    p = JSON.parse(fi.decode(n));
+    p = JSON.parse(vi.decode(n));
   } catch (Y) {
     throw new fr("JWT Claims Set must be a top-level JSON object", { cause: Y });
   }
   if (!Be(p)) throw new fr("JWT Claims Set must be a top-level JSON object");
   let { typ: c } = o;
-  if (c !== void 0 && (typeof s.typ != "string" || mn(s.typ) !== mn(c)))
-    throw new Yr('unexpected "typ" JWT header value', p, "typ", vt);
-  let { requiredClaims: m = [], issuer: h, subject: I, audience: N, maxTokenAge: O } = o,
-    _ = [...m];
+  if (c !== void 0 && (typeof s.typ != "string" || hn(s.typ) !== hn(c)))
+    throw new Qr('unexpected "typ" JWT header value', p, "typ", vt);
+  let { requiredClaims: l = [], issuer: y, subject: I, audience: N, maxTokenAge: O } = o,
+    _ = [...l];
   (O !== void 0 && _.push("iat"),
     N !== void 0 && _.push("aud"),
     I !== void 0 && _.push("sub"),
-    h !== void 0 && _.push("iss"));
+    y !== void 0 && _.push("iss"));
   for (let Y of new Set(_.reverse()))
-    if (!Object.hasOwn(p, Y)) throw new Yr(`missing required "${Y}" claim`, p, Y, "missing");
-  (h !== void 0 && !(Array.isArray(h) ? h : [h]).includes(p.iss) && ei(p, "iss"),
-    I !== void 0 && p.sub !== I && ei(p, "sub"),
-    N !== void 0 && !Co(p.aud, typeof N == "string" ? [N] : N) && ei(p, "aud"));
+    if (!Object.hasOwn(p, Y)) throw new Qr(`missing required "${Y}" claim`, p, Y, "missing");
+  (y !== void 0 && !(Array.isArray(y) ? y : [y]).includes(p.iss) && ri(p, "iss"),
+    I !== void 0 && p.sub !== I && ri(p, "sub"),
+    N !== void 0 && !Fo(p.aud, typeof N == "string" ? [N] : N) && ri(p, "aud"));
   let { clockTolerance: B } = o,
     J = 0;
-  if (typeof B == "string") J = Pa(B);
+  if (typeof B == "string") J = wa(B);
   else if (B !== void 0) {
     if (typeof B != "number") throw new TypeError("Invalid clockTolerance option type");
     J = B;
@@ -1275,27 +1275,27 @@ function Li(s, n, o = {}) {
   gt("clockTolerance option", J);
   let { currentDate: C } = o,
     G = gt("currentDate option", jt(C === void 0 ? new Date() : C)),
-    de = Qa(p, "iat", O !== void 0),
-    ue = Qa(p, "nbf");
-  if (ue !== void 0 && ue > G + J) throw new Yr('"nbf" claim timestamp check failed', p, "nbf", vt);
-  let me = Qa(p, "exp");
-  if (me !== void 0 && me <= G - J)
-    throw new ii('"exp" claim timestamp check failed', p, "exp", vt);
+    de = ei(p, "iat", O !== void 0),
+    ue = ei(p, "nbf");
+  if (ue !== void 0 && ue > G + J) throw new Qr('"nbf" claim timestamp check failed', p, "nbf", vt);
+  let le = ei(p, "exp");
+  if (le !== void 0 && le <= G - J)
+    throw new ni('"exp" claim timestamp check failed', p, "exp", vt);
   if (O !== void 0) {
     let Y = G - de,
-      se = gt("maxTokenAge option", typeof O == "number" ? O : Pa(O));
+      se = gt("maxTokenAge option", typeof O == "number" ? O : wa(O));
     if (Y - J > se)
-      throw new ii('"iat" claim timestamp check failed (too far in the past)', p, "iat", vt);
+      throw new ni('"iat" claim timestamp check failed (too far in the past)', p, "iat", vt);
     if (Y < -J)
-      throw new Yr('"iat" claim timestamp check failed (it should be in the past)', p, "iat", vt);
+      throw new Qr('"iat" claim timestamp check failed (it should be in the past)', p, "iat", vt);
   }
   return p;
 }
-function Br(s) {
-  return ps.get(s);
+function Zr(s) {
+  return ds.get(s);
 }
-function Oi(s) {
-  let n = Br(s);
+function Vi(s) {
+  let n = Zr(s);
   for (let o of ["iat", "nbf", "exp"]) {
     let p = n[o];
     if (typeof p == "number" && !Number.isFinite(p))
@@ -1303,101 +1303,101 @@ function Oi(s) {
   }
   return Ot.encode(JSON.stringify(n));
 }
-function ri(s, n) {
-  return Br(s)[n];
+function ti(s, n) {
+  return Zr(s)[n];
 }
-async function Jo(s, n, o) {
-  let [p, c] = await ss(s, _a(o), n);
+async function Ho(s, n, o) {
+  let [p, c] = await ps(s, Na(o), n);
   if (!c) throw new fr("JWTs MUST NOT use unencoded payload");
-  let m = Li(p.protectedHeader, p.payload, o);
-  return { ...p, payload: m };
+  let l = Oi(p.protectedHeader, p.payload, o);
+  return { ...p, payload: l };
 }
-async function Fo(s, n, o) {
-  let { plaintext: p, ...c } = await Xn(s, Sa(o), n),
-    { protectedHeader: m } = c,
-    h = Li(m, p, o);
+async function Wo(s, n, o) {
+  let { plaintext: p, ...c } = await Qn(s, _a(o), n),
+    { protectedHeader: l } = c,
+    y = Oi(l, p, o);
   for (let I of ["iss", "sub", "aud"])
     if (
-      m[I] !== void 0 &&
-      (I === "aud" ? JSON.stringify(m.aud) !== JSON.stringify(h.aud) : m[I] !== h[I])
+      l[I] !== void 0 &&
+      (I === "aud" ? JSON.stringify(l.aud) !== JSON.stringify(y.aud) : l[I] !== y[I])
     )
-      throw new Yr(`replicated "${I}" claim header parameter mismatch`, h, I, "mismatch");
-  return { payload: h, ...c };
+      throw new Qr(`replicated "${I}" claim header parameter mismatch`, y, I, "mismatch");
+  return { payload: y, ...c };
 }
-async function Ti(s, n, o) {
-  let [p, c, m, h] = s,
+async function Ri(s, n, o) {
+  let [p, c, l, y] = s,
     I = "";
   if (c !== void 0) {
-    let me = St(Pe, c);
-    ((c = me[0]), (I = tr(me[1])));
+    let le = St(Pe, c);
+    ((c = le[0]), (I = tr(le[1])));
   }
-  if ((m !== void 0 && (m = St(Pe, m)[0]), !c && !m))
+  if ((l !== void 0 && (l = St(Pe, l)[0]), !c && !l))
     throw new Pe("either setProtectedHeader or setUnprotectedHeader must be called before #sign()");
-  if (!ba(c, m))
+  if (!Aa(c, l))
     throw new Pe("JWS Protected and JWS Unprotected Header Parameter names must be disjoint");
-  let N = { ...c, ...m };
-  En(Pe, c);
-  let O = ki(c, Vt(Pe, wi, h, c, N));
+  let N = { ...c, ...l };
+  _n(Pe, c);
+  let O = Ii(c, Vt(Pe, ki, y, c, N));
   O || o?.();
   let { alg: _ } = N;
   if (typeof _ != "string" || !_)
     throw new Pe('JWS "alg" (Algorithm) Header Parameter missing or invalid');
-  let B = ji(_),
+  let B = $i(_),
     J = "",
     C = p,
     G;
   if (O) {
-    let me = s[4];
-    me
-      ? ((J = me[0] ??= tr(p)), (C = me[1] ??= Rr(J)))
+    let le = s[4];
+    le
+      ? ((J = le[0] ??= tr(p)), (C = le[1] ??= Cr(J)))
       : ((J = tr(p)), (G = Ot.encode(`${I}.${J}`)));
   }
-  G ??= Wr(Rr(I), Rr("."), C);
+  G ??= Ur(Cr(I), Cr("."), C);
   let de = await ct(await wt(B, n, "sign"), B.subtle, "sign");
-  B.minRsaBits && Ai(B.alg, de);
+  B.minRsaBits && Di(B.alg, de);
   let ue = {
     signature: tr(new Uint8Array(await crypto.subtle.sign(B.signing, de, G))),
     payload: J,
   };
-  return (c && (ue.protected = I), m && (ue.header = m), [ue, O]);
+  return (c && (ue.protected = I), l && (ue.header = l), [ue, O]);
 }
-async function cs(s, n, o, p, c) {
-  let [m] = await Ti([s, n, void 0, o], p, c);
-  return `${m.protected}.${m.payload}.${m.signature}`;
+async function ms(s, n, o, p, c) {
+  let [l] = await Ri([s, n, void 0, o], p, c);
+  return `${l.protected}.${l.payload}.${l.signature}`;
 }
-function Na(s = 'JWK "alg" (Algorithm) Parameter') {
-  throw new lr(`Invalid or unsupported ${s} value`);
+function Ka(s = 'JWK "alg" (Algorithm) Parameter') {
+  throw new mr(`Invalid or unsupported ${s} value`);
 }
-function wa(s, n) {
-  return (typeof s == "string" ? (Ki[s] ?? Tt[s]) : void 0) ?? Na(n);
+function ka(s, n) {
+  return (typeof s == "string" ? (ji[s] ?? Tt[s]) : void 0) ?? Ka(n);
 }
-function tp(s, n) {
-  if ((Qr(s, 48, `Invalid ${n === "spki" ? "SPKI" : "PKCS#8"} structure`), Zr(s), n === "pkcs8")) {
-    Qr(s, 2, "Expected version field");
-    let o = Zr(s);
+function ip(s, n) {
+  if ((et(s, 48, `Invalid ${n === "spki" ? "SPKI" : "PKCS#8"} structure`), Mr(s), n === "pkcs8")) {
+    et(s, 2, "Expected version field");
+    let o = Mr(s);
     s.pos += o;
   }
-  (Qr(s, 48, "Expected algorithm identifier"), Zr(s));
-}
-function sp(s) {
-  let n = ms(s);
-  Qr(n, 48, "Invalid certificate structure");
-  let o = Zr(n);
-  if (o < 0 || n.pos + o > n.data.length) throw new Error("Unexpected end of ASN.1 input");
-  (Qr(n, 48, "Invalid tbsCertificate structure"), Zr(n), s[n.pos] === 160 ? hn(n, 6) : hn(n, 5));
-  let p = n.pos;
-  Qr(n, 48, "Invalid SPKI structure");
-  let c = Zr(n);
-  return s.subarray(p, p + c + (n.pos - p));
+  (et(s, 48, "Expected algorithm identifier"), Mr(s));
 }
 function pp(s) {
-  return Qo(s);
+  let n = hs(s);
+  et(n, 48, "Invalid certificate structure");
+  let o = Mr(n);
+  if (o < 0 || n.pos + o > n.data.length) throw new Error("Unexpected end of ASN.1 input");
+  (et(n, 48, "Invalid tbsCertificate structure"), Mr(n), s[n.pos] === 160 ? un(n, 6) : un(n, 5));
+  let p = n.pos;
+  et(n, 48, "Invalid SPKI structure");
+  let c = Mr(n);
+  return s.subarray(p, p + c + (n.pos - p));
 }
-function cp(s) {
-  return ep(s);
+function dp(s) {
+  return rp(s);
 }
-async function ys(s) {
-  if (bi(s))
+function mp(s) {
+  return tp(s);
+}
+async function fs(s) {
+  if (Ai(s))
     if (s.type === "secret") s = s.export();
     else return s.export({ format: "jwk" });
   if (s instanceof Uint8Array) return { kty: "oct", k: tr(s) };
@@ -1408,80 +1408,80 @@ async function ys(s) {
   for (let o of Object.keys(n)) n[o] === void 0 && delete n[o];
   return n;
 }
-async function Ci(s, n) {
+async function Ji(s, n) {
   let o;
   if (Be(s)) {
-    if (((o = fa(s)), typeof o.kty != "string"))
+    if (((o = va(s)), typeof o.kty != "string"))
       throw new TypeError(st(s, "CryptoKey", "KeyObject", "JSON Web Key"));
-  } else if (Sn(s)) o = fa(await ys(s));
+  } else if (Nn(s)) o = va(await fs(s));
   else throw new TypeError(st(s, "CryptoKey", "KeyObject", "JSON Web Key"));
   if (((n ??= "sha256"), n !== "sha256" && n !== "sha384" && n !== "sha512"))
     throw new TypeError('digestAlgorithm must one of "sha256", "sha384", or "sha512"');
   let p;
   switch (o.kty) {
     case "AKP":
-      (zr(o.alg, '"alg" (Algorithm) Parameter'),
-        zr(o.pub, '"pub" (Public key) Parameter'),
+      (Br(o.alg, '"alg" (Algorithm) Parameter'),
+        Br(o.pub, '"pub" (Public key) Parameter'),
         (p = { alg: o.alg, kty: o.kty, pub: o.pub }));
       break;
     case "EC":
-      (zr(o.crv, '"crv" (Curve) Parameter'),
-        zr(o.x, '"x" (X Coordinate) Parameter'),
-        zr(o.y, '"y" (Y Coordinate) Parameter'),
+      (Br(o.crv, '"crv" (Curve) Parameter'),
+        Br(o.x, '"x" (X Coordinate) Parameter'),
+        Br(o.y, '"y" (Y Coordinate) Parameter'),
         (p = { crv: o.crv, kty: o.kty, x: o.x, y: o.y }));
       break;
     case "OKP":
-      (zr(o.crv, '"crv" (Subtype of Key Pair) Parameter'),
-        zr(o.x, '"x" (Public Key) Parameter'),
+      (Br(o.crv, '"crv" (Subtype of Key Pair) Parameter'),
+        Br(o.x, '"x" (Public Key) Parameter'),
         (p = { crv: o.crv, kty: o.kty, x: o.x }));
       break;
     case "RSA":
-      (zr(o.e, '"e" (Exponent) Parameter'),
-        zr(o.n, '"n" (Modulus) Parameter'),
+      (Br(o.e, '"e" (Exponent) Parameter'),
+        Br(o.n, '"n" (Modulus) Parameter'),
         (p = { e: o.e, kty: o.kty, n: o.n }));
       break;
     case "oct":
-      if (typeof o.k != "string") throw new gi('"k" (Key Value) Parameter missing or invalid');
+      if (typeof o.k != "string") throw new Pi('"k" (Key Value) Parameter missing or invalid');
       p = { k: o.k, kty: o.kty };
       break;
     default:
-      throw new lr('"kty" (Key Type) Parameter missing or unsupported');
+      throw new mr('"kty" (Key Type) Parameter missing or unsupported');
   }
-  let c = Rr(JSON.stringify(p));
-  return tr(await wn(n, c));
-}
-async function dp(s, n) {
-  n ??= "sha256";
-  let o = await Ci(s, n);
-  return `urn:ietf:params:oauth:jwk-thumbprint:sha-${n.slice(-3)}:${o}`;
+  let c = Cr(JSON.stringify(p));
+  return tr(await In(n, c));
 }
 async function lp(s, n) {
+  n ??= "sha256";
+  let o = await Ji(s, n);
+  return `urn:ietf:params:oauth:jwk-thumbprint:sha-${n.slice(-3)}:${o}`;
+}
+async function yp(s, n) {
   let o = { ...s, ...n?.header };
   if (!Be(o.jwk)) throw new Pe('"jwk" (JSON Web Key) Header Parameter must be a JSON object');
   let p;
   try {
-    p = Di(o.jwk);
-  } catch (h) {
-    throw new Pe("Invalid Embedded JWK", { cause: h });
+    p = xi(o.jwk);
+  } catch (y) {
+    throw new Pe("Invalid Embedded JWK", { cause: y });
   }
-  let c = ji(o.alg);
+  let c = $i(o.alg);
   if (p.use !== void 0 && p.use !== "sig")
     throw new Pe('Invalid Embedded JWK, its "use" must be "sig" when present');
   if (p.alg !== void 0 && p.alg !== c.alg)
     throw new Pe(`Invalid Embedded JWK, its "alg" must be "${c.alg}" when present`);
-  let m = await kt(c, p, !0);
-  if (m.type !== "public")
+  let l = await kt(c, p, !0);
+  if (l.type !== "public")
     throw new Pe('"jwk" (JSON Web Key) Header Parameter must be a public key');
-  return m;
+  return l;
 }
-function mp(s, n, o, p) {
-  let { kty: c, key_ops: m, ext: h, kid: I, alg: N, use: O, crv: _ } = s;
+function hp(s, n, o, p) {
+  let { kty: c, key_ops: l, ext: y, kid: I, alg: N, use: O, crv: _ } = s;
   return (
-    (h === void 0 || typeof h == "boolean") &&
-    (m === void 0 ||
-      (Array.isArray(m) &&
-        m.every((B, J) => typeof B == "string" && m.indexOf(B) === J) &&
-        m.includes("verify"))) &&
+    (y === void 0 || typeof y == "boolean") &&
+    (l === void 0 ||
+      (Array.isArray(l) &&
+        l.every((B, J) => typeof B == "string" && l.indexOf(B) === J) &&
+        l.includes("verify"))) &&
     n.kty.includes(c) &&
     (p === void 0 || (typeof p == "string" && p === I)) &&
     (N === void 0 ? c !== "AKP" : o === N) &&
@@ -1489,120 +1489,120 @@ function mp(s, n, o, p) {
     (!n.crv || _ === n.crv)
   );
 }
-async function yn(s, n, o) {
+async function fn(s, n, o) {
   let p = s.get(n) || s.set(n, {}).get(n),
     { alg: c } = o;
   if (p[c] === void 0) {
-    let m = kt(o, n, !0)
-      .then((h) => {
-        if (h.type !== "public") throw new ya("JSON Web Key Set members must be public keys");
-        return ((p[c] = h), h);
+    let l = kt(o, n, !0)
+      .then((y) => {
+        if (y.type !== "public") throw new ua("JSON Web Key Set members must be public keys");
+        return ((p[c] = y), y);
       })
-      .catch((h) => {
-        throw (p[c] === m && delete p[c], h);
+      .catch((y) => {
+        throw (p[c] === l && delete p[c], y);
       });
-    p[c] = m;
+    p[c] = l;
   }
   return p[c];
 }
-function oi(s) {
+function pi(s) {
   let n;
   try {
     n = structuredClone(s);
   } catch (c) {
-    throw new ya("JSON Web Key Set malformed", { cause: c });
+    throw new ua("JSON Web Key Set malformed", { cause: c });
   }
-  if (!An(n)) throw new ya("JSON Web Key Set malformed");
+  if (!xn(n)) throw new ua("JSON Web Key Set malformed");
   let o = n.keys.map((c) => {
-      let m = fa(c);
-      return (Array.isArray(m.key_ops) && (m.key_ops = [...m.key_ops]), m);
+      let l = va(c);
+      return (Array.isArray(l.key_ops) && (l.key_ops = [...l.key_ops]), l);
     }),
     p = new WeakMap();
   return Object.defineProperty(
-    async (c, m) => {
-      let { alg: h, kid: I } = { ...c, ...m?.header },
-        N = typeof h == "string" ? Ki[h] : void 0;
-      if (!N || N.secret) throw new lr('Unsupported "alg" value for a JSON Web Key Set');
-      let O = n.keys.filter((J, C) => mp(o[C], N, h, I)),
+    async (c, l) => {
+      let { alg: y, kid: I } = { ...c, ...l?.header },
+        N = typeof y == "string" ? ji[y] : void 0;
+      if (!N || N.secret) throw new mr('Unsupported "alg" value for a JSON Web Key Set');
+      let O = n.keys.filter((J, C) => hp(o[C], N, y, I)),
         { 0: _, length: B } = O;
-      if (!B) throw new Pi();
+      if (!B) throw new wi();
       if (B !== 1) {
-        let J = new In();
+        let J = new An();
         throw (
           (J[Symbol.asyncIterator] = async function* () {
             for (let C of O)
               try {
-                yield await yn(p, C, N);
+                yield await fn(p, C, N);
               } catch {}
           }),
           J
         );
       }
-      return yn(p, _, N);
+      return fn(p, _, N);
     },
     "jwks",
     { value: () => structuredClone(n) },
   );
 }
-function hp() {
+function up() {
   return (
     typeof WebSocketPair < "u" ||
     (typeof navigator < "u" && navigator.userAgent === "Cloudflare-Workers") ||
     (typeof EdgeRuntime < "u" && EdgeRuntime === "vercel")
   );
 }
-async function yp(s, n, o, p = fetch) {
-  let c = await p(s, { method: "GET", signal: o, redirect: "manual", headers: n }).catch((m) => {
-    throw m.name === "TimeoutError" ? new bn(void 0, { cause: m }) : m;
+async function fp(s, n, o, p = fetch) {
+  let c = await p(s, { method: "GET", signal: o, redirect: "manual", headers: n }).catch((l) => {
+    throw l.name === "TimeoutError" ? new Dn(void 0, { cause: l }) : l;
   });
   if (c.status !== 200) throw new vr("Expected 200 OK from the JSON Web Key Set HTTP response");
   try {
     return await c.json();
-  } catch (m) {
-    throw new vr("Failed to parse the JSON Web Key Set HTTP response as JSON", { cause: m });
+  } catch (l) {
+    throw new vr("Failed to parse the JSON Web Key Set HTTP response as JSON", { cause: l });
   }
 }
 function Et(s, n) {
   return Number.isFinite(s) && Date.now() < s + n;
 }
-function un(s, n, o) {
+function vn(s, n, o) {
   if (Number.isNaN(s)) throw new TypeError(`"${o}" option must not be NaN`);
   return typeof s == "number" ? s : n;
 }
-function up(s, n) {
+function vp(s, n) {
   if (!(s instanceof URL)) throw new TypeError("url must be an instance of URL");
   let o = new URL(s.href).href,
     p = n ?? {},
     c = p.timeoutDuration;
   if (typeof c == "number" && (!Number.isInteger(c) || c < 0))
     throw new TypeError('"timeoutDuration" option must be a non-negative integer');
-  let m = typeof c == "number" ? c : 5e3,
-    h = un(p.cooldownDuration, 3e4, "cooldownDuration"),
-    I = un(p.cacheMaxAge, 6e5, "cacheMaxAge"),
+  let l = typeof c == "number" ? c : 5e3,
+    y = vn(p.cooldownDuration, 3e4, "cooldownDuration"),
+    I = vn(p.cacheMaxAge, 6e5, "cacheMaxAge"),
     N = new Headers(p.headers);
-  (pi && !N.has("User-Agent") && N.set("User-Agent", pi),
+  (ci && !N.has("User-Agent") && N.set("User-Agent", ci),
     N.has("accept") || N.set("accept", "application/json, application/jwk-set+json"));
-  let O = p[us],
-    _ = p[fs],
+  let O = p[vs],
+    _ = p[gs],
     B,
     J,
     C = 0,
     G = 0,
     de;
   if (_ && typeof _ == "object") {
-    let { uat: me, jwks: Y } = _;
-    Et(me, I) && An(Y) && ((B = me), (de = oi(Y)));
+    let { uat: le, jwks: Y } = _;
+    Et(le, I) && xn(Y) && ((B = le), (de = pi(Y)));
   }
   let ue = async () => {
-    if ((J && hp() && (J = void 0), !J)) {
-      let me = ++C,
-        Y = (J = yp(o, N, AbortSignal.timeout(m), O)
+    if ((J && up() && (J = void 0), !J)) {
+      let le = ++C,
+        Y = (J = fp(o, N, AbortSignal.timeout(l), O)
           .then((se) => {
-            let be = oi(se);
-            if (me <= G) return;
+            let be = pi(se);
+            if (le <= G) return;
             de = be;
             let Q = Date.now();
-            (_ && ((_.uat = Q), (_.jwks = se)), (B = Q), (G = me));
+            (_ && ((_.uat = Q), (_.jwks = se)), (B = Q), (G = le));
           })
           .finally(() => {
             J === Y && (J = void 0);
@@ -1611,17 +1611,17 @@ function up(s, n) {
     await J;
   };
   return Object.defineProperties(
-    async (me, Y) => {
+    async (le, Y) => {
       (!de || !Et(B, I)) && (await ue());
       try {
-        return await de(me, Y);
+        return await de(le, Y);
       } catch (se) {
-        if (se instanceof Pi && !Et(B, h)) return (await ue(), de(me, Y));
+        if (se instanceof wi && !Et(B, y)) return (await ue(), de(le, Y));
         throw se;
       }
     },
     {
-      coolingDown: { get: () => Et(B, h), enumerable: !0 },
+      coolingDown: { get: () => Et(B, y), enumerable: !0 },
       fresh: { get: () => Et(B, I), enumerable: !0 },
       reload: { value: ue, enumerable: !0 },
       reloading: { get: () => !!J, enumerable: !0 },
@@ -1629,47 +1629,47 @@ function up(s, n) {
     },
   );
 }
-async function gp(s, n, o) {
+async function wp(s, n, o) {
   if (typeof s != "string" || s.indexOf("-----BEGIN PUBLIC KEY-----") !== 0)
     throw new TypeError('"spki" must be SPKI formatted string');
-  return np(s, n, o);
-}
-async function Pp(s, n, o) {
-  if (typeof s != "string" || s.indexOf("-----BEGIN CERTIFICATE-----") !== 0)
-    throw new TypeError('"x509" must be X.509 formatted string');
   return op(s, n, o);
 }
-async function wp(s, n, o) {
+async function kp(s, n, o) {
+  if (typeof s != "string" || s.indexOf("-----BEGIN CERTIFICATE-----") !== 0)
+    throw new TypeError('"x509" must be X.509 formatted string');
+  return cp(s, n, o);
+}
+async function Ip(s, n, o) {
   if (typeof s != "string" || s.indexOf("-----BEGIN PRIVATE KEY-----") !== 0)
     throw new TypeError('"pkcs8" must be PKCS#8 formatted string');
-  return ip(s, n, o);
+  return sp(s, n, o);
 }
-async function Ka(s, n, o) {
+async function ja(s, n, o) {
   if (!Be(s)) throw new TypeError("JWK must be an object");
-  let p = Di(s),
-    c = Da(o?.extractable),
-    { alg: m } = p;
-  if (((n ??= m), p.kty !== "oct" && !n))
+  let p = xi(s),
+    c = xa(o?.extractable),
+    { alg: l } = p;
+  if (((n ??= l), p.kty !== "oct" && !n))
     throw new TypeError('"alg" argument is required when "jwk.alg" is not present');
   switch (p.kty) {
     case "oct":
       if (typeof p.k != "string") throw new TypeError('missing "k" (Key Value) Parameter value');
       return It(p.k);
     case "AKP": {
-      if (typeof m != "string" || !m)
+      if (typeof l != "string" || !l)
         throw new TypeError('missing "alg" (Algorithm) Parameter value');
-      if (n !== m) throw new TypeError("JWK alg and alg option value mismatch");
-      return kt(wa(n), p, c);
+      if (n !== l) throw new TypeError("JWK alg and alg option value mismatch");
+      return kt(ka(n), p, c);
     }
     case "RSA":
     case "EC":
     case "OKP":
-      return kt(wa(n), p, c);
+      return kt(ka(n), p, c);
     default:
-      throw new lr('Unsupported "kty" (Key Type) Parameter value');
+      throw new mr('Unsupported "kty" (Key Type) Parameter value');
   }
 }
-function kp(s) {
+function bp(s) {
   let n;
   if (typeof s == "string") {
     let p = s.split(".");
@@ -1679,9 +1679,9 @@ function kp(s) {
     else throw new TypeError("Token does not contain a Protected Header");
   let o = "Invalid Token or Protected Header formatting";
   if (typeof n != "string" || !n) throw new TypeError(o);
-  return Aa(n, TypeError, o);
+  return Da(n, TypeError, o);
 }
-function Ip(s) {
+function Ap(s) {
   if (typeof s != "string")
     throw new fr("JWTs must use Compact JWS serialization, JWT must be a string");
   let { 1: n, length: o } = s.split(".");
@@ -1691,62 +1691,62 @@ function Ip(s) {
   let p;
   try {
     p = It(n);
-  } catch (m) {
-    throw new fr("Failed to base64url decode the payload", { cause: m });
+  } catch (l) {
+    throw new fr("Failed to base64url decode the payload", { cause: l });
   }
   let c;
   try {
-    c = JSON.parse(fi.decode(p));
-  } catch (m) {
-    throw new fr("Failed to parse the decoded payload as JSON", { cause: m });
+    c = JSON.parse(vi.decode(p));
+  } catch (l) {
+    throw new fr("Failed to parse the decoded payload as JSON", { cause: l });
   }
   if (!Be(c)) throw new fr("Invalid JWT Claims Set");
   return c;
 }
-function bp(s) {
+function Dp(s) {
   let n = s?.modulusLength ?? 2048;
   if (typeof n != "number" || !Number.isInteger(n) || n < 2048)
-    throw new lr(
+    throw new mr(
       "Invalid or unsupported modulusLength option provided, 2048 bits or larger keys must be used",
     );
   return n;
 }
-async function Ap(s, n) {
-  let o = Da(n?.extractable),
-    p = wa(s, $t);
-  p.secret && Na($t);
+async function xp(s, n) {
+  let o = xa(n?.extractable),
+    p = ka(s, $t);
+  p.secret && Ka($t);
   let c;
   if (p.resolve) {
-    let m = n?.crv ?? "P-256";
-    if (!["P-256", "P-384", "P-521", "X25519"].includes(m))
-      throw new lr(
+    let l = n?.crv ?? "P-256";
+    if (!["P-256", "P-384", "P-521", "X25519"].includes(l))
+      throw new mr(
         "Invalid or unsupported crv option provided, supported values are P-256, P-384, P-521, and X25519",
       );
-    c = p.resolve({ crv: m });
+    c = p.resolve({ crv: l });
   } else {
     if (p.crv !== void 0 && n?.crv !== void 0 && n.crv !== p.crv)
-      throw new lr(
+      throw new mr(
         `Invalid or unsupported crv option provided, the only supported value for ${s} is ${p.crv}`,
       );
     c =
       p.kty[0] === "RSA"
-        ? { ...p.subtle, publicExponent: Uint8Array.of(1, 0, 1), modulusLength: bp(n) }
+        ? { ...p.subtle, publicExponent: Uint8Array.of(1, 0, 1), modulusLength: Dp(n) }
         : p.subtle;
   }
   return crypto.subtle.generateKey(c, o ?? !1, [...p.usages[1], ...p.usages[0]]);
 }
-async function Dp(s, n) {
-  let o = Da(n?.extractable),
+async function Ep(s, n) {
+  let o = xa(n?.extractable),
     p,
     c,
-    m;
+    l;
   switch (s) {
     case "HS256":
     case "HS384":
     case "HS512":
       ((p = +s.slice(-3)),
         (c = { name: "HMAC", hash: `SHA-${p}`, length: p }),
-        (m = ["sign", "verify"]));
+        (l = ["sign", "verify"]));
       break;
     case "A128CBC-HS256":
     case "A192CBC-HS384":
@@ -1755,7 +1755,7 @@ async function Dp(s, n) {
     case "A128KW":
     case "A192KW":
     case "A256KW":
-      ((p = +s.slice(1, 4)), (c = { name: "AES-KW", length: p }), (m = ["wrapKey", "unwrapKey"]));
+      ((p = +s.slice(1, 4)), (c = { name: "AES-KW", length: p }), (l = ["wrapKey", "unwrapKey"]));
       break;
     case "A128GCMKW":
     case "A192GCMKW":
@@ -1763,14 +1763,14 @@ async function Dp(s, n) {
     case "A128GCM":
     case "A192GCM":
     case "A256GCM":
-      ((p = +s.slice(1, 4)), (c = { name: "AES-GCM", length: p }), (m = ["encrypt", "decrypt"]));
+      ((p = +s.slice(1, 4)), (c = { name: "AES-GCM", length: p }), (l = ["encrypt", "decrypt"]));
       break;
     default:
-      Na($t);
+      Ka($t);
   }
-  return crypto.subtle.generateKey(c, o ?? !1, m);
+  return crypto.subtle.generateKey(c, o ?? !1, l);
 }
-function ci(s) {
+function di(s) {
   if (!s.isWellFormed()) throw new Error("Lone surrogate is not allowed");
   return JSON.stringify(s);
 }
@@ -1781,14 +1781,14 @@ function la(s) {
       if (!isFinite(s)) throw new Error("Infinity is not allowed");
       return JSON.stringify(s);
     case "string":
-      return ci(s);
+      return di(s);
     case "boolean":
       return s ? "true" : "false";
     default:
       return JSON.stringify(s);
   }
 }
-function ti(s, n) {
+function ai(s, n) {
   let o = null;
   for (; s !== null && typeof s == "object" && typeof s.toJSON == "function";) {
     if (n.has(s)) throw new Error("Circular reference detected");
@@ -1813,27 +1813,27 @@ function ti(s, n) {
     }
   );
 }
-function ka(s) {
+function Ia(s) {
   if (s === null || typeof s != "object") return la(s);
   let n = new Set(),
-    o = ti(s, n);
+    o = ai(s, n);
   if (typeof o != "object") return o;
   let p = o.keys === null ? "[" : "{",
     c = [o];
   e: for (; c.length > 0;) {
-    let m = c[c.length - 1],
-      h = m.container;
-    if (m.keys === null) {
-      for (; m.index < h.length;) {
-        let I = m.index++;
+    let l = c[c.length - 1],
+      y = l.container;
+    if (l.keys === null) {
+      for (; l.index < y.length;) {
+        let I = l.index++;
         I > 0 && (p += ",");
-        let N = h[I],
+        let N = y[I],
           O = N === void 0 || typeof N == "symbol" || typeof N == "function" ? null : N;
         if (O === null || typeof O != "object") {
           p += la(O);
           continue;
         }
-        let _ = ti(O, n);
+        let _ = ai(O, n);
         if (typeof _ != "object") {
           p += _ === void 0 ? "null" : _;
           continue;
@@ -1843,18 +1843,18 @@ function ka(s) {
       }
       p += "]";
     } else {
-      let I = m.keys;
-      for (; m.index < I.length;) {
-        let N = I[m.index++],
-          O = h[N];
+      let I = l.keys;
+      for (; l.index < I.length;) {
+        let N = I[l.index++],
+          O = y[N];
         if (O === void 0 || typeof O == "symbol" || typeof O == "function") continue;
         if (O === null || typeof O != "object") {
-          (m.first ? (m.first = !1) : (p += ","), (p += ci(N) + ":" + la(O)));
+          (l.first ? (l.first = !1) : (p += ","), (p += di(N) + ":" + la(O)));
           continue;
         }
-        let _ = ti(O, n);
+        let _ = ai(O, n);
         if (_ !== void 0) {
-          if ((m.first ? (m.first = !1) : (p += ","), (p += ci(N) + ":"), typeof _ != "object")) {
+          if ((l.first ? (l.first = !1) : (p += ","), (p += di(N) + ":"), typeof _ != "object")) {
             p += _;
             continue;
           }
@@ -1864,15 +1864,15 @@ function ka(s) {
       }
       p += "}";
     }
-    if ((n.delete(h), m.wrappers !== null)) for (let I of m.wrappers) n.delete(I);
+    if ((n.delete(y), l.wrappers !== null)) for (let I of l.wrappers) n.delete(I);
     c.pop();
   }
   return p;
 }
 function x(s) {
-  throw new et(s);
+  throw new Ir(s);
 }
-function ja(s) {
+function $a(s) {
   return (
     s !== null &&
     typeof s == "object" &&
@@ -1881,12 +1881,12 @@ function ja(s) {
   );
 }
 function Me(s, n) {
-  (!ja(s) || Object.keys(s).sort().join("\0") !== [...n].sort().join("\0")) && x("invalid_fields");
+  (!$a(s) || Object.keys(s).sort().join("\0") !== [...n].sort().join("\0")) && x("invalid_fields");
 }
-function Re(s) {
+function qe(s) {
   _t(s);
-  let n = ka(s);
-  return (typeof n != "string" && x("invalid_json"), vs.encode(n));
+  let n = Ia(s);
+  return (typeof n != "string" && x("invalid_json"), Ps.encode(n));
 }
 function _t(s, n = 0) {
   if ((n > 20 && x("json_too_deep"), !(s === null || typeof s == "boolean"))) {
@@ -1903,26 +1903,26 @@ function _t(s, n = 0) {
       for (let o of s) _t(o, n + 1);
       return;
     }
-    ja(s) || x("invalid_json");
+    $a(s) || x("invalid_json");
     for (let [o, p] of Object.entries(s)) (_t(o), _t(p, n + 1));
   }
 }
 function ve(s, n) {
-  return ka(s) === ka(n);
+  return Ia(s) === Ia(n);
 }
 function rr(s) {
   (typeof s != "string" || s.includes("=") || !/^[A-Za-z0-9_-]*$/.test(s)) &&
     x("invalid_base64url");
-  let n = ua.decode(s);
-  return (ua.encode(n) !== s && x("invalid_base64url"), n);
+  let n = fa.decode(s);
+  return (fa.encode(n) !== s && x("invalid_base64url"), n);
 }
 function kr(s, n = !1) {
-  let o = Sp.decode(s),
+  let o = Np.decode(s),
     p = 0,
     c = () => {
       for (; /[\x20\x09\x0a\x0d]/.test(o[p] || "!");) p += 1;
     },
-    m = () => {
+    l = () => {
       o[p] !== '"' && x("malformed_json");
       let N = p++;
       for (; p < o.length;) {
@@ -1934,9 +1934,9 @@ function kr(s, n = !1) {
       }
       x("malformed_json");
     },
-    h = (N) => {
+    y = (N) => {
       if ((N > 20 && x("json_too_deep"), c(), o[p] === '"')) {
-        m();
+        l();
         return;
       }
       let O = o[p] === "{";
@@ -1951,13 +1951,13 @@ function kr(s, n = !1) {
         for (;;) {
           if (O) {
             c();
-            let C = m();
+            let C = l();
             (J.has(C) && x("duplicate_member"),
               J.add(C),
               c(),
               o[p++] !== ":" && x("malformed_json"));
           }
-          if ((h(N + 1), c(), o[p] === B)) {
+          if ((y(N + 1), c(), o[p] === B)) {
             p += 1;
             return;
           }
@@ -1967,38 +1967,38 @@ function kr(s, n = !1) {
       let _ = /^(?:true|false|null|-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?)/.exec(o.slice(p));
       (_ || x("malformed_json"), (p += _[0].length));
     };
-  (h(0), c(), p !== o.length && x("malformed_json"));
+  (y(0), c(), p !== o.length && x("malformed_json"));
   let I = JSON.parse(o);
-  return (_t(I), n && !Ji(Re(I), s) && x("noncanonical_json"), I);
+  return (_t(I), n && !Fi(qe(I), s) && x("noncanonical_json"), I);
 }
-function Ji(s, n) {
+function Fi(s, n) {
   return s.length === n.length && s.every((o, p) => o === n[p]);
 }
-function Gr(s, n = 0) {
+function Xr(s, n = 0) {
   return ((!Number.isSafeInteger(s) || s < n) && x("invalid_integer"), s);
 }
-function Ir(s) {
+function br(s) {
   return (
     (typeof s != "string" || !/^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/.test(s)) &&
       x("invalid_identifier"),
     s
   );
 }
-function Ps(s) {
+function ks(s) {
   return ((typeof s != "string" || !/^[a-f0-9]{64}$/.test(s)) && x("invalid_digest"), s);
 }
 async function Ae(s) {
-  return [...new Uint8Array(await crypto.subtle.digest("SHA-256", Re(s)))]
+  return [...new Uint8Array(await crypto.subtle.digest("SHA-256", qe(s)))]
     .map((n) => n.toString(16).padStart(2, "0"))
     .join("");
 }
-async function Ur(s) {
-  let n = vs.encode(s.protected + "." + s.payload);
+async function zr(s) {
+  let n = Ps.encode(s.protected + "." + s.payload);
   return [...new Uint8Array(await crypto.subtle.digest("SHA-256", n))]
     .map((o) => o.toString(16).padStart(2, "0"))
     .join("");
 }
-function Fi(s, n, o = 0) {
+function Hi(s, n, o = 0) {
   return ((!Array.isArray(s) || s.length < o || s.length > n) && x("invalid_array"), s);
 }
 function dr(s) {
@@ -2009,14 +2009,14 @@ async function bt(s) {
     Me(s, ["kty", "crv", "x", "y"]),
     (s.kty !== "EC" || s.crv !== "P-256" || rr(s.x).length !== 32 || rr(s.y).length !== 32) &&
       x("invalid_public_key"),
-    await Ka(s, "ES256"),
+    await ja(s, "ES256"),
     s
   );
 }
-async function Nr(s) {
-  return (await bt(s), Ci(s, "sha256"));
+async function Kr(s) {
+  return (await bt(s), Ji(s, "sha256"));
 }
-function _p(s, n, o) {
+function Kp(s, n, o) {
   Me(s, ["protected", "payload", "signature"]);
   let p = kr(rr(s.protected));
   return (
@@ -2026,19 +2026,19 @@ function _p(s, n, o) {
     p
   );
 }
-async function Jr(s, n, o) {
-  let p = await Nr(n);
-  (_p(s, o, p), Re(s).length > (o === "fv-control+jws" ? 65536 : gs) && x("payload_too_large"));
-  let c = await os(s, await Ka(n, "ES256"), { algorithms: ["ES256"] });
+async function Fr(s, n, o) {
+  let p = await Kr(n);
+  (Kp(s, o, p), qe(s).length > (o === "fv-control+jws" ? 65536 : ws) && x("payload_too_large"));
+  let c = await cs(s, await ja(n, "ES256"), { algorithms: ["ES256"] });
   return kr(c.payload, !0);
 }
-async function lt(s, n, o, p) {
-  return new ds(Re(s))
+async function mt(s, n, o, p) {
+  return new ls(qe(s))
     .setProtectedHeader({ alg: "ES256", kid: o, typ: p, cty: "application/json" })
     .sign(n);
 }
 function Ie(s, n) {
-  let o = Ep.default[s];
+  let o = _p.default[s];
   (!o || !o(n)) && x("invalid_schema");
 }
 function Pt(s) {
@@ -2063,7 +2063,7 @@ function Ct(s) {
     return !1;
   }
 }
-function Np(s) {
+function jp(s) {
   let n = {
       amp: "&",
       lt: "<",
@@ -2077,9 +2077,9 @@ function Np(s) {
     },
     o = s;
   for (let p = 0; p < 4; p++) {
-    let c = o.replace(/&(#x[0-9a-f]+|#\d+|[A-Za-z][A-Za-z0-9]+);?/gi, (m, h) => {
-      if (h[0] !== "#") return (Object.hasOwn(n, h) || x("private_schema_invalid"), n[h]);
-      let I = /^#x/i.test(h) ? parseInt(h.slice(2), 16) : Number(h.slice(1));
+    let c = o.replace(/&(#x[0-9a-f]+|#\d+|[A-Za-z][A-Za-z0-9]+);?/gi, (l, y) => {
+      if (y[0] !== "#") return (Object.hasOwn(n, y) || x("private_schema_invalid"), n[y]);
+      let I = /^#x/i.test(y) ? parseInt(y.slice(2), 16) : Number(y.slice(1));
       return (
         (!Number.isSafeInteger(I) || I <= 0 || I > 1114111 || (I >= 55296 && I <= 57343)) &&
           x("private_schema_invalid"),
@@ -2108,7 +2108,7 @@ function Jt(s, n) {
       s.sections.map((o) => o.sectionId),
       n.sections.map((o) => o.sectionId),
     ) || x("private_output_mismatch"));
-  for (let o of s.sections) Np(o.markdown);
+  for (let o of s.sections) jp(o.markdown);
   for (let o of s.citations)
     (Ct(o.url) || x("private_schema_invalid"), o.publishedAt !== null && Pt(o.publishedAt));
 }
@@ -2122,7 +2122,7 @@ function Ft(s) {
       s.authorityVersion !== s.expectedAuthorityVersion + 1 ||
       (s.expectedAuthorityVersion === 0) != (s.expectedAuthorityDigest === null)) &&
       x("recipient_binding_mismatch"),
-      dr(s.resourceBindings.map((o) => ka(o.ref))),
+      dr(s.resourceBindings.map((o) => Ia(o.ref))),
       s.resourceBindings.forEach((o) => Lt(o.ref)));
   else if (s.objectType !== "result_revision") {
     Lt(s.ref);
@@ -2157,17 +2157,17 @@ function Lt(s) {
     s
   );
 }
-function $a(s, n, o = null) {
+function La(s, n, o = null) {
   (Ft(n), Ie("PersistentPrivatePayload", s));
-  for (let h of ["objectId", "objectType", "revision"])
-    ve(s[h], n[h]) || x("private_binding_mismatch");
+  for (let y of ["objectId", "objectType", "revision"])
+    ve(s[y], n[y]) || x("private_binding_mismatch");
   let p = n.objectType === "task" ? 65536 : n.objectType === "result_revision" ? 98304 : 196608;
-  Re(s).length > p && x("payload_too_large");
+  qe(s).length > p && x("payload_too_large");
   let c = s.payload;
   if (n.objectType === "result_revision") return (Jt(c, o ?? { sections: c.sections }), c);
   if (n.objectType === "task") {
     if (
-      (dr(c.outputSpec.sections.map((h) => h.sectionId)),
+      (dr(c.outputSpec.sections.map((y) => y.sectionId)),
       c.template === "brief" && !n.resourceBindings.length && x("private_schema_invalid"),
       c.deliveryExpectation !== null)
     )
@@ -2181,23 +2181,23 @@ function $a(s, n, o = null) {
   (c.data.kind !== n.ref.kind && x("private_schema_invalid"),
     Pt(c.fetchedAt),
     c.sourceAsOf !== null && Pt(c.sourceAsOf));
-  let m = c.data;
+  let l = c.data;
   if (n.ref.kind === "holdings") {
-    (m.snapshotId !== n.objectId && x("private_binding_mismatch"),
-      dr(m.accounts.map((h) => h.accountId)),
-      m.accounts.reduce((h, I) => h + I.positions.length, 0) > 1e3 && x("private_schema_invalid"));
-    for (let h of m.accounts)
-      (dr(h.balances.map((I) => I.currency)),
-        dr(h.positions.map((I) => I.assetId)),
-        h.positions.some((I) => I.marketValue !== null && I.marketValue.currency !== I.currency) &&
+    (l.snapshotId !== n.objectId && x("private_binding_mismatch"),
+      dr(l.accounts.map((y) => y.accountId)),
+      l.accounts.reduce((y, I) => y + I.positions.length, 0) > 1e3 && x("private_schema_invalid"));
+    for (let y of l.accounts)
+      (dr(y.balances.map((I) => I.currency)),
+        dr(y.positions.map((I) => I.assetId)),
+        y.positions.some((I) => I.marketValue !== null && I.marketValue.currency !== I.currency) &&
           x("private_schema_invalid"));
   } else {
-    dr(m.items.map((h) => (n.ref.kind === "watchlist" ? h.symbol : h.followId)));
-    for (let h of m.items)
-      (Pt(h.addedAt),
+    dr(l.items.map((y) => (n.ref.kind === "watchlist" ? y.symbol : y.followId)));
+    for (let y of l.items)
+      (Pt(y.addedAt),
         n.ref.kind === "channel_follows" &&
-          !/^@[^\s\x00-\x1f]+$/.test(h.handleOrUrl) &&
-          !Ct(h.handleOrUrl) &&
+          !/^@[^\s\x00-\x1f]+$/.test(y.handleOrUrl) &&
+          !Ct(y.handleOrUrl) &&
           x("private_schema_invalid"));
   }
   return c;
@@ -2208,14 +2208,14 @@ function rt(s) {
   Ie("PersistentContentProofPayload", n);
   let o = Ft(n.context),
     p = s.jwe;
-  ((Re(s).length > gs ||
-    Re(o).length > 16384 ||
+  ((qe(s).length > ws ||
+    qe(o).length > 16384 ||
     rr(p.ciphertext).length >
       (o.objectType === "task" ? 65536 : o.objectType === "result_revision" ? 98304 : 196608)) &&
     x("payload_too_large"),
     Me(p, ["protected", "aad", "iv", "ciphertext", "tag", "recipients"]),
-    (!ve(kr(rr(p.protected)), Rt) ||
-      !Ji(rr(p.aad), Re(o)) ||
+    (!ve(kr(rr(p.protected)), qt) ||
+      !Fi(rr(p.aad), qe(o)) ||
       rr(p.iv).length !== 12 ||
       rr(p.tag).length !== 16) &&
       x("recipient_binding_mismatch"),
@@ -2233,47 +2233,47 @@ function rt(s) {
 async function Ht(s, n, o) {
   let p = rt(s);
   ve(p.context, o) || x("recipient_binding_mismatch");
-  let c = await Yn(s.jwe, n, {
+  let c = await es(s.jwe, n, {
     keyManagementAlgorithms: ["ECDH-ES+A256KW"],
     contentEncryptionAlgorithms: ["A256GCM"],
   });
   return (
-    (!ve(c.protectedHeader, Rt) || !Ji(c.additionalAuthenticatedData, Re(o))) &&
+    (!ve(c.protectedHeader, qt) || !Fi(c.additionalAuthenticatedData, qe(o))) &&
       x("recipient_binding_mismatch"),
-    $a(kr(c.plaintext, !0), o)
+    La(kr(c.plaintext, !0), o)
   );
 }
-async function La(s, n, o, p) {
+async function Oa(s, n, o, p) {
   Ft(n);
   let c = {
     privateSchemaVersion: 1,
-    profile: Mr,
+    profile: Gr,
     objectId: n.objectId,
     objectType: n.objectType,
     revision: n.revision,
     payload: s,
   };
-  $a(c, n);
-  let m = new ts(Re(c)).setProtectedHeader(Rt).setAdditionalAuthenticatedData(Re(n));
+  La(c, n);
+  let l = new is(qe(c)).setProtectedHeader(qt).setAdditionalAuthenticatedData(qe(n));
   for (let O of n.recipients)
-    m.addRecipient(await Ka(o[O.keyId], "ECDH-ES+A256KW")).setUnprotectedHeader({ kid: O.keyId });
-  let h = await m.encrypt(),
-    I = await lt(
+    l.addRecipient(await ja(o[O.keyId], "ECDH-ES+A256KW")).setUnprotectedHeader({ kid: O.keyId });
+  let y = await l.encrypt(),
+    I = await mt(
       {
         contractVersion: Pr,
-        profile: Mr,
+        profile: Gr,
         artifactType: "persistent_content_publication",
         context: n,
-        ciphertextDigest: await Ae(h),
+        ciphertextDigest: await Ae(y),
       },
       p,
       n.objectType === "result_revision" ? n.agentSigningKeyId : n.rootKeyId,
       "fv-control+jws",
     ),
-    N = { contractVersion: Pr, profile: Mr, proof: I, jwe: h };
+    N = { contractVersion: Pr, profile: Gr, proof: I, jwe: y };
   return (rt(N), N);
 }
-function ks(s) {
+function bs(s) {
   (dr(s.selectedHistory),
     (!ve(
       s.selectedHistory,
@@ -2282,7 +2282,7 @@ function ks(s) {
       s.selectedHistory.some((n) => n >= s.fromRevision)) &&
       x("invalid_history"));
 }
-function di(s) {
+function mi(s) {
   (Ie("PersistentResourceConsent", s), s.createdAt > s.updatedAt && x("invalid_consent"));
   let n = [];
   (dr(s.permissions.map((o) => o.permissionId)),
@@ -2292,11 +2292,11 @@ function di(s) {
     ) || x("invalid_consent"));
   for (let o of s.permissions)
     (Lt(o.ref),
-      ks(o),
+      bs(o),
       (o.approvedAt < s.createdAt || o.approvedAt > s.updatedAt) && x("invalid_consent"),
       o.status === "active"
         ? ((o.revokedAt !== null || o.revocationFingerprint !== null) && x("invalid_consent"),
-          n.push(new TextDecoder().decode(Re(o.ref))))
+          n.push(new TextDecoder().decode(qe(o.ref))))
         : (o.permissionEpoch < 2 ||
             o.revokedAt === null ||
             o.revocationFingerprint === null ||
@@ -2305,48 +2305,48 @@ function di(s) {
           x("invalid_consent"));
   return (dr(n), n.length > 10 && x("invalid_consent"), s);
 }
-async function Is(s, n, o, p, c) {
-  let m = kr(rr(s.payload), !0),
-    h = m.artifactType === "persistent_resource_approval";
-  (Ie(h ? "PersistentResourceApprovalPayload" : "PersistentResourceRevocationPayload", m),
-    Re(s).length > 65536 && x("payload_too_large"),
-    fn(m, o));
-  let I = p.snapshots.get(m.registrySequence);
-  (!I || I.digest !== m.checkpointDigest || I.keyEpoch !== m.keyEpoch || m.issuedAt < I.issuedAt) &&
+async function As(s, n, o, p, c) {
+  let l = kr(rr(s.payload), !0),
+    y = l.artifactType === "persistent_resource_approval";
+  (Ie(y ? "PersistentResourceApprovalPayload" : "PersistentResourceRevocationPayload", l),
+    qe(s).length > 65536 && x("payload_too_large"),
+    gn(l, o));
+  let I = p.snapshots.get(l.registrySequence);
+  (!I || I.digest !== l.checkpointDigest || I.keyEpoch !== l.keyEpoch || l.issuedAt < I.issuedAt) &&
     x("registry_conflict");
   let N = kr(rr(s.protected)),
     O = p.anchor.rootJwk;
   if (N.kid !== p.anchor.rootKeyId) {
-    h && x("key_authorization_required");
-    let J = p.cert(N.kid, "device_sig", null, m.issuedAt, m.registrySequence);
+    y && x("key_authorization_required");
+    let J = p.cert(N.kid, "device_sig", null, l.issuedAt, l.registrySequence);
     (J.capabilities.includes("control_write") || x("key_authorization_required"),
       (O = J.publicJwk));
   }
-  (await Jr(s, O, "fv-control+jws"),
-    m.authorKeyId !== N.kid && x("recipient_binding_mismatch"),
-    n && (di(n), fn(n, o), n.consentId !== m.consentId && x("recipient_binding_mismatch")),
-    (m.expectedVersion !== (n?.version ?? 0) ||
-      m.expectedConsentDigest !== (n ? await Ae(n) : null) ||
-      m.issuedAt < (n?.updatedAt ?? o.registeredAt)) &&
+  (await Fr(s, O, "fv-control+jws"),
+    l.authorKeyId !== N.kid && x("recipient_binding_mismatch"),
+    n && (mi(n), gn(n, o), n.consentId !== l.consentId && x("recipient_binding_mismatch")),
+    (l.expectedVersion !== (n?.version ?? 0) ||
+      l.expectedConsentDigest !== (n ? await Ae(n) : null) ||
+      l.issuedAt < (n?.updatedAt ?? o.registeredAt)) &&
       x("version_conflict"));
   let _ = new Map((n?.permissions ?? []).map((J) => [J.permissionId, structuredClone(J)])),
-    B = await Ur(s);
-  if (h) {
-    (p.agent(o, m.issuedAt, m.registrySequence),
-      (!Array.isArray(c) || c.length !== m.resources.length) && x("invalid_sources"));
+    B = await zr(s);
+  if (y) {
+    (p.agent(o, l.issuedAt, l.registrySequence),
+      (!Array.isArray(c) || c.length !== l.resources.length) && x("invalid_sources"));
     let J = new Map();
     for (let C of c) {
       (Ie("ConsentSourceState", C),
         (C.ownerSubject !== o.ownerSubject || C.vaultId !== o.vaultId) &&
           x("recipient_binding_mismatch"));
-      let G = new TextDecoder().decode(Re(C.ref));
+      let G = new TextDecoder().decode(qe(C.ref));
       (J.has(G) && x("invalid_sources"), J.set(G, C));
     }
-    (dr(m.resources.map((C) => C.permissionId)),
-      dr(m.resources.map((C) => new TextDecoder().decode(Re(C.ref)))));
-    for (let C of m.resources) {
-      ks(C);
-      let G = J.get(new TextDecoder().decode(Re(C.ref)));
+    (dr(l.resources.map((C) => C.permissionId)),
+      dr(l.resources.map((C) => new TextDecoder().decode(qe(C.ref)))));
+    for (let C of l.resources) {
+      bs(C);
+      let G = J.get(new TextDecoder().decode(qe(C.ref)));
       (!G ||
         G.state !== "active" ||
         G.sourceEpoch !== C.sourceEpoch ||
@@ -2364,8 +2364,8 @@ async function Is(s, n, o, p, c) {
             _.set(C.permissionId, {
               ...de,
               selectedHistory: C.selectedHistory,
-              permissionEpoch: Gr(de.permissionEpoch + 1, 1),
-              approvedAt: m.issuedAt,
+              permissionEpoch: Xr(de.permissionEpoch + 1, 1),
+              approvedAt: l.issuedAt,
               approvalFingerprint: B,
             }));
       else {
@@ -2375,21 +2375,21 @@ async function Is(s, n, o, p, c) {
           x("version_conflict");
         let {
           permissionId: ue,
-          ref: me,
+          ref: le,
           sourceEpoch: Y,
           fromRevision: se,
           selectedHistory: be,
         } = C;
         _.set(C.permissionId, {
           permissionId: ue,
-          ref: me,
+          ref: le,
           sourceEpoch: Y,
           fromRevision: se,
           selectedHistory: be,
           versionPolicy: "current_and_future",
           permissionEpoch: 1,
           status: "active",
-          approvedAt: m.issuedAt,
+          approvedAt: l.issuedAt,
           approvalFingerprint: B,
           revokedAt: null,
           revocationFingerprint: null,
@@ -2397,8 +2397,8 @@ async function Is(s, n, o, p, c) {
       }
     }
   } else {
-    (n || x("not_found"), dr(m.targets.map((J) => J.permissionId)));
-    for (let J of m.targets) {
+    (n || x("not_found"), dr(l.targets.map((J) => J.permissionId)));
+    for (let J of l.targets) {
       let C = _.get(J.permissionId);
       ((!C ||
         C.status !== "active" ||
@@ -2408,46 +2408,46 @@ async function Is(s, n, o, p, c) {
         _.set(J.permissionId, {
           ...C,
           status: "revoked",
-          permissionEpoch: Gr(C.permissionEpoch + 1, 1),
-          revokedAt: m.issuedAt,
+          permissionEpoch: Xr(C.permissionEpoch + 1, 1),
+          revokedAt: l.issuedAt,
           revocationFingerprint: B,
         }));
     }
   }
-  return di({
+  return mi({
     contractVersion: Pr,
-    profile: ws,
-    ...Object.fromEntries(Fr.map((J) => [J, o[J]])),
-    consentId: m.consentId,
+    profile: Is,
+    ...Object.fromEntries(Hr.map((J) => [J, o[J]])),
+    consentId: l.consentId,
     purpose: "analysis",
-    version: Gr(m.expectedVersion + 1, 1),
-    createdAt: n?.createdAt ?? m.issuedAt,
-    updatedAt: m.issuedAt,
-    lastOperationId: m.stableOperationId,
+    version: Xr(l.expectedVersion + 1, 1),
+    createdAt: n?.createdAt ?? l.issuedAt,
+    updatedAt: l.issuedAt,
+    lastOperationId: l.stableOperationId,
     lastControlFingerprint: B,
     permissions: [..._.values()].sort((J, C) => (J.permissionId < C.permissionId ? -1 : 1)),
   });
 }
-async function Wi({ consent: s, receipts: n, identity: o, registry: p, pin: c = null }) {
+async function Ui({ consent: s, receipts: n, identity: o, registry: p, pin: c = null }) {
   if (s === null) return ((n.length || c) && x("consent_rollback"), null);
   ((!Array.isArray(n) || n.length !== s.version || n.length > 96) && x("invalid_consent_chain"),
     dr(n.map((I) => I.operationId)));
-  let m = null,
-    h = c === null;
+  let l = null,
+    y = c === null;
   for (let I of n)
-    ((m = await Is(I.command, m, o, p, I.sourceStates)),
-      (I.operationId !== m.lastOperationId ||
-        !ve(I.consent, m) ||
+    ((l = await As(I.command, l, o, p, I.sourceStates)),
+      (I.operationId !== l.lastOperationId ||
+        !ve(I.consent, l) ||
         I.priorDigest !==
-          (m.version === 1 ? null : kr(rr(I.command.payload), !0).expectedConsentDigest) ||
-        I.fingerprint !== m.lastControlFingerprint) &&
+          (l.version === 1 ? null : kr(rr(I.command.payload), !0).expectedConsentDigest) ||
+        I.fingerprint !== l.lastControlFingerprint) &&
         x("invalid_consent_receipt"),
       c &&
-        m.version === c.version &&
-        ((await Ae(m)) !== c.digest && x("consent_rollback"), (h = !0)));
-  return ((!h || !ve(m, s)) && x("consent_rollback"), m);
+        l.version === c.version &&
+        ((await Ae(l)) !== c.digest && x("consent_rollback"), (y = !0)));
+  return ((!y || !ve(l, s)) && x("consent_rollback"), l);
 }
-function Oa(s, n) {
+function Va(s, n) {
   let o = s?.permissions.find((p) => p.permissionId === n.permissionId);
   return (
     (!o ||
@@ -2461,18 +2461,18 @@ function Oa(s, n) {
   );
 }
 function ot(s, n) {
-  for (let o of Fr) ve(s[o], n[o]) || x("recipient_binding_mismatch");
+  for (let o of Hr) ve(s[o], n[o]) || x("recipient_binding_mismatch");
 }
-async function Va(s, { registry: n, identity: o, expected: p, now: c, purpose: m = "agent_read" }) {
-  ["agent_read", "new_publication", "owner_history"].includes(m) || x("invalid_purpose");
-  let { context: h, payload: I } = rt(s);
-  (ot(h, o), ot(p, o));
+async function Ta(s, { registry: n, identity: o, expected: p, now: c, purpose: l = "agent_read" }) {
+  ["agent_read", "new_publication", "owner_history"].includes(l) || x("invalid_purpose");
+  let { context: y, payload: I } = rt(s);
+  (ot(y, o), ot(p, o));
   let N = [
     "objectType",
     "objectId",
     "revision",
     "recipients",
-    ...(h.objectType === "task"
+    ...(y.objectType === "task"
       ? [
           ...li,
           "expectedAuthorityVersion",
@@ -2481,7 +2481,7 @@ async function Va(s, { registry: n, identity: o, expected: p, now: c, purpose: m
           "ownerTaskFingerprint",
           "resourceBindings",
         ]
-      : h.objectType === "result_revision"
+      : y.objectType === "result_revision"
         ? [...li, "runId", "manifestFingerprint"]
         : [
             "ref",
@@ -2492,46 +2492,46 @@ async function Va(s, { registry: n, identity: o, expected: p, now: c, purpose: m
             "ownerEnvelopeFingerprint",
           ]),
   ];
-  for (let J of N) (!Object.hasOwn(p, J) || !ve(h[J], p[J])) && x("recipient_binding_mismatch");
-  let O = n.snapshots.get(h.registrySequence);
-  ((!O || O.digest !== h.checkpointDigest || O.keyEpoch !== h.keyEpoch) && x("registry_conflict"),
-    (h.issuedAt < o.registeredAt || h.issuedAt > c) && x("key_authorization_required"),
-    m === "new_publication" &&
-      (h.registrySequence !== n.sequence || h.issuedAt < Math.max(n.current.issuedAt, c - 300)) &&
+  for (let J of N) (!Object.hasOwn(p, J) || !ve(y[J], p[J])) && x("recipient_binding_mismatch");
+  let O = n.snapshots.get(y.registrySequence);
+  ((!O || O.digest !== y.checkpointDigest || O.keyEpoch !== y.keyEpoch) && x("registry_conflict"),
+    (y.issuedAt < o.registeredAt || y.issuedAt > c) && x("key_authorization_required"),
+    l === "new_publication" &&
+      (y.registrySequence !== n.sequence || y.issuedAt < Math.max(n.current.issuedAt, c - 300)) &&
       x("registry_conflict"));
-  let _ = m === "owner_history" ? h.issuedAt : c,
+  let _ = l === "owner_history" ? y.issuedAt : c,
     { sig: B } = n.agent(o, _);
-  if (h.objectType === "result_revision") {
-    (!B.capabilities.includes("result_write") || h.issuedAt < B.notBefore) &&
+  if (y.objectType === "result_revision") {
+    (!B.capabilities.includes("result_write") || y.issuedAt < B.notBefore) &&
       x("key_authorization_required");
-    for (let J of h.recipients) n.cert(J.keyId, J.role, null, _);
-    await Jr(s.proof, B.publicJwk, "fv-control+jws");
+    for (let J of y.recipients) n.cert(J.keyId, J.role, null, _);
+    await Fr(s.proof, B.publicJwk, "fv-control+jws");
   } else {
-    if (m !== "agent_read")
-      for (let J of h.recipients) J.role === "recovery_enc" && n.cert(J.keyId, J.role, null, _);
-    await Jr(s.proof, n.anchor.rootJwk, "fv-control+jws");
+    if (l !== "agent_read")
+      for (let J of y.recipients) J.role === "recovery_enc" && n.cert(J.keyId, J.role, null, _);
+    await Fr(s.proof, n.anchor.rootJwk, "fv-control+jws");
   }
   return (
     I.ciphertextDigest !== (await Ae(s.jwe)) && x("recipient_binding_mismatch"),
-    { context: structuredClone(h), fingerprint: await Ur(s.proof) }
+    { context: structuredClone(y), fingerprint: await zr(s.proof) }
   );
 }
-async function Ui({ identity: s, audience: n, path: o, request: p, now: c, privateKey: m }) {
-  let h = new URL(n);
-  (h.protocol !== "https:" ||
-    h.username ||
-    h.password ||
-    h.search ||
-    h.hash ||
-    h.pathname !== "/" ||
-    h.origin !== n) &&
+async function zi({ identity: s, audience: n, path: o, request: p, now: c, privateKey: l }) {
+  let y = new URL(n);
+  (y.protocol !== "https:" ||
+    y.username ||
+    y.password ||
+    y.search ||
+    y.hash ||
+    y.pathname !== "/" ||
+    y.origin !== n) &&
     x("invalid_audience");
   let I = {
     contractVersion: Pr,
-    profile: Mr,
+    profile: Gr,
     artifactType: "persistent_agent_request",
     purpose: "authenticated_request",
-    ...Object.fromEntries(Fr.map((N) => [N, s[N]])),
+    ...Object.fromEntries(Hr.map((N) => [N, s[N]])),
     audience: n,
     method: "POST",
     path: o,
@@ -2541,20 +2541,20 @@ async function Ui({ identity: s, audience: n, path: o, request: p, now: c, priva
       .replaceAll("+", "-")
       .replaceAll("/", "_")
       .replaceAll("=", ""),
-    issuedAt: Gr(c, 1),
-    expiresAt: Gr(c + 120, 1),
+    issuedAt: Xr(c, 1),
+    expiresAt: Xr(c + 120, 1),
   };
   return (
     Ie("PersistentAgentRequestPayload", I),
     (o.includes("//") || o.split("/").some((N) => N === "." || N === "..")) && x("invalid_path"),
-    lt(I, m, s.agentSigningKeyId, "fv-control+jws")
+    mt(I, l, s.agentSigningKeyId, "fv-control+jws")
   );
 }
-async function Ta(s, { identity: n, taskContext: o, taskFingerprint: p, consent: c, now: m }) {
+async function Ra(s, { identity: n, taskContext: o, taskFingerprint: p, consent: c, now: l }) {
   (Ie("PersistentRunManifest", s),
     ot(s, n),
-    (s.createdAt <= m &&
-      m < s.expiresAt &&
+    (s.createdAt <= l &&
+      l < s.expiresAt &&
       s.createdAt < s.expiresAt &&
       s.expiresAt <= s.createdAt + 7200) ||
       x("run_expired"),
@@ -2563,147 +2563,147 @@ async function Ta(s, { identity: n, taskContext: o, taskFingerprint: p, consent:
   for (let I of li) ve(s[I], o[I]) || x("version_conflict");
   (s.taskPublicationFingerprint !== p || s.resultPolicy !== o.resultPolicy) &&
     x("recipient_binding_mismatch");
-  let h = [...s.inputs].sort((I, N) =>
-    new TextDecoder().decode(Re(I.ref)) < new TextDecoder().decode(Re(N.ref)) ? -1 : 1,
+  let y = [...s.inputs].sort((I, N) =>
+    new TextDecoder().decode(qe(I.ref)) < new TextDecoder().decode(qe(N.ref)) ? -1 : 1,
   );
-  (!ve(h, s.inputs) ||
+  (!ve(y, s.inputs) ||
     !ve(
       s.inputs.map((I) => ({ ref: I.ref, sourceEpoch: I.sourceEpoch })),
       [...o.resourceBindings].sort((I, N) =>
-        new TextDecoder().decode(Re(I.ref)) < new TextDecoder().decode(Re(N.ref)) ? -1 : 1,
+        new TextDecoder().decode(qe(I.ref)) < new TextDecoder().decode(qe(N.ref)) ? -1 : 1,
       ),
     )) &&
     x("recipient_binding_mismatch");
-  for (let I of s.inputs) Oa(c, I);
+  for (let I of s.inputs) Va(c, I);
   return { manifest: structuredClone(s), fingerprint: await Ae(s) };
 }
-var Xs,
-  mi,
-  Ys,
-  Qs,
+var Qs,
+  yi,
   eo,
   ro,
-  Ia,
-  hi,
   to,
   ao,
+  ba,
+  hi,
   io,
   no,
   so,
   oo,
-  yi,
-  Ot,
-  ui,
-  fi,
-  ma,
   po,
-  kn,
+  co,
+  ui,
+  Ot,
+  fi,
+  vi,
+  ya,
+  mo,
+  bn,
   vr,
-  Yr,
-  ii,
+  Qr,
+  ni,
   ha,
-  lr,
+  mr,
   Nt,
   re,
   Pe,
   fr,
-  gi,
-  ya,
   Pi,
-  In,
-  bn,
-  Kt,
   ua,
-  co,
   wi,
-  xn,
+  An,
+  Dn,
+  Kt,
+  fa,
   lo,
-  mo,
-  Wa,
-  ho,
-  pt,
-  bi,
+  ki,
   Sn,
-  st,
-  pa,
-  va,
   yo,
-  go,
-  Po,
-  xa,
-  Tt,
+  ho,
+  Ua,
+  uo,
+  pt,
+  Ai,
+  Nn,
+  st,
+  ca,
+  ga,
+  fo,
   wo,
   ko,
-  jo,
-  ts,
-  qt,
-  Ki,
+  Ea,
+  Tt,
+  Io,
+  bo,
+  Lo,
+  is,
+  Rt,
+  ji,
   jt,
-  To,
   qo,
-  vt,
-  mn,
   Co,
-  ps,
-  Vi,
-  Ho,
-  Wo,
-  Uo,
+  vt,
+  hn,
+  Fo,
   ds,
+  Ti,
+  Uo,
   zo,
   Bo,
+  ls,
   Zo,
   Mo,
   Go,
   Xo,
-  $t,
   Yo,
-  ls,
   Qo,
+  $t,
   ep,
-  xt,
-  ms,
-  si,
-  Zr,
-  hn,
-  Qr,
-  hs,
+  ys,
   rp,
-  ap,
-  qi,
-  Ri,
-  ip,
-  np,
-  op,
-  zr,
-  pi,
-  us,
-  fs,
-  fp,
-  vp,
-  xp,
-  Ep,
-  vs,
-  Sp,
-  gs,
-  Pr,
+  tp,
+  xt,
+  hs,
+  oi,
   Mr,
-  Fr,
-  Rt,
+  un,
   et,
-  Kp,
-  Hi,
+  us,
+  ap,
+  np,
+  qi,
+  Ci,
+  sp,
+  op,
+  cp,
+  Br,
+  ci,
+  vs,
+  gs,
+  gp,
+  Pp,
+  Sp,
+  _p,
+  Ps,
+  Np,
   ws,
-  fn,
+  Pr,
+  Gr,
+  Hr,
+  qt,
+  Ir,
+  $p,
+  Wi,
+  Is,
+  gn,
   li,
-  Wt = on(() => {
-    ((Xs = Object.create),
-      (mi = Object.defineProperty),
-      (Ys = Object.getOwnPropertyDescriptor),
-      (Qs = Object.getOwnPropertyNames),
-      (eo = Object.getPrototypeOf),
-      (ro = Object.prototype.hasOwnProperty),
-      (Ia = (s, n) => () => {
+  Wt = cn(() => {
+    ((Qs = Object.create),
+      (yi = Object.defineProperty),
+      (eo = Object.getOwnPropertyDescriptor),
+      (ro = Object.getOwnPropertyNames),
+      (to = Object.getPrototypeOf),
+      (ao = Object.prototype.hasOwnProperty),
+      (ba = (s, n) => () => {
         try {
           return (n || s((n = { exports: {} }).exports, n), n.exports);
         } catch (o) {
@@ -2711,58 +2711,58 @@ var Xs,
         }
       }),
       (hi = (s, n) => {
-        for (var o in n) mi(s, o, { get: n[o], enumerable: !0 });
+        for (var o in n) yi(s, o, { get: n[o], enumerable: !0 });
       }),
-      (to = (s, n, o, p) => {
+      (io = (s, n, o, p) => {
         if ((n && typeof n == "object") || typeof n == "function")
-          for (let c of Qs(n))
-            !ro.call(s, c) &&
+          for (let c of ro(n))
+            !ao.call(s, c) &&
               c !== o &&
-              mi(s, c, { get: () => n[c], enumerable: !(p = Ys(n, c)) || p.enumerable });
+              yi(s, c, { get: () => n[c], enumerable: !(p = eo(n, c)) || p.enumerable });
         return s;
       }),
-      (ao = (s, n, o) => (
-        (o = s != null ? Xs(eo(s)) : {}),
-        to(n || !s || !s.__esModule ? mi(o, "default", { value: s, enumerable: !0 }) : o, s)
+      (no = (s, n, o) => (
+        (o = s != null ? Qs(to(s)) : {}),
+        io(n || !s || !s.__esModule ? yi(o, "default", { value: s, enumerable: !0 }) : o, s)
       )),
-      (io = Ia((s) => {
+      (so = ba((s) => {
         "use strict";
         Object.defineProperty(s, "__esModule", { value: !0 });
         function n(o) {
           let p = o.length,
             c = 0,
-            m = 0,
-            h;
-          for (; m < p;)
+            l = 0,
+            y;
+          for (; l < p;)
             (c++,
-              (h = o.charCodeAt(m++)),
-              h >= 55296 &&
-                h <= 56319 &&
-                m < p &&
-                ((h = o.charCodeAt(m)), (h & 64512) === 56320 && m++));
+              (y = o.charCodeAt(l++)),
+              y >= 55296 &&
+                y <= 56319 &&
+                l < p &&
+                ((y = o.charCodeAt(l)), (y & 64512) === 56320 && l++));
           return c;
         }
         ((s.default = n), (n.code = 'require("ajv/dist/runtime/ucs2length").default'));
       })),
-      (no = Ia((s, n) => {
+      (oo = ba((s, n) => {
         "use strict";
         n.exports = function o(p, c) {
           if (p === c) return !0;
           if (p && c && typeof p == "object" && typeof c == "object") {
             if (p.constructor !== c.constructor) return !1;
-            var m, h, I;
+            var l, y, I;
             if (Array.isArray(p)) {
-              if (((m = p.length), m != c.length)) return !1;
-              for (h = m; h-- !== 0;) if (!o(p[h], c[h])) return !1;
+              if (((l = p.length), l != c.length)) return !1;
+              for (y = l; y-- !== 0;) if (!o(p[y], c[y])) return !1;
               return !0;
             }
             if (p.constructor === RegExp) return p.source === c.source && p.flags === c.flags;
             if (p.valueOf !== Object.prototype.valueOf) return p.valueOf() === c.valueOf();
             if (p.toString !== Object.prototype.toString) return p.toString() === c.toString();
-            if (((I = Object.keys(p)), (m = I.length), m !== Object.keys(c).length)) return !1;
-            for (h = m; h-- !== 0;) if (!Object.prototype.hasOwnProperty.call(c, I[h])) return !1;
-            for (h = m; h-- !== 0;) {
-              var N = I[h];
+            if (((I = Object.keys(p)), (l = I.length), l !== Object.keys(c).length)) return !1;
+            for (y = l; y-- !== 0;) if (!Object.prototype.hasOwnProperty.call(c, I[y])) return !1;
+            for (y = l; y-- !== 0;) {
+              var N = I[y];
               if (!o(p[N], c[N])) return !1;
             }
             return !0;
@@ -2770,16 +2770,16 @@ var Xs,
           return p !== p && c !== c;
         };
       })),
-      (so = Ia((s) => {
+      (po = ba((s) => {
         "use strict";
         Object.defineProperty(s, "__esModule", { value: !0 });
-        var n = no();
+        var n = oo();
         ((n.code = 'require("ajv/dist/runtime/equal").default'), (s.default = n));
       })),
-      (oo = Ia((s) => {
+      (co = ba((s) => {
         "use strict";
         s.PublicJWK = c;
-        var n = io().default,
+        var n = so().default,
           o = new RegExp("^[A-Za-z0-9_-]{43}$", "u");
         function p(
           e,
@@ -2816,22 +2816,22 @@ var Xs,
                 );
               {
                 let u = r;
-                for (let y in e)
-                  if (!(y === "kty" || y === "crv" || y === "x" || y === "y"))
+                for (let h in e)
+                  if (!(h === "kty" || h === "crv" || h === "x" || h === "y"))
                     return (
                       (p.errors = [
                         {
                           instancePath: a,
                           schemaPath: "#/additionalProperties",
                           keyword: "additionalProperties",
-                          params: { additionalProperty: y },
+                          params: { additionalProperty: h },
                         },
                       ]),
                       !1
                     );
                 if (u === r) {
                   if (e.kty !== void 0) {
-                    let y = r;
+                    let h = r;
                     if (e.kty !== "EC")
                       return (
                         (p.errors = [
@@ -2844,11 +2844,11 @@ var Xs,
                         ]),
                         !1
                       );
-                    var i = y === r;
+                    var i = h === r;
                   } else var i = !0;
                   if (i) {
                     if (e.crv !== void 0) {
-                      let l = r;
+                      let m = r;
                       if (e.crv !== "P-256")
                         return (
                           (p.errors = [
@@ -2861,7 +2861,7 @@ var Xs,
                           ]),
                           !1
                         );
-                      var i = l === r;
+                      var i = m === r;
                     } else var i = !0;
                     if (i) {
                       if (e.x !== void 0) {
@@ -3022,8 +3022,8 @@ var Xs,
           );
         }
         ((c.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 }), (s.Identifier = I));
-        var m = new RegExp("^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$", "u");
-        function h(
+        var l = new RegExp("^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$", "u");
+        function y(
           e,
           {
             instancePath: a = "",
@@ -3035,12 +3035,12 @@ var Xs,
         ) {
           let t = null,
             r = 0,
-            d = h.evaluated;
+            d = y.evaluated;
           if ((d.dynamicProps && (d.props = void 0), d.dynamicItems && (d.items = void 0), r === 0))
             if (typeof e == "string") {
               if (n(e) > 128)
                 return (
-                  (h.errors = [
+                  (y.errors = [
                     {
                       instancePath: a,
                       schemaPath: "#/maxLength",
@@ -3052,7 +3052,7 @@ var Xs,
                 );
               if (n(e) < 1)
                 return (
-                  (h.errors = [
+                  (y.errors = [
                     {
                       instancePath: a,
                       schemaPath: "#/minLength",
@@ -3062,9 +3062,9 @@ var Xs,
                   ]),
                   !1
                 );
-              if (!m.test(e))
+              if (!l.test(e))
                 return (
-                  (h.errors = [
+                  (y.errors = [
                     {
                       instancePath: a,
                       schemaPath: "#/pattern",
@@ -3076,7 +3076,7 @@ var Xs,
                 );
             } else
               return (
-                (h.errors = [
+                (y.errors = [
                   {
                     instancePath: a,
                     schemaPath: "#/type",
@@ -3086,9 +3086,9 @@ var Xs,
                 ]),
                 !1
               );
-          return ((h.errors = t), r === 0);
+          return ((y.errors = t), r === 0);
         }
-        h.evaluated = { dynamicProps: !1, dynamicItems: !1 };
+        y.evaluated = { dynamicProps: !1, dynamicItems: !1 };
         function I(
           e,
           {
@@ -3105,13 +3105,13 @@ var Xs,
           return (
             d.dynamicProps && (d.props = void 0),
             d.dynamicItems && (d.items = void 0),
-            h(e, {
+            y(e, {
               instancePath: a,
               parentData: F,
               parentDataProperty: H,
               rootData: f,
               dynamicAnchors: v,
-            }) || ((t = t === null ? h.errors : t.concat(h.errors)), (r = t.length)),
+            }) || ((t = t === null ? y.errors : t.concat(y.errors)), (r = t.length)),
             (I.errors = t),
             r === 0
           );
@@ -3374,9 +3374,9 @@ var Xs,
             additionalProperties: !1,
           },
           G = Object.prototype.hasOwnProperty,
-          de = so().default,
+          de = po().default,
           ue = new RegExp("Z$", "u"),
-          me = {
+          le = {
             type: "object",
             properties: {
               kind: { type: "string", enum: ["watchlist", "channel_follows", "holdings"] },
@@ -3431,10 +3431,10 @@ var Xs,
             let b = {};
             (t === null ? (t = [b]) : t.push(b), r++);
           }
-          var y = u === r;
+          var h = u === r;
           ((r = i), t !== null && (i ? (t.length = i) : (t = null)));
-          let l;
-          if (y) {
+          let m;
+          if (h) {
             let b = r;
             if (
               e &&
@@ -3454,12 +3454,12 @@ var Xs,
                 ]),
                 !1
               );
-            var y = b === r;
-            if (((g = y), g)) {
+            var h = b === r;
+            if (((g = h), g)) {
               var P = {};
               ((P.sourceService = !0), (P.kind = !0));
             }
-            l = "then";
+            m = "then";
           } else {
             let b = r;
             if (
@@ -3480,15 +3480,15 @@ var Xs,
                 ]),
                 !1
               );
-            var y = b === r;
-            ((g = y), g && P !== !0 && ((P = P || {}), (P.sourceService = !0)), (l = "else"));
+            var h = b === r;
+            ((g = h), g && P !== !0 && ((P = P || {}), (P.sourceService = !0)), (m = "else"));
           }
           if (!g) {
             let b = {
               instancePath: a,
               schemaPath: "#/allOf/0/if",
               keyword: "if",
-              params: { failingKeyword: l },
+              params: { failingKeyword: m },
             };
             return (t === null ? (t = [b]) : t.push(b), r++, (Y.errors = t), !1);
           }
@@ -3555,7 +3555,7 @@ var Xs,
                             instancePath: a + "/kind",
                             schemaPath: "#/properties/kind/enum",
                             keyword: "enum",
-                            params: { allowedValues: me.properties.kind.enum },
+                            params: { allowedValues: le.properties.kind.enum },
                           },
                         ]),
                         !1
@@ -3585,7 +3585,7 @@ var Xs,
                               instancePath: a + "/sourceService",
                               schemaPath: "#/properties/sourceService/enum",
                               keyword: "enum",
-                              params: { allowedValues: me.properties.sourceService.enum },
+                              params: { allowedValues: le.properties.sourceService.enum },
                             },
                           ]),
                           !1
@@ -3622,7 +3622,7 @@ var Xs,
                                 ]),
                                 !1
                               );
-                            if (!m.test($))
+                            if (!l.test($))
                               return (
                                 (Y.errors = [
                                   {
@@ -3678,7 +3678,7 @@ var Xs,
                                   ]),
                                   !1
                                 );
-                              if (!m.test($))
+                              if (!l.test($))
                                 return (
                                   (Y.errors = [
                                     {
@@ -3756,22 +3756,22 @@ var Xs,
                 );
               {
                 let u = r;
-                for (let y in e)
-                  if (!(y === "ref" || y === "sourceEpoch"))
+                for (let h in e)
+                  if (!(h === "ref" || h === "sourceEpoch"))
                     return (
                       (se.errors = [
                         {
                           instancePath: a,
                           schemaPath: "#/additionalProperties",
                           keyword: "additionalProperties",
-                          params: { additionalProperty: y },
+                          params: { additionalProperty: h },
                         },
                       ]),
                       !1
                     );
                 if (u === r) {
                   if (e.ref !== void 0) {
-                    let y = r;
+                    let h = r;
                     Y(e.ref, {
                       instancePath: a + "/ref",
                       parentData: e,
@@ -3779,13 +3779,13 @@ var Xs,
                       rootData: f,
                       dynamicAnchors: v,
                     }) || ((t = t === null ? Y.errors : t.concat(Y.errors)), (r = t.length));
-                    var i = y === r;
+                    var i = h === r;
                   } else var i = !0;
                   if (i)
                     if (e.sourceEpoch !== void 0) {
-                      let y = e.sourceEpoch,
-                        l = r;
-                      if (!(typeof y == "number" && !(y % 1) && !isNaN(y)))
+                      let h = e.sourceEpoch,
+                        m = r;
+                      if (!(typeof h == "number" && !(h % 1) && !isNaN(h)))
                         return (
                           (se.errors = [
                             {
@@ -3797,8 +3797,8 @@ var Xs,
                           ]),
                           !1
                         );
-                      if (r === l && typeof y == "number") {
-                        if (y > 9007199254740991 || isNaN(y))
+                      if (r === m && typeof h == "number") {
+                        if (h > 9007199254740991 || isNaN(h))
                           return (
                             (se.errors = [
                               {
@@ -3810,7 +3810,7 @@ var Xs,
                             ]),
                             !1
                           );
-                        if (y < 1 || isNaN(y))
+                        if (h < 1 || isNaN(h))
                           return (
                             (se.errors = [
                               {
@@ -3823,7 +3823,7 @@ var Xs,
                             !1
                           );
                       }
-                      var i = l === r;
+                      var i = m === r;
                     } else var i = !0;
                 }
               }
@@ -3886,23 +3886,23 @@ var Xs,
                   !1
                 );
               {
-                let y = r;
-                for (let l in e)
-                  if (!G.call(C.properties, l))
+                let h = r;
+                for (let m in e)
+                  if (!G.call(C.properties, m))
                     return (
                       (Q.errors = [
                         {
                           instancePath: a,
                           schemaPath: "#/additionalProperties",
                           keyword: "additionalProperties",
-                          params: { additionalProperty: l },
+                          params: { additionalProperty: m },
                         },
                       ]),
                       !1
                     );
-                if (y === r) {
+                if (h === r) {
                   if (e.contractVersion !== void 0) {
-                    let l = r;
+                    let m = r;
                     if (e.contractVersion !== "folioview.agent-workspace.v2.0")
                       return (
                         (Q.errors = [
@@ -3915,7 +3915,7 @@ var Xs,
                         ]),
                         !1
                       );
-                    var i = l === r;
+                    var i = m === r;
                   } else var i = !0;
                   if (i) {
                     if (e.vaultId !== void 0) {
@@ -3947,7 +3947,7 @@ var Xs,
                               ]),
                               !1
                             );
-                          if (!m.test(P))
+                          if (!l.test(P))
                             return (
                               (Q.errors = [
                                 {
@@ -4003,7 +4003,7 @@ var Xs,
                                 ]),
                                 !1
                               );
-                            if (!m.test(w))
+                            if (!l.test(w))
                               return (
                                 (Q.errors = [
                                   {
@@ -4612,7 +4612,7 @@ var Xs,
           );
         }
         ((ar.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 }),
-          (s.OperationIdentifier = br));
+          (s.OperationIdentifier = Ar));
         var We = new RegExp("^[A-Za-z0-9_-]+$", "u");
         function Ce(
           e,
@@ -4680,7 +4680,7 @@ var Xs,
           return ((Ce.errors = t), r === 0);
         }
         Ce.evaluated = { dynamicProps: !1, dynamicItems: !1 };
-        function br(
+        function Ar(
           e,
           {
             instancePath: a = "",
@@ -4692,7 +4692,7 @@ var Xs,
         ) {
           let t = null,
             r = 0,
-            d = br.evaluated;
+            d = Ar.evaluated;
           return (
             d.dynamicProps && (d.props = void 0),
             d.dynamicItems && (d.items = void 0),
@@ -4703,11 +4703,11 @@ var Xs,
               rootData: f,
               dynamicAnchors: v,
             }) || ((t = t === null ? Ce.errors : t.concat(Ce.errors)), (r = t.length)),
-            (br.errors = t),
+            (Ar.errors = t),
             r === 0
           );
         }
-        ((br.evaluated = { dynamicProps: !1, dynamicItems: !1 }), (s.RegistryBundle = ir));
+        ((Ar.evaluated = { dynamicProps: !1, dynamicItems: !1 }), (s.RegistryBundle = ir));
         function ge(
           e,
           {
@@ -4742,26 +4742,26 @@ var Xs,
                 );
               {
                 let u = r;
-                for (let y in e)
-                  if (!(y === "protected" || y === "payload" || y === "signature"))
+                for (let h in e)
+                  if (!(h === "protected" || h === "payload" || h === "signature"))
                     return (
                       (ge.errors = [
                         {
                           instancePath: a,
                           schemaPath: "#/additionalProperties",
                           keyword: "additionalProperties",
-                          params: { additionalProperty: y },
+                          params: { additionalProperty: h },
                         },
                       ]),
                       !1
                     );
                 if (u === r) {
                   if (e.protected !== void 0) {
-                    let y = e.protected,
-                      l = r;
-                    if (r === l)
-                      if (typeof y == "string") {
-                        if (n(y) > 1024)
+                    let h = e.protected,
+                      m = r;
+                    if (r === m)
+                      if (typeof h == "string") {
+                        if (n(h) > 1024)
                           return (
                             (ge.errors = [
                               {
@@ -4773,7 +4773,7 @@ var Xs,
                             ]),
                             !1
                           );
-                        if (n(y) < 1)
+                        if (n(h) < 1)
                           return (
                             (ge.errors = [
                               {
@@ -4785,7 +4785,7 @@ var Xs,
                             ]),
                             !1
                           );
-                        if (!We.test(y))
+                        if (!We.test(h))
                           return (
                             (ge.errors = [
                               {
@@ -4809,15 +4809,15 @@ var Xs,
                           ]),
                           !1
                         );
-                    var i = l === r;
+                    var i = m === r;
                   } else var i = !0;
                   if (i) {
                     if (e.payload !== void 0) {
-                      let l = e.payload,
+                      let m = e.payload,
                         P = r;
                       if (r === P)
-                        if (typeof l == "string") {
-                          if (n(l) > 699051)
+                        if (typeof m == "string") {
+                          if (n(m) > 699051)
                             return (
                               (ge.errors = [
                                 {
@@ -4829,7 +4829,7 @@ var Xs,
                               ]),
                               !1
                             );
-                          if (n(l) < 1)
+                          if (n(m) < 1)
                             return (
                               (ge.errors = [
                                 {
@@ -4841,7 +4841,7 @@ var Xs,
                               ]),
                               !1
                             );
-                          if (!We.test(l))
+                          if (!We.test(m))
                             return (
                               (ge.errors = [
                                 {
@@ -4869,11 +4869,11 @@ var Xs,
                     } else var i = !0;
                     if (i)
                       if (e.signature !== void 0) {
-                        let l = e.signature,
+                        let m = e.signature,
                           P = r;
                         if (r === P)
-                          if (typeof l == "string") {
-                            if (n(l) > 86)
+                          if (typeof m == "string") {
+                            if (n(m) > 86)
                               return (
                                 (ge.errors = [
                                   {
@@ -4885,7 +4885,7 @@ var Xs,
                                 ]),
                                 !1
                               );
-                            if (n(l) < 86)
+                            if (n(m) < 86)
                               return (
                                 (ge.errors = [
                                   {
@@ -4897,7 +4897,7 @@ var Xs,
                                 ]),
                                 !1
                               );
-                            if (!We.test(l))
+                            if (!We.test(m))
                               return (
                                 (ge.errors = [
                                   {
@@ -4941,7 +4941,7 @@ var Xs,
           return ((ge.errors = t), r === 0);
         }
         ge.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
-        function mr(
+        function lr(
           e,
           {
             instancePath: a = "",
@@ -4953,7 +4953,7 @@ var Xs,
         ) {
           let t = null,
             r = 0,
-            d = mr.evaluated;
+            d = lr.evaluated;
           if ((d.dynamicProps && (d.props = void 0), d.dynamicItems && (d.items = void 0), r === 0))
             if (e && typeof e == "object" && !Array.isArray(e)) {
               let g;
@@ -4962,7 +4962,7 @@ var Xs,
                 (e.active === void 0 && (g = "active"))
               )
                 return (
-                  (mr.errors = [
+                  (lr.errors = [
                     {
                       instancePath: a,
                       schemaPath: "#/required",
@@ -4974,22 +4974,22 @@ var Xs,
                 );
               {
                 let u = r;
-                for (let y in e)
-                  if (!(y === "certificate" || y === "active"))
+                for (let h in e)
+                  if (!(h === "certificate" || h === "active"))
                     return (
-                      (mr.errors = [
+                      (lr.errors = [
                         {
                           instancePath: a,
                           schemaPath: "#/additionalProperties",
                           keyword: "additionalProperties",
-                          params: { additionalProperty: y },
+                          params: { additionalProperty: h },
                         },
                       ]),
                       !1
                     );
                 if (u === r) {
                   if (e.certificate !== void 0) {
-                    let y = r;
+                    let h = r;
                     ge(e.certificate, {
                       instancePath: a + "/certificate",
                       parentData: e,
@@ -4997,14 +4997,14 @@ var Xs,
                       rootData: f,
                       dynamicAnchors: v,
                     }) || ((t = t === null ? ge.errors : t.concat(ge.errors)), (r = t.length));
-                    var i = y === r;
+                    var i = h === r;
                   } else var i = !0;
                   if (i)
                     if (e.active !== void 0) {
-                      let y = r;
+                      let h = r;
                       if (typeof e.active != "boolean")
                         return (
-                          (mr.errors = [
+                          (lr.errors = [
                             {
                               instancePath: a + "/active",
                               schemaPath: "#/properties/active/type",
@@ -5014,13 +5014,13 @@ var Xs,
                           ]),
                           !1
                         );
-                      var i = y === r;
+                      var i = h === r;
                     } else var i = !0;
                 }
               }
             } else
               return (
-                (mr.errors = [
+                (lr.errors = [
                   {
                     instancePath: a,
                     schemaPath: "#/type",
@@ -5030,9 +5030,9 @@ var Xs,
                 ]),
                 !1
               );
-          return ((mr.errors = t), r === 0);
+          return ((lr.errors = t), r === 0);
         }
-        mr.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
+        lr.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
         function Le(
           e,
           {
@@ -5066,23 +5066,23 @@ var Xs,
                   !1
                 );
               {
-                let y = r;
-                for (let l in e)
-                  if (!(l === "contractVersion" || l === "checkpoint" || l === "entries"))
+                let h = r;
+                for (let m in e)
+                  if (!(m === "contractVersion" || m === "checkpoint" || m === "entries"))
                     return (
                       (Le.errors = [
                         {
                           instancePath: a,
                           schemaPath: "#/additionalProperties",
                           keyword: "additionalProperties",
-                          params: { additionalProperty: l },
+                          params: { additionalProperty: m },
                         },
                       ]),
                       !1
                     );
-                if (y === r) {
+                if (h === r) {
                   if (e.contractVersion !== void 0) {
-                    let l = r;
+                    let m = r;
                     if (e.contractVersion !== "folioview.agent-workspace.v2.0")
                       return (
                         (Le.errors = [
@@ -5095,7 +5095,7 @@ var Xs,
                         ]),
                         !1
                       );
-                    var i = l === r;
+                    var i = m === r;
                   } else var i = !0;
                   if (i) {
                     if (e.checkpoint !== void 0) {
@@ -5144,14 +5144,14 @@ var Xs,
                               let D = P.length;
                               for (let k = 0; k < D; k++) {
                                 let V = r;
-                                mr(P[k], {
+                                lr(P[k], {
                                   instancePath: a + "/entries/" + k,
                                   parentData: P,
                                   parentDataProperty: k,
                                   rootData: f,
                                   dynamicAnchors: v,
                                 }) ||
-                                  ((t = t === null ? mr.errors : t.concat(mr.errors)),
+                                  ((t = t === null ? lr.errors : t.concat(lr.errors)),
                                   (r = t.length));
                                 var g = V === r;
                                 if (!g) break;
@@ -5217,8 +5217,8 @@ var Xs,
           );
         }
         ((ir.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 }),
-          (s.RegistryCheckpointPayload = zt));
-        var Kr = {
+          (s.RegistryCheckpointPayload = Bt));
+        var jr = {
           type: "object",
           properties: {
             artifactType: { const: "registry_checkpoint" },
@@ -5301,20 +5301,20 @@ var Xs,
             d = ie.evaluated;
           if ((d.dynamicProps && (d.props = void 0), d.dynamicItems && (d.items = void 0), r === 0))
             if (e && typeof e == "object" && !Array.isArray(e)) {
-              let y;
+              let h;
               if (
-                (e.artifactType === void 0 && (y = "artifactType")) ||
-                (e.contractVersion === void 0 && (y = "contractVersion")) ||
-                (e.vaultId === void 0 && (y = "vaultId")) ||
-                (e.ownerSubject === void 0 && (y = "ownerSubject")) ||
-                (e.rootKeyId === void 0 && (y = "rootKeyId")) ||
-                (e.rootEpoch === void 0 && (y = "rootEpoch")) ||
-                (e.registrySequence === void 0 && (y = "registrySequence")) ||
-                (e.previousDigest === void 0 && (y = "previousDigest")) ||
-                (e.entriesDigest === void 0 && (y = "entriesDigest")) ||
-                (e.keyEpoch === void 0 && (y = "keyEpoch")) ||
-                (e.revokedKeyIds === void 0 && (y = "revokedKeyIds")) ||
-                (e.issuedAt === void 0 && (y = "issuedAt"))
+                (e.artifactType === void 0 && (h = "artifactType")) ||
+                (e.contractVersion === void 0 && (h = "contractVersion")) ||
+                (e.vaultId === void 0 && (h = "vaultId")) ||
+                (e.ownerSubject === void 0 && (h = "ownerSubject")) ||
+                (e.rootKeyId === void 0 && (h = "rootKeyId")) ||
+                (e.rootEpoch === void 0 && (h = "rootEpoch")) ||
+                (e.registrySequence === void 0 && (h = "registrySequence")) ||
+                (e.previousDigest === void 0 && (h = "previousDigest")) ||
+                (e.entriesDigest === void 0 && (h = "entriesDigest")) ||
+                (e.keyEpoch === void 0 && (h = "keyEpoch")) ||
+                (e.revokedKeyIds === void 0 && (h = "revokedKeyIds")) ||
+                (e.issuedAt === void 0 && (h = "issuedAt"))
               )
                 return (
                   (ie.errors = [
@@ -5322,15 +5322,15 @@ var Xs,
                       instancePath: a,
                       schemaPath: "#/required",
                       keyword: "required",
-                      params: { missingProperty: y },
+                      params: { missingProperty: h },
                     },
                   ]),
                   !1
                 );
               {
-                let l = r;
+                let m = r;
                 for (let P in e)
-                  if (!G.call(Kr.properties, P))
+                  if (!G.call(jr.properties, P))
                     return (
                       (ie.errors = [
                         {
@@ -5342,7 +5342,7 @@ var Xs,
                       ]),
                       !1
                     );
-                if (l === r) {
+                if (m === r) {
                   if (e.artifactType !== void 0) {
                     let P = r;
                     if (e.artifactType !== "registry_checkpoint")
@@ -5406,7 +5406,7 @@ var Xs,
                                 ]),
                                 !1
                               );
-                            if (!m.test(b))
+                            if (!l.test(b))
                               return (
                                 (ie.errors = [
                                   {
@@ -5462,7 +5462,7 @@ var Xs,
                                   ]),
                                   !1
                                 );
-                              if (!m.test(D))
+                              if (!l.test(D))
                                 return (
                                   (ie.errors = [
                                     {
@@ -5642,65 +5642,65 @@ var Xs,
                                   if (r === K)
                                     if (typeof j == "string") {
                                       if (n(j) > 64) {
-                                        let q = {
+                                        let R = {
                                           instancePath: a + "/previousDigest",
                                           schemaPath:
                                             "#/properties/previousDigest/anyOf/0/maxLength",
                                           keyword: "maxLength",
                                           params: { limit: 64 },
                                         };
-                                        (t === null ? (t = [q]) : t.push(q), r++);
+                                        (t === null ? (t = [R]) : t.push(R), r++);
                                       } else if (n(j) < 64) {
-                                        let q = {
+                                        let R = {
                                           instancePath: a + "/previousDigest",
                                           schemaPath:
                                             "#/properties/previousDigest/anyOf/0/minLength",
                                           keyword: "minLength",
                                           params: { limit: 64 },
                                         };
-                                        (t === null ? (t = [q]) : t.push(q), r++);
+                                        (t === null ? (t = [R]) : t.push(R), r++);
                                       } else if (!_.test(j)) {
-                                        let q = {
+                                        let R = {
                                           instancePath: a + "/previousDigest",
                                           schemaPath: "#/properties/previousDigest/anyOf/0/pattern",
                                           keyword: "pattern",
                                           params: { pattern: "^[a-f0-9]{64}$" },
                                         };
-                                        (t === null ? (t = [q]) : t.push(q), r++);
+                                        (t === null ? (t = [R]) : t.push(R), r++);
                                       }
                                     } else {
-                                      let q = {
+                                      let R = {
                                         instancePath: a + "/previousDigest",
                                         schemaPath: "#/properties/previousDigest/anyOf/0/type",
                                         keyword: "type",
                                         params: { type: "string" },
                                       };
-                                      (t === null ? (t = [q]) : t.push(q), r++);
+                                      (t === null ? (t = [R]) : t.push(R), r++);
                                     }
                                   var g = K === r;
                                   E = E || g;
                                   let Z = r;
                                   if (j !== null) {
-                                    let q = {
+                                    let R = {
                                       instancePath: a + "/previousDigest",
                                       schemaPath: "#/properties/previousDigest/anyOf/1/type",
                                       keyword: "type",
                                       params: { type: "null" },
                                     };
-                                    (t === null ? (t = [q]) : t.push(q), r++);
+                                    (t === null ? (t = [R]) : t.push(R), r++);
                                   }
                                   var g = Z === r;
                                   if (((E = E || g), E))
                                     ((r = L), t !== null && (L ? (t.length = L) : (t = null)));
                                   else {
-                                    let q = {
+                                    let R = {
                                       instancePath: a + "/previousDigest",
                                       schemaPath: "#/properties/previousDigest/anyOf",
                                       keyword: "anyOf",
                                       params: {},
                                     };
                                     return (
-                                      t === null ? (t = [q]) : t.push(q),
+                                      t === null ? (t = [R]) : t.push(R),
                                       r++,
                                       (ie.errors = t),
                                       !1
@@ -5845,9 +5845,9 @@ var Xs,
                                               );
                                             {
                                               var u = !0;
-                                              let R = E.length;
-                                              for (let q = 0; q < R; q++) {
-                                                let z = E[q],
+                                              let q = E.length;
+                                              for (let R = 0; R < q; R++) {
+                                                let z = E[R],
                                                   X = r;
                                                 if (r === X)
                                                   if (typeof z == "string") {
@@ -5855,7 +5855,7 @@ var Xs,
                                                       return (
                                                         (ie.errors = [
                                                           {
-                                                            instancePath: a + "/revokedKeyIds/" + q,
+                                                            instancePath: a + "/revokedKeyIds/" + R,
                                                             schemaPath:
                                                               "#/properties/revokedKeyIds/items/maxLength",
                                                             keyword: "maxLength",
@@ -5868,7 +5868,7 @@ var Xs,
                                                       return (
                                                         (ie.errors = [
                                                           {
-                                                            instancePath: a + "/revokedKeyIds/" + q,
+                                                            instancePath: a + "/revokedKeyIds/" + R,
                                                             schemaPath:
                                                               "#/properties/revokedKeyIds/items/minLength",
                                                             keyword: "minLength",
@@ -5881,7 +5881,7 @@ var Xs,
                                                       return (
                                                         (ie.errors = [
                                                           {
-                                                            instancePath: a + "/revokedKeyIds/" + q,
+                                                            instancePath: a + "/revokedKeyIds/" + R,
                                                             schemaPath:
                                                               "#/properties/revokedKeyIds/items/pattern",
                                                             keyword: "pattern",
@@ -5896,7 +5896,7 @@ var Xs,
                                                     return (
                                                       (ie.errors = [
                                                         {
-                                                          instancePath: a + "/revokedKeyIds/" + q,
+                                                          instancePath: a + "/revokedKeyIds/" + R,
                                                           schemaPath:
                                                             "#/properties/revokedKeyIds/items/type",
                                                           keyword: "type",
@@ -5909,12 +5909,12 @@ var Xs,
                                                 if (!u) break;
                                               }
                                               if (u) {
-                                                let q = E.length,
+                                                let R = E.length,
                                                   z;
-                                                if (q > 1) {
+                                                if (R > 1) {
                                                   let X = {};
-                                                  for (; q--;) {
-                                                    let U = E[q];
+                                                  for (; R--;) {
+                                                    let U = E[R];
                                                     if (typeof U == "string") {
                                                       if (typeof X[U] == "number")
                                                         return (
@@ -5925,12 +5925,12 @@ var Xs,
                                                               schemaPath:
                                                                 "#/properties/revokedKeyIds/uniqueItems",
                                                               keyword: "uniqueItems",
-                                                              params: { i: q, j: z },
+                                                              params: { i: R, j: z },
                                                             },
                                                           ]),
                                                           !1
                                                         );
-                                                      X[U] = q;
+                                                      X[U] = R;
                                                     }
                                                   }
                                                 }
@@ -6024,7 +6024,7 @@ var Xs,
           return ((ie.errors = t), r === 0);
         }
         ie.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
-        function zt(
+        function Bt(
           e,
           {
             instancePath: a = "",
@@ -6036,7 +6036,7 @@ var Xs,
         ) {
           let t = null,
             r = 0,
-            d = zt.evaluated;
+            d = Bt.evaluated;
           return (
             d.dynamicProps && (d.props = void 0),
             d.dynamicItems && (d.items = void 0),
@@ -6047,13 +6047,13 @@ var Xs,
               rootData: f,
               dynamicAnchors: v,
             }) || ((t = t === null ? ie.errors : t.concat(ie.errors)), (r = t.length)),
-            (zt.errors = t),
+            (Bt.errors = t),
             r === 0
           );
         }
-        ((zt.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 }),
-          (s.KeyCertificatePayload = Bt));
-        var Ca = {
+        ((Bt.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 }),
+          (s.KeyCertificatePayload = Zt));
+        var Ja = {
           type: "object",
           properties: {
             artifactType: { const: "key_certificate" },
@@ -6184,22 +6184,22 @@ var Xs,
                 );
               {
                 let u = r;
-                for (let y in e)
-                  if (!(y === "kty" || y === "crv" || y === "x" || y === "y"))
+                for (let h in e)
+                  if (!(h === "kty" || h === "crv" || h === "x" || h === "y"))
                     return (
                       (Ge.errors = [
                         {
                           instancePath: a,
                           schemaPath: "#/additionalProperties",
                           keyword: "additionalProperties",
-                          params: { additionalProperty: y },
+                          params: { additionalProperty: h },
                         },
                       ]),
                       !1
                     );
                 if (u === r) {
                   if (e.kty !== void 0) {
-                    let y = r;
+                    let h = r;
                     if (e.kty !== "EC")
                       return (
                         (Ge.errors = [
@@ -6212,11 +6212,11 @@ var Xs,
                         ]),
                         !1
                       );
-                    var i = y === r;
+                    var i = h === r;
                   } else var i = !0;
                   if (i) {
                     if (e.crv !== void 0) {
-                      let l = r;
+                      let m = r;
                       if (e.crv !== "P-256")
                         return (
                           (Ge.errors = [
@@ -6229,7 +6229,7 @@ var Xs,
                           ]),
                           !1
                         );
-                      var i = l === r;
+                      var i = m === r;
                     } else var i = !0;
                     if (i) {
                       if (e.x !== void 0) {
@@ -6377,23 +6377,23 @@ var Xs,
             d = pe.evaluated;
           if ((d.dynamicProps && (d.props = void 0), d.dynamicItems && (d.items = void 0), r === 0))
             if (e && typeof e == "object" && !Array.isArray(e)) {
-              let y;
+              let h;
               if (
-                (e.artifactType === void 0 && (y = "artifactType")) ||
-                (e.contractVersion === void 0 && (y = "contractVersion")) ||
-                (e.vaultId === void 0 && (y = "vaultId")) ||
-                (e.ownerSubject === void 0 && (y = "ownerSubject")) ||
-                (e.certificateId === void 0 && (y = "certificateId")) ||
-                (e.keyId === void 0 && (y = "keyId")) ||
-                (e.role === void 0 && (y = "role")) ||
-                (e.publicJwk === void 0 && (y = "publicJwk")) ||
-                (e.principalId === void 0 && (y = "principalId")) ||
-                (e.connectionId === void 0 && (y = "connectionId")) ||
-                (e.keyEpoch === void 0 && (y = "keyEpoch")) ||
-                (e.issuerKeyId === void 0 && (y = "issuerKeyId")) ||
-                (e.notBefore === void 0 && (y = "notBefore")) ||
-                (e.expiresAt === void 0 && (y = "expiresAt")) ||
-                (e.capabilities === void 0 && (y = "capabilities"))
+                (e.artifactType === void 0 && (h = "artifactType")) ||
+                (e.contractVersion === void 0 && (h = "contractVersion")) ||
+                (e.vaultId === void 0 && (h = "vaultId")) ||
+                (e.ownerSubject === void 0 && (h = "ownerSubject")) ||
+                (e.certificateId === void 0 && (h = "certificateId")) ||
+                (e.keyId === void 0 && (h = "keyId")) ||
+                (e.role === void 0 && (h = "role")) ||
+                (e.publicJwk === void 0 && (h = "publicJwk")) ||
+                (e.principalId === void 0 && (h = "principalId")) ||
+                (e.connectionId === void 0 && (h = "connectionId")) ||
+                (e.keyEpoch === void 0 && (h = "keyEpoch")) ||
+                (e.issuerKeyId === void 0 && (h = "issuerKeyId")) ||
+                (e.notBefore === void 0 && (h = "notBefore")) ||
+                (e.expiresAt === void 0 && (h = "expiresAt")) ||
+                (e.capabilities === void 0 && (h = "capabilities"))
               )
                 return (
                   (pe.errors = [
@@ -6401,15 +6401,15 @@ var Xs,
                       instancePath: a,
                       schemaPath: "#/required",
                       keyword: "required",
-                      params: { missingProperty: y },
+                      params: { missingProperty: h },
                     },
                   ]),
                   !1
                 );
               {
-                let l = r;
+                let m = r;
                 for (let P in e)
-                  if (!G.call(Ca.properties, P))
+                  if (!G.call(Ja.properties, P))
                     return (
                       (pe.errors = [
                         {
@@ -6421,7 +6421,7 @@ var Xs,
                       ]),
                       !1
                     );
-                if (l === r) {
+                if (m === r) {
                   if (e.artifactType !== void 0) {
                     let P = r;
                     if (e.artifactType !== "key_certificate")
@@ -6485,7 +6485,7 @@ var Xs,
                                 ]),
                                 !1
                               );
-                            if (!m.test(b))
+                            if (!l.test(b))
                               return (
                                 (pe.errors = [
                                   {
@@ -6541,7 +6541,7 @@ var Xs,
                                   ]),
                                   !1
                                 );
-                              if (!m.test(D))
+                              if (!l.test(D))
                                 return (
                                   (pe.errors = [
                                     {
@@ -6597,7 +6597,7 @@ var Xs,
                                     ]),
                                     !1
                                   );
-                                if (!m.test(k))
+                                if (!l.test(k))
                                   return (
                                     (pe.errors = [
                                       {
@@ -6697,7 +6697,7 @@ var Xs,
                                         instancePath: a + "/role",
                                         schemaPath: "#/properties/role/enum",
                                         keyword: "enum",
-                                        params: { allowedValues: Ca.properties.role.enum },
+                                        params: { allowedValues: Ja.properties.role.enum },
                                       },
                                     ]),
                                     !1
@@ -6748,7 +6748,7 @@ var Xs,
                                             ]),
                                             !1
                                           );
-                                        if (!m.test(S))
+                                        if (!l.test(S))
                                           return (
                                             (pe.errors = [
                                               {
@@ -6782,8 +6782,8 @@ var Xs,
                                         E = r,
                                         K = r,
                                         Z = !1,
-                                        R = r;
-                                      if (r === R)
+                                        q = r;
+                                      if (r === q)
                                         if (typeof L == "string") {
                                           if (n(L) > 128) {
                                             let X = {
@@ -6803,7 +6803,7 @@ var Xs,
                                               params: { limit: 1 },
                                             };
                                             (t === null ? (t = [X]) : t.push(X), r++);
-                                          } else if (!m.test(L)) {
+                                          } else if (!l.test(L)) {
                                             let X = {
                                               instancePath: a + "/connectionId",
                                               schemaPath:
@@ -6824,9 +6824,9 @@ var Xs,
                                           };
                                           (t === null ? (t = [X]) : t.push(X), r++);
                                         }
-                                      var g = R === r;
+                                      var g = q === r;
                                       Z = Z || g;
-                                      let q = r;
+                                      let R = r;
                                       if (L !== null) {
                                         let X = {
                                           instancePath: a + "/connectionId",
@@ -6836,7 +6836,7 @@ var Xs,
                                         };
                                         (t === null ? (t = [X]) : t.push(X), r++);
                                       }
-                                      var g = q === r;
+                                      var g = R === r;
                                       if (((Z = Z || g), Z))
                                         ((r = K), t !== null && (K ? (t.length = K) : (t = null)));
                                       else {
@@ -6964,7 +6964,7 @@ var Xs,
                                         if (i) {
                                           if (e.notBefore !== void 0) {
                                             let Z = e.notBefore,
-                                              R = r;
+                                              q = r;
                                             if (!(typeof Z == "number" && !(Z % 1) && !isNaN(Z)))
                                               return (
                                                 (pe.errors = [
@@ -6977,7 +6977,7 @@ var Xs,
                                                 ]),
                                                 !1
                                               );
-                                            if (r === R && typeof Z == "number") {
+                                            if (r === q && typeof Z == "number") {
                                               if (Z > 9007199254740991 || isNaN(Z))
                                                 return (
                                                   (pe.errors = [
@@ -7006,13 +7006,13 @@ var Xs,
                                                   !1
                                                 );
                                             }
-                                            var i = R === r;
+                                            var i = q === r;
                                           } else var i = !0;
                                           if (i) {
                                             if (e.expiresAt !== void 0) {
-                                              let R = e.expiresAt,
-                                                q = r;
-                                              if (!(typeof R == "number" && !(R % 1) && !isNaN(R)))
+                                              let q = e.expiresAt,
+                                                R = r;
+                                              if (!(typeof q == "number" && !(q % 1) && !isNaN(q)))
                                                 return (
                                                   (pe.errors = [
                                                     {
@@ -7024,8 +7024,8 @@ var Xs,
                                                   ]),
                                                   !1
                                                 );
-                                              if (r === q && typeof R == "number") {
-                                                if (R > 9007199254740991 || isNaN(R))
+                                              if (r === R && typeof q == "number") {
+                                                if (q > 9007199254740991 || isNaN(q))
                                                   return (
                                                     (pe.errors = [
                                                       {
@@ -7041,7 +7041,7 @@ var Xs,
                                                     ]),
                                                     !1
                                                   );
-                                                if (R < 1 || isNaN(R))
+                                                if (q < 1 || isNaN(q))
                                                   return (
                                                     (pe.errors = [
                                                       {
@@ -7055,15 +7055,15 @@ var Xs,
                                                     !1
                                                   );
                                               }
-                                              var i = q === r;
+                                              var i = R === r;
                                             } else var i = !0;
                                             if (i)
                                               if (e.capabilities !== void 0) {
-                                                let R = e.capabilities,
-                                                  q = r;
-                                                if (r === q)
-                                                  if (Array.isArray(R)) {
-                                                    if (R.length > 5)
+                                                let q = e.capabilities,
+                                                  R = r;
+                                                if (r === R)
+                                                  if (Array.isArray(q)) {
+                                                    if (q.length > 5)
                                                       return (
                                                         (pe.errors = [
                                                           {
@@ -7076,7 +7076,7 @@ var Xs,
                                                         ]),
                                                         !1
                                                       );
-                                                    if (R.length < 0)
+                                                    if (q.length < 0)
                                                       return (
                                                         (pe.errors = [
                                                           {
@@ -7091,9 +7091,9 @@ var Xs,
                                                       );
                                                     {
                                                       var u = !0;
-                                                      let X = R.length;
+                                                      let X = q.length;
                                                       for (let U = 0; U < X; U++) {
-                                                        let T = R[U],
+                                                        let T = q[U],
                                                           ee = r;
                                                         if (!(
                                                           T === "object_write" ||
@@ -7112,7 +7112,7 @@ var Xs,
                                                                 keyword: "enum",
                                                                 params: {
                                                                   allowedValues:
-                                                                    Ca.properties.capabilities.items
+                                                                    Ja.properties.capabilities.items
                                                                       .enum,
                                                                 },
                                                               },
@@ -7123,12 +7123,12 @@ var Xs,
                                                         if (!u) break;
                                                       }
                                                       if (u) {
-                                                        let U = R.length,
+                                                        let U = q.length,
                                                           T;
                                                         if (U > 1) {
                                                           e: for (; U--;)
                                                             for (T = U; T--;)
-                                                              if (de(R[U], R[T]))
+                                                              if (de(q[U], q[T]))
                                                                 return (
                                                                   (pe.errors = [
                                                                     {
@@ -7158,7 +7158,7 @@ var Xs,
                                                       ]),
                                                       !1
                                                     );
-                                                var i = q === r;
+                                                var i = R === r;
                                               } else var i = !0;
                                           }
                                         }
@@ -7190,7 +7190,7 @@ var Xs,
           return ((pe.errors = t), r === 0);
         }
         pe.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
-        function Bt(
+        function Zt(
           e,
           {
             instancePath: a = "",
@@ -7202,7 +7202,7 @@ var Xs,
         ) {
           let t = null,
             r = 0,
-            d = Bt.evaluated;
+            d = Zt.evaluated;
           return (
             d.dynamicProps && (d.props = void 0),
             d.dynamicItems && (d.items = void 0),
@@ -7213,13 +7213,13 @@ var Xs,
               rootData: f,
               dynamicAnchors: v,
             }) || ((t = t === null ? pe.errors : t.concat(pe.errors)), (r = t.length)),
-            (Bt.errors = t),
+            (Zt.errors = t),
             r === 0
           );
         }
-        ((Bt.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 }),
-          (s.PersistentAgentIdentity = Zt));
-        var Xi = {
+        ((Zt.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 }),
+          (s.PersistentAgentIdentity = Mt));
+        var Qi = {
           type: "object",
           properties: {
             contractVersion: { const: "folioview.agent-workspace.v2.0" },
@@ -7298,7 +7298,7 @@ var Xs,
                   ]),
                   !1
                 );
-              if (!m.test(e))
+              if (!l.test(e))
                 return (
                   (A.errors = [
                     {
@@ -7502,23 +7502,23 @@ var Xs,
                   !1
                 );
               {
-                let y = r;
-                for (let l in e)
-                  if (!G.call(Xi.properties, l))
+                let h = r;
+                for (let m in e)
+                  if (!G.call(Qi.properties, m))
                     return (
                       (sr.errors = [
                         {
                           instancePath: a,
                           schemaPath: "#/additionalProperties",
                           keyword: "additionalProperties",
-                          params: { additionalProperty: l },
+                          params: { additionalProperty: m },
                         },
                       ]),
                       !1
                     );
-                if (y === r) {
+                if (h === r) {
                   if (e.contractVersion !== void 0) {
-                    let l = r;
+                    let m = r;
                     if (e.contractVersion !== "folioview.agent-workspace.v2.0")
                       return (
                         (sr.errors = [
@@ -7531,7 +7531,7 @@ var Xs,
                         ]),
                         !1
                       );
-                    var i = l === r;
+                    var i = m === r;
                   } else var i = !0;
                   if (i) {
                     if (e.profile !== void 0) {
@@ -7729,7 +7729,7 @@ var Xs,
                                                     schemaPath: "#/properties/status/enum",
                                                     keyword: "enum",
                                                     params: {
-                                                      allowedValues: Xi.properties.status.enum,
+                                                      allowedValues: Qi.properties.status.enum,
                                                     },
                                                   },
                                                 ]),
@@ -7740,7 +7740,7 @@ var Xs,
                                           if (i) {
                                             if (e.registeredAt !== void 0) {
                                               let Z = e.registeredAt,
-                                                R = r;
+                                                q = r;
                                               if (!(typeof Z == "number" && !(Z % 1) && !isNaN(Z)))
                                                 return (
                                                   (sr.errors = [
@@ -7753,7 +7753,7 @@ var Xs,
                                                   ]),
                                                   !1
                                                 );
-                                              if (r === R && typeof Z == "number") {
+                                              if (r === q && typeof Z == "number") {
                                                 if (Z > 9007199254740991 || isNaN(Z))
                                                   return (
                                                     (sr.errors = [
@@ -7784,13 +7784,13 @@ var Xs,
                                                     !1
                                                   );
                                               }
-                                              var i = R === r;
+                                              var i = q === r;
                                             } else var i = !0;
                                             if (i)
                                               if (e.revokedAt !== void 0) {
                                                 let Z = e.revokedAt,
-                                                  R = r,
                                                   q = r,
+                                                  R = r,
                                                   z = !1,
                                                   X = r;
                                                 if (!(
@@ -7846,9 +7846,9 @@ var Xs,
                                                 }
                                                 var g = U === r;
                                                 if (((z = z || g), z))
-                                                  ((r = q),
+                                                  ((r = R),
                                                     t !== null &&
-                                                      (q ? (t.length = q) : (t = null)));
+                                                      (R ? (t.length = R) : (t = null)));
                                                 else {
                                                   let ee = {
                                                     instancePath: a + "/revokedAt",
@@ -7863,7 +7863,7 @@ var Xs,
                                                     !1
                                                   );
                                                 }
-                                                var i = R === r;
+                                                var i = q === r;
                                               } else var i = !0;
                                           }
                                         }
@@ -7895,7 +7895,7 @@ var Xs,
           return ((sr.errors = t), r === 0);
         }
         sr.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
-        function Zt(
+        function Mt(
           e,
           {
             instancePath: a = "",
@@ -7907,7 +7907,7 @@ var Xs,
         ) {
           let t = null,
             r = 0,
-            d = Zt.evaluated;
+            d = Mt.evaluated;
           return (
             d.dynamicProps && (d.props = void 0),
             d.dynamicItems && (d.items = void 0),
@@ -7918,13 +7918,13 @@ var Xs,
               rootData: f,
               dynamicAnchors: v,
             }) || ((t = t === null ? sr.errors : t.concat(sr.errors)), (r = t.length)),
-            (Zt.errors = t),
+            (Mt.errors = t),
             r === 0
           );
         }
-        ((Zt.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 }),
-          (s.PersistentAgentBindingPayload = Mt));
-        var _s = {
+        ((Mt.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 }),
+          (s.PersistentAgentBindingPayload = Gt));
+        var Ks = {
           type: "object",
           properties: {
             contractVersion: { const: "folioview.agent-workspace.v2.0" },
@@ -8083,22 +8083,22 @@ var Xs,
                 );
               {
                 let u = r;
-                for (let y in e)
-                  if (!G.call(_s.properties, y))
+                for (let h in e)
+                  if (!G.call(Ks.properties, h))
                     return (
                       (Xe.errors = [
                         {
                           instancePath: a,
                           schemaPath: "#/additionalProperties",
                           keyword: "additionalProperties",
-                          params: { additionalProperty: y },
+                          params: { additionalProperty: h },
                         },
                       ]),
                       !1
                     );
                 if (u === r) {
                   if (e.contractVersion !== void 0) {
-                    let y = r;
+                    let h = r;
                     if (e.contractVersion !== "folioview.agent-workspace.v2.0")
                       return (
                         (Xe.errors = [
@@ -8111,11 +8111,11 @@ var Xs,
                         ]),
                         !1
                       );
-                    var i = y === r;
+                    var i = h === r;
                   } else var i = !0;
                   if (i) {
                     if (e.profile !== void 0) {
-                      let l = r;
+                      let m = r;
                       if (e.profile !== "folioview.persistent-agent-identity.v1")
                         return (
                           (Xe.errors = [
@@ -8128,7 +8128,7 @@ var Xs,
                           ]),
                           !1
                         );
-                      var i = l === r;
+                      var i = m === r;
                     } else var i = !0;
                     if (i) {
                       if (e.artifactType !== void 0) {
@@ -8303,7 +8303,7 @@ var Xs,
                                             if (i) {
                                               if (e.registrySequence !== void 0) {
                                                 let Z = e.registrySequence,
-                                                  R = r;
+                                                  q = r;
                                                 if (!(
                                                   typeof Z == "number" &&
                                                   !(Z % 1) &&
@@ -8321,7 +8321,7 @@ var Xs,
                                                     ]),
                                                     !1
                                                   );
-                                                if (r === R && typeof Z == "number") {
+                                                if (r === q && typeof Z == "number") {
                                                   if (Z > 9007199254740991 || isNaN(Z))
                                                     return (
                                                       (Xe.errors = [
@@ -8352,11 +8352,11 @@ var Xs,
                                                       !1
                                                     );
                                                 }
-                                                var i = R === r;
+                                                var i = q === r;
                                               } else var i = !0;
                                               if (i) {
                                                 if (e.checkpointDigest !== void 0) {
-                                                  let R = r;
+                                                  let q = r;
                                                   M(e.checkpointDigest, {
                                                     instancePath: a + "/checkpointDigest",
                                                     parentData: e,
@@ -8367,16 +8367,16 @@ var Xs,
                                                     ((t =
                                                       t === null ? M.errors : t.concat(M.errors)),
                                                     (r = t.length));
-                                                  var i = R === r;
+                                                  var i = q === r;
                                                 } else var i = !0;
                                                 if (i) {
                                                   if (e.keyEpoch !== void 0) {
-                                                    let q = e.keyEpoch,
+                                                    let R = e.keyEpoch,
                                                       z = r;
                                                     if (!(
-                                                      typeof q == "number" &&
-                                                      !(q % 1) &&
-                                                      !isNaN(q)
+                                                      typeof R == "number" &&
+                                                      !(R % 1) &&
+                                                      !isNaN(R)
                                                     ))
                                                       return (
                                                         (Xe.errors = [
@@ -8390,8 +8390,8 @@ var Xs,
                                                         ]),
                                                         !1
                                                       );
-                                                    if (r === z && typeof q == "number") {
-                                                      if (q > 9007199254740991 || isNaN(q))
+                                                    if (r === z && typeof R == "number") {
+                                                      if (R > 9007199254740991 || isNaN(R))
                                                         return (
                                                           (Xe.errors = [
                                                             {
@@ -8407,7 +8407,7 @@ var Xs,
                                                           ]),
                                                           !1
                                                         );
-                                                      if (q < 1 || isNaN(q))
+                                                      if (R < 1 || isNaN(R))
                                                         return (
                                                           (Xe.errors = [
                                                             {
@@ -8428,12 +8428,12 @@ var Xs,
                                                   } else var i = !0;
                                                   if (i)
                                                     if (e.issuedAt !== void 0) {
-                                                      let q = e.issuedAt,
+                                                      let R = e.issuedAt,
                                                         z = r;
                                                       if (!(
-                                                        typeof q == "number" &&
-                                                        !(q % 1) &&
-                                                        !isNaN(q)
+                                                        typeof R == "number" &&
+                                                        !(R % 1) &&
+                                                        !isNaN(R)
                                                       ))
                                                         return (
                                                           (Xe.errors = [
@@ -8447,8 +8447,8 @@ var Xs,
                                                           ]),
                                                           !1
                                                         );
-                                                      if (r === z && typeof q == "number") {
-                                                        if (q > 9007199254740991 || isNaN(q))
+                                                      if (r === z && typeof R == "number") {
+                                                        if (R > 9007199254740991 || isNaN(R))
                                                           return (
                                                             (Xe.errors = [
                                                               {
@@ -8464,7 +8464,7 @@ var Xs,
                                                             ]),
                                                             !1
                                                           );
-                                                        if (q < 0 || isNaN(q))
+                                                        if (R < 0 || isNaN(R))
                                                           return (
                                                             (Xe.errors = [
                                                               {
@@ -8516,7 +8516,7 @@ var Xs,
           return ((Xe.errors = t), r === 0);
         }
         Xe.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
-        function Mt(
+        function Gt(
           e,
           {
             instancePath: a = "",
@@ -8528,7 +8528,7 @@ var Xs,
         ) {
           let t = null,
             r = 0,
-            d = Mt.evaluated;
+            d = Gt.evaluated;
           return (
             d.dynamicProps && (d.props = void 0),
             d.dynamicItems && (d.items = void 0),
@@ -8539,13 +8539,13 @@ var Xs,
               rootData: f,
               dynamicAnchors: v,
             }) || ((t = t === null ? Xe.errors : t.concat(Xe.errors)), (r = t.length)),
-            (Mt.errors = t),
+            (Gt.errors = t),
             r === 0
           );
         }
-        ((Mt.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 }),
-          (s.PersistentContentContext = Gt));
-        var Yi = {
+        ((Gt.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 }),
+          (s.PersistentContentContext = Xt));
+        var en = {
             type: "object",
             properties: {
               contractVersion: { const: "folioview.agent-workspace.v2.0" },
@@ -8629,7 +8629,7 @@ var Xs,
             ],
             additionalProperties: !1,
           },
-          Ns = {
+          js = {
             type: "object",
             properties: {
               keyId: { $ref: "#/$defs/KeyId" },
@@ -8668,22 +8668,22 @@ var Xs,
                 );
               {
                 let u = r;
-                for (let y in e)
-                  if (!(y === "keyId" || y === "role"))
+                for (let h in e)
+                  if (!(h === "keyId" || h === "role"))
                     return (
                       (gr.errors = [
                         {
                           instancePath: a,
                           schemaPath: "#/additionalProperties",
                           keyword: "additionalProperties",
-                          params: { additionalProperty: y },
+                          params: { additionalProperty: h },
                         },
                       ]),
                       !1
                     );
                 if (u === r) {
                   if (e.keyId !== void 0) {
-                    let y = r;
+                    let h = r;
                     W(e.keyId, {
                       instancePath: a + "/keyId",
                       parentData: e,
@@ -8691,25 +8691,25 @@ var Xs,
                       rootData: f,
                       dynamicAnchors: v,
                     }) || ((t = t === null ? W.errors : t.concat(W.errors)), (r = t.length));
-                    var i = y === r;
+                    var i = h === r;
                   } else var i = !0;
                   if (i)
                     if (e.role !== void 0) {
-                      let y = e.role,
-                        l = r;
-                      if (!(y === "agent_enc" || y === "device_enc" || y === "recovery_enc"))
+                      let h = e.role,
+                        m = r;
+                      if (!(h === "agent_enc" || h === "device_enc" || h === "recovery_enc"))
                         return (
                           (gr.errors = [
                             {
                               instancePath: a + "/role",
                               schemaPath: "#/properties/role/enum",
                               keyword: "enum",
-                              params: { allowedValues: Ns.properties.role.enum },
+                              params: { allowedValues: js.properties.role.enum },
                             },
                           ]),
                           !1
                         );
-                      var i = l === r;
+                      var i = m === r;
                     } else var i = !0;
                 }
               }
@@ -8743,41 +8743,41 @@ var Xs,
             d = ae.evaluated;
           if ((d.dynamicProps && (d.props = void 0), d.dynamicItems && (d.items = void 0), r === 0))
             if (e && typeof e == "object" && !Array.isArray(e)) {
-              let l;
+              let m;
               if (
-                (e.contractVersion === void 0 && (l = "contractVersion")) ||
-                (e.profile === void 0 && (l = "profile")) ||
-                (e.ownerSubject === void 0 && (l = "ownerSubject")) ||
-                (e.vaultId === void 0 && (l = "vaultId")) ||
-                (e.connectionId === void 0 && (l = "connectionId")) ||
-                (e.agentId === void 0 && (l = "agentId")) ||
-                (e.clientId === void 0 && (l = "clientId")) ||
-                (e.rootKeyId === void 0 && (l = "rootKeyId")) ||
-                (e.agentSigningKeyId === void 0 && (l = "agentSigningKeyId")) ||
-                (e.agentEncryptionKeyId === void 0 && (l = "agentEncryptionKeyId")) ||
-                (e.identityEpoch === void 0 && (l = "identityEpoch")) ||
-                (e.bindingFingerprint === void 0 && (l = "bindingFingerprint")) ||
-                (e.registrySequence === void 0 && (l = "registrySequence")) ||
-                (e.checkpointDigest === void 0 && (l = "checkpointDigest")) ||
-                (e.keyEpoch === void 0 && (l = "keyEpoch")) ||
-                (e.stableOperationId === void 0 && (l = "stableOperationId")) ||
-                (e.issuedAt === void 0 && (l = "issuedAt")) ||
-                (e.objectId === void 0 && (l = "objectId")) ||
-                (e.revision === void 0 && (l = "revision")) ||
-                (e.expectedRevision === void 0 && (l = "expectedRevision")) ||
-                (e.recipients === void 0 && (l = "recipients")) ||
-                (e.objectType === void 0 && (l = "objectType")) ||
-                (e.purpose === void 0 && (l = "purpose")) ||
-                (e.resultPolicy === void 0 && (l = "resultPolicy")) ||
-                (e.taskId === void 0 && (l = "taskId")) ||
-                (e.taskVersion === void 0 && (l = "taskVersion")) ||
-                (e.executionEpoch === void 0 && (l = "executionEpoch")) ||
-                (e.authorityId === void 0 && (l = "authorityId")) ||
-                (e.authorityVersion === void 0 && (l = "authorityVersion")) ||
-                (e.expectedAuthorityVersion === void 0 && (l = "expectedAuthorityVersion")) ||
-                (e.expectedAuthorityDigest === void 0 && (l = "expectedAuthorityDigest")) ||
-                (e.ownerTaskFingerprint === void 0 && (l = "ownerTaskFingerprint")) ||
-                (e.resourceBindings === void 0 && (l = "resourceBindings"))
+                (e.contractVersion === void 0 && (m = "contractVersion")) ||
+                (e.profile === void 0 && (m = "profile")) ||
+                (e.ownerSubject === void 0 && (m = "ownerSubject")) ||
+                (e.vaultId === void 0 && (m = "vaultId")) ||
+                (e.connectionId === void 0 && (m = "connectionId")) ||
+                (e.agentId === void 0 && (m = "agentId")) ||
+                (e.clientId === void 0 && (m = "clientId")) ||
+                (e.rootKeyId === void 0 && (m = "rootKeyId")) ||
+                (e.agentSigningKeyId === void 0 && (m = "agentSigningKeyId")) ||
+                (e.agentEncryptionKeyId === void 0 && (m = "agentEncryptionKeyId")) ||
+                (e.identityEpoch === void 0 && (m = "identityEpoch")) ||
+                (e.bindingFingerprint === void 0 && (m = "bindingFingerprint")) ||
+                (e.registrySequence === void 0 && (m = "registrySequence")) ||
+                (e.checkpointDigest === void 0 && (m = "checkpointDigest")) ||
+                (e.keyEpoch === void 0 && (m = "keyEpoch")) ||
+                (e.stableOperationId === void 0 && (m = "stableOperationId")) ||
+                (e.issuedAt === void 0 && (m = "issuedAt")) ||
+                (e.objectId === void 0 && (m = "objectId")) ||
+                (e.revision === void 0 && (m = "revision")) ||
+                (e.expectedRevision === void 0 && (m = "expectedRevision")) ||
+                (e.recipients === void 0 && (m = "recipients")) ||
+                (e.objectType === void 0 && (m = "objectType")) ||
+                (e.purpose === void 0 && (m = "purpose")) ||
+                (e.resultPolicy === void 0 && (m = "resultPolicy")) ||
+                (e.taskId === void 0 && (m = "taskId")) ||
+                (e.taskVersion === void 0 && (m = "taskVersion")) ||
+                (e.executionEpoch === void 0 && (m = "executionEpoch")) ||
+                (e.authorityId === void 0 && (m = "authorityId")) ||
+                (e.authorityVersion === void 0 && (m = "authorityVersion")) ||
+                (e.expectedAuthorityVersion === void 0 && (m = "expectedAuthorityVersion")) ||
+                (e.expectedAuthorityDigest === void 0 && (m = "expectedAuthorityDigest")) ||
+                (e.ownerTaskFingerprint === void 0 && (m = "ownerTaskFingerprint")) ||
+                (e.resourceBindings === void 0 && (m = "resourceBindings"))
               )
                 return (
                   (ae.errors = [
@@ -8785,7 +8785,7 @@ var Xs,
                       instancePath: a,
                       schemaPath: "#/required",
                       keyword: "required",
-                      params: { missingProperty: l },
+                      params: { missingProperty: m },
                     },
                   ]),
                   !1
@@ -8793,7 +8793,7 @@ var Xs,
               {
                 let P = r;
                 for (let w in e)
-                  if (!G.call(Yi.properties, w))
+                  if (!G.call(en.properties, w))
                     return (
                       (ae.errors = [
                         {
@@ -9008,9 +9008,9 @@ var Xs,
                                         } else var i = !0;
                                         if (i) {
                                           if (e.registrySequence !== void 0) {
-                                            let R = e.registrySequence,
-                                              q = r;
-                                            if (!(typeof R == "number" && !(R % 1) && !isNaN(R)))
+                                            let q = e.registrySequence,
+                                              R = r;
+                                            if (!(typeof q == "number" && !(q % 1) && !isNaN(q)))
                                               return (
                                                 (ae.errors = [
                                                   {
@@ -9023,8 +9023,8 @@ var Xs,
                                                 ]),
                                                 !1
                                               );
-                                            if (r === q && typeof R == "number") {
-                                              if (R > 9007199254740991 || isNaN(R))
+                                            if (r === R && typeof q == "number") {
+                                              if (q > 9007199254740991 || isNaN(q))
                                                 return (
                                                   (ae.errors = [
                                                     {
@@ -9040,7 +9040,7 @@ var Xs,
                                                   ]),
                                                   !1
                                                 );
-                                              if (R < 1 || isNaN(R))
+                                              if (q < 1 || isNaN(q))
                                                 return (
                                                   (ae.errors = [
                                                     {
@@ -9054,11 +9054,11 @@ var Xs,
                                                   !1
                                                 );
                                             }
-                                            var i = q === r;
+                                            var i = R === r;
                                           } else var i = !0;
                                           if (i) {
                                             if (e.checkpointDigest !== void 0) {
-                                              let q = r;
+                                              let R = r;
                                               M(e.checkpointDigest, {
                                                 instancePath: a + "/checkpointDigest",
                                                 parentData: e,
@@ -9068,7 +9068,7 @@ var Xs,
                                               }) ||
                                                 ((t = t === null ? M.errors : t.concat(M.errors)),
                                                 (r = t.length));
-                                              var i = q === r;
+                                              var i = R === r;
                                             } else var i = !0;
                                             if (i) {
                                               if (e.keyEpoch !== void 0) {
@@ -9272,7 +9272,7 @@ var Xs,
                                                       if (i) {
                                                         if (e.expectedRevision !== void 0) {
                                                           let ce = e.expectedRevision,
-                                                            le = r;
+                                                            me = r;
                                                           if (!(
                                                             typeof ce == "number" &&
                                                             !(ce % 1) &&
@@ -9291,7 +9291,7 @@ var Xs,
                                                               ]),
                                                               !1
                                                             );
-                                                          if (r === le && typeof ce == "number") {
+                                                          if (r === me && typeof ce == "number") {
                                                             if (ce > 9007199254740991 || isNaN(ce))
                                                               return (
                                                                 (ae.errors = [
@@ -9327,15 +9327,15 @@ var Xs,
                                                                 !1
                                                               );
                                                           }
-                                                          var i = le === r;
+                                                          var i = me === r;
                                                         } else var i = !0;
                                                         if (i) {
                                                           if (e.recipients !== void 0) {
-                                                            let le = e.recipients,
+                                                            let me = e.recipients,
                                                               we = r;
                                                             if (r === we)
-                                                              if (Array.isArray(le)) {
-                                                                if (le.length > 8)
+                                                              if (Array.isArray(me)) {
+                                                                if (me.length > 8)
                                                                   return (
                                                                     (ae.errors = [
                                                                       {
@@ -9349,7 +9349,7 @@ var Xs,
                                                                     ]),
                                                                     !1
                                                                   );
-                                                                if (le.length < 1)
+                                                                if (me.length < 1)
                                                                   return (
                                                                     (ae.errors = [
                                                                       {
@@ -9365,13 +9365,13 @@ var Xs,
                                                                   );
                                                                 {
                                                                   var g = !0;
-                                                                  let ne = le.length;
+                                                                  let ne = me.length;
                                                                   for (let $e = 0; $e < ne; $e++) {
                                                                     let oe = r;
-                                                                    gr(le[$e], {
+                                                                    gr(me[$e], {
                                                                       instancePath:
                                                                         a + "/recipients/" + $e,
-                                                                      parentData: le,
+                                                                      parentData: me,
                                                                       parentDataProperty: $e,
                                                                       rootData: f,
                                                                       dynamicAnchors: v,
@@ -9462,7 +9462,7 @@ var Xs,
                                                                           keyword: "enum",
                                                                           params: {
                                                                             allowedValues:
-                                                                              Yi.properties
+                                                                              en.properties
                                                                                 .resultPolicy.enum,
                                                                           },
                                                                         },
@@ -9563,7 +9563,7 @@ var Xs,
                                                                         e.executionEpoch !== void 0
                                                                       ) {
                                                                         let Ne = e.executionEpoch,
-                                                                          xr = r;
+                                                                          Er = r;
                                                                         if (!(
                                                                           typeof Ne == "number" &&
                                                                           !(Ne % 1) &&
@@ -9586,7 +9586,7 @@ var Xs,
                                                                             !1
                                                                           );
                                                                         if (
-                                                                          r === xr &&
+                                                                          r === Er &&
                                                                           typeof Ne == "number"
                                                                         ) {
                                                                           if (
@@ -9633,13 +9633,13 @@ var Xs,
                                                                               !1
                                                                             );
                                                                         }
-                                                                        var i = xr === r;
+                                                                        var i = Er === r;
                                                                       } else var i = !0;
                                                                       if (i) {
                                                                         if (
                                                                           e.authorityId !== void 0
                                                                         ) {
-                                                                          let xr = r;
+                                                                          let Er = r;
                                                                           A(e.authorityId, {
                                                                             instancePath:
                                                                               a + "/authorityId",
@@ -9656,21 +9656,21 @@ var Xs,
                                                                                     A.errors,
                                                                                   )),
                                                                             (r = t.length));
-                                                                          var i = xr === r;
+                                                                          var i = Er === r;
                                                                         } else var i = !0;
                                                                         if (i) {
                                                                           if (
                                                                             e.authorityVersion !==
                                                                             void 0
                                                                           ) {
-                                                                            let Or =
+                                                                            let Vr =
                                                                                 e.authorityVersion,
                                                                               qr = r;
                                                                             if (!(
-                                                                              typeof Or ==
+                                                                              typeof Vr ==
                                                                                 "number" &&
-                                                                              !(Or % 1) &&
-                                                                              !isNaN(Or)
+                                                                              !(Vr % 1) &&
+                                                                              !isNaN(Vr)
                                                                             ))
                                                                               return (
                                                                                 (ae.errors = [
@@ -9690,12 +9690,12 @@ var Xs,
                                                                               );
                                                                             if (
                                                                               r === qr &&
-                                                                              typeof Or == "number"
+                                                                              typeof Vr == "number"
                                                                             ) {
                                                                               if (
-                                                                                Or >
+                                                                                Vr >
                                                                                   9007199254740991 ||
-                                                                                isNaN(Or)
+                                                                                isNaN(Vr)
                                                                               )
                                                                                 return (
                                                                                   (ae.errors = [
@@ -9717,8 +9717,8 @@ var Xs,
                                                                                   !1
                                                                                 );
                                                                               if (
-                                                                                Or < 1 ||
-                                                                                isNaN(Or)
+                                                                                Vr < 1 ||
+                                                                                isNaN(Vr)
                                                                               )
                                                                                 return (
                                                                                   (ae.errors = [
@@ -9749,7 +9749,7 @@ var Xs,
                                                                             ) {
                                                                               let qr =
                                                                                   e.expectedAuthorityVersion,
-                                                                                _r = r;
+                                                                                Nr = r;
                                                                               if (!(
                                                                                 typeof qr ==
                                                                                   "number" &&
@@ -9774,7 +9774,7 @@ var Xs,
                                                                                   !1
                                                                                 );
                                                                               if (
-                                                                                r === _r &&
+                                                                                r === Nr &&
                                                                                 typeof qr ==
                                                                                   "number"
                                                                               ) {
@@ -9826,20 +9826,20 @@ var Xs,
                                                                                     !1
                                                                                   );
                                                                               }
-                                                                              var i = _r === r;
+                                                                              var i = Nr === r;
                                                                             } else var i = !0;
                                                                             if (i) {
                                                                               if (
                                                                                 e.expectedAuthorityDigest !==
                                                                                 void 0
                                                                               ) {
-                                                                                let _r =
+                                                                                let Nr =
                                                                                     e.expectedAuthorityDigest,
-                                                                                  Hr = r,
-                                                                                  ht = r,
+                                                                                  Wr = r,
+                                                                                  yt = r,
                                                                                   At = !1,
-                                                                                  Ha = r;
-                                                                                M(_r, {
+                                                                                  Wa = r;
+                                                                                M(Nr, {
                                                                                   instancePath:
                                                                                     a +
                                                                                     "/expectedAuthorityDigest",
@@ -9856,10 +9856,10 @@ var Xs,
                                                                                           M.errors,
                                                                                         )),
                                                                                   (r = t.length));
-                                                                                var u = Ha === r;
+                                                                                var u = Wa === r;
                                                                                 At = At || u;
                                                                                 let it = r;
-                                                                                if (_r !== null) {
+                                                                                if (Nr !== null) {
                                                                                   let Dt = {
                                                                                     instancePath:
                                                                                       a +
@@ -9881,11 +9881,11 @@ var Xs,
                                                                                   ((At = At || u),
                                                                                   At)
                                                                                 )
-                                                                                  ((r = ht),
+                                                                                  ((r = yt),
                                                                                     t !== null &&
-                                                                                      (ht
+                                                                                      (yt
                                                                                         ? (t.length =
-                                                                                            ht)
+                                                                                            yt)
                                                                                         : (t =
                                                                                             null)));
                                                                                 else {
@@ -9908,14 +9908,14 @@ var Xs,
                                                                                     !1
                                                                                   );
                                                                                 }
-                                                                                var i = Hr === r;
+                                                                                var i = Wr === r;
                                                                               } else var i = !0;
                                                                               if (i) {
                                                                                 if (
                                                                                   e.ownerTaskFingerprint !==
                                                                                   void 0
                                                                                 ) {
-                                                                                  let Hr = r;
+                                                                                  let Wr = r;
                                                                                   M(
                                                                                     e.ownerTaskFingerprint,
                                                                                     {
@@ -9937,24 +9937,24 @@ var Xs,
                                                                                             M.errors,
                                                                                           )),
                                                                                     (r = t.length));
-                                                                                  var i = Hr === r;
+                                                                                  var i = Wr === r;
                                                                                 } else var i = !0;
                                                                                 if (i)
                                                                                   if (
                                                                                     e.resourceBindings !==
                                                                                     void 0
                                                                                   ) {
-                                                                                    let Hr =
+                                                                                    let Wr =
                                                                                         e.resourceBindings,
-                                                                                      ht = r;
-                                                                                    if (r === ht)
+                                                                                      yt = r;
+                                                                                    if (r === yt)
                                                                                       if (
                                                                                         Array.isArray(
-                                                                                          Hr,
+                                                                                          Wr,
                                                                                         )
                                                                                       ) {
                                                                                         if (
-                                                                                          Hr.length >
+                                                                                          Wr.length >
                                                                                           10
                                                                                         )
                                                                                           return (
@@ -9977,7 +9977,7 @@ var Xs,
                                                                                             !1
                                                                                           );
                                                                                         if (
-                                                                                          Hr.length <
+                                                                                          Wr.length <
                                                                                           1
                                                                                         )
                                                                                           return (
@@ -10000,19 +10000,19 @@ var Xs,
                                                                                             !1
                                                                                           );
                                                                                         {
-                                                                                          var y =
+                                                                                          var h =
                                                                                             !0;
-                                                                                          let Ha =
-                                                                                            Hr.length;
+                                                                                          let Wa =
+                                                                                            Wr.length;
                                                                                           for (
                                                                                             let it = 0;
-                                                                                            it < Ha;
+                                                                                            it < Wa;
                                                                                             it++
                                                                                           ) {
-                                                                                            let Zs =
+                                                                                            let Gs =
                                                                                               r;
                                                                                             se(
-                                                                                              Hr[
+                                                                                              Wr[
                                                                                                 it
                                                                                               ],
                                                                                               {
@@ -10021,7 +10021,7 @@ var Xs,
                                                                                                   "/resourceBindings/" +
                                                                                                   it,
                                                                                                 parentData:
-                                                                                                  Hr,
+                                                                                                  Wr,
                                                                                                 parentDataProperty:
                                                                                                   it,
                                                                                                 rootData:
@@ -10039,10 +10039,10 @@ var Xs,
                                                                                                     )),
                                                                                               (r =
                                                                                                 t.length));
-                                                                                            var y =
-                                                                                              Zs ===
+                                                                                            var h =
+                                                                                              Gs ===
                                                                                               r;
-                                                                                            if (!y)
+                                                                                            if (!h)
                                                                                               break;
                                                                                           }
                                                                                         }
@@ -10067,7 +10067,7 @@ var Xs,
                                                                                           !1
                                                                                         );
                                                                                     var i =
-                                                                                      ht === r;
+                                                                                      yt === r;
                                                                                   } else var i = !0;
                                                                               }
                                                                             }
@@ -10117,7 +10117,7 @@ var Xs,
           return ((ae.errors = t), r === 0);
         }
         ae.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
-        var Qi = {
+        var rn = {
           type: "object",
           properties: {
             contractVersion: { const: "folioview.agent-workspace.v2.0" },
@@ -10190,1128 +10190,6 @@ var Xs,
           ],
           additionalProperties: !1,
         };
-        function he(
-          e,
-          {
-            instancePath: a = "",
-            parentData: F,
-            parentDataProperty: H,
-            rootData: f = e,
-            dynamicAnchors: v = {},
-          } = {},
-        ) {
-          let t = null,
-            r = 0,
-            d = he.evaluated;
-          if ((d.dynamicProps && (d.props = void 0), d.dynamicItems && (d.items = void 0), r === 0))
-            if (e && typeof e == "object" && !Array.isArray(e)) {
-              let u;
-              if (
-                (e.contractVersion === void 0 && (u = "contractVersion")) ||
-                (e.profile === void 0 && (u = "profile")) ||
-                (e.ownerSubject === void 0 && (u = "ownerSubject")) ||
-                (e.vaultId === void 0 && (u = "vaultId")) ||
-                (e.connectionId === void 0 && (u = "connectionId")) ||
-                (e.agentId === void 0 && (u = "agentId")) ||
-                (e.clientId === void 0 && (u = "clientId")) ||
-                (e.rootKeyId === void 0 && (u = "rootKeyId")) ||
-                (e.agentSigningKeyId === void 0 && (u = "agentSigningKeyId")) ||
-                (e.agentEncryptionKeyId === void 0 && (u = "agentEncryptionKeyId")) ||
-                (e.identityEpoch === void 0 && (u = "identityEpoch")) ||
-                (e.bindingFingerprint === void 0 && (u = "bindingFingerprint")) ||
-                (e.registrySequence === void 0 && (u = "registrySequence")) ||
-                (e.checkpointDigest === void 0 && (u = "checkpointDigest")) ||
-                (e.keyEpoch === void 0 && (u = "keyEpoch")) ||
-                (e.stableOperationId === void 0 && (u = "stableOperationId")) ||
-                (e.issuedAt === void 0 && (u = "issuedAt")) ||
-                (e.objectId === void 0 && (u = "objectId")) ||
-                (e.revision === void 0 && (u = "revision")) ||
-                (e.expectedRevision === void 0 && (u = "expectedRevision")) ||
-                (e.recipients === void 0 && (u = "recipients")) ||
-                (e.objectType === void 0 && (u = "objectType")) ||
-                (e.purpose === void 0 && (u = "purpose")) ||
-                (e.ref === void 0 && (u = "ref")) ||
-                (e.sourceEpoch === void 0 && (u = "sourceEpoch")) ||
-                (e.sourceRevision === void 0 && (u = "sourceRevision")) ||
-                (e.permissionId === void 0 && (u = "permissionId")) ||
-                (e.permissionEpoch === void 0 && (u = "permissionEpoch")) ||
-                (e.ownerEnvelopeFingerprint === void 0 && (u = "ownerEnvelopeFingerprint"))
-              )
-                return (
-                  (he.errors = [
-                    {
-                      instancePath: a,
-                      schemaPath: "#/required",
-                      keyword: "required",
-                      params: { missingProperty: u },
-                    },
-                  ]),
-                  !1
-                );
-              {
-                let y = r;
-                for (let l in e)
-                  if (!G.call(Qi.properties, l))
-                    return (
-                      (he.errors = [
-                        {
-                          instancePath: a,
-                          schemaPath: "#/additionalProperties",
-                          keyword: "additionalProperties",
-                          params: { additionalProperty: l },
-                        },
-                      ]),
-                      !1
-                    );
-                if (y === r) {
-                  if (e.contractVersion !== void 0) {
-                    let l = r;
-                    if (e.contractVersion !== "folioview.agent-workspace.v2.0")
-                      return (
-                        (he.errors = [
-                          {
-                            instancePath: a + "/contractVersion",
-                            schemaPath: "#/properties/contractVersion/const",
-                            keyword: "const",
-                            params: { allowedValue: "folioview.agent-workspace.v2.0" },
-                          },
-                        ]),
-                        !1
-                      );
-                    var i = l === r;
-                  } else var i = !0;
-                  if (i) {
-                    if (e.profile !== void 0) {
-                      let P = r;
-                      if (e.profile !== "folioview.persistent-content.v1")
-                        return (
-                          (he.errors = [
-                            {
-                              instancePath: a + "/profile",
-                              schemaPath: "#/properties/profile/const",
-                              keyword: "const",
-                              params: { allowedValue: "folioview.persistent-content.v1" },
-                            },
-                          ]),
-                          !1
-                        );
-                      var i = P === r;
-                    } else var i = !0;
-                    if (i) {
-                      if (e.ownerSubject !== void 0) {
-                        let w = r;
-                        A(e.ownerSubject, {
-                          instancePath: a + "/ownerSubject",
-                          parentData: e,
-                          parentDataProperty: "ownerSubject",
-                          rootData: f,
-                          dynamicAnchors: v,
-                        }) || ((t = t === null ? A.errors : t.concat(A.errors)), (r = t.length));
-                        var i = w === r;
-                      } else var i = !0;
-                      if (i) {
-                        if (e.vaultId !== void 0) {
-                          let b = r;
-                          A(e.vaultId, {
-                            instancePath: a + "/vaultId",
-                            parentData: e,
-                            parentDataProperty: "vaultId",
-                            rootData: f,
-                            dynamicAnchors: v,
-                          }) || ((t = t === null ? A.errors : t.concat(A.errors)), (r = t.length));
-                          var i = b === r;
-                        } else var i = !0;
-                        if (i) {
-                          if (e.connectionId !== void 0) {
-                            let D = r;
-                            A(e.connectionId, {
-                              instancePath: a + "/connectionId",
-                              parentData: e,
-                              parentDataProperty: "connectionId",
-                              rootData: f,
-                              dynamicAnchors: v,
-                            }) ||
-                              ((t = t === null ? A.errors : t.concat(A.errors)), (r = t.length));
-                            var i = D === r;
-                          } else var i = !0;
-                          if (i) {
-                            if (e.agentId !== void 0) {
-                              let k = r;
-                              A(e.agentId, {
-                                instancePath: a + "/agentId",
-                                parentData: e,
-                                parentDataProperty: "agentId",
-                                rootData: f,
-                                dynamicAnchors: v,
-                              }) ||
-                                ((t = t === null ? A.errors : t.concat(A.errors)), (r = t.length));
-                              var i = k === r;
-                            } else var i = !0;
-                            if (i) {
-                              if (e.clientId !== void 0) {
-                                let V = r;
-                                A(e.clientId, {
-                                  instancePath: a + "/clientId",
-                                  parentData: e,
-                                  parentDataProperty: "clientId",
-                                  rootData: f,
-                                  dynamicAnchors: v,
-                                }) ||
-                                  ((t = t === null ? A.errors : t.concat(A.errors)),
-                                  (r = t.length));
-                                var i = V === r;
-                              } else var i = !0;
-                              if (i) {
-                                if (e.rootKeyId !== void 0) {
-                                  let $ = r;
-                                  W(e.rootKeyId, {
-                                    instancePath: a + "/rootKeyId",
-                                    parentData: e,
-                                    parentDataProperty: "rootKeyId",
-                                    rootData: f,
-                                    dynamicAnchors: v,
-                                  }) ||
-                                    ((t = t === null ? W.errors : t.concat(W.errors)),
-                                    (r = t.length));
-                                  var i = $ === r;
-                                } else var i = !0;
-                                if (i) {
-                                  if (e.agentSigningKeyId !== void 0) {
-                                    let j = r;
-                                    W(e.agentSigningKeyId, {
-                                      instancePath: a + "/agentSigningKeyId",
-                                      parentData: e,
-                                      parentDataProperty: "agentSigningKeyId",
-                                      rootData: f,
-                                      dynamicAnchors: v,
-                                    }) ||
-                                      ((t = t === null ? W.errors : t.concat(W.errors)),
-                                      (r = t.length));
-                                    var i = j === r;
-                                  } else var i = !0;
-                                  if (i) {
-                                    if (e.agentEncryptionKeyId !== void 0) {
-                                      let S = r;
-                                      W(e.agentEncryptionKeyId, {
-                                        instancePath: a + "/agentEncryptionKeyId",
-                                        parentData: e,
-                                        parentDataProperty: "agentEncryptionKeyId",
-                                        rootData: f,
-                                        dynamicAnchors: v,
-                                      }) ||
-                                        ((t = t === null ? W.errors : t.concat(W.errors)),
-                                        (r = t.length));
-                                      var i = S === r;
-                                    } else var i = !0;
-                                    if (i) {
-                                      if (e.identityEpoch !== void 0) {
-                                        let L = e.identityEpoch,
-                                          E = r;
-                                        if (!(typeof L == "number" && !(L % 1) && !isNaN(L)))
-                                          return (
-                                            (he.errors = [
-                                              {
-                                                instancePath: a + "/identityEpoch",
-                                                schemaPath: "#/properties/identityEpoch/type",
-                                                keyword: "type",
-                                                params: { type: "integer" },
-                                              },
-                                            ]),
-                                            !1
-                                          );
-                                        if (r === E && typeof L == "number") {
-                                          if (L > 9007199254740991 || isNaN(L))
-                                            return (
-                                              (he.errors = [
-                                                {
-                                                  instancePath: a + "/identityEpoch",
-                                                  schemaPath: "#/properties/identityEpoch/maximum",
-                                                  keyword: "maximum",
-                                                  params: {
-                                                    comparison: "<=",
-                                                    limit: 9007199254740991,
-                                                  },
-                                                },
-                                              ]),
-                                              !1
-                                            );
-                                          if (L < 1 || isNaN(L))
-                                            return (
-                                              (he.errors = [
-                                                {
-                                                  instancePath: a + "/identityEpoch",
-                                                  schemaPath: "#/properties/identityEpoch/minimum",
-                                                  keyword: "minimum",
-                                                  params: { comparison: ">=", limit: 1 },
-                                                },
-                                              ]),
-                                              !1
-                                            );
-                                        }
-                                        var i = E === r;
-                                      } else var i = !0;
-                                      if (i) {
-                                        if (e.bindingFingerprint !== void 0) {
-                                          let E = r;
-                                          M(e.bindingFingerprint, {
-                                            instancePath: a + "/bindingFingerprint",
-                                            parentData: e,
-                                            parentDataProperty: "bindingFingerprint",
-                                            rootData: f,
-                                            dynamicAnchors: v,
-                                          }) ||
-                                            ((t = t === null ? M.errors : t.concat(M.errors)),
-                                            (r = t.length));
-                                          var i = E === r;
-                                        } else var i = !0;
-                                        if (i) {
-                                          if (e.registrySequence !== void 0) {
-                                            let K = e.registrySequence,
-                                              Z = r;
-                                            if (!(typeof K == "number" && !(K % 1) && !isNaN(K)))
-                                              return (
-                                                (he.errors = [
-                                                  {
-                                                    instancePath: a + "/registrySequence",
-                                                    schemaPath:
-                                                      "#/properties/registrySequence/type",
-                                                    keyword: "type",
-                                                    params: { type: "integer" },
-                                                  },
-                                                ]),
-                                                !1
-                                              );
-                                            if (r === Z && typeof K == "number") {
-                                              if (K > 9007199254740991 || isNaN(K))
-                                                return (
-                                                  (he.errors = [
-                                                    {
-                                                      instancePath: a + "/registrySequence",
-                                                      schemaPath:
-                                                        "#/properties/registrySequence/maximum",
-                                                      keyword: "maximum",
-                                                      params: {
-                                                        comparison: "<=",
-                                                        limit: 9007199254740991,
-                                                      },
-                                                    },
-                                                  ]),
-                                                  !1
-                                                );
-                                              if (K < 1 || isNaN(K))
-                                                return (
-                                                  (he.errors = [
-                                                    {
-                                                      instancePath: a + "/registrySequence",
-                                                      schemaPath:
-                                                        "#/properties/registrySequence/minimum",
-                                                      keyword: "minimum",
-                                                      params: { comparison: ">=", limit: 1 },
-                                                    },
-                                                  ]),
-                                                  !1
-                                                );
-                                            }
-                                            var i = Z === r;
-                                          } else var i = !0;
-                                          if (i) {
-                                            if (e.checkpointDigest !== void 0) {
-                                              let Z = r;
-                                              M(e.checkpointDigest, {
-                                                instancePath: a + "/checkpointDigest",
-                                                parentData: e,
-                                                parentDataProperty: "checkpointDigest",
-                                                rootData: f,
-                                                dynamicAnchors: v,
-                                              }) ||
-                                                ((t = t === null ? M.errors : t.concat(M.errors)),
-                                                (r = t.length));
-                                              var i = Z === r;
-                                            } else var i = !0;
-                                            if (i) {
-                                              if (e.keyEpoch !== void 0) {
-                                                let R = e.keyEpoch,
-                                                  q = r;
-                                                if (!(
-                                                  typeof R == "number" &&
-                                                  !(R % 1) &&
-                                                  !isNaN(R)
-                                                ))
-                                                  return (
-                                                    (he.errors = [
-                                                      {
-                                                        instancePath: a + "/keyEpoch",
-                                                        schemaPath: "#/properties/keyEpoch/type",
-                                                        keyword: "type",
-                                                        params: { type: "integer" },
-                                                      },
-                                                    ]),
-                                                    !1
-                                                  );
-                                                if (r === q && typeof R == "number") {
-                                                  if (R > 9007199254740991 || isNaN(R))
-                                                    return (
-                                                      (he.errors = [
-                                                        {
-                                                          instancePath: a + "/keyEpoch",
-                                                          schemaPath:
-                                                            "#/properties/keyEpoch/maximum",
-                                                          keyword: "maximum",
-                                                          params: {
-                                                            comparison: "<=",
-                                                            limit: 9007199254740991,
-                                                          },
-                                                        },
-                                                      ]),
-                                                      !1
-                                                    );
-                                                  if (R < 1 || isNaN(R))
-                                                    return (
-                                                      (he.errors = [
-                                                        {
-                                                          instancePath: a + "/keyEpoch",
-                                                          schemaPath:
-                                                            "#/properties/keyEpoch/minimum",
-                                                          keyword: "minimum",
-                                                          params: { comparison: ">=", limit: 1 },
-                                                        },
-                                                      ]),
-                                                      !1
-                                                    );
-                                                }
-                                                var i = q === r;
-                                              } else var i = !0;
-                                              if (i) {
-                                                if (e.stableOperationId !== void 0) {
-                                                  let q = r;
-                                                  fe(e.stableOperationId, {
-                                                    instancePath: a + "/stableOperationId",
-                                                    parentData: e,
-                                                    parentDataProperty: "stableOperationId",
-                                                    rootData: f,
-                                                    dynamicAnchors: v,
-                                                  }) ||
-                                                    ((t =
-                                                      t === null ? fe.errors : t.concat(fe.errors)),
-                                                    (r = t.length));
-                                                  var i = q === r;
-                                                } else var i = !0;
-                                                if (i) {
-                                                  if (e.issuedAt !== void 0) {
-                                                    let z = e.issuedAt,
-                                                      X = r;
-                                                    if (!(
-                                                      typeof z == "number" &&
-                                                      !(z % 1) &&
-                                                      !isNaN(z)
-                                                    ))
-                                                      return (
-                                                        (he.errors = [
-                                                          {
-                                                            instancePath: a + "/issuedAt",
-                                                            schemaPath:
-                                                              "#/properties/issuedAt/type",
-                                                            keyword: "type",
-                                                            params: { type: "integer" },
-                                                          },
-                                                        ]),
-                                                        !1
-                                                      );
-                                                    if (r === X && typeof z == "number") {
-                                                      if (z > 9007199254740991 || isNaN(z))
-                                                        return (
-                                                          (he.errors = [
-                                                            {
-                                                              instancePath: a + "/issuedAt",
-                                                              schemaPath:
-                                                                "#/properties/issuedAt/maximum",
-                                                              keyword: "maximum",
-                                                              params: {
-                                                                comparison: "<=",
-                                                                limit: 9007199254740991,
-                                                              },
-                                                            },
-                                                          ]),
-                                                          !1
-                                                        );
-                                                      if (z < 0 || isNaN(z))
-                                                        return (
-                                                          (he.errors = [
-                                                            {
-                                                              instancePath: a + "/issuedAt",
-                                                              schemaPath:
-                                                                "#/properties/issuedAt/minimum",
-                                                              keyword: "minimum",
-                                                              params: {
-                                                                comparison: ">=",
-                                                                limit: 0,
-                                                              },
-                                                            },
-                                                          ]),
-                                                          !1
-                                                        );
-                                                    }
-                                                    var i = X === r;
-                                                  } else var i = !0;
-                                                  if (i) {
-                                                    if (e.objectId !== void 0) {
-                                                      let X = r;
-                                                      A(e.objectId, {
-                                                        instancePath: a + "/objectId",
-                                                        parentData: e,
-                                                        parentDataProperty: "objectId",
-                                                        rootData: f,
-                                                        dynamicAnchors: v,
-                                                      }) ||
-                                                        ((t =
-                                                          t === null
-                                                            ? A.errors
-                                                            : t.concat(A.errors)),
-                                                        (r = t.length));
-                                                      var i = X === r;
-                                                    } else var i = !0;
-                                                    if (i) {
-                                                      if (e.revision !== void 0) {
-                                                        let U = e.revision,
-                                                          T = r;
-                                                        if (!(
-                                                          typeof U == "number" &&
-                                                          !(U % 1) &&
-                                                          !isNaN(U)
-                                                        ))
-                                                          return (
-                                                            (he.errors = [
-                                                              {
-                                                                instancePath: a + "/revision",
-                                                                schemaPath:
-                                                                  "#/properties/revision/type",
-                                                                keyword: "type",
-                                                                params: { type: "integer" },
-                                                              },
-                                                            ]),
-                                                            !1
-                                                          );
-                                                        if (r === T && typeof U == "number") {
-                                                          if (U > 9007199254740991 || isNaN(U))
-                                                            return (
-                                                              (he.errors = [
-                                                                {
-                                                                  instancePath: a + "/revision",
-                                                                  schemaPath:
-                                                                    "#/properties/revision/maximum",
-                                                                  keyword: "maximum",
-                                                                  params: {
-                                                                    comparison: "<=",
-                                                                    limit: 9007199254740991,
-                                                                  },
-                                                                },
-                                                              ]),
-                                                              !1
-                                                            );
-                                                          if (U < 1 || isNaN(U))
-                                                            return (
-                                                              (he.errors = [
-                                                                {
-                                                                  instancePath: a + "/revision",
-                                                                  schemaPath:
-                                                                    "#/properties/revision/minimum",
-                                                                  keyword: "minimum",
-                                                                  params: {
-                                                                    comparison: ">=",
-                                                                    limit: 1,
-                                                                  },
-                                                                },
-                                                              ]),
-                                                              !1
-                                                            );
-                                                        }
-                                                        var i = T === r;
-                                                      } else var i = !0;
-                                                      if (i) {
-                                                        if (e.expectedRevision !== void 0) {
-                                                          let T = e.expectedRevision,
-                                                            ee = r;
-                                                          if (!(
-                                                            typeof T == "number" &&
-                                                            !(T % 1) &&
-                                                            !isNaN(T)
-                                                          ))
-                                                            return (
-                                                              (he.errors = [
-                                                                {
-                                                                  instancePath:
-                                                                    a + "/expectedRevision",
-                                                                  schemaPath:
-                                                                    "#/properties/expectedRevision/type",
-                                                                  keyword: "type",
-                                                                  params: { type: "integer" },
-                                                                },
-                                                              ]),
-                                                              !1
-                                                            );
-                                                          if (r === ee && typeof T == "number") {
-                                                            if (T > 9007199254740991 || isNaN(T))
-                                                              return (
-                                                                (he.errors = [
-                                                                  {
-                                                                    instancePath:
-                                                                      a + "/expectedRevision",
-                                                                    schemaPath:
-                                                                      "#/properties/expectedRevision/maximum",
-                                                                    keyword: "maximum",
-                                                                    params: {
-                                                                      comparison: "<=",
-                                                                      limit: 9007199254740991,
-                                                                    },
-                                                                  },
-                                                                ]),
-                                                                !1
-                                                              );
-                                                            if (T < 0 || isNaN(T))
-                                                              return (
-                                                                (he.errors = [
-                                                                  {
-                                                                    instancePath:
-                                                                      a + "/expectedRevision",
-                                                                    schemaPath:
-                                                                      "#/properties/expectedRevision/minimum",
-                                                                    keyword: "minimum",
-                                                                    params: {
-                                                                      comparison: ">=",
-                                                                      limit: 0,
-                                                                    },
-                                                                  },
-                                                                ]),
-                                                                !1
-                                                              );
-                                                          }
-                                                          var i = ee === r;
-                                                        } else var i = !0;
-                                                        if (i) {
-                                                          if (e.recipients !== void 0) {
-                                                            let ee = e.recipients,
-                                                              ce = r;
-                                                            if (r === ce)
-                                                              if (Array.isArray(ee)) {
-                                                                if (ee.length > 8)
-                                                                  return (
-                                                                    (he.errors = [
-                                                                      {
-                                                                        instancePath:
-                                                                          a + "/recipients",
-                                                                        schemaPath:
-                                                                          "#/properties/recipients/maxItems",
-                                                                        keyword: "maxItems",
-                                                                        params: { limit: 8 },
-                                                                      },
-                                                                    ]),
-                                                                    !1
-                                                                  );
-                                                                if (ee.length < 1)
-                                                                  return (
-                                                                    (he.errors = [
-                                                                      {
-                                                                        instancePath:
-                                                                          a + "/recipients",
-                                                                        schemaPath:
-                                                                          "#/properties/recipients/minItems",
-                                                                        keyword: "minItems",
-                                                                        params: { limit: 1 },
-                                                                      },
-                                                                    ]),
-                                                                    !1
-                                                                  );
-                                                                {
-                                                                  var g = !0;
-                                                                  let we = ee.length;
-                                                                  for (let te = 0; te < we; te++) {
-                                                                    let ne = r;
-                                                                    gr(ee[te], {
-                                                                      instancePath:
-                                                                        a + "/recipients/" + te,
-                                                                      parentData: ee,
-                                                                      parentDataProperty: te,
-                                                                      rootData: f,
-                                                                      dynamicAnchors: v,
-                                                                    }) ||
-                                                                      ((t =
-                                                                        t === null
-                                                                          ? gr.errors
-                                                                          : t.concat(gr.errors)),
-                                                                      (r = t.length));
-                                                                    var g = ne === r;
-                                                                    if (!g) break;
-                                                                  }
-                                                                }
-                                                              } else
-                                                                return (
-                                                                  (he.errors = [
-                                                                    {
-                                                                      instancePath:
-                                                                        a + "/recipients",
-                                                                      schemaPath:
-                                                                        "#/properties/recipients/type",
-                                                                      keyword: "type",
-                                                                      params: { type: "array" },
-                                                                    },
-                                                                  ]),
-                                                                  !1
-                                                                );
-                                                            var i = ce === r;
-                                                          } else var i = !0;
-                                                          if (i) {
-                                                            if (e.objectType !== void 0) {
-                                                              let ce = e.objectType,
-                                                                le = r;
-                                                              if (!(
-                                                                ce === "holdings_snapshot" ||
-                                                                ce === "watchlist_evidence" ||
-                                                                ce === "channel_follows_evidence"
-                                                              ))
-                                                                return (
-                                                                  (he.errors = [
-                                                                    {
-                                                                      instancePath:
-                                                                        a + "/objectType",
-                                                                      schemaPath:
-                                                                        "#/properties/objectType/enum",
-                                                                      keyword: "enum",
-                                                                      params: {
-                                                                        allowedValues:
-                                                                          Qi.properties.objectType
-                                                                            .enum,
-                                                                      },
-                                                                    },
-                                                                  ]),
-                                                                  !1
-                                                                );
-                                                              var i = le === r;
-                                                            } else var i = !0;
-                                                            if (i) {
-                                                              if (e.purpose !== void 0) {
-                                                                let le = r;
-                                                                if (e.purpose !== "analysis")
-                                                                  return (
-                                                                    (he.errors = [
-                                                                      {
-                                                                        instancePath:
-                                                                          a + "/purpose",
-                                                                        schemaPath:
-                                                                          "#/properties/purpose/const",
-                                                                        keyword: "const",
-                                                                        params: {
-                                                                          allowedValue: "analysis",
-                                                                        },
-                                                                      },
-                                                                    ]),
-                                                                    !1
-                                                                  );
-                                                                var i = le === r;
-                                                              } else var i = !0;
-                                                              if (i) {
-                                                                if (e.ref !== void 0) {
-                                                                  let we = r;
-                                                                  Y(e.ref, {
-                                                                    instancePath: a + "/ref",
-                                                                    parentData: e,
-                                                                    parentDataProperty: "ref",
-                                                                    rootData: f,
-                                                                    dynamicAnchors: v,
-                                                                  }) ||
-                                                                    ((t =
-                                                                      t === null
-                                                                        ? Y.errors
-                                                                        : t.concat(Y.errors)),
-                                                                    (r = t.length));
-                                                                  var i = we === r;
-                                                                } else var i = !0;
-                                                                if (i) {
-                                                                  if (e.sourceEpoch !== void 0) {
-                                                                    let te = e.sourceEpoch,
-                                                                      ne = r;
-                                                                    if (!(
-                                                                      typeof te == "number" &&
-                                                                      !(te % 1) &&
-                                                                      !isNaN(te)
-                                                                    ))
-                                                                      return (
-                                                                        (he.errors = [
-                                                                          {
-                                                                            instancePath:
-                                                                              a + "/sourceEpoch",
-                                                                            schemaPath:
-                                                                              "#/properties/sourceEpoch/type",
-                                                                            keyword: "type",
-                                                                            params: {
-                                                                              type: "integer",
-                                                                            },
-                                                                          },
-                                                                        ]),
-                                                                        !1
-                                                                      );
-                                                                    if (
-                                                                      r === ne &&
-                                                                      typeof te == "number"
-                                                                    ) {
-                                                                      if (
-                                                                        te > 9007199254740991 ||
-                                                                        isNaN(te)
-                                                                      )
-                                                                        return (
-                                                                          (he.errors = [
-                                                                            {
-                                                                              instancePath:
-                                                                                a + "/sourceEpoch",
-                                                                              schemaPath:
-                                                                                "#/properties/sourceEpoch/maximum",
-                                                                              keyword: "maximum",
-                                                                              params: {
-                                                                                comparison: "<=",
-                                                                                limit: 9007199254740991,
-                                                                              },
-                                                                            },
-                                                                          ]),
-                                                                          !1
-                                                                        );
-                                                                      if (te < 1 || isNaN(te))
-                                                                        return (
-                                                                          (he.errors = [
-                                                                            {
-                                                                              instancePath:
-                                                                                a + "/sourceEpoch",
-                                                                              schemaPath:
-                                                                                "#/properties/sourceEpoch/minimum",
-                                                                              keyword: "minimum",
-                                                                              params: {
-                                                                                comparison: ">=",
-                                                                                limit: 1,
-                                                                              },
-                                                                            },
-                                                                          ]),
-                                                                          !1
-                                                                        );
-                                                                    }
-                                                                    var i = ne === r;
-                                                                  } else var i = !0;
-                                                                  if (i) {
-                                                                    if (
-                                                                      e.sourceRevision !== void 0
-                                                                    ) {
-                                                                      let ne = e.sourceRevision,
-                                                                        $e = r;
-                                                                      if (!(
-                                                                        typeof ne == "number" &&
-                                                                        !(ne % 1) &&
-                                                                        !isNaN(ne)
-                                                                      ))
-                                                                        return (
-                                                                          (he.errors = [
-                                                                            {
-                                                                              instancePath:
-                                                                                a +
-                                                                                "/sourceRevision",
-                                                                              schemaPath:
-                                                                                "#/properties/sourceRevision/type",
-                                                                              keyword: "type",
-                                                                              params: {
-                                                                                type: "integer",
-                                                                              },
-                                                                            },
-                                                                          ]),
-                                                                          !1
-                                                                        );
-                                                                      if (
-                                                                        r === $e &&
-                                                                        typeof ne == "number"
-                                                                      ) {
-                                                                        if (
-                                                                          ne > 9007199254740991 ||
-                                                                          isNaN(ne)
-                                                                        )
-                                                                          return (
-                                                                            (he.errors = [
-                                                                              {
-                                                                                instancePath:
-                                                                                  a +
-                                                                                  "/sourceRevision",
-                                                                                schemaPath:
-                                                                                  "#/properties/sourceRevision/maximum",
-                                                                                keyword: "maximum",
-                                                                                params: {
-                                                                                  comparison: "<=",
-                                                                                  limit: 9007199254740991,
-                                                                                },
-                                                                              },
-                                                                            ]),
-                                                                            !1
-                                                                          );
-                                                                        if (ne < 1 || isNaN(ne))
-                                                                          return (
-                                                                            (he.errors = [
-                                                                              {
-                                                                                instancePath:
-                                                                                  a +
-                                                                                  "/sourceRevision",
-                                                                                schemaPath:
-                                                                                  "#/properties/sourceRevision/minimum",
-                                                                                keyword: "minimum",
-                                                                                params: {
-                                                                                  comparison: ">=",
-                                                                                  limit: 1,
-                                                                                },
-                                                                              },
-                                                                            ]),
-                                                                            !1
-                                                                          );
-                                                                      }
-                                                                      var i = $e === r;
-                                                                    } else var i = !0;
-                                                                    if (i) {
-                                                                      if (
-                                                                        e.permissionId !== void 0
-                                                                      ) {
-                                                                        let $e = r;
-                                                                        A(e.permissionId, {
-                                                                          instancePath:
-                                                                            a + "/permissionId",
-                                                                          parentData: e,
-                                                                          parentDataProperty:
-                                                                            "permissionId",
-                                                                          rootData: f,
-                                                                          dynamicAnchors: v,
-                                                                        }) ||
-                                                                          ((t =
-                                                                            t === null
-                                                                              ? A.errors
-                                                                              : t.concat(A.errors)),
-                                                                          (r = t.length));
-                                                                        var i = $e === r;
-                                                                      } else var i = !0;
-                                                                      if (i) {
-                                                                        if (
-                                                                          e.permissionEpoch !==
-                                                                          void 0
-                                                                        ) {
-                                                                          let oe =
-                                                                              e.permissionEpoch,
-                                                                            Ne = r;
-                                                                          if (!(
-                                                                            typeof oe == "number" &&
-                                                                            !(oe % 1) &&
-                                                                            !isNaN(oe)
-                                                                          ))
-                                                                            return (
-                                                                              (he.errors = [
-                                                                                {
-                                                                                  instancePath:
-                                                                                    a +
-                                                                                    "/permissionEpoch",
-                                                                                  schemaPath:
-                                                                                    "#/properties/permissionEpoch/type",
-                                                                                  keyword: "type",
-                                                                                  params: {
-                                                                                    type: "integer",
-                                                                                  },
-                                                                                },
-                                                                              ]),
-                                                                              !1
-                                                                            );
-                                                                          if (
-                                                                            r === Ne &&
-                                                                            typeof oe == "number"
-                                                                          ) {
-                                                                            if (
-                                                                              oe >
-                                                                                9007199254740991 ||
-                                                                              isNaN(oe)
-                                                                            )
-                                                                              return (
-                                                                                (he.errors = [
-                                                                                  {
-                                                                                    instancePath:
-                                                                                      a +
-                                                                                      "/permissionEpoch",
-                                                                                    schemaPath:
-                                                                                      "#/properties/permissionEpoch/maximum",
-                                                                                    keyword:
-                                                                                      "maximum",
-                                                                                    params: {
-                                                                                      comparison:
-                                                                                        "<=",
-                                                                                      limit: 9007199254740991,
-                                                                                    },
-                                                                                  },
-                                                                                ]),
-                                                                                !1
-                                                                              );
-                                                                            if (oe < 1 || isNaN(oe))
-                                                                              return (
-                                                                                (he.errors = [
-                                                                                  {
-                                                                                    instancePath:
-                                                                                      a +
-                                                                                      "/permissionEpoch",
-                                                                                    schemaPath:
-                                                                                      "#/properties/permissionEpoch/minimum",
-                                                                                    keyword:
-                                                                                      "minimum",
-                                                                                    params: {
-                                                                                      comparison:
-                                                                                        ">=",
-                                                                                      limit: 1,
-                                                                                    },
-                                                                                  },
-                                                                                ]),
-                                                                                !1
-                                                                              );
-                                                                          }
-                                                                          var i = Ne === r;
-                                                                        } else var i = !0;
-                                                                        if (i)
-                                                                          if (
-                                                                            e.ownerEnvelopeFingerprint !==
-                                                                            void 0
-                                                                          ) {
-                                                                            let oe = r;
-                                                                            M(
-                                                                              e.ownerEnvelopeFingerprint,
-                                                                              {
-                                                                                instancePath:
-                                                                                  a +
-                                                                                  "/ownerEnvelopeFingerprint",
-                                                                                parentData: e,
-                                                                                parentDataProperty:
-                                                                                  "ownerEnvelopeFingerprint",
-                                                                                rootData: f,
-                                                                                dynamicAnchors: v,
-                                                                              },
-                                                                            ) ||
-                                                                              ((t =
-                                                                                t === null
-                                                                                  ? M.errors
-                                                                                  : t.concat(
-                                                                                      M.errors,
-                                                                                    )),
-                                                                              (r = t.length));
-                                                                            var i = oe === r;
-                                                                          } else var i = !0;
-                                                                      }
-                                                                    }
-                                                                  }
-                                                                }
-                                                              }
-                                                            }
-                                                          }
-                                                        }
-                                                      }
-                                                    }
-                                                  }
-                                                }
-                                              }
-                                            }
-                                          }
-                                        }
-                                      }
-                                    }
-                                  }
-                                }
-                              }
-                            }
-                          }
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            } else
-              return (
-                (he.errors = [
-                  {
-                    instancePath: a,
-                    schemaPath: "#/type",
-                    keyword: "type",
-                    params: { type: "object" },
-                  },
-                ]),
-                !1
-              );
-          return ((he.errors = t), r === 0);
-        }
-        he.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
-        var Ks = {
-          type: "object",
-          properties: {
-            contractVersion: { const: "folioview.agent-workspace.v2.0" },
-            profile: { const: "folioview.persistent-content.v1" },
-            ownerSubject: { $ref: "#/$defs/Identifier" },
-            vaultId: { $ref: "#/$defs/Identifier" },
-            connectionId: { $ref: "#/$defs/Identifier" },
-            agentId: { $ref: "#/$defs/Identifier" },
-            clientId: { $ref: "#/$defs/Identifier" },
-            rootKeyId: { $ref: "#/$defs/KeyId" },
-            agentSigningKeyId: { $ref: "#/$defs/KeyId" },
-            agentEncryptionKeyId: { $ref: "#/$defs/KeyId" },
-            identityEpoch: { type: "integer", minimum: 1, maximum: 9007199254740991 },
-            bindingFingerprint: { $ref: "#/$defs/Digest" },
-            registrySequence: { type: "integer", minimum: 1, maximum: 9007199254740991 },
-            checkpointDigest: { $ref: "#/$defs/Digest" },
-            keyEpoch: { type: "integer", minimum: 1, maximum: 9007199254740991 },
-            stableOperationId: { $ref: "#/$defs/OperationIdentifier" },
-            issuedAt: { type: "integer", minimum: 0, maximum: 9007199254740991 },
-            objectId: { $ref: "#/$defs/Identifier" },
-            revision: { type: "integer", minimum: 1, maximum: 9007199254740991 },
-            expectedRevision: { type: "integer", minimum: 0, maximum: 9007199254740991 },
-            recipients: {
-              type: "array",
-              items: { $ref: "#/$defs/PersistentContentRecipient" },
-              minItems: 1,
-              maxItems: 8,
-            },
-            objectType: { const: "result_revision" },
-            purpose: { const: "save_report" },
-            taskId: { $ref: "#/$defs/Identifier" },
-            taskVersion: { type: "integer", minimum: 1, maximum: 9007199254740991 },
-            executionEpoch: { type: "integer", minimum: 1, maximum: 9007199254740991 },
-            authorityId: { $ref: "#/$defs/Identifier" },
-            authorityVersion: { type: "integer", minimum: 1, maximum: 9007199254740991 },
-            runId: { $ref: "#/$defs/Identifier" },
-            manifestFingerprint: { $ref: "#/$defs/Digest" },
-          },
-          required: [
-            "contractVersion",
-            "profile",
-            "ownerSubject",
-            "vaultId",
-            "connectionId",
-            "agentId",
-            "clientId",
-            "rootKeyId",
-            "agentSigningKeyId",
-            "agentEncryptionKeyId",
-            "identityEpoch",
-            "bindingFingerprint",
-            "registrySequence",
-            "checkpointDigest",
-            "keyEpoch",
-            "stableOperationId",
-            "issuedAt",
-            "objectId",
-            "revision",
-            "expectedRevision",
-            "recipients",
-            "objectType",
-            "purpose",
-            "taskId",
-            "taskVersion",
-            "executionEpoch",
-            "authorityId",
-            "authorityVersion",
-            "runId",
-            "manifestFingerprint",
-          ],
-          additionalProperties: !1,
-        };
         function ye(
           e,
           {
@@ -11352,13 +10230,12 @@ var Xs,
                 (e.recipients === void 0 && (u = "recipients")) ||
                 (e.objectType === void 0 && (u = "objectType")) ||
                 (e.purpose === void 0 && (u = "purpose")) ||
-                (e.taskId === void 0 && (u = "taskId")) ||
-                (e.taskVersion === void 0 && (u = "taskVersion")) ||
-                (e.executionEpoch === void 0 && (u = "executionEpoch")) ||
-                (e.authorityId === void 0 && (u = "authorityId")) ||
-                (e.authorityVersion === void 0 && (u = "authorityVersion")) ||
-                (e.runId === void 0 && (u = "runId")) ||
-                (e.manifestFingerprint === void 0 && (u = "manifestFingerprint"))
+                (e.ref === void 0 && (u = "ref")) ||
+                (e.sourceEpoch === void 0 && (u = "sourceEpoch")) ||
+                (e.sourceRevision === void 0 && (u = "sourceRevision")) ||
+                (e.permissionId === void 0 && (u = "permissionId")) ||
+                (e.permissionEpoch === void 0 && (u = "permissionEpoch")) ||
+                (e.ownerEnvelopeFingerprint === void 0 && (u = "ownerEnvelopeFingerprint"))
               )
                 return (
                   (ye.errors = [
@@ -11372,23 +10249,23 @@ var Xs,
                   !1
                 );
               {
-                let y = r;
-                for (let l in e)
-                  if (!G.call(Ks.properties, l))
+                let h = r;
+                for (let m in e)
+                  if (!G.call(rn.properties, m))
                     return (
                       (ye.errors = [
                         {
                           instancePath: a,
                           schemaPath: "#/additionalProperties",
                           keyword: "additionalProperties",
-                          params: { additionalProperty: l },
+                          params: { additionalProperty: m },
                         },
                       ]),
                       !1
                     );
-                if (y === r) {
+                if (h === r) {
                   if (e.contractVersion !== void 0) {
-                    let l = r;
+                    let m = r;
                     if (e.contractVersion !== "folioview.agent-workspace.v2.0")
                       return (
                         (ye.errors = [
@@ -11401,7 +10278,7 @@ var Xs,
                         ]),
                         !1
                       );
-                    var i = l === r;
+                    var i = m === r;
                   } else var i = !0;
                   if (i) {
                     if (e.profile !== void 0) {
@@ -11653,12 +10530,12 @@ var Xs,
                                             } else var i = !0;
                                             if (i) {
                                               if (e.keyEpoch !== void 0) {
-                                                let R = e.keyEpoch,
-                                                  q = r;
+                                                let q = e.keyEpoch,
+                                                  R = r;
                                                 if (!(
-                                                  typeof R == "number" &&
-                                                  !(R % 1) &&
-                                                  !isNaN(R)
+                                                  typeof q == "number" &&
+                                                  !(q % 1) &&
+                                                  !isNaN(q)
                                                 ))
                                                   return (
                                                     (ye.errors = [
@@ -11671,8 +10548,8 @@ var Xs,
                                                     ]),
                                                     !1
                                                   );
-                                                if (r === q && typeof R == "number") {
-                                                  if (R > 9007199254740991 || isNaN(R))
+                                                if (r === R && typeof q == "number") {
+                                                  if (q > 9007199254740991 || isNaN(q))
                                                     return (
                                                       (ye.errors = [
                                                         {
@@ -11688,7 +10565,7 @@ var Xs,
                                                       ]),
                                                       !1
                                                     );
-                                                  if (R < 1 || isNaN(R))
+                                                  if (q < 1 || isNaN(q))
                                                     return (
                                                       (ye.errors = [
                                                         {
@@ -11702,11 +10579,11 @@ var Xs,
                                                       !1
                                                     );
                                                 }
-                                                var i = q === r;
+                                                var i = R === r;
                                               } else var i = !0;
                                               if (i) {
                                                 if (e.stableOperationId !== void 0) {
-                                                  let q = r;
+                                                  let R = r;
                                                   fe(e.stableOperationId, {
                                                     instancePath: a + "/stableOperationId",
                                                     parentData: e,
@@ -11717,7 +10594,7 @@ var Xs,
                                                     ((t =
                                                       t === null ? fe.errors : t.concat(fe.errors)),
                                                     (r = t.length));
-                                                  var i = q === r;
+                                                  var i = R === r;
                                                 } else var i = !0;
                                                 if (i) {
                                                   if (e.issuedAt !== void 0) {
@@ -11984,12 +10861,1135 @@ var Xs,
                                                           } else var i = !0;
                                                           if (i) {
                                                             if (e.objectType !== void 0) {
+                                                              let ce = e.objectType,
+                                                                me = r;
+                                                              if (!(
+                                                                ce === "holdings_snapshot" ||
+                                                                ce === "watchlist_evidence" ||
+                                                                ce === "channel_follows_evidence"
+                                                              ))
+                                                                return (
+                                                                  (ye.errors = [
+                                                                    {
+                                                                      instancePath:
+                                                                        a + "/objectType",
+                                                                      schemaPath:
+                                                                        "#/properties/objectType/enum",
+                                                                      keyword: "enum",
+                                                                      params: {
+                                                                        allowedValues:
+                                                                          rn.properties.objectType
+                                                                            .enum,
+                                                                      },
+                                                                    },
+                                                                  ]),
+                                                                  !1
+                                                                );
+                                                              var i = me === r;
+                                                            } else var i = !0;
+                                                            if (i) {
+                                                              if (e.purpose !== void 0) {
+                                                                let me = r;
+                                                                if (e.purpose !== "analysis")
+                                                                  return (
+                                                                    (ye.errors = [
+                                                                      {
+                                                                        instancePath:
+                                                                          a + "/purpose",
+                                                                        schemaPath:
+                                                                          "#/properties/purpose/const",
+                                                                        keyword: "const",
+                                                                        params: {
+                                                                          allowedValue: "analysis",
+                                                                        },
+                                                                      },
+                                                                    ]),
+                                                                    !1
+                                                                  );
+                                                                var i = me === r;
+                                                              } else var i = !0;
+                                                              if (i) {
+                                                                if (e.ref !== void 0) {
+                                                                  let we = r;
+                                                                  Y(e.ref, {
+                                                                    instancePath: a + "/ref",
+                                                                    parentData: e,
+                                                                    parentDataProperty: "ref",
+                                                                    rootData: f,
+                                                                    dynamicAnchors: v,
+                                                                  }) ||
+                                                                    ((t =
+                                                                      t === null
+                                                                        ? Y.errors
+                                                                        : t.concat(Y.errors)),
+                                                                    (r = t.length));
+                                                                  var i = we === r;
+                                                                } else var i = !0;
+                                                                if (i) {
+                                                                  if (e.sourceEpoch !== void 0) {
+                                                                    let te = e.sourceEpoch,
+                                                                      ne = r;
+                                                                    if (!(
+                                                                      typeof te == "number" &&
+                                                                      !(te % 1) &&
+                                                                      !isNaN(te)
+                                                                    ))
+                                                                      return (
+                                                                        (ye.errors = [
+                                                                          {
+                                                                            instancePath:
+                                                                              a + "/sourceEpoch",
+                                                                            schemaPath:
+                                                                              "#/properties/sourceEpoch/type",
+                                                                            keyword: "type",
+                                                                            params: {
+                                                                              type: "integer",
+                                                                            },
+                                                                          },
+                                                                        ]),
+                                                                        !1
+                                                                      );
+                                                                    if (
+                                                                      r === ne &&
+                                                                      typeof te == "number"
+                                                                    ) {
+                                                                      if (
+                                                                        te > 9007199254740991 ||
+                                                                        isNaN(te)
+                                                                      )
+                                                                        return (
+                                                                          (ye.errors = [
+                                                                            {
+                                                                              instancePath:
+                                                                                a + "/sourceEpoch",
+                                                                              schemaPath:
+                                                                                "#/properties/sourceEpoch/maximum",
+                                                                              keyword: "maximum",
+                                                                              params: {
+                                                                                comparison: "<=",
+                                                                                limit: 9007199254740991,
+                                                                              },
+                                                                            },
+                                                                          ]),
+                                                                          !1
+                                                                        );
+                                                                      if (te < 1 || isNaN(te))
+                                                                        return (
+                                                                          (ye.errors = [
+                                                                            {
+                                                                              instancePath:
+                                                                                a + "/sourceEpoch",
+                                                                              schemaPath:
+                                                                                "#/properties/sourceEpoch/minimum",
+                                                                              keyword: "minimum",
+                                                                              params: {
+                                                                                comparison: ">=",
+                                                                                limit: 1,
+                                                                              },
+                                                                            },
+                                                                          ]),
+                                                                          !1
+                                                                        );
+                                                                    }
+                                                                    var i = ne === r;
+                                                                  } else var i = !0;
+                                                                  if (i) {
+                                                                    if (
+                                                                      e.sourceRevision !== void 0
+                                                                    ) {
+                                                                      let ne = e.sourceRevision,
+                                                                        $e = r;
+                                                                      if (!(
+                                                                        typeof ne == "number" &&
+                                                                        !(ne % 1) &&
+                                                                        !isNaN(ne)
+                                                                      ))
+                                                                        return (
+                                                                          (ye.errors = [
+                                                                            {
+                                                                              instancePath:
+                                                                                a +
+                                                                                "/sourceRevision",
+                                                                              schemaPath:
+                                                                                "#/properties/sourceRevision/type",
+                                                                              keyword: "type",
+                                                                              params: {
+                                                                                type: "integer",
+                                                                              },
+                                                                            },
+                                                                          ]),
+                                                                          !1
+                                                                        );
+                                                                      if (
+                                                                        r === $e &&
+                                                                        typeof ne == "number"
+                                                                      ) {
+                                                                        if (
+                                                                          ne > 9007199254740991 ||
+                                                                          isNaN(ne)
+                                                                        )
+                                                                          return (
+                                                                            (ye.errors = [
+                                                                              {
+                                                                                instancePath:
+                                                                                  a +
+                                                                                  "/sourceRevision",
+                                                                                schemaPath:
+                                                                                  "#/properties/sourceRevision/maximum",
+                                                                                keyword: "maximum",
+                                                                                params: {
+                                                                                  comparison: "<=",
+                                                                                  limit: 9007199254740991,
+                                                                                },
+                                                                              },
+                                                                            ]),
+                                                                            !1
+                                                                          );
+                                                                        if (ne < 1 || isNaN(ne))
+                                                                          return (
+                                                                            (ye.errors = [
+                                                                              {
+                                                                                instancePath:
+                                                                                  a +
+                                                                                  "/sourceRevision",
+                                                                                schemaPath:
+                                                                                  "#/properties/sourceRevision/minimum",
+                                                                                keyword: "minimum",
+                                                                                params: {
+                                                                                  comparison: ">=",
+                                                                                  limit: 1,
+                                                                                },
+                                                                              },
+                                                                            ]),
+                                                                            !1
+                                                                          );
+                                                                      }
+                                                                      var i = $e === r;
+                                                                    } else var i = !0;
+                                                                    if (i) {
+                                                                      if (
+                                                                        e.permissionId !== void 0
+                                                                      ) {
+                                                                        let $e = r;
+                                                                        A(e.permissionId, {
+                                                                          instancePath:
+                                                                            a + "/permissionId",
+                                                                          parentData: e,
+                                                                          parentDataProperty:
+                                                                            "permissionId",
+                                                                          rootData: f,
+                                                                          dynamicAnchors: v,
+                                                                        }) ||
+                                                                          ((t =
+                                                                            t === null
+                                                                              ? A.errors
+                                                                              : t.concat(A.errors)),
+                                                                          (r = t.length));
+                                                                        var i = $e === r;
+                                                                      } else var i = !0;
+                                                                      if (i) {
+                                                                        if (
+                                                                          e.permissionEpoch !==
+                                                                          void 0
+                                                                        ) {
+                                                                          let oe =
+                                                                              e.permissionEpoch,
+                                                                            Ne = r;
+                                                                          if (!(
+                                                                            typeof oe == "number" &&
+                                                                            !(oe % 1) &&
+                                                                            !isNaN(oe)
+                                                                          ))
+                                                                            return (
+                                                                              (ye.errors = [
+                                                                                {
+                                                                                  instancePath:
+                                                                                    a +
+                                                                                    "/permissionEpoch",
+                                                                                  schemaPath:
+                                                                                    "#/properties/permissionEpoch/type",
+                                                                                  keyword: "type",
+                                                                                  params: {
+                                                                                    type: "integer",
+                                                                                  },
+                                                                                },
+                                                                              ]),
+                                                                              !1
+                                                                            );
+                                                                          if (
+                                                                            r === Ne &&
+                                                                            typeof oe == "number"
+                                                                          ) {
+                                                                            if (
+                                                                              oe >
+                                                                                9007199254740991 ||
+                                                                              isNaN(oe)
+                                                                            )
+                                                                              return (
+                                                                                (ye.errors = [
+                                                                                  {
+                                                                                    instancePath:
+                                                                                      a +
+                                                                                      "/permissionEpoch",
+                                                                                    schemaPath:
+                                                                                      "#/properties/permissionEpoch/maximum",
+                                                                                    keyword:
+                                                                                      "maximum",
+                                                                                    params: {
+                                                                                      comparison:
+                                                                                        "<=",
+                                                                                      limit: 9007199254740991,
+                                                                                    },
+                                                                                  },
+                                                                                ]),
+                                                                                !1
+                                                                              );
+                                                                            if (oe < 1 || isNaN(oe))
+                                                                              return (
+                                                                                (ye.errors = [
+                                                                                  {
+                                                                                    instancePath:
+                                                                                      a +
+                                                                                      "/permissionEpoch",
+                                                                                    schemaPath:
+                                                                                      "#/properties/permissionEpoch/minimum",
+                                                                                    keyword:
+                                                                                      "minimum",
+                                                                                    params: {
+                                                                                      comparison:
+                                                                                        ">=",
+                                                                                      limit: 1,
+                                                                                    },
+                                                                                  },
+                                                                                ]),
+                                                                                !1
+                                                                              );
+                                                                          }
+                                                                          var i = Ne === r;
+                                                                        } else var i = !0;
+                                                                        if (i)
+                                                                          if (
+                                                                            e.ownerEnvelopeFingerprint !==
+                                                                            void 0
+                                                                          ) {
+                                                                            let oe = r;
+                                                                            M(
+                                                                              e.ownerEnvelopeFingerprint,
+                                                                              {
+                                                                                instancePath:
+                                                                                  a +
+                                                                                  "/ownerEnvelopeFingerprint",
+                                                                                parentData: e,
+                                                                                parentDataProperty:
+                                                                                  "ownerEnvelopeFingerprint",
+                                                                                rootData: f,
+                                                                                dynamicAnchors: v,
+                                                                              },
+                                                                            ) ||
+                                                                              ((t =
+                                                                                t === null
+                                                                                  ? M.errors
+                                                                                  : t.concat(
+                                                                                      M.errors,
+                                                                                    )),
+                                                                              (r = t.length));
+                                                                            var i = oe === r;
+                                                                          } else var i = !0;
+                                                                      }
+                                                                    }
+                                                                  }
+                                                                }
+                                                              }
+                                                            }
+                                                          }
+                                                        }
+                                                      }
+                                                    }
+                                                  }
+                                                }
+                                              }
+                                            }
+                                          }
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            } else
+              return (
+                (ye.errors = [
+                  {
+                    instancePath: a,
+                    schemaPath: "#/type",
+                    keyword: "type",
+                    params: { type: "object" },
+                  },
+                ]),
+                !1
+              );
+          return ((ye.errors = t), r === 0);
+        }
+        ye.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
+        var $s = {
+          type: "object",
+          properties: {
+            contractVersion: { const: "folioview.agent-workspace.v2.0" },
+            profile: { const: "folioview.persistent-content.v1" },
+            ownerSubject: { $ref: "#/$defs/Identifier" },
+            vaultId: { $ref: "#/$defs/Identifier" },
+            connectionId: { $ref: "#/$defs/Identifier" },
+            agentId: { $ref: "#/$defs/Identifier" },
+            clientId: { $ref: "#/$defs/Identifier" },
+            rootKeyId: { $ref: "#/$defs/KeyId" },
+            agentSigningKeyId: { $ref: "#/$defs/KeyId" },
+            agentEncryptionKeyId: { $ref: "#/$defs/KeyId" },
+            identityEpoch: { type: "integer", minimum: 1, maximum: 9007199254740991 },
+            bindingFingerprint: { $ref: "#/$defs/Digest" },
+            registrySequence: { type: "integer", minimum: 1, maximum: 9007199254740991 },
+            checkpointDigest: { $ref: "#/$defs/Digest" },
+            keyEpoch: { type: "integer", minimum: 1, maximum: 9007199254740991 },
+            stableOperationId: { $ref: "#/$defs/OperationIdentifier" },
+            issuedAt: { type: "integer", minimum: 0, maximum: 9007199254740991 },
+            objectId: { $ref: "#/$defs/Identifier" },
+            revision: { type: "integer", minimum: 1, maximum: 9007199254740991 },
+            expectedRevision: { type: "integer", minimum: 0, maximum: 9007199254740991 },
+            recipients: {
+              type: "array",
+              items: { $ref: "#/$defs/PersistentContentRecipient" },
+              minItems: 1,
+              maxItems: 8,
+            },
+            objectType: { const: "result_revision" },
+            purpose: { const: "save_report" },
+            taskId: { $ref: "#/$defs/Identifier" },
+            taskVersion: { type: "integer", minimum: 1, maximum: 9007199254740991 },
+            executionEpoch: { type: "integer", minimum: 1, maximum: 9007199254740991 },
+            authorityId: { $ref: "#/$defs/Identifier" },
+            authorityVersion: { type: "integer", minimum: 1, maximum: 9007199254740991 },
+            runId: { $ref: "#/$defs/Identifier" },
+            manifestFingerprint: { $ref: "#/$defs/Digest" },
+          },
+          required: [
+            "contractVersion",
+            "profile",
+            "ownerSubject",
+            "vaultId",
+            "connectionId",
+            "agentId",
+            "clientId",
+            "rootKeyId",
+            "agentSigningKeyId",
+            "agentEncryptionKeyId",
+            "identityEpoch",
+            "bindingFingerprint",
+            "registrySequence",
+            "checkpointDigest",
+            "keyEpoch",
+            "stableOperationId",
+            "issuedAt",
+            "objectId",
+            "revision",
+            "expectedRevision",
+            "recipients",
+            "objectType",
+            "purpose",
+            "taskId",
+            "taskVersion",
+            "executionEpoch",
+            "authorityId",
+            "authorityVersion",
+            "runId",
+            "manifestFingerprint",
+          ],
+          additionalProperties: !1,
+        };
+        function he(
+          e,
+          {
+            instancePath: a = "",
+            parentData: F,
+            parentDataProperty: H,
+            rootData: f = e,
+            dynamicAnchors: v = {},
+          } = {},
+        ) {
+          let t = null,
+            r = 0,
+            d = he.evaluated;
+          if ((d.dynamicProps && (d.props = void 0), d.dynamicItems && (d.items = void 0), r === 0))
+            if (e && typeof e == "object" && !Array.isArray(e)) {
+              let u;
+              if (
+                (e.contractVersion === void 0 && (u = "contractVersion")) ||
+                (e.profile === void 0 && (u = "profile")) ||
+                (e.ownerSubject === void 0 && (u = "ownerSubject")) ||
+                (e.vaultId === void 0 && (u = "vaultId")) ||
+                (e.connectionId === void 0 && (u = "connectionId")) ||
+                (e.agentId === void 0 && (u = "agentId")) ||
+                (e.clientId === void 0 && (u = "clientId")) ||
+                (e.rootKeyId === void 0 && (u = "rootKeyId")) ||
+                (e.agentSigningKeyId === void 0 && (u = "agentSigningKeyId")) ||
+                (e.agentEncryptionKeyId === void 0 && (u = "agentEncryptionKeyId")) ||
+                (e.identityEpoch === void 0 && (u = "identityEpoch")) ||
+                (e.bindingFingerprint === void 0 && (u = "bindingFingerprint")) ||
+                (e.registrySequence === void 0 && (u = "registrySequence")) ||
+                (e.checkpointDigest === void 0 && (u = "checkpointDigest")) ||
+                (e.keyEpoch === void 0 && (u = "keyEpoch")) ||
+                (e.stableOperationId === void 0 && (u = "stableOperationId")) ||
+                (e.issuedAt === void 0 && (u = "issuedAt")) ||
+                (e.objectId === void 0 && (u = "objectId")) ||
+                (e.revision === void 0 && (u = "revision")) ||
+                (e.expectedRevision === void 0 && (u = "expectedRevision")) ||
+                (e.recipients === void 0 && (u = "recipients")) ||
+                (e.objectType === void 0 && (u = "objectType")) ||
+                (e.purpose === void 0 && (u = "purpose")) ||
+                (e.taskId === void 0 && (u = "taskId")) ||
+                (e.taskVersion === void 0 && (u = "taskVersion")) ||
+                (e.executionEpoch === void 0 && (u = "executionEpoch")) ||
+                (e.authorityId === void 0 && (u = "authorityId")) ||
+                (e.authorityVersion === void 0 && (u = "authorityVersion")) ||
+                (e.runId === void 0 && (u = "runId")) ||
+                (e.manifestFingerprint === void 0 && (u = "manifestFingerprint"))
+              )
+                return (
+                  (he.errors = [
+                    {
+                      instancePath: a,
+                      schemaPath: "#/required",
+                      keyword: "required",
+                      params: { missingProperty: u },
+                    },
+                  ]),
+                  !1
+                );
+              {
+                let h = r;
+                for (let m in e)
+                  if (!G.call($s.properties, m))
+                    return (
+                      (he.errors = [
+                        {
+                          instancePath: a,
+                          schemaPath: "#/additionalProperties",
+                          keyword: "additionalProperties",
+                          params: { additionalProperty: m },
+                        },
+                      ]),
+                      !1
+                    );
+                if (h === r) {
+                  if (e.contractVersion !== void 0) {
+                    let m = r;
+                    if (e.contractVersion !== "folioview.agent-workspace.v2.0")
+                      return (
+                        (he.errors = [
+                          {
+                            instancePath: a + "/contractVersion",
+                            schemaPath: "#/properties/contractVersion/const",
+                            keyword: "const",
+                            params: { allowedValue: "folioview.agent-workspace.v2.0" },
+                          },
+                        ]),
+                        !1
+                      );
+                    var i = m === r;
+                  } else var i = !0;
+                  if (i) {
+                    if (e.profile !== void 0) {
+                      let P = r;
+                      if (e.profile !== "folioview.persistent-content.v1")
+                        return (
+                          (he.errors = [
+                            {
+                              instancePath: a + "/profile",
+                              schemaPath: "#/properties/profile/const",
+                              keyword: "const",
+                              params: { allowedValue: "folioview.persistent-content.v1" },
+                            },
+                          ]),
+                          !1
+                        );
+                      var i = P === r;
+                    } else var i = !0;
+                    if (i) {
+                      if (e.ownerSubject !== void 0) {
+                        let w = r;
+                        A(e.ownerSubject, {
+                          instancePath: a + "/ownerSubject",
+                          parentData: e,
+                          parentDataProperty: "ownerSubject",
+                          rootData: f,
+                          dynamicAnchors: v,
+                        }) || ((t = t === null ? A.errors : t.concat(A.errors)), (r = t.length));
+                        var i = w === r;
+                      } else var i = !0;
+                      if (i) {
+                        if (e.vaultId !== void 0) {
+                          let b = r;
+                          A(e.vaultId, {
+                            instancePath: a + "/vaultId",
+                            parentData: e,
+                            parentDataProperty: "vaultId",
+                            rootData: f,
+                            dynamicAnchors: v,
+                          }) || ((t = t === null ? A.errors : t.concat(A.errors)), (r = t.length));
+                          var i = b === r;
+                        } else var i = !0;
+                        if (i) {
+                          if (e.connectionId !== void 0) {
+                            let D = r;
+                            A(e.connectionId, {
+                              instancePath: a + "/connectionId",
+                              parentData: e,
+                              parentDataProperty: "connectionId",
+                              rootData: f,
+                              dynamicAnchors: v,
+                            }) ||
+                              ((t = t === null ? A.errors : t.concat(A.errors)), (r = t.length));
+                            var i = D === r;
+                          } else var i = !0;
+                          if (i) {
+                            if (e.agentId !== void 0) {
+                              let k = r;
+                              A(e.agentId, {
+                                instancePath: a + "/agentId",
+                                parentData: e,
+                                parentDataProperty: "agentId",
+                                rootData: f,
+                                dynamicAnchors: v,
+                              }) ||
+                                ((t = t === null ? A.errors : t.concat(A.errors)), (r = t.length));
+                              var i = k === r;
+                            } else var i = !0;
+                            if (i) {
+                              if (e.clientId !== void 0) {
+                                let V = r;
+                                A(e.clientId, {
+                                  instancePath: a + "/clientId",
+                                  parentData: e,
+                                  parentDataProperty: "clientId",
+                                  rootData: f,
+                                  dynamicAnchors: v,
+                                }) ||
+                                  ((t = t === null ? A.errors : t.concat(A.errors)),
+                                  (r = t.length));
+                                var i = V === r;
+                              } else var i = !0;
+                              if (i) {
+                                if (e.rootKeyId !== void 0) {
+                                  let $ = r;
+                                  W(e.rootKeyId, {
+                                    instancePath: a + "/rootKeyId",
+                                    parentData: e,
+                                    parentDataProperty: "rootKeyId",
+                                    rootData: f,
+                                    dynamicAnchors: v,
+                                  }) ||
+                                    ((t = t === null ? W.errors : t.concat(W.errors)),
+                                    (r = t.length));
+                                  var i = $ === r;
+                                } else var i = !0;
+                                if (i) {
+                                  if (e.agentSigningKeyId !== void 0) {
+                                    let j = r;
+                                    W(e.agentSigningKeyId, {
+                                      instancePath: a + "/agentSigningKeyId",
+                                      parentData: e,
+                                      parentDataProperty: "agentSigningKeyId",
+                                      rootData: f,
+                                      dynamicAnchors: v,
+                                    }) ||
+                                      ((t = t === null ? W.errors : t.concat(W.errors)),
+                                      (r = t.length));
+                                    var i = j === r;
+                                  } else var i = !0;
+                                  if (i) {
+                                    if (e.agentEncryptionKeyId !== void 0) {
+                                      let S = r;
+                                      W(e.agentEncryptionKeyId, {
+                                        instancePath: a + "/agentEncryptionKeyId",
+                                        parentData: e,
+                                        parentDataProperty: "agentEncryptionKeyId",
+                                        rootData: f,
+                                        dynamicAnchors: v,
+                                      }) ||
+                                        ((t = t === null ? W.errors : t.concat(W.errors)),
+                                        (r = t.length));
+                                      var i = S === r;
+                                    } else var i = !0;
+                                    if (i) {
+                                      if (e.identityEpoch !== void 0) {
+                                        let L = e.identityEpoch,
+                                          E = r;
+                                        if (!(typeof L == "number" && !(L % 1) && !isNaN(L)))
+                                          return (
+                                            (he.errors = [
+                                              {
+                                                instancePath: a + "/identityEpoch",
+                                                schemaPath: "#/properties/identityEpoch/type",
+                                                keyword: "type",
+                                                params: { type: "integer" },
+                                              },
+                                            ]),
+                                            !1
+                                          );
+                                        if (r === E && typeof L == "number") {
+                                          if (L > 9007199254740991 || isNaN(L))
+                                            return (
+                                              (he.errors = [
+                                                {
+                                                  instancePath: a + "/identityEpoch",
+                                                  schemaPath: "#/properties/identityEpoch/maximum",
+                                                  keyword: "maximum",
+                                                  params: {
+                                                    comparison: "<=",
+                                                    limit: 9007199254740991,
+                                                  },
+                                                },
+                                              ]),
+                                              !1
+                                            );
+                                          if (L < 1 || isNaN(L))
+                                            return (
+                                              (he.errors = [
+                                                {
+                                                  instancePath: a + "/identityEpoch",
+                                                  schemaPath: "#/properties/identityEpoch/minimum",
+                                                  keyword: "minimum",
+                                                  params: { comparison: ">=", limit: 1 },
+                                                },
+                                              ]),
+                                              !1
+                                            );
+                                        }
+                                        var i = E === r;
+                                      } else var i = !0;
+                                      if (i) {
+                                        if (e.bindingFingerprint !== void 0) {
+                                          let E = r;
+                                          M(e.bindingFingerprint, {
+                                            instancePath: a + "/bindingFingerprint",
+                                            parentData: e,
+                                            parentDataProperty: "bindingFingerprint",
+                                            rootData: f,
+                                            dynamicAnchors: v,
+                                          }) ||
+                                            ((t = t === null ? M.errors : t.concat(M.errors)),
+                                            (r = t.length));
+                                          var i = E === r;
+                                        } else var i = !0;
+                                        if (i) {
+                                          if (e.registrySequence !== void 0) {
+                                            let K = e.registrySequence,
+                                              Z = r;
+                                            if (!(typeof K == "number" && !(K % 1) && !isNaN(K)))
+                                              return (
+                                                (he.errors = [
+                                                  {
+                                                    instancePath: a + "/registrySequence",
+                                                    schemaPath:
+                                                      "#/properties/registrySequence/type",
+                                                    keyword: "type",
+                                                    params: { type: "integer" },
+                                                  },
+                                                ]),
+                                                !1
+                                              );
+                                            if (r === Z && typeof K == "number") {
+                                              if (K > 9007199254740991 || isNaN(K))
+                                                return (
+                                                  (he.errors = [
+                                                    {
+                                                      instancePath: a + "/registrySequence",
+                                                      schemaPath:
+                                                        "#/properties/registrySequence/maximum",
+                                                      keyword: "maximum",
+                                                      params: {
+                                                        comparison: "<=",
+                                                        limit: 9007199254740991,
+                                                      },
+                                                    },
+                                                  ]),
+                                                  !1
+                                                );
+                                              if (K < 1 || isNaN(K))
+                                                return (
+                                                  (he.errors = [
+                                                    {
+                                                      instancePath: a + "/registrySequence",
+                                                      schemaPath:
+                                                        "#/properties/registrySequence/minimum",
+                                                      keyword: "minimum",
+                                                      params: { comparison: ">=", limit: 1 },
+                                                    },
+                                                  ]),
+                                                  !1
+                                                );
+                                            }
+                                            var i = Z === r;
+                                          } else var i = !0;
+                                          if (i) {
+                                            if (e.checkpointDigest !== void 0) {
+                                              let Z = r;
+                                              M(e.checkpointDigest, {
+                                                instancePath: a + "/checkpointDigest",
+                                                parentData: e,
+                                                parentDataProperty: "checkpointDigest",
+                                                rootData: f,
+                                                dynamicAnchors: v,
+                                              }) ||
+                                                ((t = t === null ? M.errors : t.concat(M.errors)),
+                                                (r = t.length));
+                                              var i = Z === r;
+                                            } else var i = !0;
+                                            if (i) {
+                                              if (e.keyEpoch !== void 0) {
+                                                let q = e.keyEpoch,
+                                                  R = r;
+                                                if (!(
+                                                  typeof q == "number" &&
+                                                  !(q % 1) &&
+                                                  !isNaN(q)
+                                                ))
+                                                  return (
+                                                    (he.errors = [
+                                                      {
+                                                        instancePath: a + "/keyEpoch",
+                                                        schemaPath: "#/properties/keyEpoch/type",
+                                                        keyword: "type",
+                                                        params: { type: "integer" },
+                                                      },
+                                                    ]),
+                                                    !1
+                                                  );
+                                                if (r === R && typeof q == "number") {
+                                                  if (q > 9007199254740991 || isNaN(q))
+                                                    return (
+                                                      (he.errors = [
+                                                        {
+                                                          instancePath: a + "/keyEpoch",
+                                                          schemaPath:
+                                                            "#/properties/keyEpoch/maximum",
+                                                          keyword: "maximum",
+                                                          params: {
+                                                            comparison: "<=",
+                                                            limit: 9007199254740991,
+                                                          },
+                                                        },
+                                                      ]),
+                                                      !1
+                                                    );
+                                                  if (q < 1 || isNaN(q))
+                                                    return (
+                                                      (he.errors = [
+                                                        {
+                                                          instancePath: a + "/keyEpoch",
+                                                          schemaPath:
+                                                            "#/properties/keyEpoch/minimum",
+                                                          keyword: "minimum",
+                                                          params: { comparison: ">=", limit: 1 },
+                                                        },
+                                                      ]),
+                                                      !1
+                                                    );
+                                                }
+                                                var i = R === r;
+                                              } else var i = !0;
+                                              if (i) {
+                                                if (e.stableOperationId !== void 0) {
+                                                  let R = r;
+                                                  fe(e.stableOperationId, {
+                                                    instancePath: a + "/stableOperationId",
+                                                    parentData: e,
+                                                    parentDataProperty: "stableOperationId",
+                                                    rootData: f,
+                                                    dynamicAnchors: v,
+                                                  }) ||
+                                                    ((t =
+                                                      t === null ? fe.errors : t.concat(fe.errors)),
+                                                    (r = t.length));
+                                                  var i = R === r;
+                                                } else var i = !0;
+                                                if (i) {
+                                                  if (e.issuedAt !== void 0) {
+                                                    let z = e.issuedAt,
+                                                      X = r;
+                                                    if (!(
+                                                      typeof z == "number" &&
+                                                      !(z % 1) &&
+                                                      !isNaN(z)
+                                                    ))
+                                                      return (
+                                                        (he.errors = [
+                                                          {
+                                                            instancePath: a + "/issuedAt",
+                                                            schemaPath:
+                                                              "#/properties/issuedAt/type",
+                                                            keyword: "type",
+                                                            params: { type: "integer" },
+                                                          },
+                                                        ]),
+                                                        !1
+                                                      );
+                                                    if (r === X && typeof z == "number") {
+                                                      if (z > 9007199254740991 || isNaN(z))
+                                                        return (
+                                                          (he.errors = [
+                                                            {
+                                                              instancePath: a + "/issuedAt",
+                                                              schemaPath:
+                                                                "#/properties/issuedAt/maximum",
+                                                              keyword: "maximum",
+                                                              params: {
+                                                                comparison: "<=",
+                                                                limit: 9007199254740991,
+                                                              },
+                                                            },
+                                                          ]),
+                                                          !1
+                                                        );
+                                                      if (z < 0 || isNaN(z))
+                                                        return (
+                                                          (he.errors = [
+                                                            {
+                                                              instancePath: a + "/issuedAt",
+                                                              schemaPath:
+                                                                "#/properties/issuedAt/minimum",
+                                                              keyword: "minimum",
+                                                              params: {
+                                                                comparison: ">=",
+                                                                limit: 0,
+                                                              },
+                                                            },
+                                                          ]),
+                                                          !1
+                                                        );
+                                                    }
+                                                    var i = X === r;
+                                                  } else var i = !0;
+                                                  if (i) {
+                                                    if (e.objectId !== void 0) {
+                                                      let X = r;
+                                                      A(e.objectId, {
+                                                        instancePath: a + "/objectId",
+                                                        parentData: e,
+                                                        parentDataProperty: "objectId",
+                                                        rootData: f,
+                                                        dynamicAnchors: v,
+                                                      }) ||
+                                                        ((t =
+                                                          t === null
+                                                            ? A.errors
+                                                            : t.concat(A.errors)),
+                                                        (r = t.length));
+                                                      var i = X === r;
+                                                    } else var i = !0;
+                                                    if (i) {
+                                                      if (e.revision !== void 0) {
+                                                        let U = e.revision,
+                                                          T = r;
+                                                        if (!(
+                                                          typeof U == "number" &&
+                                                          !(U % 1) &&
+                                                          !isNaN(U)
+                                                        ))
+                                                          return (
+                                                            (he.errors = [
+                                                              {
+                                                                instancePath: a + "/revision",
+                                                                schemaPath:
+                                                                  "#/properties/revision/type",
+                                                                keyword: "type",
+                                                                params: { type: "integer" },
+                                                              },
+                                                            ]),
+                                                            !1
+                                                          );
+                                                        if (r === T && typeof U == "number") {
+                                                          if (U > 9007199254740991 || isNaN(U))
+                                                            return (
+                                                              (he.errors = [
+                                                                {
+                                                                  instancePath: a + "/revision",
+                                                                  schemaPath:
+                                                                    "#/properties/revision/maximum",
+                                                                  keyword: "maximum",
+                                                                  params: {
+                                                                    comparison: "<=",
+                                                                    limit: 9007199254740991,
+                                                                  },
+                                                                },
+                                                              ]),
+                                                              !1
+                                                            );
+                                                          if (U < 1 || isNaN(U))
+                                                            return (
+                                                              (he.errors = [
+                                                                {
+                                                                  instancePath: a + "/revision",
+                                                                  schemaPath:
+                                                                    "#/properties/revision/minimum",
+                                                                  keyword: "minimum",
+                                                                  params: {
+                                                                    comparison: ">=",
+                                                                    limit: 1,
+                                                                  },
+                                                                },
+                                                              ]),
+                                                              !1
+                                                            );
+                                                        }
+                                                        var i = T === r;
+                                                      } else var i = !0;
+                                                      if (i) {
+                                                        if (e.expectedRevision !== void 0) {
+                                                          let T = e.expectedRevision,
+                                                            ee = r;
+                                                          if (!(
+                                                            typeof T == "number" &&
+                                                            !(T % 1) &&
+                                                            !isNaN(T)
+                                                          ))
+                                                            return (
+                                                              (he.errors = [
+                                                                {
+                                                                  instancePath:
+                                                                    a + "/expectedRevision",
+                                                                  schemaPath:
+                                                                    "#/properties/expectedRevision/type",
+                                                                  keyword: "type",
+                                                                  params: { type: "integer" },
+                                                                },
+                                                              ]),
+                                                              !1
+                                                            );
+                                                          if (r === ee && typeof T == "number") {
+                                                            if (T > 9007199254740991 || isNaN(T))
+                                                              return (
+                                                                (he.errors = [
+                                                                  {
+                                                                    instancePath:
+                                                                      a + "/expectedRevision",
+                                                                    schemaPath:
+                                                                      "#/properties/expectedRevision/maximum",
+                                                                    keyword: "maximum",
+                                                                    params: {
+                                                                      comparison: "<=",
+                                                                      limit: 9007199254740991,
+                                                                    },
+                                                                  },
+                                                                ]),
+                                                                !1
+                                                              );
+                                                            if (T < 0 || isNaN(T))
+                                                              return (
+                                                                (he.errors = [
+                                                                  {
+                                                                    instancePath:
+                                                                      a + "/expectedRevision",
+                                                                    schemaPath:
+                                                                      "#/properties/expectedRevision/minimum",
+                                                                    keyword: "minimum",
+                                                                    params: {
+                                                                      comparison: ">=",
+                                                                      limit: 0,
+                                                                    },
+                                                                  },
+                                                                ]),
+                                                                !1
+                                                              );
+                                                          }
+                                                          var i = ee === r;
+                                                        } else var i = !0;
+                                                        if (i) {
+                                                          if (e.recipients !== void 0) {
+                                                            let ee = e.recipients,
+                                                              ce = r;
+                                                            if (r === ce)
+                                                              if (Array.isArray(ee)) {
+                                                                if (ee.length > 8)
+                                                                  return (
+                                                                    (he.errors = [
+                                                                      {
+                                                                        instancePath:
+                                                                          a + "/recipients",
+                                                                        schemaPath:
+                                                                          "#/properties/recipients/maxItems",
+                                                                        keyword: "maxItems",
+                                                                        params: { limit: 8 },
+                                                                      },
+                                                                    ]),
+                                                                    !1
+                                                                  );
+                                                                if (ee.length < 1)
+                                                                  return (
+                                                                    (he.errors = [
+                                                                      {
+                                                                        instancePath:
+                                                                          a + "/recipients",
+                                                                        schemaPath:
+                                                                          "#/properties/recipients/minItems",
+                                                                        keyword: "minItems",
+                                                                        params: { limit: 1 },
+                                                                      },
+                                                                    ]),
+                                                                    !1
+                                                                  );
+                                                                {
+                                                                  var g = !0;
+                                                                  let we = ee.length;
+                                                                  for (let te = 0; te < we; te++) {
+                                                                    let ne = r;
+                                                                    gr(ee[te], {
+                                                                      instancePath:
+                                                                        a + "/recipients/" + te,
+                                                                      parentData: ee,
+                                                                      parentDataProperty: te,
+                                                                      rootData: f,
+                                                                      dynamicAnchors: v,
+                                                                    }) ||
+                                                                      ((t =
+                                                                        t === null
+                                                                          ? gr.errors
+                                                                          : t.concat(gr.errors)),
+                                                                      (r = t.length));
+                                                                    var g = ne === r;
+                                                                    if (!g) break;
+                                                                  }
+                                                                }
+                                                              } else
+                                                                return (
+                                                                  (he.errors = [
+                                                                    {
+                                                                      instancePath:
+                                                                        a + "/recipients",
+                                                                      schemaPath:
+                                                                        "#/properties/recipients/type",
+                                                                      keyword: "type",
+                                                                      params: { type: "array" },
+                                                                    },
+                                                                  ]),
+                                                                  !1
+                                                                );
+                                                            var i = ce === r;
+                                                          } else var i = !0;
+                                                          if (i) {
+                                                            if (e.objectType !== void 0) {
                                                               let ce = r;
                                                               if (
                                                                 e.objectType !== "result_revision"
                                                               )
                                                                 return (
-                                                                  (ye.errors = [
+                                                                  (he.errors = [
                                                                     {
                                                                       instancePath:
                                                                         a + "/objectType",
@@ -12008,10 +12008,10 @@ var Xs,
                                                             } else var i = !0;
                                                             if (i) {
                                                               if (e.purpose !== void 0) {
-                                                                let le = r;
+                                                                let me = r;
                                                                 if (e.purpose !== "save_report")
                                                                   return (
-                                                                    (ye.errors = [
+                                                                    (he.errors = [
                                                                       {
                                                                         instancePath:
                                                                           a + "/purpose",
@@ -12026,7 +12026,7 @@ var Xs,
                                                                     ]),
                                                                     !1
                                                                   );
-                                                                var i = le === r;
+                                                                var i = me === r;
                                                               } else var i = !0;
                                                               if (i) {
                                                                 if (e.taskId !== void 0) {
@@ -12055,7 +12055,7 @@ var Xs,
                                                                       !isNaN(te)
                                                                     ))
                                                                       return (
-                                                                        (ye.errors = [
+                                                                        (he.errors = [
                                                                           {
                                                                             instancePath:
                                                                               a + "/taskVersion",
@@ -12078,7 +12078,7 @@ var Xs,
                                                                         isNaN(te)
                                                                       )
                                                                         return (
-                                                                          (ye.errors = [
+                                                                          (he.errors = [
                                                                             {
                                                                               instancePath:
                                                                                 a + "/taskVersion",
@@ -12095,7 +12095,7 @@ var Xs,
                                                                         );
                                                                       if (te < 1 || isNaN(te))
                                                                         return (
-                                                                          (ye.errors = [
+                                                                          (he.errors = [
                                                                             {
                                                                               instancePath:
                                                                                 a + "/taskVersion",
@@ -12125,7 +12125,7 @@ var Xs,
                                                                         !isNaN(ne)
                                                                       ))
                                                                         return (
-                                                                          (ye.errors = [
+                                                                          (he.errors = [
                                                                             {
                                                                               instancePath:
                                                                                 a +
@@ -12149,7 +12149,7 @@ var Xs,
                                                                           isNaN(ne)
                                                                         )
                                                                           return (
-                                                                            (ye.errors = [
+                                                                            (he.errors = [
                                                                               {
                                                                                 instancePath:
                                                                                   a +
@@ -12167,7 +12167,7 @@ var Xs,
                                                                           );
                                                                         if (ne < 1 || isNaN(ne))
                                                                           return (
-                                                                            (ye.errors = [
+                                                                            (he.errors = [
                                                                               {
                                                                                 instancePath:
                                                                                   a +
@@ -12221,7 +12221,7 @@ var Xs,
                                                                             !isNaN(oe)
                                                                           ))
                                                                             return (
-                                                                              (ye.errors = [
+                                                                              (he.errors = [
                                                                                 {
                                                                                   instancePath:
                                                                                     a +
@@ -12246,7 +12246,7 @@ var Xs,
                                                                               isNaN(oe)
                                                                             )
                                                                               return (
-                                                                                (ye.errors = [
+                                                                                (he.errors = [
                                                                                   {
                                                                                     instancePath:
                                                                                       a +
@@ -12266,7 +12266,7 @@ var Xs,
                                                                               );
                                                                             if (oe < 1 || isNaN(oe))
                                                                               return (
-                                                                                (ye.errors = [
+                                                                                (he.errors = [
                                                                                   {
                                                                                     instancePath:
                                                                                       a +
@@ -12368,7 +12368,7 @@ var Xs,
               }
             } else
               return (
-                (ye.errors = [
+                (he.errors = [
                   {
                     instancePath: a,
                     schemaPath: "#/type",
@@ -12378,10 +12378,10 @@ var Xs,
                 ]),
                 !1
               );
-          return ((ye.errors = t), r === 0);
+          return ((he.errors = t), r === 0);
         }
-        ye.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
-        function Xr(
+        he.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
+        function Yr(
           e,
           {
             instancePath: a = "",
@@ -12393,12 +12393,12 @@ var Xs,
         ) {
           let t = null,
             r = 0,
-            d = Xr.evaluated;
+            d = Yr.evaluated;
           (d.dynamicProps && (d.props = void 0), d.dynamicItems && (d.items = void 0));
           let i = r,
             g = !1,
             u = null,
-            y = r;
+            h = r;
           ae(e, {
             instancePath: a,
             parentData: F,
@@ -12406,33 +12406,33 @@ var Xs,
             rootData: f,
             dynamicAnchors: v,
           }) || ((t = t === null ? ae.errors : t.concat(ae.errors)), (r = t.length));
-          var w = y === r;
+          var w = h === r;
           if (w) {
             ((g = !0), (u = 0));
-            var l = !0;
+            var m = !0;
           }
           let P = r;
-          he(e, {
+          ye(e, {
             instancePath: a,
             parentData: F,
             parentDataProperty: H,
             rootData: f,
             dynamicAnchors: v,
-          }) || ((t = t === null ? he.errors : t.concat(he.errors)), (r = t.length));
+          }) || ((t = t === null ? ye.errors : t.concat(ye.errors)), (r = t.length));
           var w = P === r;
           if (w && g) ((g = !1), (u = [u, 1]));
           else {
-            w && ((g = !0), (u = 1), l !== !0 && (l = !0));
+            w && ((g = !0), (u = 1), m !== !0 && (m = !0));
             let b = r;
-            ye(e, {
+            he(e, {
               instancePath: a,
               parentData: F,
               parentDataProperty: H,
               rootData: f,
               dynamicAnchors: v,
-            }) || ((t = t === null ? ye.errors : t.concat(ye.errors)), (r = t.length));
+            }) || ((t = t === null ? he.errors : t.concat(he.errors)), (r = t.length));
             var w = b === r;
-            w && g ? ((g = !1), (u = [u, 2])) : w && ((g = !0), (u = 2), l !== !0 && (l = !0));
+            w && g ? ((g = !1), (u = [u, 2])) : w && ((g = !0), (u = 2), m !== !0 && (m = !0));
           }
           if (g) ((r = i), t !== null && (i ? (t.length = i) : (t = null)));
           else {
@@ -12442,12 +12442,12 @@ var Xs,
               keyword: "oneOf",
               params: { passingSchemas: u },
             };
-            return (t === null ? (t = [b]) : t.push(b), r++, (Xr.errors = t), !1);
+            return (t === null ? (t = [b]) : t.push(b), r++, (Yr.errors = t), !1);
           }
-          return ((Xr.errors = t), (d.props = l), r === 0);
+          return ((Yr.errors = t), (d.props = m), r === 0);
         }
-        Xr.evaluated = { dynamicProps: !0, dynamicItems: !1 };
-        function Gt(
+        Yr.evaluated = { dynamicProps: !0, dynamicItems: !1 };
+        function Xt(
           e,
           {
             instancePath: a = "",
@@ -12459,11 +12459,11 @@ var Xs,
         ) {
           let t = null,
             r = 0,
-            d = Gt.evaluated;
+            d = Xt.evaluated;
           if (
             (d.dynamicProps && (d.props = void 0),
             d.dynamicItems && (d.items = void 0),
-            !Xr(e, {
+            !Yr(e, {
               instancePath: a,
               parentData: F,
               parentDataProperty: H,
@@ -12471,11 +12471,11 @@ var Xs,
               dynamicAnchors: v,
             }))
           )
-            ((t = t === null ? Xr.errors : t.concat(Xr.errors)), (r = t.length));
-          else var i = Xr.evaluated.props;
-          return ((Gt.errors = t), (d.props = i), r === 0);
+            ((t = t === null ? Yr.errors : t.concat(Yr.errors)), (r = t.length));
+          else var i = Yr.evaluated.props;
+          return ((Xt.errors = t), (d.props = i), r === 0);
         }
-        ((Gt.evaluated = { dynamicProps: !0, dynamicItems: !1 }), (s.ResourceRef = Xt));
+        ((Xt.evaluated = { dynamicProps: !0, dynamicItems: !1 }), (s.ResourceRef = Yt));
         function Ue(
           e,
           {
@@ -12503,10 +12503,10 @@ var Xs,
             let b = {};
             (t === null ? (t = [b]) : t.push(b), r++);
           }
-          var y = u === r;
+          var h = u === r;
           ((r = i), t !== null && (i ? (t.length = i) : (t = null)));
-          let l;
-          if (y) {
+          let m;
+          if (h) {
             let b = r;
             if (
               e &&
@@ -12526,12 +12526,12 @@ var Xs,
                 ]),
                 !1
               );
-            var y = b === r;
-            if (((g = y), g)) {
+            var h = b === r;
+            if (((g = h), g)) {
               var P = {};
               ((P.sourceService = !0), (P.kind = !0));
             }
-            l = "then";
+            m = "then";
           } else {
             let b = r;
             if (
@@ -12552,15 +12552,15 @@ var Xs,
                 ]),
                 !1
               );
-            var y = b === r;
-            ((g = y), g && P !== !0 && ((P = P || {}), (P.sourceService = !0)), (l = "else"));
+            var h = b === r;
+            ((g = h), g && P !== !0 && ((P = P || {}), (P.sourceService = !0)), (m = "else"));
           }
           if (!g) {
             let b = {
               instancePath: a,
               schemaPath: "#/allOf/0/if",
               keyword: "if",
-              params: { failingKeyword: l },
+              params: { failingKeyword: m },
             };
             return (t === null ? (t = [b]) : t.push(b), r++, (Ue.errors = t), !1);
           }
@@ -12627,7 +12627,7 @@ var Xs,
                             instancePath: a + "/kind",
                             schemaPath: "#/properties/kind/enum",
                             keyword: "enum",
-                            params: { allowedValues: me.properties.kind.enum },
+                            params: { allowedValues: le.properties.kind.enum },
                           },
                         ]),
                         !1
@@ -12657,7 +12657,7 @@ var Xs,
                               instancePath: a + "/sourceService",
                               schemaPath: "#/properties/sourceService/enum",
                               keyword: "enum",
-                              params: { allowedValues: me.properties.sourceService.enum },
+                              params: { allowedValues: le.properties.sourceService.enum },
                             },
                           ]),
                           !1
@@ -12694,7 +12694,7 @@ var Xs,
                                 ]),
                                 !1
                               );
-                            if (!m.test($))
+                            if (!l.test($))
                               return (
                                 (Ue.errors = [
                                   {
@@ -12750,7 +12750,7 @@ var Xs,
                                   ]),
                                   !1
                                 );
-                              if (!m.test($))
+                              if (!l.test($))
                                 return (
                                   (Ue.errors = [
                                     {
@@ -12795,7 +12795,7 @@ var Xs,
           return ((Ue.errors = t), r === 0);
         }
         Ue.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
-        function Xt(
+        function Yt(
           e,
           {
             instancePath: a = "",
@@ -12807,7 +12807,7 @@ var Xs,
         ) {
           let t = null,
             r = 0,
-            d = Xt.evaluated;
+            d = Yt.evaluated;
           return (
             d.dynamicProps && (d.props = void 0),
             d.dynamicItems && (d.items = void 0),
@@ -12818,13 +12818,13 @@ var Xs,
               rootData: f,
               dynamicAnchors: v,
             }) || ((t = t === null ? Ue.errors : t.concat(Ue.errors)), (r = t.length)),
-            (Xt.errors = t),
+            (Yt.errors = t),
             r === 0
           );
         }
-        ((Xt.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 }),
-          (s.PersistentPrivatePayload = Yt));
-        var js = {
+        ((Yt.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 }),
+          (s.PersistentPrivatePayload = Qt));
+        var Ls = {
             type: "object",
             properties: {
               privateSchemaVersion: { const: 1 },
@@ -12874,7 +12874,7 @@ var Xs,
               },
             ],
           },
-          $s = {
+          Os = {
             type: "object",
             properties: {
               name: { type: "string", minLength: 1, maxLength: 80 },
@@ -12896,7 +12896,7 @@ var Xs,
             ],
             additionalProperties: !1,
           };
-        function Ar(
+        function Dr(
           e,
           {
             instancePath: a = "",
@@ -12908,7 +12908,7 @@ var Xs,
         ) {
           let t = null,
             r = 0,
-            d = Ar.evaluated;
+            d = Dr.evaluated;
           if ((d.dynamicProps && (d.props = void 0), d.dynamicItems && (d.items = void 0), r === 0))
             if (e && typeof e == "object" && !Array.isArray(e)) {
               let g;
@@ -12918,7 +12918,7 @@ var Xs,
                 (e.maxFetchedAgeSeconds === void 0 && (g = "maxFetchedAgeSeconds"))
               )
                 return (
-                  (Ar.errors = [
+                  (Dr.errors = [
                     {
                       instancePath: a,
                       schemaPath: "#/required",
@@ -12930,29 +12930,29 @@ var Xs,
                 );
               {
                 let u = r;
-                for (let y in e)
+                for (let h in e)
                   if (!(
-                    y === "allowPartial" ||
-                    y === "allowUnknownAsOf" ||
-                    y === "maxFetchedAgeSeconds"
+                    h === "allowPartial" ||
+                    h === "allowUnknownAsOf" ||
+                    h === "maxFetchedAgeSeconds"
                   ))
                     return (
-                      (Ar.errors = [
+                      (Dr.errors = [
                         {
                           instancePath: a,
                           schemaPath: "#/additionalProperties",
                           keyword: "additionalProperties",
-                          params: { additionalProperty: y },
+                          params: { additionalProperty: h },
                         },
                       ]),
                       !1
                     );
                 if (u === r) {
                   if (e.allowPartial !== void 0) {
-                    let y = r;
+                    let h = r;
                     if (typeof e.allowPartial != "boolean")
                       return (
-                        (Ar.errors = [
+                        (Dr.errors = [
                           {
                             instancePath: a + "/allowPartial",
                             schemaPath: "#/properties/allowPartial/type",
@@ -12962,14 +12962,14 @@ var Xs,
                         ]),
                         !1
                       );
-                    var i = y === r;
+                    var i = h === r;
                   } else var i = !0;
                   if (i) {
                     if (e.allowUnknownAsOf !== void 0) {
-                      let l = r;
+                      let m = r;
                       if (typeof e.allowUnknownAsOf != "boolean")
                         return (
-                          (Ar.errors = [
+                          (Dr.errors = [
                             {
                               instancePath: a + "/allowUnknownAsOf",
                               schemaPath: "#/properties/allowUnknownAsOf/type",
@@ -12979,15 +12979,15 @@ var Xs,
                           ]),
                           !1
                         );
-                      var i = l === r;
+                      var i = m === r;
                     } else var i = !0;
                     if (i)
                       if (e.maxFetchedAgeSeconds !== void 0) {
-                        let l = e.maxFetchedAgeSeconds,
+                        let m = e.maxFetchedAgeSeconds,
                           P = r;
-                        if (!(typeof l == "number" && !(l % 1) && !isNaN(l)))
+                        if (!(typeof m == "number" && !(m % 1) && !isNaN(m)))
                           return (
-                            (Ar.errors = [
+                            (Dr.errors = [
                               {
                                 instancePath: a + "/maxFetchedAgeSeconds",
                                 schemaPath: "#/properties/maxFetchedAgeSeconds/type",
@@ -12997,10 +12997,10 @@ var Xs,
                             ]),
                             !1
                           );
-                        if (r === P && typeof l == "number") {
-                          if (l > 604800 || isNaN(l))
+                        if (r === P && typeof m == "number") {
+                          if (m > 604800 || isNaN(m))
                             return (
-                              (Ar.errors = [
+                              (Dr.errors = [
                                 {
                                   instancePath: a + "/maxFetchedAgeSeconds",
                                   schemaPath: "#/properties/maxFetchedAgeSeconds/maximum",
@@ -13010,9 +13010,9 @@ var Xs,
                               ]),
                               !1
                             );
-                          if (l < 60 || isNaN(l))
+                          if (m < 60 || isNaN(m))
                             return (
-                              (Ar.errors = [
+                              (Dr.errors = [
                                 {
                                   instancePath: a + "/maxFetchedAgeSeconds",
                                   schemaPath: "#/properties/maxFetchedAgeSeconds/minimum",
@@ -13030,7 +13030,7 @@ var Xs,
               }
             } else
               return (
-                (Ar.errors = [
+                (Dr.errors = [
                   {
                     instancePath: a,
                     schemaPath: "#/type",
@@ -13040,10 +13040,10 @@ var Xs,
                 ]),
                 !1
               );
-          return ((Ar.errors = t), r === 0);
+          return ((Dr.errors = t), r === 0);
         }
-        Ar.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
-        var en = {
+        Dr.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
+        var tn = {
           type: "object",
           properties: {
             label: { type: "string", minLength: 1, maxLength: 40 },
@@ -13093,26 +13093,26 @@ var Xs,
                 );
               {
                 let u = r;
-                for (let y in e)
-                  if (!(y === "sectionId" || y === "title" || y === "instructions"))
+                for (let h in e)
+                  if (!(h === "sectionId" || h === "title" || h === "instructions"))
                     return (
                       (or.errors = [
                         {
                           instancePath: a,
                           schemaPath: "#/additionalProperties",
                           keyword: "additionalProperties",
-                          params: { additionalProperty: y },
+                          params: { additionalProperty: h },
                         },
                       ]),
                       !1
                     );
                 if (u === r) {
                   if (e.sectionId !== void 0) {
-                    let y = e.sectionId,
-                      l = r;
-                    if (r === l)
-                      if (typeof y == "string") {
-                        if (n(y) > 128)
+                    let h = e.sectionId,
+                      m = r;
+                    if (r === m)
+                      if (typeof h == "string") {
+                        if (n(h) > 128)
                           return (
                             (or.errors = [
                               {
@@ -13124,7 +13124,7 @@ var Xs,
                             ]),
                             !1
                           );
-                        if (n(y) < 1)
+                        if (n(h) < 1)
                           return (
                             (or.errors = [
                               {
@@ -13136,7 +13136,7 @@ var Xs,
                             ]),
                             !1
                           );
-                        if (!m.test(y))
+                        if (!l.test(h))
                           return (
                             (or.errors = [
                               {
@@ -13160,15 +13160,15 @@ var Xs,
                           ]),
                           !1
                         );
-                    var i = l === r;
+                    var i = m === r;
                   } else var i = !0;
                   if (i) {
                     if (e.title !== void 0) {
-                      let l = e.title,
+                      let m = e.title,
                         P = r;
                       if (r === P)
-                        if (typeof l == "string") {
-                          if (n(l) > 120)
+                        if (typeof m == "string") {
+                          if (n(m) > 120)
                             return (
                               (or.errors = [
                                 {
@@ -13180,7 +13180,7 @@ var Xs,
                               ]),
                               !1
                             );
-                          if (n(l) < 1)
+                          if (n(m) < 1)
                             return (
                               (or.errors = [
                                 {
@@ -13208,11 +13208,11 @@ var Xs,
                     } else var i = !0;
                     if (i)
                       if (e.instructions !== void 0) {
-                        let l = e.instructions,
+                        let m = e.instructions,
                           P = r;
                         if (r === P)
-                          if (typeof l == "string") {
-                            if (n(l) > 1e3)
+                          if (typeof m == "string") {
+                            if (n(m) > 1e3)
                               return (
                                 (or.errors = [
                                   {
@@ -13224,7 +13224,7 @@ var Xs,
                                 ]),
                                 !1
                               );
-                            if (n(l) < 0)
+                            if (n(m) < 0)
                               return (
                                 (or.errors = [
                                   {
@@ -13302,27 +13302,27 @@ var Xs,
                   !1
                 );
               {
-                let y = r;
-                for (let l in e)
-                  if (!(l === "label" || l === "sections" || l === "language" || l === "verbosity"))
+                let h = r;
+                for (let m in e)
+                  if (!(m === "label" || m === "sections" || m === "language" || m === "verbosity"))
                     return (
                       (pr.errors = [
                         {
                           instancePath: a,
                           schemaPath: "#/additionalProperties",
                           keyword: "additionalProperties",
-                          params: { additionalProperty: l },
+                          params: { additionalProperty: m },
                         },
                       ]),
                       !1
                     );
-                if (y === r) {
+                if (h === r) {
                   if (e.label !== void 0) {
-                    let l = e.label,
+                    let m = e.label,
                       P = r;
                     if (r === P)
-                      if (typeof l == "string") {
-                        if (n(l) > 40)
+                      if (typeof m == "string") {
+                        if (n(m) > 40)
                           return (
                             (pr.errors = [
                               {
@@ -13334,7 +13334,7 @@ var Xs,
                             ]),
                             !1
                           );
-                        if (n(l) < 1)
+                        if (n(m) < 1)
                           return (
                             (pr.errors = [
                               {
@@ -13445,7 +13445,7 @@ var Xs,
                                 instancePath: a + "/language",
                                 schemaPath: "#/properties/language/enum",
                                 keyword: "enum",
-                                params: { allowedValues: en.properties.language.enum },
+                                params: { allowedValues: tn.properties.language.enum },
                               },
                             ]),
                             !1
@@ -13475,7 +13475,7 @@ var Xs,
                                   instancePath: a + "/verbosity",
                                   schemaPath: "#/properties/verbosity/enum",
                                   keyword: "enum",
-                                  params: { allowedValues: en.properties.verbosity.enum },
+                                  params: { allowedValues: tn.properties.verbosity.enum },
                                 },
                               ]),
                               !1
@@ -13501,7 +13501,7 @@ var Xs,
           return ((pr.errors = t), r === 0);
         }
         pr.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
-        var Ls = {
+        var Vs = {
             type: "object",
             properties: {
               cadence: { type: "string", enum: ["daily", "weekdays", "weekly"] },
@@ -13525,8 +13525,8 @@ var Xs,
               },
             ],
           },
-          Os = new RegExp("^([01][0-9]|2[0-3]):[0-5][0-9]$", "u"),
-          Vs = /^[A-Za-z0-9_+./-]{1,80}$/;
+          Ts = new RegExp("^([01][0-9]|2[0-3]):[0-5][0-9]$", "u"),
+          Rs = /^[A-Za-z0-9_+./-]{1,80}$/;
         function Oe(
           e,
           {
@@ -13554,10 +13554,10 @@ var Xs,
             let b = {};
             (t === null ? (t = [b]) : t.push(b), r++);
           }
-          var y = u === r;
+          var h = u === r;
           ((r = i), t !== null && (i ? (t.length = i) : (t = null)));
-          let l;
-          if (y) {
+          let m;
+          if (h) {
             let b = r;
             if (e && typeof e == "object" && !Array.isArray(e)) {
               let k;
@@ -13574,8 +13574,8 @@ var Xs,
                   !1
                 );
             }
-            var y = b === r;
-            ((g = y), (l = "then"));
+            var h = b === r;
+            ((g = h), (m = "then"));
           } else {
             let b = r,
               D = r,
@@ -13596,15 +13596,15 @@ var Xs,
                 !1
               );
             ((r = D), t !== null && (D ? (t.length = D) : (t = null)));
-            var y = b === r;
-            ((g = y), (l = "else"));
+            var h = b === r;
+            ((g = h), (m = "else"));
           }
           if (!g) {
             let b = {
               instancePath: a,
               schemaPath: "#/allOf/0/if",
               keyword: "if",
-              params: { failingKeyword: l },
+              params: { failingKeyword: m },
             };
             return (t === null ? (t = [b]) : t.push(b), r++, (Oe.errors = t), !1);
           }
@@ -13672,7 +13672,7 @@ var Xs,
                             instancePath: a + "/cadence",
                             schemaPath: "#/properties/cadence/enum",
                             keyword: "enum",
-                            params: { allowedValues: Ls.properties.cadence.enum },
+                            params: { allowedValues: Vs.properties.cadence.enum },
                           },
                         ]),
                         !1
@@ -13709,7 +13709,7 @@ var Xs,
                               ]),
                               !1
                             );
-                          if (!Os.test(V))
+                          if (!Ts.test(V))
                             return (
                               (Oe.errors = [
                                 {
@@ -13765,7 +13765,7 @@ var Xs,
                                 ]),
                                 !1
                               );
-                            if (!Vs.test($))
+                            if (!Rs.test($))
                               return (
                                 (Oe.errors = [
                                   {
@@ -13899,7 +13899,7 @@ var Xs,
           return ((Oe.errors = t), r === 0);
         }
         Oe.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
-        function hr(
+        function yr(
           e,
           {
             instancePath: a = "",
@@ -13911,7 +13911,7 @@ var Xs,
         ) {
           let t = null,
             r = 0,
-            d = hr.evaluated;
+            d = yr.evaluated;
           if ((d.dynamicProps && (d.props = void 0), d.dynamicItems && (d.items = void 0), r === 0))
             if (e && typeof e == "object" && !Array.isArray(e)) {
               let u;
@@ -13924,7 +13924,7 @@ var Xs,
                 (e.deliveryExpectation === void 0 && (u = "deliveryExpectation"))
               )
                 return (
-                  (hr.errors = [
+                  (yr.errors = [
                     {
                       instancePath: a,
                       schemaPath: "#/required",
@@ -13935,36 +13935,36 @@ var Xs,
                   !1
                 );
               {
-                let y = r;
-                for (let l in e)
+                let h = r;
+                for (let m in e)
                   if (!(
-                    l === "name" ||
-                    l === "template" ||
-                    l === "goal" ||
-                    l === "inputPolicy" ||
-                    l === "outputSpec" ||
-                    l === "deliveryExpectation"
+                    m === "name" ||
+                    m === "template" ||
+                    m === "goal" ||
+                    m === "inputPolicy" ||
+                    m === "outputSpec" ||
+                    m === "deliveryExpectation"
                   ))
                     return (
-                      (hr.errors = [
+                      (yr.errors = [
                         {
                           instancePath: a,
                           schemaPath: "#/additionalProperties",
                           keyword: "additionalProperties",
-                          params: { additionalProperty: l },
+                          params: { additionalProperty: m },
                         },
                       ]),
                       !1
                     );
-                if (y === r) {
+                if (h === r) {
                   if (e.name !== void 0) {
-                    let l = e.name,
+                    let m = e.name,
                       P = r;
                     if (r === P)
-                      if (typeof l == "string") {
-                        if (n(l) > 80)
+                      if (typeof m == "string") {
+                        if (n(m) > 80)
                           return (
-                            (hr.errors = [
+                            (yr.errors = [
                               {
                                 instancePath: a + "/name",
                                 schemaPath: "#/properties/name/maxLength",
@@ -13974,9 +13974,9 @@ var Xs,
                             ]),
                             !1
                           );
-                        if (n(l) < 1)
+                        if (n(m) < 1)
                           return (
-                            (hr.errors = [
+                            (yr.errors = [
                               {
                                 instancePath: a + "/name",
                                 schemaPath: "#/properties/name/minLength",
@@ -13988,7 +13988,7 @@ var Xs,
                           );
                       } else
                         return (
-                          (hr.errors = [
+                          (yr.errors = [
                             {
                               instancePath: a + "/name",
                               schemaPath: "#/properties/name/type",
@@ -14006,7 +14006,7 @@ var Xs,
                         w = r;
                       if (typeof P != "string")
                         return (
-                          (hr.errors = [
+                          (yr.errors = [
                             {
                               instancePath: a + "/template",
                               schemaPath: "#/properties/template/type",
@@ -14018,12 +14018,12 @@ var Xs,
                         );
                       if (!(P === "brief" || P === "custom"))
                         return (
-                          (hr.errors = [
+                          (yr.errors = [
                             {
                               instancePath: a + "/template",
                               schemaPath: "#/properties/template/enum",
                               keyword: "enum",
-                              params: { allowedValues: $s.properties.template.enum },
+                              params: { allowedValues: Os.properties.template.enum },
                             },
                           ]),
                           !1
@@ -14038,7 +14038,7 @@ var Xs,
                           if (typeof w == "string") {
                             if (n(w) > 2e3)
                               return (
-                                (hr.errors = [
+                                (yr.errors = [
                                   {
                                     instancePath: a + "/goal",
                                     schemaPath: "#/properties/goal/maxLength",
@@ -14050,7 +14050,7 @@ var Xs,
                               );
                             if (n(w) < 1)
                               return (
-                                (hr.errors = [
+                                (yr.errors = [
                                   {
                                     instancePath: a + "/goal",
                                     schemaPath: "#/properties/goal/minLength",
@@ -14062,7 +14062,7 @@ var Xs,
                               );
                           } else
                             return (
-                              (hr.errors = [
+                              (yr.errors = [
                                 {
                                   instancePath: a + "/goal",
                                   schemaPath: "#/properties/goal/type",
@@ -14077,14 +14077,14 @@ var Xs,
                       if (i) {
                         if (e.inputPolicy !== void 0) {
                           let b = r;
-                          Ar(e.inputPolicy, {
+                          Dr(e.inputPolicy, {
                             instancePath: a + "/inputPolicy",
                             parentData: e,
                             parentDataProperty: "inputPolicy",
                             rootData: f,
                             dynamicAnchors: v,
                           }) ||
-                            ((t = t === null ? Ar.errors : t.concat(Ar.errors)), (r = t.length));
+                            ((t = t === null ? Dr.errors : t.concat(Dr.errors)), (r = t.length));
                           var i = b === r;
                         } else var i = !0;
                         if (i) {
@@ -14141,7 +14141,7 @@ var Xs,
                                 return (
                                   t === null ? (t = [E]) : t.push(E),
                                   r++,
-                                  (hr.errors = t),
+                                  (yr.errors = t),
                                   !1
                                 );
                               }
@@ -14155,7 +14155,7 @@ var Xs,
               }
             } else
               return (
-                (hr.errors = [
+                (yr.errors = [
                   {
                     instancePath: a,
                     schemaPath: "#/type",
@@ -14165,9 +14165,9 @@ var Xs,
                 ]),
                 !1
               );
-          return ((hr.errors = t), r === 0);
+          return ((yr.errors = t), r === 0);
         }
-        hr.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
+        yr.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
         function cr(
           e,
           {
@@ -14201,26 +14201,26 @@ var Xs,
                 );
               {
                 let u = r;
-                for (let y in e)
-                  if (!(y === "sectionId" || y === "markdown"))
+                for (let h in e)
+                  if (!(h === "sectionId" || h === "markdown"))
                     return (
                       (cr.errors = [
                         {
                           instancePath: a,
                           schemaPath: "#/additionalProperties",
                           keyword: "additionalProperties",
-                          params: { additionalProperty: y },
+                          params: { additionalProperty: h },
                         },
                       ]),
                       !1
                     );
                 if (u === r) {
                   if (e.sectionId !== void 0) {
-                    let y = e.sectionId,
-                      l = r;
-                    if (r === l)
-                      if (typeof y == "string") {
-                        if (n(y) > 128)
+                    let h = e.sectionId,
+                      m = r;
+                    if (r === m)
+                      if (typeof h == "string") {
+                        if (n(h) > 128)
                           return (
                             (cr.errors = [
                               {
@@ -14232,7 +14232,7 @@ var Xs,
                             ]),
                             !1
                           );
-                        if (n(y) < 1)
+                        if (n(h) < 1)
                           return (
                             (cr.errors = [
                               {
@@ -14244,7 +14244,7 @@ var Xs,
                             ]),
                             !1
                           );
-                        if (!m.test(y))
+                        if (!l.test(h))
                           return (
                             (cr.errors = [
                               {
@@ -14268,15 +14268,15 @@ var Xs,
                           ]),
                           !1
                         );
-                    var i = l === r;
+                    var i = m === r;
                   } else var i = !0;
                   if (i)
                     if (e.markdown !== void 0) {
-                      let y = e.markdown,
-                        l = r;
-                      if (r === l)
-                        if (typeof y == "string") {
-                          if (n(y) > 16384)
+                      let h = e.markdown,
+                        m = r;
+                      if (r === m)
+                        if (typeof h == "string") {
+                          if (n(h) > 16384)
                             return (
                               (cr.errors = [
                                 {
@@ -14288,7 +14288,7 @@ var Xs,
                               ]),
                               !1
                             );
-                          if (n(y) < 0)
+                          if (n(h) < 0)
                             return (
                               (cr.errors = [
                                 {
@@ -14312,7 +14312,7 @@ var Xs,
                             ]),
                             !1
                           );
-                      var i = l === r;
+                      var i = m === r;
                     } else var i = !0;
                 }
               }
@@ -14331,8 +14331,8 @@ var Xs,
           return ((cr.errors = t), r === 0);
         }
         cr.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
-        var Ts = new RegExp("^https://", "u"),
-          rn = /^https:\/\/[^\s\\]+$/;
+        var qs = new RegExp("^https://", "u"),
+          an = /^https:\/\/[^\s\\]+$/;
         function Je(
           e,
           {
@@ -14368,14 +14368,14 @@ var Xs,
                   !1
                 );
               {
-                let y = r;
-                for (let l in e)
+                let h = r;
+                for (let m in e)
                   if (!(
-                    l === "citationId" ||
-                    l === "title" ||
-                    l === "url" ||
-                    l === "provenance" ||
-                    l === "publishedAt"
+                    m === "citationId" ||
+                    m === "title" ||
+                    m === "url" ||
+                    m === "provenance" ||
+                    m === "publishedAt"
                   ))
                     return (
                       (Je.errors = [
@@ -14383,18 +14383,18 @@ var Xs,
                           instancePath: a,
                           schemaPath: "#/additionalProperties",
                           keyword: "additionalProperties",
-                          params: { additionalProperty: l },
+                          params: { additionalProperty: m },
                         },
                       ]),
                       !1
                     );
-                if (y === r) {
+                if (h === r) {
                   if (e.citationId !== void 0) {
-                    let l = e.citationId,
+                    let m = e.citationId,
                       P = r;
                     if (r === P)
-                      if (typeof l == "string") {
-                        if (n(l) > 128)
+                      if (typeof m == "string") {
+                        if (n(m) > 128)
                           return (
                             (Je.errors = [
                               {
@@ -14406,7 +14406,7 @@ var Xs,
                             ]),
                             !1
                           );
-                        if (n(l) < 1)
+                        if (n(m) < 1)
                           return (
                             (Je.errors = [
                               {
@@ -14418,7 +14418,7 @@ var Xs,
                             ]),
                             !1
                           );
-                        if (!m.test(l))
+                        if (!l.test(m))
                           return (
                             (Je.errors = [
                               {
@@ -14518,8 +14518,8 @@ var Xs,
                                 ]),
                                 !1
                               );
-                            if (Ts.test(w)) {
-                              if (!rn.test(w))
+                            if (qs.test(w)) {
+                              if (!an.test(w))
                                 return (
                                   (Je.errors = [
                                     {
@@ -14672,13 +14672,13 @@ var Xs,
             d = Ve.evaluated;
           if ((d.dynamicProps && (d.props = void 0), d.dynamicItems && (d.items = void 0), r === 0))
             if (e && typeof e == "object" && !Array.isArray(e)) {
-              let l;
+              let m;
               if (
-                (e.title === void 0 && (l = "title")) ||
-                (e.summary === void 0 && (l = "summary")) ||
-                (e.sections === void 0 && (l = "sections")) ||
-                (e.citations === void 0 && (l = "citations")) ||
-                (e.limitations === void 0 && (l = "limitations"))
+                (e.title === void 0 && (m = "title")) ||
+                (e.summary === void 0 && (m = "summary")) ||
+                (e.sections === void 0 && (m = "sections")) ||
+                (e.citations === void 0 && (m = "citations")) ||
+                (e.limitations === void 0 && (m = "limitations"))
               )
                 return (
                   (Ve.errors = [
@@ -14686,7 +14686,7 @@ var Xs,
                       instancePath: a,
                       schemaPath: "#/required",
                       keyword: "required",
-                      params: { missingProperty: l },
+                      params: { missingProperty: m },
                     },
                   ]),
                   !1
@@ -14955,7 +14955,7 @@ var Xs,
                                     !1
                                   );
                                 {
-                                  var y = !0;
+                                  var h = !0;
                                   let j = k.length;
                                   for (let S = 0; S < j; S++) {
                                     let L = k[S],
@@ -15000,8 +15000,8 @@ var Xs,
                                           ]),
                                           !1
                                         );
-                                    var y = E === r;
-                                    if (!y) break;
+                                    var h = E === r;
+                                    if (!h) break;
                                   }
                                 }
                               } else
@@ -15038,7 +15038,7 @@ var Xs,
           return ((Ve.errors = t), r === 0);
         }
         Ve.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
-        var tn = {
+        var nn = {
             type: "object",
             properties: {
               state: { enum: ["ready", "empty"] },
@@ -15068,7 +15068,7 @@ var Xs,
             required: ["state", "coverage", "sourceAsOf", "fetchedAt", "freshness", "data"],
             additionalProperties: !1,
           },
-          qs = {
+          Cs = {
             type: "object",
             properties: {
               state: { type: "string", enum: ["complete", "partial", "unknown"] },
@@ -15083,7 +15083,7 @@ var Xs,
             required: ["state", "issues"],
             additionalProperties: !1,
           };
-        function yr(
+        function hr(
           e,
           {
             instancePath: a = "",
@@ -15095,13 +15095,13 @@ var Xs,
         ) {
           let t = null,
             r = 0,
-            d = yr.evaluated;
+            d = hr.evaluated;
           if ((d.dynamicProps && (d.props = void 0), d.dynamicItems && (d.items = void 0), r === 0))
             if (e && typeof e == "object" && !Array.isArray(e)) {
               let u;
               if ((e.state === void 0 && (u = "state")) || (e.issues === void 0 && (u = "issues")))
                 return (
-                  (yr.errors = [
+                  (hr.errors = [
                     {
                       instancePath: a,
                       schemaPath: "#/required",
@@ -15112,27 +15112,27 @@ var Xs,
                   !1
                 );
               {
-                let y = r;
-                for (let l in e)
-                  if (!(l === "state" || l === "issues"))
+                let h = r;
+                for (let m in e)
+                  if (!(m === "state" || m === "issues"))
                     return (
-                      (yr.errors = [
+                      (hr.errors = [
                         {
                           instancePath: a,
                           schemaPath: "#/additionalProperties",
                           keyword: "additionalProperties",
-                          params: { additionalProperty: l },
+                          params: { additionalProperty: m },
                         },
                       ]),
                       !1
                     );
-                if (y === r) {
+                if (h === r) {
                   if (e.state !== void 0) {
-                    let l = e.state,
+                    let m = e.state,
                       P = r;
-                    if (typeof l != "string")
+                    if (typeof m != "string")
                       return (
-                        (yr.errors = [
+                        (hr.errors = [
                           {
                             instancePath: a + "/state",
                             schemaPath: "#/properties/state/type",
@@ -15142,14 +15142,14 @@ var Xs,
                         ]),
                         !1
                       );
-                    if (!(l === "complete" || l === "partial" || l === "unknown"))
+                    if (!(m === "complete" || m === "partial" || m === "unknown"))
                       return (
-                        (yr.errors = [
+                        (hr.errors = [
                           {
                             instancePath: a + "/state",
                             schemaPath: "#/properties/state/enum",
                             keyword: "enum",
-                            params: { allowedValues: qs.properties.state.enum },
+                            params: { allowedValues: Cs.properties.state.enum },
                           },
                         ]),
                         !1
@@ -15158,13 +15158,13 @@ var Xs,
                   } else var g = !0;
                   if (g)
                     if (e.issues !== void 0) {
-                      let l = e.issues,
+                      let m = e.issues,
                         P = r;
                       if (r === P)
-                        if (Array.isArray(l)) {
-                          if (l.length > 20)
+                        if (Array.isArray(m)) {
+                          if (m.length > 20)
                             return (
-                              (yr.errors = [
+                              (hr.errors = [
                                 {
                                   instancePath: a + "/issues",
                                   schemaPath: "#/properties/issues/maxItems",
@@ -15174,9 +15174,9 @@ var Xs,
                               ]),
                               !1
                             );
-                          if (l.length < 0)
+                          if (m.length < 0)
                             return (
-                              (yr.errors = [
+                              (hr.errors = [
                                 {
                                   instancePath: a + "/issues",
                                   schemaPath: "#/properties/issues/minItems",
@@ -15188,15 +15188,15 @@ var Xs,
                             );
                           {
                             var i = !0;
-                            let b = l.length;
+                            let b = m.length;
                             for (let D = 0; D < b; D++) {
-                              let k = l[D],
+                              let k = m[D],
                                 V = r;
                               if (r === V)
                                 if (typeof k == "string") {
                                   if (n(k) > 80)
                                     return (
-                                      (yr.errors = [
+                                      (hr.errors = [
                                         {
                                           instancePath: a + "/issues/" + D,
                                           schemaPath: "#/properties/issues/items/maxLength",
@@ -15208,7 +15208,7 @@ var Xs,
                                     );
                                   if (n(k) < 1)
                                     return (
-                                      (yr.errors = [
+                                      (hr.errors = [
                                         {
                                           instancePath: a + "/issues/" + D,
                                           schemaPath: "#/properties/issues/items/minLength",
@@ -15220,7 +15220,7 @@ var Xs,
                                     );
                                 } else
                                   return (
-                                    (yr.errors = [
+                                    (hr.errors = [
                                       {
                                         instancePath: a + "/issues/" + D,
                                         schemaPath: "#/properties/issues/items/type",
@@ -15234,17 +15234,17 @@ var Xs,
                               if (!i) break;
                             }
                             if (i) {
-                              let D = l.length,
+                              let D = m.length,
                                 k;
                               if (D > 1) {
                                 let V = {};
                                 for (; D--;) {
-                                  let $ = l[D];
+                                  let $ = m[D];
                                   if (typeof $ == "string") {
                                     if (typeof V[$] == "number")
                                       return (
                                         (k = V[$]),
-                                        (yr.errors = [
+                                        (hr.errors = [
                                           {
                                             instancePath: a + "/issues",
                                             schemaPath: "#/properties/issues/uniqueItems",
@@ -15262,7 +15262,7 @@ var Xs,
                           }
                         } else
                           return (
-                            (yr.errors = [
+                            (hr.errors = [
                               {
                                 instancePath: a + "/issues",
                                 schemaPath: "#/properties/issues/type",
@@ -15278,7 +15278,7 @@ var Xs,
               }
             } else
               return (
-                (yr.errors = [
+                (hr.errors = [
                   {
                     instancePath: a,
                     schemaPath: "#/type",
@@ -15288,10 +15288,10 @@ var Xs,
                 ]),
                 !1
               );
-          return ((yr.errors = t), r === 0);
+          return ((hr.errors = t), r === 0);
         }
-        yr.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
-        var Rs = {
+        hr.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
+        var Js = {
             type: "object",
             properties: {
               currency: { type: "string", enum: ["CAD", "USD"] },
@@ -15321,8 +15321,8 @@ var Xs,
             required: ["currency", "cashBalance", "buyingPower"],
             additionalProperties: !1,
           },
-          Ja = new RegExp("^-?(0|[1-9][0-9]{0,19})(\\.[0-9]{1,12})?$", "u");
-        function Er(
+          Fa = new RegExp("^-?(0|[1-9][0-9]{0,19})(\\.[0-9]{1,12})?$", "u");
+        function Sr(
           e,
           {
             instancePath: a = "",
@@ -15334,32 +15334,32 @@ var Xs,
         ) {
           let t = null,
             r = 0,
-            d = Er.evaluated;
+            d = Sr.evaluated;
           if ((d.dynamicProps && (d.props = void 0), d.dynamicItems && (d.items = void 0), r === 0))
             if (e && typeof e == "object" && !Array.isArray(e)) {
-              let y;
+              let h;
               if (
-                (e.currency === void 0 && (y = "currency")) ||
-                (e.cashBalance === void 0 && (y = "cashBalance")) ||
-                (e.buyingPower === void 0 && (y = "buyingPower"))
+                (e.currency === void 0 && (h = "currency")) ||
+                (e.cashBalance === void 0 && (h = "cashBalance")) ||
+                (e.buyingPower === void 0 && (h = "buyingPower"))
               )
                 return (
-                  (Er.errors = [
+                  (Sr.errors = [
                     {
                       instancePath: a,
                       schemaPath: "#/required",
                       keyword: "required",
-                      params: { missingProperty: y },
+                      params: { missingProperty: h },
                     },
                   ]),
                   !1
                 );
               {
-                let l = r;
+                let m = r;
                 for (let P in e)
                   if (!(P === "currency" || P === "cashBalance" || P === "buyingPower"))
                     return (
-                      (Er.errors = [
+                      (Sr.errors = [
                         {
                           instancePath: a,
                           schemaPath: "#/additionalProperties",
@@ -15369,13 +15369,13 @@ var Xs,
                       ]),
                       !1
                     );
-                if (l === r) {
+                if (m === r) {
                   if (e.currency !== void 0) {
                     let P = e.currency,
                       w = r;
                     if (typeof P != "string")
                       return (
-                        (Er.errors = [
+                        (Sr.errors = [
                           {
                             instancePath: a + "/currency",
                             schemaPath: "#/properties/currency/type",
@@ -15387,12 +15387,12 @@ var Xs,
                       );
                     if (!(P === "CAD" || P === "USD"))
                       return (
-                        (Er.errors = [
+                        (Sr.errors = [
                           {
                             instancePath: a + "/currency",
                             schemaPath: "#/properties/currency/enum",
                             keyword: "enum",
-                            params: { allowedValues: Rs.properties.currency.enum },
+                            params: { allowedValues: Js.properties.currency.enum },
                           },
                         ]),
                         !1
@@ -15424,7 +15424,7 @@ var Xs,
                               params: { limit: 1 },
                             };
                             (t === null ? (t = [S]) : t.push(S), r++);
-                          } else if (!Ja.test(w)) {
+                          } else if (!Fa.test(w)) {
                             let S = {
                               instancePath: a + "/cashBalance",
                               schemaPath: "#/properties/cashBalance/anyOf/0/pattern",
@@ -15464,7 +15464,7 @@ var Xs,
                           keyword: "anyOf",
                           params: {},
                         };
-                        return (t === null ? (t = [S]) : t.push(S), r++, (Er.errors = t), !1);
+                        return (t === null ? (t = [S]) : t.push(S), r++, (Sr.errors = t), !1);
                       }
                       var i = b === r;
                     } else var i = !0;
@@ -15493,7 +15493,7 @@ var Xs,
                                 params: { limit: 1 },
                               };
                               (t === null ? (t = [S]) : t.push(S), r++);
-                            } else if (!Ja.test(w)) {
+                            } else if (!Fa.test(w)) {
                               let S = {
                                 instancePath: a + "/buyingPower",
                                 schemaPath: "#/properties/buyingPower/anyOf/0/pattern",
@@ -15533,7 +15533,7 @@ var Xs,
                             keyword: "anyOf",
                             params: {},
                           };
-                          return (t === null ? (t = [S]) : t.push(S), r++, (Er.errors = t), !1);
+                          return (t === null ? (t = [S]) : t.push(S), r++, (Sr.errors = t), !1);
                         }
                         var i = b === r;
                       } else var i = !0;
@@ -15542,7 +15542,7 @@ var Xs,
               }
             } else
               return (
-                (Er.errors = [
+                (Sr.errors = [
                   {
                     instancePath: a,
                     schemaPath: "#/type",
@@ -15552,10 +15552,10 @@ var Xs,
                 ]),
                 !1
               );
-          return ((Er.errors = t), r === 0);
+          return ((Sr.errors = t), r === 0);
         }
-        Er.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
-        var Fa = {
+        Sr.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
+        var Ha = {
             type: "object",
             properties: {
               assetId: {
@@ -15595,8 +15595,8 @@ var Xs,
             ],
             additionalProperties: !1,
           },
-          Cs = new RegExp("^(0|[1-9][0-9]{0,19})(\\.[0-9]{1,12})?$", "u"),
-          Js = {
+          Fs = new RegExp("^(0|[1-9][0-9]{0,19})(\\.[0-9]{1,12})?$", "u"),
+          Hs = {
             type: "object",
             properties: {
               currency: { type: "string", enum: ["CAD", "USD"] },
@@ -15643,24 +15643,24 @@ var Xs,
                 );
               {
                 let u = r;
-                for (let y in e)
-                  if (!(y === "currency" || y === "amount"))
+                for (let h in e)
+                  if (!(h === "currency" || h === "amount"))
                     return (
                       (wr.errors = [
                         {
                           instancePath: a,
                           schemaPath: "#/additionalProperties",
                           keyword: "additionalProperties",
-                          params: { additionalProperty: y },
+                          params: { additionalProperty: h },
                         },
                       ]),
                       !1
                     );
                 if (u === r) {
                   if (e.currency !== void 0) {
-                    let y = e.currency,
-                      l = r;
-                    if (typeof y != "string")
+                    let h = e.currency,
+                      m = r;
+                    if (typeof h != "string")
                       return (
                         (wr.errors = [
                           {
@@ -15672,27 +15672,27 @@ var Xs,
                         ]),
                         !1
                       );
-                    if (!(y === "CAD" || y === "USD"))
+                    if (!(h === "CAD" || h === "USD"))
                       return (
                         (wr.errors = [
                           {
                             instancePath: a + "/currency",
                             schemaPath: "#/properties/currency/enum",
                             keyword: "enum",
-                            params: { allowedValues: Js.properties.currency.enum },
+                            params: { allowedValues: Hs.properties.currency.enum },
                           },
                         ]),
                         !1
                       );
-                    var i = l === r;
+                    var i = m === r;
                   } else var i = !0;
                   if (i)
                     if (e.amount !== void 0) {
-                      let y = e.amount,
-                        l = r;
-                      if (r === l)
-                        if (typeof y == "string") {
-                          if (n(y) > 34)
+                      let h = e.amount,
+                        m = r;
+                      if (r === m)
+                        if (typeof h == "string") {
+                          if (n(h) > 34)
                             return (
                               (wr.errors = [
                                 {
@@ -15704,7 +15704,7 @@ var Xs,
                               ]),
                               !1
                             );
-                          if (n(y) < 1)
+                          if (n(h) < 1)
                             return (
                               (wr.errors = [
                                 {
@@ -15716,7 +15716,7 @@ var Xs,
                               ]),
                               !1
                             );
-                          if (!Ja.test(y))
+                          if (!Fa.test(h))
                             return (
                               (wr.errors = [
                                 {
@@ -15740,7 +15740,7 @@ var Xs,
                             ]),
                             !1
                           );
-                      var i = l === r;
+                      var i = m === r;
                     } else var i = !0;
                 }
               }
@@ -15774,17 +15774,17 @@ var Xs,
             d = Ke.evaluated;
           if ((d.dynamicProps && (d.props = void 0), d.dynamicItems && (d.items = void 0), r === 0))
             if (e && typeof e == "object" && !Array.isArray(e)) {
-              let l;
+              let m;
               if (
-                (e.assetId === void 0 && (l = "assetId")) ||
-                (e.brokerAssetId === void 0 && (l = "brokerAssetId")) ||
-                (e.symbol === void 0 && (l = "symbol")) ||
-                (e.exchange === void 0 && (l = "exchange")) ||
-                (e.name === void 0 && (l = "name")) ||
-                (e.assetType === void 0 && (l = "assetType")) ||
-                (e.quantity === void 0 && (l = "quantity")) ||
-                (e.currency === void 0 && (l = "currency")) ||
-                (e.marketValue === void 0 && (l = "marketValue"))
+                (e.assetId === void 0 && (m = "assetId")) ||
+                (e.brokerAssetId === void 0 && (m = "brokerAssetId")) ||
+                (e.symbol === void 0 && (m = "symbol")) ||
+                (e.exchange === void 0 && (m = "exchange")) ||
+                (e.name === void 0 && (m = "name")) ||
+                (e.assetType === void 0 && (m = "assetType")) ||
+                (e.quantity === void 0 && (m = "quantity")) ||
+                (e.currency === void 0 && (m = "currency")) ||
+                (e.marketValue === void 0 && (m = "marketValue"))
               )
                 return (
                   (Ke.errors = [
@@ -15792,7 +15792,7 @@ var Xs,
                       instancePath: a,
                       schemaPath: "#/required",
                       keyword: "required",
-                      params: { missingProperty: l },
+                      params: { missingProperty: m },
                     },
                   ]),
                   !1
@@ -15800,7 +15800,7 @@ var Xs,
               {
                 let P = r;
                 for (let w in e)
-                  if (!G.call(Fa.properties, w))
+                  if (!G.call(Ha.properties, w))
                     return (
                       (Ke.errors = [
                         {
@@ -15842,7 +15842,7 @@ var Xs,
                             ]),
                             !1
                           );
-                        if (!m.test(w))
+                        if (!l.test(w))
                           return (
                             (Ke.errors = [
                               {
@@ -16101,7 +16101,7 @@ var Xs,
                                       instancePath: a + "/assetType",
                                       schemaPath: "#/properties/assetType/enum",
                                       keyword: "enum",
-                                      params: { allowedValues: Fa.properties.assetType.enum },
+                                      params: { allowedValues: Ha.properties.assetType.enum },
                                     },
                                   ]),
                                   !1
@@ -16138,7 +16138,7 @@ var Xs,
                                         ]),
                                         !1
                                       );
-                                    if (!Cs.test(j))
+                                    if (!Fs.test(j))
                                       return (
                                         (Ke.errors = [
                                           {
@@ -16189,7 +16189,7 @@ var Xs,
                                           instancePath: a + "/currency",
                                           schemaPath: "#/properties/currency/enum",
                                           keyword: "enum",
-                                          params: { allowedValues: Fa.properties.currency.enum },
+                                          params: { allowedValues: Ha.properties.currency.enum },
                                         },
                                       ]),
                                       !1
@@ -16212,9 +16212,9 @@ var Xs,
                                     }) ||
                                       ((t = t === null ? wr.errors : t.concat(wr.errors)),
                                       (r = t.length));
-                                    var y = Z === r;
-                                    K = K || y;
-                                    let R = r;
+                                    var h = Z === r;
+                                    K = K || h;
+                                    let q = r;
                                     if (S !== null) {
                                       let z = {
                                         instancePath: a + "/marketValue",
@@ -16224,8 +16224,8 @@ var Xs,
                                       };
                                       (t === null ? (t = [z]) : t.push(z), r++);
                                     }
-                                    var y = R === r;
-                                    if (((K = K || y), K))
+                                    var h = q === r;
+                                    if (((K = K || h), K))
                                       ((r = E), t !== null && (E ? (t.length = E) : (t = null)));
                                     else {
                                       let z = {
@@ -16282,12 +16282,12 @@ var Xs,
             d = Ye.evaluated;
           if ((d.dynamicProps && (d.props = void 0), d.dynamicItems && (d.items = void 0), r === 0))
             if (e && typeof e == "object" && !Array.isArray(e)) {
-              let y;
+              let h;
               if (
-                (e.accountId === void 0 && (y = "accountId")) ||
-                (e.displayName === void 0 && (y = "displayName")) ||
-                (e.balances === void 0 && (y = "balances")) ||
-                (e.positions === void 0 && (y = "positions"))
+                (e.accountId === void 0 && (h = "accountId")) ||
+                (e.displayName === void 0 && (h = "displayName")) ||
+                (e.balances === void 0 && (h = "balances")) ||
+                (e.positions === void 0 && (h = "positions"))
               )
                 return (
                   (Ye.errors = [
@@ -16295,13 +16295,13 @@ var Xs,
                       instancePath: a,
                       schemaPath: "#/required",
                       keyword: "required",
-                      params: { missingProperty: y },
+                      params: { missingProperty: h },
                     },
                   ]),
                   !1
                 );
               {
-                let l = r;
+                let m = r;
                 for (let P in e)
                   if (!(
                     P === "accountId" ||
@@ -16320,7 +16320,7 @@ var Xs,
                       ]),
                       !1
                     );
-                if (l === r) {
+                if (m === r) {
                   if (e.accountId !== void 0) {
                     let P = e.accountId,
                       w = r;
@@ -16350,7 +16350,7 @@ var Xs,
                             ]),
                             !1
                           );
-                        if (!m.test(P))
+                        if (!l.test(P))
                           return (
                             (Ye.errors = [
                               {
@@ -16455,14 +16455,14 @@ var Xs,
                               let V = b.length;
                               for (let $ = 0; $ < V; $++) {
                                 let j = r;
-                                Er(b[$], {
+                                Sr(b[$], {
                                   instancePath: a + "/balances/" + $,
                                   parentData: b,
                                   parentDataProperty: $,
                                   rootData: f,
                                   dynamicAnchors: v,
                                 }) ||
-                                  ((t = t === null ? Er.errors : t.concat(Er.errors)),
+                                  ((t = t === null ? Sr.errors : t.concat(Sr.errors)),
                                   (r = t.length));
                                 var g = j === r;
                                 if (!g) break;
@@ -16578,12 +16578,12 @@ var Xs,
             d = je.evaluated;
           if ((d.dynamicProps && (d.props = void 0), d.dynamicItems && (d.items = void 0), r === 0))
             if (e && typeof e == "object" && !Array.isArray(e)) {
-              let l;
+              let m;
               if (
-                (e.kind === void 0 && (l = "kind")) ||
-                (e.snapshotId === void 0 && (l = "snapshotId")) ||
-                (e.accounts === void 0 && (l = "accounts")) ||
-                (e.excludedAssets === void 0 && (l = "excludedAssets"))
+                (e.kind === void 0 && (m = "kind")) ||
+                (e.snapshotId === void 0 && (m = "snapshotId")) ||
+                (e.accounts === void 0 && (m = "accounts")) ||
+                (e.excludedAssets === void 0 && (m = "excludedAssets"))
               )
                 return (
                   (je.errors = [
@@ -16591,7 +16591,7 @@ var Xs,
                       instancePath: a,
                       schemaPath: "#/required",
                       keyword: "required",
-                      params: { missingProperty: l },
+                      params: { missingProperty: m },
                     },
                   ]),
                   !1
@@ -16663,7 +16663,7 @@ var Xs,
                               ]),
                               !1
                             );
-                          if (!m.test(b))
+                          if (!l.test(b))
                             return (
                               (je.errors = [
                                 {
@@ -16808,8 +16808,8 @@ var Xs,
                                         );
                                       {
                                         let Z = r;
-                                        for (let R in S)
-                                          if (!(R === "brokerAssetId" || R === "reason"))
+                                        for (let q in S)
+                                          if (!(q === "brokerAssetId" || q === "reason"))
                                             return (
                                               (je.errors = [
                                                 {
@@ -16817,18 +16817,18 @@ var Xs,
                                                   schemaPath:
                                                     "#/properties/excludedAssets/items/additionalProperties",
                                                   keyword: "additionalProperties",
-                                                  params: { additionalProperty: R },
+                                                  params: { additionalProperty: q },
                                                 },
                                               ]),
                                               !1
                                             );
                                         if (Z === r) {
                                           if (S.brokerAssetId !== void 0) {
-                                            let R = S.brokerAssetId,
-                                              q = r;
-                                            if (r === q)
-                                              if (typeof R == "string") {
-                                                if (n(R) > 180)
+                                            let q = S.brokerAssetId,
+                                              R = r;
+                                            if (r === R)
+                                              if (typeof q == "string") {
+                                                if (n(q) > 180)
                                                   return (
                                                     (je.errors = [
                                                       {
@@ -16845,7 +16845,7 @@ var Xs,
                                                     ]),
                                                     !1
                                                   );
-                                                if (n(R) < 1)
+                                                if (n(q) < 1)
                                                   return (
                                                     (je.errors = [
                                                       {
@@ -16879,15 +16879,15 @@ var Xs,
                                                   ]),
                                                   !1
                                                 );
-                                            var y = q === r;
-                                          } else var y = !0;
-                                          if (y)
+                                            var h = R === r;
+                                          } else var h = !0;
+                                          if (h)
                                             if (S.reason !== void 0) {
-                                              let R = S.reason,
-                                                q = r;
-                                              if (r === q)
-                                                if (typeof R == "string") {
-                                                  if (n(R) > 120)
+                                              let q = S.reason,
+                                                R = r;
+                                              if (r === R)
+                                                if (typeof q == "string") {
+                                                  if (n(q) > 120)
                                                     return (
                                                       (je.errors = [
                                                         {
@@ -16901,7 +16901,7 @@ var Xs,
                                                       ]),
                                                       !1
                                                     );
-                                                  if (n(R) < 1)
+                                                  if (n(q) < 1)
                                                     return (
                                                       (je.errors = [
                                                         {
@@ -16929,8 +16929,8 @@ var Xs,
                                                     ]),
                                                     !1
                                                   );
-                                              var y = q === r;
-                                            } else var y = !0;
+                                              var h = R === r;
+                                            } else var h = !0;
                                         }
                                       }
                                     } else
@@ -16982,7 +16982,7 @@ var Xs,
           return ((je.errors = t), r === 0);
         }
         je.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
-        var Fs = {
+        var Ws = {
           type: "object",
           properties: {
             symbol: { type: "string", minLength: 1, maxLength: 14 },
@@ -17030,13 +17030,13 @@ var Xs,
                 );
               {
                 let u = r;
-                for (let y in e)
+                for (let h in e)
                   if (!(
-                    y === "symbol" ||
-                    y === "name" ||
-                    y === "instrumentType" ||
-                    y === "currency" ||
-                    y === "addedAt"
+                    h === "symbol" ||
+                    h === "name" ||
+                    h === "instrumentType" ||
+                    h === "currency" ||
+                    h === "addedAt"
                   ))
                     return (
                       (Qe.errors = [
@@ -17044,18 +17044,18 @@ var Xs,
                           instancePath: a,
                           schemaPath: "#/additionalProperties",
                           keyword: "additionalProperties",
-                          params: { additionalProperty: y },
+                          params: { additionalProperty: h },
                         },
                       ]),
                       !1
                     );
                 if (u === r) {
                   if (e.symbol !== void 0) {
-                    let y = e.symbol,
-                      l = r;
-                    if (r === l)
-                      if (typeof y == "string") {
-                        if (n(y) > 14)
+                    let h = e.symbol,
+                      m = r;
+                    if (r === m)
+                      if (typeof h == "string") {
+                        if (n(h) > 14)
                           return (
                             (Qe.errors = [
                               {
@@ -17067,7 +17067,7 @@ var Xs,
                             ]),
                             !1
                           );
-                        if (n(y) < 1)
+                        if (n(h) < 1)
                           return (
                             (Qe.errors = [
                               {
@@ -17091,15 +17091,15 @@ var Xs,
                           ]),
                           !1
                         );
-                    var i = l === r;
+                    var i = m === r;
                   } else var i = !0;
                   if (i) {
                     if (e.name !== void 0) {
-                      let l = e.name,
+                      let m = e.name,
                         P = r;
                       if (r === P)
-                        if (typeof l == "string") {
-                          if (n(l) > 180)
+                        if (typeof m == "string") {
+                          if (n(m) > 180)
                             return (
                               (Qe.errors = [
                                 {
@@ -17111,7 +17111,7 @@ var Xs,
                               ]),
                               !1
                             );
-                          if (n(l) < 1)
+                          if (n(m) < 1)
                             return (
                               (Qe.errors = [
                                 {
@@ -17160,7 +17160,7 @@ var Xs,
                                 instancePath: a + "/instrumentType",
                                 schemaPath: "#/properties/instrumentType/enum",
                                 keyword: "enum",
-                                params: { allowedValues: Fs.properties.instrumentType.enum },
+                                params: { allowedValues: Ws.properties.instrumentType.enum },
                               },
                             ]),
                             !1
@@ -17249,7 +17249,7 @@ var Xs,
           return ((Qe.errors = t), r === 0);
         }
         Qe.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
-        function Sr(
+        function _r(
           e,
           {
             instancePath: a = "",
@@ -17261,13 +17261,13 @@ var Xs,
         ) {
           let t = null,
             r = 0,
-            d = Sr.evaluated;
+            d = _r.evaluated;
           if ((d.dynamicProps && (d.props = void 0), d.dynamicItems && (d.items = void 0), r === 0))
             if (e && typeof e == "object" && !Array.isArray(e)) {
               let u;
               if ((e.kind === void 0 && (u = "kind")) || (e.items === void 0 && (u = "items")))
                 return (
-                  (Sr.errors = [
+                  (_r.errors = [
                     {
                       instancePath: a,
                       schemaPath: "#/required",
@@ -17278,26 +17278,26 @@ var Xs,
                   !1
                 );
               {
-                let y = r;
-                for (let l in e)
-                  if (!(l === "kind" || l === "items"))
+                let h = r;
+                for (let m in e)
+                  if (!(m === "kind" || m === "items"))
                     return (
-                      (Sr.errors = [
+                      (_r.errors = [
                         {
                           instancePath: a,
                           schemaPath: "#/additionalProperties",
                           keyword: "additionalProperties",
-                          params: { additionalProperty: l },
+                          params: { additionalProperty: m },
                         },
                       ]),
                       !1
                     );
-                if (y === r) {
+                if (h === r) {
                   if (e.kind !== void 0) {
-                    let l = r;
+                    let m = r;
                     if (e.kind !== "watchlist")
                       return (
-                        (Sr.errors = [
+                        (_r.errors = [
                           {
                             instancePath: a + "/kind",
                             schemaPath: "#/properties/kind/const",
@@ -17307,17 +17307,17 @@ var Xs,
                         ]),
                         !1
                       );
-                    var g = l === r;
+                    var g = m === r;
                   } else var g = !0;
                   if (g)
                     if (e.items !== void 0) {
-                      let l = e.items,
+                      let m = e.items,
                         P = r;
                       if (r === P)
-                        if (Array.isArray(l)) {
-                          if (l.length > 50)
+                        if (Array.isArray(m)) {
+                          if (m.length > 50)
                             return (
-                              (Sr.errors = [
+                              (_r.errors = [
                                 {
                                   instancePath: a + "/items",
                                   schemaPath: "#/properties/items/maxItems",
@@ -17327,9 +17327,9 @@ var Xs,
                               ]),
                               !1
                             );
-                          if (l.length < 0)
+                          if (m.length < 0)
                             return (
-                              (Sr.errors = [
+                              (_r.errors = [
                                 {
                                   instancePath: a + "/items",
                                   schemaPath: "#/properties/items/minItems",
@@ -17341,12 +17341,12 @@ var Xs,
                             );
                           {
                             var i = !0;
-                            let b = l.length;
+                            let b = m.length;
                             for (let D = 0; D < b; D++) {
                               let k = r;
-                              Qe(l[D], {
+                              Qe(m[D], {
                                 instancePath: a + "/items/" + D,
-                                parentData: l,
+                                parentData: m,
                                 parentDataProperty: D,
                                 rootData: f,
                                 dynamicAnchors: v,
@@ -17359,7 +17359,7 @@ var Xs,
                           }
                         } else
                           return (
-                            (Sr.errors = [
+                            (_r.errors = [
                               {
                                 instancePath: a + "/items",
                                 schemaPath: "#/properties/items/type",
@@ -17375,7 +17375,7 @@ var Xs,
               }
             } else
               return (
-                (Sr.errors = [
+                (_r.errors = [
                   {
                     instancePath: a,
                     schemaPath: "#/type",
@@ -17385,9 +17385,9 @@ var Xs,
                 ]),
                 !1
               );
-          return ((Sr.errors = t), r === 0);
+          return ((_r.errors = t), r === 0);
         }
-        Sr.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
+        _r.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
         function Fe(
           e,
           {
@@ -17425,14 +17425,14 @@ var Xs,
                 );
               {
                 let u = r;
-                for (let y in e)
+                for (let h in e)
                   if (!(
-                    y === "followId" ||
-                    y === "name" ||
-                    y === "handleOrUrl" ||
-                    y === "note" ||
-                    y === "verification" ||
-                    y === "addedAt"
+                    h === "followId" ||
+                    h === "name" ||
+                    h === "handleOrUrl" ||
+                    h === "note" ||
+                    h === "verification" ||
+                    h === "addedAt"
                   ))
                     return (
                       (Fe.errors = [
@@ -17440,18 +17440,18 @@ var Xs,
                           instancePath: a,
                           schemaPath: "#/additionalProperties",
                           keyword: "additionalProperties",
-                          params: { additionalProperty: y },
+                          params: { additionalProperty: h },
                         },
                       ]),
                       !1
                     );
                 if (u === r) {
                   if (e.followId !== void 0) {
-                    let y = e.followId,
-                      l = r;
-                    if (r === l)
-                      if (typeof y == "string") {
-                        if (n(y) > 128)
+                    let h = e.followId,
+                      m = r;
+                    if (r === m)
+                      if (typeof h == "string") {
+                        if (n(h) > 128)
                           return (
                             (Fe.errors = [
                               {
@@ -17463,7 +17463,7 @@ var Xs,
                             ]),
                             !1
                           );
-                        if (n(y) < 1)
+                        if (n(h) < 1)
                           return (
                             (Fe.errors = [
                               {
@@ -17475,7 +17475,7 @@ var Xs,
                             ]),
                             !1
                           );
-                        if (!m.test(y))
+                        if (!l.test(h))
                           return (
                             (Fe.errors = [
                               {
@@ -17499,15 +17499,15 @@ var Xs,
                           ]),
                           !1
                         );
-                    var i = l === r;
+                    var i = m === r;
                   } else var i = !0;
                   if (i) {
                     if (e.name !== void 0) {
-                      let l = e.name,
+                      let m = e.name,
                         P = r;
                       if (r === P)
-                        if (typeof l == "string") {
-                          if (n(l) > 120)
+                        if (typeof m == "string") {
+                          if (n(m) > 120)
                             return (
                               (Fe.errors = [
                                 {
@@ -17519,7 +17519,7 @@ var Xs,
                               ]),
                               !1
                             );
-                          if (n(l) < 1)
+                          if (n(m) < 1)
                             return (
                               (Fe.errors = [
                                 {
@@ -17716,7 +17716,7 @@ var Xs,
           return ((Fe.errors = t), r === 0);
         }
         Fe.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
-        function Dr(
+        function xr(
           e,
           {
             instancePath: a = "",
@@ -17728,7 +17728,7 @@ var Xs,
         ) {
           let t = null,
             r = 0,
-            d = Dr.evaluated;
+            d = xr.evaluated;
           if ((d.dynamicProps && (d.props = void 0), d.dynamicItems && (d.items = void 0), r === 0))
             if (e && typeof e == "object" && !Array.isArray(e)) {
               let u;
@@ -17738,7 +17738,7 @@ var Xs,
                 (e.readableMaterialCount === void 0 && (u = "readableMaterialCount"))
               )
                 return (
-                  (Dr.errors = [
+                  (xr.errors = [
                     {
                       instancePath: a,
                       schemaPath: "#/required",
@@ -17749,26 +17749,26 @@ var Xs,
                   !1
                 );
               {
-                let y = r;
-                for (let l in e)
-                  if (!(l === "kind" || l === "items" || l === "readableMaterialCount"))
+                let h = r;
+                for (let m in e)
+                  if (!(m === "kind" || m === "items" || m === "readableMaterialCount"))
                     return (
-                      (Dr.errors = [
+                      (xr.errors = [
                         {
                           instancePath: a,
                           schemaPath: "#/additionalProperties",
                           keyword: "additionalProperties",
-                          params: { additionalProperty: l },
+                          params: { additionalProperty: m },
                         },
                       ]),
                       !1
                     );
-                if (y === r) {
+                if (h === r) {
                   if (e.kind !== void 0) {
-                    let l = r;
+                    let m = r;
                     if (e.kind !== "channel_follows")
                       return (
-                        (Dr.errors = [
+                        (xr.errors = [
                           {
                             instancePath: a + "/kind",
                             schemaPath: "#/properties/kind/const",
@@ -17778,7 +17778,7 @@ var Xs,
                         ]),
                         !1
                       );
-                    var i = l === r;
+                    var i = m === r;
                   } else var i = !0;
                   if (i) {
                     if (e.items !== void 0) {
@@ -17788,7 +17788,7 @@ var Xs,
                         if (Array.isArray(P)) {
                           if (P.length > 50)
                             return (
-                              (Dr.errors = [
+                              (xr.errors = [
                                 {
                                   instancePath: a + "/items",
                                   schemaPath: "#/properties/items/maxItems",
@@ -17800,7 +17800,7 @@ var Xs,
                             );
                           if (P.length < 0)
                             return (
-                              (Dr.errors = [
+                              (xr.errors = [
                                 {
                                   instancePath: a + "/items",
                                   schemaPath: "#/properties/items/minItems",
@@ -17830,7 +17830,7 @@ var Xs,
                           }
                         } else
                           return (
-                            (Dr.errors = [
+                            (xr.errors = [
                               {
                                 instancePath: a + "/items",
                                 schemaPath: "#/properties/items/type",
@@ -17847,7 +17847,7 @@ var Xs,
                         let P = r;
                         if (e.readableMaterialCount !== 0)
                           return (
-                            (Dr.errors = [
+                            (xr.errors = [
                               {
                                 instancePath: a + "/readableMaterialCount",
                                 schemaPath: "#/properties/readableMaterialCount/const",
@@ -17864,7 +17864,7 @@ var Xs,
               }
             } else
               return (
-                (Dr.errors = [
+                (xr.errors = [
                   {
                     instancePath: a,
                     schemaPath: "#/type",
@@ -17874,9 +17874,9 @@ var Xs,
                 ]),
                 !1
               );
-          return ((Dr.errors = t), r === 0);
+          return ((xr.errors = t), r === 0);
         }
-        Dr.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
+        xr.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
         function tt(
           e,
           {
@@ -17894,7 +17894,7 @@ var Xs,
           let i = r,
             g = !1,
             u = null,
-            y = r;
+            h = r;
           je(e, {
             instancePath: a,
             parentData: F,
@@ -17902,33 +17902,33 @@ var Xs,
             rootData: f,
             dynamicAnchors: v,
           }) || ((t = t === null ? je.errors : t.concat(je.errors)), (r = t.length));
-          var w = y === r;
+          var w = h === r;
           if (w) {
             ((g = !0), (u = 0));
-            var l = !0;
+            var m = !0;
           }
           let P = r;
-          Sr(e, {
+          _r(e, {
             instancePath: a,
             parentData: F,
             parentDataProperty: H,
             rootData: f,
             dynamicAnchors: v,
-          }) || ((t = t === null ? Sr.errors : t.concat(Sr.errors)), (r = t.length));
+          }) || ((t = t === null ? _r.errors : t.concat(_r.errors)), (r = t.length));
           var w = P === r;
           if (w && g) ((g = !1), (u = [u, 1]));
           else {
-            w && ((g = !0), (u = 1), l !== !0 && (l = !0));
+            w && ((g = !0), (u = 1), m !== !0 && (m = !0));
             let b = r;
-            Dr(e, {
+            xr(e, {
               instancePath: a,
               parentData: F,
               parentDataProperty: H,
               rootData: f,
               dynamicAnchors: v,
-            }) || ((t = t === null ? Dr.errors : t.concat(Dr.errors)), (r = t.length));
+            }) || ((t = t === null ? xr.errors : t.concat(xr.errors)), (r = t.length));
             var w = b === r;
-            w && g ? ((g = !1), (u = [u, 2])) : w && ((g = !0), (u = 2), l !== !0 && (l = !0));
+            w && g ? ((g = !1), (u = [u, 2])) : w && ((g = !0), (u = 2), m !== !0 && (m = !0));
           }
           if (g) ((r = i), t !== null && (i ? (t.length = i) : (t = null)));
           else {
@@ -17940,7 +17940,7 @@ var Xs,
             };
             return (t === null ? (t = [b]) : t.push(b), r++, (tt.errors = t), !1);
           }
-          return ((tt.errors = t), (d.props = l), r === 0);
+          return ((tt.errors = t), (d.props = m), r === 0);
         }
         tt.evaluated = { dynamicProps: !0, dynamicItems: !1 };
         function Ze(
@@ -17979,15 +17979,15 @@ var Xs,
                   !1
                 );
               {
-                let y = r;
-                for (let l in e)
+                let h = r;
+                for (let m in e)
                   if (!(
-                    l === "state" ||
-                    l === "coverage" ||
-                    l === "sourceAsOf" ||
-                    l === "fetchedAt" ||
-                    l === "freshness" ||
-                    l === "data"
+                    m === "state" ||
+                    m === "coverage" ||
+                    m === "sourceAsOf" ||
+                    m === "fetchedAt" ||
+                    m === "freshness" ||
+                    m === "data"
                   ))
                     return (
                       (Ze.errors = [
@@ -17995,23 +17995,23 @@ var Xs,
                           instancePath: a,
                           schemaPath: "#/additionalProperties",
                           keyword: "additionalProperties",
-                          params: { additionalProperty: l },
+                          params: { additionalProperty: m },
                         },
                       ]),
                       !1
                     );
-                if (y === r) {
+                if (h === r) {
                   if (e.state !== void 0) {
-                    let l = e.state,
+                    let m = e.state,
                       P = r;
-                    if (!(l === "ready" || l === "empty"))
+                    if (!(m === "ready" || m === "empty"))
                       return (
                         (Ze.errors = [
                           {
                             instancePath: a + "/state",
                             schemaPath: "#/properties/state/enum",
                             keyword: "enum",
-                            params: { allowedValues: tn.properties.state.enum },
+                            params: { allowedValues: nn.properties.state.enum },
                           },
                         ]),
                         !1
@@ -18021,13 +18021,13 @@ var Xs,
                   if (i) {
                     if (e.coverage !== void 0) {
                       let P = r;
-                      yr(e.coverage, {
+                      hr(e.coverage, {
                         instancePath: a + "/coverage",
                         parentData: e,
                         parentDataProperty: "coverage",
                         rootData: f,
                         dynamicAnchors: v,
-                      }) || ((t = t === null ? yr.errors : t.concat(yr.errors)), (r = t.length));
+                      }) || ((t = t === null ? hr.errors : t.concat(hr.errors)), (r = t.length));
                       var i = P === r;
                     } else var i = !0;
                     if (i) {
@@ -18189,7 +18189,7 @@ var Xs,
                                     instancePath: a + "/freshness",
                                     schemaPath: "#/properties/freshness/enum",
                                     keyword: "enum",
-                                    params: { allowedValues: tn.properties.freshness.enum },
+                                    params: { allowedValues: nn.properties.freshness.enum },
                                   },
                                 ]),
                                 !1
@@ -18248,7 +18248,7 @@ var Xs,
           let i = r,
             g = r,
             u = !0,
-            y = r;
+            h = r;
           if (
             e &&
             typeof e == "object" &&
@@ -18259,23 +18259,23 @@ var Xs,
             let K = {};
             (t === null ? (t = [K]) : t.push(K), r++);
           }
-          var l = y === r;
-          if (((r = g), t !== null && (g ? (t.length = g) : (t = null)), l)) {
+          var m = h === r;
+          if (((r = g), t !== null && (g ? (t.length = g) : (t = null)), m)) {
             let K = r;
             e &&
               typeof e == "object" &&
               !Array.isArray(e) &&
               e.payload !== void 0 &&
-              (hr(e.payload, {
+              (yr(e.payload, {
                 instancePath: a + "/payload",
                 parentData: e,
                 parentDataProperty: "payload",
                 rootData: f,
                 dynamicAnchors: v,
               }) ||
-                ((t = t === null ? hr.errors : t.concat(hr.errors)), (r = t.length)));
-            var l = K === r;
-            if (((u = l), u)) {
+                ((t = t === null ? yr.errors : t.concat(yr.errors)), (r = t.length)));
+            var m = K === r;
+            if (((u = m), u)) {
               var P = {};
               ((P.payload = !0), (P.objectType = !0));
             }
@@ -18293,8 +18293,8 @@ var Xs,
           if (w) {
             let K = r,
               Z = r,
-              R = !0,
-              q = r;
+              q = !0,
+              R = r;
             if (
               e &&
               typeof e == "object" &&
@@ -18305,7 +18305,7 @@ var Xs,
               let X = {};
               (t === null ? (t = [X]) : t.push(X), r++);
             }
-            var b = q === r;
+            var b = R === r;
             if (((r = Z), t !== null && (Z ? (t.length = Z) : (t = null)), b)) {
               let X = r;
               e &&
@@ -18321,12 +18321,12 @@ var Xs,
                 }) ||
                   ((t = t === null ? Ve.errors : t.concat(Ve.errors)), (r = t.length)));
               var b = X === r;
-              if (((R = b), R)) {
+              if (((q = b), q)) {
                 var D = {};
                 ((D.payload = !0), (D.objectType = !0));
               }
             }
-            if (!R) {
+            if (!q) {
               let X = {
                 instancePath: a,
                 schemaPath: "#/allOf/1/if",
@@ -18351,12 +18351,12 @@ var Xs,
                 e.objectType !== void 0 &&
                 e.objectType !== "holdings_snapshot"
               ) {
-                let le = {};
-                (t === null ? (t = [le]) : t.push(le), r++);
+                let me = {};
+                (t === null ? (t = [me]) : t.push(me), r++);
               }
               var k = ee === r;
               if (((r = U), t !== null && (U ? (t.length = U) : (t = null)), k)) {
-                let le = r;
+                let me = r;
                 e &&
                   typeof e == "object" &&
                   !Array.isArray(e) &&
@@ -18369,27 +18369,27 @@ var Xs,
                     dynamicAnchors: v,
                   }) ||
                     ((t = t === null ? Ze.errors : t.concat(Ze.errors)), (r = t.length)));
-                var k = le === r;
+                var k = me === r;
                 if (((T = k), T)) {
                   var V = {};
                   ((V.payload = !0), (V.objectType = !0));
                 }
               }
               if (!T) {
-                let le = {
+                let me = {
                   instancePath: a,
                   schemaPath: "#/allOf/2/if",
                   keyword: "if",
                   params: { failingKeyword: "then" },
                 };
-                return (t === null ? (t = [le]) : t.push(le), r++, (er.errors = t), !1);
+                return (t === null ? (t = [me]) : t.push(me), r++, (er.errors = t), !1);
               }
               var w = X === r;
               if (w) {
                 P !== !0 &&
                   V !== void 0 &&
                   (V === !0 ? (P = !0) : ((P = P || {}), Object.assign(P, V)));
-                let le = r,
+                let me = r,
                   we = r,
                   te = !0,
                   ne = r;
@@ -18433,15 +18433,15 @@ var Xs,
                   };
                   return (t === null ? (t = [oe]) : t.push(oe), r++, (er.errors = t), !1);
                 }
-                var w = le === r;
+                var w = me === r;
                 if (w) {
                   P !== !0 &&
                     j !== void 0 &&
                     (j === !0 ? (P = !0) : ((P = P || {}), Object.assign(P, j)));
                   let oe = r,
                     Ne = r,
-                    xr = !0,
-                    Or = r;
+                    Er = !0,
+                    Vr = r;
                   if (
                     e &&
                     typeof e == "object" &&
@@ -18449,12 +18449,12 @@ var Xs,
                     e.objectType !== void 0 &&
                     e.objectType !== "channel_follows_evidence"
                   ) {
-                    let _r = {};
-                    (t === null ? (t = [_r]) : t.push(_r), r++);
+                    let Nr = {};
+                    (t === null ? (t = [Nr]) : t.push(Nr), r++);
                   }
-                  var S = Or === r;
+                  var S = Vr === r;
                   if (((r = Ne), t !== null && (Ne ? (t.length = Ne) : (t = null)), S)) {
-                    let _r = r;
+                    let Nr = r;
                     e &&
                       typeof e == "object" &&
                       !Array.isArray(e) &&
@@ -18467,20 +18467,20 @@ var Xs,
                         dynamicAnchors: v,
                       }) ||
                         ((t = t === null ? Ze.errors : t.concat(Ze.errors)), (r = t.length)));
-                    var S = _r === r;
-                    if (((xr = S), xr)) {
+                    var S = Nr === r;
+                    if (((Er = S), Er)) {
                       var L = {};
                       ((L.payload = !0), (L.objectType = !0));
                     }
                   }
-                  if (!xr) {
-                    let _r = {
+                  if (!Er) {
+                    let Nr = {
                       instancePath: a,
                       schemaPath: "#/allOf/4/if",
                       keyword: "if",
                       params: { failingKeyword: "then" },
                     };
-                    return (t === null ? (t = [_r]) : t.push(_r), r++, (er.errors = t), !1);
+                    return (t === null ? (t = [Nr]) : t.push(Nr), r++, (er.errors = t), !1);
                   }
                   var w = oe === r;
                   w &&
@@ -18515,14 +18515,14 @@ var Xs,
                 );
               {
                 let Z = r;
-                for (let R in e)
+                for (let q in e)
                   if (!(
-                    R === "privateSchemaVersion" ||
-                    R === "profile" ||
-                    R === "objectId" ||
-                    R === "objectType" ||
-                    R === "revision" ||
-                    R === "payload"
+                    q === "privateSchemaVersion" ||
+                    q === "profile" ||
+                    q === "objectId" ||
+                    q === "objectType" ||
+                    q === "revision" ||
+                    q === "payload"
                   ))
                     return (
                       (er.errors = [
@@ -18530,14 +18530,14 @@ var Xs,
                           instancePath: a,
                           schemaPath: "#/additionalProperties",
                           keyword: "additionalProperties",
-                          params: { additionalProperty: R },
+                          params: { additionalProperty: q },
                         },
                       ]),
                       !1
                     );
                 if (Z === r) {
                   if (e.privateSchemaVersion !== void 0) {
-                    let R = r;
+                    let q = r;
                     if (e.privateSchemaVersion !== 1)
                       return (
                         (er.errors = [
@@ -18550,11 +18550,11 @@ var Xs,
                         ]),
                         !1
                       );
-                    var E = R === r;
+                    var E = q === r;
                   } else var E = !0;
                   if (E) {
                     if (e.profile !== void 0) {
-                      let q = r;
+                      let R = r;
                       if (e.profile !== "folioview.persistent-content.v1")
                         return (
                           (er.errors = [
@@ -18567,7 +18567,7 @@ var Xs,
                           ]),
                           !1
                         );
-                      var E = q === r;
+                      var E = R === r;
                     } else var E = !0;
                     if (E) {
                       if (e.objectId !== void 0) {
@@ -18598,7 +18598,7 @@ var Xs,
                                   instancePath: a + "/objectType",
                                   schemaPath: "#/properties/objectType/enum",
                                   keyword: "enum",
-                                  params: { allowedValues: js.properties.objectType.enum },
+                                  params: { allowedValues: Ls.properties.objectType.enum },
                                 },
                               ]),
                               !1
@@ -18688,7 +18688,7 @@ var Xs,
           return ((er.errors = t), r === 0);
         }
         er.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
-        function Yt(
+        function Qt(
           e,
           {
             instancePath: a = "",
@@ -18700,7 +18700,7 @@ var Xs,
         ) {
           let t = null,
             r = 0,
-            d = Yt.evaluated;
+            d = Qt.evaluated;
           return (
             d.dynamicProps && (d.props = void 0),
             d.dynamicItems && (d.items = void 0),
@@ -18711,12 +18711,12 @@ var Xs,
               rootData: f,
               dynamicAnchors: v,
             }) || ((t = t === null ? er.errors : t.concat(er.errors)), (r = t.length)),
-            (Yt.errors = t),
+            (Qt.errors = t),
             r === 0
           );
         }
-        ((Yt.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 }),
-          (s.PersistentContentCarrier = Qt));
+        ((Qt.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 }),
+          (s.PersistentContentCarrier = ea));
         function nr(
           e,
           {
@@ -18749,28 +18749,28 @@ var Xs,
                   !1
                 );
               {
-                let y = r;
-                for (let l in e)
-                  if (!(l === "header" || l === "encrypted_key"))
+                let h = r;
+                for (let m in e)
+                  if (!(m === "header" || m === "encrypted_key"))
                     return (
                       (nr.errors = [
                         {
                           instancePath: a,
                           schemaPath: "#/additionalProperties",
                           keyword: "additionalProperties",
-                          params: { additionalProperty: l },
+                          params: { additionalProperty: m },
                         },
                       ]),
                       !1
                     );
-                if (y === r) {
+                if (h === r) {
                   if (e.header !== void 0) {
-                    let l = e.header,
+                    let m = e.header,
                       P = r;
                     if (r === P)
-                      if (l && typeof l == "object" && !Array.isArray(l)) {
+                      if (m && typeof m == "object" && !Array.isArray(m)) {
                         let b;
-                        if ((l.kid === void 0 && (b = "kid")) || (l.epk === void 0 && (b = "epk")))
+                        if ((m.kid === void 0 && (b = "kid")) || (m.epk === void 0 && (b = "epk")))
                           return (
                             (nr.errors = [
                               {
@@ -18784,7 +18784,7 @@ var Xs,
                           );
                         {
                           let D = r;
-                          for (let k in l)
+                          for (let k in m)
                             if (!(k === "kid" || k === "epk"))
                               return (
                                 (nr.errors = [
@@ -18798,8 +18798,8 @@ var Xs,
                                 !1
                               );
                           if (D === r) {
-                            if (l.kid !== void 0) {
-                              let k = l.kid,
+                            if (m.kid !== void 0) {
+                              let k = m.kid,
                                 V = r;
                               if (r === V)
                                 if (typeof k == "string") {
@@ -18856,11 +18856,11 @@ var Xs,
                               var i = V === r;
                             } else var i = !0;
                             if (i)
-                              if (l.epk !== void 0) {
+                              if (m.epk !== void 0) {
                                 let k = r;
-                                Ge(l.epk, {
+                                Ge(m.epk, {
                                   instancePath: a + "/header/epk",
-                                  parentData: l,
+                                  parentData: m,
                                   parentDataProperty: "epk",
                                   rootData: f,
                                   dynamicAnchors: v,
@@ -18887,11 +18887,11 @@ var Xs,
                   } else var g = !0;
                   if (g)
                     if (e.encrypted_key !== void 0) {
-                      let l = e.encrypted_key,
+                      let m = e.encrypted_key,
                         P = r;
                       if (r === P)
-                        if (typeof l == "string") {
-                          if (n(l) > 54)
+                        if (typeof m == "string") {
+                          if (n(m) > 54)
                             return (
                               (nr.errors = [
                                 {
@@ -18903,7 +18903,7 @@ var Xs,
                               ]),
                               !1
                             );
-                          if (n(l) < 54)
+                          if (n(m) < 54)
                             return (
                               (nr.errors = [
                                 {
@@ -18915,7 +18915,7 @@ var Xs,
                               ]),
                               !1
                             );
-                          if (!We.test(l))
+                          if (!We.test(m))
                             return (
                               (nr.errors = [
                                 {
@@ -18994,15 +18994,15 @@ var Xs,
                   !1
                 );
               {
-                let y = r;
-                for (let l in e)
+                let h = r;
+                for (let m in e)
                   if (!(
-                    l === "protected" ||
-                    l === "recipients" ||
-                    l === "iv" ||
-                    l === "ciphertext" ||
-                    l === "tag" ||
-                    l === "aad"
+                    m === "protected" ||
+                    m === "recipients" ||
+                    m === "iv" ||
+                    m === "ciphertext" ||
+                    m === "tag" ||
+                    m === "aad"
                   ))
                     return (
                       (De.errors = [
@@ -19010,18 +19010,18 @@ var Xs,
                           instancePath: a,
                           schemaPath: "#/additionalProperties",
                           keyword: "additionalProperties",
-                          params: { additionalProperty: l },
+                          params: { additionalProperty: m },
                         },
                       ]),
                       !1
                     );
-                if (y === r) {
+                if (h === r) {
                   if (e.protected !== void 0) {
-                    let l = e.protected,
+                    let m = e.protected,
                       P = r;
                     if (r === P)
-                      if (typeof l == "string") {
-                        if (n(l) > 1024)
+                      if (typeof m == "string") {
+                        if (n(m) > 1024)
                           return (
                             (De.errors = [
                               {
@@ -19033,7 +19033,7 @@ var Xs,
                             ]),
                             !1
                           );
-                        if (n(l) < 1)
+                        if (n(m) < 1)
                           return (
                             (De.errors = [
                               {
@@ -19045,7 +19045,7 @@ var Xs,
                             ]),
                             !1
                           );
-                        if (!We.test(l))
+                        if (!We.test(m))
                           return (
                             (De.errors = [
                               {
@@ -19378,7 +19378,7 @@ var Xs,
           return ((De.errors = t), r === 0);
         }
         De.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
-        function Tr(
+        function Rr(
           e,
           {
             instancePath: a = "",
@@ -19390,7 +19390,7 @@ var Xs,
         ) {
           let t = null,
             r = 0,
-            d = Tr.evaluated;
+            d = Rr.evaluated;
           if ((d.dynamicProps && (d.props = void 0), d.dynamicItems && (d.items = void 0), r === 0))
             if (e && typeof e == "object" && !Array.isArray(e)) {
               let g;
@@ -19401,7 +19401,7 @@ var Xs,
                 (e.jwe === void 0 && (g = "jwe"))
               )
                 return (
-                  (Tr.errors = [
+                  (Rr.errors = [
                     {
                       instancePath: a,
                       schemaPath: "#/required",
@@ -19413,25 +19413,25 @@ var Xs,
                 );
               {
                 let u = r;
-                for (let y in e)
-                  if (!(y === "contractVersion" || y === "profile" || y === "proof" || y === "jwe"))
+                for (let h in e)
+                  if (!(h === "contractVersion" || h === "profile" || h === "proof" || h === "jwe"))
                     return (
-                      (Tr.errors = [
+                      (Rr.errors = [
                         {
                           instancePath: a,
                           schemaPath: "#/additionalProperties",
                           keyword: "additionalProperties",
-                          params: { additionalProperty: y },
+                          params: { additionalProperty: h },
                         },
                       ]),
                       !1
                     );
                 if (u === r) {
                   if (e.contractVersion !== void 0) {
-                    let y = r;
+                    let h = r;
                     if (e.contractVersion !== "folioview.agent-workspace.v2.0")
                       return (
-                        (Tr.errors = [
+                        (Rr.errors = [
                           {
                             instancePath: a + "/contractVersion",
                             schemaPath: "#/properties/contractVersion/const",
@@ -19441,14 +19441,14 @@ var Xs,
                         ]),
                         !1
                       );
-                    var i = y === r;
+                    var i = h === r;
                   } else var i = !0;
                   if (i) {
                     if (e.profile !== void 0) {
-                      let l = r;
+                      let m = r;
                       if (e.profile !== "folioview.persistent-content.v1")
                         return (
-                          (Tr.errors = [
+                          (Rr.errors = [
                             {
                               instancePath: a + "/profile",
                               schemaPath: "#/properties/profile/const",
@@ -19458,7 +19458,7 @@ var Xs,
                           ]),
                           !1
                         );
-                      var i = l === r;
+                      var i = m === r;
                     } else var i = !0;
                     if (i) {
                       if (e.proof !== void 0) {
@@ -19491,7 +19491,7 @@ var Xs,
               }
             } else
               return (
-                (Tr.errors = [
+                (Rr.errors = [
                   {
                     instancePath: a,
                     schemaPath: "#/type",
@@ -19501,10 +19501,10 @@ var Xs,
                 ]),
                 !1
               );
-          return ((Tr.errors = t), r === 0);
+          return ((Rr.errors = t), r === 0);
         }
-        Tr.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
-        function Qt(
+        Rr.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
+        function ea(
           e,
           {
             instancePath: a = "",
@@ -19516,23 +19516,23 @@ var Xs,
         ) {
           let t = null,
             r = 0,
-            d = Qt.evaluated;
+            d = ea.evaluated;
           return (
             d.dynamicProps && (d.props = void 0),
             d.dynamicItems && (d.items = void 0),
-            Tr(e, {
+            Rr(e, {
               instancePath: a,
               parentData: F,
               parentDataProperty: H,
               rootData: f,
               dynamicAnchors: v,
-            }) || ((t = t === null ? Tr.errors : t.concat(Tr.errors)), (r = t.length)),
-            (Qt.errors = t),
+            }) || ((t = t === null ? Rr.errors : t.concat(Rr.errors)), (r = t.length)),
+            (ea.errors = t),
             r === 0
           );
         }
-        ((Qt.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 }),
-          (s.PersistentContentProofPayload = ea));
+        ((ea.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 }),
+          (s.PersistentContentProofPayload = ra));
         function at(
           e,
           {
@@ -19550,7 +19550,7 @@ var Xs,
           let i = r,
             g = !1,
             u = null,
-            y = r;
+            h = r;
           ae(e, {
             instancePath: a,
             parentData: F,
@@ -19558,33 +19558,33 @@ var Xs,
             rootData: f,
             dynamicAnchors: v,
           }) || ((t = t === null ? ae.errors : t.concat(ae.errors)), (r = t.length));
-          var w = y === r;
+          var w = h === r;
           if (w) {
             ((g = !0), (u = 0));
-            var l = !0;
+            var m = !0;
           }
           let P = r;
-          he(e, {
+          ye(e, {
             instancePath: a,
             parentData: F,
             parentDataProperty: H,
             rootData: f,
             dynamicAnchors: v,
-          }) || ((t = t === null ? he.errors : t.concat(he.errors)), (r = t.length));
+          }) || ((t = t === null ? ye.errors : t.concat(ye.errors)), (r = t.length));
           var w = P === r;
           if (w && g) ((g = !1), (u = [u, 1]));
           else {
-            w && ((g = !0), (u = 1), l !== !0 && (l = !0));
+            w && ((g = !0), (u = 1), m !== !0 && (m = !0));
             let b = r;
-            ye(e, {
+            he(e, {
               instancePath: a,
               parentData: F,
               parentDataProperty: H,
               rootData: f,
               dynamicAnchors: v,
-            }) || ((t = t === null ? ye.errors : t.concat(ye.errors)), (r = t.length));
+            }) || ((t = t === null ? he.errors : t.concat(he.errors)), (r = t.length));
             var w = b === r;
-            w && g ? ((g = !1), (u = [u, 2])) : w && ((g = !0), (u = 2), l !== !0 && (l = !0));
+            w && g ? ((g = !1), (u = [u, 2])) : w && ((g = !0), (u = 2), m !== !0 && (m = !0));
           }
           if (g) ((r = i), t !== null && (i ? (t.length = i) : (t = null)));
           else {
@@ -19596,10 +19596,10 @@ var Xs,
             };
             return (t === null ? (t = [b]) : t.push(b), r++, (at.errors = t), !1);
           }
-          return ((at.errors = t), (d.props = l), r === 0);
+          return ((at.errors = t), (d.props = m), r === 0);
         }
         at.evaluated = { dynamicProps: !0, dynamicItems: !1 };
-        function jr(
+        function $r(
           e,
           {
             instancePath: a = "",
@@ -19611,7 +19611,7 @@ var Xs,
         ) {
           let t = null,
             r = 0,
-            d = jr.evaluated;
+            d = $r.evaluated;
           if ((d.dynamicProps && (d.props = void 0), d.dynamicItems && (d.items = void 0), r === 0))
             if (e && typeof e == "object" && !Array.isArray(e)) {
               let g;
@@ -19623,7 +19623,7 @@ var Xs,
                 (e.ciphertextDigest === void 0 && (g = "ciphertextDigest"))
               )
                 return (
-                  (jr.errors = [
+                  ($r.errors = [
                     {
                       instancePath: a,
                       schemaPath: "#/required",
@@ -19635,31 +19635,31 @@ var Xs,
                 );
               {
                 let u = r;
-                for (let y in e)
+                for (let h in e)
                   if (!(
-                    y === "contractVersion" ||
-                    y === "profile" ||
-                    y === "artifactType" ||
-                    y === "context" ||
-                    y === "ciphertextDigest"
+                    h === "contractVersion" ||
+                    h === "profile" ||
+                    h === "artifactType" ||
+                    h === "context" ||
+                    h === "ciphertextDigest"
                   ))
                     return (
-                      (jr.errors = [
+                      ($r.errors = [
                         {
                           instancePath: a,
                           schemaPath: "#/additionalProperties",
                           keyword: "additionalProperties",
-                          params: { additionalProperty: y },
+                          params: { additionalProperty: h },
                         },
                       ]),
                       !1
                     );
                 if (u === r) {
                   if (e.contractVersion !== void 0) {
-                    let y = r;
+                    let h = r;
                     if (e.contractVersion !== "folioview.agent-workspace.v2.0")
                       return (
-                        (jr.errors = [
+                        ($r.errors = [
                           {
                             instancePath: a + "/contractVersion",
                             schemaPath: "#/properties/contractVersion/const",
@@ -19669,14 +19669,14 @@ var Xs,
                         ]),
                         !1
                       );
-                    var i = y === r;
+                    var i = h === r;
                   } else var i = !0;
                   if (i) {
                     if (e.profile !== void 0) {
-                      let l = r;
+                      let m = r;
                       if (e.profile !== "folioview.persistent-content.v1")
                         return (
-                          (jr.errors = [
+                          ($r.errors = [
                             {
                               instancePath: a + "/profile",
                               schemaPath: "#/properties/profile/const",
@@ -19686,14 +19686,14 @@ var Xs,
                           ]),
                           !1
                         );
-                      var i = l === r;
+                      var i = m === r;
                     } else var i = !0;
                     if (i) {
                       if (e.artifactType !== void 0) {
                         let P = r;
                         if (e.artifactType !== "persistent_content_publication")
                           return (
-                            (jr.errors = [
+                            ($r.errors = [
                               {
                                 instancePath: a + "/artifactType",
                                 schemaPath: "#/properties/artifactType/const",
@@ -19738,7 +19738,7 @@ var Xs,
               }
             } else
               return (
-                (jr.errors = [
+                ($r.errors = [
                   {
                     instancePath: a,
                     schemaPath: "#/type",
@@ -19748,10 +19748,10 @@ var Xs,
                 ]),
                 !1
               );
-          return ((jr.errors = t), r === 0);
+          return (($r.errors = t), r === 0);
         }
-        jr.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
-        function ea(
+        $r.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
+        function ra(
           e,
           {
             instancePath: a = "",
@@ -19763,23 +19763,23 @@ var Xs,
         ) {
           let t = null,
             r = 0,
-            d = ea.evaluated;
+            d = ra.evaluated;
           return (
             d.dynamicProps && (d.props = void 0),
             d.dynamicItems && (d.items = void 0),
-            jr(e, {
+            $r(e, {
               instancePath: a,
               parentData: F,
               parentDataProperty: H,
               rootData: f,
               dynamicAnchors: v,
-            }) || ((t = t === null ? jr.errors : t.concat(jr.errors)), (r = t.length)),
-            (ea.errors = t),
+            }) || ((t = t === null ? $r.errors : t.concat($r.errors)), (r = t.length)),
+            (ra.errors = t),
             r === 0
           );
         }
-        ((ea.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 }),
-          (s.ResultContent = ra));
+        ((ra.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 }),
+          (s.ResultContent = ta));
         function Te(
           e,
           {
@@ -19795,13 +19795,13 @@ var Xs,
             d = Te.evaluated;
           if ((d.dynamicProps && (d.props = void 0), d.dynamicItems && (d.items = void 0), r === 0))
             if (e && typeof e == "object" && !Array.isArray(e)) {
-              let l;
+              let m;
               if (
-                (e.title === void 0 && (l = "title")) ||
-                (e.summary === void 0 && (l = "summary")) ||
-                (e.sections === void 0 && (l = "sections")) ||
-                (e.citations === void 0 && (l = "citations")) ||
-                (e.limitations === void 0 && (l = "limitations"))
+                (e.title === void 0 && (m = "title")) ||
+                (e.summary === void 0 && (m = "summary")) ||
+                (e.sections === void 0 && (m = "sections")) ||
+                (e.citations === void 0 && (m = "citations")) ||
+                (e.limitations === void 0 && (m = "limitations"))
               )
                 return (
                   (Te.errors = [
@@ -19809,7 +19809,7 @@ var Xs,
                       instancePath: a,
                       schemaPath: "#/required",
                       keyword: "required",
-                      params: { missingProperty: l },
+                      params: { missingProperty: m },
                     },
                   ]),
                   !1
@@ -20078,7 +20078,7 @@ var Xs,
                                     !1
                                   );
                                 {
-                                  var y = !0;
+                                  var h = !0;
                                   let j = k.length;
                                   for (let S = 0; S < j; S++) {
                                     let L = k[S],
@@ -20123,8 +20123,8 @@ var Xs,
                                           ]),
                                           !1
                                         );
-                                    var y = E === r;
-                                    if (!y) break;
+                                    var h = E === r;
+                                    if (!h) break;
                                   }
                                 }
                               } else
@@ -20161,7 +20161,7 @@ var Xs,
           return ((Te.errors = t), r === 0);
         }
         Te.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
-        function ra(
+        function ta(
           e,
           {
             instancePath: a = "",
@@ -20173,7 +20173,7 @@ var Xs,
         ) {
           let t = null,
             r = 0,
-            d = ra.evaluated;
+            d = ta.evaluated;
           return (
             d.dynamicProps && (d.props = void 0),
             d.dynamicItems && (d.items = void 0),
@@ -20184,13 +20184,13 @@ var Xs,
               rootData: f,
               dynamicAnchors: v,
             }) || ((t = t === null ? Te.errors : t.concat(Te.errors)), (r = t.length)),
-            (ra.errors = t),
+            (ta.errors = t),
             r === 0
           );
         }
-        ((ra.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 }),
-          (s.PersistentResourceConsent = ta));
-        var Hs = {
+        ((ta.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 }),
+          (s.PersistentResourceConsent = aa));
+        var Us = {
             type: "object",
             properties: {
               contractVersion: { const: "folioview.agent-workspace.v2.0" },
@@ -20243,7 +20243,7 @@ var Xs,
             ],
             additionalProperties: !1,
           },
-          an = {
+          sn = {
             type: "object",
             properties: {
               permissionId: { $ref: "#/$defs/Identifier" },
@@ -20301,20 +20301,20 @@ var Xs,
             d = xe.evaluated;
           if ((d.dynamicProps && (d.props = void 0), d.dynamicItems && (d.items = void 0), r === 0))
             if (e && typeof e == "object" && !Array.isArray(e)) {
-              let l;
+              let m;
               if (
-                (e.permissionId === void 0 && (l = "permissionId")) ||
-                (e.ref === void 0 && (l = "ref")) ||
-                (e.sourceEpoch === void 0 && (l = "sourceEpoch")) ||
-                (e.fromRevision === void 0 && (l = "fromRevision")) ||
-                (e.versionPolicy === void 0 && (l = "versionPolicy")) ||
-                (e.selectedHistory === void 0 && (l = "selectedHistory")) ||
-                (e.permissionEpoch === void 0 && (l = "permissionEpoch")) ||
-                (e.status === void 0 && (l = "status")) ||
-                (e.approvedAt === void 0 && (l = "approvedAt")) ||
-                (e.approvalFingerprint === void 0 && (l = "approvalFingerprint")) ||
-                (e.revokedAt === void 0 && (l = "revokedAt")) ||
-                (e.revocationFingerprint === void 0 && (l = "revocationFingerprint"))
+                (e.permissionId === void 0 && (m = "permissionId")) ||
+                (e.ref === void 0 && (m = "ref")) ||
+                (e.sourceEpoch === void 0 && (m = "sourceEpoch")) ||
+                (e.fromRevision === void 0 && (m = "fromRevision")) ||
+                (e.versionPolicy === void 0 && (m = "versionPolicy")) ||
+                (e.selectedHistory === void 0 && (m = "selectedHistory")) ||
+                (e.permissionEpoch === void 0 && (m = "permissionEpoch")) ||
+                (e.status === void 0 && (m = "status")) ||
+                (e.approvedAt === void 0 && (m = "approvedAt")) ||
+                (e.approvalFingerprint === void 0 && (m = "approvalFingerprint")) ||
+                (e.revokedAt === void 0 && (m = "revokedAt")) ||
+                (e.revocationFingerprint === void 0 && (m = "revocationFingerprint"))
               )
                 return (
                   (xe.errors = [
@@ -20322,7 +20322,7 @@ var Xs,
                       instancePath: a,
                       schemaPath: "#/required",
                       keyword: "required",
-                      params: { missingProperty: l },
+                      params: { missingProperty: m },
                     },
                   ]),
                   !1
@@ -20330,7 +20330,7 @@ var Xs,
               {
                 let P = r;
                 for (let w in e)
-                  if (!G.call(an.properties, w))
+                  if (!G.call(sn.properties, w))
                     return (
                       (xe.errors = [
                         {
@@ -20559,11 +20559,11 @@ var Xs,
                                       if (E > 1) {
                                         let Z = {};
                                         for (; E--;) {
-                                          let R = $[E];
-                                          if (typeof R == "number" && !(R % 1) && !isNaN(R)) {
-                                            if (typeof Z[R] == "number")
+                                          let q = $[E];
+                                          if (typeof q == "number" && !(q % 1) && !isNaN(q)) {
+                                            if (typeof Z[q] == "number")
                                               return (
-                                                (K = Z[R]),
+                                                (K = Z[q]),
                                                 (xe.errors = [
                                                   {
                                                     instancePath: a + "/selectedHistory",
@@ -20575,7 +20575,7 @@ var Xs,
                                                 ]),
                                                 !1
                                               );
-                                            Z[R] = E;
+                                            Z[q] = E;
                                           }
                                         }
                                       }
@@ -20650,7 +20650,7 @@ var Xs,
                                           instancePath: a + "/status",
                                           schemaPath: "#/properties/status/enum",
                                           keyword: "enum",
-                                          params: { allowedValues: an.properties.status.enum },
+                                          params: { allowedValues: sn.properties.status.enum },
                                         },
                                       ]),
                                       !1
@@ -20719,8 +20719,8 @@ var Xs,
                                       if (e.revokedAt !== void 0) {
                                         let K = e.revokedAt,
                                           Z = r,
-                                          R = r,
-                                          q = !1,
+                                          q = r,
+                                          R = !1,
                                           z = r;
                                         if (!(typeof K == "number" && !(K % 1) && !isNaN(K))) {
                                           let T = {
@@ -20751,7 +20751,7 @@ var Xs,
                                           }
                                         }
                                         var u = z === r;
-                                        q = q || u;
+                                        R = R || u;
                                         let X = r;
                                         if (K !== null) {
                                           let T = {
@@ -20763,9 +20763,9 @@ var Xs,
                                           (t === null ? (t = [T]) : t.push(T), r++);
                                         }
                                         var u = X === r;
-                                        if (((q = q || u), q))
-                                          ((r = R),
-                                            t !== null && (R ? (t.length = R) : (t = null)));
+                                        if (((R = R || u), R))
+                                          ((r = q),
+                                            t !== null && (q ? (t.length = q) : (t = null)));
                                         else {
                                           let T = {
                                             instancePath: a + "/revokedAt",
@@ -20786,8 +20786,8 @@ var Xs,
                                         if (e.revocationFingerprint !== void 0) {
                                           let K = e.revocationFingerprint,
                                             Z = r,
-                                            R = r,
-                                            q = !1,
+                                            q = r,
+                                            R = !1,
                                             z = r;
                                           M(K, {
                                             instancePath: a + "/revocationFingerprint",
@@ -20798,8 +20798,8 @@ var Xs,
                                           }) ||
                                             ((t = t === null ? M.errors : t.concat(M.errors)),
                                             (r = t.length));
-                                          var y = z === r;
-                                          q = q || y;
+                                          var h = z === r;
+                                          R = R || h;
                                           let X = r;
                                           if (K !== null) {
                                             let T = {
@@ -20811,10 +20811,10 @@ var Xs,
                                             };
                                             (t === null ? (t = [T]) : t.push(T), r++);
                                           }
-                                          var y = X === r;
-                                          if (((q = q || y), q))
-                                            ((r = R),
-                                              t !== null && (R ? (t.length = R) : (t = null)));
+                                          var h = X === r;
+                                          if (((R = R || h), R))
+                                            ((r = q),
+                                              t !== null && (q ? (t.length = q) : (t = null)));
                                           else {
                                             let T = {
                                               instancePath: a + "/revocationFingerprint",
@@ -20859,7 +20859,7 @@ var Xs,
           return ((xe.errors = t), r === 0);
         }
         xe.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
-        function qe(
+        function Re(
           e,
           {
             instancePath: a = "",
@@ -20871,7 +20871,7 @@ var Xs,
         ) {
           let t = null,
             r = 0,
-            d = qe.evaluated;
+            d = Re.evaluated;
           if ((d.dynamicProps && (d.props = void 0), d.dynamicItems && (d.items = void 0), r === 0))
             if (e && typeof e == "object" && !Array.isArray(e)) {
               let u;
@@ -20898,7 +20898,7 @@ var Xs,
                 (e.permissions === void 0 && (u = "permissions"))
               )
                 return (
-                  (qe.errors = [
+                  (Re.errors = [
                     {
                       instancePath: a,
                       schemaPath: "#/required",
@@ -20909,26 +20909,26 @@ var Xs,
                   !1
                 );
               {
-                let y = r;
-                for (let l in e)
-                  if (!G.call(Hs.properties, l))
+                let h = r;
+                for (let m in e)
+                  if (!G.call(Us.properties, m))
                     return (
-                      (qe.errors = [
+                      (Re.errors = [
                         {
                           instancePath: a,
                           schemaPath: "#/additionalProperties",
                           keyword: "additionalProperties",
-                          params: { additionalProperty: l },
+                          params: { additionalProperty: m },
                         },
                       ]),
                       !1
                     );
-                if (y === r) {
+                if (h === r) {
                   if (e.contractVersion !== void 0) {
-                    let l = r;
+                    let m = r;
                     if (e.contractVersion !== "folioview.agent-workspace.v2.0")
                       return (
-                        (qe.errors = [
+                        (Re.errors = [
                           {
                             instancePath: a + "/contractVersion",
                             schemaPath: "#/properties/contractVersion/const",
@@ -20938,14 +20938,14 @@ var Xs,
                         ]),
                         !1
                       );
-                    var i = l === r;
+                    var i = m === r;
                   } else var i = !0;
                   if (i) {
                     if (e.profile !== void 0) {
                       let P = r;
                       if (e.profile !== "folioview.persistent-resource-consent.v1")
                         return (
-                          (qe.errors = [
+                          (Re.errors = [
                             {
                               instancePath: a + "/profile",
                               schemaPath: "#/properties/profile/const",
@@ -21069,7 +21069,7 @@ var Xs,
                                           E = r;
                                         if (!(typeof L == "number" && !(L % 1) && !isNaN(L)))
                                           return (
-                                            (qe.errors = [
+                                            (Re.errors = [
                                               {
                                                 instancePath: a + "/identityEpoch",
                                                 schemaPath: "#/properties/identityEpoch/type",
@@ -21082,7 +21082,7 @@ var Xs,
                                         if (r === E && typeof L == "number") {
                                           if (L > 9007199254740991 || isNaN(L))
                                             return (
-                                              (qe.errors = [
+                                              (Re.errors = [
                                                 {
                                                   instancePath: a + "/identityEpoch",
                                                   schemaPath: "#/properties/identityEpoch/maximum",
@@ -21097,7 +21097,7 @@ var Xs,
                                             );
                                           if (L < 1 || isNaN(L))
                                             return (
-                                              (qe.errors = [
+                                              (Re.errors = [
                                                 {
                                                   instancePath: a + "/identityEpoch",
                                                   schemaPath: "#/properties/identityEpoch/minimum",
@@ -21143,7 +21143,7 @@ var Xs,
                                               let Z = r;
                                               if (e.purpose !== "analysis")
                                                 return (
-                                                  (qe.errors = [
+                                                  (Re.errors = [
                                                     {
                                                       instancePath: a + "/purpose",
                                                       schemaPath: "#/properties/purpose/const",
@@ -21157,15 +21157,15 @@ var Xs,
                                             } else var i = !0;
                                             if (i) {
                                               if (e.version !== void 0) {
-                                                let R = e.version,
-                                                  q = r;
+                                                let q = e.version,
+                                                  R = r;
                                                 if (!(
-                                                  typeof R == "number" &&
-                                                  !(R % 1) &&
-                                                  !isNaN(R)
+                                                  typeof q == "number" &&
+                                                  !(q % 1) &&
+                                                  !isNaN(q)
                                                 ))
                                                   return (
-                                                    (qe.errors = [
+                                                    (Re.errors = [
                                                       {
                                                         instancePath: a + "/version",
                                                         schemaPath: "#/properties/version/type",
@@ -21175,10 +21175,10 @@ var Xs,
                                                     ]),
                                                     !1
                                                   );
-                                                if (r === q && typeof R == "number") {
-                                                  if (R > 9007199254740991 || isNaN(R))
+                                                if (r === R && typeof q == "number") {
+                                                  if (q > 9007199254740991 || isNaN(q))
                                                     return (
-                                                      (qe.errors = [
+                                                      (Re.errors = [
                                                         {
                                                           instancePath: a + "/version",
                                                           schemaPath:
@@ -21192,9 +21192,9 @@ var Xs,
                                                       ]),
                                                       !1
                                                     );
-                                                  if (R < 1 || isNaN(R))
+                                                  if (q < 1 || isNaN(q))
                                                     return (
-                                                      (qe.errors = [
+                                                      (Re.errors = [
                                                         {
                                                           instancePath: a + "/version",
                                                           schemaPath:
@@ -21206,19 +21206,19 @@ var Xs,
                                                       !1
                                                     );
                                                 }
-                                                var i = q === r;
+                                                var i = R === r;
                                               } else var i = !0;
                                               if (i) {
                                                 if (e.createdAt !== void 0) {
-                                                  let q = e.createdAt,
+                                                  let R = e.createdAt,
                                                     z = r;
                                                   if (!(
-                                                    typeof q == "number" &&
-                                                    !(q % 1) &&
-                                                    !isNaN(q)
+                                                    typeof R == "number" &&
+                                                    !(R % 1) &&
+                                                    !isNaN(R)
                                                   ))
                                                     return (
-                                                      (qe.errors = [
+                                                      (Re.errors = [
                                                         {
                                                           instancePath: a + "/createdAt",
                                                           schemaPath: "#/properties/createdAt/type",
@@ -21228,10 +21228,10 @@ var Xs,
                                                       ]),
                                                       !1
                                                     );
-                                                  if (r === z && typeof q == "number") {
-                                                    if (q > 9007199254740991 || isNaN(q))
+                                                  if (r === z && typeof R == "number") {
+                                                    if (R > 9007199254740991 || isNaN(R))
                                                       return (
-                                                        (qe.errors = [
+                                                        (Re.errors = [
                                                           {
                                                             instancePath: a + "/createdAt",
                                                             schemaPath:
@@ -21245,9 +21245,9 @@ var Xs,
                                                         ]),
                                                         !1
                                                       );
-                                                    if (q < 0 || isNaN(q))
+                                                    if (R < 0 || isNaN(R))
                                                       return (
-                                                        (qe.errors = [
+                                                        (Re.errors = [
                                                           {
                                                             instancePath: a + "/createdAt",
                                                             schemaPath:
@@ -21271,7 +21271,7 @@ var Xs,
                                                       !isNaN(z)
                                                     ))
                                                       return (
-                                                        (qe.errors = [
+                                                        (Re.errors = [
                                                           {
                                                             instancePath: a + "/updatedAt",
                                                             schemaPath:
@@ -21285,7 +21285,7 @@ var Xs,
                                                     if (r === X && typeof z == "number") {
                                                       if (z > 9007199254740991 || isNaN(z))
                                                         return (
-                                                          (qe.errors = [
+                                                          (Re.errors = [
                                                             {
                                                               instancePath: a + "/updatedAt",
                                                               schemaPath:
@@ -21301,7 +21301,7 @@ var Xs,
                                                         );
                                                       if (z < 0 || isNaN(z))
                                                         return (
-                                                          (qe.errors = [
+                                                          (Re.errors = [
                                                             {
                                                               instancePath: a + "/updatedAt",
                                                               schemaPath:
@@ -21362,7 +21362,7 @@ var Xs,
                                                             if (Array.isArray(U)) {
                                                               if (U.length > 32)
                                                                 return (
-                                                                  (qe.errors = [
+                                                                  (Re.errors = [
                                                                     {
                                                                       instancePath:
                                                                         a + "/permissions",
@@ -21376,7 +21376,7 @@ var Xs,
                                                                 );
                                                               if (U.length < 1)
                                                                 return (
-                                                                  (qe.errors = [
+                                                                  (Re.errors = [
                                                                     {
                                                                       instancePath:
                                                                         a + "/permissions",
@@ -21391,13 +21391,13 @@ var Xs,
                                                               {
                                                                 var g = !0;
                                                                 let ce = U.length;
-                                                                for (let le = 0; le < ce; le++) {
+                                                                for (let me = 0; me < ce; me++) {
                                                                   let we = r;
-                                                                  xe(U[le], {
+                                                                  xe(U[me], {
                                                                     instancePath:
-                                                                      a + "/permissions/" + le,
+                                                                      a + "/permissions/" + me,
                                                                     parentData: U,
-                                                                    parentDataProperty: le,
+                                                                    parentDataProperty: me,
                                                                     rootData: f,
                                                                     dynamicAnchors: v,
                                                                   }) ||
@@ -21412,7 +21412,7 @@ var Xs,
                                                               }
                                                             } else
                                                               return (
-                                                                (qe.errors = [
+                                                                (Re.errors = [
                                                                   {
                                                                     instancePath:
                                                                       a + "/permissions",
@@ -21448,7 +21448,7 @@ var Xs,
               }
             } else
               return (
-                (qe.errors = [
+                (Re.errors = [
                   {
                     instancePath: a,
                     schemaPath: "#/type",
@@ -21458,10 +21458,10 @@ var Xs,
                 ]),
                 !1
               );
-          return ((qe.errors = t), r === 0);
+          return ((Re.errors = t), r === 0);
         }
-        qe.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
-        function ta(
+        Re.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
+        function aa(
           e,
           {
             instancePath: a = "",
@@ -21473,24 +21473,24 @@ var Xs,
         ) {
           let t = null,
             r = 0,
-            d = ta.evaluated;
+            d = aa.evaluated;
           return (
             d.dynamicProps && (d.props = void 0),
             d.dynamicItems && (d.items = void 0),
-            qe(e, {
+            Re(e, {
               instancePath: a,
               parentData: F,
               parentDataProperty: H,
               rootData: f,
               dynamicAnchors: v,
-            }) || ((t = t === null ? qe.errors : t.concat(qe.errors)), (r = t.length)),
-            (ta.errors = t),
+            }) || ((t = t === null ? Re.errors : t.concat(Re.errors)), (r = t.length)),
+            (aa.errors = t),
             r === 0
           );
         }
-        ((ta.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 }),
-          (s.PersistentResourceApprovalPayload = aa));
-        var Ws = {
+        ((aa.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 }),
+          (s.PersistentResourceApprovalPayload = ia));
+        var zs = {
           type: "object",
           properties: {
             contractVersion: { const: "folioview.agent-workspace.v2.0" },
@@ -21588,16 +21588,16 @@ var Xs,
                   !1
                 );
               {
-                let y = r;
-                for (let l in e)
+                let h = r;
+                for (let m in e)
                   if (!(
-                    l === "permissionId" ||
-                    l === "ref" ||
-                    l === "sourceEpoch" ||
-                    l === "fromRevision" ||
-                    l === "versionPolicy" ||
-                    l === "selectedHistory" ||
-                    l === "expectedPermissionEpoch"
+                    m === "permissionId" ||
+                    m === "ref" ||
+                    m === "sourceEpoch" ||
+                    m === "fromRevision" ||
+                    m === "versionPolicy" ||
+                    m === "selectedHistory" ||
+                    m === "expectedPermissionEpoch"
                   ))
                     return (
                       (He.errors = [
@@ -21605,14 +21605,14 @@ var Xs,
                           instancePath: a,
                           schemaPath: "#/additionalProperties",
                           keyword: "additionalProperties",
-                          params: { additionalProperty: l },
+                          params: { additionalProperty: m },
                         },
                       ]),
                       !1
                     );
-                if (y === r) {
+                if (h === r) {
                   if (e.permissionId !== void 0) {
-                    let l = r;
+                    let m = r;
                     A(e.permissionId, {
                       instancePath: a + "/permissionId",
                       parentData: e,
@@ -21620,7 +21620,7 @@ var Xs,
                       rootData: f,
                       dynamicAnchors: v,
                     }) || ((t = t === null ? A.errors : t.concat(A.errors)), (r = t.length));
-                    var i = l === r;
+                    var i = m === r;
                   } else var i = !0;
                   if (i) {
                     if (e.ref !== void 0) {
@@ -21946,32 +21946,32 @@ var Xs,
             d = Ee.evaluated;
           if ((d.dynamicProps && (d.props = void 0), d.dynamicItems && (d.items = void 0), r === 0))
             if (e && typeof e == "object" && !Array.isArray(e)) {
-              let y;
+              let h;
               if (
-                (e.contractVersion === void 0 && (y = "contractVersion")) ||
-                (e.profile === void 0 && (y = "profile")) ||
-                (e.ownerSubject === void 0 && (y = "ownerSubject")) ||
-                (e.vaultId === void 0 && (y = "vaultId")) ||
-                (e.connectionId === void 0 && (y = "connectionId")) ||
-                (e.agentId === void 0 && (y = "agentId")) ||
-                (e.clientId === void 0 && (y = "clientId")) ||
-                (e.rootKeyId === void 0 && (y = "rootKeyId")) ||
-                (e.agentSigningKeyId === void 0 && (y = "agentSigningKeyId")) ||
-                (e.agentEncryptionKeyId === void 0 && (y = "agentEncryptionKeyId")) ||
-                (e.identityEpoch === void 0 && (y = "identityEpoch")) ||
-                (e.bindingFingerprint === void 0 && (y = "bindingFingerprint")) ||
-                (e.consentId === void 0 && (y = "consentId")) ||
-                (e.purpose === void 0 && (y = "purpose")) ||
-                (e.authorKeyId === void 0 && (y = "authorKeyId")) ||
-                (e.stableOperationId === void 0 && (y = "stableOperationId")) ||
-                (e.expectedVersion === void 0 && (y = "expectedVersion")) ||
-                (e.expectedConsentDigest === void 0 && (y = "expectedConsentDigest")) ||
-                (e.issuedAt === void 0 && (y = "issuedAt")) ||
-                (e.registrySequence === void 0 && (y = "registrySequence")) ||
-                (e.checkpointDigest === void 0 && (y = "checkpointDigest")) ||
-                (e.keyEpoch === void 0 && (y = "keyEpoch")) ||
-                (e.artifactType === void 0 && (y = "artifactType")) ||
-                (e.resources === void 0 && (y = "resources"))
+                (e.contractVersion === void 0 && (h = "contractVersion")) ||
+                (e.profile === void 0 && (h = "profile")) ||
+                (e.ownerSubject === void 0 && (h = "ownerSubject")) ||
+                (e.vaultId === void 0 && (h = "vaultId")) ||
+                (e.connectionId === void 0 && (h = "connectionId")) ||
+                (e.agentId === void 0 && (h = "agentId")) ||
+                (e.clientId === void 0 && (h = "clientId")) ||
+                (e.rootKeyId === void 0 && (h = "rootKeyId")) ||
+                (e.agentSigningKeyId === void 0 && (h = "agentSigningKeyId")) ||
+                (e.agentEncryptionKeyId === void 0 && (h = "agentEncryptionKeyId")) ||
+                (e.identityEpoch === void 0 && (h = "identityEpoch")) ||
+                (e.bindingFingerprint === void 0 && (h = "bindingFingerprint")) ||
+                (e.consentId === void 0 && (h = "consentId")) ||
+                (e.purpose === void 0 && (h = "purpose")) ||
+                (e.authorKeyId === void 0 && (h = "authorKeyId")) ||
+                (e.stableOperationId === void 0 && (h = "stableOperationId")) ||
+                (e.expectedVersion === void 0 && (h = "expectedVersion")) ||
+                (e.expectedConsentDigest === void 0 && (h = "expectedConsentDigest")) ||
+                (e.issuedAt === void 0 && (h = "issuedAt")) ||
+                (e.registrySequence === void 0 && (h = "registrySequence")) ||
+                (e.checkpointDigest === void 0 && (h = "checkpointDigest")) ||
+                (e.keyEpoch === void 0 && (h = "keyEpoch")) ||
+                (e.artifactType === void 0 && (h = "artifactType")) ||
+                (e.resources === void 0 && (h = "resources"))
               )
                 return (
                   (Ee.errors = [
@@ -21979,15 +21979,15 @@ var Xs,
                       instancePath: a,
                       schemaPath: "#/required",
                       keyword: "required",
-                      params: { missingProperty: y },
+                      params: { missingProperty: h },
                     },
                   ]),
                   !1
                 );
               {
-                let l = r;
+                let m = r;
                 for (let P in e)
-                  if (!G.call(Ws.properties, P))
+                  if (!G.call(zs.properties, P))
                     return (
                       (Ee.errors = [
                         {
@@ -21999,7 +21999,7 @@ var Xs,
                       ]),
                       !1
                     );
-                if (l === r) {
+                if (m === r) {
                   if (e.contractVersion !== void 0) {
                     let P = r;
                     if (e.contractVersion !== "folioview.agent-workspace.v2.0")
@@ -22216,7 +22216,7 @@ var Xs,
                                           } else var i = !0;
                                           if (i) {
                                             if (e.purpose !== void 0) {
-                                              let R = r;
+                                              let q = r;
                                               if (e.purpose !== "analysis")
                                                 return (
                                                   (Ee.errors = [
@@ -22229,11 +22229,11 @@ var Xs,
                                                   ]),
                                                   !1
                                                 );
-                                              var i = R === r;
+                                              var i = q === r;
                                             } else var i = !0;
                                             if (i) {
                                               if (e.stableOperationId !== void 0) {
-                                                let q = r;
+                                                let R = r;
                                                 fe(e.stableOperationId, {
                                                   instancePath: a + "/stableOperationId",
                                                   parentData: e,
@@ -22244,7 +22244,7 @@ var Xs,
                                                   ((t =
                                                     t === null ? fe.errors : t.concat(fe.errors)),
                                                   (r = t.length));
-                                                var i = q === r;
+                                                var i = R === r;
                                               } else var i = !0;
                                               if (i) {
                                                 if (e.expectedVersion !== void 0) {
@@ -22319,7 +22319,7 @@ var Xs,
                                                       (r = t.length));
                                                     var g = ce === r;
                                                     ee = ee || g;
-                                                    let le = r;
+                                                    let me = r;
                                                     if (X !== null) {
                                                       let te = {
                                                         instancePath: a + "/expectedConsentDigest",
@@ -22330,7 +22330,7 @@ var Xs,
                                                       };
                                                       (t === null ? (t = [te]) : t.push(te), r++);
                                                     }
-                                                    var g = le === r;
+                                                    var g = me === r;
                                                     if (((ee = ee || g), ee))
                                                       ((r = T),
                                                         t !== null &&
@@ -22489,7 +22489,7 @@ var Xs,
                                                         if (i) {
                                                           if (e.keyEpoch !== void 0) {
                                                             let ce = e.keyEpoch,
-                                                              le = r;
+                                                              me = r;
                                                             if (!(
                                                               typeof ce == "number" &&
                                                               !(ce % 1) &&
@@ -22507,7 +22507,7 @@ var Xs,
                                                                 ]),
                                                                 !1
                                                               );
-                                                            if (r === le && typeof ce == "number") {
+                                                            if (r === me && typeof ce == "number") {
                                                               if (
                                                                 ce > 9007199254740991 ||
                                                                 isNaN(ce)
@@ -22544,11 +22544,11 @@ var Xs,
                                                                   !1
                                                                 );
                                                             }
-                                                            var i = le === r;
+                                                            var i = me === r;
                                                           } else var i = !0;
                                                           if (i) {
                                                             if (e.artifactType !== void 0) {
-                                                              let le = r;
+                                                              let me = r;
                                                               if (
                                                                 e.artifactType !==
                                                                 "persistent_resource_approval"
@@ -22569,7 +22569,7 @@ var Xs,
                                                                   ]),
                                                                   !1
                                                                 );
-                                                              var i = le === r;
+                                                              var i = me === r;
                                                             } else var i = !0;
                                                             if (i) {
                                                               if (e.resources !== void 0) {
@@ -22707,7 +22707,7 @@ var Xs,
           return ((Ee.errors = t), r === 0);
         }
         Ee.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
-        function aa(
+        function ia(
           e,
           {
             instancePath: a = "",
@@ -22719,7 +22719,7 @@ var Xs,
         ) {
           let t = null,
             r = 0,
-            d = aa.evaluated;
+            d = ia.evaluated;
           return (
             d.dynamicProps && (d.props = void 0),
             d.dynamicItems && (d.items = void 0),
@@ -22730,13 +22730,13 @@ var Xs,
               rootData: f,
               dynamicAnchors: v,
             }) || ((t = t === null ? Ee.errors : t.concat(Ee.errors)), (r = t.length)),
-            (aa.errors = t),
+            (ia.errors = t),
             r === 0
           );
         }
-        ((aa.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 }),
-          (s.PersistentResourceRevocationPayload = ia));
-        var Us = {
+        ((ia.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 }),
+          (s.PersistentResourceRevocationPayload = na));
+        var Bs = {
           type: "object",
           properties: {
             contractVersion: { const: "folioview.agent-workspace.v2.0" },
@@ -22797,7 +22797,7 @@ var Xs,
           ],
           additionalProperties: !1,
         };
-        function $r(
+        function Lr(
           e,
           {
             instancePath: a = "",
@@ -22809,7 +22809,7 @@ var Xs,
         ) {
           let t = null,
             r = 0,
-            d = $r.evaluated;
+            d = Lr.evaluated;
           if ((d.dynamicProps && (d.props = void 0), d.dynamicItems && (d.items = void 0), r === 0))
             if (e && typeof e == "object" && !Array.isArray(e)) {
               let g;
@@ -22819,7 +22819,7 @@ var Xs,
                 (e.expectedPermissionEpoch === void 0 && (g = "expectedPermissionEpoch"))
               )
                 return (
-                  ($r.errors = [
+                  (Lr.errors = [
                     {
                       instancePath: a,
                       schemaPath: "#/required",
@@ -22831,22 +22831,22 @@ var Xs,
                 );
               {
                 let u = r;
-                for (let y in e)
-                  if (!(y === "permissionId" || y === "ref" || y === "expectedPermissionEpoch"))
+                for (let h in e)
+                  if (!(h === "permissionId" || h === "ref" || h === "expectedPermissionEpoch"))
                     return (
-                      ($r.errors = [
+                      (Lr.errors = [
                         {
                           instancePath: a,
                           schemaPath: "#/additionalProperties",
                           keyword: "additionalProperties",
-                          params: { additionalProperty: y },
+                          params: { additionalProperty: h },
                         },
                       ]),
                       !1
                     );
                 if (u === r) {
                   if (e.permissionId !== void 0) {
-                    let y = r;
+                    let h = r;
                     A(e.permissionId, {
                       instancePath: a + "/permissionId",
                       parentData: e,
@@ -22854,11 +22854,11 @@ var Xs,
                       rootData: f,
                       dynamicAnchors: v,
                     }) || ((t = t === null ? A.errors : t.concat(A.errors)), (r = t.length));
-                    var i = y === r;
+                    var i = h === r;
                   } else var i = !0;
                   if (i) {
                     if (e.ref !== void 0) {
-                      let l = r;
+                      let m = r;
                       Y(e.ref, {
                         instancePath: a + "/ref",
                         parentData: e,
@@ -22866,15 +22866,15 @@ var Xs,
                         rootData: f,
                         dynamicAnchors: v,
                       }) || ((t = t === null ? Y.errors : t.concat(Y.errors)), (r = t.length));
-                      var i = l === r;
+                      var i = m === r;
                     } else var i = !0;
                     if (i)
                       if (e.expectedPermissionEpoch !== void 0) {
-                        let l = e.expectedPermissionEpoch,
+                        let m = e.expectedPermissionEpoch,
                           P = r;
-                        if (!(typeof l == "number" && !(l % 1) && !isNaN(l)))
+                        if (!(typeof m == "number" && !(m % 1) && !isNaN(m)))
                           return (
-                            ($r.errors = [
+                            (Lr.errors = [
                               {
                                 instancePath: a + "/expectedPermissionEpoch",
                                 schemaPath: "#/properties/expectedPermissionEpoch/type",
@@ -22884,10 +22884,10 @@ var Xs,
                             ]),
                             !1
                           );
-                        if (r === P && typeof l == "number") {
-                          if (l > 9007199254740991 || isNaN(l))
+                        if (r === P && typeof m == "number") {
+                          if (m > 9007199254740991 || isNaN(m))
                             return (
-                              ($r.errors = [
+                              (Lr.errors = [
                                 {
                                   instancePath: a + "/expectedPermissionEpoch",
                                   schemaPath: "#/properties/expectedPermissionEpoch/maximum",
@@ -22897,9 +22897,9 @@ var Xs,
                               ]),
                               !1
                             );
-                          if (l < 1 || isNaN(l))
+                          if (m < 1 || isNaN(m))
                             return (
-                              ($r.errors = [
+                              (Lr.errors = [
                                 {
                                   instancePath: a + "/expectedPermissionEpoch",
                                   schemaPath: "#/properties/expectedPermissionEpoch/minimum",
@@ -22917,7 +22917,7 @@ var Xs,
               }
             } else
               return (
-                ($r.errors = [
+                (Lr.errors = [
                   {
                     instancePath: a,
                     schemaPath: "#/type",
@@ -22927,9 +22927,9 @@ var Xs,
                 ]),
                 !1
               );
-          return (($r.errors = t), r === 0);
+          return ((Lr.errors = t), r === 0);
         }
-        $r.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
+        Lr.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
         function Se(
           e,
           {
@@ -22945,32 +22945,32 @@ var Xs,
             d = Se.evaluated;
           if ((d.dynamicProps && (d.props = void 0), d.dynamicItems && (d.items = void 0), r === 0))
             if (e && typeof e == "object" && !Array.isArray(e)) {
-              let y;
+              let h;
               if (
-                (e.contractVersion === void 0 && (y = "contractVersion")) ||
-                (e.profile === void 0 && (y = "profile")) ||
-                (e.ownerSubject === void 0 && (y = "ownerSubject")) ||
-                (e.vaultId === void 0 && (y = "vaultId")) ||
-                (e.connectionId === void 0 && (y = "connectionId")) ||
-                (e.agentId === void 0 && (y = "agentId")) ||
-                (e.clientId === void 0 && (y = "clientId")) ||
-                (e.rootKeyId === void 0 && (y = "rootKeyId")) ||
-                (e.agentSigningKeyId === void 0 && (y = "agentSigningKeyId")) ||
-                (e.agentEncryptionKeyId === void 0 && (y = "agentEncryptionKeyId")) ||
-                (e.identityEpoch === void 0 && (y = "identityEpoch")) ||
-                (e.bindingFingerprint === void 0 && (y = "bindingFingerprint")) ||
-                (e.consentId === void 0 && (y = "consentId")) ||
-                (e.purpose === void 0 && (y = "purpose")) ||
-                (e.authorKeyId === void 0 && (y = "authorKeyId")) ||
-                (e.stableOperationId === void 0 && (y = "stableOperationId")) ||
-                (e.expectedVersion === void 0 && (y = "expectedVersion")) ||
-                (e.expectedConsentDigest === void 0 && (y = "expectedConsentDigest")) ||
-                (e.issuedAt === void 0 && (y = "issuedAt")) ||
-                (e.registrySequence === void 0 && (y = "registrySequence")) ||
-                (e.checkpointDigest === void 0 && (y = "checkpointDigest")) ||
-                (e.keyEpoch === void 0 && (y = "keyEpoch")) ||
-                (e.artifactType === void 0 && (y = "artifactType")) ||
-                (e.targets === void 0 && (y = "targets"))
+                (e.contractVersion === void 0 && (h = "contractVersion")) ||
+                (e.profile === void 0 && (h = "profile")) ||
+                (e.ownerSubject === void 0 && (h = "ownerSubject")) ||
+                (e.vaultId === void 0 && (h = "vaultId")) ||
+                (e.connectionId === void 0 && (h = "connectionId")) ||
+                (e.agentId === void 0 && (h = "agentId")) ||
+                (e.clientId === void 0 && (h = "clientId")) ||
+                (e.rootKeyId === void 0 && (h = "rootKeyId")) ||
+                (e.agentSigningKeyId === void 0 && (h = "agentSigningKeyId")) ||
+                (e.agentEncryptionKeyId === void 0 && (h = "agentEncryptionKeyId")) ||
+                (e.identityEpoch === void 0 && (h = "identityEpoch")) ||
+                (e.bindingFingerprint === void 0 && (h = "bindingFingerprint")) ||
+                (e.consentId === void 0 && (h = "consentId")) ||
+                (e.purpose === void 0 && (h = "purpose")) ||
+                (e.authorKeyId === void 0 && (h = "authorKeyId")) ||
+                (e.stableOperationId === void 0 && (h = "stableOperationId")) ||
+                (e.expectedVersion === void 0 && (h = "expectedVersion")) ||
+                (e.expectedConsentDigest === void 0 && (h = "expectedConsentDigest")) ||
+                (e.issuedAt === void 0 && (h = "issuedAt")) ||
+                (e.registrySequence === void 0 && (h = "registrySequence")) ||
+                (e.checkpointDigest === void 0 && (h = "checkpointDigest")) ||
+                (e.keyEpoch === void 0 && (h = "keyEpoch")) ||
+                (e.artifactType === void 0 && (h = "artifactType")) ||
+                (e.targets === void 0 && (h = "targets"))
               )
                 return (
                   (Se.errors = [
@@ -22978,15 +22978,15 @@ var Xs,
                       instancePath: a,
                       schemaPath: "#/required",
                       keyword: "required",
-                      params: { missingProperty: y },
+                      params: { missingProperty: h },
                     },
                   ]),
                   !1
                 );
               {
-                let l = r;
+                let m = r;
                 for (let P in e)
-                  if (!G.call(Us.properties, P))
+                  if (!G.call(Bs.properties, P))
                     return (
                       (Se.errors = [
                         {
@@ -22998,7 +22998,7 @@ var Xs,
                       ]),
                       !1
                     );
-                if (l === r) {
+                if (m === r) {
                   if (e.contractVersion !== void 0) {
                     let P = r;
                     if (e.contractVersion !== "folioview.agent-workspace.v2.0")
@@ -23215,7 +23215,7 @@ var Xs,
                                           } else var i = !0;
                                           if (i) {
                                             if (e.purpose !== void 0) {
-                                              let R = r;
+                                              let q = r;
                                               if (e.purpose !== "analysis")
                                                 return (
                                                   (Se.errors = [
@@ -23228,11 +23228,11 @@ var Xs,
                                                   ]),
                                                   !1
                                                 );
-                                              var i = R === r;
+                                              var i = q === r;
                                             } else var i = !0;
                                             if (i) {
                                               if (e.stableOperationId !== void 0) {
-                                                let q = r;
+                                                let R = r;
                                                 fe(e.stableOperationId, {
                                                   instancePath: a + "/stableOperationId",
                                                   parentData: e,
@@ -23243,7 +23243,7 @@ var Xs,
                                                   ((t =
                                                     t === null ? fe.errors : t.concat(fe.errors)),
                                                   (r = t.length));
-                                                var i = q === r;
+                                                var i = R === r;
                                               } else var i = !0;
                                               if (i) {
                                                 if (e.expectedVersion !== void 0) {
@@ -23318,7 +23318,7 @@ var Xs,
                                                       (r = t.length));
                                                     var g = ce === r;
                                                     ee = ee || g;
-                                                    let le = r;
+                                                    let me = r;
                                                     if (X !== null) {
                                                       let te = {
                                                         instancePath: a + "/expectedConsentDigest",
@@ -23329,7 +23329,7 @@ var Xs,
                                                       };
                                                       (t === null ? (t = [te]) : t.push(te), r++);
                                                     }
-                                                    var g = le === r;
+                                                    var g = me === r;
                                                     if (((ee = ee || g), ee))
                                                       ((r = T),
                                                         t !== null &&
@@ -23488,7 +23488,7 @@ var Xs,
                                                         if (i) {
                                                           if (e.keyEpoch !== void 0) {
                                                             let ce = e.keyEpoch,
-                                                              le = r;
+                                                              me = r;
                                                             if (!(
                                                               typeof ce == "number" &&
                                                               !(ce % 1) &&
@@ -23506,7 +23506,7 @@ var Xs,
                                                                 ]),
                                                                 !1
                                                               );
-                                                            if (r === le && typeof ce == "number") {
+                                                            if (r === me && typeof ce == "number") {
                                                               if (
                                                                 ce > 9007199254740991 ||
                                                                 isNaN(ce)
@@ -23543,11 +23543,11 @@ var Xs,
                                                                   !1
                                                                 );
                                                             }
-                                                            var i = le === r;
+                                                            var i = me === r;
                                                           } else var i = !0;
                                                           if (i) {
                                                             if (e.artifactType !== void 0) {
-                                                              let le = r;
+                                                              let me = r;
                                                               if (
                                                                 e.artifactType !==
                                                                 "persistent_resource_revocation"
@@ -23568,7 +23568,7 @@ var Xs,
                                                                   ]),
                                                                   !1
                                                                 );
-                                                              var i = le === r;
+                                                              var i = me === r;
                                                             } else var i = !0;
                                                             if (i) {
                                                               if (e.targets !== void 0) {
@@ -23613,7 +23613,7 @@ var Xs,
                                                                         oe++
                                                                       ) {
                                                                         let Ne = r;
-                                                                        $r(we[oe], {
+                                                                        Lr(we[oe], {
                                                                           instancePath:
                                                                             a + "/targets/" + oe,
                                                                           parentData: we,
@@ -23623,9 +23623,9 @@ var Xs,
                                                                         }) ||
                                                                           ((t =
                                                                             t === null
-                                                                              ? $r.errors
+                                                                              ? Lr.errors
                                                                               : t.concat(
-                                                                                  $r.errors,
+                                                                                  Lr.errors,
                                                                                 )),
                                                                           (r = t.length));
                                                                         var u = Ne === r;
@@ -23706,7 +23706,7 @@ var Xs,
           return ((Se.errors = t), r === 0);
         }
         Se.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
-        function ia(
+        function na(
           e,
           {
             instancePath: a = "",
@@ -23718,7 +23718,7 @@ var Xs,
         ) {
           let t = null,
             r = 0,
-            d = ia.evaluated;
+            d = na.evaluated;
           return (
             d.dynamicProps && (d.props = void 0),
             d.dynamicItems && (d.items = void 0),
@@ -23729,13 +23729,13 @@ var Xs,
               rootData: f,
               dynamicAnchors: v,
             }) || ((t = t === null ? Se.errors : t.concat(Se.errors)), (r = t.length)),
-            (ia.errors = t),
+            (na.errors = t),
             r === 0
           );
         }
-        ((ia.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 }),
-          (s.ConsentSourceState = na));
-        var zs = {
+        ((na.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 }),
+          (s.ConsentSourceState = sa));
+        var Zs = {
           type: "object",
           properties: {
             ownerSubject: { $ref: "#/$defs/Identifier" },
@@ -23752,7 +23752,7 @@ var Xs,
           required: ["ownerSubject", "vaultId", "ref", "sourceEpoch", "currentRevision", "state"],
           additionalProperties: !1,
         };
-        function Lr(
+        function Or(
           e,
           {
             instancePath: a = "",
@@ -23764,31 +23764,31 @@ var Xs,
         ) {
           let t = null,
             r = 0,
-            d = Lr.evaluated;
+            d = Or.evaluated;
           if ((d.dynamicProps && (d.props = void 0), d.dynamicItems && (d.items = void 0), r === 0))
             if (e && typeof e == "object" && !Array.isArray(e)) {
-              let y;
+              let h;
               if (
-                (e.ownerSubject === void 0 && (y = "ownerSubject")) ||
-                (e.vaultId === void 0 && (y = "vaultId")) ||
-                (e.ref === void 0 && (y = "ref")) ||
-                (e.sourceEpoch === void 0 && (y = "sourceEpoch")) ||
-                (e.currentRevision === void 0 && (y = "currentRevision")) ||
-                (e.state === void 0 && (y = "state"))
+                (e.ownerSubject === void 0 && (h = "ownerSubject")) ||
+                (e.vaultId === void 0 && (h = "vaultId")) ||
+                (e.ref === void 0 && (h = "ref")) ||
+                (e.sourceEpoch === void 0 && (h = "sourceEpoch")) ||
+                (e.currentRevision === void 0 && (h = "currentRevision")) ||
+                (e.state === void 0 && (h = "state"))
               )
                 return (
-                  (Lr.errors = [
+                  (Or.errors = [
                     {
                       instancePath: a,
                       schemaPath: "#/required",
                       keyword: "required",
-                      params: { missingProperty: y },
+                      params: { missingProperty: h },
                     },
                   ]),
                   !1
                 );
               {
-                let l = r;
+                let m = r;
                 for (let P in e)
                   if (!(
                     P === "ownerSubject" ||
@@ -23799,7 +23799,7 @@ var Xs,
                     P === "state"
                   ))
                     return (
-                      (Lr.errors = [
+                      (Or.errors = [
                         {
                           instancePath: a,
                           schemaPath: "#/additionalProperties",
@@ -23809,7 +23809,7 @@ var Xs,
                       ]),
                       !1
                     );
-                if (l === r) {
+                if (m === r) {
                   if (e.ownerSubject !== void 0) {
                     let P = r;
                     A(e.ownerSubject, {
@@ -23902,7 +23902,7 @@ var Xs,
                               keyword: "anyOf",
                               params: {},
                             };
-                            return (t === null ? (t = [E]) : t.push(E), r++, (Lr.errors = t), !1);
+                            return (t === null ? (t = [E]) : t.push(E), r++, (Or.errors = t), !1);
                           }
                           var i = k === r;
                         } else var i = !0;
@@ -23963,7 +23963,7 @@ var Xs,
                                 keyword: "anyOf",
                                 params: {},
                               };
-                              return (t === null ? (t = [K]) : t.push(K), r++, (Lr.errors = t), !1);
+                              return (t === null ? (t = [K]) : t.push(K), r++, (Or.errors = t), !1);
                             }
                             var i = V === r;
                           } else var i = !0;
@@ -23979,12 +23979,12 @@ var Xs,
                                 k === "unavailable"
                               ))
                                 return (
-                                  (Lr.errors = [
+                                  (Or.errors = [
                                     {
                                       instancePath: a + "/state",
                                       schemaPath: "#/properties/state/enum",
                                       keyword: "enum",
-                                      params: { allowedValues: zs.properties.state.enum },
+                                      params: { allowedValues: Zs.properties.state.enum },
                                     },
                                   ]),
                                   !1
@@ -23999,7 +23999,7 @@ var Xs,
               }
             } else
               return (
-                (Lr.errors = [
+                (Or.errors = [
                   {
                     instancePath: a,
                     schemaPath: "#/type",
@@ -24009,10 +24009,10 @@ var Xs,
                 ]),
                 !1
               );
-          return ((Lr.errors = t), r === 0);
+          return ((Or.errors = t), r === 0);
         }
-        Lr.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
-        function na(
+        Or.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
+        function sa(
           e,
           {
             instancePath: a = "",
@@ -24024,24 +24024,24 @@ var Xs,
         ) {
           let t = null,
             r = 0,
-            d = na.evaluated;
+            d = sa.evaluated;
           return (
             d.dynamicProps && (d.props = void 0),
             d.dynamicItems && (d.items = void 0),
-            Lr(e, {
+            Or(e, {
               instancePath: a,
               parentData: F,
               parentDataProperty: H,
               rootData: f,
               dynamicAnchors: v,
-            }) || ((t = t === null ? Lr.errors : t.concat(Lr.errors)), (r = t.length)),
-            (na.errors = t),
+            }) || ((t = t === null ? Or.errors : t.concat(Or.errors)), (r = t.length)),
+            (sa.errors = t),
             r === 0
           );
         }
-        ((na.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 }),
-          (s.PersistentAgentRequestPayload = sa));
-        var nn = {
+        ((sa.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 }),
+          (s.PersistentAgentRequestPayload = oa));
+        var on = {
             type: "object",
             properties: {
               contractVersion: { const: "folioview.agent-workspace.v2.0" },
@@ -24097,7 +24097,7 @@ var Xs,
             ],
             additionalProperties: !1,
           },
-          Bs = new RegExp("^/agent/v3/persistent/[A-Za-z0-9/_-]+$", "u");
+          Ms = new RegExp("^/agent/v3/persistent/[A-Za-z0-9/_-]+$", "u");
         function _e(
           e,
           {
@@ -24151,22 +24151,22 @@ var Xs,
                 );
               {
                 let u = r;
-                for (let y in e)
-                  if (!G.call(nn.properties, y))
+                for (let h in e)
+                  if (!G.call(on.properties, h))
                     return (
                       (_e.errors = [
                         {
                           instancePath: a,
                           schemaPath: "#/additionalProperties",
                           keyword: "additionalProperties",
-                          params: { additionalProperty: y },
+                          params: { additionalProperty: h },
                         },
                       ]),
                       !1
                     );
                 if (u === r) {
                   if (e.contractVersion !== void 0) {
-                    let y = r;
+                    let h = r;
                     if (e.contractVersion !== "folioview.agent-workspace.v2.0")
                       return (
                         (_e.errors = [
@@ -24179,11 +24179,11 @@ var Xs,
                         ]),
                         !1
                       );
-                    var i = y === r;
+                    var i = h === r;
                   } else var i = !0;
                   if (i) {
                     if (e.profile !== void 0) {
-                      let l = r;
+                      let m = r;
                       if (e.profile !== "folioview.persistent-content.v1")
                         return (
                           (_e.errors = [
@@ -24196,7 +24196,7 @@ var Xs,
                           ]),
                           !1
                         );
-                      var i = l === r;
+                      var i = m === r;
                     } else var i = !0;
                     if (i) {
                       if (e.artifactType !== void 0) {
@@ -24408,8 +24408,8 @@ var Xs,
                                             if (i) {
                                               if (e.audience !== void 0) {
                                                 let Z = e.audience,
-                                                  R = r;
-                                                if (r === R && r === R)
+                                                  q = r;
+                                                if (r === q && r === q)
                                                   if (typeof Z == "string") {
                                                     if (n(Z) > 2048)
                                                       return (
@@ -24424,7 +24424,7 @@ var Xs,
                                                         ]),
                                                         !1
                                                       );
-                                                    if (!rn.test(Z))
+                                                    if (!an.test(Z))
                                                       return (
                                                         (_e.errors = [
                                                           {
@@ -24449,13 +24449,13 @@ var Xs,
                                                       ]),
                                                       !1
                                                     );
-                                                var i = R === r;
+                                                var i = q === r;
                                               } else var i = !0;
                                               if (i) {
                                                 if (e.method !== void 0) {
-                                                  let R = e.method,
-                                                    q = r;
-                                                  if (!(R === "GET" || R === "POST"))
+                                                  let q = e.method,
+                                                    R = r;
+                                                  if (!(q === "GET" || q === "POST"))
                                                     return (
                                                       (_e.errors = [
                                                         {
@@ -24464,21 +24464,21 @@ var Xs,
                                                           keyword: "enum",
                                                           params: {
                                                             allowedValues:
-                                                              nn.properties.method.enum,
+                                                              on.properties.method.enum,
                                                           },
                                                         },
                                                       ]),
                                                       !1
                                                     );
-                                                  var i = q === r;
+                                                  var i = R === r;
                                                 } else var i = !0;
                                                 if (i) {
                                                   if (e.path !== void 0) {
-                                                    let q = e.path,
+                                                    let R = e.path,
                                                       z = r;
                                                     if (r === z)
-                                                      if (typeof q == "string") {
-                                                        if (n(q) > 768)
+                                                      if (typeof R == "string") {
+                                                        if (n(R) > 768)
                                                           return (
                                                             (_e.errors = [
                                                               {
@@ -24491,7 +24491,7 @@ var Xs,
                                                             ]),
                                                             !1
                                                           );
-                                                        if (!Bs.test(q))
+                                                        if (!Ms.test(R))
                                                           return (
                                                             (_e.errors = [
                                                               {
@@ -24765,7 +24765,7 @@ var Xs,
           return ((_e.errors = t), r === 0);
         }
         _e.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
-        function sa(
+        function oa(
           e,
           {
             instancePath: a = "",
@@ -24777,7 +24777,7 @@ var Xs,
         ) {
           let t = null,
             r = 0,
-            d = sa.evaluated;
+            d = oa.evaluated;
           return (
             d.dynamicProps && (d.props = void 0),
             d.dynamicItems && (d.items = void 0),
@@ -24788,13 +24788,13 @@ var Xs,
               rootData: f,
               dynamicAnchors: v,
             }) || ((t = t === null ? _e.errors : t.concat(_e.errors)), (r = t.length)),
-            (sa.errors = t),
+            (oa.errors = t),
             r === 0
           );
         }
-        ((sa.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 }),
-          (s.PersistentRunManifest = oa));
-        var sn = {
+        ((oa.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 }),
+          (s.PersistentRunManifest = pa));
+        var pn = {
           type: "object",
           properties: {
             contractVersion: { const: "folioview.agent-workspace.v2.0" },
@@ -24900,16 +24900,16 @@ var Xs,
                 );
               {
                 let u = r;
-                for (let y in e)
+                for (let h in e)
                   if (!(
-                    y === "ref" ||
-                    y === "sourceRevision" ||
-                    y === "sourceEpoch" ||
-                    y === "permissionId" ||
-                    y === "permissionEpoch" ||
-                    y === "publicationId" ||
-                    y === "publicationFingerprint" ||
-                    y === "objectId"
+                    h === "ref" ||
+                    h === "sourceRevision" ||
+                    h === "sourceEpoch" ||
+                    h === "permissionId" ||
+                    h === "permissionEpoch" ||
+                    h === "publicationId" ||
+                    h === "publicationFingerprint" ||
+                    h === "objectId"
                   ))
                     return (
                       (ur.errors = [
@@ -24917,14 +24917,14 @@ var Xs,
                           instancePath: a,
                           schemaPath: "#/additionalProperties",
                           keyword: "additionalProperties",
-                          params: { additionalProperty: y },
+                          params: { additionalProperty: h },
                         },
                       ]),
                       !1
                     );
                 if (u === r) {
                   if (e.ref !== void 0) {
-                    let y = r;
+                    let h = r;
                     Y(e.ref, {
                       instancePath: a + "/ref",
                       parentData: e,
@@ -24932,13 +24932,13 @@ var Xs,
                       rootData: f,
                       dynamicAnchors: v,
                     }) || ((t = t === null ? Y.errors : t.concat(Y.errors)), (r = t.length));
-                    var i = y === r;
+                    var i = h === r;
                   } else var i = !0;
                   if (i) {
                     if (e.sourceRevision !== void 0) {
-                      let l = e.sourceRevision,
+                      let m = e.sourceRevision,
                         P = r;
-                      if (!(typeof l == "number" && !(l % 1) && !isNaN(l)))
+                      if (!(typeof m == "number" && !(m % 1) && !isNaN(m)))
                         return (
                           (ur.errors = [
                             {
@@ -24950,8 +24950,8 @@ var Xs,
                           ]),
                           !1
                         );
-                      if (r === P && typeof l == "number") {
-                        if (l > 9007199254740991 || isNaN(l))
+                      if (r === P && typeof m == "number") {
+                        if (m > 9007199254740991 || isNaN(m))
                           return (
                             (ur.errors = [
                               {
@@ -24963,7 +24963,7 @@ var Xs,
                             ]),
                             !1
                           );
-                        if (l < 1 || isNaN(l))
+                        if (m < 1 || isNaN(m))
                           return (
                             (ur.errors = [
                               {
@@ -25200,23 +25200,23 @@ var Xs,
                   !1
                 );
               {
-                let y = r;
-                for (let l in e)
-                  if (!G.call(sn.properties, l))
+                let h = r;
+                for (let m in e)
+                  if (!G.call(pn.properties, m))
                     return (
                       (ke.errors = [
                         {
                           instancePath: a,
                           schemaPath: "#/additionalProperties",
                           keyword: "additionalProperties",
-                          params: { additionalProperty: l },
+                          params: { additionalProperty: m },
                         },
                       ]),
                       !1
                     );
-                if (y === r) {
+                if (h === r) {
                   if (e.contractVersion !== void 0) {
-                    let l = r;
+                    let m = r;
                     if (e.contractVersion !== "folioview.agent-workspace.v2.0")
                       return (
                         (ke.errors = [
@@ -25229,7 +25229,7 @@ var Xs,
                         ]),
                         !1
                       );
-                    var i = l === r;
+                    var i = m === r;
                   } else var i = !0;
                   if (i) {
                     if (e.profile !== void 0) {
@@ -25276,7 +25276,7 @@ var Xs,
                                   instancePath: a + "/resultPolicy",
                                   schemaPath: "#/properties/resultPolicy/enum",
                                   keyword: "enum",
-                                  params: { allowedValues: sn.properties.resultPolicy.enum },
+                                  params: { allowedValues: pn.properties.resultPolicy.enum },
                                 },
                               ]),
                               !1
@@ -25458,7 +25458,7 @@ var Xs,
                                             } else var i = !0;
                                             if (i) {
                                               if (e.taskId !== void 0) {
-                                                let R = r;
+                                                let q = r;
                                                 A(e.taskId, {
                                                   instancePath: a + "/taskId",
                                                   parentData: e,
@@ -25468,16 +25468,16 @@ var Xs,
                                                 }) ||
                                                   ((t = t === null ? A.errors : t.concat(A.errors)),
                                                   (r = t.length));
-                                                var i = R === r;
+                                                var i = q === r;
                                               } else var i = !0;
                                               if (i) {
                                                 if (e.taskVersion !== void 0) {
-                                                  let q = e.taskVersion,
+                                                  let R = e.taskVersion,
                                                     z = r;
                                                   if (!(
-                                                    typeof q == "number" &&
-                                                    !(q % 1) &&
-                                                    !isNaN(q)
+                                                    typeof R == "number" &&
+                                                    !(R % 1) &&
+                                                    !isNaN(R)
                                                   ))
                                                     return (
                                                       (ke.errors = [
@@ -25491,8 +25491,8 @@ var Xs,
                                                       ]),
                                                       !1
                                                     );
-                                                  if (r === z && typeof q == "number") {
-                                                    if (q > 9007199254740991 || isNaN(q))
+                                                  if (r === z && typeof R == "number") {
+                                                    if (R > 9007199254740991 || isNaN(R))
                                                       return (
                                                         (ke.errors = [
                                                           {
@@ -25508,7 +25508,7 @@ var Xs,
                                                         ]),
                                                         !1
                                                       );
-                                                    if (q < 1 || isNaN(q))
+                                                    if (R < 1 || isNaN(R))
                                                       return (
                                                         (ke.errors = [
                                                           {
@@ -25713,7 +25713,7 @@ var Xs,
                                                             } else var i = !0;
                                                             if (i) {
                                                               if (e.taskPublicationId !== void 0) {
-                                                                let le = r;
+                                                                let me = r;
                                                                 fe(e.taskPublicationId, {
                                                                   instancePath:
                                                                     a + "/taskPublicationId",
@@ -25728,7 +25728,7 @@ var Xs,
                                                                       ? fe.errors
                                                                       : t.concat(fe.errors)),
                                                                   (r = t.length));
-                                                                var i = le === r;
+                                                                var i = me === r;
                                                               } else var i = !0;
                                                               if (i) {
                                                                 if (
@@ -25933,19 +25933,19 @@ var Xs,
                                                                               var g = !0;
                                                                               let Ne = ne.length;
                                                                               for (
-                                                                                let xr = 0;
-                                                                                xr < Ne;
-                                                                                xr++
+                                                                                let Er = 0;
+                                                                                Er < Ne;
+                                                                                Er++
                                                                               ) {
-                                                                                let Or = r;
-                                                                                ur(ne[xr], {
+                                                                                let Vr = r;
+                                                                                ur(ne[Er], {
                                                                                   instancePath:
                                                                                     a +
                                                                                     "/inputs/" +
-                                                                                    xr,
+                                                                                    Er,
                                                                                   parentData: ne,
                                                                                   parentDataProperty:
-                                                                                    xr,
+                                                                                    Er,
                                                                                   rootData: f,
                                                                                   dynamicAnchors: v,
                                                                                 }) ||
@@ -25956,7 +25956,7 @@ var Xs,
                                                                                           ur.errors,
                                                                                         )),
                                                                                   (r = t.length));
-                                                                                var g = Or === r;
+                                                                                var g = Vr === r;
                                                                                 if (!g) break;
                                                                               }
                                                                             }
@@ -26020,7 +26020,7 @@ var Xs,
           return ((ke.errors = t), r === 0);
         }
         ke.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
-        function oa(
+        function pa(
           e,
           {
             instancePath: a = "",
@@ -26032,7 +26032,7 @@ var Xs,
         ) {
           let t = null,
             r = 0,
-            d = oa.evaluated;
+            d = pa.evaluated;
           return (
             d.dynamicProps && (d.props = void 0),
             d.dynamicItems && (d.items = void 0),
@@ -26043,74 +26043,74 @@ var Xs,
               rootData: f,
               dynamicAnchors: v,
             }) || ((t = t === null ? ke.errors : t.concat(ke.errors)), (r = t.length)),
-            (oa.errors = t),
+            (pa.errors = t),
             r === 0
           );
         }
-        oa.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
+        pa.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
       })),
-      (yi = {}));
-    hi(yi, {
-      CompactEncrypt: () => Ho,
-      CompactSign: () => Uo,
-      EmbeddedJWK: () => lp,
-      EncryptJWT: () => Xo,
-      FlattenedEncrypt: () => Wo,
-      FlattenedSign: () => ds,
-      GeneralEncrypt: () => ts,
-      GeneralSign: () => Bo,
-      SignJWT: () => Mo,
-      UnsecuredJWT: () => vp,
-      base64url: () => ua,
-      calculateJwkThumbprint: () => Ci,
-      calculateJwkThumbprintUri: () => dp,
-      compactDecrypt: () => No,
-      compactVerify: () => Lo,
-      createLocalJWKSet: () => oi,
-      createRemoteJWKSet: () => up,
-      cryptoRuntime: () => xp,
-      customFetch: () => us,
-      decodeJwt: () => Ip,
-      decodeProtectedHeader: () => kp,
-      errors: () => kn,
-      exportJWK: () => ys,
-      exportPKCS8: () => cp,
-      exportSPKI: () => pp,
-      flattenedDecrypt: () => Ko,
-      flattenedVerify: () => os,
-      generalDecrypt: () => Yn,
-      generalVerify: () => Vo,
-      generateKeyPair: () => Ap,
-      generateSecret: () => Dp,
-      importJWK: () => Ka,
-      importPKCS8: () => wp,
-      importSPKI: () => gp,
-      importX509: () => Pp,
-      jwksCache: () => fs,
-      jwtDecrypt: () => Fo,
-      jwtVerify: () => Jo,
+      (ui = {}));
+    hi(ui, {
+      CompactEncrypt: () => Uo,
+      CompactSign: () => Bo,
+      EmbeddedJWK: () => yp,
+      EncryptJWT: () => Qo,
+      FlattenedEncrypt: () => zo,
+      FlattenedSign: () => ls,
+      GeneralEncrypt: () => is,
+      GeneralSign: () => Mo,
+      SignJWT: () => Xo,
+      UnsecuredJWT: () => Pp,
+      base64url: () => fa,
+      calculateJwkThumbprint: () => Ji,
+      calculateJwkThumbprintUri: () => lp,
+      compactDecrypt: () => jo,
+      compactVerify: () => Vo,
+      createLocalJWKSet: () => pi,
+      createRemoteJWKSet: () => vp,
+      cryptoRuntime: () => Sp,
+      customFetch: () => vs,
+      decodeJwt: () => Ap,
+      decodeProtectedHeader: () => bp,
+      errors: () => bn,
+      exportJWK: () => fs,
+      exportPKCS8: () => mp,
+      exportSPKI: () => dp,
+      flattenedDecrypt: () => $o,
+      flattenedVerify: () => cs,
+      generalDecrypt: () => es,
+      generalVerify: () => Ro,
+      generateKeyPair: () => xp,
+      generateSecret: () => Ep,
+      importJWK: () => ja,
+      importPKCS8: () => Ip,
+      importSPKI: () => wp,
+      importX509: () => kp,
+      jwksCache: () => gs,
+      jwtDecrypt: () => Wo,
+      jwtVerify: () => Ho,
     });
     ((Ot = new TextEncoder()),
-      (ui = new TextDecoder()),
-      (fi = new TextDecoder("utf-8", { fatal: !0 })),
-      (ma = 2 ** 32));
-    po = /[^\x00-\x7f]/;
-    kn = {};
-    hi(kn, {
+      (fi = new TextDecoder()),
+      (vi = new TextDecoder("utf-8", { fatal: !0 })),
+      (ya = 2 ** 32));
+    mo = /[^\x00-\x7f]/;
+    bn = {};
+    hi(bn, {
       JOSEAlgNotAllowed: () => ha,
       JOSEError: () => vr,
-      JOSENotSupported: () => lr,
+      JOSENotSupported: () => mr,
       JWEDecryptionFailed: () => Nt,
       JWEInvalid: () => re,
-      JWKInvalid: () => gi,
-      JWKSInvalid: () => ya,
-      JWKSMultipleMatchingKeys: () => In,
-      JWKSNoMatchingKey: () => Pi,
-      JWKSTimeout: () => bn,
+      JWKInvalid: () => Pi,
+      JWKSInvalid: () => ua,
+      JWKSMultipleMatchingKeys: () => An,
+      JWKSNoMatchingKey: () => wi,
+      JWKSTimeout: () => Dn,
       JWSInvalid: () => Pe,
       JWSSignatureVerificationFailed: () => Kt,
-      JWTClaimValidationFailed: () => Yr,
-      JWTExpired: () => ii,
+      JWTClaimValidationFailed: () => Qr,
+      JWTExpired: () => ni,
       JWTInvalid: () => fr,
     });
     ((vr = class extends Error {
@@ -26122,7 +26122,7 @@ var Xs,
           Error.captureStackTrace?.(this, this.constructor));
       }
     }),
-      (Yr = class extends vr {
+      (Qr = class extends vr {
         static code = "ERR_JWT_CLAIM_VALIDATION_FAILED";
         code = "ERR_JWT_CLAIM_VALIDATION_FAILED";
         claim;
@@ -26135,7 +26135,7 @@ var Xs,
             (this.payload = n));
         }
       }),
-      (ii = class extends vr {
+      (ni = class extends vr {
         static code = "ERR_JWT_EXPIRED";
         code = "ERR_JWT_EXPIRED";
         claim;
@@ -26152,7 +26152,7 @@ var Xs,
         static code = "ERR_JOSE_ALG_NOT_ALLOWED";
         code = "ERR_JOSE_ALG_NOT_ALLOWED";
       }),
-      (lr = class extends vr {
+      (mr = class extends vr {
         static code = "ERR_JOSE_NOT_SUPPORTED";
         code = "ERR_JOSE_NOT_SUPPORTED";
       }),
@@ -26175,22 +26175,22 @@ var Xs,
         static code = "ERR_JWT_INVALID";
         code = "ERR_JWT_INVALID";
       }),
-      (gi = class extends vr {
+      (Pi = class extends vr {
         static code = "ERR_JWK_INVALID";
         code = "ERR_JWK_INVALID";
       }),
-      (ya = class extends vr {
+      (ua = class extends vr {
         static code = "ERR_JWKS_INVALID";
         code = "ERR_JWKS_INVALID";
       }),
-      (Pi = class extends vr {
+      (wi = class extends vr {
         static code = "ERR_JWKS_NO_MATCHING_KEY";
         code = "ERR_JWKS_NO_MATCHING_KEY";
         constructor(s = "no applicable key found in the JSON Web Key Set", n) {
           super(s, n);
         }
       }),
-      (In = class extends vr {
+      (An = class extends vr {
         [Symbol.asyncIterator] = async function* () {};
         static code = "ERR_JWKS_MULTIPLE_MATCHING_KEYS";
         code = "ERR_JWKS_MULTIPLE_MATCHING_KEYS";
@@ -26198,7 +26198,7 @@ var Xs,
           super(s, n);
         }
       }),
-      (bn = class extends vr {
+      (Dn = class extends vr {
         static code = "ERR_JWKS_TIMEOUT";
         code = "ERR_JWKS_TIMEOUT";
         constructor(s = "request timed out", n) {
@@ -26212,12 +26212,12 @@ var Xs,
           super(s, n);
         }
       }),
-      (ua = {}));
-    hi(ua, { decode: () => It, encode: () => tr });
-    co = "The input to be decoded is not correctly encoded.";
-    ((wi = { __proto__: null, b64: !0 }), (xn = { __proto__: null }));
-    ((lo = (s) => s[Symbol.toStringTag]),
-      (mo = (s, n, o) => {
+      (fa = {}));
+    hi(fa, { decode: () => It, encode: () => tr });
+    lo = "The input to be decoded is not correctly encoded.";
+    ((ki = { __proto__: null, b64: !0 }), (Sn = { __proto__: null }));
+    ((yo = (s) => s[Symbol.toStringTag]),
+      (ho = (s, n, o) => {
         let { alg: p } = s;
         if (n.use !== void 0) {
           let c = o === "sign" || o === "verify" ? "sig" : "enc";
@@ -26238,7 +26238,7 @@ var Xs,
             );
         }
       }));
-    ho = { __proto__: null, prime256v1: "P-256", secp384r1: "P-384", secp521r1: "P-521" };
+    uo = { __proto__: null, prime256v1: "P-256", secp384r1: "P-384", secp521r1: "P-521" };
     ((pt = (s) => {
       if (s?.[Symbol.toStringTag] === "CryptoKey") return !0;
       try {
@@ -26247,48 +26247,48 @@ var Xs,
         return !1;
       }
     }),
-      (bi = (s) => s?.[Symbol.toStringTag] === "KeyObject"),
-      (Sn = (s) => pt(s) || bi(s)));
-    st = (s, ...n) => _n("Key must be ", s, ...n);
-    pa = (s, n = "algorithm.name") =>
+      (Ai = (s) => s?.[Symbol.toStringTag] === "KeyObject"),
+      (Nn = (s) => pt(s) || Ai(s)));
+    st = (s, ...n) => Kn("Key must be ", s, ...n);
+    ca = (s, n = "algorithm.name") =>
       new TypeError(`CryptoKey does not support this operation, its ${n} must be ${s}`);
-    va = (s) => crypto.getRandomValues(new Uint8Array(s.cekBits >> 3));
-    yo = (s) => crypto.getRandomValues(new Uint8Array(s.ivBits >> 3));
-    ((go = [
+    ga = (s) => crypto.getRandomValues(new Uint8Array(s.cekBits >> 3));
+    fo = (s) => crypto.getRandomValues(new Uint8Array(s.ivBits >> 3));
+    ((wo = [
       ["encrypt", "wrapKey"],
       ["decrypt", "unwrapKey"],
     ]),
-      (Po = [[], ["deriveBits"]]),
-      (xa = [[], []]));
-    ((Tt = Ei({
+      (ko = [[], ["deriveBits"]]),
+      (Ea = [[], []]));
+    ((Tt = Si({
       dir: {
         kty: ["oct"],
         mode: "direct-encryption",
         secret: !0,
         subtle: { name: "AES-GCM" },
-        usages: xa,
+        usages: Ea,
         ops: ["encrypt", "decrypt"],
       },
-      "RSA-OAEP": ca(1),
-      "RSA-OAEP-256": ca(256),
-      "RSA-OAEP-384": ca(384),
-      "RSA-OAEP-512": ca(512),
-      "ECDH-ES": da("direct-key-agreement"),
-      "ECDH-ES+A128KW": da("key-agreement-with-key-wrapping"),
-      "ECDH-ES+A192KW": da("key-agreement-with-key-wrapping"),
-      "ECDH-ES+A256KW": da("key-agreement-with-key-wrapping"),
-      A128KW: yt(128),
-      A192KW: yt(192),
-      A256KW: yt(256),
-      A128GCMKW: yt(128, !0),
-      A192GCMKW: yt(192, !0),
-      A256GCMKW: yt(256, !0),
-      "PBES2-HS256+A128KW": Ua(),
-      "PBES2-HS384+A192KW": Ua(),
-      "PBES2-HS512+A256KW": Ua(),
+      "RSA-OAEP": da(1),
+      "RSA-OAEP-256": da(256),
+      "RSA-OAEP-384": da(384),
+      "RSA-OAEP-512": da(512),
+      "ECDH-ES": ma("direct-key-agreement"),
+      "ECDH-ES+A128KW": ma("key-agreement-with-key-wrapping"),
+      "ECDH-ES+A192KW": ma("key-agreement-with-key-wrapping"),
+      "ECDH-ES+A256KW": ma("key-agreement-with-key-wrapping"),
+      A128KW: ht(128),
+      A192KW: ht(192),
+      A256KW: ht(256),
+      A128GCMKW: ht(128, !0),
+      A192GCMKW: ht(192, !0),
+      A256GCMKW: ht(256, !0),
+      "PBES2-HS256+A128KW": za(),
+      "PBES2-HS384+A192KW": za(),
+      "PBES2-HS512+A256KW": za(),
     })),
-      (wo = ["encrypt", "decrypt"]));
-    ko = Ei({
+      (Io = ["encrypt", "decrypt"]));
+    bo = Si({
       A128GCM: ut(128),
       A192GCM: ut(192),
       A256GCM: ut(256),
@@ -26296,7 +26296,7 @@ var Xs,
       "A192CBC-HS384": ut(384, !0),
       "A256CBC-HS512": ut(512, !0),
     });
-    ((jo = class {
+    ((Lo = class {
       #e;
       state;
       constructor(s, n, o) {
@@ -26318,17 +26318,17 @@ var Xs,
         return this.#e;
       }
     }),
-      (ts = class {
+      (is = class {
         #e;
         #t = [];
         #s;
         #n;
-        #h;
+        #y;
         constructor(s) {
           this.#e = s;
         }
         addRecipient(s, n) {
-          let o = new jo(this, s, n?.crit);
+          let o = new Lo(this, s, n?.crit);
           return (this.#t.push(o), o);
         }
         setProtectedHeader(s) {
@@ -26338,20 +26338,20 @@ var Xs,
           return (ze(this.#n, "setSharedUnprotectedHeader"), (this.#n = s), this);
         }
         setAdditionalAuthenticatedData(s) {
-          return ((this.#h = s), this);
+          return ((this.#y = s), this);
         }
         async encrypt() {
           if (!this.#t.length) throw new re("at least one recipient must be added");
-          Cr(this.#e, "plaintext");
+          Jr(this.#e, "plaintext");
           let s = this.#t.length > 1,
             n,
             o = this.#s,
             p = this.#n,
             c = [];
           for (let C of this.#t) {
-            let [G, de, ue, me] = C.state,
-              Y = [this.#e, o, G, p, this.#h, void 0, void 0, de, me, s],
-              se = Qn(Y, void 0, c.length > 0);
+            let [G, de, ue, le] = C.state,
+              Y = [this.#e, o, G, p, this.#y, void 0, void 0, de, le, s],
+              se = rs(Y, void 0, c.length > 0);
             (c.length || ((o = Y[1]), (p = Y[3])), c.push([Y, se, ue]));
             let [{ alg: be, enc: Q }, , ar] = se;
             if (s && ar && !nt(ar)) throw new re(`"${be}" alg may only have a single recipient`);
@@ -26362,100 +26362,100 @@ var Xs,
               );
           }
           for (let [, C] of c) C[2] ??= dt(C[0].alg);
-          let [m, h, I] = c[0],
-            N = s ? va(h[1]) : void 0;
-          m[5] = N;
-          let { encrypted_key: O, header: _, ...B } = await es(m, h, I),
+          let [l, y, I] = c[0],
+            N = s ? ga(y[1]) : void 0;
+          l[5] = N;
+          let { encrypted_key: O, header: _, ...B } = await ts(l, y, I),
             J = { ...B, recipients: [{}] };
           (O && (J.recipients[0].encrypted_key = O), _ && (J.recipients[0].header = _));
           for (let C = 1; C < c.length; C++) {
-            let [G, [de, ue, me], Y] = c[C],
+            let [G, [de, ue, le], Y] = c[C],
               se = G[2],
-              [, be, Q] = await Hn(me, ue, Y, de, N, G[7]),
+              [, be, Q] = await Un(le, ue, Y, de, N, G[7]),
               ar = { encrypted_key: tr(be) };
             if (se || Q) {
               let We = { ...se, ...Q };
-              (Q && _i(G[1], We, G[3]), (ar.header = We));
+              (Q && Ni(G[1], We, G[3]), (ar.header = We));
             }
             J.recipients.push(ar);
           }
           return J;
         }
       }),
-      (qt = [["verify"], ["sign"]]));
-    Ki = Ei({
-      HS256: Ba(256),
-      HS384: Ba(384),
-      HS512: Ba(512),
+      (Rt = [["verify"], ["sign"]]));
+    ji = Si({
+      HS256: Za(256),
+      HS384: Za(384),
+      HS512: Za(512),
       RS256: ft(256),
       RS384: ft(384),
       RS512: ft(512),
       PS256: ft(256, 32),
       PS384: ft(384, 48),
       PS512: ft(512, 64),
-      ES256: Za("P-256", 256),
-      ES384: Za("P-384", 384),
-      ES512: Za("P-521", 512),
-      EdDSA: ln(),
-      Ed25519: ln(),
-      "ML-DSA-44": Ma(44),
-      "ML-DSA-65": Ma(65),
-      "ML-DSA-87": Ma(87),
+      ES256: Ma("P-256", 256),
+      ES384: Ma("P-384", 384),
+      ES512: Ma("P-521", 512),
+      EdDSA: yn(),
+      Ed25519: yn(),
+      "ML-DSA-44": Ga(44),
+      "ML-DSA-65": Ga(65),
+      "ML-DSA-87": Ga(87),
     });
     ((jt = (s) => Math.floor(s.getTime() / 1e3)),
-      (To = { s: 1, m: 60, h: 3600, d: 86400, w: 604800, y: 31557600 }),
-      (qo =
+      (qo = { s: 1, m: 60, h: 3600, d: 86400, w: 604800, y: 31557600 }),
+      (Co =
         /^(\+|\-)? ?(\d+|\d+\.\d+) ?(seconds?|secs?|s|minutes?|mins?|m|hours?|hrs?|h|days?|d|weeks?|w|years?|yrs?|y)(?: (ago|from now))?$/i),
       (vt = "check_failed"));
-    ((mn = (s) => {
+    ((hn = (s) => {
       let n = s.toLowerCase();
       return s.includes("/") ? n : `application/${n}`;
     }),
-      (Co = (s, n) =>
+      (Fo = (s, n) =>
         typeof s == "string"
           ? n.includes(s)
           : Array.isArray(s)
             ? n.some((o) => s.includes(o))
             : !1));
-    Vi = class {
+    Ti = class {
       constructor(s = {}) {
         if (!Be(s)) throw new TypeError("JWT Claims Set MUST be an object");
-        (ps ||= new WeakMap()).set(this, structuredClone(s));
+        (ds ||= new WeakMap()).set(this, structuredClone(s));
       }
       setIssuer(s) {
-        return (Xa("iss", s), (Br(this).iss = s), this);
+        return (Ya("iss", s), (Zr(this).iss = s), this);
       }
       setSubject(s) {
-        return (Xa("sub", s), (Br(this).sub = s), this);
+        return (Ya("sub", s), (Zr(this).sub = s), this);
       }
       setAudience(s) {
-        return (Ro(s), (Br(this).aud = s), this);
+        return (Jo(s), (Zr(this).aud = s), this);
       }
       setJti(s) {
-        return (Xa("jti", s), (Br(this).jti = s), this);
+        return (Ya("jti", s), (Zr(this).jti = s), this);
       }
       setNotBefore(s) {
-        return ((Br(this).nbf = Ya(s, "setNotBefore")), this);
+        return ((Zr(this).nbf = Qa(s, "setNotBefore")), this);
       }
       setExpirationTime(s) {
-        return ((Br(this).exp = Ya(s, "setExpirationTime")), this);
+        return ((Zr(this).exp = Qa(s, "setExpirationTime")), this);
       }
       setIssuedAt(s) {
-        let n = Br(this);
+        let n = Zr(this);
         return (
           s === void 0
             ? (n.iat = jt(new Date()))
             : typeof s == "string"
-              ? (n.iat = gt("setIssuedAt", jt(new Date()) + Pa(s)))
-              : (n.iat = Ya(s, "setIssuedAt")),
+              ? (n.iat = gt("setIssuedAt", jt(new Date()) + wa(s)))
+              : (n.iat = Qa(s, "setIssuedAt")),
           this
         );
       }
     };
-    ((Ho = class {
+    ((Uo = class {
       #e;
       constructor(s) {
-        (Cr(s, "plaintext"), (this.#e = [s]));
+        (Jr(s, "plaintext"), (this.#e = [s]));
       }
       setContentEncryptionKey(s) {
         return (ze(this.#e[5], "setContentEncryptionKey"), (this.#e[5] = s), this);
@@ -26470,13 +26470,13 @@ var Xs,
         return (ze(this.#e[7], "setKeyManagementParameters"), (this.#e[7] = s), this);
       }
       async encrypt(s, n) {
-        return rs(await Ni([...this.#e], s, n));
+        return as(await Ki([...this.#e], s, n));
       }
     }),
-      (Wo = class {
+      (zo = class {
         #e;
         constructor(s) {
-          (Cr(s, "plaintext"), (this.#e = [s]));
+          (Jr(s, "plaintext"), (this.#e = [s]));
         }
         setKeyManagementParameters(s) {
           return (ze(this.#e[7], "setKeyManagementParameters"), (this.#e[7] = s), this);
@@ -26500,28 +26500,28 @@ var Xs,
           return (ze(this.#e[6], "setInitializationVector"), (this.#e[6] = s), this);
         }
         async encrypt(s, n) {
-          return Ni([...this.#e], s, n);
+          return Ki([...this.#e], s, n);
         }
       }));
-    ((Uo = class {
+    ((Bo = class {
       #e;
       #t;
       constructor(s) {
-        (Cr(s, "payload"), (this.#e = s));
+        (Jr(s, "payload"), (this.#e = s));
       }
       setProtectedHeader(s) {
         return (ze(this.#t, "setProtectedHeader"), (this.#t = s), this);
       }
       async sign(s, n) {
-        return cs(this.#e, this.#t, n?.crit, s, () => {
+        return ms(this.#e, this.#t, n?.crit, s, () => {
           throw new TypeError("use the flattened module for creating JWS with b64: false");
         });
       }
     }),
-      (ds = class {
+      (ls = class {
         #e;
         constructor(s) {
-          (Cr(s, "payload"), (this.#e = [s]));
+          (Jr(s, "payload"), (this.#e = [s]));
         }
         setProtectedHeader(s) {
           return (ze(this.#e[1], "setProtectedHeader"), (this.#e[1] = s), this);
@@ -26532,11 +26532,11 @@ var Xs,
         async sign(s, n) {
           let o = [...this.#e];
           o[3] = n?.crit;
-          let [p] = await Ti(o, s);
+          let [p] = await Ri(o, s);
           return p;
         }
       }),
-      (zo = class {
+      (Zo = class {
         #e;
         state;
         constructor(s, n, o) {
@@ -26558,25 +26558,25 @@ var Xs,
           return this.#e;
         }
       }),
-      (Bo = class {
+      (Mo = class {
         #e;
         #t = [];
         constructor(s) {
           this.#e = s;
         }
         addSignature(s, n) {
-          let o = new zo(this, s, n);
+          let o = new Zo(this, s, n);
           return (this.#t.push(o), o);
         }
         async sign() {
           if (!this.#t.length) throw new Pe("at least one signature must be added");
-          Cr(this.#e, "payload");
+          Jr(this.#e, "payload");
           let s = { signatures: [], payload: "" },
             n = [],
             o;
           for (let p of this.#t) {
-            let [c, m, h, I] = p.state,
-              [{ payload: N, ...O }, _] = await Ti([this.#e, c, m, I, n], h);
+            let [c, l, y, I] = p.state,
+              [{ payload: N, ...O }, _] = await Ri([this.#e, c, l, I, n], y);
             if (o === void 0) ((o = _), (s.payload = N));
             else if (o !== _) throw new Pe("inconsistent use of JWS Unencoded Payload (RFC7797)");
             s.signatures.push(O);
@@ -26584,20 +26584,20 @@ var Xs,
           return s;
         }
       }),
-      (Zo = Vi),
-      (Mo = class extends Zo {
+      (Go = Ti),
+      (Xo = class extends Go {
         #e;
         setProtectedHeader(s) {
           return (ze(this.#e, "setProtectedHeader"), (this.#e = s), this);
         }
         async sign(s, n) {
-          return cs(Oi(this), this.#e, n?.crit, s, () => {
+          return ms(Vi(this), this.#e, n?.crit, s, () => {
             throw new fr("JWTs MUST NOT use unencoded payload");
           });
         }
       }),
-      (Go = Vi),
-      (Xo = class extends Go {
+      (Yo = Ti),
+      (Qo = class extends Yo {
         #e = [void 0];
         #t;
         #s;
@@ -26624,169 +26624,169 @@ var Xs,
           return ((this.#n = !0), this);
         }
         async encrypt(s, n) {
-          let o = Oi(this);
+          let o = Vi(this);
           this.#e[1] &&
             (this.#t || this.#s || this.#n) &&
             (this.#e[1] = {
               ...this.#e[1],
-              iss: this.#t ? ri(this, "iss") : void 0,
-              sub: this.#s ? ri(this, "sub") : void 0,
-              aud: this.#n ? ri(this, "aud") : void 0,
+              iss: this.#t ? ti(this, "iss") : void 0,
+              sub: this.#s ? ti(this, "sub") : void 0,
+              aud: this.#n ? ti(this, "aud") : void 0,
             });
           let p = [...this.#e];
-          return ((p[0] = o), rs(await Ni(p, s, n)));
+          return ((p[0] = o), as(await Ki(p, s, n)));
         }
       }),
       ($t = '"alg" (Algorithm)'));
-    ((Yo = (s, n) => {
+    ((ep = (s, n) => {
       let o = (s.match(/.{1,64}/g) || []).join(`
 `);
       return `-----BEGIN ${n}-----
 ${o}
 -----END ${n}-----`;
     }),
-      (ls = async (s, n, o) => {
-        if (bi(o)) {
+      (ys = async (s, n, o) => {
+        if (Ai(o)) {
           if (o.type !== s) throw new TypeError(`key is not a ${s} key`);
           return o.export({ format: "pem", type: n });
         }
         if (!pt(o)) throw new TypeError(st(o, "CryptoKey", "KeyObject"));
         if (!o.extractable) throw new TypeError("CryptoKey is not extractable");
         if (o.type !== s) throw new TypeError(`key is not a ${s} key`);
-        return Yo(
-          gn(new Uint8Array(await crypto.subtle.exportKey(n, o))),
+        return ep(
+          wn(new Uint8Array(await crypto.subtle.exportKey(n, o))),
           `${s.toUpperCase()} KEY`,
         );
       }),
-      (Qo = (s) => ls("public", "spki", s)),
-      (ep = (s) => ls("private", "pkcs8", s)),
+      (rp = (s) => ys("public", "spki", s)),
+      (tp = (s) => ys("private", "pkcs8", s)),
       (xt = (s, n) => {
         if (s.byteLength !== n.length) return !1;
         for (let o = 0; o < s.byteLength; o++) if (s[o] !== n[o]) return !1;
         return !0;
       }),
-      (ms = (s) => ({ data: s, pos: 0 })),
-      (si = (s) => {
+      (hs = (s) => ({ data: s, pos: 0 })),
+      (oi = (s) => {
         let n = s.data[s.pos++];
         if (n === void 0) throw new Error("Unexpected end of ASN.1 input");
         return n;
       }),
-      (Zr = (s) => {
-        let n = si(s);
+      (Mr = (s) => {
+        let n = oi(s);
         if (n & 128) {
           let o = n & 127,
             p = 0;
-          for (let c = 0; c < o; c++) p = (p << 8) | si(s);
+          for (let c = 0; c < o; c++) p = (p << 8) | oi(s);
           return p;
         }
         return n;
       }),
-      (hn = (s, n = 1) => {
+      (un = (s, n = 1) => {
         for (; n-- > 0;) {
           s.pos++;
-          let o = Zr(s);
+          let o = Mr(s);
           s.pos += o;
         }
       }),
-      (Qr = (s, n, o) => {
-        if (si(s) !== n) throw new Error(o);
+      (et = (s, n, o) => {
+        if (oi(s) !== n) throw new Error(o);
       }),
-      (hs = (s, n) => {
+      (us = (s, n) => {
         if (n < 0 || s.pos + n > s.data.length) throw new Error("Unexpected end of ASN.1 input");
         let o = s.data.subarray(s.pos, s.pos + n);
         return ((s.pos += n), o);
       }),
-      (rp = (s) => {
-        Qr(s, 6, "Expected algorithm OID");
-        let n = Zr(s);
-        return hs(s, n);
+      (ap = (s) => {
+        et(s, 6, "Expected algorithm OID");
+        let n = Mr(s);
+        return us(s, n);
       }));
-    ((ap = (s) => {
-      let n = rp(s);
+    ((np = (s) => {
+      let n = ap(s);
       if (xt(n, [43, 101, 110])) return "X25519";
       if (!xt(n, [42, 134, 72, 206, 61, 2, 1])) throw new Error("Unsupported key algorithm");
-      Qr(s, 6, "Expected curve OID");
-      let o = Zr(s),
-        p = hs(s, o);
+      et(s, 6, "Expected curve OID");
+      let o = Mr(s),
+        p = us(s, o);
       if (xt(p, [42, 134, 72, 206, 61, 3, 1, 7])) return "P-256";
       if (xt(p, [43, 129, 4, 0, 34])) return "P-384";
       if (xt(p, [43, 129, 4, 0, 35])) return "P-521";
       throw new Error("Unsupported named curve");
     }),
       (qi = async (s, n, o, p) => {
-        let c = Da(p?.extractable),
-          m = wa(o, $t);
-        m.secret && Na($t);
-        let h = s === "spki",
+        let c = xa(p?.extractable),
+          l = ka(o, $t);
+        l.secret && Ka($t);
+        let y = s === "spki",
           I;
-        if (m.resolve)
+        if (l.resolve)
           try {
-            let N = ms(n);
-            (tp(N, s), (I = m.resolve({ crv: ap(N) })));
+            let N = hs(n);
+            (ip(N, s), (I = l.resolve({ crv: np(N) })));
           } catch (N) {
-            throw new lr("Invalid or unsupported key format", { cause: N });
+            throw new mr("Invalid or unsupported key format", { cause: N });
           }
-        else I = m.subtle;
-        return crypto.subtle.importKey(s, n, I, c ?? h, m.usages[h ? 0 : 1]);
+        else I = l.subtle;
+        return crypto.subtle.importKey(s, n, I, c ?? y, l.usages[y ? 0 : 1]);
       }),
-      (Ri = (s, n) => Pn(s.replace(n, ""))),
-      (ip = (s, n, o) => {
-        let p = Ri(s, /(?:-----(?:BEGIN|END) PRIVATE KEY-----|\s)/g);
+      (Ci = (s, n) => kn(s.replace(n, ""))),
+      (sp = (s, n, o) => {
+        let p = Ci(s, /(?:-----(?:BEGIN|END) PRIVATE KEY-----|\s)/g);
         return qi("pkcs8", p, n, o);
       }),
-      (np = (s, n, o) => {
-        let p = Ri(s, /(?:-----(?:BEGIN|END) PUBLIC KEY-----|\s)/g);
+      (op = (s, n, o) => {
+        let p = Ci(s, /(?:-----(?:BEGIN|END) PUBLIC KEY-----|\s)/g);
         return qi("spki", p, n, o);
       }));
-    op = (s, n, o) => {
+    cp = (s, n, o) => {
       let p;
       try {
-        let c = Ri(s, /(?:-----(?:BEGIN|END) CERTIFICATE-----|\s)/g);
-        p = sp(c);
+        let c = Ci(s, /(?:-----(?:BEGIN|END) CERTIFICATE-----|\s)/g);
+        p = pp(c);
       } catch (c) {
         throw new TypeError("Failed to parse the X.509 certificate", { cause: c });
       }
       return qi("spki", p, n, o);
     };
-    zr = (s, n) => {
-      if (typeof s != "string" || !s) throw new gi(`${n} missing or invalid`);
+    Br = (s, n) => {
+      if (typeof s != "string" || !s) throw new Pi(`${n} missing or invalid`);
     };
     (typeof navigator > "u" || !navigator.userAgent?.startsWith?.("Mozilla/5.0 ")) &&
-      (pi = "jose/v6.2.13");
-    us = Symbol();
-    fs = Symbol();
-    ((fp = Vi),
-      (vp = class extends fp {
+      (ci = "jose/v6.2.13");
+    vs = Symbol();
+    gs = Symbol();
+    ((gp = Ti),
+      (Pp = class extends gp {
         encode() {
           let s = tr(JSON.stringify({ alg: "none" })),
-            n = tr(Oi(this));
+            n = tr(Vi(this));
           return `${s}.${n}.`;
         }
         static decode(s, n) {
           if (typeof s != "string") throw new fr("Unsecured JWT must be a string");
-          let { 0: o, 1: p, 2: c, length: m } = s.split(".");
-          if (m !== 3 || c !== "") throw new fr("Invalid Unsecured JWT");
-          let h, I;
+          let { 0: o, 1: p, 2: c, length: l } = s.split(".");
+          if (l !== 3 || c !== "") throw new fr("Invalid Unsecured JWT");
+          let y, I;
           try {
-            h = Aa(o, Pe, "JWS Protected Header is invalid");
-            let N = Vt(Pe, wi, void 0, h, h);
-            I = ki(h, N);
+            y = Da(o, Pe, "JWS Protected Header is invalid");
+            let N = Vt(Pe, ki, void 0, y, y);
+            I = Ii(y, N);
           } catch (N) {
             throw N instanceof Pe ? new fr("Invalid Unsecured JWT", { cause: N }) : N;
           }
-          if (h.alg !== "none") throw new fr("Invalid Unsecured JWT");
+          if (y.alg !== "none") throw new fr("Invalid Unsecured JWT");
           if (!I) throw new fr("JWTs MUST NOT use unencoded payload");
-          return { payload: Li(h, Vr(p, "payload", fr), n), header: h };
+          return { payload: Oi(y, Tr(p, "payload", fr), n), header: y };
         }
       }));
-    xp = "WebCryptoAPI";
-    ((Ep = ao(oo(), 1)),
-      (vs = new TextEncoder()),
-      (Sp = new TextDecoder("utf-8", { fatal: !0 })),
-      (gs = 524288),
+    Sp = "WebCryptoAPI";
+    ((_p = no(co(), 1)),
+      (Ps = new TextEncoder()),
+      (Np = new TextDecoder("utf-8", { fatal: !0 })),
+      (ws = 524288),
       (Pr = "folioview.agent-workspace.v2.0"),
-      (Mr = "folioview.persistent-content.v1"),
-      (Fr = [
+      (Gr = "folioview.persistent-content.v1"),
+      (Hr = [
         "ownerSubject",
         "vaultId",
         "rootKeyId",
@@ -26798,19 +26798,19 @@ ${o}
         "agentEncryptionKeyId",
         "bindingFingerprint",
       ]),
-      (Rt = {
+      (qt = {
         alg: "ECDH-ES+A256KW",
         enc: "A256GCM",
         typ: "fv-persistent-private+jwe",
         cty: "application/json",
       }),
-      (et = class extends Error {
+      (Ir = class extends Error {
         constructor(s = "operation_rejected") {
           (super(s), (this.code = s));
         }
       }));
-    ((Kp = ["root_sig", "device_sig", "device_enc", "agent_sig", "agent_enc", "recovery_enc"]),
-      (Hi = class {
+    (($p = ["root_sig", "device_sig", "device_enc", "agent_sig", "agent_enc", "recovery_enc"]),
+      (Wi = class {
         constructor(s) {
           ((this.anchor = structuredClone(s)),
             (this.sequence = 0),
@@ -26824,11 +26824,11 @@ ${o}
             x("recipient_binding_mismatch");
         }
         async load(s, n) {
-          ((await Nr(this.anchor.rootJwk)) !== this.anchor.rootKeyId && x("root_pin_mismatch"),
-            Fi(s, 32, 1));
+          ((await Kr(this.anchor.rootJwk)) !== this.anchor.rootKeyId && x("root_pin_mismatch"),
+            Hi(s, 32, 1));
           for (let o of s) {
-            (Ie("RegistryBundle", o), Re(o).length > 131072 && x("payload_too_large"));
-            let p = await Jr(o.checkpoint, this.anchor.rootJwk, "fv-control+jws");
+            (Ie("RegistryBundle", o), qe(o).length > 131072 && x("payload_too_large"));
+            let p = await Fr(o.checkpoint, this.anchor.rootJwk, "fv-control+jws");
             (Ie("RegistryCheckpointPayload", p),
               this.checkIdentity(p),
               (p.rootKeyId !== this.anchor.rootKeyId ||
@@ -26850,19 +26850,19 @@ ${o}
                   p.issuedAt < this.current.issuedAt ||
                   [...this.current.revoked].some((O) => !p.revokedKeyIds.includes(O))) &&
                 x("registry_rollback"));
-            let m = new Map(),
-              h = [],
+            let l = new Map(),
+              y = [],
               I = [],
               N = new Set();
             for (let O of o.entries) {
-              let _ = await Jr(O.certificate, this.anchor.rootJwk, "fv-control+jws");
+              let _ = await Fr(O.certificate, this.anchor.rootJwk, "fv-control+jws");
               (Ie("KeyCertificatePayload", _),
                 this.checkIdentity(_),
                 (_.issuerKeyId !== this.anchor.rootKeyId ||
-                  _.keyId !== (await Nr(_.publicJwk)) ||
-                  m.has(_.keyId) ||
+                  _.keyId !== (await Kr(_.publicJwk)) ||
+                  l.has(_.keyId) ||
                   _.expiresAt <= _.notBefore ||
-                  !Kp.includes(_.role) ||
+                  !$p.includes(_.role) ||
                   _.role.startsWith("agent_") !== (_.connectionId !== null) ||
                   O.active === p.revokedKeyIds.includes(_.keyId) ||
                   (_.role === "root_sig") != (_.keyId === this.anchor.rootKeyId)) &&
@@ -26885,15 +26885,15 @@ ${o}
                   this.current &&
                   _.keyEpoch <= (this.localEpochs.get(J) ?? 0) &&
                   x("key_epoch_conflict"),
-                m.set(_.keyId, { ..._, active: O.active }),
-                h.push(_.certificateId),
+                l.set(_.keyId, { ..._, active: O.active }),
+                y.push(_.certificateId),
                 I.push({
                   certificateId: _.certificateId,
                   payloadDigest: await Ae(_),
                   active: O.active,
                 }));
             }
-            (dr(h),
+            (dr(y),
               (await Ae(
                 I.sort((O, _) =>
                   O.certificateId < _.certificateId
@@ -26906,14 +26906,14 @@ ${o}
               p.registrySequence === this.anchor.registrySequence &&
                 c !== this.anchor.checkpointDigest &&
                 x("checkpoint_pin_mismatch"));
-            for (let O of m.values()) {
+            for (let O of l.values()) {
               let _ = [O.principalId, O.role, O.connectionId].join("/");
               this.localEpochs.set(_, Math.max(O.keyEpoch, this.localEpochs.get(_) ?? 0));
             }
             ((this.sequence = p.registrySequence),
               this.history.set(p.registrySequence, c),
               (this.current = {
-                keys: m,
+                keys: l,
                 revoked: new Set(p.revokedKeyIds),
                 digest: c,
                 keyEpoch: p.keyEpoch,
@@ -26932,19 +26932,19 @@ ${o}
           );
         }
         cert(s, n, o, p, c = this.sequence) {
-          let m = this.snapshots.get(c),
-            h = m?.keys.get(s);
+          let l = this.snapshots.get(c),
+            y = l?.keys.get(s);
           return (
-            (!h ||
-              !h.active ||
-              m.revoked.has(s) ||
-              h.role !== n ||
-              h.connectionId !== o ||
-              !(h.notBefore <= p && p < h.expiresAt) ||
-              h.keyEpoch !==
-                m.localEpochs.get([h.principalId, h.role, h.connectionId].join("/"))) &&
+            (!y ||
+              !y.active ||
+              l.revoked.has(s) ||
+              y.role !== n ||
+              y.connectionId !== o ||
+              !(y.notBefore <= p && p < y.expiresAt) ||
+              y.keyEpoch !==
+                l.localEpochs.get([y.principalId, y.role, y.connectionId].join("/"))) &&
               x("key_authorization_required"),
-            h
+            y
           );
         }
         agent(s, n, o = this.sequence) {
@@ -26977,97 +26977,111 @@ ${o}
           Ie("PersistentAgentIdentity", n);
           let c = kr(rr(s.payload), !0);
           Ie("PersistentAgentBindingPayload", c);
-          let m = this.snapshots.get(c.registrySequence);
-          (!m || m.digest !== c.checkpointDigest || m.keyEpoch !== c.keyEpoch) &&
+          let l = this.snapshots.get(c.registrySequence);
+          (!l || l.digest !== c.checkpointDigest || l.keyEpoch !== c.keyEpoch) &&
             x("registry_conflict");
-          let h = this.cert(
+          let y = this.cert(
             c.deviceSigningKeyId,
             "device_sig",
             null,
             c.issuedAt,
             c.registrySequence,
           );
-          (h.capabilities.includes("control_write") || x("key_authorization_required"),
-            await Jr(s, h.publicJwk, "fv-control+jws"));
+          (y.capabilities.includes("control_write") || x("key_authorization_required"),
+            await Fr(s, y.publicJwk, "fv-control+jws"));
           for (let I of ["ownerSubject", "vaultId", "connectionId", "clientId"])
             (c[I] !== o[I] || n[I] !== o[I]) && x("recipient_binding_mismatch");
-          for (let I of Fr.filter((N) => N !== "bindingFingerprint"))
+          for (let I of Hr.filter((N) => N !== "bindingFingerprint"))
             c[I] !== n[I] && x("recipient_binding_mismatch");
           return (
-            (n.bindingFingerprint !== (await Ur(s)) ||
+            (n.bindingFingerprint !== (await zr(s)) ||
               n.registeredAt !== c.issuedAt ||
-              c.issuedAt < m.issuedAt ||
-              c.issuedAt < h.notBefore) &&
+              c.issuedAt < l.issuedAt ||
+              c.issuedAt < y.notBefore) &&
               x("recipient_binding_mismatch"),
             this.agent(n, p),
             n
           );
         }
       }),
-      (ws = "folioview.persistent-resource-consent.v1"),
-      (fn = (s, n) => {
-        for (let o of Fr) ve(s[o], n[o]) || x("recipient_binding_mismatch");
+      (Is = "folioview.persistent-resource-consent.v1"),
+      (gn = (s, n) => {
+        for (let o of Hr) ve(s[o], n[o]) || x("recipient_binding_mismatch");
       }));
     li = ["taskId", "taskVersion", "executionEpoch", "authorityId", "authorityVersion"];
   });
-var bs = {};
-Gs(bs, {
-  BINDING: () => Fr,
+var Ds = {};
+Ys(Ds, {
+  BINDING: () => Hr,
   CONTRACT: () => Pr,
-  JWE_HEADER: () => Rt,
-  PROFILE: () => Mr,
-  RuntimeDenied: () => et,
-  array: () => Fi,
+  JWE_HEADER: () => qt,
+  PROFILE: () => Gr,
+  RuntimeDenied: () => Ir,
+  array: () => Hi,
   bytes: () => rr,
-  canonical: () => Re,
+  canonical: () => qe,
   context: () => Ft,
   deny: () => x,
   digest: () => Ae,
-  digestString: () => Ps,
+  digestString: () => ks,
   exact: () => Me,
-  fingerprint: () => Ur,
-  identifier: () => Ir,
+  fingerprint: () => zr,
+  identifier: () => br,
   inspect: () => rt,
-  integer: () => Gr,
-  jose: () => yi,
-  keyId: () => Nr,
-  object: () => ja,
+  integer: () => Xr,
+  jose: () => ui,
+  keyId: () => Kr,
+  object: () => $a,
   open: () => Ht,
   parsed: () => kr,
-  privatePayload: () => $a,
+  privatePayload: () => La,
   publicKey: () => bt,
   reference: () => Lt,
   resultContent: () => Jt,
   safeUrl: () => Ct,
   same: () => ve,
-  seal: () => La,
-  sign: () => lt,
+  seal: () => Oa,
+  sign: () => mt,
   unique: () => dr,
   utc: () => Pt,
   validate: () => Ie,
-  verify: () => Jr,
+  verify: () => Fr,
 });
-var mt = on(() => {
+var lt = cn(() => {
   Wt();
 });
-mt();
+lt();
 Wt();
 Wt();
 Wt();
-mt();
-var jp = "folioview.persistent-runtime.v1",
-  zi = "profiles";
-function $p(s) {
+lt();
+var Lp = ["profile_record_missing", "profile_validation_failed", "identity_key_mismatch"];
+function Bi(s) {
+  if (!s || !Lp.includes(s.stage) || !/^profile:[a-f0-9]{64}$/.test(s.namespace)) return null;
+  let n = { stage: s.stage, namespace: s.namespace };
+  if (s.stage === "identity_key_mismatch")
+    for (let o of ["signingKeyMatches", "encryptionKeyMatches", "identityActive"]) {
+      if (typeof s[o] != "boolean") return null;
+      n[o] = s[o];
+    }
+  return n;
+}
+function Ut(s, n) {
+  return ((s.diagnostic = Bi(n)), s);
+}
+var Op = "folioview.persistent-runtime.v1",
+  Zi = "profiles";
+function Vp(s) {
   return new Promise((n, o) => {
     ((s.onsuccess = () => n(s.result)),
       (s.onerror = () => o(Error("runtime_storage_unavailable"))));
   });
 }
-async function Lp(s) {
-  let n = s.open(jp, 1);
-  return ((n.onupgradeneeded = () => n.result.createObjectStore(zi)), $p(n));
+async function Tp(s) {
+  let n = s.open(Op, 1);
+  return ((n.onupgradeneeded = () => n.result.createObjectStore(Zi)), Vp(n));
 }
-function Op(s) {
+function Rp(s) {
   return new Promise((n, o) => {
     ((s.oncomplete = n), (s.onabort = s.onerror = () => o(Error("runtime_storage_unavailable"))));
   });
@@ -27077,24 +27091,24 @@ var qa = class {
     (n || x("runtime_storage_unavailable"), (this.factory = n));
   }
   async transact(n, o) {
-    let p = await Lp(this.factory);
+    let p = await Tp(this.factory);
     try {
-      let c = p.transaction(zi, "readwrite"),
-        m = Op(c),
-        h = c.objectStore(zi),
+      let c = p.transaction(Zi, "readwrite"),
+        l = Rp(c),
+        y = c.objectStore(Zi),
         I,
         N,
-        O = h.get(n);
+        O = y.get(n);
       O.onsuccess = () => {
         try {
           let _ = o(O.result ?? null);
-          ((I = _.result), _.write !== void 0 && h.put(_.write, n));
+          ((I = _.result), _.write !== void 0 && y.put(_.write, n));
         } catch (_) {
           ((N = _), c.abort());
         }
       };
       try {
-        await m;
+        await l;
       } catch (_) {
         throw N ?? _;
       }
@@ -27111,23 +27125,23 @@ var qa = class {
   }
   async profile(n, { create: o = !1 } = {}) {
     let p = await this.profileKey(n),
-      c = await this.transact(p, (m) => ({ result: m }));
+      c = await this.transact(p, (l) => ({ result: l }));
     if (!c && o) {
-      let m = await crypto.subtle.generateKey({ name: "ECDSA", namedCurve: "P-256" }, !1, [
+      let l = await crypto.subtle.generateKey({ name: "ECDSA", namedCurve: "P-256" }, !1, [
           "sign",
           "verify",
         ]),
-        h = await crypto.subtle.generateKey({ name: "ECDH", namedCurve: "P-256" }, !1, [
+        y = await crypto.subtle.generateKey({ name: "ECDH", namedCurve: "P-256" }, !1, [
           "deriveBits",
         ]),
         I = (B) => Object.fromEntries(["kty", "crv", "x", "y"].map((J) => [J, B[J]])),
-        N = I(await crypto.subtle.exportKey("jwk", m.publicKey)),
-        O = I(await crypto.subtle.exportKey("jwk", h.publicKey)),
+        N = I(await crypto.subtle.exportKey("jwk", l.publicKey)),
+        O = I(await crypto.subtle.exportKey("jwk", y.publicKey)),
         _ = {
           version: 1,
           actor: structuredClone(n),
-          signingPrivateKey: m.privateKey,
-          encryptionPrivateKey: h.privateKey,
+          signingPrivateKey: l.privateKey,
+          encryptionPrivateKey: y.privateKey,
           signingPublicJwk: N,
           encryptionPublicJwk: O,
           pins: null,
@@ -27135,7 +27149,17 @@ var qa = class {
         };
       c = await this.transact(p, (B) => (B ? { result: B } : { write: _, result: _ }));
     }
-    return (c || x("lost_private_keys"), await this.verifyProfile(c, n), c);
+    if (!c)
+      throw Ut(new Ir("lost_private_keys"), { stage: "profile_record_missing", namespace: p });
+    try {
+      await this.verifyProfile(c, n);
+    } catch (l) {
+      throw Ut(l instanceof Ir ? l : new Ir("invalid_runtime_profile"), {
+        stage: "profile_validation_failed",
+        namespace: p,
+      });
+    }
+    return c;
   }
   async verifyProfile(n, o) {
     (!ve(n.actor, o) || n.version !== 1) && x("invalid_runtime_profile");
@@ -27165,10 +27189,10 @@ var qa = class {
       c,
       p,
     )) || x("invalid_runtime_profile");
-    let m = await crypto.subtle.generateKey({ name: "ECDH", namedCurve: "P-256" }, !1, [
+    let l = await crypto.subtle.generateKey({ name: "ECDH", namedCurve: "P-256" }, !1, [
         "deriveBits",
       ]),
-      h = await crypto.subtle.importKey(
+      y = await crypto.subtle.importKey(
         "jwk",
         n.encryptionPublicJwk,
         { name: "ECDH", namedCurve: "P-256" },
@@ -27177,51 +27201,51 @@ var qa = class {
       ),
       I = new Uint8Array(
         await crypto.subtle.deriveBits(
-          { name: "ECDH", public: m.publicKey },
+          { name: "ECDH", public: l.publicKey },
           n.encryptionPrivateKey,
           256,
         ),
       ),
       N = new Uint8Array(
-        await crypto.subtle.deriveBits({ name: "ECDH", public: h }, m.privateKey, 256),
+        await crypto.subtle.deriveBits({ name: "ECDH", public: y }, l.privateKey, 256),
       );
     return (ve([...I], [...N]) || x("invalid_runtime_profile"), n);
   }
   async bind(n, o, p) {
     let c = await this.profile(n);
-    (o.agentSigningKeyId !== (await Nr(c.signingPublicJwk)) ||
-      o.agentEncryptionKeyId !== (await Nr(c.encryptionPublicJwk))) &&
+    (o.agentSigningKeyId !== (await Kr(c.signingPublicJwk)) ||
+      o.agentEncryptionKeyId !== (await Kr(c.encryptionPublicJwk))) &&
       x("recipient_binding_mismatch");
-    let m = await this.profileKey(n);
-    return this.transact(m, (h) => {
-      (h || x("lost_private_keys"),
-        h.identity && !ve(h.identity, o) && x("identity_conflict"),
-        h.pins &&
-          (p.rootKeyId !== h.pins.rootKeyId ||
-            p.registrySequence < h.pins.registrySequence ||
-            (p.registrySequence === h.pins.registrySequence &&
-              p.checkpointDigest !== h.pins.checkpointDigest)) &&
+    let l = await this.profileKey(n);
+    return this.transact(l, (y) => {
+      (y || x("lost_private_keys"),
+        y.identity && !ve(y.identity, o) && x("identity_conflict"),
+        y.pins &&
+          (p.rootKeyId !== y.pins.rootKeyId ||
+            p.registrySequence < y.pins.registrySequence ||
+            (p.registrySequence === y.pins.registrySequence &&
+              p.checkpointDigest !== y.pins.checkpointDigest)) &&
           x("registry_rollback"));
-      let I = { ...h, identity: structuredClone(o), pins: structuredClone(p) };
+      let I = { ...y, identity: structuredClone(o), pins: structuredClone(p) };
       return { write: I, result: I };
     });
   }
   async originalCiphertext(n, o, p) {
-    let { inspect: c } = await Promise.resolve().then(() => (mt(), bs));
+    let { inspect: c } = await Promise.resolve().then(() => (lt(), Ds));
     c(p);
-    let m = "outbox:" + (await Ae([n, o]));
-    return this.transact(m, (h) =>
-      h ? { result: h } : { write: structuredClone(p), result: structuredClone(p) },
+    let l = "outbox:" + (await Ae([n, o]));
+    return this.transact(l, (y) =>
+      y ? { result: y } : { write: structuredClone(p), result: structuredClone(p) },
     );
   }
   async outbox(n, o) {
     return this.transact("outbox:" + (await Ae([n, o])), (p) => ({ result: p }));
   }
 };
-mt();
-var Vp = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
-async function As(s, n, o, p) {
-  if ((Gr(p, 0), o === null)) return null;
+lt();
+var qp = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
+async function xs(s, n, o, p) {
+  if ((Xr(p, 0), o === null)) return null;
   (!o ||
     !["daily", "weekdays", "weekly"].includes(o.cadence) ||
     !/^([01][0-9]|2[0-3]):[0-5][0-9]$/.test(o.localTime) ||
@@ -27247,9 +27271,9 @@ async function As(s, n, o, p) {
   } catch {
     x("invalid_schedule");
   }
-  let m = Math.floor(p / 60);
-  for (let h = 0; h <= o.graceMinutes; h++) {
-    let I = m - h,
+  let l = Math.floor(p / 60);
+  for (let y = 0; y <= o.graceMinutes; y++) {
+    let I = l - y,
       N = Object.fromEntries(
         c
           .formatToParts(new Date(I * 6e4))
@@ -27257,7 +27281,7 @@ async function As(s, n, o, p) {
           .map((C) => [C.type, C.value]),
       );
     if (N.hour + ":" + N.minute !== o.localTime) continue;
-    let O = Vp[N.weekday];
+    let O = qp[N.weekday];
     if (
       (o.cadence === "weekdays" && (O === 0 || O === 6)) ||
       (o.cadence === "weekly" && O !== o.weekday)
@@ -27279,8 +27303,8 @@ async function As(s, n, o, p) {
   }
   return null;
 }
-mt();
-function Bi(s, n, o) {
+lt();
+function Mi(s, n, o) {
   (!s.allowPartial && n.coverage.state !== "complete" && x("input_policy_partial"),
     !s.allowUnknownAsOf && n.sourceAsOf === null && x("input_policy_asof"));
   let p = o - Date.parse(n.fetchedAt) / 1e3;
@@ -27288,21 +27312,21 @@ function Bi(s, n, o) {
     (n.freshness === "stale" || (n.freshness === "unknown" && !s.allowUnknownAsOf)) &&
       x("input_policy_freshness"));
 }
-var Tp = "folioview.runtime-pairing.v1",
-  Ds = "folioview.persistent-native-plan.v1",
-  xs = "folioview.runtime-plan-pending.v1",
-  Zi = ["enabled", "paused", "removed", "unconfirmed"],
-  Ra = class {
+var Cp = "folioview.runtime-pairing.v1",
+  Es = "folioview.persistent-native-plan.v1",
+  Ss = "folioview.runtime-plan-pending.v1",
+  Gi = ["enabled", "paused", "removed", "unconfirmed"],
+  Ca = class {
     #e;
     #t;
     #s;
     #n;
-    #h;
+    #y;
     #i;
     #r;
     #a;
-    #y;
-    #l;
+    #h;
+    #m;
     #c;
     #d;
     #v = new Map();
@@ -27313,8 +27337,8 @@ var Tp = "folioview.runtime-pairing.v1",
       storage: p = new qa(),
       monotonic: c = () => performance.now(),
     } = {}) {
-      let m = new URL(n);
-      ((m.protocol !== "https:" || m.origin !== n) && x("invalid_runtime_origin"),
+      let l = new URL(n);
+      ((l.protocol !== "https:" || l.origin !== n) && x("invalid_runtime_origin"),
         (this.#s = n),
         (this.#e = o),
         (this.#t = p),
@@ -27323,7 +27347,7 @@ var Tp = "folioview.runtime-pairing.v1",
     now() {
       return Math.floor(this.#n.seconds + (this.#n.monotonic() - this.#n.started) / 1e3);
     }
-    async #m(n, o = null, p = 4194304) {
+    async #l(n, o = null, p = 4194304) {
       (!n.startsWith("/") ||
         n.includes("//") ||
         n.includes("?") ||
@@ -27338,7 +27362,7 @@ var Tp = "folioview.runtime-pairing.v1",
             "X-FolioView-Contract": Pr,
             ...(o === null ? {} : { "Content-Type": "application/json" }),
           },
-          body: o === null ? void 0 : new TextDecoder().decode(Re(o)),
+          body: o === null ? void 0 : new TextDecoder().decode(qe(o)),
           credentials: "omit",
           redirect: "error",
           cache: "no-store",
@@ -27355,22 +27379,22 @@ var Tp = "folioview.runtime-pairing.v1",
         x("runtime_service_unavailable")),
         /^application\/json(?:;|$)/i.test(c.headers.get("content-type") ?? "") ||
           x("invalid_response"));
-      let m = c.body?.getReader();
-      m || x("invalid_response");
-      let h = 0,
+      let l = c.body?.getReader();
+      l || x("invalid_response");
+      let y = 0,
         I = [];
       for (;;) {
-        let { done: _, value: B } = await m.read();
+        let { done: _, value: B } = await l.read();
         if (_) break;
-        ((h += B.length), h > p && (await m.cancel(), x("payload_too_large")), I.push(B));
+        ((y += B.length), y > p && (await l.cancel(), x("payload_too_large")), I.push(B));
       }
-      let N = new Uint8Array(h),
+      let N = new Uint8Array(y),
         O = 0;
       for (let _ of I) (N.set(_, O), (O += _.length));
       return kr(N);
     }
     async #P() {
-      let n = await this.#m("/agent/v3/runtime/config", null, 16384);
+      let n = await this.#l("/agent/v3/runtime/config", null, 16384);
       return (
         (n.contractVersion !== Pr ||
           n.runtimeVersion !== "1.0.0" ||
@@ -27378,7 +27402,7 @@ var Tp = "folioview.runtime-pairing.v1",
           !Number.isSafeInteger(n.serverNow) ||
           n.serverNow < 0) &&
           x("invalid_runtime_configuration"),
-        (this.#h = n),
+        (this.#y = n),
         (this.#n.seconds = n.serverNow),
         (this.#n.started = this.#n.monotonic()),
         n
@@ -27404,10 +27428,10 @@ var Tp = "folioview.runtime-pairing.v1",
         "plans/report",
       ].includes(n) || x("invalid_operation");
       let c = this.#w() + "/" + n,
-        m = async () =>
-          this.#m(c, {
+        l = async () =>
+          this.#l(c, {
             contractVersion: Pr,
-            proof: await Ui({
+            proof: await zi({
               identity: this.#a,
               audience: this.#s,
               path: c,
@@ -27418,10 +27442,10 @@ var Tp = "folioview.runtime-pairing.v1",
             request: o,
           });
       try {
-        return await m();
-      } catch (h) {
-        if (h.code !== "runtime_authorization_required") throw h;
-        return (await this.#P(), m());
+        return await l();
+      } catch (y) {
+        if (y.code !== "runtime_authorization_required") throw y;
+        return (await this.#P(), l());
       }
     }
     async #p(n, o) {
@@ -27431,7 +27455,7 @@ var Tp = "folioview.runtime-pairing.v1",
     #k(n) {
       return (
         Me(n, ["ownerSubject", "vaultId", "connectionId", "clientId"]),
-        Object.values(n).forEach(Ir),
+        Object.values(n).forEach(br),
         { issuer: this.#s, ...n }
       );
     }
@@ -27441,15 +27465,15 @@ var Tp = "folioview.runtime-pairing.v1",
         await this.#P(),
         Me(n, n.intentId ? ["intentId", "rootKeyId"] : ["actor", "identity", "rootKeyId"]),
         (typeof n.rootKeyId != "string" || rr(n.rootKeyId).length !== 32) && x("invalid_root_pin"),
-        (this.#y = n.rootKeyId),
+        (this.#h = n.rootKeyId),
         n.intentId)
       ) {
-        Ir(n.intentId);
-        let o = await this.#m("/agent/v3/runtime/setups/" + n.intentId, null, 24576),
+        br(n.intentId);
+        let o = await this.#l("/agent/v3/runtime/setups/" + n.intentId, null, 24576),
           p = o.setup;
         if (
           ((p.intentId !== n.intentId || p.expiresAt <= this.now()) && x("setup_expired"),
-          (this.#l = p),
+          (this.#m = p),
           (this.#r = this.#k(
             Object.fromEntries(
               ["ownerSubject", "vaultId", "connectionId", "clientId"].map((I) => [I, p[I]]),
@@ -27460,13 +27484,13 @@ var Tp = "folioview.runtime-pairing.v1",
         )
           return (await this.#f(o.paired.identity), await this.synchronize(), this.status());
         let c = "offer:" + p.intentId,
-          m = await this.#p(c, (I) => ({ result: I }));
-        if (!m) {
-          let I = await Nr(this.#i.signingPublicJwk),
-            N = await lt(
+          l = await this.#p(c, (I) => ({ result: I }));
+        if (!l) {
+          let I = await Kr(this.#i.signingPublicJwk),
+            N = await mt(
               {
                 contractVersion: Pr,
-                profile: Tp,
+                profile: Cp,
                 artifactType: "runtime_key_offer",
                 ...Object.fromEntries(
                   [
@@ -27489,21 +27513,21 @@ var Tp = "folioview.runtime-pairing.v1",
               I,
               "fv-control+jws",
             ),
-            O = { proof: N, fingerprint: await Ur(N) };
-          m = await this.#p(c, (_) => (_ ? { result: _ } : { write: O, result: O }));
+            O = { proof: N, fingerprint: await zr(N) };
+          l = await this.#p(c, (_) => (_ ? { result: _ } : { write: O, result: O }));
         }
         return (
           (
-            await this.#m(
+            await this.#l(
               "/agent/v3/runtime/setups/" + p.intentId + "/offers",
-              { contractVersion: Pr, proof: m.proof },
+              { contractVersion: Pr, proof: l.proof },
               24576,
             )
-          ).offerFingerprint !== m.fingerprint && x("offer_conflict"),
+          ).offerFingerprint !== l.fingerprint && x("offer_conflict"),
           {
             state: "awaiting_owner_approval",
             setupIntentId: p.intentId,
-            offerFingerprint: m.fingerprint,
+            offerFingerprint: l.fingerprint,
           }
         );
       }
@@ -27516,36 +27540,43 @@ var Tp = "folioview.runtime-pairing.v1",
       );
     }
     async #f(n) {
-      (Ie("PersistentAgentIdentity", n), n.rootKeyId !== this.#y && x("root_pin_mismatch"));
-      for (let o of ["ownerSubject", "vaultId", "connectionId", "clientId"])
-        n[o] !== this.#r[o] && x("recipient_binding_mismatch");
-      ((n.agentSigningKeyId !== (await Nr(this.#i.signingPublicJwk)) ||
-        n.agentEncryptionKeyId !== (await Nr(this.#i.encryptionPublicJwk)) ||
-        n.status !== "active") &&
-        x("lost_private_keys"),
-        (this.#a = structuredClone(n)));
+      (Ie("PersistentAgentIdentity", n), n.rootKeyId !== this.#h && x("root_pin_mismatch"));
+      for (let l of ["ownerSubject", "vaultId", "connectionId", "clientId"])
+        n[l] !== this.#r[l] && x("recipient_binding_mismatch");
+      let o = n.agentSigningKeyId === (await Kr(this.#i.signingPublicJwk)),
+        p = n.agentEncryptionKeyId === (await Kr(this.#i.encryptionPublicJwk)),
+        c = n.status === "active";
+      if (!o || !p || !c)
+        throw Ut(new Ir("lost_private_keys"), {
+          stage: "identity_key_mismatch",
+          namespace: await this.#t.profileKey(this.#r),
+          signingKeyMatches: o,
+          encryptionKeyMatches: p,
+          identityActive: c,
+        });
+      this.#a = structuredClone(n);
     }
     async pairing() {
-      this.#l || x("invalid_operation");
-      let n = await this.#m("/agent/v3/runtime/setups/" + this.#l.intentId, null, 24576);
+      this.#m || x("invalid_operation");
+      let n = await this.#l("/agent/v3/runtime/setups/" + this.#m.intentId, null, 24576);
       return n.paired
         ? (await this.#f(n.paired.identity), await this.synchronize(), this.status())
         : {
             state: "awaiting_owner_approval",
-            setupIntentId: this.#l.intentId,
+            setupIntentId: this.#m.intentId,
             offerFingerprint: n.offerFingerprint,
           };
     }
     async synchronize() {
       let n = await this.#o("session", {});
-      (!ve(n.identity, this.#a) || (await Nr(n.rootJwk)) !== this.#y) &&
+      (!ve(n.identity, this.#a) || (await Kr(n.rootJwk)) !== this.#h) &&
         x("recipient_binding_mismatch");
       let o = this.#i.pins ?? {
-          rootKeyId: this.#y,
+          rootKeyId: this.#h,
           registrySequence: n.registryHistory.length,
           checkpointDigest: await Ae(kr(rr(n.registryHistory.at(-1).checkpoint.payload), !0)),
         },
-        p = await new Hi({
+        p = await new Wi({
           ...o,
           rootJwk: n.rootJwk,
           ownerSubject: this.#r.ownerSubject,
@@ -27556,10 +27587,10 @@ var Tp = "folioview.runtime-pairing.v1",
       let c = [];
       for (let I of n.consentOperations)
         c.push(await this.#o("consent-receipts", { operationId: I }));
-      let m = await this.#p("consent-pin", (I) => ({ result: I })),
-        h = await Wi({ consent: n.consent, receipts: c, identity: this.#a, registry: p, pin: m });
-      if (h) {
-        let I = { version: h.version, digest: await Ae(h) };
+      let l = await this.#p("consent-pin", (I) => ({ result: I })),
+        y = await Ui({ consent: n.consent, receipts: c, identity: this.#a, registry: p, pin: l });
+      if (y) {
+        let I = { version: y.version, digest: await Ae(y) };
         await this.#p(
           "consent-pin",
           (N) => (
@@ -27573,28 +27604,28 @@ var Tp = "folioview.runtime-pairing.v1",
       return (
         (this.#i = await this.#t.bind(this.#r, this.#a, p.pin())),
         (this.#c = p),
-        (this.#d = h),
+        (this.#d = y),
         this.status()
       );
     }
     status() {
       return {
-        state: this.#c ? "connected" : this.#l ? "awaiting_owner_approval" : "not_connected",
+        state: this.#c ? "connected" : this.#m ? "awaiting_owner_approval" : "not_connected",
         connectionId: this.#a?.connectionId ?? null,
         registrySequence: this.#c?.sequence ?? null,
         consentVersion: this.#d?.version ?? null,
       };
     }
     async #u(n) {
-      Ir(n);
+      br(n);
       let o = await this.#o("task-input", { taskId: n }),
         p = o.authority?.context;
       ((!p ||
         p.taskId !== n ||
-        o.authority.fingerprint !== (await Ur(o.envelope.proof)) ||
+        o.authority.fingerprint !== (await zr(o.envelope.proof)) ||
         o.authority.publicationId !== p.stableOperationId) &&
         x("invalid_task_authority"),
-        await Va(o.envelope, {
+        await Ta(o.envelope, {
           registry: this.#c,
           identity: this.#a,
           expected: p,
@@ -27610,18 +27641,18 @@ var Tp = "folioview.runtime-pairing.v1",
           { write: c, result: c }
         ),
       );
-      let m = await Ht(o.envelope, this.#i.encryptionPrivateKey, p);
+      let l = await Ht(o.envelope, this.#i.encryptionPrivateKey, p);
       for (let I of p.resourceBindings)
         this.#d?.permissions.some(
           (N) => N.status === "active" && ve(N.ref, I.ref) && N.sourceEpoch === I.sourceEpoch,
         ) || x("insufficient_scope");
-      let h = {
-        task: m,
+      let y = {
+        task: l,
         context: p,
         fingerprint: o.authority.fingerprint,
         publicationId: o.authority.publicationId,
       };
-      return (this.#v.set(n, h), h);
+      return (this.#v.set(n, y), y);
     }
     #I(n, o) {
       (Me(n, [
@@ -27642,13 +27673,13 @@ var Tp = "folioview.runtime-pairing.v1",
         "nativeScheduleAttested",
       ]),
         (n.contractVersion !== Pr ||
-          n.profile !== Ds ||
+          n.profile !== Es ||
           n.taskId !== o ||
           n.connectionId !== this.#r.connectionId ||
           n.provider !== "muse" ||
           n.authority !== "agent_statement" ||
           n.nativeScheduleAttested !== !1 ||
-          !Zi.includes(n.reportedStatus) ||
+          !Gi.includes(n.reportedStatus) ||
           !Number.isSafeInteger(n.version) ||
           n.version < 1 ||
           !Number.isSafeInteger(n.reportedAt) ||
@@ -27682,7 +27713,7 @@ var Tp = "folioview.runtime-pairing.v1",
           "nativeScheduleAttested",
         ]),
         (n.contractVersion !== Pr ||
-          n.profile !== Ds ||
+          n.profile !== Es ||
           n.taskId !== o ||
           n.connectionId !== this.#r.connectionId ||
           n.nativeScheduleAttested !== !1 ||
@@ -27715,7 +27746,7 @@ var Tp = "folioview.runtime-pairing.v1",
           "receivedAt",
           "nativeScheduleAttested",
         ]),
-          Ir(p.runId),
+          br(p.runId),
           Ie("OperationIdentifier", p.triggerId),
           Ie("Digest", p.taskPublicationFingerprint),
           (p.nativeScheduleAttested !== !1 ||
@@ -27727,12 +27758,12 @@ var Tp = "folioview.runtime-pairing.v1",
                 !Number.isSafeInteger(p.receivedAt) ||
                 p.receivedAt < p.runCreatedAt)) &&
             x("invalid_plan_observation"),
-          p.resultId !== null && Ir(p.resultId));
+          p.resultId !== null && br(p.resultId));
       }
       return n;
     }
     async planStatus({ taskId: n }) {
-      (Ir(n), await this.synchronize());
+      (br(n), await this.synchronize());
       let o = this.#E(await this.#o("plans/state", { taskId: n }), n);
       if (o.reported !== null) {
         let p = o.reportedEvidence;
@@ -27741,15 +27772,15 @@ var Tp = "folioview.runtime-pairing.v1",
         let c = this.#c.snapshots.get(p.registrySequence);
         (!c || c.digest !== p.checkpointDigest || !ve(p.identity, this.#a)) &&
           x("registry_conflict");
-        let m = kr(rr(p.proof.payload), !0),
-          h = this.#c.cert(
+        let l = kr(rr(p.proof.payload), !0),
+          y = this.#c.cert(
             this.#a.agentSigningKeyId,
             "agent_sig",
             this.#r.connectionId,
-            m.issuedAt,
+            l.issuedAt,
             p.registrySequence,
           ),
-          I = await Jr(p.proof, h.publicJwk, "fv-control+jws");
+          I = await Fr(p.proof, y.publicJwk, "fv-control+jws");
         (Ie("PersistentAgentRequestPayload", I), ot(I, this.#a));
         for (let N of [
           "taskPublicationFingerprint",
@@ -27788,7 +27819,7 @@ var Tp = "folioview.runtime-pairing.v1",
       ]),
         (p.taskId !== n ||
           p.provider !== "muse" ||
-          !Zi.includes(p.reportedStatus) ||
+          !Gi.includes(p.reportedStatus) ||
           !Number.isSafeInteger(p.expectedVersion) ||
           p.expectedVersion < 0 ||
           !Number.isSafeInteger(p.reportedAt) ||
@@ -27797,26 +27828,26 @@ var Tp = "folioview.runtime-pairing.v1",
         Ie("OperationIdentifier", p.operationId),
         Ie("Digest", p.taskPublicationFingerprint),
         p.planReferenceHash !== null && Ie("Digest", p.planReferenceHash));
-      let c = await Jr(o.proof, this.#i.signingPublicJwk, "fv-control+jws");
+      let c = await Fr(o.proof, this.#i.signingPublicJwk, "fv-control+jws");
       return (
-        Me(c, ["profile", ...Fr, "requestDigest"]),
+        Me(c, ["profile", ...Hr, "requestDigest"]),
         ot(c, this.#a),
-        (c.profile !== xs || c.requestDigest !== (await Ae(p))) && x("invalid_plan_observation"),
+        (c.profile !== Ss || c.requestDigest !== (await Ae(p))) && x("invalid_plan_observation"),
         p
       );
     }
     async reportPlan({ taskId: n, status: o, planReference: p }) {
-      (Ir(n),
-        (!Zi.includes(o) ||
+      (br(n),
+        (!Gi.includes(o) ||
           !(p === null || (typeof p == "string" && /^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/.test(p))) ||
           (["enabled", "paused"].includes(o) && p === null)) &&
           x("invalid_plan_observation"),
         await this.synchronize());
       let c = p === null ? null : await Ae(p),
-        m = "plan-pending:" + n,
-        h = await this.#p(m, (G) => ({ result: G }));
-      if (h) {
-        let G = await this.#b(n, h);
+        l = "plan-pending:" + n,
+        y = await this.#p(l, (G) => ({ result: G }));
+      if (y) {
+        let G = await this.#b(n, y);
         return (
           (G.reportedStatus !== o || G.planReferenceHash !== c) && x("pending_plan_observation"),
           this.retryPlanReport({ taskId: n })
@@ -27844,10 +27875,10 @@ var Tp = "folioview.runtime-pairing.v1",
           reportedStatus: o,
           reportedAt: this.now(),
         },
-        B = await lt(
+        B = await mt(
           {
-            profile: xs,
-            ...Object.fromEntries(Fr.map((G) => [G, this.#a[G]])),
+            profile: Ss,
+            ...Object.fromEntries(Hr.map((G) => [G, this.#a[G]])),
             requestDigest: await Ae(_),
           },
           this.#i.signingPrivateKey,
@@ -27855,31 +27886,31 @@ var Tp = "folioview.runtime-pairing.v1",
           "fv-control+jws",
         ),
         J = { request: _, proof: B },
-        C = await this.#p(m, (G) => ({ write: G ?? J, result: G ?? J }));
+        C = await this.#p(l, (G) => ({ write: G ?? J, result: G ?? J }));
       return (ve(C, J) || x("pending_plan_observation"), this.retryPlanReport({ taskId: n }));
     }
     async retryPlanReport({ taskId: n }) {
-      (Ir(n), await this.synchronize());
+      (br(n), await this.synchronize());
       let o = "plan-pending:" + n,
-        p = await this.#p(o, (h) => ({ result: h }));
+        p = await this.#p(o, (y) => ({ result: y }));
       p || x("not_found");
       let c = await this.#b(n, p),
-        m = this.#I(await this.#o("plans/report", c), n);
-      for (let h of [
+        l = this.#I(await this.#o("plans/report", c), n);
+      for (let y of [
         "taskPublicationFingerprint",
         "provider",
         "planReferenceHash",
         "reportedStatus",
         "reportedAt",
       ])
-        ve(c[h], m[h]) || x("invalid_plan_observation");
+        ve(c[y], l[y]) || x("invalid_plan_observation");
       return (
-        (m.requestDigest !== (await Ae(c)) ||
-          m.operationId !== c.operationId ||
-          m.version !== c.expectedVersion + 1) &&
+        (l.requestDigest !== (await Ae(c)) ||
+          l.operationId !== c.operationId ||
+          l.version !== c.expectedVersion + 1) &&
           x("invalid_plan_observation"),
-        await this.#p(o, (h) => (ve(h, p) || x("version_conflict"), { write: null, result: null })),
-        { state: "reported", receipt: m }
+        await this.#p(o, (y) => (ve(y, p) || x("version_conflict"), { write: null, result: null })),
+        { state: "reported", receipt: l }
       );
     }
     async tasks() {
@@ -27904,22 +27935,22 @@ var Tp = "folioview.runtime-pairing.v1",
       let n = await this.tasks(),
         o = [];
       for (let p of n) {
-        let c = await As(this.#r, p.taskId, p.deliveryExpectation, this.now());
+        let c = await xs(this.#r, p.taskId, p.deliveryExpectation, this.now());
         c && o.push({ taskId: p.taskId, taskVersion: p.taskVersion, ...c });
       }
       return o;
     }
     async begin({ taskId: n, triggerId: o }) {
-      (Ir(n), Ie("OperationIdentifier", o), await this.synchronize());
+      (br(n), Ie("OperationIdentifier", o), await this.synchronize());
       let p = await this.#u(n),
         c = "begin_" + (await Ae([this.#r.ownerSubject, this.#r.vaultId, n, o])),
-        m = await this.#o("runs/begin", {
+        l = await this.#o("runs/begin", {
           taskId: n,
           triggerId: o,
           operationId: c,
           taskPublicationFingerprint: p.fingerprint,
         }),
-        h = await Ta(m.manifest, {
+        y = await Ra(l.manifest, {
           identity: this.#a,
           taskContext: p.context,
           taskFingerprint: p.fingerprint,
@@ -27927,48 +27958,48 @@ var Tp = "folioview.runtime-pairing.v1",
           now: this.now(),
         });
       return (
-        (h.fingerprint !== m.manifestFingerprint ||
-          h.manifest.triggerId !== o ||
-          h.manifest.stableOperationId !== c) &&
+        (y.fingerprint !== l.manifestFingerprint ||
+          y.manifest.triggerId !== o ||
+          y.manifest.stableOperationId !== c) &&
           x("invalid_manifest"),
         await this.#p(
-          "run:" + h.manifest.runId,
+          "run:" + y.manifest.runId,
           (I) => (
-            I && !ve(I, h.manifest) && x("run_conflict"),
-            { write: h.manifest, result: h.manifest }
+            I && !ve(I, y.manifest) && x("run_conflict"),
+            { write: y.manifest, result: y.manifest }
           ),
         ),
-        this.#g.set(h.manifest.runId, { ...h, task: p }),
+        this.#g.set(y.manifest.runId, { ...y, task: p }),
         {
-          runId: h.manifest.runId,
-          manifestFingerprint: h.fingerprint,
+          runId: y.manifest.runId,
+          manifestFingerprint: y.fingerprint,
           task: p.task,
-          inputs: h.manifest.inputs.map((I) => ({
+          inputs: y.manifest.inputs.map((I) => ({
             publicationId: I.publicationId,
             ref: I.ref,
             sourceRevision: I.sourceRevision,
           })),
-          state: m.state,
-          resultId: m.resultId,
+          state: l.state,
+          resultId: l.resultId,
         }
       );
     }
     async #A(n) {
-      (Ir(n), await this.synchronize());
+      (br(n), await this.synchronize());
       let o = await this.#o("runs/receipt", { runId: n }),
         p = o.manifest;
       p.runId !== n && x("invalid_manifest");
       let c = await this.#p("run:" + n, (I) => ({ result: I }));
       c && !ve(c, p) && x("run_conflict");
-      let m = await this.#u(p.taskId),
-        h = await Ta(p, {
+      let l = await this.#u(p.taskId),
+        y = await Ra(p, {
           identity: this.#a,
-          taskContext: m.context,
-          taskFingerprint: m.fingerprint,
+          taskContext: l.context,
+          taskFingerprint: l.fingerprint,
           consent: this.#d,
           now: this.now(),
         });
-      return (h.fingerprint !== o.manifestFingerprint && x("invalid_manifest"), { ...h, task: m });
+      return (y.fingerprint !== o.manifestFingerprint && x("invalid_manifest"), { ...y, task: l });
     }
     async input({ runId: n, publicationId: o }) {
       Ie("OperationIdentifier", o);
@@ -27979,38 +28010,38 @@ var Tp = "folioview.runtime-pairing.v1",
       let p = n.manifest.runId,
         c = n.manifest.inputs.find((N) => N.publicationId === o);
       c || x("insufficient_scope");
-      let m = await this.#o("runs/input", { runId: p, publicationId: o }),
-        h = rt(m.envelope).context;
-      (m.manifestFingerprint !== n.fingerprint ||
-        (await Ur(m.envelope.proof)) !== c.publicationFingerprint ||
-        h.objectId !== c.objectId) &&
+      let l = await this.#o("runs/input", { runId: p, publicationId: o }),
+        y = rt(l.envelope).context;
+      (l.manifestFingerprint !== n.fingerprint ||
+        (await zr(l.envelope.proof)) !== c.publicationFingerprint ||
+        y.objectId !== c.objectId) &&
         x("recipient_binding_mismatch");
       for (let N of ["ref", "sourceEpoch", "sourceRevision", "permissionId", "permissionEpoch"])
-        ve(h[N], c[N]) || x("recipient_binding_mismatch");
-      (Oa(this.#d, h),
-        await Va(m.envelope, {
+        ve(y[N], c[N]) || x("recipient_binding_mismatch");
+      (Va(this.#d, y),
+        await Ta(l.envelope, {
           registry: this.#c,
           identity: this.#a,
-          expected: { ...h, ...c },
+          expected: { ...y, ...c },
           now: this.now(),
         }));
-      let I = await Ht(m.envelope, this.#i.encryptionPrivateKey, h);
+      let I = await Ht(l.envelope, this.#i.encryptionPrivateKey, y);
       return (
-        Bi(n.task.task.inputPolicy, I, this.now()),
+        Mi(n.task.task.inputPolicy, I, this.now()),
         { runId: p, publicationId: o, ref: c.ref, sourceRevision: c.sourceRevision, resource: I }
       );
     }
     async submit({ runId: n, report: o }) {
-      Ir(n);
+      br(n);
       let p = "report_" + (await Ae([this.#r.ownerSubject, this.#r.vaultId, n])),
         c = await this.#t.outbox(this.#r, p);
       if (!c) {
-        let h = await this.#A(n);
-        (h.manifest.resultPolicy !== "owner_inbox" && x("insufficient_scope"),
-          Jt(o, h.task.task.outputSpec));
+        let y = await this.#A(n);
+        (y.manifest.resultPolicy !== "owner_inbox" && x("insufficient_scope"),
+          Jt(o, y.task.task.outputSpec));
         let I = [];
-        for (let C of h.manifest.inputs) I.push(await this.#D(h, C.publicationId));
-        for (let { resource: C } of I) Bi(h.task.task.inputPolicy, C, this.now());
+        for (let C of y.manifest.inputs) I.push(await this.#D(y, C.publicationId));
+        for (let { resource: C } of I) Mi(y.task.task.inputPolicy, C, this.now());
         let N = this.#c,
           O = [];
         for (let C of N.current.keys.values())
@@ -28022,11 +28053,11 @@ var Tp = "folioview.runtime-pairing.v1",
           O.some((C) => C.role === "recovery_enc") || x("key_authorization_required"));
         let _ = {
             contractVersion: Pr,
-            profile: Mr,
-            ...Object.fromEntries(Fr.map((C) => [C, this.#a[C]])),
+            profile: Gr,
+            ...Object.fromEntries(Hr.map((C) => [C, this.#a[C]])),
             ...Object.fromEntries(
               ["taskId", "taskVersion", "executionEpoch", "authorityId", "authorityVersion"].map(
-                (C) => [C, h.manifest[C]],
+                (C) => [C, y.manifest[C]],
               ),
             ),
             objectId: "presult_" + (await Ae([this.#r.ownerSubject, this.#r.vaultId, n])),
@@ -28035,7 +28066,7 @@ var Tp = "folioview.runtime-pairing.v1",
             revision: 1,
             expectedRevision: 0,
             runId: n,
-            manifestFingerprint: h.fingerprint,
+            manifestFingerprint: y.fingerprint,
             registrySequence: N.sequence,
             checkpointDigest: N.current.digest,
             keyEpoch: N.current.keyEpoch,
@@ -28044,14 +28075,14 @@ var Tp = "folioview.runtime-pairing.v1",
             recipients: O,
           },
           B = Object.fromEntries(O.map((C) => [C.keyId, N.current.keys.get(C.keyId).publicJwk])),
-          J = await La(o, _, B, this.#i.signingPrivateKey);
+          J = await Oa(o, _, B, this.#i.signingPrivateKey);
         c = await this.#t.originalCiphertext(this.#r, p, J);
       }
-      let m = await this.#o("runs/submit", { runId: n, operationId: p, envelope: c });
-      return this.#x(m, c, n);
+      let l = await this.#o("runs/submit", { runId: n, operationId: p, envelope: c });
+      return this.#x(l, c, n);
     }
     async receipt({ runId: n }) {
-      Ir(n);
+      br(n);
       let o = "report_" + (await Ae([this.#r.ownerSubject, this.#r.vaultId, n])),
         p = await this.#t.outbox(this.#r, o);
       return (
@@ -28061,19 +28092,19 @@ var Tp = "folioview.runtime-pairing.v1",
     }
     async #x(n, o, p) {
       let c = rt(o).context;
-      for (let [m, h] of Object.entries({
+      for (let [l, y] of Object.entries({
         contractVersion: Pr,
-        profile: Mr,
+        profile: Gr,
         runId: p,
         resultId: c.objectId,
         taskId: c.taskId,
         connectionId: c.connectionId,
         revision: 1,
         publicationId: c.stableOperationId,
-        fingerprint: await Ur(o.proof),
+        fingerprint: await zr(o.proof),
         manifestFingerprint: c.manifestFingerprint,
       }))
-        n[m] !== h && x("invalid_result_receipt");
+        n[l] !== y && x("invalid_result_receipt");
       return (
         (!Number.isSafeInteger(n.receivedAt) || n.receivedAt < c.issuedAt) &&
           x("invalid_result_receipt"),
@@ -28084,12 +28115,12 @@ var Tp = "folioview.runtime-pairing.v1",
       return (this.#v.clear(), this.#g.clear(), this.status());
     }
   };
-mt();
-var Ut = null,
-  Mi = 0,
-  Es = Promise.resolve(),
-  Gi = new Set(),
-  Ss = {
+lt();
+var zt = null,
+  Xi = 0,
+  _s = Promise.resolve(),
+  Yi = new Set(),
+  Ns = {
     status: [],
     pairing: [],
     synchronize: [],
@@ -28108,33 +28139,35 @@ self.onmessage = (s) => {
   let n = s.data;
   if (!n || typeof n != "object" || typeof n.id != "string" || n.id.length > 80) return;
   let { id: o } = n;
-  if (Mi >= 16) {
+  if (Xi >= 16) {
     self.postMessage({ id: o, ok: !1, error: "runtime_busy" });
     return;
   }
-  (Mi++,
-    (Es = Es.then(async () => {
+  (Xi++,
+    (_s = _s.then(async () => {
       try {
-        if ((Me(n, ["id", "op", "args"]), Re(n).length > 1048576 || Gi.has(o) || Gi.size >= 4096))
-          throw new et("invalid_request");
-        Gi.add(o);
+        if ((Me(n, ["id", "op", "args"]), qe(n).length > 1048576 || Yi.has(o) || Yi.size >= 4096))
+          throw new Ir("invalid_request");
+        Yi.add(o);
         let p;
         if (n.op === "initialize") {
-          if (Ut) throw new et("already_initialized");
-          ((Ut = new Ra({ origin: self.location.origin })), (p = await Ut.initialize(n.args)));
+          if (zt) throw new Ir("already_initialized");
+          ((zt = new Ca({ origin: self.location.origin })), (p = await zt.initialize(n.args)));
         } else {
-          if (!Ut || !Object.hasOwn(Ss, n.op)) throw new et("invalid_operation");
-          (Me(n.args, Ss[n.op]), (p = await Ut[n.op](n.args)));
+          if (!zt || !Object.hasOwn(Ns, n.op)) throw new Ir("invalid_operation");
+          (Me(n.args, Ns[n.op]), (p = await zt[n.op](n.args)));
         }
         self.postMessage({ id: o, ok: !0, value: p });
       } catch (p) {
+        let c = p instanceof Ir ? Bi(p.diagnostic) : null;
         self.postMessage({
           id: o,
           ok: !1,
-          error: p instanceof et ? p.code : "runtime_operation_failed",
+          error: p instanceof Ir ? p.code : "runtime_operation_failed",
+          ...(c ? { diagnostic: c } : {}),
         });
       } finally {
-        Mi--;
+        Xi--;
       }
     })));
 };

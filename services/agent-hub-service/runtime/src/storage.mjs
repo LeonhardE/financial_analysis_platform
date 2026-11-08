@@ -1,5 +1,6 @@
 /** Only nonextractable CryptoKey objects, public pins and original ciphertext survive. */
-import { deny, exact, same, digest, keyId, publicKey } from "./crypto.mjs";
+import { RuntimeDenied, deny, exact, same, digest, keyId, publicKey } from "./crypto.mjs";
+import { recoveryFailure } from "./recovery.mjs";
 const DB = "folioview.persistent-runtime.v1",
   STORE = "profiles";
 function request(r) {
@@ -85,8 +86,19 @@ export class RuntimeStorage {
         v ? { result: v } : { write: candidate, result: candidate },
       );
     }
-    if (!existing) deny("lost_private_keys");
-    await this.verifyProfile(existing, actor);
+    if (!existing)
+      throw recoveryFailure(new RuntimeDenied("lost_private_keys"), {
+        stage: "profile_record_missing",
+        namespace: key,
+      });
+    try {
+      await this.verifyProfile(existing, actor);
+    } catch (error) {
+      throw recoveryFailure(
+        error instanceof RuntimeDenied ? error : new RuntimeDenied("invalid_runtime_profile"),
+        { stage: "profile_validation_failed", namespace: key },
+      );
+    }
     return existing;
   }
   async verifyProfile(p, actor) {
