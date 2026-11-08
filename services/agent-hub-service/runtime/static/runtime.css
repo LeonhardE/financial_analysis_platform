@@ -36,3 +36,46 @@ button {
 [hidden] {
   display: none;
 }
+fieldset {
+  border: 1px solid #303541;
+  border-radius: 0.5rem;
+  margin-block: 1rem;
+  min-width: 0;
+}
+label {
+  display: block;
+  margin-block: 0.8rem 0.3rem;
+}
+input,
+select,
+textarea {
+  box-sizing: border-box;
+  width: 100%;
+  font: inherit;
+  padding: 0.65rem;
+  background: #191d26;
+  color: #eee;
+  border: 1px solid #596172;
+  border-radius: 0.4rem;
+}
+textarea {
+  min-height: 7rem;
+  resize: vertical;
+}
+button {
+  margin: 0.4rem 0.4rem 0.4rem 0;
+}
+button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 36rem;
+  overflow: auto;
+}
+summary {
+  cursor: pointer;
+  margin-block: 0.8rem;
+}

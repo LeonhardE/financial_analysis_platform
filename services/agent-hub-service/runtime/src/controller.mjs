@@ -97,6 +97,7 @@ export async function connect() {
   const initialized = await call("initialize", args);
   const api = Object.freeze({
     status: () => call("status"),
+    refreshConnection: () => call("synchronize"),
     pairingStatus: () => call("pairing"),
     listTasks: () => call("tasks"),
     dueTasks: () => call("due"),
