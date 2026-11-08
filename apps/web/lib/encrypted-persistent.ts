@@ -778,6 +778,179 @@ export class PersistentOwner {
       fail();
     return { operationId: packet.operationId };
   }
+  async plan(args: { state: Json; identityState: Json; taskId: string; hubOrigin: string }) {
+    const s = args.state;
+    exact(s, [
+      "contractVersion",
+      "profile",
+      "taskId",
+      "connectionId",
+      "version",
+      "desired",
+      "reported",
+      "reportedEvidence",
+      "observed",
+      "nativeScheduleAttested",
+      "parentRevoked",
+    ]);
+    identifier(args.taskId);
+    if (
+      !this.ctx.actor ||
+      s.contractVersion !== CONTRACT ||
+      s.profile !== "folioview.persistent-native-plan.v1" ||
+      s.taskId !== args.taskId ||
+      s.connectionId !== this.ctx.actor.connectionId ||
+      s.nativeScheduleAttested !== false ||
+      !Number.isSafeInteger(s.version) ||
+      s.version < 0 ||
+      typeof s.parentRevoked !== "boolean" ||
+      (s.reported === null) !== (s.version === 0) ||
+      !/^https:\/\/agent-hub-api-[0-9]{1,20}\.[a-z]+(?:-[a-z0-9]+)+[0-9]\.run\.app$/.test(
+        args.hubOrigin,
+      )
+    )
+      fail("invalid_plan_observation");
+    if (s.reported) {
+      const r = s.reported,
+        e = s.reportedEvidence;
+      exact(r, [
+        "contractVersion",
+        "profile",
+        "connectionId",
+        "taskId",
+        "operationId",
+        "version",
+        "requestDigest",
+        "taskPublicationFingerprint",
+        "provider",
+        "planReferenceHash",
+        "reportedStatus",
+        "reportedAt",
+        "receivedAt",
+        "authority",
+        "nativeScheduleAttested",
+      ]);
+      exact(e, ["request", "proof", "identity", "registrySequence", "checkpointDigest"]);
+      if (
+        r.contractVersion !== CONTRACT ||
+        r.profile !== s.profile ||
+        r.connectionId !== s.connectionId ||
+        r.taskId !== args.taskId ||
+        r.version !== s.version ||
+        r.authority !== "agent_statement" ||
+        r.nativeScheduleAttested !== false ||
+        !["enabled", "paused", "removed", "unconfirmed"].includes(r.reportedStatus) ||
+        r.provider !== "muse" ||
+        !Number.isSafeInteger(r.receivedAt) ||
+        r.receivedAt < 0 ||
+        r.receivedAt > this.ctx.now() ||
+        !Number.isSafeInteger(e.registrySequence) ||
+        e.registrySequence < 1 ||
+        e.registrySequence > this.ctx.vault.registryHistory.length
+      )
+        fail("invalid_plan_observation");
+      const registry = await this.registry(
+        this.ctx.vault.registryHistory.slice(0, e.registrySequence),
+        r.receivedAt,
+      );
+      if (registry.current.digest !== e.checkpointDigest) fail();
+      validate("PersistentAgentIdentity", e.identity);
+      if (
+        e.identity.connectionId !== this.ctx.actor.connectionId ||
+        e.identity.clientId !== this.ctx.actor.clientId ||
+        e.identity.ownerSubject !== this.ctx.ownerSubject ||
+        e.identity.vaultId !== this.ctx.vault.vaultId ||
+        e.identity.rootKeyId !== this.ctx.vault.rootKeyId
+      )
+        fail();
+      const signed = parsed(bytes(e.proof.payload), true);
+      await registry.binding(args.identityState.binding, e.identity, e.identity, signed.issuedAt);
+      const key = registry.cert(
+        e.identity.agentSigningKeyId,
+        "agent_sig",
+        e.identity.connectionId,
+        signed.issuedAt,
+        e.registrySequence,
+      );
+      const proof = await verify(e.proof, key.publicJwk, "fv-control+jws");
+      validate("PersistentAgentRequestPayload", proof);
+      matchBinding(proof, e.identity);
+      exact(e.request, [
+        "taskId",
+        "taskPublicationFingerprint",
+        "operationId",
+        "expectedVersion",
+        "provider",
+        "planReferenceHash",
+        "reportedStatus",
+        "reportedAt",
+      ]);
+      for (const k of [
+        "taskId",
+        "taskPublicationFingerprint",
+        "operationId",
+        "provider",
+        "planReferenceHash",
+        "reportedStatus",
+        "reportedAt",
+      ])
+        if (!same(e.request[k], r[k])) fail();
+      validate("Digest", r.taskPublicationFingerprint);
+      validate("Digest", r.requestDigest);
+      validate("OperationIdentifier", r.operationId);
+      if (r.planReferenceHash !== null) validate("Digest", r.planReferenceHash);
+      if (
+        !Number.isSafeInteger(r.reportedAt) ||
+        r.reportedAt < 0 ||
+        r.reportedAt > r.receivedAt + 2 ||
+        (["enabled", "paused"].includes(r.reportedStatus) && r.planReferenceHash === null) ||
+        proof.path !==
+          `/agent/v3/persistent/owners/${e.identity.ownerSubject}/vaults/${e.identity.vaultId}/connections/${e.identity.connectionId}/plans/report` ||
+        proof.audience !== args.hubOrigin ||
+        proof.method !== "POST" ||
+        proof.bodyDigest !== (await digest(e.request)) ||
+        proof.bodyDigest !== r.requestDigest ||
+        proof.issuedAt > r.receivedAt ||
+        proof.expiresAt <= r.receivedAt ||
+        e.request.expectedVersion + 1 !== s.version
+      )
+        fail("invalid_plan_observation");
+    } else if (s.reportedEvidence !== null) fail();
+    if (s.desired !== null) {
+      exact(s.desired, ["taskPublicationFingerprint", "taskVersion", "executionEpoch"]);
+      validate("Digest", s.desired.taskPublicationFingerprint);
+      integer(s.desired.taskVersion, 1);
+      integer(s.desired.executionEpoch, 1);
+    }
+    if (s.observed !== null) {
+      const o = s.observed;
+      exact(o, [
+        "source",
+        "runId",
+        "triggerId",
+        "taskPublicationFingerprint",
+        "runCreatedAt",
+        "resultId",
+        "receivedAt",
+        "nativeScheduleAttested",
+      ]);
+      identifier(o.runId);
+      validate("OperationIdentifier", o.triggerId);
+      validate("Digest", o.taskPublicationFingerprint);
+      integer(o.runCreatedAt, 0);
+      if (
+        o.nativeScheduleAttested !== false ||
+        (o.resultId === null
+          ? o.source !== "hub_run_receipt" || o.receivedAt !== null
+          : o.source !== "hub_result_receipt" ||
+            !Number.isSafeInteger(o.receivedAt) ||
+            o.receivedAt < o.runCreatedAt)
+      )
+        fail();
+      if (o.resultId !== null) identifier(o.resultId);
+    }
+    return copy(s);
+  }
   async result(args: { record: Json; resultId: string }) {
     exact(args, ["record", "resultId"]);
     identifier(args.resultId);

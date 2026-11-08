@@ -30,7 +30,7 @@ from folioview_shared.encrypted.errors import ContractError
 NODE = os.environ["FOLIOVIEW_NODE_BIN"]
 OWNER_PEER = os.environ["FOLIOVIEW_OWNER_PEER"]
 scratch = tempfile.TemporaryDirectory(prefix="folioview-owner-vectors-")
-ORIGIN = "https://synthetic-hub.example"
+ORIGIN = "https://agent-hub-api-123456789.northamerica-northeast2.run.app"
 p = subprocess.Popen(
     [NODE, "services/agent-hub-service/tests/runtime_session_peer.mjs"],
     stdin=subprocess.PIPE,
@@ -40,6 +40,7 @@ p = subprocess.Popen(
 )
 seq = 0
 service = None
+plans = None
 fx = None
 dropped = False
 last_cipher = None
@@ -55,6 +56,8 @@ methods = {
     "runs/input": "input",
     "runs/submit": "submit",
     "runs/result-receipt": "result_receipt",
+    "plans/state": "plan_state",
+    "plans/report": "report_plan",
 }
 
 
@@ -96,7 +99,7 @@ def call(method, args=None, ok=True):
             else:
                 route = path.removeprefix(base + "/")
                 body = result["body"]
-                value = getattr(service, methods[route])(
+                value = getattr(plans if route.startswith("plans/") else service, methods[route])(
                     fx.f.owner, fx.f.vault, CONNECTION, body["proof"], path, body["request"]
                 )
                 if route == "runs/submit":
@@ -449,6 +452,34 @@ try:
     service = PersistentResultService(
         sc.a.store, cat, audience=ORIGIN, client_ids=[CLIENT], clock=lambda: 1000
     )
+    from app.persistent_plans import PersistentPlanService, PersistentOwnerPlanService
+
+    plans = PersistentPlanService(
+        sc.a.store, cat, audience=ORIGIN, client_ids=[CLIENT], clock=lambda: 1000
+    )
+    plan_receipt = call(
+        "reportPlan",
+        {"taskId": TASK, "status": "enabled", "planReference": "synthetic_web_native_plan"},
+    )
+    assert plan_receipt["state"] == "reported"
+    plan = PersistentOwnerPlanService(sc.a.store, clock=lambda: 1000).state(
+        UID, f.vault, sc.connection, TASK
+    )
+    plan_args = {
+        "state": plan,
+        "identityState": identity_state,
+        "taskId": TASK,
+        "hubOrigin": ORIGIN,
+    }
+    assert owner("plan", plan_args)["reported"]["reportedStatus"] == "enabled"
+    forged = copy.deepcopy(plan_args)
+    forged["state"]["reported"]["reportedStatus"] = "paused"
+    owner("plan", forged, denied=True)
+    forged = copy.deepcopy(plan_args)
+    forged["hubOrigin"] = "https://agent-hub-api-999999999.northamerica-northeast2.run.app"
+    owner("plan", forged, denied=True)
+    dtos.append((f"/api/v2/persistent-plans/{f.vault}/{sc.connection}/{TASK}", "GET", plan, None))
+    print("signed native plan statement verified independently by owner")
     print("restored tasks", len(call("tasks")))
     run = call("begin", {"taskId": TASK, "triggerId": "synthetic_owner_web_basic_001"})
     opened = call(

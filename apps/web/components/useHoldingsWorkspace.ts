@@ -2281,6 +2281,66 @@ export function useHoldingsWorkspace() {
     },
     [assertInboxSession, liveSession, taskGeneration],
   );
+  const preparePersistentEnrollment = useCallback(
+    (args: Parameters<EncryptedVaultSession["preparePersistentEnrollment"]>[0]) =>
+      taskCall((instance) => instance.preparePersistentEnrollment(args)),
+    [taskCall],
+  );
+  const verifyPersistentIdentity = useCallback(
+    (args: Parameters<EncryptedVaultSession["verifyPersistentIdentity"]>[0]) =>
+      taskCall((instance) => instance.verifyPersistentIdentity(args)),
+    [taskCall],
+  );
+  const verifyPersistentPolicy = useCallback(
+    (args: Parameters<EncryptedVaultSession["verifyPersistentPolicy"]>[0]) =>
+      taskCall((instance) => instance.verifyPersistentPolicy(args)),
+    [taskCall],
+  );
+  const preparePersistentConsent = useCallback(
+    (args: Parameters<EncryptedVaultSession["preparePersistentConsent"]>[0]) =>
+      taskCall((instance) => instance.preparePersistentConsent(args)),
+    [taskCall],
+  );
+  const preparePersistentRevocation = useCallback(
+    (args: Parameters<EncryptedVaultSession["preparePersistentRevocation"]>[0]) =>
+      taskCall((instance) => instance.preparePersistentRevocation(args)),
+    [taskCall],
+  );
+  const preparePersistentTask = useCallback(
+    (args: Parameters<EncryptedVaultSession["preparePersistentTask"]>[0]) =>
+      taskCall((instance) => instance.preparePersistentTask(args)),
+    [taskCall],
+  );
+  const preparePersistentResource = useCallback(
+    (args: Parameters<EncryptedVaultSession["preparePersistentResource"]>[0]) =>
+      taskCall((instance) => instance.preparePersistentResource(args)),
+    [taskCall],
+  );
+  const openPersistentResult = useCallback(
+    (args: Parameters<EncryptedVaultSession["openPersistentResult"]>[0]) =>
+      taskCall((instance) => instance.openPersistentResult(args)),
+    [taskCall],
+  );
+  const verifyPersistentPlan = useCallback(
+    (args: Parameters<EncryptedVaultSession["verifyPersistentPlan"]>[0]) =>
+      taskCall((instance) => instance.verifyPersistentPlan(args)),
+    [taskCall],
+  );
+  const signPersistentResultState = useCallback(
+    (args: Parameters<EncryptedVaultSession["signPersistentResultState"]>[0]) =>
+      taskCall((instance) => instance.signPersistentResultState(args)),
+    [taskCall],
+  );
+  const loadPersistentPending = useCallback(
+    (actor: { connectionId: string; clientId: string }) =>
+      taskCall((instance) => instance.loadPersistentPending(actor)),
+    [taskCall],
+  );
+  const finishPersistentPending = useCallback(
+    (actor: { connectionId: string; clientId: string }, receipt: any) =>
+      taskCall((instance) => instance.finishPersistentPending(actor, receipt)),
+    [taskCall],
+  );
   const openTask = useCallback(
     (task: EncryptedTask) => taskCall((instance) => instance.openTask(task)),
     [taskCall],
@@ -4402,6 +4462,18 @@ export function useHoldingsWorkspace() {
     openResult,
     signResultState,
     refreshVault,
+    preparePersistentEnrollment,
+    verifyPersistentIdentity,
+    verifyPersistentPolicy,
+    preparePersistentConsent,
+    preparePersistentRevocation,
+    preparePersistentTask,
+    preparePersistentResource,
+    openPersistentResult,
+    verifyPersistentPlan,
+    signPersistentResultState,
+    loadPersistentPending,
+    finishPersistentPending,
     openTask,
     listAgentOutbox,
     publicAgentAnchor,

@@ -8,6 +8,10 @@ import { usePreferences } from "@/components/PreferencesProvider";
 import SettingsPanel from "@/components/SettingsPanel";
 import ResourcesPanel from "@/components/ResourcesPanel";
 import InboxPanel from "@/components/InboxPanel";
+import { PersistentAgentsPanel } from "./PersistentAgentsPanel";
+import { PersistentInboxPanel } from "./PersistentInboxPanel";
+import { usePersistentWorkspace } from "./usePersistentWorkspace";
+import { useAgentLinkConfiguration } from "./useAgentLinkConfiguration";
 import AgentsPanel from "@/components/AgentsPanel";
 import TasksPanel, { type TaskRequest } from "@/components/TasksPanel";
 import { useHoldingsWorkspace } from "@/components/useHoldingsWorkspace";
@@ -62,6 +66,21 @@ export default function WorkspaceShell() {
   const pathname = usePathname();
   const activeView = workspaceView(pathname) ?? "markets";
   const encryptedWorkspace = useHoldingsWorkspace();
+  const persistentConfiguration = useAgentLinkConfiguration(true);
+  const persistent = usePersistentWorkspace(
+    encryptedWorkspace,
+    persistentConfiguration.data?.hubOrigin ?? null,
+  );
+  const [persistentHandoff, setPersistentHandoff] = useState(false),
+    [oldInboxOpen, setOldInboxOpen] = useState(false);
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search);
+    setPersistentHandoff(
+      q.has("native_request") || q.has("native_nonce") || q.has("runtime_setup"),
+    );
+  }, []);
+  const persistentView = persistent.enabled || persistent.views.length > 0 || persistentHandoff;
+
   useEffect(() => {
     let disposed = false;
     const route = () => {
@@ -421,10 +440,39 @@ export default function WorkspaceShell() {
           />
         </div>
         <div hidden={activeView !== "agents"}>
-          <AgentsPanel workspace={encryptedWorkspace} active={activeView === "agents"} />
+          {persistentView ? (
+            <PersistentAgentsPanel
+              workspace={encryptedWorkspace}
+              model={persistent}
+              origin={persistentConfiguration.data?.hubOrigin ?? null}
+              active={activeView === "agents"}
+            />
+          ) : (
+            <AgentsPanel workspace={encryptedWorkspace} active={activeView === "agents"} />
+          )}
         </div>
         <div hidden={activeView !== "inbox"}>
-          <InboxPanel workspace={encryptedWorkspace} active={activeView === "inbox"} />
+          {persistentView ? (
+            <>
+              <PersistentInboxPanel
+                workspace={encryptedWorkspace}
+                model={persistent}
+                active={activeView === "inbox"}
+              />
+              <details
+                open={oldInboxOpen}
+                onToggle={(event) => setOldInboxOpen(event.currentTarget.open)}
+              >
+                <summary>{t("persistent.previousReports")}</summary>
+                <InboxPanel
+                  workspace={encryptedWorkspace}
+                  active={activeView === "inbox" && oldInboxOpen}
+                />
+              </details>
+            </>
+          ) : (
+            <InboxPanel workspace={encryptedWorkspace} active={activeView === "inbox"} />
+          )}
         </div>
         <div className="market-view" hidden={activeView !== "markets"}>
           <section className="index-strip" aria-label={t("market.indices")}>

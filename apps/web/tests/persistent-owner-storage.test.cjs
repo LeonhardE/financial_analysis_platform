@@ -119,6 +119,42 @@ test("one unlocked owner prepares persistent registration; sealed original retri
       version: 1,
     };
     await session.acceptVault(vault);
+    const metadata = {
+      resultId: "presult_synthetic",
+      taskId: "task_synthetic",
+      runId: "prun_synthetic",
+      connectionId: "connection_synthetic",
+      receivedAt: 999,
+      stateVersion: 2,
+      read: false,
+      starred: false,
+      archived: false,
+    };
+    const statePacket = await session.signPersistentResultState({
+      metadata,
+      changes: { read: true },
+    });
+    const certificate = vault.registryHistory[0].entries
+      .map((e) => JSON.parse(Buffer.from(e.certificate.payload, "base64url").toString()))
+      .find((e) => e.keyId === statePacket.authorKeyId);
+    const stateCommand = await shared.verify(
+      statePacket.command,
+      certificate.publicJwk,
+      "fv-control+jws",
+    );
+    assert.equal(stateCommand.action, "result_state_update");
+    assert.equal(stateCommand.targetId, metadata.resultId);
+    assert.equal(stateCommand.expectedVersion, 2);
+    assert.deepEqual(stateCommand.parameters, { read: true });
+    await assert.rejects(
+      session.signPersistentResultState({
+        metadata: { ...metadata, plaintext: "CANARY" },
+        changes: { read: true },
+      }),
+    );
+    await assert.rejects(
+      session.signPersistentResultState({ metadata, changes: { archive: "not_boolean" } }),
+    );
     const actor = { connectionId: "synthetic_persistent_connection", clientId: "synthetic_muse" },
       keys = await crypto.subtle.generateKey({ name: "ECDSA", namedCurve: "P-256" }, false, [
         "sign",

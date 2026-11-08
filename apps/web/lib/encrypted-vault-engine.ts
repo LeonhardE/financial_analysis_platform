@@ -60,6 +60,12 @@ export function createVaultKernel(
             case "verifyPersistentReceipt":
               result = await core.verifyPersistentReceipt(args);
               break;
+            case "verifyPersistentPlan":
+              result = await core.verifyPersistentPlan(args);
+              break;
+            case "signPersistentResultState":
+              result = await core.signPersistentResultState(args);
+              break;
             case "openPersistentResult":
               result = await core.openPersistentResult(args);
               break;

@@ -289,6 +289,10 @@ function renderDashboard({
     "@/lib/market-data": market,
     "next-intl": intl,
     "@/lib/ui-messages": compile("../lib/ui-messages.ts", {}),
+    "./PersistentAgentsPanel": { PersistentAgentsPanel: () => null },
+    "./PersistentInboxPanel": { PersistentInboxPanel: () => null },
+    "./usePersistentWorkspace": { usePersistentWorkspace: () => ({ enabled: false, views: [] }) },
+    "./useAgentLinkConfiguration": { useAgentLinkConfiguration: () => ({ data: null }) },
     "@/components/PreferencesProvider": {
       usePreferences: () => ({
         preferences: { theme: "dark", language: "en", defaultChartRange: "1m" },
