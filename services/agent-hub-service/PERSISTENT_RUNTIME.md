@@ -29,10 +29,12 @@ lifecycle by itself. All new deployment gates remain off until real acceptance.
 
 The checked controller exposes `window.folioview`: `status`, `pairingStatus`,
 `listTasks`, `dueTasks`, `beginRun`, `readInput`, `saveReport`, `resultReceipt` and
-`clearPlaintext`. The actual Worker accepts only the corresponding closed domain
+`clearPlaintext`, `planStatus`, `reportPlan` and `retryPlanReport`. The actual Worker accepts only the corresponding closed domain
 requests. There is no raw key, generic signature/decryption/storage/fetch endpoint
 or caller-selected authority mode. Root/owner credentials never reach that Worker.
 
+Every HTTP request includes `X-FolioView-Contract`, including public setup/config
+reads. Actual FastAPI routing is exercised by the synthetic Node runtime peer.
 Each request proof binds the actual fixed HTTPS origin, path, method and canonical
 business body. Public server time plus a monotonic elapsed clock avoids client
 wall-clock skew. An authorization failure permits one time refresh and fresh proof
@@ -53,7 +55,16 @@ A slot's trigger ID excludes retries, task version, connection and UTC offset.
 DST folds therefore use one stable Run trigger; nonexistent local times are skipped.
 No open-page timer stands in for native scheduling. Desired schedules, actual Muse
 installation and observed run/result receipts must remain distinct in the Web UI.
-Native plan creation, isolation/lifecycle and real cross-day checks await the owner.
+`reportPlan` records a signed Agent statement only after Muse actually creates,
+pauses or removes its native plan. It hashes a bounded opaque native plan reference
+inside the Worker, never transmitting the raw ID, schedule, URL or credentials.
+`planStatus` verifies the original statement against its Root-issued identity and
+shows it separately from current desired task authority and Hub run/result receipts.
+An unknown response keeps the exact self-signed statement across restart; retry uses
+a fresh request proof and preserves operation ID/body. Per-connection reporting
+quota does not consume run budget. Reports cannot enable or expand financial rights.
+No response claims native schedule attestation. Native plan creation,
+isolation/lifecycle and real cross-day checks await the owner.
 
 ## Distribution and rollout
 

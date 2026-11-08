@@ -10,6 +10,7 @@ from fastapi.testclient import TestClient
 
 from app.errors import HubErrors
 from app.persistent_execution_routes import get_execution, router
+from app.persistent_plan_routes import agent_router as plans_router
 from folioview_shared.encrypted.constants import CONTRACT_VERSION
 
 SYNTHETIC_OPERATION = "synthetic_operation_0001"
@@ -19,6 +20,7 @@ class ExecutionRouteTests(unittest.TestCase):
     def setUp(self):
         self.app = FastAPI()
         self.app.include_router(router)
+        self.app.include_router(plans_router)
         self.app.add_middleware(HubErrors)
         self.calls = []
         self.client = TestClient(self.app)
@@ -106,3 +108,16 @@ class ExecutionRouteTests(unittest.TestCase):
             self.assertEqual(
                 self.client.post(self.path, headers=self.headers, json=self.body).status_code, 503
             )
+
+    def test_plan_reports_share_closed_execution_gate_before_loading_cloud(self):
+        with (
+            patch.dict(os.environ, {"HUB_PERSISTENT_EXECUTION_ENABLED": "0"}),
+            patch("app.persistent_plan_routes.get_store") as store,
+        ):
+            for operation in ("state", "report"):
+                response = self.client.post(
+                    self.base + "/plans/" + operation, headers=self.headers, json=self.body
+                )
+                self.assertEqual(response.status_code, 503)
+                self.assertEqual(response.headers["cache-control"], "no-store")
+            store.assert_not_called()

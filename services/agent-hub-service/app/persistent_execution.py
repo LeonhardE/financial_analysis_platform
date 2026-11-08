@@ -473,6 +473,9 @@ class PersistentExecutionService(PersistentPublicationService):
             # The source/crypto work may outlive the short request proof. Its
             # acceptance window must still hold at the committing write.
             self.authenticate(unit, owner, vault, connection, proof, path, request)
+            from .persistent_plans import observe_execution
+
+            observe_execution(unit, manifest)
             unit.put(run_path(owner, vault, run), row)
             unit.put(op_path, {"intentDigest": intent, "runId": run})
             return self.run_response(row, manifest)

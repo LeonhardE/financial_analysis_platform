@@ -17,6 +17,8 @@ from .oauth_routes import agent_router
 from .oauth_routes import owner_router as oauth_owner_router
 from .oauth_routes import router as oauth_router
 from .persistent_execution_routes import router as persistent_execution_router
+from .persistent_plan_routes import agent_router as persistent_plan_agent_router
+from .persistent_plan_routes import owner_router as persistent_plan_owner_router
 from .persistent_publication_routes import router as persistent_publication_router
 from .persistent_result_routes import agent_router as persistent_result_agent_router
 from .persistent_result_routes import owner_router as persistent_result_owner_router
@@ -58,6 +60,8 @@ app.include_router(preparation_agent_router)
 app.include_router(persistent_owner_router)
 app.include_router(persistent_publication_router)
 app.include_router(persistent_execution_router)
+app.include_router(persistent_plan_agent_router)
+app.include_router(persistent_plan_owner_router)
 app.include_router(persistent_result_agent_router)
 app.include_router(persistent_result_owner_router)
 app.include_router(native_transport_router)

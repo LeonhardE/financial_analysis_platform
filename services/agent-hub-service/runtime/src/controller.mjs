@@ -100,6 +100,10 @@ export async function connect() {
     pairingStatus: () => call("pairing"),
     listTasks: () => call("tasks"),
     dueTasks: () => call("due"),
+    planStatus: (taskId) => call("planStatus", { taskId }),
+    reportPlan: (taskId, status, planReference = null) =>
+      call("reportPlan", { taskId, status, planReference }),
+    retryPlanReport: (taskId) => call("retryPlanReport", { taskId }),
     beginRun: (taskId, triggerId) => call("begin", { taskId, triggerId }),
     readInput: (runId, publicationId) => call("input", { runId, publicationId }),
     saveReport: (runId, report) => call("submit", { runId, report }),

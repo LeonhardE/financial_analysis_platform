@@ -316,6 +316,9 @@ class PersistentResultService(PersistentExecutionService):
                 operation_path(owner, vault, connection, request["operationId"]),
                 {"runId": m["runId"], "resultId": ident, "fingerprint": verified.fingerprint},
             )
+            from .persistent_plans import observe_execution
+
+            observe_execution(unit, m, result_id=ident, received_at=now)
             row.update(state="submitted", resultId=ident)
             unit.put(run_path(owner, vault, m["runId"]), row)
             return receipt
