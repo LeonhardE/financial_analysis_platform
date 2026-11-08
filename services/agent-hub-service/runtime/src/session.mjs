@@ -14,6 +14,7 @@ import {
   fingerprint,
   keyId,
   sign,
+  verify,
   validate,
   inspect,
   open,
@@ -28,6 +29,9 @@ import { RuntimeStorage } from "./storage.mjs";
 import { dueSlot } from "./schedule.mjs";
 import { checkInputPolicy } from "./policy.mjs";
 const PAIRING = "folioview.runtime-pairing.v1";
+const PLAN = "folioview.persistent-native-plan.v1",
+  PLAN_INTENT = "folioview.runtime-plan-pending.v1";
+const PLAN_STATUS = ["enabled", "paused", "removed", "unconfirmed"];
 export class PersistentRuntime {
   #fetch;
   #storage;
@@ -72,7 +76,10 @@ export class PersistentRuntime {
     try {
       response = await this.#fetch(this.#origin + path, {
         method: body === null ? "GET" : "POST",
-        headers: body === null ? {} : { "Content-Type": "application/json" },
+        headers: {
+          "X-FolioView-Contract": CONTRACT,
+          ...(body === null ? {} : { "Content-Type": "application/json" }),
+        },
         body: body === null ? undefined : new TextDecoder().decode(canonical(body)),
         credentials: "omit",
         redirect: "error",
@@ -145,6 +152,8 @@ export class PersistentRuntime {
       "runs/input",
       "runs/submit",
       "runs/result-receipt",
+      "plans/state",
+      "plans/report",
     ];
     if (!allowed.includes(operation)) deny("invalid_operation");
     const path = this.#base() + "/" + operation;
@@ -387,6 +396,295 @@ export class PersistentRuntime {
     this.#tasks.set(taskId, value);
     return value;
   }
+  #planReceipt(value, taskId) {
+    exact(value, [
+      "contractVersion",
+      "profile",
+      "connectionId",
+      "taskId",
+      "operationId",
+      "version",
+      "requestDigest",
+      "taskPublicationFingerprint",
+      "provider",
+      "planReferenceHash",
+      "reportedStatus",
+      "reportedAt",
+      "receivedAt",
+      "authority",
+      "nativeScheduleAttested",
+    ]);
+    if (
+      value.contractVersion !== CONTRACT ||
+      value.profile !== PLAN ||
+      value.taskId !== taskId ||
+      value.connectionId !== this.#actor.connectionId ||
+      value.provider !== "muse" ||
+      value.authority !== "agent_statement" ||
+      value.nativeScheduleAttested !== false ||
+      !PLAN_STATUS.includes(value.reportedStatus) ||
+      !Number.isSafeInteger(value.version) ||
+      value.version < 1 ||
+      !Number.isSafeInteger(value.reportedAt) ||
+      value.reportedAt < 0 ||
+      !Number.isSafeInteger(value.receivedAt) ||
+      value.receivedAt < 0 ||
+      value.reportedAt > value.receivedAt + 2
+    )
+      deny("invalid_plan_observation");
+    for (const k of ["requestDigest", "taskPublicationFingerprint"]) validate("Digest", value[k]);
+    validate("OperationIdentifier", value.operationId);
+    if (value.planReferenceHash !== null) validate("Digest", value.planReferenceHash);
+    if (["enabled", "paused"].includes(value.reportedStatus) && value.planReferenceHash === null)
+      deny("invalid_plan_observation");
+    return value;
+  }
+  #planView(value, taskId) {
+    exact(value, [
+      "contractVersion",
+      "profile",
+      "taskId",
+      "connectionId",
+      "version",
+      "desired",
+      "reported",
+      "observed",
+      "reportedEvidence",
+      "nativeScheduleAttested",
+    ]);
+    if (
+      value.contractVersion !== CONTRACT ||
+      value.profile !== PLAN ||
+      value.taskId !== taskId ||
+      value.connectionId !== this.#actor.connectionId ||
+      value.nativeScheduleAttested !== false ||
+      !Number.isSafeInteger(value.version) ||
+      value.version < 0 ||
+      (value.reported === null) !== (value.version === 0)
+    )
+      deny("invalid_plan_observation");
+    if (value.desired !== null) {
+      exact(value.desired, ["taskPublicationFingerprint", "taskVersion", "executionEpoch"]);
+      validate("Digest", value.desired.taskPublicationFingerprint);
+      for (const k of ["taskVersion", "executionEpoch"])
+        if (!Number.isSafeInteger(value.desired[k]) || value.desired[k] < 1)
+          deny("invalid_plan_observation");
+    }
+    if (
+      value.reported !== null &&
+      this.#planReceipt(value.reported, taskId).version !== value.version
+    )
+      deny("invalid_plan_observation");
+    if (value.observed !== null) {
+      const o = value.observed;
+      exact(o, [
+        "source",
+        "runId",
+        "triggerId",
+        "taskPublicationFingerprint",
+        "runCreatedAt",
+        "resultId",
+        "receivedAt",
+        "nativeScheduleAttested",
+      ]);
+      identifier(o.runId);
+      validate("OperationIdentifier", o.triggerId);
+      validate("Digest", o.taskPublicationFingerprint);
+      if (
+        o.nativeScheduleAttested !== false ||
+        !Number.isSafeInteger(o.runCreatedAt) ||
+        o.runCreatedAt < 0 ||
+        (o.resultId === null
+          ? o.source !== "hub_run_receipt" || o.receivedAt !== null
+          : o.source !== "hub_result_receipt" ||
+            !Number.isSafeInteger(o.receivedAt) ||
+            o.receivedAt < o.runCreatedAt)
+      )
+        deny("invalid_plan_observation");
+      if (o.resultId !== null) identifier(o.resultId);
+    }
+    return value;
+  }
+  async planStatus({ taskId }) {
+    identifier(taskId);
+    await this.synchronize();
+    const value = this.#planView(await this.#call("plans/state", { taskId }), taskId);
+    if (value.reported !== null) {
+      const e = value.reportedEvidence;
+      if (!e) deny("invalid_plan_observation");
+      exact(e, ["request", "proof", "identity", "registrySequence", "checkpointDigest"]);
+      const cp = this.#registry.snapshots.get(e.registrySequence);
+      if (!cp || cp.digest !== e.checkpointDigest || !same(e.identity, this.#identity))
+        deny("registry_conflict");
+      const signed = parsed(bytes(e.proof.payload), true),
+        cert = this.#registry.cert(
+          this.#identity.agentSigningKeyId,
+          "agent_sig",
+          this.#actor.connectionId,
+          signed.issuedAt,
+          e.registrySequence,
+        ),
+        p = await verify(e.proof, cert.publicJwk, "fv-control+jws");
+      validate("PersistentAgentRequestPayload", p);
+      matchBinding(p, this.#identity);
+      for (const k of [
+        "taskPublicationFingerprint",
+        "provider",
+        "planReferenceHash",
+        "reportedStatus",
+        "reportedAt",
+      ])
+        if (!same(e.request[k], value.reported[k])) deny("invalid_plan_observation");
+      if (
+        p.path !== this.#base() + "/plans/report" ||
+        p.audience !== this.#origin ||
+        p.method !== "POST" ||
+        p.bodyDigest !== (await digest(e.request)) ||
+        p.bodyDigest !== value.reported.requestDigest ||
+        p.issuedAt > value.reported.receivedAt ||
+        p.expiresAt <= value.reported.receivedAt ||
+        e.request.operationId !== value.reported.operationId ||
+        e.request.taskId !== taskId ||
+        e.request.expectedVersion + 1 !== value.version
+      )
+        deny("invalid_plan_observation");
+    } else if (value.reportedEvidence !== null) deny("invalid_plan_observation");
+    return value;
+  }
+  async #pendingPlan(taskId, pending) {
+    exact(pending, ["request", "proof"]);
+    const request = pending.request;
+    exact(request, [
+      "taskId",
+      "taskPublicationFingerprint",
+      "operationId",
+      "expectedVersion",
+      "provider",
+      "planReferenceHash",
+      "reportedStatus",
+      "reportedAt",
+    ]);
+    if (
+      request.taskId !== taskId ||
+      request.provider !== "muse" ||
+      !PLAN_STATUS.includes(request.reportedStatus) ||
+      !Number.isSafeInteger(request.expectedVersion) ||
+      request.expectedVersion < 0 ||
+      !Number.isSafeInteger(request.reportedAt) ||
+      request.reportedAt < 0
+    )
+      deny("invalid_plan_observation");
+    validate("OperationIdentifier", request.operationId);
+    validate("Digest", request.taskPublicationFingerprint);
+    if (request.planReferenceHash !== null) validate("Digest", request.planReferenceHash);
+    const p = await verify(pending.proof, this.#profile.signingPublicJwk, "fv-control+jws");
+    exact(p, ["profile", ...BINDING, "requestDigest"]);
+    matchBinding(p, this.#identity);
+    if (p.profile !== PLAN_INTENT || p.requestDigest !== (await digest(request)))
+      deny("invalid_plan_observation");
+    return request;
+  }
+  async reportPlan({ taskId, status, planReference }) {
+    identifier(taskId);
+    if (
+      !PLAN_STATUS.includes(status) ||
+      !(
+        planReference === null ||
+        (typeof planReference === "string" &&
+          /^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/.test(planReference))
+      ) ||
+      (["enabled", "paused"].includes(status) && planReference === null)
+    )
+      deny("invalid_plan_observation");
+    await this.synchronize();
+    const hash = planReference === null ? null : await digest(planReference),
+      name = "plan-pending:" + taskId,
+      previous = await this.#record(name, (v) => ({ result: v }));
+    if (previous) {
+      const request = await this.#pendingPlan(taskId, previous);
+      if (request.reportedStatus !== status || request.planReferenceHash !== hash)
+        deny("pending_plan_observation");
+      return this.retryPlanReport({ taskId });
+    }
+    const state = await this.planStatus({ taskId });
+    let fingerprint = state.desired?.taskPublicationFingerprint;
+    if (status === "enabled") fingerprint = (await this.#task(taskId)).fingerprint;
+    if (!fingerprint) deny("insufficient_scope");
+    const r = state.reported;
+    if (
+      r &&
+      r.taskPublicationFingerprint === fingerprint &&
+      r.reportedStatus === status &&
+      r.planReferenceHash === hash &&
+      this.now() - r.reportedAt < 86400
+    )
+      return { state: "unchanged", receipt: r };
+    const request = {
+      taskId,
+      taskPublicationFingerprint: fingerprint,
+      operationId:
+        "plan_" +
+        (await digest([
+          this.#identity.bindingFingerprint,
+          taskId,
+          state.version,
+          fingerprint,
+          status,
+          hash,
+        ])),
+      expectedVersion: state.version,
+      provider: "muse",
+      planReferenceHash: hash,
+      reportedStatus: status,
+      reportedAt: this.now(),
+    };
+    const proof = await sign(
+      {
+        profile: PLAN_INTENT,
+        ...Object.fromEntries(BINDING.map((k) => [k, this.#identity[k]])),
+        requestDigest: await digest(request),
+      },
+      this.#profile.signingPrivateKey,
+      this.#identity.agentSigningKeyId,
+      "fv-control+jws",
+    );
+    const candidate = { request, proof };
+    const stored = await this.#record(name, (v) => ({
+      write: v ?? candidate,
+      result: v ?? candidate,
+    }));
+    if (!same(stored, candidate)) deny("pending_plan_observation");
+    return this.retryPlanReport({ taskId });
+  }
+  async retryPlanReport({ taskId }) {
+    identifier(taskId);
+    await this.synchronize();
+    const name = "plan-pending:" + taskId,
+      pending = await this.#record(name, (v) => ({ result: v }));
+    if (!pending) deny("not_found");
+    const request = await this.#pendingPlan(taskId, pending),
+      receipt = this.#planReceipt(await this.#call("plans/report", request), taskId);
+    for (const k of [
+      "taskPublicationFingerprint",
+      "provider",
+      "planReferenceHash",
+      "reportedStatus",
+      "reportedAt",
+    ])
+      if (!same(request[k], receipt[k])) deny("invalid_plan_observation");
+    if (
+      receipt.requestDigest !== (await digest(request)) ||
+      receipt.operationId !== request.operationId ||
+      receipt.version !== request.expectedVersion + 1
+    )
+      deny("invalid_plan_observation");
+    await this.#record(name, (v) => {
+      if (!same(v, pending)) deny("version_conflict");
+      return { write: null, result: null };
+    });
+    return { state: "reported", receipt };
+  }
+
   async tasks() {
     await this.synchronize();
     const response = await this.#call("tasks", {});

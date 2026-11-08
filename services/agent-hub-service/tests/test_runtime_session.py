@@ -19,6 +19,7 @@ from test_oauth import CLIENT, TASK, OAuthFixture
 from test_persistent_content import PersistentContentFixture
 from test_persistent_identity_store import CONNECTION
 
+from app.persistent_plans import PersistentPlanService
 from app.persistent_results import PersistentOwnerResultService, PersistentResultService
 from folioview_shared.encrypted.crypto import _signed_parts
 from folioview_shared.encrypted.errors import ContractError
@@ -36,6 +37,8 @@ METHODS = {
     "runs/input": "input",
     "runs/submit": "submit",
     "runs/result-receipt": "result_receipt",
+    "plans/state": "plan_state",
+    "plans/report": "report_plan",
 }
 
 
@@ -94,6 +97,8 @@ class PersistentRuntimeSessionTests(unittest.TestCase):
         self.addCleanup(self.peer.close)
         self.setup_case = None
         self.captured_offer = None
+        self.drop_next_plan = False
+        self.plan_requests = []
         self.drop_next_report = False
         self.ciphertexts = []
         self.connection = CONNECTION
@@ -117,7 +122,8 @@ class PersistentRuntimeSessionTests(unittest.TestCase):
                     result = self.setup_case.service.public_state(intent)
             else:
                 route = path.removeprefix(self.base + "/")
-                result = getattr(self.service, METHODS[route])(
+                target = self.plans if route.startswith("plans/") else self.service
+                result = getattr(target, METHODS[route])(
                     self.f.owner,
                     self.f.vault,
                     self.connection,
@@ -125,6 +131,11 @@ class PersistentRuntimeSessionTests(unittest.TestCase):
                     path,
                     body["request"],
                 )
+                if route == "plans/report":
+                    self.plan_requests.append(json.dumps(body["request"], sort_keys=True))
+                    if self.drop_next_plan:
+                        self.drop_next_plan = False
+                        return {"networkError": True}
                 if route == "runs/submit":
                     self.ciphertexts.append(json.dumps(body["request"]["envelope"], sort_keys=True))
                     if self.drop_next_report:
@@ -147,6 +158,10 @@ class PersistentRuntimeSessionTests(unittest.TestCase):
             f"/connections/{self.connection}"
         )
         self.service = PersistentResultService(
+            store, catalogue, audience=ORIGIN, client_ids=[CLIENT], clock=lambda: self.fx.now
+        )
+
+        self.plans = PersistentPlanService(
             store, catalogue, audience=ORIGIN, client_ids=[CLIENT], clock=lambda: self.fx.now
         )
 
@@ -298,6 +313,109 @@ class PersistentRuntimeSessionTests(unittest.TestCase):
             timeout=12,
         )
         self.assertEqual(result.returncode, 0, result.stderr[:1000])
+
+    def test_plan_statement_restart_preserves_original_and_observed_run_is_not_attestation(self):
+        _, initialize = self.execution()
+        initial = self.peer.call("planStatus", {"taskId": TASK})
+        self.assertIsNone(initial["reported"])
+        self.assertIsNone(initial["observed"])
+        report = {"taskId": TASK, "status": "enabled", "planReference": "synthetic_native_plan_A"}
+        self.drop_next_plan = True
+        self.assertEqual(
+            self.peer.call("reportPlan", report, ok=False)["error"], "runtime_network_unavailable"
+        )
+        self.peer.call("initialize", initialize)
+        tamper = {"actor": initialize["actor"], "taskId": TASK, "status": "paused"}
+        self.peer.call("tamperPlan", tamper)
+        self.assertEqual(
+            self.peer.call("retryPlanReport", {"taskId": TASK}, ok=False)["error"],
+            "invalid_plan_observation",
+        )
+        self.assertEqual(len(self.plan_requests), 1)
+        self.peer.call("tamperPlan", {**tamper, "status": "enabled"})
+        saved = self.peer.call("retryPlanReport", {"taskId": TASK})
+        self.assertEqual(saved["state"], "reported")
+        self.assertEqual(self.plan_requests[0], self.plan_requests[1])
+        self.assertNotIn("synthetic_native_plan_A", self.plan_requests[0])
+        state = self.peer.call("planStatus", {"taskId": TASK})
+        self.assertEqual(state["reported"], saved["receipt"])
+        self.assertFalse(state["nativeScheduleAttested"])
+        self.assertEqual(self.peer.call("reportPlan", report)["state"], "unchanged")
+        run = self.peer.call(
+            "begin", {"taskId": TASK, "triggerId": "synthetic_native_plan_slot_0001"}
+        )
+        state = self.peer.call("planStatus", {"taskId": TASK})
+        self.assertEqual(state["observed"]["runId"], run["runId"])
+        self.assertFalse(state["observed"]["nativeScheduleAttested"])
+        paused = self.peer.call("reportPlan", {**report, "status": "paused"})
+        self.assertEqual(paused["receipt"]["version"], 2)
+        self.assertEqual(
+            self.peer.call("planStatus", {"taskId": TASK})["observed"]["runId"], run["runId"]
+        )
+
+    def test_actual_http_routes_receive_versioned_proofs_and_encrypted_reports(self):
+        from fastapi import FastAPI
+        from fastapi.testclient import TestClient
+
+        from app.errors import HubErrors
+        from app.persistent_execution_routes import get_execution, router
+        from app.persistent_plan_routes import agent_router as plans_router
+        from app.persistent_plan_routes import get_plan_service
+        from app.persistent_result_routes import agent_router, get_result_writer
+
+        _, initialize = self.execution()
+        app = FastAPI()
+        app.add_middleware(HubErrors)
+        app.include_router(router)
+        app.include_router(agent_router)
+        app.include_router(plans_router)
+        app.dependency_overrides[get_execution] = lambda: self.service
+        app.dependency_overrides[get_result_writer] = lambda: self.service
+        app.dependency_overrides[get_plan_service] = lambda: self.plans
+
+        @app.get("/agent/v3/runtime/config")
+        def configuration():
+            return {
+                "contractVersion": "folioview.agent-workspace.v2.0",
+                "runtimeVersion": "1.0.0",
+                "issuer": ORIGIN,
+                "serverNow": self.fx.now,
+            }
+
+        client = TestClient(app)
+        self.addCleanup(client.close)
+
+        def http(value):
+            arguments = {"headers": value["headers"]}
+            if value["body"] is not None:
+                arguments["json"] = value["body"]
+            response = client.request(value["method"], value["path"], **arguments)
+            return {"status": response.status_code, "value": response.json()}
+
+        self.peer.handle = http
+        self.peer.call("initialize", initialize)
+        self.assertEqual(len(self.peer.call("tasks")), 1)
+        self.assertEqual(
+            self.peer.call(
+                "reportPlan",
+                {"taskId": TASK, "status": "enabled", "planReference": "synthetic_http_plan"},
+            )["state"],
+            "reported",
+        )
+        run = self.peer.call(
+            "begin", {"taskId": TASK, "triggerId": "synthetic_http_native_slot_0001"}
+        )
+        self.peer.call(
+            "input", {"runId": run["runId"], "publicationId": run["inputs"][0]["publicationId"]}
+        )
+        report = PersistentContentFixture.private_content(
+            self.f, PersistentContentFixture.content_context(self.f, "result_revision")
+        )["payload"]
+        saved = self.peer.call("submit", {"runId": run["runId"], "report": report})
+        self.assertEqual(saved["state"], "saved")
+        observed = self.peer.call("planStatus", {"taskId": TASK})["observed"]
+        self.assertEqual(observed["resultId"], saved["resultId"])
+        self.assertFalse(observed["nativeScheduleAttested"])
 
     def test_first_setup_has_no_authority_until_root_pairing_and_restart_restores_same_keys(self):
         case = setups.RuntimeSetupTests()

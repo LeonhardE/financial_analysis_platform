@@ -1,6 +1,6 @@
 import { createInterface } from "node:readline";
 import { PersistentRuntime } from "../runtime/dist/session.mjs";
-import { RuntimeStorage } from "../runtime/dist/core.mjs";
+import { RuntimeStorage, digest } from "../runtime/dist/core.mjs";
 import { IDBFactory } from "./fixtures/idb-runtime.mjs";
 const storage = new RuntimeStorage(new IDBFactory()),
   requests = new Map();
@@ -14,6 +14,8 @@ const fetch = async (url, options) => {
     send({
       fetch: id,
       path: new URL(url).pathname,
+      method: options.method,
+      headers: Object.fromEntries(new Headers(options.headers)),
       body: options.body ? JSON.parse(options.body) : null,
     });
   });
@@ -35,7 +37,15 @@ lines.on("line", (line) => {
   void (async () => {
     try {
       let value;
-      if (v.method === "keys") {
+      if (v.method === "tamperPlan") {
+        const actor = { issuer: v.origin, ...v.args.actor };
+        const key = "public:" + (await digest([actor, "plan-pending:" + v.args.taskId]));
+        value = await storage.transact(key, (pending) => {
+          if (!pending) throw Error("missing_synthetic_plan");
+          pending.request.reportedStatus = v.args.status;
+          return { write: pending, result: null };
+        });
+      } else if (v.method === "keys") {
         const p = await storage.profile(v.args, { create: true });
         value = {
           signingPublicJwk: p.signingPublicJwk,
