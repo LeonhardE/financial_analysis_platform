@@ -112,7 +112,7 @@ storage still selects `(default)`. Preserve the already-correct condition withou
 replacement. The [database migration runbook](database-iam-migration.md) describes the separate
 historical migration and recovery process, outside normal Market execution permissions.
 
-The [first-adoption read-only result](adoption-readonly-results-2026-10-23.json) records its own
+The [pseudonymized first-adoption read-only fixture](adoption-readonly-results-2026-10-23.json) records its own
 historical source hashes, inventory and initial execution-boundary additions. It does not
 validate the current private configuration, authorize recreating resources or justify first-build
 steps on an already-adopted deployment. Raw historical evidence remains private.

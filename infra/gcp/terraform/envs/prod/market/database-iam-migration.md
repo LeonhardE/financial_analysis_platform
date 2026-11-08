@@ -1,5 +1,6 @@
 # Market default-database IAM migration (INF-002)
 
+Examples use a fictitious deployment. Replace project and identity values from your reviewed private instance; the historical acceptance notes do not certify any other deployment.
 This procedure is a separately reviewed administrator operation for one Market
 membership. The committed change and offline tests do not apply production IAM,
 prove effective isolation, or authorize an unattended bootstrap apply. No new
@@ -8,15 +9,15 @@ service, database, identity, key, API or execution target is part of this ticket
 ## Exact desired boundary
 
 - Owner remains `bootstrap/` at `google_project_iam_member.market_cache`.
-- Project: `financial-analysis-512202`.
-- Member: `serviceAccount:fa-api-runtime@financial-analysis-512202.iam.gserviceaccount.com`.
+- Project: `demo-folio-alpha`.
+- Member: `serviceAccount:fa-api-runtime@demo-folio-alpha.iam.gserviceaccount.com`.
 - Role remains `roles/datastore.user`, retaining the permissions used by the
   cache's reads, writes and transactions.
 - Condition title: `database-default`.
 - Expression:
 
   ```text
-  resource.type == 'firestore.googleapis.com/Database' && resource.name == 'projects/financial-analysis-512202/databases/(default)'
+  resource.type == 'firestore.googleapis.com/Database' && resource.name == 'projects/demo-folio-alpha/databases/(default)'
   ```
 
 `module.market_database_scope` supplies metadata only; its runtime-account map
@@ -60,7 +61,7 @@ fresh saved plan, and account for IAM propagation during verification.
 The declarative import now names the desired conditional tuple:
 
 ```text
-financial-analysis-512202 roles/datastore.user serviceAccount:fa-api-runtime@financial-analysis-512202.iam.gserviceaccount.com database-default
+demo-folio-alpha roles/datastore.user serviceAccount:fa-api-runtime@demo-folio-alpha.iam.gserviceaccount.com database-default
 ```
 
 Changing an import ID does not re-import or rewrite an already managed state
@@ -78,7 +79,7 @@ object. Choose the path based on the inventoried state and actual policy:
   state only; it does not narrow IAM:
 
   ```text
-  financial-analysis-512202 roles/datastore.user serviceAccount:fa-api-runtime@financial-analysis-512202.iam.gserviceaccount.com
+  demo-folio-alpha roles/datastore.user serviceAccount:fa-api-runtime@demo-folio-alpha.iam.gserviceaccount.com
   ```
 
 - **Exact conditional tuple already exists and needs state recovery:** use the
@@ -137,6 +138,9 @@ A regression test keeps IAM replacement outside the ordinary Market runner.
 Mocks do not exercise IAM authorization or the real provider's replacement RPCs.
 The existing `verify_market_adoption.py` checks the historical initial no-op
 adoption and deliberately rejects IAM mutations; do not widen it for this change.
+It now requires an explicit private `--instance` JSON and rejects the current multi-service catalog
+before authentication. It is preserved for historical regression coverage, not as an alternative to
+the current per-target reviewed-plan workflow.
 
 After an authorized administrator migration:
 

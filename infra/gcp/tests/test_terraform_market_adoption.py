@@ -4,10 +4,14 @@ Cloud snapshots below are synthetic. These tests exercise the same controller
 and saved-plan policy used in production without cloud credentials or writes.
 """
 
+import argparse
 import copy
+import io
 import json
 import sys
+import tempfile
 import unittest
+from dataclasses import asdict, replace
 from pathlib import Path
 from unittest.mock import Mock, patch
 
@@ -22,6 +26,17 @@ import verify_market_adoption as adoption  # noqa: E402
 from checks import Plan, select  # noqa: E402
 from test_configure_cloud_run_service import ConfigAPI  # noqa: E402
 from test_deploy_existing_service import RESOURCE  # noqa: E402
+
+# Fictitious instance metadata; never an operator profile or cloud test target.
+INSTANCE = adoption.MarketInstance(
+    project_id="demo-folio-market",
+    region="us-central1",
+    runtime_account_id="demo-market-runtime",
+    image_deployer_account_id="demo-image-builder",
+    image_trigger_id="11111111-2222-3333-4444-555555555555",
+    bootstrap_bucket="demo-folio-bootstrap",
+    bootstrap_object="bootstrap/default.tfstate",
+)
 
 
 def reviewed_target(name):
@@ -233,12 +248,12 @@ class ReadOnlyAdoptionVerifierTests(unittest.TestCase):
             (
                 adoption.market_review,
                 "module.market.google_cloud_run_v2_service.service",
-                adoption.SERVICE.replace("market-api", "user-api"),
+                INSTANCE.service.replace("market-api", "user-api"),
             ),
             (
                 adoption.bootstrap_review,
                 "module.market_image_release.google_cloudbuild_trigger.this",
-                f"{adoption.BASE}/triggers/different-existing-trigger",
+                f"{INSTANCE.base}/triggers/different-existing-trigger",
             ),
         )
         for review, address, wrong_id in cases:
@@ -255,7 +270,7 @@ class ReadOnlyAdoptionVerifierTests(unittest.TestCase):
                 self.subTest(review=review.__name__),
                 self.assertRaisesRegex(RuntimeError, "Import ID differs"),
             ):
-                review(plan)
+                review(plan, INSTANCE)
 
     def test_existing_google_objects_cannot_be_created_updated_replaced_or_deleted(self):
         for review, address in (
@@ -279,7 +294,7 @@ class ReadOnlyAdoptionVerifierTests(unittest.TestCase):
                     self.subTest(review=review.__name__, actions=actions),
                     self.assertRaises(RuntimeError),
                 ):
-                    review(plan)
+                    review(plan, INSTANCE)
 
     def test_mutating_terraform_commands_stop_before_authentication_or_process_start(self):
         cloud = Mock()
@@ -293,6 +308,193 @@ class ReadOnlyAdoptionVerifierTests(unittest.TestCase):
                     runner.run(command, [], Path("/unused/root"), "forbidden")
             cloud.token.assert_not_called()
             process.assert_not_called()
+
+    def test_market_imports_are_bound_to_each_explicit_instance(self):
+        second = replace(INSTANCE, project_id="demo-folio-other", region="europe-west1")
+        for instance in (INSTANCE, second):
+            changes = [
+                {
+                    "address": address,
+                    "change": {"actions": ["no-op"], "importing": {"id": resource}},
+                }
+                for address, resource in (
+                    ("module.market.google_cloud_run_v2_service.service", instance.service),
+                    ("module.runtime_identity.google_service_account.this", instance.runtime),
+                )
+            ]
+            changes.append(
+                {
+                    "address": "module.market.terraform_data.configuration",
+                    "change": {"actions": ["create"], "before": None, "after": {"input": {}}},
+                }
+            )
+            plan = {"resource_changes": changes}
+            with self.subTest(project=instance.project_id):
+                actions, desired = adoption.market_review(plan, instance)
+                self.assertEqual(len(actions), 3)
+                self.assertEqual(desired, {})
+                foreign = second if instance == INSTANCE else INSTANCE
+                with self.assertRaisesRegex(RuntimeError, "Import ID differs"):
+                    adoption.market_review(plan, foreign)
+
+
+class ExplicitMarketInstanceTests(unittest.TestCase):
+    def test_load_complete_instance_and_reject_missing_unknown_or_duplicate_fields(self):
+        values = asdict(INSTANCE)
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "instance.json"
+            path.write_text(json.dumps(values))
+            self.assertEqual(adoption.load_instance(path), INSTANCE)
+            for candidate in (
+                {key: value for key, value in values.items() if key != "project_id"},
+                {**values, "credentials": "not-a-supported-input"},
+                [],
+            ):
+                path.write_text(json.dumps(candidate))
+                with self.assertRaises(argparse.ArgumentTypeError):
+                    adoption.load_instance(path)
+            path.write_text(json.dumps(values)[:-1] + ', "project_id": "demo-another"}')
+            with self.assertRaises(argparse.ArgumentTypeError):
+                adoption.load_instance(path)
+            path.write_text(" " * 16385)
+            with self.assertRaises(argparse.ArgumentTypeError):
+                adoption.load_instance(path)
+            link = Path(directory) / "link.json"
+            link.symlink_to(path)
+            with self.assertRaises(argparse.ArgumentTypeError):
+                adoption.load_instance(link)
+
+    def test_invalid_resource_paths_and_identity_binding_fail_without_cloud_access(self):
+        bad_fields = {
+            "project_id": "demo-project/locations/elsewhere",
+            "region": "us-central1?override=true",
+            "runtime_account_id": "runtime@foreign.example",
+            "image_deployer_account_id": INSTANCE.runtime_account_id,
+            "image_trigger_id": "../different-trigger",
+            "bootstrap_bucket": "bucket/object",
+            "bootstrap_object": "../default.tfstate",
+        }
+        with (
+            patch.object(adoption, "urlopen") as network,
+            patch.object(adoption.Cloud, "token") as token,
+        ):
+            for name, value in bad_fields.items():
+                with self.subTest(field=name), self.assertRaises(RuntimeError):
+                    replace(INSTANCE, **{name: value})
+            token.assert_not_called()
+            network.assert_not_called()
+
+    def test_iam_post_allowlist_is_exact_and_instance_bound(self):
+        cloud = adoption.Cloud(INSTANCE)
+        allowed = (
+            ("iam.googleapis.com", "v1/" + INSTANCE.runtime + ":getIamPolicy"),
+            (
+                "cloudresourcemanager.googleapis.com",
+                f"v1/projects/{INSTANCE.project_id}:getIamPolicy",
+            ),
+        )
+        with (
+            patch.object(cloud, "token", return_value="synthetic-token") as token,
+            patch.object(
+                adoption, "urlopen", side_effect=lambda *_args, **_kwargs: io.BytesIO(b"{}")
+            ) as network,
+        ):
+            for host, path in allowed:
+                self.assertEqual(cloud.iam_policy(host, path), {})
+                request = network.call_args.args[0]
+                self.assertEqual(request.method, "POST")
+                self.assertEqual(request.full_url, f"https://{host}/{path}")
+                self.assertEqual(request.data, b"{}")
+            token.reset_mock()
+            network.reset_mock()
+            foreign = replace(INSTANCE, project_id="demo-foreign-project")
+            for host, path in (
+                ("iam.googleapis.com", "v1/" + foreign.runtime + ":getIamPolicy"),
+                ("iam.googleapis.com", "v1/" + INSTANCE.runtime + ":setIamPolicy"),
+                (
+                    "cloudresourcemanager.googleapis.com",
+                    "v1/projects/demo-foreign-project:getIamPolicy",
+                ),
+                ("example.invalid", allowed[0][1]),
+            ):
+                with (
+                    self.subTest(host=host, path=path),
+                    self.assertRaisesRegex(RuntimeError, "Only the two fixed"),
+                ):
+                    cloud.iam_policy(host, path)
+            token.assert_not_called()
+            network.assert_not_called()
+
+    def test_cloud_inventory_and_state_reads_use_selected_instance(self):
+        instance = replace(INSTANCE, project_id="demo-other-market", region="europe-west1")
+        cloud = adoption.Cloud(instance)
+        with (
+            patch.object(cloud, "get", return_value={}) as get,
+            patch.object(cloud, "iam_policy", return_value={}),
+        ):
+            snapshot = cloud.snapshot()
+            self.assertEqual(
+                set(snapshot["other_services"]), {"user-api", "config-api", "market-web"}
+            )
+            self.assertIn(
+                unittest.mock.call("run.googleapis.com", "v2/" + instance.service),
+                get.call_args_list,
+            )
+            self.assertIn(
+                unittest.mock.call("iam.googleapis.com", "v1/" + instance.runtime),
+                get.call_args_list,
+            )
+            self.assertIn(
+                unittest.mock.call(
+                    "cloudbuild.googleapis.com",
+                    f"v1/{instance.base}/triggers/{instance.image_trigger_id}",
+                ),
+                get.call_args_list,
+            )
+        with patch.object(
+            cloud, "get", side_effect=[{"generation": "42"}, b"synthetic-state"]
+        ) as get:
+            self.assertEqual(cloud.bootstrap_state(), ("42", b"synthetic-state"))
+            self.assertEqual(
+                get.call_args_list,
+                [
+                    unittest.mock.call(
+                        "storage.googleapis.com",
+                        f"storage/v1/b/{instance.bootstrap_bucket}/o/bootstrap%2Fdefault.tfstate",
+                    ),
+                    unittest.mock.call(
+                        "storage.googleapis.com",
+                        f"storage/v1/b/{instance.bootstrap_bucket}/o/bootstrap%2Fdefault.tfstate?alt=media&generation=42",
+                        raw=True,
+                    ),
+                ],
+            )
+
+    def test_missing_instance_and_current_catalog_reject_before_authentication(self):
+        with (
+            patch.object(adoption, "Cloud") as cloud,
+            patch.object(adoption, "source_evidence") as sources,
+        ):
+            with self.assertRaisesRegex(RuntimeError, "validated Market instance"):
+                adoption.verify(argparse.Namespace(live=True))
+            with self.assertRaisesRegex(RuntimeError, "Historical first-adoption"):
+                adoption.verify(argparse.Namespace(live=True, instance=INSTANCE))
+            cloud.assert_not_called()
+            sources.assert_not_called()
+
+    def test_cli_requires_an_explicit_instance(self):
+        with (
+            patch.object(
+                sys, "argv", ["verify_market_adoption.py", "--live", "--terraform", sys.executable]
+            ),
+            patch.object(adoption, "verify") as verify,
+            patch("sys.stderr", new_callable=io.StringIO) as error,
+            self.assertRaises(SystemExit) as result,
+        ):
+            adoption.main()
+        self.assertEqual(result.exception.code, 2)
+        self.assertIn("--instance", error.getvalue())
+        verify.assert_not_called()
 
 
 if __name__ == "__main__":

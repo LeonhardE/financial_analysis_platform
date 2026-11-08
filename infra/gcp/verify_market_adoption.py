@@ -5,6 +5,12 @@ Downloaded administrative state, inventory, provider output and saved plans stay
 in a fresh private directory. The explicit report contains an allowlist of safe
 identifiers, actions, hashes and verification results; it never contains values
 from environment variables, IAM policy payloads, state or plan output.
+
+This is the historical Repo/Market first-adoption review, not a general migration
+runner. An explicit --instance JSON object must provide project_id, region,
+runtime_account_id, image_deployer_account_id, image_trigger_id, bootstrap_bucket
+and bootstrap_object. No instance values are inferred from CLI login or source.
+The current multi-service catalog is deliberately outside this review's scope.
 """
 
 import argparse
@@ -16,6 +22,7 @@ import re
 import shutil
 import subprocess
 import tempfile
+from dataclasses import dataclass, fields
 from datetime import UTC, datetime
 from pathlib import Path
 from urllib.parse import quote, urlencode
@@ -24,19 +31,97 @@ from urllib.request import Request, urlopen
 from configure_cloud_run_service import configuration, configuration_body, matches
 
 ROOT = Path(__file__).resolve().parent
-PROJECT = "financial-analysis-512202"
-REGION = "northamerica-northeast2"
-BASE = f"projects/{PROJECT}/locations/{REGION}"
-SERVICE = f"{BASE}/services/market-api"
-RUNTIME = f"projects/{PROJECT}/serviceAccounts/fa-api-runtime@{PROJECT}.iam.gserviceaccount.com"
-IMAGE_TRIGGER = "db77a22e-83bf-45cc-b114-50e32192a9c8"
-BOOTSTRAP_BUCKET = f"{PROJECT}-tf-bootstrap"
-BOOTSTRAP_OBJECT = "bootstrap/default.tfstate"
 
 
 def require(condition, message):
     if not condition:
         raise RuntimeError(message)
+
+
+@dataclass(frozen=True)
+class MarketInstance:
+    project_id: str
+    region: str
+    runtime_account_id: str
+    image_deployer_account_id: str
+    image_trigger_id: str
+    bootstrap_bucket: str
+    bootstrap_object: str
+
+    def __post_init__(self):
+        identifier = r"[a-z][a-z0-9-]{4,28}[a-z0-9]"
+        patterns = {
+            "project_id": identifier,
+            "region": r"[a-z]+(?:-[a-z0-9]+)+[0-9]",
+            "runtime_account_id": identifier,
+            "image_deployer_account_id": identifier,
+            "image_trigger_id": r"[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}",
+            "bootstrap_bucket": r"[a-z0-9][a-z0-9_-]{1,61}[a-z0-9]",
+            "bootstrap_object": r"[A-Za-z0-9_-]+(?:/[A-Za-z0-9_-]+)*/default\.tfstate",
+        }
+        for name, pattern in patterns.items():
+            value = getattr(self, name)
+            require(
+                isinstance(value, str) and re.fullmatch(pattern, value) is not None,
+                f"Invalid explicit Market instance field: {name}.",
+            )
+        require(
+            len(self.bootstrap_object) <= 256,
+            "Market bootstrap state object is too long.",
+        )
+        require(
+            self.runtime_account_id != self.image_deployer_account_id,
+            "Market runtime and image deployer must be separate identities.",
+        )
+
+    @property
+    def base(self):
+        return f"projects/{self.project_id}/locations/{self.region}"
+
+    @property
+    def service(self):
+        return f"{self.base}/services/market-api"
+
+    @property
+    def runtime(self):
+        return (
+            f"projects/{self.project_id}/serviceAccounts/"
+            f"{self.runtime_account_id}@{self.project_id}.iam.gserviceaccount.com"
+        )
+
+    @property
+    def image_member(self):
+        return (
+            f"serviceAccount:{self.image_deployer_account_id}"
+            f"@{self.project_id}.iam.gserviceaccount.com"
+        )
+
+
+def load_instance(value):
+    def unique_object(pairs):
+        result = {}
+        for name, item in pairs:
+            require(name not in result, "Duplicate Market instance field.")
+            result[name] = item
+        return result
+
+    try:
+        path = Path(value).expanduser()
+        require(path.is_file() and not path.is_symlink(), "Expected a regular instance file.")
+        with path.open("rb") as stream:
+            data = stream.read(16385)
+        require(len(data) <= 16384, "Market instance file is too large.")
+        values = json.loads(data, object_pairs_hook=unique_object)
+        require(
+            isinstance(values, dict)
+            and set(values) == {item.name for item in fields(MarketInstance)},
+            "Supply exactly the documented Market instance fields.",
+        )
+        return MarketInstance(**values)
+    except (OSError, RuntimeError, TypeError, ValueError):
+        raise argparse.ArgumentTypeError(
+            "Supply a regular JSON file containing the complete validated Market instance."
+        ) from None
 
 
 def digest(value):
@@ -65,6 +150,10 @@ def clean_environment():
 
 
 class Cloud:
+    def __init__(self, instance):
+        require(isinstance(instance, MarketInstance), "A validated Market instance is required.")
+        self.instance = instance
+
     def token(self):
         result = subprocess.run(
             ["gcloud", "auth", "print-access-token"],
@@ -94,10 +183,10 @@ class Cloud:
     def iam_policy(self, host, path):
         # These two Google getIamPolicy RPCs use POST despite being read-only.
         allowed = {
-            ("iam.googleapis.com", "v1/" + RUNTIME + ":getIamPolicy"),
+            ("iam.googleapis.com", "v1/" + self.instance.runtime + ":getIamPolicy"),
             (
                 "cloudresourcemanager.googleapis.com",
-                f"v1/projects/{PROJECT}:getIamPolicy",
+                f"v1/projects/{self.instance.project_id}:getIamPolicy",
             ),
         }
         require((host, path) in allowed, "Only the two fixed IAM read RPCs permit POST.")
@@ -114,27 +203,36 @@ class Cloud:
             return json.load(response)
 
     def snapshot(self):
-        service = self.get("run.googleapis.com", "v2/" + SERVICE)
+        instance = self.instance
+        service = self.get("run.googleapis.com", "v2/" + instance.service)
         return {
             "service": service,
-            "service_iam": self.get("run.googleapis.com", "v2/" + SERVICE + ":getIamPolicy"),
-            "runtime": self.get("iam.googleapis.com", "v1/" + RUNTIME),
-            "runtime_iam": self.iam_policy("iam.googleapis.com", "v1/" + RUNTIME + ":getIamPolicy"),
+            "service_iam": self.get(
+                "run.googleapis.com", "v2/" + instance.service + ":getIamPolicy"
+            ),
+            "runtime": self.get("iam.googleapis.com", "v1/" + instance.runtime),
+            "runtime_iam": self.iam_policy(
+                "iam.googleapis.com", "v1/" + instance.runtime + ":getIamPolicy"
+            ),
             "project_iam": self.iam_policy(
                 "cloudresourcemanager.googleapis.com",
-                f"v1/projects/{PROJECT}:getIamPolicy",
+                f"v1/projects/{instance.project_id}:getIamPolicy",
             ),
             "image_trigger": self.get(
-                "cloudbuild.googleapis.com", f"v1/{BASE}/triggers/{IMAGE_TRIGGER}"
+                "cloudbuild.googleapis.com",
+                f"v1/{instance.base}/triggers/{instance.image_trigger_id}",
             ),
             "other_services": {
-                name: self.get("run.googleapis.com", f"v2/{BASE}/services/{name}")
+                name: self.get("run.googleapis.com", f"v2/{instance.base}/services/{name}")
                 for name in ("user-api", "config-api", "market-web")
             },
         }
 
     def bootstrap_state(self):
-        path = f"storage/v1/b/{BOOTSTRAP_BUCKET}/o/{quote(BOOTSTRAP_OBJECT, safe='')}"
+        path = (
+            f"storage/v1/b/{self.instance.bootstrap_bucket}/o/"
+            f"{quote(self.instance.bootstrap_object, safe='')}"
+        )
         metadata = self.get("storage.googleapis.com", path)
         generation = metadata["generation"]
         data = self.get(
@@ -330,21 +428,20 @@ def copy_sources(destination, expected_sources):
     )
 
 
-def bootstrap_review(plan):
-    image_member = f"serviceAccount:fa-build@{PROJECT}.iam.gserviceaccount.com"
+def bootstrap_review(plan, instance):
     imports = {
         "module.market_image_release.google_cloudbuild_trigger.this": (
-            f"{BASE}/triggers/{IMAGE_TRIGGER}"
+            f"{instance.base}/triggers/{instance.image_trigger_id}"
         ),
         "google_cloud_run_v2_service_iam_member.market_image_deployer": (
-            f"{SERVICE} roles/run.developer {image_member}"
+            f"{instance.service} roles/run.developer {instance.image_member}"
         ),
         'google_service_account_iam_member.market_runtime_deployer["image"]': (
-            f"{RUNTIME} roles/iam.serviceAccountUser {image_member}"
+            f"{instance.runtime} roles/iam.serviceAccountUser {instance.image_member}"
         ),
         "google_project_iam_member.market_cache": (
-            f"{PROJECT} roles/datastore.user "
-            f"serviceAccount:fa-api-runtime@{PROJECT}.iam.gserviceaccount.com"
+            f"{instance.project_id} roles/datastore.user "
+            f"serviceAccount:{instance.runtime_account_id}@{instance.project_id}.iam.gserviceaccount.com"
         ),
     }
     target = 'module.target_execution["market"].'
@@ -424,10 +521,10 @@ def bootstrap_review(plan):
     return actions
 
 
-def market_review(plan):
+def market_review(plan, instance):
     imports = {
-        "module.market.google_cloud_run_v2_service.service": SERVICE,
-        "module.runtime_identity.google_service_account.this": RUNTIME,
+        "module.market.google_cloud_run_v2_service.service": instance.service,
+        "module.runtime_identity.google_service_account.this": instance.runtime,
     }
     controller = "module.market.terraform_data.configuration"
     reads = {
@@ -531,6 +628,15 @@ def controller_review(service, desired):
 
 def verify(args):
     require(args.live, "Pass --live to permit authenticated read-only cloud inspection.")
+    instance = getattr(args, "instance", None)
+    require(isinstance(instance, MarketInstance), "A validated Market instance is required.")
+    registry = json.loads((ROOT / "terraform/pipeline.json").read_text())
+    require(
+        {name for name, target in registry["targets"].items() if target["enabled"]}
+        == {"repo", "market"},
+        "Historical first-adoption verification supports only the Repo/Market catalog; "
+        "use the current per-target reviewed-plan workflow for an adopted multi-service instance.",
+    )
     os.umask(0o077)
     if args.evidence_directory:
         evidence = Path(args.evidence_directory).expanduser().resolve()
@@ -539,23 +645,21 @@ def verify(args):
         evidence = Path(tempfile.mkdtemp(prefix="folioview-market-readonly-"))
     os.chmod(evidence, 0o700)
     print(f"Private read-only evidence: {evidence}", flush=True)
-    cloud = Cloud()
+    cloud = Cloud(instance)
     source = evidence / "source/infra/gcp"
     sources_before = source_evidence()
     write_json(evidence / "source-evidence.json", sources_before)
     copy_sources(source, sources_before)
+    require(
+        json.loads((source / "terraform/pipeline.json").read_text()) == registry,
+        "The source catalog changed after the read-only scope preflight.",
+    )
     runner = Terraform(args.terraform, cloud, evidence)
     version = json.loads(runner.run("version", ["-json"], source, "version"))
     expected = json.loads((ROOT / "terraform/toolchain.json").read_text())["terraform_version"]
     require(
         version["terraform_version"] == expected,
         "Terraform CLI does not match the pinned toolchain.",
-    )
-    registry = json.loads((source / "terraform/pipeline.json").read_text())
-    require(
-        {name for name, target in registry["targets"].items() if target["enabled"]}
-        == {"repo", "market"},
-        "Only Repo and Market may be enabled.",
     )
     before = cloud.snapshot()
     write_json(evidence / "before.json", before)
@@ -565,10 +669,10 @@ def verify(args):
     repository = before["image_trigger"]["repositoryEventConfig"]["repository"]
     print("Reviewing bootstrap against a private local state copy.", flush=True)
     bootstrap_plan = runner.plan(bootstrap, "bootstrap", ["-var=repository_id=" + repository])
-    bootstrap_actions = bootstrap_review(bootstrap_plan)
+    bootstrap_actions = bootstrap_review(bootstrap_plan, instance)
     print("Reviewing Market imports with a new private local state.", flush=True)
     market_plan = runner.plan(source / "terraform/envs/prod/market", "market")
-    market_actions, desired = market_review(market_plan)
+    market_actions, desired = market_review(market_plan, instance)
     imported_service = next(
         entry["change"]["after"]
         for entry in market_plan["resource_changes"]
@@ -614,8 +718,8 @@ def verify(args):
             "both verification roots use private local state.",
         ],
         "verified_at": datetime.now(UTC).isoformat(),
-        "project_id": PROJECT,
-        "region": REGION,
+        "project_id": instance.project_id,
+        "region": instance.region,
         "target": "market",
         "status": "PASS",
         "cloud_operations": "GET and fixed read-only getIamPolicy RPCs only",
@@ -624,9 +728,9 @@ def verify(args):
         "remote_state_written": False,
         "terraform_version": expected,
         "bootstrap_state_generation": generation,
-        "service_resource": SERVICE,
+        "service_resource": instance.service,
         "service_uid": before["service"]["uid"],
-        "image_trigger_id": IMAGE_TRIGGER,
+        "image_trigger_id": instance.image_trigger_id,
         "bootstrap_actions": bootstrap_actions,
         "market_actions": market_actions,
         "controller_analysis": analysis,
@@ -656,6 +760,12 @@ def main():
         "--live",
         action="store_true",
         help="Permit authenticated read-only cloud inspection.",
+    )
+    parser.add_argument(
+        "--instance",
+        required=True,
+        type=load_instance,
+        help="Private JSON file selecting the complete historical Market deployment instance.",
     )
     parser.add_argument(
         "--terraform",

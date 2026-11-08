@@ -9,7 +9,8 @@ preferences. The resource library imports holdings locally and saves encrypted s
 unlocks the private workspace. Resources, Tasks, Agent and Inbox share that unlock within the same
 signed-in browser session, including supported refreshes and tabs. Explicit sign-out clears it.
 
-The persistent Muse integration is implemented behind separate feature gates that remain off. Its intended
+The persistent Muse integration is implemented behind separate feature gates that default to off and
+require explicit activation for each deployment instance. Its intended
 experience is one lasting connection, explicit permission for selected resources and their future
 versions, and reports in Inbox. Native schedules and real Muse execution require separate acceptance;
 merging code or passing synthetic tests does not establish real Muse or cross-day acceptance.

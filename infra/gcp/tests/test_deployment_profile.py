@@ -86,9 +86,9 @@ class ProfileTests(unittest.TestCase):
         for value in (first, second):
             rendered = profile.render(value)
             encoded = json.dumps(rendered)
-            self.assertNotIn("financial-analysis-512202", encoded)
-            self.assertNotIn("630815932903", encoded)
-            self.assertNotIn("LeonhardE", encoded)
+            other = second if value is first else first
+            self.assertNotIn(other["project"]["id"], encoded)
+            self.assertNotIn(other["project"]["number"], encoded)
             self.assertEqual(
                 rendered["pipeline.candidate.json"]["project_id"], value["project"]["id"]
             )

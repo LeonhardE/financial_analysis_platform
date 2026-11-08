@@ -3,16 +3,16 @@ mock_provider "google" {
 
   mock_resource "google_service_account" {
     defaults = {
-      id     = "projects/financial-analysis-512202/serviceAccounts/fa-example@financial-analysis-512202.iam.gserviceaccount.com"
-      name   = "projects/financial-analysis-512202/serviceAccounts/fa-example@financial-analysis-512202.iam.gserviceaccount.com"
-      email  = "fa-example@financial-analysis-512202.iam.gserviceaccount.com"
-      member = "serviceAccount:fa-example@financial-analysis-512202.iam.gserviceaccount.com"
+      id     = "projects/demo-folio-alpha/serviceAccounts/fa-example@demo-folio-alpha.iam.gserviceaccount.com"
+      name   = "projects/demo-folio-alpha/serviceAccounts/fa-example@demo-folio-alpha.iam.gserviceaccount.com"
+      email  = "fa-example@demo-folio-alpha.iam.gserviceaccount.com"
+      member = "serviceAccount:fa-example@demo-folio-alpha.iam.gserviceaccount.com"
     }
   }
 }
 
 variables {
-  project_id   = "financial-analysis-512202"
+  project_id   = "demo-folio-alpha"
   account_id   = "fa-example"
   display_name = "Example runtime"
 }
@@ -40,11 +40,11 @@ run "grants_are_incremental_and_resource_scoped" {
 
   variables {
     secret_ids = {
-      token  = "projects/financial-analysis-512202/secrets/example-token"
-      config = "projects/financial-analysis-512202/secrets/example-config"
+      token  = "projects/demo-folio-alpha/secrets/example-token"
+      config = "projects/demo-folio-alpha/secrets/example-config"
     }
     deployer_service_accounts = {
-      build = "fa-build@financial-analysis-512202.iam.gserviceaccount.com"
+      build = "fa-build@demo-folio-alpha.iam.gserviceaccount.com"
     }
   }
 
@@ -112,8 +112,8 @@ run "reject_duplicate_secret_ownership" {
   command = plan
   variables {
     secret_ids = {
-      token = "projects/financial-analysis-512202/secrets/example-token"
-      alias = "projects/financial-analysis-512202/secrets/example-token"
+      token = "projects/demo-folio-alpha/secrets/example-token"
+      alias = "projects/demo-folio-alpha/secrets/example-token"
     }
   }
   expect_failures = [var.secret_ids]
@@ -122,7 +122,7 @@ run "reject_duplicate_secret_ownership" {
 run "reject_secret_version_reference" {
   command = plan
   variables {
-    secret_ids = { token = "projects/financial-analysis-512202/secrets/example-token/versions/latest" }
+    secret_ids = { token = "projects/demo-folio-alpha/secrets/example-token/versions/latest" }
   }
   expect_failures = [var.secret_ids]
 }
@@ -147,8 +147,8 @@ run "reject_duplicate_deployer_ownership" {
   command = plan
   variables {
     deployer_service_accounts = {
-      build = "fa-build@financial-analysis-512202.iam.gserviceaccount.com"
-      alias = "fa-build@financial-analysis-512202.iam.gserviceaccount.com"
+      build = "fa-build@demo-folio-alpha.iam.gserviceaccount.com"
+      alias = "fa-build@demo-folio-alpha.iam.gserviceaccount.com"
     }
   }
   expect_failures = [var.deployer_service_accounts]

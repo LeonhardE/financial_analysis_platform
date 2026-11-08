@@ -1,14 +1,15 @@
 # User default-database IAM migration
 
+Examples use a fictitious deployment. Replace project and identity values from your reviewed private instance; the historical acceptance notes do not certify any other deployment.
 This is an administrator-owned migration in `bootstrap/user.tf`. It changes only
 `google_project_iam_member.user_cache`, retaining its Terraform address, role
 `roles/datastore.user` and member
-`serviceAccount:fa-user-runtime@financial-analysis-512202.iam.gserviceaccount.com`.
+`serviceAccount:fa-user-runtime@demo-folio-alpha.iam.gserviceaccount.com`.
 The existing grant becomes conditional on both:
 
 ```text
 resource.type == 'firestore.googleapis.com/Database' &&
-resource.name == 'projects/financial-analysis-512202/databases/(default)'
+resource.name == 'projects/demo-folio-alpha/databases/(default)'
 ```
 
 The shared `user_database_scope` module exposes that condition with an empty
@@ -63,7 +64,7 @@ role, duplicate owner or ambiguous condition title:
   exact old tuple into the same address before generating the migration plan:
 
   ```bash
-  terraform -chdir=infra/gcp/terraform/bootstrap import google_project_iam_member.user_cache 'financial-analysis-512202 roles/datastore.user serviceAccount:fa-user-runtime@financial-analysis-512202.iam.gserviceaccount.com'
+  terraform -chdir=infra/gcp/terraform/bootstrap import google_project_iam_member.user_cache 'demo-folio-alpha roles/datastore.user serviceAccount:fa-user-runtime@demo-folio-alpha.iam.gserviceaccount.com'
   ```
 
   This import records ownership in the existing administrative state; it does
@@ -76,7 +77,7 @@ role, duplicate owner or ambiguous condition title:
   are absent. Import the exact conditional tuple, including its condition title:
 
   ```bash
-  terraform -chdir=infra/gcp/terraform/bootstrap import google_project_iam_member.user_cache 'financial-analysis-512202 roles/datastore.user serviceAccount:fa-user-runtime@financial-analysis-512202.iam.gserviceaccount.com database-default'
+  terraform -chdir=infra/gcp/terraform/bootstrap import google_project_iam_member.user_cache 'demo-folio-alpha roles/datastore.user serviceAccount:fa-user-runtime@demo-folio-alpha.iam.gserviceaccount.com database-default'
   ```
 
   The committed declarative import uses this same conditional identity. After

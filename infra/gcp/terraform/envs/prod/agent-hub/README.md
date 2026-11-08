@@ -134,11 +134,11 @@ For a new instance whose Hub state bucket does not yet exist, an isolated local-
 copy with empty state can preview business creation; it is not adoption or a reusable
 approved production plan. Regenerate against the real backend after execution.
 
-The pinned historical build-only artifact is a **candidate**, not first-provision approval.
-Its reviewed digest, exact released-main source and official build reference are
-pinned in [image-candidate.json](image-candidate.json); compose the full image
-reference with the selected deployment project/region/repository. This manifest
-does not activate a target or substitute a future dedicated-trigger approval.
+The old instance-specific build-only candidate is retained only in private operator history.
+Prepare a current candidate from the selected deployment's dedicated build: record its immutable
+digest, exact released source and official build reference in ignored operator storage, then
+compose the image reference with the selected project/region/repository. A candidate is not
+first-provision approval and does not activate a target or replace dedicated-trigger approval.
 Supported Git source/output provenance does not replace the dedicated target
 trigger requirement. The Hub trigger cannot exist until separately authorized
 execution provisioning. Keep `first_provision.py`, source, digest, saved-plan and

@@ -57,16 +57,16 @@ This is an illustrative consumer declaration, not a deployed resource instance:
 module "identity" {
   source = "../../../modules/service-identity"
 
-  project_id   = "financial-analysis-512202"
+  project_id   = "demo-folio-alpha"
   account_id   = "fa-example"
   display_name = "Example runtime"
   description  = "Runtime identity for one service"
 
   secret_ids = {
-    token = "projects/financial-analysis-512202/secrets/example-token"
+    token = "projects/demo-folio-alpha/secrets/example-token"
   }
   deployer_service_accounts = {
-    build = "fa-build@financial-analysis-512202.iam.gserviceaccount.com"
+    build = "fa-build@demo-folio-alpha.iam.gserviceaccount.com"
   }
 }
 ```
@@ -79,17 +79,17 @@ existing member grants only when this consumer root is taking ownership of them:
 ```hcl
 import {
   to = module.identity.google_service_account.this
-  id = "projects/financial-analysis-512202/serviceAccounts/fa-example@financial-analysis-512202.iam.gserviceaccount.com"
+  id = "projects/demo-folio-alpha/serviceAccounts/fa-example@demo-folio-alpha.iam.gserviceaccount.com"
 }
 
 import {
   to = module.identity.google_secret_manager_secret_iam_member.accessor["token"]
-  id = "projects/financial-analysis-512202/secrets/example-token roles/secretmanager.secretAccessor serviceAccount:fa-example@financial-analysis-512202.iam.gserviceaccount.com"
+  id = "projects/demo-folio-alpha/secrets/example-token roles/secretmanager.secretAccessor serviceAccount:fa-example@demo-folio-alpha.iam.gserviceaccount.com"
 }
 
 import {
   to = module.identity.google_service_account_iam_member.deployer["build"]
-  id = "projects/financial-analysis-512202/serviceAccounts/fa-example@financial-analysis-512202.iam.gserviceaccount.com roles/iam.serviceAccountUser serviceAccount:fa-build@financial-analysis-512202.iam.gserviceaccount.com"
+  id = "projects/demo-folio-alpha/serviceAccounts/fa-example@demo-folio-alpha.iam.gserviceaccount.com roles/iam.serviceAccountUser serviceAccount:fa-build@demo-folio-alpha.iam.gserviceaccount.com"
 }
 ```
 

@@ -175,7 +175,7 @@
     "simulated_image_preserved": true,
     "simulated_traffic_and_invoker_mode_excluded": true
   },
-  "image_trigger_id": "db77a22e-83bf-45cc-b114-50e32192a9c8",
+  "image_trigger_id": "00000000-0000-4000-8000-000000000027",
   "live_snapshots_unchanged": {
     "image_trigger": true,
     "other_services": true,
@@ -212,13 +212,13 @@
     "Remove only the empty Market GCS backend declaration; both verification roots use private local state."
   ],
   "production_apply_executed": false,
-  "project_id": "financial-analysis-512202",
+  "project_id": "demo-folio-alpha",
   "region": "northamerica-northeast2",
   "release_or_rollback_executed": false,
   "remote_state_written": false,
   "schema_version": 1,
-  "service_resource": "projects/financial-analysis-512202/locations/northamerica-northeast2/services/market-api",
-  "service_uid": "9c834402-c8d5-4c71-82d9-1a705e335f02",
+  "service_resource": "projects/demo-folio-alpha/locations/northamerica-northeast2/services/market-api",
+  "service_uid": "00000000-0000-4000-8000-000000000019",
   "source_evidence": {
     "git_head": "2a8ecb3f686d8c021aad3ce03712e6ea6007a328",
     "sha256": {
@@ -274,5 +274,10 @@
   "target": "market",
   "terraform_version": "1.16.7",
   "verification_limit": "Real provider import plans and in-memory controller analysis only; production apply, release and rollback still require approved acceptance.",
-  "verified_at": "2026-10-24T01:44:19.206393+00:00"
+  "verified_at": "2026-10-24T01:44:19.206393+00:00",
+  "publication": {
+    "kind": "pseudonymized-regression-fixture",
+    "updated_on": "2026-11-08",
+    "note": "Derived from the historical verification. Deployment identities, UUIDs and image digests are synthetic aliases; relationships, outcomes and source-code hashes are retained. This is not current deployment inventory or an exact public provenance attestation. Original evidence remains in ignored private operator storage."
+  }
 }
