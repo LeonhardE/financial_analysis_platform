@@ -60,7 +60,10 @@ def create_native_server(oauth):
                 Tool(
                     name="open_persistent_runtime",
                     description=(
-                        "Open FolioView's fixed browser runtime. Resume its existing key profile; "
+                        "Open FolioView's fixed browser runtime. Reuse this connection's existing "
+                        "protected browser window/tab and stored key profile; do not assume "
+                        "a new window retains IndexedDB. Navigate the original fixed URL "
+                        "in that context. Never generate replacement keys on resume; "
                         "first pairing requires owner review. Return public setup metadata only. "
                         "For scheduling, create or change the actual Muse native plan first; "
                         "then report its state through the fixed runtime reportPlan API. "

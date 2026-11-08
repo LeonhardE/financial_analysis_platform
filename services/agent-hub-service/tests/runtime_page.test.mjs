@@ -130,7 +130,11 @@ function fixture(options = {}) {
       },
     ]),
   );
-  const window = { folioview: api, addEventListener: (name, fn) => events.set(name, fn) };
+  const window = {
+    folioview: api,
+    location: { reload: () => calls.push(["reload"]) },
+    addEventListener: (name, fn) => events.set(name, fn),
+  };
   const ready = vm.runInNewContext("(async()=>{\n" + script + "\n})()", {
     window,
     document: {
@@ -356,4 +360,43 @@ test("explicit clear remains available during an in-flight read and a failed Wor
   assert.equal(f.$("input-content").textContent, "");
   assert.equal(f.$("task-content").textContent, "");
   assert.equal(f.calls.filter((c) => c[0] === "clearPlaintext").length, 1);
+});
+
+test("setup-to-resume hash navigation reloads once without reusing the old Worker binding", async () => {
+  const f = fixture({ pending: true });
+  await f.ready;
+  f.events.get("hashchange")();
+  f.events.get("hashchange")();
+  assert.equal(f.calls.filter((c) => c[0] === "reload").length, 1);
+  assert.equal(f.calls.filter((c) => c[0] === "clearPlaintext").length, 1);
+  assert.equal(f.calls.filter((c) => c[0] === "connect").length, 1);
+  assert.equal(f.$("workspace").disabled, true);
+});
+test("a BFCache return reloads the retained profile after its plaintext view was cleared", async () => {
+  const f = fixture();
+  await f.begin();
+  f.fillReport();
+  f.events.get("pageshow")({ persisted: false });
+  assert.equal(f.calls.filter((c) => c[0] === "reload").length, 0);
+  f.events.get("pagehide")();
+  f.events.get("pageshow")({ persisted: true });
+  assert.equal(f.$("report-title").value, "");
+  assert.equal(f.calls.filter((c) => c[0] === "reload").length, 1);
+  assert.equal(f.calls.filter((c) => c[0] === "clearPlaintext").length, 1);
+});
+test("old in-flight plaintext cannot render after a runtime descriptor change", async () => {
+  const f = fixture();
+  await f.begin();
+  let resolve;
+  f.overrides.readInput = () =>
+    new Promise((r) => {
+      resolve = r;
+    });
+  const pending = f.$("inputs").children[0].fire();
+  await new Promise((r) => setImmediate(r));
+  f.events.get("hashchange")();
+  resolve({ resource: { name: "old runtime response" } });
+  await pending;
+  assert.equal(f.$("input-content").textContent, "");
+  assert.equal(f.calls.filter((c) => c[0] === "reload").length, 1);
 });
