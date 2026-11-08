@@ -1,4 +1,6 @@
 import "server-only";
+import { persistentOwnerRoute } from "../persistent-owner-routes";
+import { persistentRequest, persistentResponse } from "./persistent-owner-contracts";
 import { cancellationRequest, cancellationResponse } from "./upload-cancellation";
 
 import {
@@ -37,6 +39,7 @@ const digest = (value: unknown) => typeof value === "string" && /^[a-f0-9]{64}$/
 const BINDING = ["ref", "sourceEpoch"];
 type Rule = {
   kind:
+    | "persistent-publication"
     | "read"
     | "bootstrap"
     | "registry"
@@ -56,7 +59,10 @@ type Rule = {
   author?: boolean;
   vaultId?: string;
   responseStatus?: 200 | 201;
-  query?: Record<string, "limit" | "cursor" | "filter" | "id" | "revision" | "delivery">;
+  query?: Record<
+    string,
+    "limit" | "cursor" | "filter" | "id" | "revision" | "delivery" | "persistent-cursor"
+  >;
   cancel?: { slot: string; id?: string };
 };
 type Config = { origin: string; project: string };
@@ -90,7 +96,9 @@ function route(request: Request): { path: string; rule: Rule } {
   const path = url.pathname.slice(PREFIX.length);
   const get = request.method === "GET";
   let rule: Rule | undefined;
-  if (
+  const persistent = persistentOwnerRoute(path, request.method);
+  if (persistent) rule = persistent;
+  else if (
     get &&
     [
       "/api/v2/vaults/current",
@@ -258,9 +266,11 @@ function route(request: Request): { path: string; rule: Rule } {
             ? !decimal(value, Number.MAX_SAFE_INTEGER)
             : kind === "id"
               ? !identifier(value)
-              : kind === "cursor"
-                ? !/^[A-Za-z0-9_-]{1,2048}$/.test(value)
-                : !["all", "unread", "starred", "archived"].includes(value))
+              : kind === "persistent-cursor"
+                ? !/^[A-Za-z0-9_-]{22,128}:[1-9][0-9]{0,2}$/.test(value)
+                : kind === "cursor"
+                  ? !/^[A-Za-z0-9_-]{1,2048}$/.test(value)
+                  : !["all", "unread", "starred", "archived"].includes(value))
     )
       fail("unsupported_query");
   }
@@ -302,6 +312,8 @@ function validBody(body: unknown, kind: Rule["kind"], vaultId?: string) {
       );
     case "key-renewal":
       return vaultKeyRenewalRequest(body, vaultId);
+    case "persistent-publication":
+      return persistentRequest(body);
     case "stage":
       return fields(body, ["contractVersion", "envelope"]) && carrier(body.envelope);
     case "registry":
@@ -472,7 +484,14 @@ export function createHubProxy(options: Options = {}) {
               rule.cancel.slot,
               rule.cancel.id ?? headers.get("idempotency-key") ?? undefined,
             )
-          : hubResponse(path, request.method, body, headers.get("idempotency-key") ?? undefined),
+          : persistentOwnerRoute(path.split("?", 1)[0], request.method)
+            ? persistentResponse(
+                path,
+                request.method,
+                body,
+                headers.get("idempotency-key") ?? undefined,
+              )
+            : hubResponse(path, request.method, body, headers.get("idempotency-key") ?? undefined),
       );
     } catch (error) {
       return errorResponse(error instanceof Failure ? error.code : "authorization_unavailable");

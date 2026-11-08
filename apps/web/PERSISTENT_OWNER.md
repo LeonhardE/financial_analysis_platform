@@ -25,3 +25,19 @@ state has been cleared. Producer idempotency and immutable ciphertext are unchan
 
 The checked Web build includes `packages/encrypted-workspace`, and the shared integrity manifest is
 part of owner Worker compatibility. The ordinary server receives no decrypted content or owner key.
+
+## Closed owner transport
+
+The Web BFF admits only the named persistent identity/consent/publication/setup,
+connection history/revocation, plan history and encrypted Inbox endpoints. Bodies
+and responses use closed structural DTOs from the shared contract; Root and Agent
+signatures remain Worker checks. Persistent Inbox cursors use their producer's
+opaque page ID plus bounded offset, independently of legacy Inbox pagination.
+
+Native account OAuth approval is deliberately absent from the BFF. A branded,
+source/origin/request/nonce-bound MessageChannel to the original Hub window permits
+only `pending` and `approve` with a vault locator. It severs the opener before a
+transient Google credential is sent, preserves AuthProvider session-generation
+checks, and never returns an OAuth code, token, callback URL or financial grant to
+the Web consumer or model. This transport prerequisite does not enable feature
+gates or grant any real account access.

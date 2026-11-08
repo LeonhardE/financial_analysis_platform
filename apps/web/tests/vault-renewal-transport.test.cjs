@@ -227,7 +227,17 @@ test.before(async () => {
     "../encrypted-schemas.json": require("../lib/encrypted-schemas.json"),
     "./owner-transport": common,
   });
+  const routes = compile("../persistent-owner-routes", {});
+  const persistent = compile("persistent-owner-contracts", {
+    "server-only": {},
+    "ajv/dist/2020": require("ajv/dist/2020"),
+    "ajv-formats": require("ajv-formats"),
+    "../../../../packages/encrypted-workspace/schemas.json": require("../../../packages/encrypted-workspace/schemas.json"),
+    "./owner-transport": common,
+  });
   api = compile("hub-owner", {
+    "../persistent-owner-routes": routes,
+    "./persistent-owner-contracts": persistent,
     "./upload-cancellation": cancellation,
     "server-only": {},
     "./owner-transport": common,

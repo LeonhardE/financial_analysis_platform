@@ -9,6 +9,10 @@ const {
   contracts: connectionContracts,
   compile: compileAgent,
 } = require("./agent-connections-helpers.cjs");
+const persistentRoutes = compileAgent("../lib/persistent-owner-routes.ts");
+const nativeBridgeCommands = compileAgent("../lib/native-owner-bridge.ts", {
+  "./agent-connections": connectionContracts,
+});
 const ownerBridgeCommands = compileAgent("../lib/owner-consent-bridge.ts", {
   "./agent-connections": connectionContracts,
 });
@@ -145,6 +149,12 @@ function mountProvider({
     "@/lib/firebase-client": { getBrowserAuth: () => auth },
     "@/lib/resource-library": resourceContracts,
     "@/lib/agent-link": { loadAgentLinkConfiguration: fetchLinkConfig },
+    "@/lib/persistent-owner-routes": persistentRoutes,
+    "@/lib/native-owner-bridge": {
+      validateNativeCommand: nativeBridgeCommands.validateNativeCommand,
+      verifiedNativeBridge: (bridge) =>
+        bridge?.testVerifiedNativeBridge === true && bridge.isLive(),
+    },
     "@/lib/owner-consent-bridge": {
       validateConsentCommand: ownerBridgeCommands.validateConsentCommand,
       verifiedOwnerBridge: (bridge) => bridge?.testVerifiedOwnerBridge === true && bridge.isLive(),
