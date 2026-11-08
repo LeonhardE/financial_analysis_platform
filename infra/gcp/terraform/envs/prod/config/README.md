@@ -58,7 +58,7 @@ image deployment/runtime attachment grants, scoped Datastore User membership and
 Viewer. It preserves push filters and the existing deployment switch. The database condition
 continues restricting `google_project_iam_member.config_store` to this selected project's exact
 `(default)` database, with no second owner or database import. The
-[database IAM migration runbook](DATABASE_IAM_MIGRATION.md) is a separate historical migration and
+[database IAM migration runbook](database-iam-migration.md) is a separate historical migration and
 recovery procedure; this instance-input migration must preserve an already-correct tuple instead
 of repeating IAM replacement. Normal Config execution cannot administer or replace those grants.
 

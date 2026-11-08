@@ -6,12 +6,12 @@ trusted client crypto primitives, authority validation and message budgets. It
 does not start a service, resolve arbitrary keys, store secrets, call a model or
 provision infrastructure. Existing HTTP/auth helpers and consumers are unchanged.
 
-The opt-in [persistent Agent identity extension](PERSISTENT_AGENTS.md) separates
+The opt-in [persistent Agent identity extension](docs/persistent-authority.md#identity-and-session-recovery) separates
 an explicitly approved public identity from short-lived session recovery proofs.
 It has its own packaged schemas and verifier entry points; it does not change
 the P1 grants below, issue credentials or activate a persistent Muse runtime.
 
-The separate [persistent resource consent extension](RESOURCE_CONSENTS.md) defines
+The separate [persistent resource consent extension](docs/persistent-authority.md#logical-resource-consent) defines
 incremental logical-resource approval, current-and-future version policy and
 per-resource revocation. It is an additional current-policy gate, not a legacy
 P1 grant or permission to execute a task. Services and clients adopt it separately.
@@ -195,6 +195,6 @@ install; see [interop instructions](../../tests/interop/README.md). The two-way
 test uses only publicly known synthetic test keys and an anonymous pipe. This
 does not claim a new real-Muse run or browser key-management implementation.
 
-The separate [persistent content and operation-proof profile](PERSISTENT_CONTENT.md)
+The separate [persistent content and operation-proof profile](docs/persistent-content.md)
 provides Root-approved exact deliveries, current Agent request proofs and frozen
 manifest contracts. It does not change P1 grants or enable any consumer.

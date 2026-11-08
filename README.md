@@ -160,4 +160,4 @@ The Hub's explicit `persistent_mode_enabled` input defaults to `false` and prese
 runtime environment. Enabling its native basic flow requires reviewed client registration and producer
 trust, then owner approval of the actual Muse connection and selected resource scope. See the
 [Hub rollout guide](infra/gcp/terraform/envs/prod/agent-hub/README.md#persistent-basic-flow-activation)
-and [Web owner flow](apps/web/PERSISTENT_OWNER.md). No repository or image release grants that access.
+and [Web owner flow](apps/web/docs/agent-integration.md#persistent-owner-flow). No repository or image release grants that access.

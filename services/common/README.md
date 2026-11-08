@@ -171,7 +171,7 @@ and consumers must still enforce current authorization.
 This package verifies public signatures only. It implements no KMS signer,
 metadata credential acquisition, OAuth/refresh/grant/Run store, broker connector,
 content key/decryption service, global JWT replay store or cloud provisioning.
-The Hub's future signer must bind these exact claims to an authenticated owner
+The Hub's fixed KMS signer binds these exact claims to an authenticated owner
 and a fixed target using its authorized KMS key. Read-only delegation reuse
 within its short lifetime is not a one-use mutation guarantee.
 
