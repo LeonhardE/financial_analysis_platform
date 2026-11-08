@@ -122,3 +122,20 @@ variable "connector" {
     error_message = "Register up to eight distinct Muse clients with the matching public or confidential verifier profile with one to four exact HTTPS callbacks; wildcards, userinfo, ports, queries and fragments are refused."
   }
 }
+
+# One explicit deployment choice keeps the basic native chain coherent; each
+# application boundary still independently enforces its own gate and authority.
+variable "persistent_mode_enabled" {
+  description = "Enable the implemented native persistent basic flow only for separately reviewed real acceptance and rollout. False emits no new environment variables and preserves existing deployments. This grants no account, key or resource permission."
+  type        = bool
+  default     = false
+  nullable    = false
+  validation {
+    condition = !var.persistent_mode_enabled || (
+      var.connector.oauth_enabled && length(var.connector.muse_clients) > 0 &&
+      var.sources.user_origin != "" && var.sources.portfolio_origin != "" &&
+      var.sources.portfolio_caller_email != "" && length(var.sources.trusted_portfolio_callers) > 0
+    )
+    error_message = "Persistent mode requires the existing OAuth registration and complete reviewed User/Portfolio producer trust. Public invocation and user resource approval remain separate."
+  }
+}

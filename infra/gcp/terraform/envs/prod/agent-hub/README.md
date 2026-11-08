@@ -93,8 +93,11 @@ Only `firebaseauth.users.get` is added to the runtime for the existing
 
 ## Storage and permissions
 
-`storage.tf` records 35 implemented opaque JSON/map/array fields. Each
+`storage.tf` records 72 implemented opaque JSON/map/array fields. Each
 `google_firestore_field.opaque` has an empty `index_config` and **no `ttl_config`**.
+Persistent identity, signed continuing-consent history, encrypted publications,
+native account credentials/setup, frozen Runs, report history and plan statement
+evidence use exact document lookups and inherit the same exemptions.
 This is deliberately separate from the shared database module's TTL input, which
 would enable TTL. No grants, refresh families, immutable histories, operation
 ACKs, manifests, deliveries or result references are deleted by TTL. All current
@@ -149,3 +152,19 @@ checks. Configure producer trust in INF-007/008, Web entry in INF-009 and real M
 acceptance separately. Keep protocol flags and public invocation closed until
 those checks are complete. Never recover a failed stage by granting broad IAM,
 recreating the DB, deleting histories or supplying a content key to the backend.
+
+## Persistent basic-flow activation
+
+`persistent_mode_enabled` defaults to `false`. It emits no additional environment
+variables in that state, preserving the current runtime configuration. A reviewed
+explicit opt-in requires existing OAuth clients and complete User/Portfolio source
+trust, then enables the nine implemented native identity/recovery, consent,
+publication, execution, result, account transport, MCP and runtime gates together.
+Each application API continues checking its own gate and current authority.
+
+This setting does not grant Cloud Run invocation, approve a recipient, select a
+resource, install a native plan or complete protected-host acceptance. Keep it off
+while preparing code and storage. The owner must return for real Muse connection,
+resource review, restart and cross-day verification before considering the flow
+accepted. Use a separately reviewed complete plan for activation; ordinary image
+releases preserve the existing configuration.
