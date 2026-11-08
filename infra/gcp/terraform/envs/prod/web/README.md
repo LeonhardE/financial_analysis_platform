@@ -128,3 +128,12 @@ server environment alone is not browser acceptance. Portfolio stays IAM private;
 Web receives only its separately reviewed service invoker, with no Firestore,
 KMS, Secret, Firebase user-directory or token-creator grants. Muse OAuth/adapter
 activation remains separate from owner forwarding.
+
+## Shared browser contract releases
+
+The existing Web image trigger also watches `packages/encrypted-workspace/**`,
+which the Web Docker build copies directly into its build context. Updating that
+shared input therefore runs the same checked Web release instead of leaving the
+old library deployed. Trigger identity, source binding, substitutions, execution
+identity and normal main-branch release behavior remain unchanged. This adds no
+new IAM or deployment gate.

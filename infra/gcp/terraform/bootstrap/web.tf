@@ -8,10 +8,10 @@ locals {
   web_build      = "fa-build@${var.project_id}.iam.gserviceaccount.com"
 }
 
-# Preserve the deployed image trigger exactly, including its absent optional
+# Preserve the deployed image trigger identity and all delivery settings, including its absent optional
 # _DEPLOY_SERVICE substitution (the existing Web build already deploys).
 # The shared trigger module adds that key, so this adoption declares the native
-# target-owned resource instead of introducing an unrelated trigger update.
+# target-owned resource. Shared browser contracts are explicit Web build inputs.
 resource "google_cloudbuild_trigger" "web_image_release" {
   project         = var.project_id
   location        = var.region
@@ -22,6 +22,7 @@ resource "google_cloudbuild_trigger" "web_image_release" {
   filename        = "infra/gcp/cloudbuild.web.yaml"
   included_files = [
     "apps/web/**",
+    "packages/encrypted-workspace/**",
     "package.json",
     "package-lock.json",
     ".dockerignore",
