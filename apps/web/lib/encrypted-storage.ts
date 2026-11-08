@@ -258,6 +258,7 @@ export class BrowserEncryptedStorage implements EncryptedStorage {
                 key.includes(":agent-registration:") ||
                 key.includes(":agent-approval:") ||
                 key.includes(":agent-preparation:") ||
+                key.includes(":persistent-owner:") ||
                 (key.includes(":task-draft:") && !v.deleted) ||
                 (deletion &&
                   [
@@ -441,6 +442,7 @@ export class BrowserEncryptedStorage implements EncryptedStorage {
                 key.includes(":agent-registration:") ||
                 key.includes(":agent-approval:") ||
                 key.includes(":agent-preparation:") ||
+                key.includes(":persistent-owner:") ||
                 key.includes(":outbox:") ||
                 key.includes(":upload-cancellation:") ||
                 (key.includes(":task-outbox:") && !v.deleted)

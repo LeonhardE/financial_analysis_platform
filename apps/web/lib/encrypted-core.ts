@@ -7,6 +7,7 @@ import {
   calculateJwkThumbprint,
 } from "jose";
 import canonicalize from "canonicalize";
+import { PersistentOwner, type PersistentActor } from "./encrypted-persistent";
 import Ajv2020 from "ajv/dist/2020";
 import addFormats from "ajv-formats";
 import schemas from "./encrypted-schemas.json";
@@ -5113,6 +5114,200 @@ export class VaultCore {
       localPending: await this.sealAgentLocal("preparation", packet),
     };
   }
+  /** Persistent Agent operations reuse this login's memory-only owner keys. */
+  private async persistentOwner(actor?: PersistentActor, write = true) {
+    this.requireOrdinarySession();
+    if (!this.root || !this.recovery || !this.vault || !this.registry || !this.pin)
+      throw new VaultError("locked");
+    if (write) this.ready();
+    if (actor) {
+      exact(actor, ["connectionId", "clientId"]);
+      validate("Identifier", actor.connectionId);
+      validate("Identifier", actor.clientId);
+    }
+    return new PersistentOwner({
+      actor,
+      ownerSubject: await this.owner,
+      vault: this.vault,
+      root: this.root,
+      deviceSigningKey: this.device?.sig as CryptoKey,
+      deviceSigningKeyId: this.device?.sigId ?? "",
+      now: this.now,
+      reader: (ids) => this.reader(ids),
+    });
+  }
+  private async persistentLocal(packet: Json) {
+    if (!this.wrapping || !this.vault) throw new VaultError("locked");
+    bounded(packet, 786432);
+    return seal(
+      this.wrapping,
+      {
+        profile: "folioview.persistent-owner-outbox.v1",
+        ownerSubject: await this.owner,
+        vaultId: this.vault.vaultId,
+        rootKeyId: this.vault.rootKeyId,
+        kind: packet.kind,
+        connectionId: packet.connectionId,
+        operationId: packet.operationId,
+      },
+      packet,
+    );
+  }
+  async preparePersistentEnrollment(args: {
+    setup: Json;
+    actor: PersistentActor;
+    intentId: string;
+  }) {
+    exact(args, ["setup", "actor", "intentId"]);
+    if (args.setup.setup?.intentId !== args.intentId) throw new VaultError("binding_mismatch");
+    const packet = await (await this.persistentOwner(args.actor)).enrollment(args.setup);
+    return { ...packet, localPending: await this.persistentLocal(packet) };
+  }
+  async verifyPersistentIdentity(args: { state: Json; actor: PersistentActor }) {
+    exact(args, ["state", "actor"]);
+    const { identity } = await (await this.persistentOwner(args.actor)).identity(args.state);
+    return identity;
+  }
+  async verifyPersistentPolicy(args: {
+    actor: PersistentActor;
+    identityState: Json;
+    resourceState: Json;
+    receipts: Json[];
+  }) {
+    exact(args, ["actor", "identityState", "resourceState", "receipts"]);
+    const { consent } = await (
+      await this.persistentOwner(args.actor)
+    ).policy(args.identityState, args.resourceState, args.receipts);
+    return consent;
+  }
+  async preparePersistentConsent(args: {
+    actor: PersistentActor;
+    identityState: Json;
+    resourceState: Json;
+    receipts: Json[];
+    resources: Json[];
+  }) {
+    exact(args, ["actor", "identityState", "resourceState", "receipts", "resources"]);
+    const packet = await (await this.persistentOwner(args.actor)).approve(args);
+    return packet.kind === "no_change"
+      ? packet
+      : { ...packet, localPending: await this.persistentLocal(packet) };
+  }
+  async preparePersistentRevocation(args: {
+    actor: PersistentActor;
+    identityState: Json;
+    resourceState: Json;
+    receipts: Json[];
+    permissionIds: string[];
+  }) {
+    exact(args, ["actor", "identityState", "resourceState", "receipts", "permissionIds"]);
+    const packet = await (await this.persistentOwner(args.actor)).revoke(args);
+    return { ...packet, localPending: await this.persistentLocal(packet) };
+  }
+  async preparePersistentTask(args: {
+    actor: PersistentActor;
+    identityState: Json;
+    resourceState: Json;
+    receipts: Json[];
+    authority: Json;
+    task: EncryptedTask;
+    resultPolicy: "none" | "owner_inbox";
+    allowReassign: boolean;
+  }) {
+    exact(args, [
+      "actor",
+      "identityState",
+      "resourceState",
+      "receipts",
+      "authority",
+      "task",
+      "resultPolicy",
+      "allowReassign",
+    ]);
+    const content = await this.openTask(args.task);
+    const packet = await (
+      await this.persistentOwner(args.actor)
+    ).task({ ...args, metadata: args.task.metadata, content });
+    return packet.kind === "no_change"
+      ? packet
+      : { ...packet, localPending: await this.persistentLocal(packet) };
+  }
+  async preparePersistentResource(args: {
+    actor: PersistentActor;
+    identityState: Json;
+    resourceState: Json;
+    receipts: Json[];
+    source: AgentPreparationSource;
+  }) {
+    exact(args, ["actor", "identityState", "resourceState", "receipts", "source"]);
+    const source = args.source,
+      objectId =
+        source.kind === "holdings" ? source.snapshot.receipt.snapshotId : source.ref.resourceId;
+    const content = await this.agentResourceContent(source, objectId);
+    const ownerEnvelopeFingerprint =
+      source.kind === "holdings"
+        ? await signingFingerprint(source.snapshot.carrier.signedObject)
+        : await sha(canonical(source));
+    const packet = await (
+      await this.persistentOwner(args.actor)
+    ).resource({
+      ...args,
+      ref: source.ref,
+      sourceEpoch: source.sourceEpoch,
+      revision: source.revision,
+      objectId,
+      ownerEnvelopeFingerprint,
+      content,
+    });
+    return { ...packet, localPending: await this.persistentLocal(packet) };
+  }
+  async openPersistentPending(args: { record: Json; operationId: string; connectionId: string }) {
+    exact(args, ["record", "operationId", "connectionId"]);
+    this.requireOrdinarySession();
+    if (!this.wrapping || !this.vault) throw new VaultError("locked");
+    const r = args.record;
+    exact(r, [
+      "profile",
+      "ownerSubject",
+      "vaultId",
+      "rootKeyId",
+      "kind",
+      "connectionId",
+      "operationId",
+      "iv",
+      "ciphertext",
+    ]);
+    if (
+      r.profile !== "folioview.persistent-owner-outbox.v1" ||
+      r.ownerSubject !== (await this.owner) ||
+      r.vaultId !== this.vault.vaultId ||
+      r.rootKeyId !== this.vault.rootKeyId ||
+      r.operationId !== args.operationId ||
+      r.connectionId !== args.connectionId
+    )
+      throw new VaultError("binding_mismatch");
+    const packet = await open(this.wrapping, r, 786432);
+    if (
+      packet.operationId !== r.operationId ||
+      packet.kind !== r.kind ||
+      packet.connectionId !== r.connectionId
+    )
+      throw new VaultError("binding_mismatch");
+    // Original packets are encrypted/authenticated local records, never caller-supplied roots.
+    return packet;
+  }
+  async verifyPersistentReceipt(args: { packet: Json; receipt: Json }) {
+    exact(args, ["packet", "receipt"]);
+    const owner = await this.persistentOwner();
+    return args.packet.kind === "publication"
+      ? owner.publicationReceipt(args.packet, args.receipt)
+      : owner.controlReceipt(args.packet, args.receipt);
+  }
+  async openPersistentResult(args: { record: Json; resultId: string }) {
+    exact(args, ["record", "resultId"]);
+    return (await this.persistentOwner(undefined, false)).result(args);
+  }
+
   private async agentResourceContent(
     source: AgentPreparationSource,
     copyId: string,

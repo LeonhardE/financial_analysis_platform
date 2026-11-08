@@ -11,6 +11,9 @@ for (const name of readdirSync(path.join(__dirname, "lib")).sort()) {
     runtimeHash.update(name).update(readFileSync(path.join(__dirname, "lib", name)));
 }
 runtimeHash.update(readFileSync(path.join(__dirname, "../../package-lock.json")));
+runtimeHash.update(
+  readFileSync(path.join(__dirname, "../../packages/encrypted-workspace/integrity.json")),
+);
 
 const nextConfig: NextConfig = {
   env: { NEXT_PUBLIC_OWNER_UNLOCK_VERSION: runtimeHash.digest("hex") },
