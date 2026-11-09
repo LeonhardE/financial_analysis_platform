@@ -1,0 +1,438 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:folioview:executor-trust:v1",
+  "$defs": {
+    "Identifier": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$"
+    },
+    "KeyId": {
+      "type": "string",
+      "minLength": 43,
+      "maxLength": 43,
+      "pattern": "^[A-Za-z0-9_-]{43}$"
+    },
+    "Digest": {
+      "type": "string",
+      "minLength": 64,
+      "maxLength": 64,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "OperationIdentifier": {
+      "type": "string",
+      "minLength": 22,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9_-]+$"
+    },
+    "ExecutorBinding": {
+      "type": "object",
+      "properties": {
+        "ownerSubject": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "vaultId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "connectionId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "agentId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "clientId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "provider": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "providerClientId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "rootKeyId": {
+          "$ref": "#/$defs/KeyId"
+        },
+        "agentSigningKeyId": {
+          "$ref": "#/$defs/KeyId"
+        },
+        "agentEncryptionKeyId": {
+          "$ref": "#/$defs/KeyId"
+        },
+        "tlsKeyId": {
+          "$ref": "#/$defs/KeyId"
+        },
+        "policySigningKeyId": {
+          "$ref": "#/$defs/KeyId"
+        },
+        "identityEpoch": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "bindingFingerprint": {
+          "$ref": "#/$defs/Digest"
+        },
+        "scopeDigest": {
+          "$ref": "#/$defs/Digest"
+        },
+        "workloadDigest": {
+          "$ref": "#/$defs/Digest"
+        },
+        "issuer": {
+          "type": "string",
+          "minLength": 9,
+          "maxLength": 2048
+        },
+        "audience": {
+          "type": "string",
+          "minLength": 9,
+          "maxLength": 2048
+        },
+        "recipientKeyIds": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/KeyId"
+          },
+          "minItems": 1,
+          "maxItems": 10,
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "ownerSubject",
+        "vaultId",
+        "connectionId",
+        "agentId",
+        "clientId",
+        "provider",
+        "providerClientId",
+        "rootKeyId",
+        "agentSigningKeyId",
+        "agentEncryptionKeyId",
+        "tlsKeyId",
+        "policySigningKeyId",
+        "identityEpoch",
+        "bindingFingerprint",
+        "scopeDigest",
+        "workloadDigest",
+        "issuer",
+        "audience",
+        "recipientKeyIds"
+      ],
+      "additionalProperties": false
+    },
+    "ExecutorApprovalPayload": {
+      "type": "object",
+      "properties": {
+        "contractVersion": {
+          "const": "folioview.agent-workspace.v2.0"
+        },
+        "profile": {
+          "const": "folioview.executor-trust.v1"
+        },
+        "artifactType": {
+          "const": "executor_approval"
+        },
+        "binding": {
+          "$ref": "#/$defs/ExecutorBinding"
+        },
+        "operationId": {
+          "$ref": "#/$defs/OperationIdentifier"
+        },
+        "issuedAt": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "expiresAt": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": [
+        "contractVersion",
+        "profile",
+        "artifactType",
+        "binding",
+        "operationId",
+        "issuedAt",
+        "expiresAt"
+      ],
+      "additionalProperties": false
+    },
+    "ExecutorCheckpointPayload": {
+      "type": "object",
+      "properties": {
+        "contractVersion": {
+          "const": "folioview.agent-workspace.v2.0"
+        },
+        "profile": {
+          "const": "folioview.executor-trust.v1"
+        },
+        "artifactType": {
+          "const": "executor_checkpoint"
+        },
+        "bindingDigest": {
+          "$ref": "#/$defs/Digest"
+        },
+        "approvalFingerprint": {
+          "$ref": "#/$defs/Digest"
+        },
+        "stateVersion": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "stateHead": {
+          "$ref": "#/$defs/Digest"
+        },
+        "authorizationEpoch": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "revoked": {
+          "type": "boolean"
+        },
+        "issuedAt": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "expiresAt": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": [
+        "contractVersion",
+        "profile",
+        "artifactType",
+        "bindingDigest",
+        "approvalFingerprint",
+        "stateVersion",
+        "stateHead",
+        "authorizationEpoch",
+        "revoked",
+        "issuedAt",
+        "expiresAt"
+      ],
+      "additionalProperties": false
+    },
+    "ExecutorChallenge": {
+      "type": "object",
+      "properties": {
+        "bindingDigest": {
+          "$ref": "#/$defs/Digest"
+        },
+        "challengeId": {
+          "$ref": "#/$defs/OperationIdentifier"
+        },
+        "nonce": {
+          "type": "string",
+          "minLength": 43,
+          "maxLength": 43,
+          "pattern": "^[A-Za-z0-9_-]{43}$"
+        },
+        "purpose": {
+          "enum": ["execute", "write_report", "recover"]
+        },
+        "issuedAt": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "expiresAt": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": ["bindingDigest", "challengeId", "nonce", "purpose", "issuedAt", "expiresAt"],
+      "additionalProperties": false
+    },
+    "ExecutorOperation": {
+      "type": "object",
+      "properties": {
+        "bindingDigest": {
+          "$ref": "#/$defs/Digest"
+        },
+        "runId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "operationId": {
+          "$ref": "#/$defs/OperationIdentifier"
+        },
+        "requestDigest": {
+          "$ref": "#/$defs/Digest"
+        }
+      },
+      "required": ["bindingDigest", "runId", "operationId", "requestDigest"],
+      "additionalProperties": false
+    },
+    "ExecutorReceipt": {
+      "type": "object",
+      "properties": {
+        "operation": {
+          "$ref": "#/$defs/ExecutorOperation"
+        },
+        "receiptId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "resultDigest": {
+          "$ref": "#/$defs/Digest"
+        }
+      },
+      "required": ["operation", "receiptId", "resultDigest"],
+      "additionalProperties": false
+    },
+    "ExecutorLeasePayload": {
+      "type": "object",
+      "properties": {
+        "contractVersion": {
+          "const": "folioview.agent-workspace.v2.0"
+        },
+        "profile": {
+          "const": "folioview.executor-trust.v1"
+        },
+        "artifactType": {
+          "const": "executor_lease"
+        },
+        "bindingDigest": {
+          "$ref": "#/$defs/Digest"
+        },
+        "checkpointDigest": {
+          "$ref": "#/$defs/Digest"
+        },
+        "challenge": {
+          "$ref": "#/$defs/ExecutorChallenge"
+        },
+        "operation": {
+          "$ref": "#/$defs/ExecutorOperation"
+        },
+        "issuedAt": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "expiresAt": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": [
+        "contractVersion",
+        "profile",
+        "artifactType",
+        "bindingDigest",
+        "checkpointDigest",
+        "challenge",
+        "operation",
+        "issuedAt",
+        "expiresAt"
+      ],
+      "additionalProperties": false
+    },
+    "ExecutorRecoveryPayload": {
+      "type": "object",
+      "properties": {
+        "contractVersion": {
+          "const": "folioview.agent-workspace.v2.0"
+        },
+        "profile": {
+          "const": "folioview.executor-trust.v1"
+        },
+        "artifactType": {
+          "const": "executor_recovery"
+        },
+        "recoveredBinding": {
+          "$ref": "#/$defs/ExecutorBinding"
+        },
+        "leaseFingerprint": {
+          "$ref": "#/$defs/Digest"
+        },
+        "checkpointDigest": {
+          "$ref": "#/$defs/Digest"
+        },
+        "stateHead": {
+          "$ref": "#/$defs/Digest"
+        },
+        "receipts": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ExecutorReceipt"
+          },
+          "maxItems": 32,
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "contractVersion",
+        "profile",
+        "artifactType",
+        "recoveredBinding",
+        "leaseFingerprint",
+        "checkpointDigest",
+        "stateHead",
+        "receipts"
+      ],
+      "additionalProperties": false
+    },
+    "ExecutorTransitionPayload": {
+      "type": "object",
+      "properties": {
+        "contractVersion": {
+          "const": "folioview.agent-workspace.v2.0"
+        },
+        "profile": {
+          "const": "folioview.executor-trust.v1"
+        },
+        "artifactType": {
+          "const": "executor_transition"
+        },
+        "transitionType": {
+          "enum": ["code_upgrade", "epoch_migration"]
+        },
+        "previousApprovalFingerprint": {
+          "$ref": "#/$defs/Digest"
+        },
+        "previousCheckpointDigest": {
+          "$ref": "#/$defs/Digest"
+        },
+        "nextBinding": {
+          "$ref": "#/$defs/ExecutorBinding"
+        },
+        "operationId": {
+          "$ref": "#/$defs/OperationIdentifier"
+        },
+        "issuedAt": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "expiresAt": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": [
+        "contractVersion",
+        "profile",
+        "artifactType",
+        "transitionType",
+        "previousApprovalFingerprint",
+        "previousCheckpointDigest",
+        "nextBinding",
+        "operationId",
+        "issuedAt",
+        "expiresAt"
+      ],
+      "additionalProperties": false
+    }
+  }
+}
