@@ -126,6 +126,7 @@ class PersistentExecutionService(PersistentPublicationService):
         if any(c[k] != identity[k] for k in BINDING_FIELDS) or c["connectionId"] != connection:
             raise ContractError("key_authorization_required")
         meta = self.task(unit, owner, vault, task)
+        self._task_scope(unit, owner, vault, connection, meta)
         if (
             c["taskVersion"],
             c["executionEpoch"],
@@ -273,6 +274,12 @@ class PersistentExecutionService(PersistentPublicationService):
                     meta["executionEpoch"],
                     meta["envelopeFingerprint"],
                 ):
+                    continue
+                try:
+                    self._task_scope(unit, owner, vault, connection, meta)
+                except ContractError as exc:
+                    if exc.code != "insufficient_scope":
+                        raise
                     continue
                 result.append(
                     {
