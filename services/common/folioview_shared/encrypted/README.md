@@ -16,6 +16,13 @@ incremental logical-resource approval, current-and-future version policy and
 per-resource revocation. It is an additional current-policy gate, not a legacy
 P1 grant or permission to execute a task. Services and clients adopt it separately.
 
+The separate opt-in [independent executor trust extension](docs/persistent-authority.md#independent-executor-trust)
+verifies Root-approved independent Policy/workload bindings, current short leases,
+same-key recovery statements, explicit upgrades/migrations and original receipts.
+It contains public-only schemas/verifiers, not an issuer, attestation service or
+runtime. P1 and existing persistent profiles remain unchanged; consumers adopt
+it separately.
+
 ## Wire format and versions
 
 The exact version is `folioview.agent-workspace.v2.0`, profile `P1`:

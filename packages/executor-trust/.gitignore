@@ -1,0 +1,3 @@
+# Generated only during a locked build; the checked browser bundle is committed.
+src/validators.cjs
+node_modules

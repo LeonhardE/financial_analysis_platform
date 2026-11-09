@@ -1,0 +1,286 @@
+{
+  "generatedBy": {
+    "jose": "6.2.13",
+    "canonicalize": "5.1.0",
+    "privateKeysStored": false,
+    "testScalars": "Public synthetic integers 11 through 19"
+  },
+  "binding": {
+    "ownerSubject": "owner-test",
+    "vaultId": "vault-test",
+    "connectionId": "connection-test",
+    "agentId": "agent-test",
+    "clientId": "client-test",
+    "provider": "chatgpt",
+    "providerClientId": "native-client-test",
+    "rootKeyId": "gyQiNUvl4Kf6g4bygxZfm-vyc_vv7O3lrIVJ3kTpDGw",
+    "policySigningKeyId": "jwkQYsSfWionoD0Hho7cytg1zE7ebLCPITOg175ljeI",
+    "agentSigningKeyId": "pFrfxQv4Bd1EA4dJL1hqFfHsAwGWd5UiLRm51YkiBis",
+    "agentEncryptionKeyId": "Wz_1LmzwtOxfkNm9M2pTQMXG1xA20O7xeK2IfDoe6xo",
+    "tlsKeyId": "drrvzyLRvw_4DOgTjPFrtmDHzaqmTWRs2L33zZDt7ck",
+    "identityEpoch": 1,
+    "bindingFingerprint": "3998ccb56f9d4e6a7d3a78b3fb621b3c0befa8edc680e82307166aa1a1a04aed",
+    "scopeDigest": "e4c380246694b3e6f43ddbe5bcc46bfa8270d798c44f47e19433c5699dca9caf",
+    "workloadDigest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "issuer": "https://policy.example.invalid",
+    "audience": "https://executor.example.invalid/mcp",
+    "recipientKeyIds": [
+      "D4yzlNOwydkZR10wJ6_ljYi_xoY0XDCCSMU6BfBrlr4",
+      "GewxRPLbI9hngPxzhTluN7VbHAbP2l9WnEZZP82AS9k"
+    ]
+  },
+  "approval": {
+    "contractVersion": "folioview.agent-workspace.v2.0",
+    "profile": "folioview.executor-trust.v1",
+    "artifactType": "executor_approval",
+    "binding": {
+      "ownerSubject": "owner-test",
+      "vaultId": "vault-test",
+      "connectionId": "connection-test",
+      "agentId": "agent-test",
+      "clientId": "client-test",
+      "provider": "chatgpt",
+      "providerClientId": "native-client-test",
+      "rootKeyId": "gyQiNUvl4Kf6g4bygxZfm-vyc_vv7O3lrIVJ3kTpDGw",
+      "policySigningKeyId": "jwkQYsSfWionoD0Hho7cytg1zE7ebLCPITOg175ljeI",
+      "agentSigningKeyId": "pFrfxQv4Bd1EA4dJL1hqFfHsAwGWd5UiLRm51YkiBis",
+      "agentEncryptionKeyId": "Wz_1LmzwtOxfkNm9M2pTQMXG1xA20O7xeK2IfDoe6xo",
+      "tlsKeyId": "drrvzyLRvw_4DOgTjPFrtmDHzaqmTWRs2L33zZDt7ck",
+      "identityEpoch": 1,
+      "bindingFingerprint": "3998ccb56f9d4e6a7d3a78b3fb621b3c0befa8edc680e82307166aa1a1a04aed",
+      "scopeDigest": "e4c380246694b3e6f43ddbe5bcc46bfa8270d798c44f47e19433c5699dca9caf",
+      "workloadDigest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "issuer": "https://policy.example.invalid",
+      "audience": "https://executor.example.invalid/mcp",
+      "recipientKeyIds": [
+        "D4yzlNOwydkZR10wJ6_ljYi_xoY0XDCCSMU6BfBrlr4",
+        "GewxRPLbI9hngPxzhTluN7VbHAbP2l9WnEZZP82AS9k"
+      ]
+    },
+    "operationId": "approval_test_operation_001",
+    "issuedAt": 900,
+    "expiresAt": 1900
+  },
+  "approvalSigned": {
+    "signature": "2XOOkjX71me2LxuOkwjdqHXCDyknUJjYjrX8m4Yt-zmYeQofSu44lVNBiV0mnx1QuH6B2lmE7JlBFoAJq4Sgug",
+    "payload": "eyJhcnRpZmFjdFR5cGUiOiJleGVjdXRvcl9hcHByb3ZhbCIsImJpbmRpbmciOnsiYWdlbnRFbmNyeXB0aW9uS2V5SWQiOiJXel8xTG16d3RPeGZrTm05TTJwVFFNWEcxeEEyME83eGVLMklmRG9lNnhvIiwiYWdlbnRJZCI6ImFnZW50LXRlc3QiLCJhZ2VudFNpZ25pbmdLZXlJZCI6InBGcmZ4UXY0QmQxRUE0ZEpMMWhxRmZIc0F3R1dkNVVpTFJtNTFZa2lCaXMiLCJhdWRpZW5jZSI6Imh0dHBzOi8vZXhlY3V0b3IuZXhhbXBsZS5pbnZhbGlkL21jcCIsImJpbmRpbmdGaW5nZXJwcmludCI6IjM5OThjY2I1NmY5ZDRlNmE3ZDNhNzhiM2ZiNjIxYjNjMGJlZmE4ZWRjNjgwZTgyMzA3MTY2YWExYTFhMDRhZWQiLCJjbGllbnRJZCI6ImNsaWVudC10ZXN0IiwiY29ubmVjdGlvbklkIjoiY29ubmVjdGlvbi10ZXN0IiwiaWRlbnRpdHlFcG9jaCI6MSwiaXNzdWVyIjoiaHR0cHM6Ly9wb2xpY3kuZXhhbXBsZS5pbnZhbGlkIiwib3duZXJTdWJqZWN0Ijoib3duZXItdGVzdCIsInBvbGljeVNpZ25pbmdLZXlJZCI6Imp3a1FZc1NmV2lvbm9EMEhobzdjeXRnMXpFN2ViTENQSVRPZzE3NWxqZUkiLCJwcm92aWRlciI6ImNoYXRncHQiLCJwcm92aWRlckNsaWVudElkIjoibmF0aXZlLWNsaWVudC10ZXN0IiwicmVjaXBpZW50S2V5SWRzIjpbIkQ0eXpsTk93eWRrWlIxMHdKNl9sallpX3hvWTBYRENDU01VNkJmQnJscjQiLCJHZXd4UlBMYkk5aG5nUHh6aFRsdU43VmJIQWJQMmw5V25FWlpQODJBUzlrIl0sInJvb3RLZXlJZCI6Imd5UWlOVXZsNEtmNmc0YnlneFpmbS12eWNfdnY3TzNscklWSjNrVHBER3ciLCJzY29wZURpZ2VzdCI6ImU0YzM4MDI0NjY5NGIzZTZmNDNkZGJlNWJjYzQ2YmZhODI3MGQ3OThjNDRmNDdlMTk0MzNjNTY5OWRjYTljYWYiLCJ0bHNLZXlJZCI6ImRycnZ6eUxSdndfNERPZ1RqUEZydG1ESHphcW1UV1JzMkwzM3paRHQ3Y2siLCJ2YXVsdElkIjoidmF1bHQtdGVzdCIsIndvcmtsb2FkRGlnZXN0IjoiYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYSJ9LCJjb250cmFjdFZlcnNpb24iOiJmb2xpb3ZpZXcuYWdlbnQtd29ya3NwYWNlLnYyLjAiLCJleHBpcmVzQXQiOjE5MDAsImlzc3VlZEF0Ijo5MDAsIm9wZXJhdGlvbklkIjoiYXBwcm92YWxfdGVzdF9vcGVyYXRpb25fMDAxIiwicHJvZmlsZSI6ImZvbGlvdmlldy5leGVjdXRvci10cnVzdC52MSJ9",
+    "protected": "eyJhbGciOiJFUzI1NiIsImtpZCI6Imd5UWlOVXZsNEtmNmc0YnlneFpmbS12eWNfdnY3TzNscklWSjNrVHBER3ciLCJ0eXAiOiJmdi1jb250cm9sK2p3cyIsImN0eSI6ImFwcGxpY2F0aW9uL2pzb24ifQ"
+  },
+  "checkpoint": {
+    "contractVersion": "folioview.agent-workspace.v2.0",
+    "profile": "folioview.executor-trust.v1",
+    "artifactType": "executor_checkpoint",
+    "bindingDigest": "769e2470e5d730e2beec8cebdb9da848370e685b9fb9548120fa0527084a93af",
+    "approvalFingerprint": "7aa7584d7dff3a13af2767069b267872c43bd52db593e1f52630c9f67a01ec38",
+    "stateVersion": 3,
+    "stateHead": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "authorizationEpoch": 2,
+    "revoked": false,
+    "issuedAt": 990,
+    "expiresAt": 1100
+  },
+  "checkpointSigned": {
+    "signature": "pehIi8zYL1_UcxPzMhHbzr0_W8mUtw1r1tG6vKJ5LXblW2Q9acejlfw4tWAE3Ri5oIMEIcgmh-84eaNZMObuDw",
+    "payload": "eyJhcHByb3ZhbEZpbmdlcnByaW50IjoiN2FhNzU4NGQ3ZGZmM2ExM2FmMjc2NzA2OWIyNjc4NzJjNDNiZDUyZGI1OTNlMWY1MjYzMGM5ZjY3YTAxZWMzOCIsImFydGlmYWN0VHlwZSI6ImV4ZWN1dG9yX2NoZWNrcG9pbnQiLCJhdXRob3JpemF0aW9uRXBvY2giOjIsImJpbmRpbmdEaWdlc3QiOiI3NjllMjQ3MGU1ZDczMGUyYmVlYzhjZWJkYjlkYTg0ODM3MGU2ODViOWZiOTU0ODEyMGZhMDUyNzA4NGE5M2FmIiwiY29udHJhY3RWZXJzaW9uIjoiZm9saW92aWV3LmFnZW50LXdvcmtzcGFjZS52Mi4wIiwiZXhwaXJlc0F0IjoxMTAwLCJpc3N1ZWRBdCI6OTkwLCJwcm9maWxlIjoiZm9saW92aWV3LmV4ZWN1dG9yLXRydXN0LnYxIiwicmV2b2tlZCI6ZmFsc2UsInN0YXRlSGVhZCI6ImJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmIiLCJzdGF0ZVZlcnNpb24iOjN9",
+    "protected": "eyJhbGciOiJFUzI1NiIsImtpZCI6Imp3a1FZc1NmV2lvbm9EMEhobzdjeXRnMXpFN2ViTENQSVRPZzE3NWxqZUkiLCJ0eXAiOiJmdi1jb250cm9sK2p3cyIsImN0eSI6ImFwcGxpY2F0aW9uL2pzb24ifQ"
+  },
+  "challenge": {
+    "bindingDigest": "769e2470e5d730e2beec8cebdb9da848370e685b9fb9548120fa0527084a93af",
+    "challengeId": "challenge_test_operation_001",
+    "nonce": "BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc",
+    "purpose": "recover",
+    "issuedAt": 995,
+    "expiresAt": 1080
+  },
+  "operation": {
+    "bindingDigest": "769e2470e5d730e2beec8cebdb9da848370e685b9fb9548120fa0527084a93af",
+    "runId": "run-test",
+    "operationId": "report_test_operation_001",
+    "requestDigest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+  },
+  "receipt": {
+    "operation": {
+      "bindingDigest": "769e2470e5d730e2beec8cebdb9da848370e685b9fb9548120fa0527084a93af",
+      "runId": "run-test",
+      "operationId": "report_test_operation_001",
+      "requestDigest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+    },
+    "receiptId": "receipt-original",
+    "resultDigest": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+  },
+  "lease": {
+    "contractVersion": "folioview.agent-workspace.v2.0",
+    "profile": "folioview.executor-trust.v1",
+    "artifactType": "executor_lease",
+    "bindingDigest": "769e2470e5d730e2beec8cebdb9da848370e685b9fb9548120fa0527084a93af",
+    "checkpointDigest": "2156c483681130f4b479f31eff41c08c3028fb98c56dd9473635b9d88084c09d",
+    "challenge": {
+      "bindingDigest": "769e2470e5d730e2beec8cebdb9da848370e685b9fb9548120fa0527084a93af",
+      "challengeId": "challenge_test_operation_001",
+      "nonce": "BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc",
+      "purpose": "recover",
+      "issuedAt": 995,
+      "expiresAt": 1080
+    },
+    "operation": {
+      "bindingDigest": "769e2470e5d730e2beec8cebdb9da848370e685b9fb9548120fa0527084a93af",
+      "runId": "run-test",
+      "operationId": "report_test_operation_001",
+      "requestDigest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+    },
+    "issuedAt": 1000,
+    "expiresAt": 1060
+  },
+  "leaseSigned": {
+    "signature": "KFTBUcf9KXH-WyobdpJvHxAkh_katJdvCaXA1GBPT_A835oXXRUifZMLwF4WdIzsgojcZbH7UxeSIAKMtL6p3Q",
+    "payload": "eyJhcnRpZmFjdFR5cGUiOiJleGVjdXRvcl9sZWFzZSIsImJpbmRpbmdEaWdlc3QiOiI3NjllMjQ3MGU1ZDczMGUyYmVlYzhjZWJkYjlkYTg0ODM3MGU2ODViOWZiOTU0ODEyMGZhMDUyNzA4NGE5M2FmIiwiY2hhbGxlbmdlIjp7ImJpbmRpbmdEaWdlc3QiOiI3NjllMjQ3MGU1ZDczMGUyYmVlYzhjZWJkYjlkYTg0ODM3MGU2ODViOWZiOTU0ODEyMGZhMDUyNzA4NGE5M2FmIiwiY2hhbGxlbmdlSWQiOiJjaGFsbGVuZ2VfdGVzdF9vcGVyYXRpb25fMDAxIiwiZXhwaXJlc0F0IjoxMDgwLCJpc3N1ZWRBdCI6OTk1LCJub25jZSI6IkJ3Y0hCd2NIQndjSEJ3Y0hCd2NIQndjSEJ3Y0hCd2NIQndjSEJ3Y0hCd2MiLCJwdXJwb3NlIjoicmVjb3ZlciJ9LCJjaGVja3BvaW50RGlnZXN0IjoiMjE1NmM0ODM2ODExMzBmNGI0NzlmMzFlZmY0MWMwOGMzMDI4ZmI5OGM1NmRkOTQ3MzYzNWI5ZDg4MDg0YzA5ZCIsImNvbnRyYWN0VmVyc2lvbiI6ImZvbGlvdmlldy5hZ2VudC13b3Jrc3BhY2UudjIuMCIsImV4cGlyZXNBdCI6MTA2MCwiaXNzdWVkQXQiOjEwMDAsIm9wZXJhdGlvbiI6eyJiaW5kaW5nRGlnZXN0IjoiNzY5ZTI0NzBlNWQ3MzBlMmJlZWM4Y2ViZGI5ZGE4NDgzNzBlNjg1YjlmYjk1NDgxMjBmYTA1MjcwODRhOTNhZiIsIm9wZXJhdGlvbklkIjoicmVwb3J0X3Rlc3Rfb3BlcmF0aW9uXzAwMSIsInJlcXVlc3REaWdlc3QiOiJjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjIiwicnVuSWQiOiJydW4tdGVzdCJ9LCJwcm9maWxlIjoiZm9saW92aWV3LmV4ZWN1dG9yLXRydXN0LnYxIn0",
+    "protected": "eyJhbGciOiJFUzI1NiIsImtpZCI6Imp3a1FZc1NmV2lvbm9EMEhobzdjeXRnMXpFN2ViTENQSVRPZzE3NWxqZUkiLCJ0eXAiOiJmdi1jb250cm9sK2p3cyIsImN0eSI6ImFwcGxpY2F0aW9uL2pzb24ifQ"
+  },
+  "recovery": {
+    "contractVersion": "folioview.agent-workspace.v2.0",
+    "profile": "folioview.executor-trust.v1",
+    "artifactType": "executor_recovery",
+    "recoveredBinding": {
+      "ownerSubject": "owner-test",
+      "vaultId": "vault-test",
+      "connectionId": "connection-test",
+      "agentId": "agent-test",
+      "clientId": "client-test",
+      "provider": "chatgpt",
+      "providerClientId": "native-client-test",
+      "rootKeyId": "gyQiNUvl4Kf6g4bygxZfm-vyc_vv7O3lrIVJ3kTpDGw",
+      "policySigningKeyId": "jwkQYsSfWionoD0Hho7cytg1zE7ebLCPITOg175ljeI",
+      "agentSigningKeyId": "pFrfxQv4Bd1EA4dJL1hqFfHsAwGWd5UiLRm51YkiBis",
+      "agentEncryptionKeyId": "Wz_1LmzwtOxfkNm9M2pTQMXG1xA20O7xeK2IfDoe6xo",
+      "tlsKeyId": "drrvzyLRvw_4DOgTjPFrtmDHzaqmTWRs2L33zZDt7ck",
+      "identityEpoch": 1,
+      "bindingFingerprint": "3998ccb56f9d4e6a7d3a78b3fb621b3c0befa8edc680e82307166aa1a1a04aed",
+      "scopeDigest": "e4c380246694b3e6f43ddbe5bcc46bfa8270d798c44f47e19433c5699dca9caf",
+      "workloadDigest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "issuer": "https://policy.example.invalid",
+      "audience": "https://executor.example.invalid/mcp",
+      "recipientKeyIds": [
+        "D4yzlNOwydkZR10wJ6_ljYi_xoY0XDCCSMU6BfBrlr4",
+        "GewxRPLbI9hngPxzhTluN7VbHAbP2l9WnEZZP82AS9k"
+      ]
+    },
+    "leaseFingerprint": "f8fca19026373b54f2da29505b0941782695401fc427688107c331884924f167",
+    "checkpointDigest": "2156c483681130f4b479f31eff41c08c3028fb98c56dd9473635b9d88084c09d",
+    "stateHead": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "receipts": [
+      {
+        "operation": {
+          "bindingDigest": "769e2470e5d730e2beec8cebdb9da848370e685b9fb9548120fa0527084a93af",
+          "runId": "run-test",
+          "operationId": "report_test_operation_001",
+          "requestDigest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+        },
+        "receiptId": "receipt-original",
+        "resultDigest": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+      }
+    ]
+  },
+  "recoverySigned": {
+    "signature": "4yIPKg-R9-ZpL9Rl4mpFYZj43YO4umgJqX94T2_cItt82c4mYTmD-Zw-U5jfbhIeL4RrvDbLrkbNVSdsh9DUPg",
+    "payload": "eyJhcnRpZmFjdFR5cGUiOiJleGVjdXRvcl9yZWNvdmVyeSIsImNoZWNrcG9pbnREaWdlc3QiOiIyMTU2YzQ4MzY4MTEzMGY0YjQ3OWYzMWVmZjQxYzA4YzMwMjhmYjk4YzU2ZGQ5NDczNjM1YjlkODgwODRjMDlkIiwiY29udHJhY3RWZXJzaW9uIjoiZm9saW92aWV3LmFnZW50LXdvcmtzcGFjZS52Mi4wIiwibGVhc2VGaW5nZXJwcmludCI6ImY4ZmNhMTkwMjYzNzNiNTRmMmRhMjk1MDViMDk0MTc4MjY5NTQwMWZjNDI3Njg4MTA3YzMzMTg4NDkyNGYxNjciLCJwcm9maWxlIjoiZm9saW92aWV3LmV4ZWN1dG9yLXRydXN0LnYxIiwicmVjZWlwdHMiOlt7Im9wZXJhdGlvbiI6eyJiaW5kaW5nRGlnZXN0IjoiNzY5ZTI0NzBlNWQ3MzBlMmJlZWM4Y2ViZGI5ZGE4NDgzNzBlNjg1YjlmYjk1NDgxMjBmYTA1MjcwODRhOTNhZiIsIm9wZXJhdGlvbklkIjoicmVwb3J0X3Rlc3Rfb3BlcmF0aW9uXzAwMSIsInJlcXVlc3REaWdlc3QiOiJjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjIiwicnVuSWQiOiJydW4tdGVzdCJ9LCJyZWNlaXB0SWQiOiJyZWNlaXB0LW9yaWdpbmFsIiwicmVzdWx0RGlnZXN0IjoiZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZCJ9XSwicmVjb3ZlcmVkQmluZGluZyI6eyJhZ2VudEVuY3J5cHRpb25LZXlJZCI6Ild6XzFMbXp3dE94ZmtObTlNMnBUUU1YRzF4QTIwTzd4ZUsySWZEb2U2eG8iLCJhZ2VudElkIjoiYWdlbnQtdGVzdCIsImFnZW50U2lnbmluZ0tleUlkIjoicEZyZnhRdjRCZDFFQTRkSkwxaHFGZkhzQXdHV2Q1VWlMUm01MVlraUJpcyIsImF1ZGllbmNlIjoiaHR0cHM6Ly9leGVjdXRvci5leGFtcGxlLmludmFsaWQvbWNwIiwiYmluZGluZ0ZpbmdlcnByaW50IjoiMzk5OGNjYjU2ZjlkNGU2YTdkM2E3OGIzZmI2MjFiM2MwYmVmYThlZGM2ODBlODIzMDcxNjZhYTFhMWEwNGFlZCIsImNsaWVudElkIjoiY2xpZW50LXRlc3QiLCJjb25uZWN0aW9uSWQiOiJjb25uZWN0aW9uLXRlc3QiLCJpZGVudGl0eUVwb2NoIjoxLCJpc3N1ZXIiOiJodHRwczovL3BvbGljeS5leGFtcGxlLmludmFsaWQiLCJvd25lclN1YmplY3QiOiJvd25lci10ZXN0IiwicG9saWN5U2lnbmluZ0tleUlkIjoiandrUVlzU2ZXaW9ub0QwSGhvN2N5dGcxekU3ZWJMQ1BJVE9nMTc1bGplSSIsInByb3ZpZGVyIjoiY2hhdGdwdCIsInByb3ZpZGVyQ2xpZW50SWQiOiJuYXRpdmUtY2xpZW50LXRlc3QiLCJyZWNpcGllbnRLZXlJZHMiOlsiRDR5emxOT3d5ZGtaUjEwd0o2X2xqWWlfeG9ZMFhEQ0NTTVU2QmZCcmxyNCIsIkdld3hSUExiSTlobmdQeHpoVGx1TjdWYkhBYlAybDlXbkVaWlA4MkFTOWsiXSwicm9vdEtleUlkIjoiZ3lRaU5Vdmw0S2Y2ZzRieWd4WmZtLXZ5Y192djdPM2xySVZKM2tUcERHdyIsInNjb3BlRGlnZXN0IjoiZTRjMzgwMjQ2Njk0YjNlNmY0M2RkYmU1YmNjNDZiZmE4MjcwZDc5OGM0NGY0N2UxOTQzM2M1Njk5ZGNhOWNhZiIsInRsc0tleUlkIjoiZHJydnp5TFJ2d180RE9nVGpQRnJ0bURIemFxbVRXUnMyTDMzelpEdDdjayIsInZhdWx0SWQiOiJ2YXVsdC10ZXN0Iiwid29ya2xvYWREaWdlc3QiOiJhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhIn0sInN0YXRlSGVhZCI6ImJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmIifQ",
+    "protected": "eyJhbGciOiJFUzI1NiIsImtpZCI6InBGcmZ4UXY0QmQxRUE0ZEpMMWhxRmZIc0F3R1dkNVVpTFJtNTFZa2lCaXMiLCJ0eXAiOiJmdi1jb250cm9sK2p3cyIsImN0eSI6ImFwcGxpY2F0aW9uL2pzb24ifQ"
+  },
+  "upgrade": {
+    "contractVersion": "folioview.agent-workspace.v2.0",
+    "profile": "folioview.executor-trust.v1",
+    "artifactType": "executor_transition",
+    "transitionType": "code_upgrade",
+    "previousApprovalFingerprint": "7aa7584d7dff3a13af2767069b267872c43bd52db593e1f52630c9f67a01ec38",
+    "previousCheckpointDigest": "2156c483681130f4b479f31eff41c08c3028fb98c56dd9473635b9d88084c09d",
+    "nextBinding": {
+      "ownerSubject": "owner-test",
+      "vaultId": "vault-test",
+      "connectionId": "connection-test",
+      "agentId": "agent-test",
+      "clientId": "client-test",
+      "provider": "chatgpt",
+      "providerClientId": "native-client-test",
+      "rootKeyId": "gyQiNUvl4Kf6g4bygxZfm-vyc_vv7O3lrIVJ3kTpDGw",
+      "policySigningKeyId": "jwkQYsSfWionoD0Hho7cytg1zE7ebLCPITOg175ljeI",
+      "agentSigningKeyId": "pFrfxQv4Bd1EA4dJL1hqFfHsAwGWd5UiLRm51YkiBis",
+      "agentEncryptionKeyId": "Wz_1LmzwtOxfkNm9M2pTQMXG1xA20O7xeK2IfDoe6xo",
+      "tlsKeyId": "drrvzyLRvw_4DOgTjPFrtmDHzaqmTWRs2L33zZDt7ck",
+      "identityEpoch": 1,
+      "bindingFingerprint": "3998ccb56f9d4e6a7d3a78b3fb621b3c0befa8edc680e82307166aa1a1a04aed",
+      "scopeDigest": "e4c380246694b3e6f43ddbe5bcc46bfa8270d798c44f47e19433c5699dca9caf",
+      "workloadDigest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      "issuer": "https://policy.example.invalid",
+      "audience": "https://executor.example.invalid/mcp",
+      "recipientKeyIds": [
+        "D4yzlNOwydkZR10wJ6_ljYi_xoY0XDCCSMU6BfBrlr4",
+        "GewxRPLbI9hngPxzhTluN7VbHAbP2l9WnEZZP82AS9k"
+      ]
+    },
+    "operationId": "transition_test_operation_001",
+    "issuedAt": 1000,
+    "expiresAt": 1060
+  },
+  "upgradeSigned": {
+    "signature": "Um2gEvAan7GW7ruXLbaFShSUTTZffsxHqnZcabjAPpy-JUypfrzclk8SILpvlYAnrRl_7mVI7zXopU5cgtcBxg",
+    "payload": "eyJhcnRpZmFjdFR5cGUiOiJleGVjdXRvcl90cmFuc2l0aW9uIiwiY29udHJhY3RWZXJzaW9uIjoiZm9saW92aWV3LmFnZW50LXdvcmtzcGFjZS52Mi4wIiwiZXhwaXJlc0F0IjoxMDYwLCJpc3N1ZWRBdCI6MTAwMCwibmV4dEJpbmRpbmciOnsiYWdlbnRFbmNyeXB0aW9uS2V5SWQiOiJXel8xTG16d3RPeGZrTm05TTJwVFFNWEcxeEEyME83eGVLMklmRG9lNnhvIiwiYWdlbnRJZCI6ImFnZW50LXRlc3QiLCJhZ2VudFNpZ25pbmdLZXlJZCI6InBGcmZ4UXY0QmQxRUE0ZEpMMWhxRmZIc0F3R1dkNVVpTFJtNTFZa2lCaXMiLCJhdWRpZW5jZSI6Imh0dHBzOi8vZXhlY3V0b3IuZXhhbXBsZS5pbnZhbGlkL21jcCIsImJpbmRpbmdGaW5nZXJwcmludCI6IjM5OThjY2I1NmY5ZDRlNmE3ZDNhNzhiM2ZiNjIxYjNjMGJlZmE4ZWRjNjgwZTgyMzA3MTY2YWExYTFhMDRhZWQiLCJjbGllbnRJZCI6ImNsaWVudC10ZXN0IiwiY29ubmVjdGlvbklkIjoiY29ubmVjdGlvbi10ZXN0IiwiaWRlbnRpdHlFcG9jaCI6MSwiaXNzdWVyIjoiaHR0cHM6Ly9wb2xpY3kuZXhhbXBsZS5pbnZhbGlkIiwib3duZXJTdWJqZWN0Ijoib3duZXItdGVzdCIsInBvbGljeVNpZ25pbmdLZXlJZCI6Imp3a1FZc1NmV2lvbm9EMEhobzdjeXRnMXpFN2ViTENQSVRPZzE3NWxqZUkiLCJwcm92aWRlciI6ImNoYXRncHQiLCJwcm92aWRlckNsaWVudElkIjoibmF0aXZlLWNsaWVudC10ZXN0IiwicmVjaXBpZW50S2V5SWRzIjpbIkQ0eXpsTk93eWRrWlIxMHdKNl9sallpX3hvWTBYRENDU01VNkJmQnJscjQiLCJHZXd4UlBMYkk5aG5nUHh6aFRsdU43VmJIQWJQMmw5V25FWlpQODJBUzlrIl0sInJvb3RLZXlJZCI6Imd5UWlOVXZsNEtmNmc0YnlneFpmbS12eWNfdnY3TzNscklWSjNrVHBER3ciLCJzY29wZURpZ2VzdCI6ImU0YzM4MDI0NjY5NGIzZTZmNDNkZGJlNWJjYzQ2YmZhODI3MGQ3OThjNDRmNDdlMTk0MzNjNTY5OWRjYTljYWYiLCJ0bHNLZXlJZCI6ImRycnZ6eUxSdndfNERPZ1RqUEZydG1ESHphcW1UV1JzMkwzM3paRHQ3Y2siLCJ2YXVsdElkIjoidmF1bHQtdGVzdCIsIndvcmtsb2FkRGlnZXN0IjoiZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZSJ9LCJvcGVyYXRpb25JZCI6InRyYW5zaXRpb25fdGVzdF9vcGVyYXRpb25fMDAxIiwicHJldmlvdXNBcHByb3ZhbEZpbmdlcnByaW50IjoiN2FhNzU4NGQ3ZGZmM2ExM2FmMjc2NzA2OWIyNjc4NzJjNDNiZDUyZGI1OTNlMWY1MjYzMGM5ZjY3YTAxZWMzOCIsInByZXZpb3VzQ2hlY2twb2ludERpZ2VzdCI6IjIxNTZjNDgzNjgxMTMwZjRiNDc5ZjMxZWZmNDFjMDhjMzAyOGZiOThjNTZkZDk0NzM2MzViOWQ4ODA4NGMwOWQiLCJwcm9maWxlIjoiZm9saW92aWV3LmV4ZWN1dG9yLXRydXN0LnYxIiwidHJhbnNpdGlvblR5cGUiOiJjb2RlX3VwZ3JhZGUifQ",
+    "protected": "eyJhbGciOiJFUzI1NiIsImtpZCI6Imd5UWlOVXZsNEtmNmc0YnlneFpmbS12eWNfdnY3TzNscklWSjNrVHBER3ciLCJ0eXAiOiJmdi1jb250cm9sK2p3cyIsImN0eSI6ImFwcGxpY2F0aW9uL2pzb24ifQ"
+  },
+  "migration": {
+    "contractVersion": "folioview.agent-workspace.v2.0",
+    "profile": "folioview.executor-trust.v1",
+    "artifactType": "executor_transition",
+    "transitionType": "epoch_migration",
+    "previousApprovalFingerprint": "7aa7584d7dff3a13af2767069b267872c43bd52db593e1f52630c9f67a01ec38",
+    "previousCheckpointDigest": "2156c483681130f4b479f31eff41c08c3028fb98c56dd9473635b9d88084c09d",
+    "nextBinding": {
+      "ownerSubject": "owner-test",
+      "vaultId": "vault-test",
+      "connectionId": "connection-test",
+      "agentId": "agent-test",
+      "clientId": "client-test",
+      "provider": "chatgpt",
+      "providerClientId": "native-client-test",
+      "rootKeyId": "gyQiNUvl4Kf6g4bygxZfm-vyc_vv7O3lrIVJ3kTpDGw",
+      "policySigningKeyId": "jwkQYsSfWionoD0Hho7cytg1zE7ebLCPITOg175ljeI",
+      "agentSigningKeyId": "lq_PtW2FX0J6r1miIqjkx1TtZ6GBdGbWoEfdg5cPdyE",
+      "agentEncryptionKeyId": "P9R8hh8tFfNyfif5cvNY-0NYQcrOqp2Bp-axIQcsbm0",
+      "tlsKeyId": "drrvzyLRvw_4DOgTjPFrtmDHzaqmTWRs2L33zZDt7ck",
+      "identityEpoch": 2,
+      "bindingFingerprint": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      "scopeDigest": "e4c380246694b3e6f43ddbe5bcc46bfa8270d798c44f47e19433c5699dca9caf",
+      "workloadDigest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "issuer": "https://policy.example.invalid",
+      "audience": "https://executor.example.invalid/mcp",
+      "recipientKeyIds": [
+        "D4yzlNOwydkZR10wJ6_ljYi_xoY0XDCCSMU6BfBrlr4",
+        "GewxRPLbI9hngPxzhTluN7VbHAbP2l9WnEZZP82AS9k"
+      ]
+    },
+    "operationId": "transition_test_operation_001",
+    "issuedAt": 1000,
+    "expiresAt": 1060
+  },
+  "migrationSigned": {
+    "signature": "GNJG8iH2x9djFQr7CJkoisXglVRKWzoGUCowyrqS07VUWZKfxpPxj2voJsO_YREqUx7eCusOO-1-2j1YxNysBQ",
+    "payload": "eyJhcnRpZmFjdFR5cGUiOiJleGVjdXRvcl90cmFuc2l0aW9uIiwiY29udHJhY3RWZXJzaW9uIjoiZm9saW92aWV3LmFnZW50LXdvcmtzcGFjZS52Mi4wIiwiZXhwaXJlc0F0IjoxMDYwLCJpc3N1ZWRBdCI6MTAwMCwibmV4dEJpbmRpbmciOnsiYWdlbnRFbmNyeXB0aW9uS2V5SWQiOiJQOVI4aGg4dEZmTnlmaWY1Y3ZOWS0wTllRY3JPcXAyQnAtYXhJUWNzYm0wIiwiYWdlbnRJZCI6ImFnZW50LXRlc3QiLCJhZ2VudFNpZ25pbmdLZXlJZCI6ImxxX1B0VzJGWDBKNnIxbWlJcWpreDFUdFo2R0JkR2JXb0VmZGc1Y1BkeUUiLCJhdWRpZW5jZSI6Imh0dHBzOi8vZXhlY3V0b3IuZXhhbXBsZS5pbnZhbGlkL21jcCIsImJpbmRpbmdGaW5nZXJwcmludCI6ImZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmYiLCJjbGllbnRJZCI6ImNsaWVudC10ZXN0IiwiY29ubmVjdGlvbklkIjoiY29ubmVjdGlvbi10ZXN0IiwiaWRlbnRpdHlFcG9jaCI6MiwiaXNzdWVyIjoiaHR0cHM6Ly9wb2xpY3kuZXhhbXBsZS5pbnZhbGlkIiwib3duZXJTdWJqZWN0Ijoib3duZXItdGVzdCIsInBvbGljeVNpZ25pbmdLZXlJZCI6Imp3a1FZc1NmV2lvbm9EMEhobzdjeXRnMXpFN2ViTENQSVRPZzE3NWxqZUkiLCJwcm92aWRlciI6ImNoYXRncHQiLCJwcm92aWRlckNsaWVudElkIjoibmF0aXZlLWNsaWVudC10ZXN0IiwicmVjaXBpZW50S2V5SWRzIjpbIkQ0eXpsTk93eWRrWlIxMHdKNl9sallpX3hvWTBYRENDU01VNkJmQnJscjQiLCJHZXd4UlBMYkk5aG5nUHh6aFRsdU43VmJIQWJQMmw5V25FWlpQODJBUzlrIl0sInJvb3RLZXlJZCI6Imd5UWlOVXZsNEtmNmc0YnlneFpmbS12eWNfdnY3TzNscklWSjNrVHBER3ciLCJzY29wZURpZ2VzdCI6ImU0YzM4MDI0NjY5NGIzZTZmNDNkZGJlNWJjYzQ2YmZhODI3MGQ3OThjNDRmNDdlMTk0MzNjNTY5OWRjYTljYWYiLCJ0bHNLZXlJZCI6ImRycnZ6eUxSdndfNERPZ1RqUEZydG1ESHphcW1UV1JzMkwzM3paRHQ3Y2siLCJ2YXVsdElkIjoidmF1bHQtdGVzdCIsIndvcmtsb2FkRGlnZXN0IjoiYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYSJ9LCJvcGVyYXRpb25JZCI6InRyYW5zaXRpb25fdGVzdF9vcGVyYXRpb25fMDAxIiwicHJldmlvdXNBcHByb3ZhbEZpbmdlcnByaW50IjoiN2FhNzU4NGQ3ZGZmM2ExM2FmMjc2NzA2OWIyNjc4NzJjNDNiZDUyZGI1OTNlMWY1MjYzMGM5ZjY3YTAxZWMzOCIsInByZXZpb3VzQ2hlY2twb2ludERpZ2VzdCI6IjIxNTZjNDgzNjgxMTMwZjRiNDc5ZjMxZWZmNDFjMDhjMzAyOGZiOThjNTZkZDk0NzM2MzViOWQ4ODA4NGMwOWQiLCJwcm9maWxlIjoiZm9saW92aWV3LmV4ZWN1dG9yLXRydXN0LnYxIiwidHJhbnNpdGlvblR5cGUiOiJlcG9jaF9taWdyYXRpb24ifQ",
+    "protected": "eyJhbGciOiJFUzI1NiIsImtpZCI6Imd5UWlOVXZsNEtmNmc0YnlneFpmbS12eWNfdnY3TzNscklWSjNrVHBER3ciLCJ0eXAiOiJmdi1jb250cm9sK2p3cyIsImN0eSI6ImFwcGxpY2F0aW9uL2pzb24ifQ"
+  },
+  "rootPublicJwk": {
+    "kty": "EC",
+    "crv": "P-256",
+    "x": "PtETt4g7TFkGODedsMIc2hZ0LtAlUEi_QzOR03S8IdE",
+    "y": "kJkgmszEyKIkyEOvpPTGigkNBNpemIna4vju_OgqN0A"
+  },
+  "policyPublicJwk": {
+    "kty": "EC",
+    "crv": "P-256",
+    "x": "dB3VvagX2V5GJlNzIOXVUXmYMCiy-CyZ1QDF7oYk48Q",
+    "y": "B3C0apw4X9xWc4NVSIexVI7rkSw1ulynGZX_Is1EgdM"
+  },
+  "agentPublicJwk": {
+    "kty": "EC",
+    "crv": "P-256",
+    "x": "F3yDeuCsSVphgF3y2F7i_HkuKEtl6tWKmOFdnUYHLAE",
+    "y": "Y7tYzU6-pViiQJGttA9OcibuFMOh-03znEO74u_Hv9g"
+  }
+}
