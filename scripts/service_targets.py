@@ -22,6 +22,7 @@ _ID = re.compile(r"[a-z][a-z0-9]*(?:-[a-z0-9]+)*\Z")
 _PATH = re.compile(r"[A-Za-z0-9][A-Za-z0-9._/-]*\Z")
 _BUILD_PATH = re.compile(r"infra/gcp/cloudbuild\.[a-z0-9-]+\.yaml\Z")
 _TARGET_FIELDS = frozenset({"id", "kind", "directory", "service", "cloudbuild", "release_mode"})
+_OPTIONAL_TARGET_FIELDS = frozenset({"runtime"})
 _IGNORED_DIRS = frozenset(
     {"__pycache__", "build", "node_modules", "out", ".venv", ".pytest_cache", ".ruff_cache"}
 )
@@ -43,6 +44,7 @@ class Target:
     cloudbuild: str
     release_mode: str
     ruff_config: str | None = None
+    runtime: str = "cloud_run"
 
     @property
     def dockerfile(self) -> str:
@@ -228,15 +230,25 @@ def parse_registry_document(raw: bytes | str) -> tuple[Target, ...]:
         targets = []
         seen = {field: set() for field in ("id", "directory", "service", "cloudbuild")}
         for row in document["targets"]:
-            if type(row) is not dict or set(row) != _TARGET_FIELDS:
+            if (
+                type(row) is not dict
+                or not _TARGET_FIELDS <= set(row)
+                or set(row) - _TARGET_FIELDS - _OPTIONAL_TARGET_FIELDS
+            ):
                 raise RegistryError("Invalid target registration fields")
             identifier = _identifier(row["id"])
             # Cloud Run serviceId must contain fewer than 50 characters.
             service = _identifier(row["service"], maximum=49)
             directory, cloudbuild = _relative(row["directory"]), _relative(row["cloudbuild"])
             kind, release_mode = row["kind"], row["release_mode"]
+            runtime = row.get("runtime", "cloud_run")
             if (
                 kind not in {"backend", "web"}
+                or runtime not in {"cloud_run", "confidential_vm"}
+                or (
+                    runtime == "confidential_vm"
+                    and (kind != "backend" or release_mode != "build_only")
+                )
                 or release_mode not in {"existing", "build_only"}
                 or _BUILD_PATH.fullmatch(cloudbuild) is None
                 or (
@@ -255,7 +267,11 @@ def parse_registry_document(raw: bytes | str) -> tuple[Target, ...]:
                 if value in seen[field]:
                     raise RegistryError("Duplicate target registration " + field)
                 seen[field].add(value)
-            targets.append(Target(identifier, kind, directory, service, cloudbuild, release_mode))
+            targets.append(
+                Target(
+                    identifier, kind, directory, service, cloudbuild, release_mode, runtime=runtime
+                )
+            )
         if len([target for target in targets if target.kind == "web"]) != 1:
             raise RegistryError("Exactly one existing web target must be registered")
         return tuple(targets)
@@ -286,6 +302,8 @@ def load_registry(root: Path = ROOT) -> Registry:
                 for filename in ("app/main.py", "requirements.txt", "requirements-dev.txt"):
                     _file(root, directory + "/" + filename)
                 _test_directory(root, target.tests, "test*.py")
+                if target.runtime == "confidential_vm":
+                    _file(root, directory + "/app/health_check.py")
                 optional_config = _inside(root, directory + "/pyproject.toml")
                 if optional_config.exists():
                     _file(root, directory + "/pyproject.toml")
@@ -312,7 +330,11 @@ def _metadata_bytes(targets: tuple[Target, ...]) -> bytes:
         {
             "schema_version": 1,
             "targets": [
-                {field: getattr(target, field) for field in _TARGET_FIELDS} for target in targets
+                {
+                    **{field: getattr(target, field) for field in _TARGET_FIELDS},
+                    **({"runtime": target.runtime} if target.runtime != "cloud_run" else {}),
+                }
+                for target in targets
             ],
         }
     ).encode("utf-8")
@@ -360,6 +382,6 @@ def validate_registry_transition(
                 raise RegistryError("New targets must first register as build_only")
         elif any(
             getattr(old, field) != getattr(target, field)
-            for field in ("kind", "directory", "service")
+            for field in ("kind", "directory", "service", "runtime")
         ):
             raise RegistryError("Registered target identity cannot change implicitly")

@@ -21,6 +21,14 @@ changes reach `main`. Each configuration builds and explicitly pushes a unique
 usable through **Run trigger**, with the `main` branch selected. During migration,
 the backend configurations stop after publishing that image.
 
+## Confidential VM build and release tooling
+
+[Confidential VM source and release review](docs/confidential-vm-releases.md)
+describes the optional registry runtime, isolated offline health probe and
+`confidential_vm_release.py` preparation/validation/observation commands. Existing
+Cloud Run registrations and release behavior remain compatible. This foundation
+adds no VM/service registration, cloud resources or automatic deployment rights.
+
 ## CI target selection
 
 The CI workflow runs on every PR and push to `main`. It does not use workflow-level path filters:

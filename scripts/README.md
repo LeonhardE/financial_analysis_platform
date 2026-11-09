@@ -61,6 +61,19 @@ build-only until a separate Hub-only deployment opt-in and exact service/runtime
 permissions are reviewed. Registration does not enable OAuth, the encrypted adapter
 or normal Terraform execution.
 
+## Confidential VM runtime extension
+
+A backend may opt into `runtime=confidential_vm` only in its own source PR,
+remaining `build_only` with an `app/health_check.py` offline probe. Omitted runtime
+still means Cloud Run; all current registrations are unchanged. VM runtime cannot
+be introduced by renaming an existing target or promoted into Cloud Run release.
+
+[VM source, smoke and release review](../infra/gcp/docs/confidential-vm-releases.md)
+defines the type-specific CI probe, digest-pinned first-provision/upgrade/restore
+material and separate live observation records. Ordinary Cloud Run publication
+refuses VM targets before credentials. These tools do not approve or deploy a VM;
+actual resources and saved-plan activation remain separate target infra work.
+
 ## Dynamic CI and local tests
 
 ```sh

@@ -236,6 +236,8 @@ def main():
     target = registry.by_service.get(args.service)
     if target is None:
         raise RuntimeError("The service is not registered in repository target policy.")
+    if target.runtime != "cloud_run":
+        raise RuntimeError("Confidential VM targets require their reviewed VM release workflow.")
     if target.release_mode == "build_only" and args.deploy_enabled != "false":
         raise RuntimeError("This target is build-only; reviewed first provision is required.")
     if args.branch != "main" or not re.fullmatch(r"[a-f0-9]{40}", args.commit):

@@ -212,17 +212,122 @@ def check_target(target_id: str) -> None:
     )
 
 
+def smoke_target(target_id: str) -> None:
+    """Offline image smoke only. A VM self-test is never live attestation evidence."""
+    target = load_registry(ROOT).target(target_id)
+    if target.kind != "backend":
+        raise RegistryError("Backend smoke requires a registered backend target")
+    if target.runtime == "confidential_vm":
+        result = subprocess.run(
+            [
+                "docker",
+                "run",
+                "--rm",
+                "--network",
+                "none",
+                "--read-only",
+                "--cap-drop=ALL",
+                "--security-opt=no-new-privileges",
+                "--env",
+                "FOLIOVIEW_EXECUTION_MODE=offline_probe",
+                "--env",
+                "PYTHONDONTWRITEBYTECODE=1",
+                "--entrypoint",
+                "python",
+                "folioview-backend:test",
+                "app/health_check.py",
+            ],
+            check=True,
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+        expected = {
+            "profile": "confidential_vm_offline_probe.v1",
+            "status": "ok",
+            "contentServiceEnabled": False,
+            "keyReleaseAttempted": False,
+            "attestationVerified": False,
+        }
+        try:
+            if len(result.stdout.encode("utf-8")) > 4096:
+                raise ValueError
+
+            def unique(pairs):
+                out = {}
+                for key, value in pairs:
+                    if key in out:
+                        raise ValueError
+                    out[key] = value
+                return out
+
+            value = json.loads(result.stdout, object_pairs_hook=unique)
+            if (
+                type(value) is not dict
+                or set(value) != set(expected)
+                or any(
+                    type(value[k]) is not type(expected[k]) or value[k] != expected[k]
+                    for k in expected
+                )
+            ):
+                raise ValueError
+        except (ValueError, TypeError, UnicodeError):
+            raise RegistryError(
+                "Invalid VM offline probe; no live attestation was established"
+            ) from None
+        print(
+            "VM offline probe passed; live TEE, key release and content health remain unverified."
+        )
+        return
+    subprocess.run(
+        [
+            "docker",
+            "run",
+            "--detach",
+            "--network",
+            "none",
+            "--name",
+            "service-smoke",
+            "--env",
+            "MARKET_DATA_SOURCE=mock",
+            "folioview-backend:test",
+        ],
+        check=True,
+    )
+    probe = """import json,time
+from urllib.request import urlopen
+for attempt in range(40):
+    try:
+        with urlopen('http://127.0.0.1:8080/health', timeout=1) as response:
+            assert json.load(response)['status'] == 'ok'
+        break
+    except (OSError, AssertionError):
+        if attempt == 39:
+            raise
+        time.sleep(0.25)
+"""
+    subprocess.run(
+        ["docker", "exec", "-i", "service-smoke", "python", "-"],
+        input=probe,
+        text=True,
+        check=True,
+        timeout=65,
+    )
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("command", choices=("metadata", "check"))
+    parser.add_argument("command", choices=("metadata", "check", "smoke"))
     parser.add_argument("target")
     args = parser.parse_args()
     try:
         if args.command == "metadata":
             write_metadata(args.target)
-        else:
+        elif args.command == "check":
             check_target(args.target)
-    except (RegistryError, OSError, KeyError, subprocess.CalledProcessError) as error:
+        else:
+            smoke_target(args.target)
+    except (RegistryError, OSError, KeyError, subprocess.SubprocessError) as error:
         print(f"Registered service job failed: {error}", file=sys.stderr)
         return 1
     return 0
