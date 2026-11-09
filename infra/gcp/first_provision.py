@@ -108,7 +108,7 @@ def _provenance(
     return {"kind": kind, "repository_resource": expected, "revision": commit}
 
 
-def prepare_request(
+def prepare_build_evidence(
     build: dict,
     trigger: dict,
     *,
@@ -226,7 +226,7 @@ def prepare_request(
     )
     result = {
         "schema_version": 1,
-        "kind": "first_provision_request",
+        "kind": "build_evidence",
         "target": target.id,
         "project_id": project,
         "region": region,
@@ -241,8 +241,26 @@ def prepare_request(
         "source_provenance": provenance,
         "image": {"tag": image_tag, "digest": digest, "reference": f"{image_name}@{digest}"},
         "approval": {"status": "not_requested"},
-        "execution": "separate_reviewed_target_infrastructure_saved_plan",
+        "execution": "image_built_only",
     }
+    _require(len(_json_bytes(result)) <= MAX_REQUEST_BYTES, "First-provision request is too large.")
+    return result
+
+
+def prepare_request(
+    build: dict, trigger: dict, *, registry: Registry, target_id: str, **trusted
+) -> dict:
+    """Legacy Cloud Run review path; VM targets cannot enter it, even build-only."""
+    _require(isinstance(registry, Registry), "A validated repository registry is required.")
+    _require(
+        registry.target(target_id).runtime == "cloud_run",
+        "Cloud Run first provision requires a Cloud Run target.",
+    )
+    result = prepare_build_evidence(
+        build, trigger, registry=registry, target_id=target_id, **trusted
+    )
+    result["kind"] = "first_provision_request"
+    result["execution"] = "separate_reviewed_target_infrastructure_saved_plan"
     _require(len(_json_bytes(result)) <= MAX_REQUEST_BYTES, "First-provision request is too large.")
     return result
 

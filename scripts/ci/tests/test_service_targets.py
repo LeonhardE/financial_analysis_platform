@@ -22,10 +22,12 @@ from service_targets import (  # noqa: E402
 )
 
 
-def write_registry_fixture(root: Path, *, extra_backend: bool = False) -> dict:
+def write_registry_fixture(
+    root: Path, *, extra_backend: bool = False, extra_vm: bool = False
+) -> dict:
     """Create marker files without starting a service, image build or cloud client."""
     document = json.loads((ROOT / REGISTRY_PATH).read_text())
-    if extra_backend:
+    if extra_backend or extra_vm:
         document["targets"].append(
             {
                 "id": "synthetic-service",
@@ -36,6 +38,8 @@ def write_registry_fixture(root: Path, *, extra_backend: bool = False) -> dict:
                 "release_mode": "build_only",
             }
         )
+    if extra_vm:
+        document["targets"][-1]["runtime"] = "confidential_vm"
     for row in document["targets"]:
         directory = root / row["directory"]
         directory.mkdir(parents=True, exist_ok=True)
@@ -45,6 +49,8 @@ def write_registry_fixture(root: Path, *, extra_backend: bool = False) -> dict:
         if row["kind"] == "backend":
             (directory / "app").mkdir()
             (directory / "app/main.py").write_text('"""Synthetic application."""\n')
+            if row.get("runtime") == "confidential_vm":
+                (directory / "app/health_check.py").write_text("# Offline probe fixture\n")
             (directory / "requirements.txt").write_text("# fixture\n")
             (directory / "requirements-dev.txt").write_text("# fixture\n")
             (test_directory / "test_ready.py").write_text(
