@@ -107,6 +107,9 @@ def stored_result(unit, owner, vault, result):
 
 
 class PersistentResultService(PersistentExecutionService):
+    def _check_result_retry(self, unit, owner, vault, result, carrier):
+        """Optional exact-artifact retry check; legacy receipt reads stay unchanged."""
+
     def result_receipt(self, owner, vault, connection, proof, path, request):
         if type(request) is not dict or set(request) != {"runId"}:
             raise ContractError("malformed_request")
@@ -121,7 +124,7 @@ class PersistentResultService(PersistentExecutionService):
 
         return self.store.transact(read)
 
-    def _original(self, unit, owner, vault, connection, operation, fingerprint, run):
+    def _original(self, unit, owner, vault, connection, operation, fingerprint, run, carrier):
         saved = unit.get(operation_path(owner, vault, connection, operation))
         if saved is None:
             return None
@@ -134,6 +137,7 @@ class PersistentResultService(PersistentExecutionService):
         row = stored_result(unit, owner, vault, saved["resultId"])
         if row["fingerprint"] != fingerprint or row["context"]["stableOperationId"] != operation:
             raise StoreUnavailable
+        self._check_result_retry(unit, owner, vault, saved["resultId"], carrier)
         return row["receipt"]
 
     def _append(self, unit, owner, vault, result):
@@ -207,6 +211,7 @@ class PersistentResultService(PersistentExecutionService):
                 request["operationId"],
                 fingerprint,
                 request["runId"],
+                carrier,
             ), uid
 
         previous, uid = self.store.transact(existing)
@@ -224,6 +229,7 @@ class PersistentResultService(PersistentExecutionService):
                 request["operationId"],
                 fingerprint,
                 request["runId"],
+                carrier,
             )
             if prior is not None:
                 return prior

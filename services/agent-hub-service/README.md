@@ -11,7 +11,7 @@ content decryption authority are separate. Market, User and Portfolio remain ind
 | ---------------------------------------------- | ----------------------------------------------------------------------------------- |
 | [Owner API](docs/owner-api.md)                 | Vaults, resource discovery, encrypted tasks, source fences and owner Inbox          |
 | [Key management](docs/key-management.md)       | Root trust, archive replacement/removal, recovery and operational renewal           |
-| [Persistent API](docs/persistent-api.md)       | Stable identity, consent, publications, execution, reports and plan evidence        |
+| [Persistent API](docs/persistent-api.md)       | Stable identity, consent, publications, independent executors, reports and plans    |
 | [Persistent runtime](docs/runtime.md)          | Native OAuth, pairing, protected key storage, fixed browser runtime and scheduling  |
 | [Legacy foreground](docs/legacy-foreground.md) | Retained P1/v2 OAuth, preparations, helper releases, Runs and receipt compatibility |
 
@@ -32,6 +32,11 @@ Feature gates default off. Reviewed activation is separate from code delivery. R
 protected-host restart, actual native plan installation and cross-day encrypted results still
 require owner-led acceptance. Agent-reported plan state and actual Run/report receipts are
 different evidence. No fixed browser asset or identity-only receipt grants financial access.
+
+The [independent executor ciphertext adapter](docs/persistent-api.md#independent-executor-ciphertext)
+has its own default-off gate and public channel configuration. It accepts Root-approved executor
+parents without Muse OAuth records, reuses frozen Run inputs and original report receipts, and
+keeps the existing owner Inbox format. It supplies no private keys, attestation or plaintext lease.
 
 ## Local development and verification
 

@@ -96,6 +96,12 @@ def stored_authority(unit, owner, vault, task):
 
 
 class PersistentPublicationService(ResourceConsentService):
+    def _check_retry_carrier(self, stored_json, carrier):
+        """Optional stricter envelope-byte retries for independently opted-in adapters."""
+
+    def _task_scope(self, unit, owner, vault, connection, metadata):
+        """Optional parent scope ceiling, in addition to current task authority."""
+
     def live(self, unit, uid, vault, connection):
         owner, vault_row, registry, conn = self._context(unit, uid, vault, connection, active=True)
         identity = self._identity(unit, owner, vault, connection, conn, active=True)
@@ -209,6 +215,7 @@ class PersistentPublicationService(ResourceConsentService):
                     or saved["context"]["connectionId"] != connection
                 ):
                     raise ContractError("idempotency_conflict")
+                self._check_retry_carrier(saved["carrierJson"], carrier)
                 return saved["receipt"], None
             return None, (row["version"], registry.checkpoint_digest, conn["clientId"])
 
@@ -226,6 +233,7 @@ class PersistentPublicationService(ResourceConsentService):
                     or saved["context"]["connectionId"] != connection
                 ):
                     raise ContractError("idempotency_conflict")
+                self._check_retry_carrier(saved["carrierJson"], carrier)
                 return saved["receipt"]
             if conn["status"] != "active":
                 raise ContractError("key_authorization_required")
@@ -235,6 +243,7 @@ class PersistentPublicationService(ResourceConsentService):
             kind = context["objectType"]
             if kind == "task":
                 meta = self.task(unit, owner, vault, context["taskId"])
+                self._task_scope(unit, owner, vault, connection, meta)
                 old = stored_authority(unit, owner, vault, context["taskId"])
                 c = None if old is None else old["context"]
                 if context["expectedAuthorityVersion"] != (

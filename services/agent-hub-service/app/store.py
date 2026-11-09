@@ -16,6 +16,8 @@ COLLECTIONS = frozenset(
     {
         "hub_vaults",
         "hub_agent_recoveries",
+        "hub_executor_connections",
+        "hub_executor_owners",
         "hub_runtime_setup_intents",
         "hub_runtime_setup_heads",
         "hub_native_oauth_pending",

@@ -14,6 +14,138 @@ See [shared contracts](../../common/folioview_shared/encrypted/README.md) for wi
 for the single-unlock owner flow. Feature flags default off; real Muse lifecycle/scheduling
 acceptance remains separate from synthetic checks.
 
+## Independent executor ciphertext
+
+The independent adapter reuses persistent content v1, frozen Runs and encrypted report storage.
+It has a separate parent namespace and does not read Muse OAuth configuration or create OAuth
+connections, access tokens, refresh tokens, decrypting proxies or keys. Existing native/foreground
+routes retain their original parents and gates. An independent identity is never implicitly
+adopted by those routes.
+
+### Activation and trusted public channel
+
+`HUB_EXECUTOR_CIPHERTEXT_ENABLED=1` and `HUB_EXECUTOR_CIPHERTEXT_CONFIG` are both required for
+registration, resource approval, publication and Agent requests. Invalid/missing configuration
+fails closed before opening storage or resolving producers. Owner history and signed terminal
+identity/resource revocation remain available with this gate off or the approval expired.
+The adapter is disabled by default; this change performs no deployment or activation.
+
+The configuration is a closed JSON object with exactly these public string fields:
+
+| Field                            | Meaning                                                                                   |
+| -------------------------------- | ----------------------------------------------------------------------------------------- |
+| `hubAudience`                    | Exact HTTPS Hub origin for Agent request proofs, with no path, port, query or fragment.   |
+| `clientId`                       | Preregistered independent executor client; separate from Muse registration.               |
+| `issuer`, `audience`             | Pinned independent policy issuer origin and executor audience URL from executor-trust v1. |
+| `provider`, `providerClientId`   | Pinned model provider and provider client identifiers.                                    |
+| `policySigningKeyId`, `tlsKeyId` | Distinct canonical public key thumbprints, never private keys or credentials.             |
+| `workloadDigest`                 | Exact lowercase SHA-256 digest of the approved workload.                                  |
+
+The Hub compares these pins to the Root approval; it never fetches a supplied URL. These public
+pins do not establish runtime provenance, TLS/encryption-key possession or attestation. The
+independent policy/execution services must separately implement current checkpoints, one-use
+leases, workload verification, key custody and model credentials before private production use.
+This adapter does not mint or accept a Hub token as plaintext authority.
+
+### Owner registration and controls
+
+Owner paths start with `/api/v2/executor-connections/{vault}/{connection}`. They require verified
+Google ownership, `X-FolioView-Contract: folioview.agent-workspace.v2.0`, no query or delegated
+author selector, and an `Idempotency-Key` on mutations.
+
+POST `/bindings` takes exactly `{contractVersion, command, approval, scope}`:
+
+- `command` is the existing device-signed `PersistentAgentBindingPayload`, matching current
+  Root-certified Agent signing/encryption keys, owner, vault and configured client.
+- `approval` is a Root-signed executor-trust v1 `ExecutorApprovalPayload`, with the same operation
+  ID as the command and header. Hub constructs its expected binding independently from the
+  verified identity, configured channel, current complete owner device/recovery recipient set
+  and `scopeDigest`. Caller-selected approval claims cannot replace these expectations.
+- `scope` is exactly `{profile: "folioview.hub-executor-ciphertext-scope.v1", purpose: "analysis",
+resultPolicy: "owner_inbox", resourceBindings: [{ref, sourceEpoch}, ...]}`. It contains 1–10 unique
+  resource references, ordered by the UTF-8 bytes of each canonical JSON `ref`. The SHA-256 digest
+  covers the whole canonical scope. Resource epochs and incarnations are exact.
+
+The scope is an immutable ceiling. Resource-consent policies still supply revision/history
+permissions and current revocations; even a broader policy cannot expand this ceiling. Tasks
+and resource publications must fit the ceiling. Each new read/write checks the current parent,
+Root approval expiry, configured channel, Agent certificates and complete owner recipient set.
+Approval expiry, channel drift or recipient rotation requires a separately reviewed new enrollment;
+there is no implicit update, migration, trust reset or reactivation of a used connection slot.
+
+The owner has at most 16 independent connection IDs, including terminal tombstones. Registration
+atomically creates `hub_executor_connections`, its bounded `hub_executor_owners` index and the
+existing identity/original identity-operation rows. Existing OAuth parents and identity/operation
+slots cannot be overwritten. The registration receipt binds the complete canonical request
+digest. An exact retry returns the original receipt even after revocation and never revives it.
+GET on the base path returns current public state, original approval, scope and registration receipt.
+
+Additional suffixes use the existing signed controls/carriers and operation semantics:
+
+| Method and suffix                                        | Body or result                                                                      |
+| -------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| POST `/revocations`                                      | `{contractVersion, command}`; fresh device-signed terminal identity revocation.     |
+| GET `/identity-operations/{operation}`                   | Original signed identity operation receipt.                                         |
+| GET `/resource-consent`                                  | Current public consent state and bounded operation IDs.                             |
+| POST `/resource-approvals`, POST `/resource-revocations` | `{contractVersion, command}`; Root approval or existing bounded revocation control. |
+| GET `/resource-operations/{operation}`                   | Original signed consent command, source-state evidence and receipt.                 |
+| POST `/publications`                                     | `{contractVersion, envelope}`; Root-signed encrypted task or resource carrier.      |
+| GET `/publication-operations/{operation}`                | Original publication receipt and exact encrypted envelope.                          |
+
+The original encrypted owner task API and GET
+`/api/v2/persistent-content/{vault}/tasks/{task}/authority` continue to supply task creation and
+authority CAS state. This adapter preserves the same global task authority, so reassignment
+fences previous Agents across both parent namespaces.
+
+### Agent ciphertext flow
+
+Agent paths start with
+`/agent/v3/persistent/executor/owners/{owner}/vaults/{vault}/connections/{connection}`.
+Every endpoint is POST with closed JSON `{contractVersion, proof, request}` and the contract
+header. The existing persistent-content v1 Agent proof binds the exact HTTPS Hub audience,
+method, full independent path, body digest and current identity for at most 120 seconds.
+Bearer credentials, author/delegation/operation headers and queries are rejected.
+
+| Suffix                 | Exact `request` fields                                         | Result                                                                   |
+| ---------------------- | -------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| `/session`             | `{}`                                                           | Public identity, device binding, Root JWK, registry history and consent. |
+| `/consent-receipts`    | `{operationId}`                                                | Original signed resource control and receipt.                            |
+| `/tasks`               | `{}`                                                           | Current assigned task publication references within the scope ceiling.   |
+| `/runs/begin`          | `{taskId, triggerId, operationId, taskPublicationFingerprint}` | Original frozen manifest, fingerprint and Run state.                     |
+| `/runs/receipt`        | `{runId}`                                                      | Original manifest and current submitted/result pointer.                  |
+| `/runs/input`          | `{runId, publicationId}`                                       | One exact task or resource carrier named by that manifest.               |
+| `/runs/submit`         | `{runId, operationId, envelope}`                               | Immutable original encrypted report receipt.                             |
+| `/runs/result-receipt` | `{runId}`                                                      | Original report receipt for unknown-outcome recovery.                    |
+
+Begin reuses the deterministic owner/vault/task/trigger Run ID, immutable operation intent and
+2-hour manifest. It checks current task authority/version, current producer source revisions,
+permission epochs, source fences and request proof again before writing. Quotas remain 20 new
+Runs per connection/minute and 200 per owner/day. Frozen input reads check current authorization
+but retain the exact manifest-named ciphertext when a newer source publication arrives; they
+never silently follow its latest pointer. There is no pre-Run task-content read in this namespace.
+
+Report submission verifies the current Agent signature, exact manifest and authority, complete
+current owner device/recovery recipients, source/task fences and create-only Run/result CAS.
+It atomically saves the original envelope, result, operation, owner history page, observed Run
+evidence and submitted pointer. Only one report can be created per Run. Same-operation changes
+to any envelope/JOSE string conflict, including an alternate valid signature of the same signing
+input. HTTP whitespace and a fresh short-lived request proof do not change the encrypted artifact.
+An exact committed retry bypasses producer RPC and expired Run checks, while still requiring a
+currently active parent, approval and Agent. Revocation denies Agent receipt access; separately
+authenticated owner history remains available at `/api/v2/persistent-results`.
+
+Requests stop reading at 64 KiB for ordinary Agent operations, 544 KiB for report submission and
+24 KiB for result-receipt queries. Owner registration is capped at 68 KiB (64 KiB for its three
+business fields), consent controls at 96 KiB and publications at 528 KiB. Existing 512 KiB carrier,
+manifest, serialized Firestore document and 1 MiB response limits still apply. All routes return
+closed errors and `Cache-Control: no-store`. Report ciphertext continues using the existing
+opaque `carrierJson` storage/index exemptions; no additional private-content collection is added.
+
+Synthetic tests cover real JOSE end-to-end encryption, original retries, wrong identities and
+recipients, expired approvals, changed channels, owner rotation, source/task fences, size limits,
+SQLite concurrency and real Firestore SDK commit collisions. They establish no production
+attestation, native schedule, deployment or private-content activation evidence.
+
 ## Stable identity
 
 The opt-in owner API stores the shared `folioview.persistent-agent-identity.v1`

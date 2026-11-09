@@ -5,6 +5,8 @@ from folioview_shared.http import create_app
 from .api import internal_router, owner_router, public_router
 from .catalogue import router as catalogue_router
 from .errors import HubErrors
+from .executor_routes import agent_router as executor_agent_router
+from .executor_routes import owner_router as executor_owner_router
 from .helper_assets import router as helper_router
 from .identity_recovery_routes import router as identity_recovery_router
 from .inbox import router as inbox_router
@@ -64,6 +66,8 @@ app.include_router(persistent_plan_agent_router)
 app.include_router(persistent_plan_owner_router)
 app.include_router(persistent_result_agent_router)
 app.include_router(persistent_result_owner_router)
+app.include_router(executor_owner_router)
+app.include_router(executor_agent_router)
 app.include_router(native_transport_router)
 app.include_router(native_transport_owner_router)
 app.include_router(native_connections_router)
