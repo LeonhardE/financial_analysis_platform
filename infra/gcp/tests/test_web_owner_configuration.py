@@ -493,6 +493,10 @@ class WebOwnerConfigurationTests(unittest.TestCase):
         server = json.loads((directory / "web-owner-server.schema.json").read_text())
         self.assertEqual(
             set(server["properties"]["environment"]["properties"]),
+            profile.WEB_OWNER_ENVIRONMENT_FIELDS | profile.WEB_INDEPENDENT_ENVIRONMENT_FIELDS,
+        )
+        self.assertEqual(
+            set(server["properties"]["environment"]["required"]),
             profile.WEB_OWNER_ENVIRONMENT_FIELDS,
         )
         self.assertFalse(server["properties"]["environment"]["additionalProperties"])

@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://folioview.example/schemas/web-independent-agent-v1",
+  "title": "Public independent Web Agent selection",
+  "description": "Public selection only; canonical configuration is at most 1024 ASCII bytes and must fit the unchanged complete 4000-byte target budget. The loader also validates the EC point and origin/callback relationships. No Root grant or activation approval.",
+  "type": "object",
+  "properties": {
+    "connectionId": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$"
+    },
+    "clientId": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$"
+    },
+    "issuer": {
+      "type": "string",
+      "maxLength": 1024
+    },
+    "audience": {
+      "type": "string",
+      "maxLength": 1024
+    },
+    "policyJwk": {
+      "type": "object",
+      "properties": {
+        "kty": {
+          "const": "EC"
+        },
+        "crv": {
+          "const": "P-256"
+        },
+        "x": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$"
+        },
+        "y": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$"
+        }
+      },
+      "required": ["kty", "crv", "x", "y"],
+      "additionalProperties": false
+    },
+    "nativeRedirectUris": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 4,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "maxLength": 512,
+        "pattern": "^https://[a-z0-9]+(?:[.-][a-z0-9]+)*(?:/[A-Za-z0-9._~-]+)+$"
+      }
+    }
+  },
+  "required": ["connectionId", "clientId", "issuer", "audience", "policyJwk", "nativeRedirectUris"],
+  "additionalProperties": false
+}

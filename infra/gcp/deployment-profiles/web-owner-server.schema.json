@@ -39,6 +39,13 @@
         },
         "FOLIOVIEW_HUB_ORIGIN": {
           "type": "string"
+        },
+        "FOLIOVIEW_INDEPENDENT_AGENT_ENABLED": {
+          "const": "true"
+        },
+        "FOLIOVIEW_INDEPENDENT_AGENT_CONFIG": {
+          "type": "string",
+          "maxLength": 1024
         }
       },
       "required": [
@@ -49,7 +56,11 @@
         "FOLIOVIEW_HUB_OWNER_ENABLED",
         "FOLIOVIEW_HUB_ORIGIN"
       ],
-      "additionalProperties": false
+      "additionalProperties": false,
+      "dependentRequired": {
+        "FOLIOVIEW_INDEPENDENT_AGENT_ENABLED": ["FOLIOVIEW_INDEPENDENT_AGENT_CONFIG"],
+        "FOLIOVIEW_INDEPENDENT_AGENT_CONFIG": ["FOLIOVIEW_INDEPENDENT_AGENT_ENABLED"]
+      }
     }
   },
   "required": ["schemaVersion", "instanceId", "target", "webDeploymentSha256", "environment"],
