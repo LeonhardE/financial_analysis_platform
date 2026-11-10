@@ -35,6 +35,11 @@ inert; ordered full resources/base plans retain closed authority/release gates.
 It is outside the routine operator pipeline. Actual independent approval-lane
 bootstrap, exact workload binding and live IAM/recovery acceptance remain separate.
 
+The [Executor infrastructure source](terraform/envs/prod/agent-executor/README.md)
+prepares INF-012 D2 with inert defaults, separate creation/runtime identities,
+immutable recovery state and TCP forwarding to original TLS inside the TEE.
+Its mocked plans do not establish actual provisioning, attestation or online acceptance.
+
 ## CI target selection
 
 The CI workflow runs on every PR and push to `main`. It does not use workflow-level path filters:
