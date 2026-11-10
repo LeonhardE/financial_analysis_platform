@@ -1,5 +1,9 @@
 # Continuous delivery
 
+Independent Owner-controlled targets use the separate, dormant
+[Owner lane foundation](docs/owner-lane.md). It does not register a target or
+activate resources in the ordinary operator catalog.
+
 Repository Terraform state/bootstrap and the reviewed saved-plan workflow are documented in
 [the Terraform foundation guide](terraform/README.md). That foundation is activated once by an
 administrator after review; existing services are adopted separately in later single-target PRs.
