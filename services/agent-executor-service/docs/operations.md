@@ -175,3 +175,54 @@ this target's CI does not require another service's source or dependencies.
 Cloud provisioning, actual attested creation/restoration/negative IAM tests,
 native client installation, synthetic financial loop and later private/offline/
 overnight acceptance remain separately scoped. Default gates stay disabled.
+
+## Owner public-artifact tools
+
+`tools/owner_prepare.py` runs outside the TEE image. It accepts public artifacts
+only and never generates/exports Root or Executor private keys. Set `PYTHONPATH`
+to this service root and `services/common`, and use its `--help` for exact arguments.
+The independent Root thumbprint and approved draft digest must come from the
+unlocked Owner client, not from the offer being reviewed.
+
+1. `review-pending` checks the fresh Root initialization permit, complete draft,
+   enrollment ID, three distinct original public keys and signed original CSR/SAN.
+   It reports `hardwareProofVerified=false`: local shape/key checks cannot verify
+   Google's signature or current VM. Independently verify the exact reconstructed
+   creation statement/Google proof/current VM before the Owner certifies any key.
+2. The Owner client certifies the original Agent keys, forms the actual signed Hub
+   binding, and signs a fresh purpose-limited `finalize` control. No generic signing
+   interface or Root private file is used. `publish-finalization` checks that signed
+   control against the complete pending offer and independently pinned Root/draft,
+   then creates exactly its finalization inbox object with generation-match zero.
+   It cannot overwrite a reservation, offer or previous finalization. The creation
+   wait is bounded; expired controls need fresh review, never changed keys.
+3. `publish-config` accepts only Root, draft, permit, validated core config or
+   Root-registry-validated native config. Initial inputs require a fresh creation
+   permit. Core/native publication rechecks the Root approval and original TLS
+   certificate; native needs `--core`. Use an explicit `--expected-generation`
+   (`0` for first creation), fixed project and `executor-config/...json` path.
+   All writes use CRC32C, bounded timeout, no automatic retry and CAS. An unknown
+   result requires reading the exact generation/bytes before deciding what to do.
+4. `certificate-command` validates the original public CSR against the independently
+   reviewed TLS JWK and exact hostname/IP, then prints an argument list for Certbot
+   (5.4+ with IP/short-lived/manual/CSR support). It does **not** execute it or accept
+   CA terms. Use a dedicated ACME account/config directory under explicit Owner
+   control when later authorized. Account keys are separate from the original TEE
+   TLS key; no TLS private-key input/output option is used. The printed manual hooks
+   require the narrow challenge publisher credentials and the exact single expected
+   identifier. `acme-auth` creates only its public token with CAS zero/no-store;
+   `acme-cleanup` deletes only the returned exact generation. Hooks do perform cloud
+   writes when explicitly invoked, including by Certbot; never run a CA dry-run
+   during preparation-only work.
+5. `verify-certificate` validates the new chain against the system CA bundle (or an
+   explicitly independently reviewed trust bundle), original TLS SPKI, exact SAN,
+   server policy and validity. Review its digest in the Owner client and send the
+   fresh Root certificate control to Policy before publishing that exact chain in
+   core config. Successful local validation alone is not Policy approval. Renewal
+   repeats the same original CSR; there is no automatic Root approval, new TLS key
+   or installed schedule. Record renewal ownership and expiry alerts before live use.
+
+Future explicit publication uses the selected Owner-controlled publisher's keyless
+credentials, never the runtime/creator/build identities. The administrator source
+supplies its prefix-limited grants separately from workload deployment. No command
+in this guide is evidence of actual resource creation, CA trust or live readiness.

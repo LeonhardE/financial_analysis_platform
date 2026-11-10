@@ -1,0 +1,4 @@
+# Must exist under the independent Owner before administrator init.
+# Not the workload backend and never the ordinary repository backend.
+bucket = "demo-executor-alpha-owner-admin"
+prefix = "admin/agent-executor"

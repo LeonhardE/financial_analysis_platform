@@ -1,0 +1,152 @@
+{
+  "schemaVersion": 1,
+  "target": "agent-executor",
+  "inputs": {
+    "type": "object",
+    "properties": {
+      "stage": {
+        "type": "string",
+        "max": 16,
+        "enum": ["none", "resources", "creation", "runtime"]
+      },
+      "deployment": {
+        "type": "object",
+        "properties": {
+          "project_id": {
+            "type": "string",
+            "max": 30,
+            "pattern": "[a-z][a-z0-9-]{4,28}[a-z0-9]"
+          },
+          "region": {
+            "type": "string",
+            "max": 64,
+            "pattern": "[a-z]+(?:-[a-z0-9]+)+[0-9]"
+          },
+          "zone": {
+            "type": "string",
+            "max": 64,
+            "pattern": "[a-z]+(?:-[a-z0-9]+)+[0-9]-[a-z]"
+          },
+          "instance_name": {
+            "type": "string",
+            "max": 40,
+            "pattern": "[a-z][a-z0-9-]{0,38}[a-z0-9]"
+          },
+          "artifact_repository": {
+            "type": "string",
+            "max": 63,
+            "pattern": "[a-z][a-z0-9-]{1,62}"
+          },
+          "runtime_account_id": {
+            "type": "string",
+            "max": 30,
+            "pattern": "[a-z][a-z0-9-]{4,28}[a-z0-9]"
+          },
+          "creation_account_id": {
+            "type": "string",
+            "max": 30,
+            "pattern": "[a-z][a-z0-9-]{4,28}[a-z0-9]"
+          },
+          "build_account_id": {
+            "type": "string",
+            "max": 30,
+            "pattern": "[a-z][a-z0-9-]{4,28}[a-z0-9]"
+          },
+          "subnet_cidr": {
+            "type": "string",
+            "max": 18,
+            "pattern": "10\\.[0-9]+\\.[0-9]+\\.[0-9]+/24"
+          }
+        }
+      },
+      "policy": {
+        "type": "object",
+        "properties": {
+          "project_id": {
+            "type": "string",
+            "max": 30,
+            "pattern": "[a-z][a-z0-9-]{4,28}[a-z0-9]"
+          },
+          "runtime_service_account": {
+            "type": "string",
+            "max": 128,
+            "pattern": "[a-z][a-z0-9-]+@[a-z][a-z0-9-]+\\.iam\\.gserviceaccount\\.com"
+          }
+        }
+      },
+      "launch": {
+        "type": "object",
+        "nullable": true,
+        "properties": {
+          "image": {
+            "type": "string",
+            "max": 512,
+            "pattern": "[a-z0-9-]+-docker\\.pkg\\.dev/[a-z0-9-]+/[a-z0-9-]+/agent-executor-api@sha256:[a-f0-9]{64}"
+          },
+          "confidential_space_image": {
+            "type": "string",
+            "max": 128,
+            "pattern": "projects/confidential-space-images/global/images/confidential-space-[0-9]{6}"
+          },
+          "root_key_id": {
+            "type": "string",
+            "max": 43,
+            "pattern": "[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]"
+          },
+          "native_config_sha256": {
+            "type": "string",
+            "max": 64,
+            "pattern": "[a-f0-9]{64}",
+            "nullable": true
+          },
+          "native_enabled": {
+            "type": "boolean"
+          },
+          "config_object": {
+            "type": "string",
+            "max": 256,
+            "pattern": "gs://[a-z][a-z0-9-]+-executor-config/executor-config/[A-Za-z0-9_-]+(?:/[A-Za-z0-9_-]+)*\\.json",
+            "nullable": true
+          },
+          "native_config_object": {
+            "type": "string",
+            "max": 256,
+            "pattern": "gs://[a-z][a-z0-9-]+-executor-config/executor-config/[A-Za-z0-9_-]+(?:/[A-Za-z0-9_-]+)*\\.json",
+            "nullable": true
+          },
+          "draft_object": {
+            "type": "string",
+            "max": 256,
+            "pattern": "gs://[a-z][a-z0-9-]+-executor-config/executor-config/[A-Za-z0-9_-]+(?:/[A-Za-z0-9_-]+)*\\.json",
+            "nullable": true
+          },
+          "permit_object": {
+            "type": "string",
+            "max": 256,
+            "pattern": "gs://[a-z][a-z0-9-]+-executor-config/executor-config/[A-Za-z0-9_-]+(?:/[A-Za-z0-9_-]+)*\\.json",
+            "nullable": true
+          },
+          "root_jwk_object": {
+            "type": "string",
+            "max": 256,
+            "pattern": "gs://[a-z][a-z0-9-]+-executor-config/executor-config/[A-Za-z0-9_-]+(?:/[A-Za-z0-9_-]+)*\\.json",
+            "nullable": true
+          }
+        },
+        "required": ["image", "confidential_space_image", "root_key_id"]
+      },
+      "instance_protection_enabled": {
+        "type": "boolean"
+      },
+      "acme_http01_enabled": {
+        "type": "boolean"
+      }
+    },
+    "required": ["stage", "deployment", "policy", "launch", "instance_protection_enabled"]
+  },
+  "controllers": [],
+  "replacement": {
+    "instanceAddress": "google_compute_instance.executor[0]",
+    "launchAddress": "terraform_data.launch[0]"
+  }
+}
