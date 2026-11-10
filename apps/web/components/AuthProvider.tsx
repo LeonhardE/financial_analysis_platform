@@ -40,7 +40,7 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8
 const USER_API_BASE_URL = process.env.NEXT_PUBLIC_USER_API_BASE_URL || API_BASE_URL;
 const CONFIG_API_BASE_URL = process.env.NEXT_PUBLIC_CONFIG_API_BASE_URL || API_BASE_URL;
 
-export type PrivateService = "user" | "config" | "portfolio" | "agent-hub";
+export type PrivateService = "user" | "config" | "portfolio" | "agent-hub" | "agent-policy";
 type PrivateMethod = "GET" | "PUT" | "DELETE" | "POST" | "PATCH";
 type PrivateRequestOptions = {
   method?: PrivateMethod;
@@ -810,7 +810,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       let contractHeaders: Record<string, string> = {};
       let maxBodyBytes = 589824;
       let validatedJson = options.json;
-      if (service === "portfolio" || service === "agent-hub") {
+      if (service === "agent-policy") {
+        const { loadIndependentConfiguration, policyRequest } =
+          await import("../lib/independent-agent");
+        const config = await loadIndependentConfiguration(options.signal);
+        if (!config || Object.keys(options.headers ?? {}).some((k) => k !== "X-FolioView-Contract"))
+          throw new Error("Independent connection is not configured.");
+        policyRequest(config, path, method, options.json);
+        origin = config.issuer;
+        contractHeaders = { "X-FolioView-Contract": CONTRACT };
+        maxBodyBytes = 65536;
+      } else if (service === "portfolio" || service === "agent-hub") {
         let rule = encryptedRule(service, path, method);
         if (
           service === "portfolio" &&
@@ -933,7 +943,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         },
         ...(body === undefined ? {} : { body }),
         cache: "no-store",
-        credentials: "omit",
+        credentials: service === "agent-policy" ? "include" : "omit",
         redirect: "error",
         referrerPolicy: "no-referrer",
         signal: options.signal,

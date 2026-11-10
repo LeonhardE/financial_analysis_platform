@@ -290,6 +290,8 @@ function renderDashboard({
     "next-intl": intl,
     "@/lib/ui-messages": compile("../lib/ui-messages.ts", {}),
     "./PersistentAgentsPanel": { PersistentAgentsPanel: () => null },
+    "./IndependentAgentPanel": { IndependentAgentPanel: () => null },
+    "./useIndependentAgent": { useIndependentAgent: () => ({ configuration: null }) },
     "./PersistentInboxPanel": { PersistentInboxPanel: () => null },
     "./usePersistentWorkspace": { usePersistentWorkspace: () => ({ enabled: false, views: [] }) },
     "./useAgentLinkConfiguration": { useAgentLinkConfiguration: () => ({ data: null }) },

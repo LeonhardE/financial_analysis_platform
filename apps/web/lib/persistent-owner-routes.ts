@@ -9,7 +9,30 @@ export type PersistentOwnerRoute = {
   responseStatus: 200 | 201;
   query?: Record<string, "limit" | "persistent-cursor">;
 };
+/** Same ciphertext grammar, separate independently Root-approved parent. */
+export function executorLegacyPath(path: string): string | null {
+  const m = new RegExp(`^/api/v2/executor-connections/(${ID})/(${ID})(?:/(.*))?$`).exec(path);
+  if (!m) return null;
+  const [, v, c, tail] = m;
+  if (tail === "publications")
+    return `/api/v2/persistent-content/${v}/connections/${c}/publications`;
+  if (tail?.startsWith("publication-operations/"))
+    return `/api/v2/persistent-content/${v}/connections/${c}/operations/${tail.slice(23)}`;
+  if (tail?.startsWith("identity-operations/"))
+    return `/api/v2/persistent-agents/${v}/${c}/operations/${tail.slice(20)}`;
+  if (
+    !tail ||
+    /^(resource-consent|resource-approvals|resource-revocations|revocations)$/.test(tail) ||
+    new RegExp(`^resource-operations/${OP}$`).test(tail)
+  )
+    return `/api/v2/persistent-agents/${v}/${c}` + (tail ? "/" + tail : "");
+  return null;
+}
 export function persistentOwnerRoute(path: string, method: string): PersistentOwnerRoute | null {
+  if (path.startsWith("/api/v2/executor-connections/")) {
+    const mapped = executorLegacyPath(path);
+    return mapped ? persistentOwnerRoute(mapped, method) : null;
+  }
   const match = (pattern: string) => new RegExp(`^${pattern}$`).test(path);
   if (
     method === "GET" &&

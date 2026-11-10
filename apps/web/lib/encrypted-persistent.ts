@@ -30,6 +30,10 @@ import {
   matchBinding,
 } from "../../../packages/encrypted-workspace/dist/core.mjs";
 import { VaultError, type Json, type Vault, type RegistryBundle } from "./encrypted-types";
+import {
+  verifyExecutorApproval,
+  validateExecutorSchema,
+} from "../../../packages/executor-trust/dist/core.mjs";
 const AGENT = "folioview.persistent-agent-identity.v1";
 const PAIRING = "folioview.runtime-pairing.v1";
 function fail(code = "binding_mismatch"): never {
@@ -47,9 +51,256 @@ type Context = {
   deviceSigningKeyId: string;
   now: () => number;
   reader: (ids: string[]) => Promise<CryptoKey>;
+  checkpointPins?: Map<string, Json>;
 };
 export class PersistentOwner {
   constructor(private readonly ctx: Context) {}
+  /** The configured endpoint never chooses the Owner Root or the original Agent keys. */
+  async independent(args: Json) {
+    exact(args, ["configuration", "hubState", "policyState", "checkpoint"]);
+    if (canonical(args).length > 131072) fail("payload_too_large");
+    const cfg = args.configuration,
+      h = args.hubState,
+      p = args.policyState,
+      now = this.ctx.now();
+    exact(cfg, [
+      "connectionId",
+      "clientId",
+      "issuer",
+      "audience",
+      "policyJwk",
+      "nativeRedirectUris",
+    ]);
+    if (
+      !this.ctx.actor ||
+      cfg.connectionId !== this.ctx.actor.connectionId ||
+      cfg.clientId !== this.ctx.actor.clientId
+    )
+      fail();
+    exact(h, [
+      "contractVersion",
+      "profile",
+      "identity",
+      "command",
+      "revocation",
+      "binding",
+      "scope",
+      "approval",
+      "receipt",
+    ]);
+    if (
+      h.contractVersion !== CONTRACT ||
+      h.profile !== "folioview.hub-executor-ciphertext.v1" ||
+      h.revocation !== null
+    )
+      fail("agent_unavailable");
+    if (h.binding?.identityEpoch !== 1) fail("migration_required");
+    const registry = await this.registry(),
+      identity = await this.actor(h.identity, h.command, registry);
+    if (identity.identityEpoch !== 1) fail("migration_required");
+    const b = validateExecutorSchema("ExecutorBinding", h.binding);
+    const expected = {
+      ...b,
+      ownerSubject: this.ctx.ownerSubject,
+      vaultId: this.ctx.vault.vaultId,
+      connectionId: cfg.connectionId,
+      clientId: cfg.clientId,
+      rootKeyId: this.ctx.vault.rootKeyId,
+      agentId: identity.agentId,
+      agentSigningKeyId: identity.agentSigningKeyId,
+      agentEncryptionKeyId: identity.agentEncryptionKeyId,
+      bindingFingerprint: identity.bindingFingerprint,
+      identityEpoch: 1,
+      issuer: cfg.issuer,
+      audience: cfg.audience,
+      provider: "openai_chatgpt",
+      providerClientId: cfg.clientId,
+      policySigningKeyId: await keyId(cfg.policyJwk),
+      tlsKeyId: b.tlsKeyId,
+      scopeDigest: b.scopeDigest,
+      workloadDigest: b.workloadDigest,
+      recipientKeyIds: b.recipientKeyIds,
+    };
+    const approval = await verifyExecutorApproval(h.approval, {
+      expectedBinding: expected,
+      rootJwk: this.ctx.vault.rootJwk,
+      now,
+    });
+    if (approval.operationId !== parsed(bytes(h.command.payload), true).stableOperationId) fail();
+    const recipients = [...registry.current.keys.values()]
+      .filter(
+        (c) =>
+          !registry.current.revoked.has(c.keyId) &&
+          c.connectionId === null &&
+          ["device_enc", "recovery_enc"].includes(c.role) &&
+          c.notBefore <= now &&
+          now < c.expiresAt,
+      )
+      .map((c) => c.keyId)
+      .sort();
+    exact(h.scope, ["profile", "purpose", "resultPolicy", "resourceBindings"]);
+    if (
+      h.scope.profile !== "folioview.hub-executor-ciphertext-scope.v1" ||
+      h.scope.purpose !== "analysis" ||
+      h.scope.resultPolicy !== "owner_inbox" ||
+      !Array.isArray(h.scope.resourceBindings) ||
+      h.scope.resourceBindings.length < 1 ||
+      h.scope.resourceBindings.length > 10 ||
+      !same(recipients, b.recipientKeyIds) ||
+      b.scopeDigest !== (await digest(h.scope))
+    )
+      fail();
+    const refs = h.scope.resourceBindings.map((item: Json) => {
+      validate("ResourceRef", item.ref);
+      integer(item.sourceEpoch, 1);
+      exact(item, ["ref", "sourceEpoch"]);
+      return canonical(item.ref);
+    });
+    if (!same(refs, [...new Set(refs)].sort())) fail();
+    const cp = validateExecutorSchema(
+      "ExecutorCheckpointPayload",
+      await verify(args.checkpoint, cfg.policyJwk, "fv-control+jws"),
+    );
+    if (
+      p.profile !== "folioview.agent-policy.v1" ||
+      p.connectionId !== cfg.connectionId ||
+      p.status !== "active" ||
+      !same(p.binding, b) ||
+      !same(p.scope, h.scope) ||
+      (await fingerprint(p.approval)) !== (await fingerprint(h.approval)) ||
+      cp.revoked ||
+      cp.bindingDigest !== (await digest(b)) ||
+      cp.approvalFingerprint !== (await fingerprint(h.approval)) ||
+      cp.stateVersion !== p.stateVersion ||
+      cp.stateHead !== p.stateHead ||
+      cp.authorizationEpoch !== p.authorizationEpoch ||
+      cp.issuedAt > now ||
+      cp.issuedAt < approval.issuedAt ||
+      now >= cp.expiresAt ||
+      cp.expiresAt > Math.min(cp.issuedAt + 120, approval.expiresAt)
+    )
+      fail("stale_policy");
+    const pin = this.ctx.checkpointPins?.get(cfg.connectionId);
+    if (
+      pin &&
+      (cp.stateVersion < pin.stateVersion ||
+        cp.authorizationEpoch < pin.authorizationEpoch ||
+        (cp.stateVersion === pin.stateVersion &&
+          !same(
+            [cp.stateHead, cp.authorizationEpoch, cp.bindingDigest],
+            [pin.stateHead, pin.authorizationEpoch, pin.bindingDigest],
+          )))
+    )
+      fail("stale_policy");
+    this.ctx.checkpointPins?.set(cfg.connectionId, cp);
+    return {
+      identity,
+      binding: b,
+      scope: h.scope,
+      checkpoint: cp,
+      approvalExpiresAt: approval.expiresAt,
+      nativeScheduleStatus: "not_observed",
+      continuousExecutionAcceptance: "pending",
+    };
+  }
+  async independentControl(args: Json) {
+    exact(args, ["configuration", "hubState", "policyState", "checkpoint", "action", "pending"]);
+    const { action, pending, ...state } = args;
+    if (canonical(args).length > 131072) fail("payload_too_large");
+    const now = this.ctx.now();
+    let review: Json;
+    let parameters: Json;
+    if (action === "revoke" && pending === null) {
+      // Terminal narrowing works with issuance off, expired approval or lost Agent keys.
+      // The live service still enforces the exact Owner Root and version/head CAS.
+      const p = state.policyState,
+        cfg = state.configuration;
+      exact(cfg, [
+        "connectionId",
+        "clientId",
+        "issuer",
+        "audience",
+        "policyJwk",
+        "nativeRedirectUris",
+      ]);
+      const b = validateExecutorSchema("ExecutorBinding", p.binding);
+      if (
+        !this.ctx.actor ||
+        cfg.connectionId !== this.ctx.actor.connectionId ||
+        cfg.clientId !== this.ctx.actor.clientId ||
+        p.profile !== "folioview.agent-policy.v1" ||
+        p.connectionId !== cfg.connectionId
+      )
+        fail();
+      const payload = parsed(bytes(p.approval.payload), true);
+      await verifyExecutorApproval(p.approval, {
+        expectedBinding: {
+          ownerSubject: this.ctx.ownerSubject,
+          vaultId: this.ctx.vault.vaultId,
+          rootKeyId: this.ctx.vault.rootKeyId,
+          connectionId: cfg.connectionId,
+          clientId: cfg.clientId,
+          issuer: cfg.issuer,
+          audience: cfg.audience,
+          provider: "openai_chatgpt",
+          providerClientId: cfg.clientId,
+          policySigningKeyId: await keyId(cfg.policyJwk),
+          tlsKeyId: b.tlsKeyId,
+          scopeDigest: b.scopeDigest,
+          workloadDigest: b.workloadDigest,
+          recipientKeyIds: b.recipientKeyIds,
+          agentId: b.agentId,
+          agentSigningKeyId: b.agentSigningKeyId,
+          agentEncryptionKeyId: b.agentEncryptionKeyId,
+          identityEpoch: b.identityEpoch,
+          bindingFingerprint: b.bindingFingerprint,
+        },
+        rootJwk: this.ctx.vault.rootJwk,
+        now: payload.issuedAt,
+      });
+      integer(p.stateVersion, 1);
+      validate("Digest", p.stateHead);
+      review = { binding: b, checkpoint: { stateVersion: p.stateVersion, stateHead: p.stateHead } };
+      parameters = { parameters: {}, approval: null };
+    } else if (action === "oauth_approve") {
+      review = await this.independent(state);
+      exact(pending, ["pendingId", "requestDigest", "clientId", "resource", "scope", "expiresAt"]);
+      validate("Digest", pending.requestDigest);
+      integer(pending.expiresAt, 1);
+      const scopes = typeof pending.scope === "string" ? pending.scope.split(" ") : [];
+      if (
+        !/^pauth_[A-Za-z0-9_-]{43}$/.test(pending.pendingId) ||
+        pending.clientId !== review.binding.clientId ||
+        pending.resource !== review.binding.audience ||
+        pending.expiresAt <= now ||
+        pending.expiresAt > now + 300 ||
+        scopes.length < 1 ||
+        new Set(scopes).size !== scopes.length ||
+        scopes.some(
+          (s: string) =>
+            !["executor:execute", "executor:write_report", "executor:recover"].includes(s),
+        )
+      )
+        fail();
+      parameters = { pendingId: pending.pendingId, requestDigest: pending.requestDigest };
+    } else fail();
+    const command = {
+      contractVersion: CONTRACT,
+      profile: "folioview.agent-policy-control.v1",
+      action,
+      ownerSubject: this.ctx.ownerSubject,
+      connectionId: review.binding.connectionId,
+      operationId: "policy_" + crypto.randomUUID().replaceAll("-", ""),
+      expectedVersion: review.checkpoint.stateVersion,
+      expectedHead: review.checkpoint.stateHead,
+      parametersDigest: await digest(parameters!),
+      issuedAt: now,
+      expiresAt: now + 120,
+    };
+    return {
+      command: await sign(command, this.ctx.root, this.ctx.vault.rootKeyId, "fv-control+jws"),
+    };
+  }
   private async registry(
     bundles: RegistryBundle[] = this.ctx.vault.registryHistory,
     at = this.ctx.now(),

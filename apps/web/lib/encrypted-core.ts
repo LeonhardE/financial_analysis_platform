@@ -760,6 +760,7 @@ export class VaultCore {
   private pendingDevice?: { kind: string; operation: Json; baseDigest: string | null };
   private pendingEnvelope?: Json;
   private pendingAgentRegistrations = new Map<string, AgentRegistration>();
+  private independentCheckpointPins = new Map<string, Json>();
   private deviceChange?: {
     packet: DeviceChangePacket;
     candidate: DeviceSeal | null;
@@ -5134,6 +5135,7 @@ export class VaultCore {
       deviceSigningKeyId: this.device?.sigId ?? "",
       now: this.now,
       reader: (ids) => this.reader(ids),
+      checkpointPins: this.independentCheckpointPins,
     });
   }
   private async persistentLocal(packet: Json) {
@@ -5167,6 +5169,24 @@ export class VaultCore {
     exact(args, ["state", "actor"]);
     const { identity } = await (await this.persistentOwner(args.actor, false)).identity(args.state);
     return identity;
+  }
+  async verifyIndependentAgent(args: Json) {
+    exact(args, ["actor", "configuration", "hubState", "policyState", "checkpoint"]);
+    const { actor, ...state } = args;
+    return (await this.persistentOwner(actor, false)).independent(state);
+  }
+  async signIndependentPolicyControl(args: Json) {
+    exact(args, [
+      "actor",
+      "configuration",
+      "hubState",
+      "policyState",
+      "checkpoint",
+      "action",
+      "pending",
+    ]);
+    const { actor, ...state } = args;
+    return (await this.persistentOwner(actor)).independentControl(state);
   }
   async verifyPersistentPolicy(args: {
     actor: PersistentActor;

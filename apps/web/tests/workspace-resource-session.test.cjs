@@ -92,6 +92,8 @@ test("workspace navigation keeps one owner session without server transitions af
       "react/jsx-runtime": { jsx, jsxs: jsx, Fragment: "fragment" },
       "next-intl": { useLocale: () => "en", useTranslations: () => (key) => key },
       "./PersistentAgentsPanel": { PersistentAgentsPanel: () => null },
+      "./IndependentAgentPanel": { IndependentAgentPanel: () => null },
+      "./useIndependentAgent": { useIndependentAgent: () => ({ configuration: null }) },
       "./PersistentInboxPanel": { PersistentInboxPanel: () => null },
       "./usePersistentWorkspace": { usePersistentWorkspace: () => ({ enabled: false, views: [] }) },
       "./useAgentLinkConfiguration": { useAgentLinkConfiguration: () => ({ data: null }) },

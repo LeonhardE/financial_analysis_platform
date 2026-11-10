@@ -1538,6 +1538,18 @@ export class EncryptedVaultSession {
     this.assert(g);
     return value;
   }
+  async verifyIndependentAgent(args: Json) {
+    const g = this.generation,
+      value = await this.rpc("verifyIndependentAgent", args);
+    this.assert(g);
+    return value;
+  }
+  async signIndependentPolicyControl(args: Json) {
+    const g = this.generation,
+      value = await this.rpc("signIndependentPolicyControl", args);
+    this.assert(g);
+    return value;
+  }
   async verifyPersistentPolicy(args: Json) {
     const g = this.generation;
     const value = await this.rpc("verifyPersistentPolicy", args);
