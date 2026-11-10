@@ -18,11 +18,12 @@ from folioview_shared.encrypted.executor_trust import EXECUTOR_TRUST_PROFILE
 
 
 class NativeStartupTests(NativeFixture):
-    def configure(self):
+    def configure(self, extra_environment=None):
         env = {
             "EXECUTOR_NATIVE_ENABLED": "1",
             "EXECUTOR_NATIVE_CONFIG_SHA256": digest(self.native_value),
         }
+        env.update(extra_environment or {})
         self.value["workload"]["environment"] = env
         self.value["binding"]["workloadDigest"] = digest(self.value["workload"])
         self.value["approval"] = sign_jws(
@@ -112,3 +113,74 @@ class NativeStartupTests(NativeFixture):
             with self.assertRaises(Stopped):
                 main()
             policy.assert_not_called()
+
+    def test_remote_core_and_native_configuration_use_root_pins_without_self_hash_cycle(self):
+        from app.main import main
+
+        roots = {
+            "EXECUTOR_ROOT_KEY_ID": self.config.binding["rootKeyId"],
+            "EXECUTOR_CONFIG_OBJECT": "gs://synthetic-state/executor-config/runtime.json",
+            "EXECUTOR_NATIVE_CONFIG_OBJECT": "gs://synthetic-state/executor-config/native.json",
+        }
+        env = self.configure(roots)
+        del env["EXECUTOR_CONFIG"]
+        del env["EXECUTOR_NATIVE_CONFIG"]
+        values = {
+            "executor-config/runtime.json": self.value,
+            "executor-config/native.json": self.native_value,
+        }
+        client = Mock()
+
+        def blob(name):
+            raw = json.dumps(values[name]).encode()
+            value = Mock(size=len(raw), generation=12345)
+            value.download_as_bytes.return_value = raw
+            return value
+
+        client.bucket.return_value.blob.side_effect = blob
+        hub = Mock()
+        with (
+            patch.dict(os.environ, env, clear=True),
+            patch("google.cloud.storage.Client", return_value=client),
+            patch("app.main.PolicyClient", return_value=self.runtime.policy),
+            patch("app.main.Attestation", return_value=self.attestor),
+            patch.object(self.attestor, "close", create=True),
+            patch("app.main.GCSSnapshots", return_value=self.snapshots),
+            patch("app.main.HubClient", return_value=hub),
+            patch(
+                "app.main.materialize", side_effect=RuntimeError("synthetic stop before serving")
+            ) as tls,
+        ):
+            with self.assertRaises(RuntimeError):
+                main()
+            tls.assert_called_once()
+        self.assertTrue(self.authority.confirmed)
+        self.assertEqual(client.bucket.return_value.blob.call_count, 2)
+        hub.close.assert_called_once()
+
+    def test_remote_wrong_root_or_unapproved_object_stops_before_policy(self):
+        from app.main import main
+
+        roots = {
+            "EXECUTOR_ROOT_KEY_ID": self.config.binding["rootKeyId"],
+            "EXECUTOR_CONFIG_OBJECT": "gs://synthetic-state/executor-config/runtime.json",
+        }
+        env = self.configure(roots)
+        del env["EXECUTOR_CONFIG"]
+        raw = json.dumps(self.value).encode()
+        client = Mock()
+        blob = client.bucket.return_value.blob.return_value
+        blob.size, blob.generation = len(raw), 12345
+        blob.download_as_bytes.return_value = raw
+        for changes in [
+            {"EXECUTOR_ROOT_KEY_ID": self.crypto.kid("device_sig")},
+            {"EXECUTOR_CONFIG_OBJECT": "gs://synthetic-state/executor-config/unapproved.json"},
+        ]:
+            with (
+                patch.dict(os.environ, env | changes, clear=True),
+                patch("google.cloud.storage.Client", return_value=client),
+                patch("app.main.PolicyClient") as policy,
+            ):
+                with self.assertRaises(Stopped):
+                    main()
+                policy.assert_not_called()

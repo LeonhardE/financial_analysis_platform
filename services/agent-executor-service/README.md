@@ -40,5 +40,8 @@ and pinned by the separate Confidential Space deployment workflow.
 `EXECUTOR_ENABLED=0`, `EXECUTOR_CREATION_ENABLED=0` and
 `EXECUTOR_NATIVE_ENABLED=0` are the image defaults.
 Normal startup requires reviewed public configuration and a live Policy recovery
-path; only then does original-key TLS listen on port 8443. Local fixture stores
+path; only then does original-key TLS listen on port 8443. Production public JSON is
+read inside the TEE from exact Root-pinned GCS sources, with generation/CRC/size
+checks and no host-file dependency. Explicit creation uses the same image command
+with a separate Root-approved mode and fresh permit. Local fixture stores
 and mock attestors are never selectable through production environment options.

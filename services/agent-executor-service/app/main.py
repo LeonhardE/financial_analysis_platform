@@ -9,8 +9,6 @@ import uvicorn
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
-from folioview_shared.encrypted.jsonutil import strict_json_loads
-
 from .attestation import Attestation
 from .config import Config
 from .contracts import PROFILE, digest, require
@@ -21,6 +19,7 @@ from .native import NativeEngine
 from .native_config import NativeConfig
 from .policy import PolicyClient
 from .provider_tls import ProviderProtocol, configure_client_trust
+from .public_config import measured_sources, pin_root, read_public, remote
 from .runtime import Executor
 from .state import GCSSnapshots
 from .tls import materialize
@@ -90,19 +89,26 @@ def protected_resource(request: Request):
 def main():
     global executor, native_engine
     native_engine = None
+    creation_flag = os.environ.get("EXECUTOR_CREATION_ENABLED", "0")
+    require(creation_flag in {"0", "1"})
+    if creation_flag == "1":
+        # Explicit measured mode with a fresh Root permit; never a recovery fallback.
+        require(os.environ.get("EXECUTOR_ENABLED", "0") == "0")
+        require(os.environ.get("EXECUTOR_NATIVE_ENABLED", "0") == "0")
+        from .initialize import main as create
+
+        return create()
     require(os.environ.get("EXECUTOR_ENABLED", "0") == "1")
-    require(os.environ.get("EXECUTOR_CREATION_ENABLED", "0") == "0")
     require("K_SERVICE" not in os.environ and "FIRESTORE_EMULATOR_HOST" not in os.environ)
-    with Path(os.environ["EXECUTOR_CONFIG"]).open("rb") as f:
-        config = Config.parse(
-            strict_json_loads(f.read(65537), max_bytes=65536), now=int(time.time())
-        )
+    config = Config.parse(read_public("EXECUTOR_CONFIG"), now=int(time.time()))
+    remote_names = ["EXECUTOR_CONFIG", "EXECUTOR_NATIVE_CONFIG"]
+    pin_root(config.public["rootJwk"], required=any(remote(name) for name in remote_names))
+    measured_sources(config.public["workload"], remote_names)
     native_flag = os.environ.get("EXECUTOR_NATIVE_ENABLED", "0")
     require(native_flag in {"0", "1"})
     native = None
     if native_flag == "1":
-        with Path(os.environ["EXECUTOR_NATIVE_CONFIG"]).open("rb") as f:
-            value = strict_json_loads(f.read(262145), max_bytes=262144)
+        value = read_public("EXECUTOR_NATIVE_CONFIG", maximum=262144)
         expected = os.environ.get("EXECUTOR_NATIVE_CONFIG_SHA256")
         require(
             expected == digest(value)

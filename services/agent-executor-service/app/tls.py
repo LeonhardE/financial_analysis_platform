@@ -2,6 +2,7 @@
 
 import ctypes
 import hashlib
+import ipaddress
 import os
 import ssl
 import tempfile
@@ -18,6 +19,13 @@ from folioview_shared.encrypted.crypto import jwk_thumbprint
 
 from .contracts import Stopped, require, safe
 from .state import public
+
+
+def subject_alt_name(hostname):
+    try:
+        return x509.IPAddress(ipaddress.ip_address(hostname))
+    except ValueError:
+        return x509.DNSName(hostname)
 
 
 def certificate(config, *, now):
@@ -37,7 +45,8 @@ def certificate(config, *, now):
         )
         hostname = urlsplit(config.binding["audience"]).hostname
         names = leaf.extensions.get_extension_for_class(x509.SubjectAlternativeName).value
-        require(hostname in names.get_values_for_type(x509.DNSName))
+        expected = subject_alt_name(hostname)
+        require(expected.value in names.get_values_for_type(type(expected)))
         require(not leaf.extensions.get_extension_for_class(x509.BasicConstraints).value.ca)
         return hashlib.sha256(chain).hexdigest()
 
