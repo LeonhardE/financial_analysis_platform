@@ -146,3 +146,54 @@ class AttestationTests(PolicyFixture):
         with self.assertRaises(Unavailable):
             self.verify()
         self.assertEqual(str(self.calls[0].url), JWKS)
+
+    def test_exact_root_pinned_environment_allows_measured_operator_subset(self):
+        expected = {
+            "EXECUTOR_ENABLED": "1",
+            "EXECUTOR_CREATION_ENABLED": "0",
+            "EXECUTOR_CONFIG_OBJECT": "gs://synthetic-state/executor-config/runtime.json",
+            "PYTHONUNBUFFERED": "1",
+        }
+        self.workload["environment"] = expected
+        container = self.claims["submods"]["container"]
+        container["env"] = copy.deepcopy(expected)
+        container["env_override"] = {k: v for k, v in expected.items() if k != "PYTHONUNBUFFERED"}
+        self.assertEqual(self.verify()["instanceId"], "123456789")
+        container["env_override"] = {}
+        self.assertEqual(self.verify()["instanceId"], "123456789")
+
+    def test_changed_extra_or_malformed_overrides_fail_before_current_vm_access(self):
+        self.workload["environment"] = {"EXECUTOR_ENABLED": "1"}
+        self.claims["submods"]["container"]["env"] = {"EXECUTOR_ENABLED": "1"}
+        for overrides in [
+            {"EXECUTOR_ENABLED": "0"},
+            {"EXECUTOR_ENABLED": 1},
+            {"EXECUTOR_ENABLED": "1", "DEBUG": "1"},
+            {"PATH": "/attacker"},
+            [],
+            None,
+        ]:
+            claims = copy.deepcopy(self.claims)
+            claims["submods"]["container"]["env_override"] = overrides
+            self.calls.clear()
+            with self.subTest(overrides=overrides), self.assertRaises(ContractError):
+                self.verify(claims)
+            self.assertFalse(
+                any(str(r.url).startswith("https://compute.googleapis.com/") for r in self.calls)
+            )
+
+    def test_matching_override_subset_cannot_hide_changed_full_environment_or_cmd(self):
+        self.workload["environment"] = {"EXECUTOR_ENABLED": "1"}
+        self.claims["submods"]["container"].update(
+            env={"EXECUTOR_ENABLED": "1"}, env_override={"EXECUTOR_ENABLED": "1"}
+        )
+        for changes in [
+            {"env": {"EXECUTOR_ENABLED": "1", "PYTHONPATH": "/attacker"}},
+            {"env": {}},
+            {"cmd_override": ["python", "-m", "app.main"]},
+            {"args": ["python", "-m", "app.initialize"]},
+        ]:
+            claims = copy.deepcopy(self.claims)
+            claims["submods"]["container"].update(changes)
+            with self.subTest(changes=changes), self.assertRaises(ContractError):
+                self.verify(claims)

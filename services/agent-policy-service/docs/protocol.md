@@ -148,6 +148,17 @@ issuer/audience/time, production/debug/security profile, support/memory-monitori
 image, arguments/environment and overrides, project/zone/instance and service account. It also
 checks the independently selected current Compute instance ID and running account. A copied
 old VM name/token, wrong image, enabled debug or unavailable current instance is denied.
+
+Google measures the complete OCI environment as `container.env` and every
+operator-supplied `tee-env-*` variable separately as `container.env_override`.
+The full environment must exactly equal the Root-approved `workload.environment`;
+the override object may contain only a subset with identical approved values.
+Extra variables, changed/incorrectly typed values and non-object overrides fail.
+Command overrides remain empty. This permits reviewed startup configuration
+without allowing an operator to alter any unapproved setting. These semantics
+follow the [official launcher measurement](https://github.com/google/go-tpm-tools/blob/main/launcher/container_runner.go)
+and do not change Root scope, workload digest or authority/release gates.
+
 See [Google's claims](https://docs.cloud.google.com/confidential-computing/confidential-space/docs/reference/token-claims)
 and [binding external resources](https://docs.cloud.google.com/confidential-computing/confidential-space/docs/connect-external-resources).
 
