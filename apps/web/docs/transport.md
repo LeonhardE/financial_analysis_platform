@@ -98,3 +98,11 @@ URL. Request and response bodies are bounded and account/lock/visibility fenced.
 and current Policy proofs are verified in the existing Owner Worker before public controls
 or content publication. This is independent of Hub native MessageChannel compatibility;
 no Root private key or plaintext report passes through the Web server.
+
+The independent issuer must first match a Root-approved parent read through the
+existing Hub Owner channel. `requestPrivate` also compares the caller's approved
+issuer assertion with its newly loaded server selection before retrieving a Google
+token; a changed/missing assertion fails closed. Only the configured server origin
+can select transport, and the assertion cannot redirect it to a caller URL. Current
+Policy signatures and state are still required for OAuth/content authority. Historical
+Root destination verification is used only for explicit terminal revocation.

@@ -67,6 +67,9 @@ export function useIndependentAgent(workspace: HoldingsWorkspace, model: Persist
                   {
                     ...options,
                     signal: abort.signal,
+                    ...(service === "agent-policy"
+                      ? { expectedPolicyIssuer: start.configuration!.issuer }
+                      : {}),
                     ...(service === "portfolio"
                       ? {
                           headers: {

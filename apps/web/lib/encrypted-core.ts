@@ -5175,6 +5175,11 @@ export class VaultCore {
     const { actor, ...state } = args;
     return (await this.persistentOwner(actor, false)).independent(state);
   }
+  async verifyIndependentDestination(args: Json) {
+    exact(args, ["actor", "configuration", "hubState", "historical"]);
+    const { actor, ...state } = args;
+    return (await this.persistentOwner(actor, false)).independentDestination(state);
+  }
   async signIndependentPolicyControl(args: Json) {
     exact(args, [
       "actor",

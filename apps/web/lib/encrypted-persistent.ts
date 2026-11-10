@@ -55,6 +55,71 @@ type Context = {
 };
 export class PersistentOwner {
   constructor(private readonly ctx: Context) {}
+  private async independentDomain(cfg: Json, value: Json, historical: boolean) {
+    exact(cfg, [
+      "connectionId",
+      "clientId",
+      "issuer",
+      "audience",
+      "policyJwk",
+      "nativeRedirectUris",
+    ]);
+    if (
+      !this.ctx.actor ||
+      cfg.connectionId !== this.ctx.actor.connectionId ||
+      cfg.clientId !== this.ctx.actor.clientId
+    )
+      fail();
+    const b = validateExecutorSchema("ExecutorBinding", value.binding);
+    const payload = parsed(bytes(value.approval.payload), true);
+    const approval = await verifyExecutorApproval(value.approval, {
+      expectedBinding: {
+        ownerSubject: this.ctx.ownerSubject,
+        vaultId: this.ctx.vault.vaultId,
+        rootKeyId: this.ctx.vault.rootKeyId,
+        connectionId: cfg.connectionId,
+        clientId: cfg.clientId,
+        issuer: cfg.issuer,
+        audience: cfg.audience,
+        provider: "openai_chatgpt",
+        providerClientId: cfg.clientId,
+        policySigningKeyId: await keyId(cfg.policyJwk),
+        tlsKeyId: b.tlsKeyId,
+        scopeDigest: b.scopeDigest,
+        workloadDigest: b.workloadDigest,
+        recipientKeyIds: b.recipientKeyIds,
+        agentId: b.agentId,
+        agentSigningKeyId: b.agentSigningKeyId,
+        agentEncryptionKeyId: b.agentEncryptionKeyId,
+        identityEpoch: b.identityEpoch,
+        bindingFingerprint: b.bindingFingerprint,
+      },
+      rootJwk: this.ctx.vault.rootJwk,
+      now: historical ? payload.issuedAt : this.ctx.now(),
+    });
+    return approval.binding;
+  }
+  /** Check the approved credential destination before making any Policy request. */
+  async independentDestination(args: Json) {
+    exact(args, ["configuration", "hubState", "historical"]);
+    if (canonical(args).length > 131072 || typeof args.historical !== "boolean") fail();
+    const h = args.hubState;
+    exact(h, [
+      "contractVersion",
+      "profile",
+      "identity",
+      "command",
+      "revocation",
+      "binding",
+      "scope",
+      "approval",
+      "receipt",
+    ]);
+    if (h.contractVersion !== CONTRACT || h.profile !== "folioview.hub-executor-ciphertext.v1")
+      fail();
+    const b = await this.independentDomain(args.configuration, h, args.historical);
+    return { issuer: b.issuer, connectionId: b.connectionId };
+  }
   /** The configured endpoint never chooses the Owner Root or the original Agent keys. */
   async independent(args: Json) {
     exact(args, ["configuration", "hubState", "policyState", "checkpoint"]);
@@ -215,49 +280,8 @@ export class PersistentOwner {
       // The live service still enforces the exact Owner Root and version/head CAS.
       const p = state.policyState,
         cfg = state.configuration;
-      exact(cfg, [
-        "connectionId",
-        "clientId",
-        "issuer",
-        "audience",
-        "policyJwk",
-        "nativeRedirectUris",
-      ]);
-      const b = validateExecutorSchema("ExecutorBinding", p.binding);
-      if (
-        !this.ctx.actor ||
-        cfg.connectionId !== this.ctx.actor.connectionId ||
-        cfg.clientId !== this.ctx.actor.clientId ||
-        p.profile !== "folioview.agent-policy.v1" ||
-        p.connectionId !== cfg.connectionId
-      )
-        fail();
-      const payload = parsed(bytes(p.approval.payload), true);
-      await verifyExecutorApproval(p.approval, {
-        expectedBinding: {
-          ownerSubject: this.ctx.ownerSubject,
-          vaultId: this.ctx.vault.vaultId,
-          rootKeyId: this.ctx.vault.rootKeyId,
-          connectionId: cfg.connectionId,
-          clientId: cfg.clientId,
-          issuer: cfg.issuer,
-          audience: cfg.audience,
-          provider: "openai_chatgpt",
-          providerClientId: cfg.clientId,
-          policySigningKeyId: await keyId(cfg.policyJwk),
-          tlsKeyId: b.tlsKeyId,
-          scopeDigest: b.scopeDigest,
-          workloadDigest: b.workloadDigest,
-          recipientKeyIds: b.recipientKeyIds,
-          agentId: b.agentId,
-          agentSigningKeyId: b.agentSigningKeyId,
-          agentEncryptionKeyId: b.agentEncryptionKeyId,
-          identityEpoch: b.identityEpoch,
-          bindingFingerprint: b.bindingFingerprint,
-        },
-        rootJwk: this.ctx.vault.rootJwk,
-        now: payload.issuedAt,
-      });
+      if (p.profile !== "folioview.agent-policy.v1" || p.connectionId !== cfg.connectionId) fail();
+      const b = await this.independentDomain(cfg, p, true);
       integer(p.stateVersion, 1);
       validate("Digest", p.stateHead);
       review = { binding: b, checkpoint: { stateVersion: p.stateVersion, stateHead: p.stateHead } };

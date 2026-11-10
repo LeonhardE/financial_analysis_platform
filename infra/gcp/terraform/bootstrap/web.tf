@@ -23,6 +23,7 @@ resource "google_cloudbuild_trigger" "web_image_release" {
   included_files = [
     "apps/web/**",
     "packages/encrypted-workspace/**",
+    "packages/executor-trust/**",
     "package.json",
     "package-lock.json",
     ".dockerignore",

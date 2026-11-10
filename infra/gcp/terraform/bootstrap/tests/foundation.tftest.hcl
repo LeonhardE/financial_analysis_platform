@@ -699,7 +699,7 @@ run "web_retains_existing_build_filter_and_public_frontend_configuration" {
       google_cloudbuild_trigger.web_image_release.filename == "infra/gcp/cloudbuild.web.yaml" &&
       google_cloudbuild_trigger.web_image_release.service_account == "projects/${var.project_id}/serviceAccounts/fa-build@${var.project_id}.iam.gserviceaccount.com" &&
       google_cloudbuild_trigger.web_image_release.repository_event_config[0].push[0].branch == "^main$" &&
-      tolist(google_cloudbuild_trigger.web_image_release.included_files) == tolist(["apps/web/**", "packages/encrypted-workspace/**", "package.json", "package-lock.json", ".dockerignore", "infra/gcp/cloudbuild.web.yaml", "infra/gcp/deploy_existing_service.py"]) &&
+      tolist(google_cloudbuild_trigger.web_image_release.included_files) == tolist(["apps/web/**", "packages/encrypted-workspace/**", "packages/executor-trust/**", "package.json", "package-lock.json", ".dockerignore", "infra/gcp/cloudbuild.web.yaml", "infra/gcp/deploy_existing_service.py"]) &&
       length(google_cloudbuild_trigger.web_image_release.ignored_files) == 0 &&
       !google_cloudbuild_trigger.web_image_release.disabled &&
       !contains(keys(google_cloudbuild_trigger.web_image_release.substitutions), "_DEPLOY_SERVICE") &&

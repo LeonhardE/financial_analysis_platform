@@ -41,6 +41,12 @@ generate replacement Agent keys, silently adopt a prototype identity or imperson
 administrator. Actual initial setup and activation have not been executed by source checks.
 There is no daily public-key import, helper card, separate Passkey session or copied recovery secret.
 
+Before any Google credential is sent to Policy, the Worker verifies the destination against the
+current Owner Root approval read through the existing Hub Owner transport. The exact approved
+issuer is also asserted against the freshly loaded server selection immediately before credential
+retrieval, so a configuration reload cannot switch the destination. Terminal revocation may use
+the original historical Root approval for this address check; this never grants new execution.
+
 Before displaying a usable connection or publishing another approved version, the Worker
 checks the current account/Vault Root, original device-signed Agent binding and Root registry,
 the exact independent Root approval, Policy issuer/resource/client/key, bounded resource scope,
@@ -82,9 +88,11 @@ execution stays **pending acceptance**, independently of UI task expectations or
 connection. No live deployment, ChatGPT installation, scheduling or acceptance is performed here.
 
 The Web image copies both shared public-verifier distributions, and both integrity manifests
-participate in the Owner Worker compatibility name. Web deployment/configuration and its build
-trigger must include this additional public dependency before actual activation; no other service's
-cloud configuration belongs in the Web change.
+participate in the Owner Worker compatibility name. The Web-only infrastructure consumer now accepts the exact public pair from the reviewed
+profile-v5 managed projection, and its existing image trigger includes the additional dependency.
+Use that pinned projection and full saved-plan approval flow when selecting actual values; source
+checks do not perform configuration apply or backend activation. Other services keep their own
+separate deployment configuration.
 
 ## Persistent owner flow
 
