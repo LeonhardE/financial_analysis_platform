@@ -1,0 +1,39 @@
+# Agent executor core
+
+A build-only Confidential VM target that restores the original Agent signing,
+Agent encryption and TLS keys inside the measured workload. It stores only
+authenticated encrypted snapshots outside that boundary. Runtime startup never
+initializes or replaces an identity, chooses a backup head or uses ordinary KMS
+Decrypt. Root/Passkey secrets and native refresh tokens are absent.
+
+This core provides no analysis/MCP business tools. Native account/provider
+binding, frozen financial inputs and encrypted report submission are a separate
+executor integration. `/mcp` currently fails closed. Infrastructure and live
+attestation/same-key acceptance belong to separate provisioning work.
+
+- [Recovery, state and trust protocol](docs/recovery.md)
+- [Creation, TLS and operation](docs/operations.md)
+- [Shared trust contracts](../common/folioview_shared/encrypted/README.md)
+- [Independent Policy protocol](../agent-policy-service/docs/protocol.md)
+- [Confidential VM delivery boundary](../../infra/gcp/docs/confidential-vm-releases.md)
+
+Use Python 3.13. From the repository root, install this target's development
+requirements and `services/common` into a test environment, then run:
+
+```sh
+python scripts/test_services.py --service agent-executor-service
+FOLIOVIEW_EXECUTION_MODE=offline_probe PYTHONPATH=services/common \
+  python services/agent-executor-service/app/health_check.py
+```
+
+The production image uses the complete Python 3.13/Linux x86_64 wheel hash lock;
+all 46 runtime versions are pinned. Build it from the repository root with
+`services/agent-executor-service/Dockerfile`. CI's network-disabled, read-only
+probe checks crypto and contracts without obtaining any cloud credential,
+releasing a key or claiming attestation. The final image digest must be reviewed
+and pinned by the separate Confidential Space deployment workflow.
+
+`EXECUTOR_ENABLED=0` and `EXECUTOR_CREATION_ENABLED=0` are the image defaults.
+Normal startup requires reviewed public configuration and a live Policy recovery
+path; only then does original-key TLS listen on port 8443. Local fixture stores
+and mock attestors are never selectable through production environment options.

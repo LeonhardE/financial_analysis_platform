@@ -56,6 +56,15 @@
       "service": "agent-policy-api",
       "cloudbuild": "infra/gcp/cloudbuild.agent-policy.yaml",
       "release_mode": "build_only"
+    },
+    {
+      "id": "agent-executor-service",
+      "kind": "backend",
+      "directory": "services/agent-executor-service",
+      "service": "agent-executor-api",
+      "cloudbuild": "infra/gcp/cloudbuild.agent-executor.yaml",
+      "release_mode": "build_only",
+      "runtime": "confidential_vm"
     }
   ]
 }

@@ -38,7 +38,19 @@ class ConfidentialTargetTests(unittest.TestCase):
         return load_registry(self.root)
 
     def test_existing_runtime_defaults_and_vm_registration_are_immutable_and_dynamic(self):
-        self.assertTrue(all(t.runtime == "cloud_run" for t in load_registry().targets))
+        omitted_runtime = {
+            **self.document,
+            "targets": [
+                {key: value for key, value in row.items() if key != "runtime"}
+                for row in self.document["targets"]
+            ],
+        }
+        self.assertTrue(
+            all(
+                t.runtime == "cloud_run"
+                for t in parse_registry_document(json.dumps(omitted_runtime))
+            )
+        )
         vm = self.registry.target("synthetic-service")
         self.assertEqual(vm.runtime, "confidential_vm")
         self.assertIn(vm.id, self.registry.backend_ids)

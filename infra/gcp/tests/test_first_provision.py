@@ -58,6 +58,8 @@ def synthetic_registry(root):
         write(directory + "/Dockerfile")
         write(target["cloudbuild"])
         if target["kind"] == "backend":
+            if target.get("runtime") == "confidential_vm":
+                write(directory + "/app/health_check.py", "# Offline probe fixture\n")
             for name in (
                 "app/main.py",
                 "requirements.txt",
