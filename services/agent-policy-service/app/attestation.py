@@ -125,6 +125,15 @@ class GoogleAttestation:
                 container = mods["container"]
                 gce = mods["gce"]
                 space = mods["confidential_space"]
+                overrides = container.get("env_override", {})
+                # The launcher measures the full OCI environment and every
+                # operator-supplied variable separately. Every override must
+                # already have its exact value in the Root-approved workload.
+                if type(overrides) is not dict or any(
+                    key not in workload["environment"] or workload["environment"][key] != value
+                    for key, value in overrides.items()
+                ):
+                    deny()
                 if (
                     claims["swname"] != "CONFIDENTIAL_SPACE"
                     or claims["dbgstat"] != "disabled-since-boot"
@@ -136,7 +145,6 @@ class GoogleAttestation:
                     or container["args"] != workload["args"]
                     or container["env"] != workload["environment"]
                     or container.get("cmd_override", []) != []
-                    or container.get("env_override", {}) != {}
                     or gce["project_id"] != workload["projectId"]
                     or gce["project_number"] != workload["projectNumber"]
                     or gce["zone"] != workload["zone"]
