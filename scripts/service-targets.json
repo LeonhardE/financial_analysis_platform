@@ -48,6 +48,14 @@
       "service": "portfolio-api",
       "cloudbuild": "infra/gcp/cloudbuild.portfolio.yaml",
       "release_mode": "existing"
+    },
+    {
+      "id": "agent-policy-service",
+      "kind": "backend",
+      "directory": "services/agent-policy-service",
+      "service": "agent-policy-api",
+      "cloudbuild": "infra/gcp/cloudbuild.agent-policy.yaml",
+      "release_mode": "build_only"
     }
   ]
 }
