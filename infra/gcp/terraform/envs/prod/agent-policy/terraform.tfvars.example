@@ -1,0 +1,11 @@
+# Synthetic values only. Not a production candidate, project choice or apply authorization.
+stage = "none"
+deployment = {
+  project_id           = "demo-policy-alpha"
+  region               = "europe-west3"
+  artifact_repository  = "policy-images"
+  runtime_account_id   = "policy-runtime"
+  build_account_id     = "policy-build"
+  creation_image       = "europe-west3-docker.pkg.dev/demo-policy-alpha/policy-images/agent-policy-api@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  operator_project_ids = ["demo-operator-alpha", "demo-executor-alpha"]
+}

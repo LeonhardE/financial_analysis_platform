@@ -29,6 +29,12 @@ describes the optional registry runtime, isolated offline health probe and
 Cloud Run registrations and release behavior remain compatible. This foundation
 adds no VM/service registration, cloud resources or automatic deployment rights.
 
+The [independent Policy base](terraform/envs/prod/agent-policy/README.md) prepares
+INF-011 D1 under a separately trusted Owner project/state. Its default stage is
+inert; ordered full resources/base plans retain closed authority/release gates.
+It is outside the routine operator pipeline. Actual independent approval-lane
+bootstrap, exact workload binding and live IAM/recovery acceptance remain separate.
+
 ## CI target selection
 
 The CI workflow runs on every PR and push to `main`. It does not use workflow-level path filters:
