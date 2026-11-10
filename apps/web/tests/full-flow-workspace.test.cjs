@@ -378,6 +378,8 @@ function flow({ hash = "", search = "", owner = "A:1", locked = false, hidden = 
       "react/jsx-runtime": { jsx, jsxs: jsx },
       "next-intl": { useLocale: () => "en", useTranslations: () => (key) => key },
       "./PersistentAgentsPanel": { PersistentAgentsPanel: () => null },
+      "./IndependentAgentPanel": { IndependentAgentPanel: () => null },
+      "./useIndependentAgent": { useIndependentAgent: () => ({ configuration: null }) },
       "./PersistentInboxPanel": { PersistentInboxPanel: () => null },
       "./usePersistentWorkspace": { usePersistentWorkspace: () => ({ enabled: false, views: [] }) },
       "./useAgentLinkConfiguration": { useAgentLinkConfiguration: () => ({ data: null }) },

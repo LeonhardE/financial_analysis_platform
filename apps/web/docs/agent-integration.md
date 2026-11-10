@@ -8,6 +8,84 @@ Native schedule installation, protected-host restart and cross-day execution req
 The old foreground helper remains a compatibility path with explicit session limits. The
 legacy-specific details below do not describe the lifetime of a persistent connection.
 
+## Independent executor owner flow
+
+The independent route reuses the same Owner Worker, resource/task publication outbox and
+persistent Inbox. It is default off. Set the server-only
+`FOLIOVIEW_INDEPENDENT_AGENT_ENABLED=true` and `FOLIOVIEW_INDEPENDENT_AGENT_CONFIG`
+to a closed public JSON selection with exactly:
+
+```json
+{
+  "connectionId": "reviewed_connection_id",
+  "clientId": "reviewed_native_client_id",
+  "issuer": "https://policy.example.com",
+  "audience": "https://executor.example.com/mcp",
+  "policyJwk": { "kty": "EC", "crv": "P-256", "x": "PUBLIC_COORDINATE", "y": "PUBLIC_COORDINATE" },
+  "nativeRedirectUris": ["https://chatgpt.com/connector_platform/oauth/callback"]
+}
+```
+
+The coordinate strings above are deliberately invalid placeholders. Use the actual public
+fixed KMS signing-version key and exact independently reviewed native callback. Invalid,
+private-key-bearing or extra-field configuration disables only this new module. The public
+`/api/private/independent-agent/config` response contains this selection, never a credential,
+Root private key, financial data or proof that the connection is active.
+
+Initial deployment, explicit Root bootstrap, measured two-phase original-key creation,
+certificate provisioning and Root/Hub enrollment are administrator prerequisites from the
+[Policy operations](../../../services/agent-policy-service/docs/operations.md) and
+[executor operations](../../../services/agent-executor-service/docs/operations.md).
+The UI consumes that prepared original identity; it does not initialize a missing witness,
+generate replacement Agent keys, silently adopt a prototype identity or impersonate an
+administrator. Actual initial setup and activation have not been executed by source checks.
+There is no daily public-key import, helper card, separate Passkey session or copied recovery secret.
+
+Before displaying a usable connection or publishing another approved version, the Worker
+checks the current account/Vault Root, original device-signed Agent binding and Root registry,
+the exact independent Root approval, Policy issuer/resource/client/key, bounded resource scope,
+current Owner-only recipients and a fresh Policy-signed checkpoint matching the current
+state/head/authorization epoch. Within an unlocked Worker, lower versions/epochs or conflicting
+same-version heads are refused. Unavailable, expired, revoked or incompatible-epoch state
+stops new publication and authorization; it never widens scope or resets authority.
+A verified binding is not a browser claim of live TEE or native schedule acceptance.
+
+The ciphertext Owner BFF admits the separate Hub `/api/v2/executor-connections/...` parent,
+consent, original-operation receipt and publication paths. Existing immutable packet/receipt
+verification is reused. An unknown response retains the original sealed packet; reconciliation
+reads its original receipt first. Resource delivery continues only for already approved logical
+resources and already assigned tasks while the page is visible and unlocked. New scope and task
+reassignment require explicit review. Scope outside the finite Root-approved parent requires
+an explicit new approval/identity adoption; this UI cannot mutate the original parent or migrate
+an existing Muse connection automatically.
+
+Policy OAuth consent goes directly to the deployment-selected independent issuer with the
+current verified Firebase token and its Secure HttpOnly consent cookie. Only exact Owner
+connection/checkpoint/revoke and bounded pending/approval endpoints are allowed. No Agent token,
+refresh grant, arbitrary issuer/JWKS or financial payload is accepted. The existing session guard
+checks both before and after credentials/network/body reads. The Owner explicitly reviews the
+request; the Worker signs only `oauth_approve` or terminal `revoke`, bound to current version/head
+and exact parameters for 120 seconds. OAuth approval does not create or renew the original finite
+Root approval. No automatic retry creates another grant after a lost response.
+
+The return URL must match an exact configured native callback, contain one code/state/issuer
+and the pinned issuer, with no credentials or fragment. `/agents` sends `Referrer-Policy:
+no-referrer`. Restrictive browser cookie policy or missing independent CORS/invocation readiness
+fails closed; real browser/account acceptance remains separate from these source tests.
+
+Pause withdraws current resource consent. Re-approval inside the same Root scope is explicit.
+Terminal revoke stops Policy authorization/key recovery and OAuth families; it does not delete
+historical reports or ciphertext. Inbox continues verifying the original Run, author, recipients
+and receipt before decryption. Existing Muse connections and older Inbox history remain available.
+Native schedule installation/execution stays **not observed**, and offline/overnight continuous
+execution stays **pending acceptance**, independently of UI task expectations or a successful
+connection. No live deployment, ChatGPT installation, scheduling or acceptance is performed here.
+
+The Web image copies both shared public-verifier distributions, and both integrity manifests
+participate in the Owner Worker compatibility name. Web deployment/configuration and its build
+trigger must include this additional public dependency before actual activation; no other service's
+cloud configuration belongs in the Web change.
+
 ## Persistent owner flow
 
 The persistent owner operations compose the shared browser contracts inside `VaultCore`. They use

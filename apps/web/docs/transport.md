@@ -81,3 +81,20 @@ The authenticated request client restricts each service's exact paths, methods, 
 contract headers, rejects arbitrary destinations and identity-header overrides, and fences late
 responses when an account changes. Bodies, bearer/delegation tokens, PRF output and private keys
 are not placed in URLs, localStorage, analytics or error messages.
+
+## Independent Policy and ciphertext parent
+
+The optional independent Agent selection is documented in
+[Agent integration](agent-integration.md#independent-executor-owner-flow).
+Hub ciphertext controls use the existing same-origin Firebase-verified Owner BFF with
+closed `/api/v2/executor-connections/...` paths. They retain the original publication
+size, idempotency and response limits; they do not grant a new parent through this BFF.
+
+The Policy Owner API is intentionally a separate direct request to the fixed
+server-selected independent issuer. It requires that issuer's exact CORS configuration
+and Secure HttpOnly consent cookie, plus the same current Firebase session. The closed
+route table cannot forward a token/refresh exchange, Agent lease/key release or arbitrary
+URL. Request and response bodies are bounded and account/lock/visibility fenced. Root
+and current Policy proofs are verified in the existing Owner Worker before public controls
+or content publication. This is independent of Hub native MessageChannel compatibility;
+no Root private key or plaintext report passes through the Web server.

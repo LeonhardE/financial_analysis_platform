@@ -26,6 +26,13 @@ test("persistent owner and independent Agent complete Root pairing, continuing c
             pathToFileURL(path.join(repo, "packages/encrypted-workspace/dist/core.mjs")).href,
           ),
         );
+      code = code.replaceAll(
+        '"../../../packages/executor-trust/dist/core.mjs"',
+        JSON.stringify(
+          pathToFileURL(path.resolve(__dirname, "../../../packages/executor-trust/dist/core.mjs"))
+            .href,
+        ),
+      );
       writeFileSync(path.join(directory, name + ".mjs"), code);
     }
     const peer = path.join(directory, "peer.mjs");

@@ -147,6 +147,39 @@ export function persistentResponse(
   operationId?: string,
 ): boolean {
   const p = path.split("?", 1)[0].split("/");
+  if (p[3] === "executor-connections") {
+    if (p.length === 6 && method === "GET")
+      return (
+        fields(v, [
+          "contractVersion",
+          "profile",
+          "identity",
+          "command",
+          "revocation",
+          "binding",
+          "scope",
+          "approval",
+          "receipt",
+        ]) &&
+        v.contractVersion === CONTRACT &&
+        v.profile === "folioview.hub-executor-ciphertext.v1" &&
+        formal("PersistentAgentIdentity", v.identity) &&
+        signedObject(v.command) &&
+        nullable(v.revocation, signedObject) &&
+        record(v.binding) &&
+        record(v.scope) &&
+        signedObject(v.approval) &&
+        record(v.receipt)
+      );
+    let mapped = `/api/v2/persistent-agents/${p[4]}/${p[5]}/${p.slice(6).join("/")}`;
+    if (p[6] === "identity-operations")
+      mapped = `/api/v2/persistent-agents/${p[4]}/${p[5]}/operations/${p[7]}`;
+    if (p[6] === "publications" || p[6] === "publication-operations")
+      mapped =
+        `/api/v2/persistent-content/${p[4]}/connections/${p[5]}/` +
+        (p[6] === "publications" ? "publications" : "operations/" + p[7]);
+    return persistentResponse(mapped, method, v, operationId);
+  }
   if (method === "PATCH") return metadata(v, p[5]);
   if (!record(v) || v.contractVersion !== CONTRACT) return false;
   if (p[3] === "persistent-account-authorizations")
