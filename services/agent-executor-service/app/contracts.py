@@ -16,6 +16,14 @@ class Stopped(RuntimeError):
         super().__init__("Executor unavailable.")
 
 
+class AccessDenied(Stopped):
+    pass
+
+
+class ScopeDenied(Stopped):
+    pass
+
+
 def require(condition):
     if condition is not True:
         raise Stopped
@@ -47,7 +55,9 @@ def operation_id():
 def safe(action):
     try:
         return action()
-    except (Stopped, ContractError):
+    except Stopped:
+        raise
+    except ContractError:
         raise Stopped from None
     except Exception:
         raise Stopped from None

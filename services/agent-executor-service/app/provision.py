@@ -14,7 +14,7 @@ from cryptography.x509.oid import NameOID
 from jwcrypto import jwk
 
 from folioview_shared.encrypted.crypto import jwk_thumbprint, signing_input_fingerprint, verify_jws
-from folioview_shared.encrypted.jsonutil import b64url_encode, canonical_json
+from folioview_shared.encrypted.jsonutil import b64url_encode, canonical_json, strict_json_loads
 from folioview_shared.encrypted.schema import validate_schema
 
 from .contracts import PROFILE, closed, digest, identity_digest, require, safe
@@ -40,6 +40,20 @@ class EnrollmentObjects:
             retry=None,
             checksum="crc32c",
         )
+
+    def read(self, name):
+        from google.api_core.exceptions import NotFound
+
+        blob = self.bucket.blob("executor-enrollment/" + name + ".json")
+        try:
+            blob.reload(timeout=4, retry=None)
+            require(type(blob.size) is int and 1 <= blob.size <= 65536)
+            raw = blob.download_as_bytes(
+                if_generation_match=blob.generation, timeout=4, retry=None, checksum="crc32c"
+            )
+            return strict_json_loads(raw, max_bytes=65536)
+        except NotFound:
+            return None
 
 
 class KeyWrapper:
@@ -77,59 +91,122 @@ class KeyWrapper:
         return safe(wrap)
 
 
-def initialize(
-    draft, permit, *, root_jwk, enrollment_objects, snapshots, wrapper, attestation, now=None
-):
-    """No resume/replacement path: a crashed reserved creation needs an explicit new ceremony."""
+class PendingCreation:
+    """Original keys stay in measured RAM until the owner supplies the actual binding."""
 
-    def create():
-        current = int(time.time()) if now is None else now
-        closed(
-            draft,
-            {
-                "ownerSubject",
-                "vaultId",
-                "connectionId",
-                "agentId",
-                "clientId",
-                "provider",
-                "providerClientId",
-                "bindingFingerprint",
-                "identityEpoch",
-                "issuer",
-                "audience",
-                "policyJwk",
-                "recipientKeyIds",
-                "scope",
-                "workload",
-                "kmsRecoveryKey",
-                "snapshotBucket",
-            },
+    def __init__(self, draft, permit, root_jwk, objects, snapshots, wrapper, attestation, clock):
+        self.draft, self.permit, self.root = draft, permit, root_jwk
+        self.objects, self.snapshots, self.wrapper, self.attestation, self.clock = (
+            objects,
+            snapshots,
+            wrapper,
+            attestation,
+            clock,
         )
-        validate_schema("PublicJWK", root_jwk)
-        validate_schema("PublicJWK", draft["policyJwk"])
-        p = verify_jws(permit, root_jwk, typ="fv-control+jws")
-        closed(p, {"profile", "action", "draftDigest", "operationId", "issuedAt", "expiresAt"})
-        validate_schema("OperationIdentifier", p["operationId"])
-        require(
-            p["profile"] == PROFILE
-            and p["action"] == "initialize"
-            and p["draftDigest"] == digest(draft)
-            and type(p["issuedAt"]) is int
-            and type(p["expiresAt"]) is int
-            and p["issuedAt"] <= current < p["expiresAt"] <= p["issuedAt"] + 300
-        )
-        identity = digest(
+        self.keys = self.dek = None
+        self.finalization = self.final_offer = self.prepared_offer = None
+        self.identity = digest(
             {k: draft[k] for k in ("ownerSubject", "vaultId", "connectionId", "identityEpoch")}
         )
-        enrollment_objects.create(
-            identity + "-reservation",
+        objects.create(
+            self.identity + "-reservation",
             {"profile": PROFILE, "permitFingerprint": signing_input_fingerprint(permit)},
         )
-        keys = {
-            name: jwk.JWK.generate(kty="EC", crv="P-256")
-            for name in ("signing", "encryption", "tls")
+        self.keys = {
+            n: jwk.JWK.generate(kty="EC", crv="P-256") for n in ("signing", "encryption", "tls")
         }
+        self.dek = secrets.token_bytes(32)
+        from urllib.parse import urlsplit
+
+        hostname = urlsplit(draft["audience"]).hostname
+        require(type(hostname) is str and bool(hostname))
+        private = serialization.load_pem_private_key(
+            self.keys["tls"].export_to_pem(private_key=True, password=None), None
+        )
+        self.csr = (
+            x509.CertificateSigningRequestBuilder()
+            .subject_name(x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, hostname)]))
+            .add_extension(x509.SubjectAlternativeName([x509.DNSName(hostname)]), critical=False)
+            .sign(private, hashes.SHA256())
+            .public_bytes(serialization.Encoding.PEM)
+            .decode()
+        )
+        offer = {
+            "profile": PROFILE,
+            "enrollmentId": self.identity,
+            "draft": draft,
+            "permit": permit,
+            "agentSigningJwk": public(self.keys["signing"]),
+            "agentEncryptionJwk": public(self.keys["encryption"]),
+            "tlsJwk": public(self.keys["tls"]),
+            "certificateRequest": self.csr,
+        }
+        statement = {
+            "profile": PROFILE,
+            "action": "offer",
+            "issuer": draft["issuer"],
+            "permitFingerprint": signing_input_fingerprint(permit),
+            "offerDigest": digest(offer),
+        }
+        offer["creationAttestation"] = attestation.issue_creation(statement)
+        require(int(self.clock()) < verify_jws(permit, root_jwk, typ="fv-control+jws")["expiresAt"])
+        self.offer = offer
+        objects.create(self.identity + "-pending", offer)
+
+    def summary(self):
+        return {
+            "profile": PROFILE,
+            "enrollmentId": self.identity,
+            "offerDigest": digest(self.offer),
+            "status": "awaiting_owner_finalization",
+            "enrolled": False,
+            "contentServiceEnabled": False,
+        }
+
+    def finalize(self, signed):
+        return safe(lambda: self._finalize(signed))
+
+    def _finalize(self, signed):
+        p = verify_jws(signed, self.root, typ="fv-control+jws")
+        fingerprint = signing_input_fingerprint(signed)
+        if self.final_offer is not None:
+            require(fingerprint == self.finalization)
+            return self.result()
+        closed(
+            p,
+            {
+                "profile",
+                "action",
+                "offerDigest",
+                "bindingFingerprint",
+                "workload",
+                "operationId",
+                "issuedAt",
+                "expiresAt",
+            },
+        )
+        validate_schema("OperationIdentifier", p["operationId"])
+        validate_schema("Digest", p["bindingFingerprint"])
+        require(
+            p["profile"] == PROFILE
+            and p["action"] == "finalize"
+            and p["offerDigest"] == digest(self.offer)
+            and type(p["issuedAt"]) is int
+            and type(p["expiresAt"]) is int
+            and p["issuedAt"] <= int(self.clock()) < p["expiresAt"] <= p["issuedAt"] + 300
+        )
+        if self.prepared_offer is not None:
+            require(fingerprint == self.finalization)
+            return self._publish()
+        workload = p["workload"]
+        original = self.draft["workload"]
+        require(
+            type(workload) is dict
+            and set(workload) == set(original)
+            and {**original, "environment": workload["environment"]} == workload
+            and type(workload["environment"]) is dict
+        )
+        draft = self.draft
         binding = {
             k: draft[k]
             for k in (
@@ -140,7 +217,6 @@ def initialize(
                 "clientId",
                 "provider",
                 "providerClientId",
-                "bindingFingerprint",
                 "identityEpoch",
                 "issuer",
                 "audience",
@@ -148,73 +224,149 @@ def initialize(
             )
         }
         binding.update(
-            rootKeyId=jwk_thumbprint(root_jwk),
+            bindingFingerprint=p["bindingFingerprint"],
+            rootKeyId=jwk_thumbprint(self.root),
             policySigningKeyId=jwk_thumbprint(draft["policyJwk"]),
-            agentSigningKeyId=jwk_thumbprint(public(keys["signing"])),
-            agentEncryptionKeyId=jwk_thumbprint(public(keys["encryption"])),
-            tlsKeyId=jwk_thumbprint(public(keys["tls"])),
+            agentSigningKeyId=jwk_thumbprint(public(self.keys["signing"])),
+            agentEncryptionKeyId=jwk_thumbprint(public(self.keys["encryption"])),
+            tlsKeyId=jwk_thumbprint(public(self.keys["tls"])),
             scopeDigest=digest(draft["scope"]),
-            workloadDigest=digest(draft["workload"]),
+            workloadDigest=digest(workload),
         )
         from folioview_shared.encrypted.executor_trust import validate_executor_schema
 
         validate_executor_schema("ExecutorBinding", binding)
-        key = secrets.token_bytes(32)
         state = {
             "profile": PROFILE,
             "identityDigest": identity_digest(binding),
             "sequence": 1,
-            "keys": {name: k.export(private_key=True, as_dict=True) for name, k in keys.items()},
+            "keys": {n: k.export(private_key=True, as_dict=True) for n, k in self.keys.items()},
             "outbox": {},
             "receipts": [],
         }
-        wrapped = wrapper.wrap(key, binding)
-        head = snapshots.put(seal(state, key, binding))
-        from urllib.parse import urlsplit
-
-        hostname = urlsplit(binding["audience"]).hostname
-        private = serialization.load_pem_private_key(
-            keys["tls"].export_to_pem(private_key=True, password=None), password=None
-        )
-        csr = (
-            x509.CertificateSigningRequestBuilder()
-            .subject_name(x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, hostname)]))
-            .add_extension(x509.SubjectAlternativeName([x509.DNSName(hostname)]), critical=False)
-            .sign(private, hashes.SHA256())
-            .public_bytes(serialization.Encoding.PEM)
-            .decode()
-        )
+        wrapped = self.wrapper.wrap(self.dek, binding)
+        head = self.snapshots.put(seal(state, self.dek, binding))
         statement = {
             "profile": PROFILE,
-            "action": "initialize",
-            "permitFingerprint": signing_input_fingerprint(permit),
+            "action": "finalize",
+            "issuer": draft["issuer"],
+            "permitFingerprint": signing_input_fingerprint(self.permit),
+            "offerDigest": digest(self.offer),
+            "finalizationFingerprint": fingerprint,
             "binding": binding,
             "initialStateHead": head,
             "wrappedKeyDigest": digest(wrapped),
-            "csrDigest": digest(csr),
+            "csrDigest": digest(self.csr),
         }
-        # Creation attestor has a separate fixed audience/profile and is never an HTTP relay.
-        evidence = attestation.issue_creation(statement)
-        require(int(time.time()) < p["expiresAt"] if now is None else now < p["expiresAt"])
-        offer = {
+        evidence = self.attestation.issue_creation(statement)
+        require(int(self.clock()) < p["expiresAt"])
+        final = {
             "profile": PROFILE,
             "binding": binding,
-            "agentSigningJwk": public(keys["signing"]),
-            "agentEncryptionJwk": public(keys["encryption"]),
-            "tlsJwk": public(keys["tls"]),
+            "workload": workload,
+            **{
+                k: self.offer[k]
+                for k in ("agentSigningJwk", "agentEncryptionJwk", "tlsJwk", "certificateRequest")
+            },
             "initialStateHead": head,
             "wrappedStateKey": wrapped,
-            "certificateRequest": csr,
-            "permit": permit,
+            "permit": self.permit,
+            "offerDigest": digest(self.offer),
+            "finalization": signed,
             "creationAttestation": evidence,
         }
-        enrollment_objects.create(identity + "-offer", offer)
+        # Publish only after both fresh owner approval and final-bound sealing.
+        self.finalization, self.prepared_offer = fingerprint, final
+        return self._publish()
+
+    def _publish(self):
+        from google.api_core.exceptions import PreconditionFailed
+
+        try:
+            self.objects.create(self.identity + "-offer", self.prepared_offer)
+        except PreconditionFailed:
+            require(self.objects.read(self.identity + "-offer") == self.prepared_offer)
+        self.final_offer = self.prepared_offer
+        self.stop()
+        return self.result()
+
+    def result(self):
+        require(self.final_offer is not None)
         return {
             "profile": PROFILE,
-            "enrollmentId": identity,
-            "stateHead": head,
+            "enrollmentId": self.identity,
+            "stateHead": self.final_offer["initialStateHead"],
+            "status": "finalized",
             "enrolled": False,
             "contentServiceEnabled": False,
         }
 
-    return safe(create)
+    def stop(self):
+        self.keys = self.dek = None
+
+
+def initialize(
+    draft, permit, *, root_jwk, enrollment_objects, snapshots, wrapper, attestation, now=None
+):
+    """Prepare only. Final sealing requires the fresh second Root control."""
+
+    def prepare():
+        from .contracts import clone
+
+        draft_value = closed(
+            draft,
+            {
+                "ownerSubject",
+                "vaultId",
+                "connectionId",
+                "agentId",
+                "clientId",
+                "provider",
+                "providerClientId",
+                "identityEpoch",
+                "issuer",
+                "audience",
+                "policyJwk",
+                "recipientKeyIds",
+                "scope",
+                "workload",
+                "creationWorkload",
+                "kmsRecoveryKey",
+                "snapshotBucket",
+            },
+        )
+        validate_schema("PublicJWK", root_jwk)
+        validate_schema("PublicJWK", draft_value["policyJwk"])
+        clock = time.time if now is None else lambda: now
+        p = verify_jws(permit, root_jwk, typ="fv-control+jws")
+        closed(p, {"profile", "action", "draftDigest", "operationId", "issuedAt", "expiresAt"})
+        validate_schema("OperationIdentifier", p["operationId"])
+        require(
+            p["profile"] == PROFILE
+            and p["action"] == "initialize"
+            and p["draftDigest"] == digest(draft_value)
+            and type(p["issuedAt"]) is int
+            and type(p["expiresAt"]) is int
+            and p["issuedAt"] <= int(clock()) < p["expiresAt"] <= p["issuedAt"] + 300
+        )
+        creation = draft_value["creationWorkload"]
+        runtime = draft_value["workload"]
+        require(
+            type(creation) is dict
+            and type(runtime) is dict
+            and creation["imageDigest"] == runtime["imageDigest"]
+            and creation["args"] == ["python", "-m", "app.initialize"]
+            and runtime["args"] == ["python", "-m", "app.main"]
+        )
+        return PendingCreation(
+            clone(draft_value),
+            clone(permit),
+            clone(root_jwk),
+            enrollment_objects,
+            snapshots,
+            wrapper,
+            attestation,
+            clock,
+        )
+
+    return safe(prepare)

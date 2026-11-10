@@ -1,6 +1,7 @@
 """One-shot, explicitly enabled measured creation entry point; never a runtime fallback."""
 
 import os
+import time
 
 from folioview_shared.encrypted.jsonutil import canonical_json, strict_json_loads
 
@@ -24,18 +25,32 @@ def main():
 
     draft, permit, root = read("EXECUTOR_DRAFT"), read("EXECUTOR_PERMIT"), read("EXECUTOR_ROOT_JWK")
     attestation = CreationAttestation(draft["issuer"])
+    pending = None
     try:
-        result = initialize(
+        objects = EnrollmentObjects(draft["snapshotBucket"])
+        pending = initialize(
             draft,
             permit,
             root_jwk=root,
-            enrollment_objects=EnrollmentObjects(draft["snapshotBucket"]),
+            enrollment_objects=objects,
             snapshots=GCSSnapshots(draft["snapshotBucket"]),
             wrapper=KeyWrapper(draft["kmsRecoveryKey"]),
             attestation=attestation,
         )
-        print(canonical_json(result).decode())
+        print(canonical_json(pending.summary()).decode(), flush=True)
+        wait = os.environ.get("EXECUTOR_CREATION_WAIT_SECONDS", "600")
+        require(wait.isdigit() and 1 <= int(wait) <= 1800)
+        deadline = time.monotonic() + int(wait)
+        while time.monotonic() < deadline:
+            command = objects.read(pending.identity + "-finalization")
+            if command is not None:
+                print(canonical_json(pending.finalize(command)).decode(), flush=True)
+                return
+            time.sleep(2)
+        require(False)
     finally:
+        if pending is not None:
+            pending.stop()
         attestation.close()
 
 

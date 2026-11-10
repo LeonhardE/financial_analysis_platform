@@ -18,7 +18,16 @@ from folioview_shared.encrypted.jsonutil import (
     strict_json_loads,
 )
 
-from .contracts import POLICY, closed, digest, operation_id, require, safe
+from .contracts import (
+    POLICY,
+    AccessDenied,
+    ScopeDenied,
+    closed,
+    digest,
+    operation_id,
+    require,
+    safe,
+)
 
 
 class PolicyClient:
@@ -85,6 +94,15 @@ class PolicyClient:
                 content=raw,
                 follow_redirects=False,
             ) as response:
+                if response.status_code in {401, 403} and not workload:
+                    rejected = bytearray()
+                    for chunk in response.iter_bytes():
+                        rejected.extend(chunk)
+                        require(len(rejected) <= 4096)
+                    error = strict_json_loads(bytes(rejected), max_bytes=4096)
+                    if error == {"error": "insufficient_scope"}:
+                        raise ScopeDenied
+                    raise AccessDenied
                 require(response.status_code == 200)
                 require(
                     response.headers.get("content-type", "").split(";")[0] == "application/json"

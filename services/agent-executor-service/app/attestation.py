@@ -79,21 +79,22 @@ class CreationAttestation:
 
     def issue_creation(self, statement):
         def issue():
-            closed(
-                statement,
-                {
-                    "profile",
-                    "action",
-                    "permitFingerprint",
+            from .contracts import PROFILE
+
+            fields = {"profile", "action", "issuer", "permitFingerprint", "offerDigest"}
+            require(type(statement) is dict and statement.get("action") in {"offer", "finalize"})
+            if statement["action"] == "finalize":
+                fields |= {
+                    "finalizationFingerprint",
                     "binding",
                     "initialStateHead",
                     "wrappedKeyDigest",
                     "csrDigest",
-                },
-            )
+                }
+            closed(statement, fields)
             require(
-                statement["action"] == "initialize"
-                and statement["binding"]["issuer"] + "/enrollment" == self.audience
+                statement["profile"] == PROFILE
+                and statement["issuer"] + "/enrollment" == self.audience
             )
             with self.client.stream(
                 "POST",

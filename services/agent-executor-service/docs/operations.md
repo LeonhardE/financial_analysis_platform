@@ -20,22 +20,51 @@ No Root/Passkey secret is supplied to the workload.
 Before generating original keys it creates an exclusive enrollment reservation
 for the owner/vault/connection/epoch. Creation IAM must allow create-only access
 to this namespace and deny overwrite/delete/restore. A crashed reservation cannot
-silently regenerate; review a separate new ceremony/identity epoch. Generate three
-distinct original P-256 private keys and a random 32-byte DEK only inside the
-approved boundary. A fixed KMS Encrypt-only role wraps that DEK with the exact
-identity AAD. The real SDK request/response CRCs and returned key version are
-checked. The runtime receives no KMS Encrypt/Decrypt permission.
+silently regenerate; review a separate new ceremony/identity epoch. The draft
+contains no premature `bindingFingerprint`: the actual device command includes
+the yet-unknown Agent public keys. `creationWorkload` names the separately approved
+`python -m app.initialize` command; `workload` names `python -m app.main` in the
+same image. The original three P-256 private keys and random 32-byte DEK remain
+inside the measured process while the Owner completes public enrollment.
 
-The encrypted genesis state, public key baseline, original TLS CSR, wrapped DEK,
-permit and data-bound creation attestation become an exclusive public enrollment
-offer. The token audience is the fixed Policy origin plus `/enrollment`, and its
-nonce covers the full offer statement. The stdout summary contains only public
-IDs/digests and explicitly says `enrolled=false`, `contentServiceEnabled=false`.
-The offer is not a Policy release credential. The owner must independently verify
-its Google claims, approved creation workload/current instance, nonce, Root permit
-and first keys, obtain a certificate for that CSR, then Root-sign the exact final
-Policy/Hub enrollment. Losing genesis state after enrollment requires explicit
-migration; never delete its reservation to recreate the same identity.
+The first `executor-enrollment/{enrollmentId}-pending.json` object contains the
+public keys, original TLS CSR, draft/permit and data-bound creation attestation.
+Its audience is the fixed Policy origin plus `/enrollment`; the nonce is the
+complete internally constructed statement digest. The Owner verifies actual
+Google claims/current creation VM, Root permit and first keys, certifies the Agent
+keys in its Root directory, and creates the actual device-signed Hub binding.
+Only then can the Owner know the binding fingerprint and independently reviewed
+native configuration hash. This order avoids wrapping the DEK to a provisional
+identity that Policy could never recover.
+
+The Owner supplies a fresh Root `fv-control+jws` over exactly
+`{profile: "folioview.agent-executor.v1", action: "finalize", offerDigest,
+bindingFingerprint, workload, operationId, issuedAt, expiresAt}` (at most 300
+seconds). `offerDigest` covers the complete pending object, including its
+attestation. Finalization fixes the actual binding fingerprint and may finalize
+only the runtime environment; image, command, instance, identity, scope and
+recipients stay fixed by the draft. The CLI polls only the fixed
+`executor-enrollment/{enrollmentId}-finalization.json` public control object,
+using generation/CRC-checked bounded reads, for 600 seconds by default
+(`EXECUTOR_CREATION_WAIT_SECONDS`, range 1–1800). This inbox is signed public
+metadata; it carries no Root secret, plaintext or general-purpose key operation.
+The Owner workflow needs its own narrowly scoped create-only inbox permission.
+
+After valid finalization, KMS Encrypt-only wraps the DEK with the **final** identity
+AAD. Actual protobuf CRCs/key-version checks apply. The encrypted genesis state,
+original public keys/CSR, wrapped DEK, final binding/workload and finalization-bound
+attestation become the exclusive `{enrollmentId}-offer.json`. An unknown final
+offer write retries the same prepared keys/head/ciphertext and checks existing
+bytes on a create-only collision. The process releases private references when
+done. Normal runtime receives no KMS Encrypt/Decrypt permission.
+
+Both stdout summaries contain public IDs/digests only and explicitly report
+`enrolled=false`, `contentServiceEnabled=false`. Neither offer grants Policy
+release authority. The Owner must verify the final attestation against the
+approved creation workload and exact statement, obtain the original CSR's server
+certificate, then sign the final Policy/Hub enrollment and activation. Losing
+genesis after enrollment requires explicit migration; never erase a reservation
+to recreate the same identity. WEB-015 owns the Owner-facing ceremony.
 
 Actual creation-workload pins, KMS/IAM restrictions and owner review are mandatory
 INF-012/INF-011 deployment evidence, not inferred from a CLI/fixture success.
@@ -61,7 +90,8 @@ unaudited mounts and broad operator IAM must be denied by the deployment.
 
 `/health` reports locked/keyring-restored metadata and never claims continuing
 financial permission. `/api/v1/executor/identity` returns the enrolled public
-keys/head only after recovery. `/mcp` fails closed in this core. There are no key
+keys/head only after recovery. The separately enabled [native MCP surface](native-mcp.md) requires provider mTLS
+and independent OAuth. There are no key
 export, arbitrary sign/decrypt, Root bootstrap or attestation relay endpoints.
 Diagnostics omit request bodies, private state, tokens, paths containing content
 and raw exception details. Health/probe success does not imply live attestation.
@@ -84,12 +114,12 @@ the same versions on their platform. Run target tests, the offline probe, full
 root `npm run check` and the commit hook. CI additionally builds the image and
 runs the REPO-003 network-disabled/read-only probe.
 
-Tests include real subprocess recovery from a backup copy, real TLS 1.3 handshake,
+The 68 tests include real subprocess recovery from a backup copy, real TLS 1.3 handshake,
 JOSE/AES tampering and original-key challenges, wrong authority/scope, old boot
 fencing, unknown-CAS response recovery, code upgrade versus epoch migration,
 Google KMS protobuf/CRC boundaries and immutable cloud-object conditions. The
 independent wire fixture is synthetic. Local cross-process integration with the
-merged Policy implementation is evidence recorded under ignored `local-docs/`;
+merged Hub and Policy implementations is evidence recorded under ignored `local-docs/`;
 this target's CI does not require another service's source or dependencies.
 
 Cloud provisioning, actual attested creation/restoration/negative IAM tests,

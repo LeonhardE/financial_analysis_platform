@@ -39,9 +39,27 @@ def validate_state(state, binding):
 
 
 def _validate_state(state, binding):
+    fields = {"profile", "identityDigest", "sequence", "keys", "outbox", "receipts"}
+    if type(state) is dict and "hubPins" in state:
+        fields.add("hubPins")
+        pins = closed(
+            state["hubPins"],
+            {"registrySequence", "checkpointDigest", "consentVersion", "consentDigest"},
+        )
+        require(
+            type(pins["registrySequence"]) is int
+            and pins["registrySequence"] >= 1
+            and type(pins["consentVersion"]) is int
+            and pins["consentVersion"] >= 0
+        )
+        validate_schema("Digest", pins["checkpointDigest"])
+        if pins["consentVersion"]:
+            validate_schema("Digest", pins["consentDigest"])
+        else:
+            require(pins["consentDigest"] is None)
     closed(
         state,
-        {"profile", "identityDigest", "sequence", "keys", "outbox", "receipts"},
+        fields,
         maximum=MAX_SNAPSHOT,
     )
     require(state["profile"] == PROFILE and state["identityDigest"] == identity_digest(binding))

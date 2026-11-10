@@ -1,7 +1,7 @@
 [project]
 name = "agent-executor-service"
 version = "0.1.0"
-description = "Measured original-key recovery and encrypted executor state core"
+description = "Measured original-key recovery and provider-authenticated encrypted native analysis"
 requires-python = ">=3.13"
 
 [tool.ruff]
