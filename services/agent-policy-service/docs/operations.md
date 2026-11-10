@@ -94,3 +94,22 @@ remain independently deployable and unchanged.
 - Google, KMS, GCS and Firestore calls have bounded requests and no implicit application retry;
   only CAS contention is retried. Missing latest state fails closed. No credentials, claims or
   submitted private markers appear in error bodies or access logs.
+
+## First-key and certificate public reviews
+
+The Owner uses the authenticated public review routes in the
+[protocol guide](protocol.md#owner-original-enrollment-and-certificate-reviews)
+after explicit Root bootstrap. They are safe to expose while issuance/release
+remain off, subject to the configured Owner authentication and actual service
+reachability policy. They read the current witness and fixed Google/current-VM
+metadata and sign only closed review receipts. No Root private key, plaintext
+analysis, secret unwrapping or state mutation is part of a review.
+
+Keep the Owner client unlocked through the bounded ceremony: verify the pending
+review immediately, obtain the original CSR's public CA chain while creation
+waits, finalize the original keys, then obtain/verify the final review with that
+chain before signing registration. Do not backdate a receipt or trust an unsigned
+local success report. Losing or expiring the ceremony never permits reservation
+removal or silent key regeneration. Future renewal uses the current connection's
+certificate review plus a fresh purpose-limited Root certificate control.
+No review, bootstrap, CA request or deployment is executed by merging this source.

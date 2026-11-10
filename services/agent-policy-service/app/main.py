@@ -277,6 +277,26 @@ def owner_state(connection: str, request: Request, user: Owner, service: Service
     return bounded(service.owner_state(user.uid, connection))
 
 
+@app.post("/api/v1/enrollment-reviews")
+async def enrollment_review(request: Request, user: Owner, service: Service):
+    from .enrollment_review import review
+
+    transport(request)
+    value = await body(request, {"request"}, maximum=132096)
+    return await run_in_threadpool(lambda: bounded(review(service, user.uid, value["request"])))
+
+
+@app.post("/api/v1/connections/{connection}/certificate-reviews")
+async def certificate_review(connection: str, request: Request, user: Owner, service: Service):
+    from .enrollment_review import certificate_review as review
+
+    transport(request)
+    value = await body(request, {"request"}, maximum=18432)
+    return await run_in_threadpool(
+        lambda: bounded(review(service, user.uid, connection, value["request"]))
+    )
+
+
 @app.post("/api/v1/connections/{connection}/controls", status_code=201)
 async def controls(connection: str, request: Request, user: Owner, service: Service):
     transport(request)
