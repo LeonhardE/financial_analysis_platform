@@ -4,6 +4,7 @@ ENV PYTHONUNBUFFERED=1
 ENV PYTHONPATH=/app/common
 ENV EXECUTOR_ENABLED=0
 ENV EXECUTOR_CREATION_ENABLED=0
+ENV EXECUTOR_NATIVE_ENABLED=0
 WORKDIR /app
 COPY services/agent-executor-service/requirements.lock ./requirements.lock
 RUN pip install --no-cache-dir --only-binary=:all: --require-hashes --no-deps -r requirements.lock

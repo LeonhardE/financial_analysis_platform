@@ -61,7 +61,9 @@ or external submission; returning a lease does not make permission permanent.
 Snapshots are AES-256-GCM with a random 96-bit nonce and canonical associated
 identity metadata. Their SHA-256 content address is the Policy state head.
 The plaintext contains only the original executor keys, monotonic sequence,
-bounded private outbox and original receipt metadata. There is no Owner Root,
+bounded private outbox, original receipt metadata and optional monotonic Hub
+registry/consent pins. Original six-field genesis snapshots remain readable.
+There is no Owner Root,
 Passkey or token field. AAD excludes only the workload digest, preserving the
 original keyring for an explicit Root-approved code upgrade; an epoch/key
 migration changes AAD and cannot relabel or open the old keyring.
@@ -76,11 +78,11 @@ requires restore from the live Policy head. It never resumes from a local pointe
 
 Outbox operation IDs and exact bytes survive a new process/backup copy. Historical
 operations/receipts remain inert across code upgrades; they do not authorize a
-new binding or replay an old head. Business integration must validate the encrypted
-report carrier and recheck Hub/source/Run/recipient fences before transmitting
-those bytes. It must persist before first submission and distinguish staging,
-report and acknowledgement operations. This core has no report generator or
-financial network destination.
+new binding or replay an old head. The [native integration](native-mcp.md) validates
+the encrypted report carrier and rechecks Hub/source/Run/recipient fences before
+transmitting those bytes. It persists before first submission and distinguishes
+staging, report and acknowledgement operations. The model produces report content;
+the executor's only content destination is its fixed ciphertext-only Hub.
 
 Limits: 2 MiB encrypted snapshot, 16 outbox items (589,824 bytes each within the
 overall snapshot limit), 32 receipts, 64 KiB public config/request, 128 KiB Policy
