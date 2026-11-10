@@ -114,3 +114,10 @@ variable "instance_protection_enabled" {
   default     = true
   nullable    = false
 }
+
+variable "acme_http01_enabled" {
+  description = "Separate explicit opt-in for public HTTP-01 token objects on port 80. No TLS termination, state, config, private key or analysis endpoint is published."
+  type        = bool
+  default     = false
+  nullable    = false
+}

@@ -159,3 +159,34 @@ References: [Executor operation and public inputs](../../../../../../services/ag
 [Google classic TCP proxy setup](https://docs.cloud.google.com/load-balancing/docs/tcp/setting-up-tcp),
 [production metadata](https://docs.cloud.google.com/confidential-computing/confidential-space/docs/reference/metadata-variables),
 [pinned provider VM contract](https://github.com/hashicorp/terraform-provider-google/blob/v7.28.0/website/docs/r/compute_instance.html.markdown).
+
+## Owner administration and optional certificate challenge
+
+The separate [Owner administrator root](../../../independent/agent-executor/README.md)
+and closed public source marker opt this target into the protected saved-plan
+lane. They do not register it with ordinary operators or activate any trigger.
+Public enrollment/config publication has a separate narrow Owner identity.
+
+`acme_http01_enabled=false` keeps HTTP80 and the token bucket absent. Explicitly
+opting in later prepares a separate public-get-only bucket, no CDN, one-day token
+cleanup and classic HTTP80 frontend on the same global Premium EXTERNAL IP as the
+classic TCP443 frontend. Disjoint ports permit address sharing. The HTTP frontend
+serves only public ACME token bytes; unknown keys return bucket errors. All objects
+in this dedicated bucket are public by design, because `allUsers` cannot use IAM
+conditions. Publishers are prefix restricted; no config, enrollment, state, private
+key or financial endpoint belongs there. Organization public-access prevention may
+block it; resolve that explicitly before activating, never weaken private buckets.
+The original TLS443 stream still terminates only in the measured Executor.
+
+Use the [Owner tool](../../../../../../services/agent-executor-service/docs/operations.md#owner-public-artifact-tools)
+to prepare a CSR-only Certbot command and exact token hooks. No CA account, terms,
+certificate request, cloud write, listener activation or renewal task runs on a
+source merge. Every renewed chain needs original SPKI/SAN/trust validation and
+fresh Root certificate approval before CAS publication. IP certificates are short
+lived; repeat `certonly --csr` with the same original public CSR rather than
+regenerating a key or assuming Certbot's ordinary lineage renewal manages it.
+
+References: [forwarding address sharing](https://docs.cloud.google.com/load-balancing/docs/forwarding-rule-concepts),
+[Storage IAM conditions](https://docs.cloud.google.com/storage/docs/access-control/iam),
+[Certbot CSR/manual hooks](https://eff-certbot.readthedocs.io/en/stable/using.html),
+[IP short-lived certificates](https://letsencrypt.org/2026/03/11/shorter-certs-certbot.html).

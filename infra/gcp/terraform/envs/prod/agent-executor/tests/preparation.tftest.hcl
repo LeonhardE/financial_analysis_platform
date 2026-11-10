@@ -255,3 +255,23 @@ run "second_project_and_region_do_not_reuse_author_infrastructure" {
     error_message = "Every resource/identity/location derives from the selected target, never a checked-in author deployment."
   }
 }
+
+run "certificate_frontend_is_off_without_explicit_opt_in" {
+  command = plan
+  variables { stage = "resources" }
+  assert {
+    condition     = length(google_storage_bucket.challenge) == 0 && length(google_compute_target_http_proxy.challenge) == 0 && length(google_compute_global_forwarding_rule.challenge) == 0
+    error_message = "Source merge/resources stage alone cannot expose public HTTP."
+  }
+}
+run "http01_contains_only_public_tokens_separate_from_tls_and_private_buckets" {
+  command = plan
+  variables {
+    stage               = "resources"
+    acme_http01_enabled = true
+  }
+  assert {
+    condition     = google_storage_bucket.challenge[0].name == "demo-executor-alpha-executor-acme" && google_storage_bucket.challenge[0].name != google_storage_bucket.config[0].name && google_storage_bucket.challenge[0].name != google_storage_bucket.state[0].name && google_storage_bucket.challenge[0].soft_delete_policy[0].retention_duration_seconds == 0 && !google_compute_backend_bucket.challenge[0].enable_cdn && google_storage_bucket_iam_member.challenge_public[0].member == "allUsers" && google_project_iam_custom_role.config[0].permissions == toset(["storage.objects.get"]) && google_compute_global_forwarding_rule.challenge[0].port_range == "80" && google_compute_global_forwarding_rule.challenge[0].load_balancing_scheme == "EXTERNAL" && google_compute_global_forwarding_rule.tls[0].port_range == "443" && google_compute_backend_service.tls[0].protocol == "TCP" && length(google_compute_instance.executor) == 0
+    error_message = "Only separate public token objects are exposed on HTTP80; TLS443 remains opaque TCP to the TEE."
+  }
+}

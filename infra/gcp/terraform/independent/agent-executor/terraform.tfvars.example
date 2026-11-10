@@ -1,0 +1,13 @@
+# Synthetic only; does not select or create an actual project.
+enabled = false
+admin = {
+  project_id = "demo-executor-alpha"
+  region = "northamerica-northeast2"
+  repository_id = "projects/demo-executor-alpha/locations/northamerica-northeast2/connections/owner/repositories/folio"
+  runtime_account_id = "executor-runtime"
+  creation_account_id = "executor-creation"
+}
+lane = null
+execution_enabled = false
+workload_access_enabled = false
+workload_act_as_enabled = false
