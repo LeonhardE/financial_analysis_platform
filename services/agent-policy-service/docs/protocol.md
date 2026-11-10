@@ -213,3 +213,47 @@ it supplies no account credential and no financial execution authority. The trus
 keep all financial tools closed until a normal current OAuth request and operation-specific
 current policy lease have been verified. Old checkpoints, missing authority, wrong images and
 wrong original keys remain failures on both transports.
+
+## Owner original-enrollment and certificate reviews
+
+`POST /api/v1/enrollment-reviews` accepts the contract header/version and a closed
+`request` containing `pendingOffer`, nullable `finalOffer` and nullable
+`certificateChain`. The bounded public-only request requires the configured
+Firebase Owner and an existing Root-bootstrapped current witness/domain. Issuance
+and key release may remain off; this route neither bootstraps nor enrolls anything.
+
+Policy verifies the original Root initialize control/draft, exact configured
+Owner/vault/channel/KMS identity, three distinct public P-256 keys and signed
+original CSR/SAN. Creation/runtime must share the fixed image/command/host while
+using distinct accounts and exact audiences. A final offer must retain the original
+keys/CSR/permit, match the Root finalization and full binding, original encrypted
+head and wrapped key. Policy reconstructs the entire offer/finalize statement;
+the caller cannot supply an alternative nonce. Existing fixed Google JWKS,
+production/debug/override/environment checks and actual current VM lookup verify
+the evidence. No caller-provided keys, VM response or `verified` flag replaces them.
+The live witness is checked again after proof verification.
+
+The result is `{review: <Policy fv-control+jws>}` with fixed profile
+`folioview.executor-enrollment-review.v1`, stage/domain/Owner/vault/Root/Policy
+pins, complete pending/selected offer and draft/workload/statement digests,
+current numeric instance ID, nullable certificate digest, and at most 120 seconds
+validity. It grants no content use, enrollment, key release or generic signing.
+The initial Root control may be historical: the fresh Google token/current VM
+prove its present original-key ceremony, and the measured creator enforces fresh
+controls when generating/finalizing. A browser must verify the receipt while fresh
+and independently pin its policy key/domain before certifying keys.
+
+A supplied final certificate chain is validated against the installed CA trust
+store, exact original TLS SPKI and single DNS/IP SAN, server-certificate policy and
+validity. Its digest covers the exact PEM bytes. It must be available before the
+fresh final proof expires; prepare the CSR challenge while the creator is waiting.
+Do not weaken proof freshness or regenerate keys to retry an expired ceremony.
+
+`POST /api/v1/connections/{connection}/certificate-reviews` accepts only
+`request: {certificateChain}`. It uses the current registered original TLS key and
+binding, validates that exact chain and checks version/head again before signing.
+Its fixed `folioview.executor-certificate-review.v1` receipt pins domain,
+binding digest, certificate digest, current version/head and at most 120 seconds
+validity. Revoked connections are refused. Renewal still needs a fresh Root
+`certificate` control and CAS publication; this endpoint cannot approve itself,
+change the original key or extend an execution approval.
