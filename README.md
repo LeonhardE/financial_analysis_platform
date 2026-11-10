@@ -50,6 +50,7 @@ services/config-service/         Versioned private preferences
 services/portfolio-service/      Encrypted holdings snapshots and source lifecycle
 services/agent-hub-service/      Vaults, tasks, agent authority, Runs, results and Inbox
 services/agent-policy-service/   Independent Root-approved OAuth, leases and key-release policy (build-only)
+services/agent-executor-service/ Measured original-key recovery and encrypted state (Confidential VM, build-only)
 services/common/                 Shared Python authentication and encrypted wire contracts
 scripts/                         Registered targets, isolated tests and CI/security tooling
 infra/gcp/                       Independent Cloud Build releases and reviewed Terraform execution
@@ -75,6 +76,7 @@ services/market-data-service/.venv/bin/pip install \
   -e ./services/common
 # Install the new independent policy target dependencies into the check environment.
 services/market-data-service/.venv/bin/pip install -r services/agent-policy-service/requirements-dev.txt
+services/market-data-service/.venv/bin/pip install -r services/agent-executor-service/requirements-dev.txt
 ```
 
 The shared development environment retains its established path. Production images install their
@@ -95,6 +97,10 @@ PYTHONPATH=services/common services/market-data-service/.venv/bin/uvicorn app.ma
 | `portfolio-service`    | 8003                 | [Portfolio](services/portfolio-service/README.md)                    |
 | `agent-hub-service`    | 8004                 | [Agent Hub](services/agent-hub-service/README.md)                    |
 | `agent-policy-service` | 8005                 | [Agent Policy](services/agent-policy-service/README.md) (build-only) |
+
+The [Confidential VM executor](services/agent-executor-service/README.md) is build-only.
+Its offline probe runs without cloud credentials; normal startup restores the original keys
+and binds TLS inside the measured workload on port 8443. It is not a local Cloud Run API.
 
 ```bash
 npm run dev:web

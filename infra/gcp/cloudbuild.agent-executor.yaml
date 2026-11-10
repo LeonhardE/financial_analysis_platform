@@ -1,0 +1,21 @@
+# Build-only registration. INF-012 owns provisioning and separate activation.
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - --platform=linux/amd64
+      - --file=services/agent-executor-service/Dockerfile
+      - --tag=${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPOSITORY}/agent-executor-api:$BUILD_ID
+      - .
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - push
+      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPOSITORY}/agent-executor-api:$BUILD_ID
+images:
+  - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPOSITORY}/agent-executor-api:$BUILD_ID
+substitutions:
+  _REGION: ""
+  _REPOSITORY: ""
+options:
+  logging: CLOUD_LOGGING_ONLY
+timeout: 1200s
