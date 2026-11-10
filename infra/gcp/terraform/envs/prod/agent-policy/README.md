@@ -183,3 +183,12 @@ References: [Policy protocol/operations](../../../../../../services/agent-policy
 [KMS resource-level grants](https://docs.cloud.google.com/kms/docs/reference/permissions-and-roles),
 [named database IAM](https://firebase.google.com/docs/firestore/manage-databases#configure_access_permissions_for_your_databases),
 [custom-audience relying parties](https://docs.cloud.google.com/confidential-computing/confidential-space/docs/connect-external-resources).
+
+## Prepared Owner administrator lane
+
+The separate [Policy administrator root](../../../independent/agent-policy/README.md)
+now prepares this target’s disabled Owner lane and gated infrastructure access.
+The workload’s `owner-lane.consumer.json` closes its public inputs and registers
+only its indexed local configuration controller. Default source remains inert;
+actual projects, administrator backend, budget, source connection and approved
+bootstrap are still prerequisites. No lane or workload was provisioned by merging.

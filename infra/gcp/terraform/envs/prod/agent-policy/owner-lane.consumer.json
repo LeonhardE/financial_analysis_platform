@@ -1,0 +1,205 @@
+{
+  "schemaVersion": 1,
+  "target": "agent-policy",
+  "inputs": {
+    "type": "object",
+    "properties": {
+      "stage": {
+        "type": "string",
+        "max": 16,
+        "enum": ["none", "resources", "base"]
+      },
+      "deployment": {
+        "type": "object",
+        "properties": {
+          "project_id": {
+            "type": "string",
+            "max": 30,
+            "pattern": "[a-z][a-z0-9-]{4,28}[a-z0-9]"
+          },
+          "region": {
+            "type": "string",
+            "max": 64,
+            "pattern": "[a-z]+(?:-[a-z0-9]+)+[0-9]"
+          },
+          "artifact_repository": {
+            "type": "string",
+            "max": 63,
+            "pattern": "[a-z][a-z0-9-]{1,62}"
+          },
+          "runtime_account_id": {
+            "type": "string",
+            "max": 30,
+            "pattern": "[a-z][a-z0-9-]{4,28}[a-z0-9]"
+          },
+          "build_account_id": {
+            "type": "string",
+            "max": 30,
+            "pattern": "[a-z][a-z0-9-]{4,28}[a-z0-9]"
+          },
+          "creation_image": {
+            "type": "string",
+            "max": 512,
+            "pattern": "[a-z0-9-]+-docker\\.pkg\\.dev/[a-z0-9-]+/[a-z0-9-]+/agent-policy-api@sha256:[a-f0-9]{64}",
+            "nullable": true
+          },
+          "operator_project_ids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "max": 30,
+              "pattern": "[a-z][a-z0-9-]{4,28}[a-z0-9]"
+            },
+            "max": 8,
+            "min": 1
+          },
+          "snapshot_retention_seconds": {
+            "type": "integer",
+            "min": 604800,
+            "max": 2592000
+          }
+        },
+        "required": [
+          "project_id",
+          "region",
+          "artifact_repository",
+          "runtime_account_id",
+          "build_account_id",
+          "operator_project_ids"
+        ]
+      },
+      "authority": {
+        "type": "object",
+        "properties": {
+          "owner_subject": {
+            "type": "string",
+            "max": 64,
+            "pattern": "[a-f0-9]{64}"
+          },
+          "vault_id": {
+            "type": "string",
+            "max": 128,
+            "pattern": "[A-Za-z0-9_-]{1,128}"
+          },
+          "state_epoch": {
+            "type": "string",
+            "max": 128,
+            "pattern": "[A-Za-z0-9_-]{1,128}"
+          },
+          "root_jwk": {
+            "type": "object",
+            "properties": {
+              "kty": {
+                "type": "string",
+                "max": 2,
+                "enum": ["EC"]
+              },
+              "crv": {
+                "type": "string",
+                "max": 5,
+                "enum": ["P-256"]
+              },
+              "x": {
+                "type": "string",
+                "max": 43,
+                "pattern": "[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]"
+              },
+              "y": {
+                "type": "string",
+                "max": 43,
+                "pattern": "[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]"
+              }
+            }
+          },
+          "policy_jwk": {
+            "type": "object",
+            "properties": {
+              "kty": {
+                "type": "string",
+                "max": 2,
+                "enum": ["EC"]
+              },
+              "crv": {
+                "type": "string",
+                "max": 5,
+                "enum": ["P-256"]
+              },
+              "x": {
+                "type": "string",
+                "max": 43,
+                "pattern": "[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]"
+              },
+              "y": {
+                "type": "string",
+                "max": 43,
+                "pattern": "[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]"
+              }
+            }
+          },
+          "issuer": {
+            "type": "string",
+            "max": 1024,
+            "pattern": "https://[a-z0-9]+(?:[.-][a-z0-9]+)*"
+          },
+          "web_origin": {
+            "type": "string",
+            "max": 1024,
+            "pattern": "https://[a-z0-9]+(?:[.-][a-z0-9]+)*"
+          },
+          "executor_origin": {
+            "type": "string",
+            "max": 1024,
+            "pattern": "https://[a-z0-9]+(?:[.-][a-z0-9]+)*"
+          },
+          "native_client_id": {
+            "type": "string",
+            "max": 128,
+            "pattern": "[A-Za-z0-9_-]{1,128}"
+          },
+          "native_redirect_uris": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "max": 2048,
+              "pattern": "https://[a-z0-9]+(?:[.-][a-z0-9]+)*(?:/[A-Za-z0-9._~-]+)+"
+            },
+            "max": 4,
+            "min": 1
+          },
+          "auth_project_id": {
+            "type": "string",
+            "max": 30,
+            "pattern": "[a-z][a-z0-9-]{4,28}[a-z0-9]"
+          },
+          "executor_project_id": {
+            "type": "string",
+            "max": 30,
+            "pattern": "[a-z][a-z0-9-]{4,28}[a-z0-9]"
+          },
+          "creator_service_account": {
+            "type": "string",
+            "max": 128,
+            "pattern": "[a-z][a-z0-9-]+@[a-z][a-z0-9-]+\\.iam\\.gserviceaccount\\.com"
+          },
+          "executor_service_account": {
+            "type": "string",
+            "max": 128,
+            "pattern": "[a-z][a-z0-9-]+@[a-z][a-z0-9-]+\\.iam\\.gserviceaccount\\.com"
+          }
+        },
+        "nullable": true
+      },
+      "authority_enabled": {
+        "type": "boolean"
+      },
+      "key_release_enabled": {
+        "type": "boolean"
+      },
+      "public_invocation": {
+        "type": "boolean"
+      }
+    }
+  },
+  "controllers": ["module.agent_policy[0].terraform_data.configuration"],
+  "replacement": null
+}
