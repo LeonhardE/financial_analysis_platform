@@ -1,0 +1,19 @@
+# No trigger is registered by this file. Only a separate Owner administrator root may adopt it.
+steps:
+  - name: gcr.io/google.com/cloudsdktool/google-cloud-cli@sha256:8a50079dfc4b164aa5e83926bef5f9b305b93e80f82d40fabd836da4830dd08e
+    entrypoint: /usr/lib/google-cloud-sdk/platform/bundledpythonunix/bin/python3
+    args: [infra/gcp/terraform_tools.py, install, --directory=/workspace/.terraform-tools]
+  - name: gcr.io/google.com/cloudsdktool/google-cloud-cli@sha256:8a50079dfc4b164aa5e83926bef5f9b305b93e80f82d40fabd836da4830dd08e
+    entrypoint: /usr/lib/google-cloud-sdk/platform/bundledpythonunix/bin/python3
+    args:
+      - infra/gcp/owner_lane.py
+      - plan
+      - --target=${_TARGET}
+      - --build-id=$BUILD_ID
+      - --commit=$COMMIT_SHA
+      - --branch=$BRANCH_NAME
+      - --project=$PROJECT_ID
+      - --region=$LOCATION
+      - --terraform=/workspace/.terraform-tools/terraform
+options: { logging: CLOUD_LOGGING_ONLY }
+timeout: 1800s
