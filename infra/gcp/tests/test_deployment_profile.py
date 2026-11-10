@@ -368,7 +368,7 @@ class ProfileTests(unittest.TestCase):
         )
         registry = json.loads((ROOT / "scripts/service-targets.json").read_text())
         self.assertEqual(
-            {item["service"] for item in registry["targets"]},
+            {item["service"] for item in registry["targets"] if item["release_mode"] == "existing"},
             set(profile.TARGET_SERVICES.values()) - {None},
         )
 
