@@ -2,9 +2,12 @@
 
 ## Separate first-key ceremony
 
-Normal `python -m app.main` only restores. It never invokes initialization.
-First keys require the separate `python -m app.initialize` command, an explicitly
-enabled measured creation workload and a fresh Root-signed creation permit. Its
+Normal `python -m app.main` with creation disabled only restores. Missing state
+never changes that mode. First keys require explicitly selected creation mode
+(`EXECUTOR_CREATION_ENABLED=1`, runtime/native disabled), an approved measured
+creation workload and a fresh Root-signed creation permit. The same fixed image
+command dispatches this explicit mode to `app.initialize`; the manual
+`python -m app.initialize` entry remains available for separately approved use. Its
 public draft fixes owner/vault/connection, agent/native/provider client, epoch,
 Root scope/recipients, final workload, Policy key/domain, recovery CryptoKey and
 snapshot bucket. Root is pinned independently in the creation environment.
@@ -22,9 +25,14 @@ for the owner/vault/connection/epoch. Creation IAM must allow create-only access
 to this namespace and deny overwrite/delete/restore. A crashed reservation cannot
 silently regenerate; review a separate new ceremony/identity epoch. The draft
 contains no premature `bindingFingerprint`: the actual device command includes
-the yet-unknown Agent public keys. `creationWorkload` names the separately approved
-`python -m app.initialize` command; `workload` names `python -m app.main` in the
-same image. The original three P-256 private keys and random 32-byte DEK remain
+the yet-unknown Agent public keys. Production `creationWorkload` and `workload` both name the fixed
+`python -m app.main` image command, with separately approved exact mode environments.
+No command override is needed. A manually invoked `app.initialize` command must
+be explicitly approved separately; the production image rejects CMD overrides.
+Creation audience is exactly the Policy origin plus `/enrollment`; runtime
+audience is exactly that origin plus `/attestation`. A mismatched draft fails
+before reservation or key generation.
+The original three P-256 private keys and random 32-byte DEK remain
 inside the measured process while the Owner completes public enrollment.
 
 The first `executor-enrollment/{enrollmentId}-pending.json` object contains the
@@ -69,14 +77,56 @@ to recreate the same identity. WEB-015 owns the Owner-facing ceremony.
 Actual creation-workload pins, KMS/IAM restrictions and owner review are mandatory
 INF-012/INF-011 deployment evidence, not inferred from a CLI/fixture success.
 
+## Public configuration inside the TEE
+
+Production does not depend on populated host file mounts. Supply fixed
+`gs://<bucket>/executor-config/<path>.json` public-object references through
+`EXECUTOR_CONFIG_OBJECT` and, when native enabled, `EXECUTOR_NATIVE_CONFIG_OBJECT`.
+Creation uses `EXECUTOR_DRAFT_OBJECT`, `EXECUTOR_PERMIT_OBJECT` and
+`EXECUTOR_ROOT_JWK_OBJECT`. Each excludes its corresponding local file variable;
+there is no remote-to-local fallback, version search, arbitrary HTTP URL, query,
+fragment or path traversal. Reads pin the captured GCS generation, check declared
+and actual size, use CRC32C and bounded timeouts without application retries.
+Emulator endpoints are refused. Inputs are JSON objects, at most 64 KiB each
+(native configuration: 256 KiB), and remain public metadata only.
+
+`EXECUTOR_ROOT_KEY_ID` is an independently measured P-256 Root thumbprint. It is
+mandatory for remote inputs and must match the loaded public Root; private JWKs
+fail. The core public config's existing Root approval is verified, and every
+remote source URI plus the Root pin must match the Root-approved workload
+environment. The native config canonical SHA-256 must additionally match
+`EXECUTOR_NATIVE_CONFIG_SHA256` in that same approved environment. The whole core
+config contains its workload, so it cannot pin a hash of itself inside that
+workload; independent Root signature/key pin and current Policy release checks
+provide that authority. No server/model-selected startup source exists.
+
+Local public-file inputs remain for explicit tooling/tests. They still pass the
+same closed config/Root/Policy checks. No environment option selects a mock
+attestor, local production state or ordinary KMS decrypt.
+
+The image declares a closed launch-policy allowlist of operational flags, public
+object URIs, Root/native pins and creation wait. PATH, Python, proxy, credential
+and debug overrides are absent. CMD overrides, additional host mounts, content
+log redirection and memory monitoring are disabled. Host user-namespace isolation
+requires `tee-nonroot-container=true` and a production Confidential Space image
+supporting that policy (261001 or newer); process user remains non-root 10001.
+The exact full OCI environment, including base image and launcher values, must
+be independently observed/reviewed and Root-approved before activation. Policy
+also checks each operator override against its exact approved value. Do not infer
+that a synthetic startup fixture proves a particular live launch.
+
 ## Original TLS and certificate replacement
 
 Normal production config requires an unexpired public certificate chain with
-an exact executor hostname SAN, a non-CA leaf and the enrolled original P-256 TLS
+an exact executor DNS or IP address SAN, a non-CA leaf and the enrolled original P-256 TLS
 public key. Policy's current recovery statement must approve the SHA-256 of the
 exact certificate-chain bytes. A renewed certificate requires an explicit Root
 Policy certificate control plus reviewed public configuration and restart; it
 cannot replace the TLS key or silently expand financial permissions.
+
+An IP endpoint requires an actual `IPAddress` SAN and matching original-key CSR;
+a DNS spelling of an IP does not qualify. Wrong IPs and wildcards fail. Public
+certificate issuance/renewal remains a separate Root-approved deployment action.
 
 The original private TLS key is materialized with mode 0600 only in `/dev/shm`,
 whose Linux filesystem type must actually be tmpfs. It is loaded into the TLS
@@ -114,7 +164,7 @@ the same versions on their platform. Run target tests, the offline probe, full
 root `npm run check` and the commit hook. CI additionally builds the image and
 runs the REPO-003 network-disabled/read-only probe.
 
-The 68 tests include real subprocess recovery from a backup copy, real TLS 1.3 handshake,
+The 80 tests include real subprocess recovery from a backup copy, real TLS 1.3 handshake,
 JOSE/AES tampering and original-key challenges, wrong authority/scope, old boot
 fencing, unknown-CAS response recovery, code upgrade versus epoch migration,
 Google KMS protobuf/CRC boundaries and immutable cloud-object conditions. The

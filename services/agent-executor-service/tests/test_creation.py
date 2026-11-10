@@ -61,6 +61,7 @@ class CreationTests(Fixture):
         value["creationWorkload"] = {
             **value["workload"],
             "args": ["python", "-m", "app.initialize"],
+            "attestationAudience": value["issuer"] + "/enrollment",
         }
         return value
 
@@ -142,6 +143,10 @@ class CreationTests(Fixture):
         draft["identityEpoch"] = 2
         with self.assertRaises(Stopped):
             self.create(draft, permit, objects, wrapper)
+        draft = self.draft()
+        draft["creationWorkload"]["attestationAudience"] = draft["issuer"] + "/attestation"
+        with self.assertRaises(Stopped):
+            self.create(draft, self.permit(draft), objects, wrapper)
         self.assertEqual(objects.values, {})
         self.assertEqual(wrapper.calls, [])
 

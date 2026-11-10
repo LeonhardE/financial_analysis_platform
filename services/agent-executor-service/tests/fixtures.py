@@ -1,6 +1,7 @@
 """Independent synthetic wire authority; no cloud/Owner credentials or production data."""
 
 import hashlib
+import ipaddress
 import json
 import secrets
 import tempfile
@@ -33,7 +34,7 @@ from folioview_shared.encrypted.jsonutil import b64url_encode, canonical_json, s
 ACCESS = "synthetic_executor_access"
 
 
-def cert_for(key, hostname="executor.example", *, start=-60, end=86400):
+def cert_for(key, hostname="executor.example", *, start=-60, end=86400, ip=False):
     private = serialization.load_pem_private_key(
         key.export_to_pem(private_key=True, password=None), None
     )
@@ -47,7 +48,12 @@ def cert_for(key, hostname="executor.example", *, start=-60, end=86400):
         .serial_number(x509.random_serial_number())
         .not_valid_before(now + timedelta(seconds=start))
         .not_valid_after(now + timedelta(seconds=end))
-        .add_extension(x509.SubjectAlternativeName([x509.DNSName(hostname)]), critical=False)
+        .add_extension(
+            x509.SubjectAlternativeName(
+                [x509.IPAddress(ipaddress.ip_address(hostname)) if ip else x509.DNSName(hostname)]
+            ),
+            critical=False,
+        )
         .add_extension(x509.BasicConstraints(ca=False, path_length=None), critical=True)
         .sign(private, hashes.SHA256())
         .public_bytes(serialization.Encoding.PEM)

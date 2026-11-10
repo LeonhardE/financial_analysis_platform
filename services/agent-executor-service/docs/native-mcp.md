@@ -37,7 +37,8 @@ outbox operations as new authority.
 ## Configuration and transport
 
 All three image gates default to zero. With `EXECUTOR_NATIVE_ENABLED=1`, read the
-closed public `EXECUTOR_NATIVE_CONFIG` object:
+closed public native configuration object (`EXECUTOR_NATIVE_CONFIG_OBJECT` in
+production or an explicit local `EXECUTOR_NATIVE_CONFIG` file):
 
 ```json
 {
@@ -50,7 +51,9 @@ closed public `EXECUTOR_NATIVE_CONFIG` object:
 
 `registryAnchor` must be a complete independently reviewed Root registry bundle,
 not the placeholder above. `EXECUTOR_NATIVE_CONFIG_SHA256` must equal its canonical
-JSON SHA-256 **and** the Root-approved `workload.environment` value; that environment
+JSON SHA-256 **and** the Root-approved `workload.environment` value. Remote public
+objects also require the independently measured Root key ID and exact approved
+source URI; see [startup inputs](operations.md#public-configuration-inside-the-tee). That environment
 must also pin native enabled to `1`. Provider is fixed to `openai_chatgpt`, and
 providerClientId equals the binding's preregistered OAuth clientId. The Hub origin
 is fixed, HTTPS and request-independent. Registry verification starts from Root

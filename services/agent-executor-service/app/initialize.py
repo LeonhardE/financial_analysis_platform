@@ -3,27 +3,27 @@
 import os
 import time
 
-from folioview_shared.encrypted.jsonutil import canonical_json, strict_json_loads
+from folioview_shared.encrypted.jsonutil import canonical_json
 
 from .attestation import CreationAttestation
 from .contracts import require
 from .provision import EnrollmentObjects, KeyWrapper, initialize
+from .public_config import measured_sources, pin_root, read_public, remote
 from .state import GCSSnapshots
 
 
 def main():
-    from pathlib import Path
-
     require(os.environ.get("EXECUTOR_CREATION_ENABLED") == "1")
     require(os.environ.get("EXECUTOR_ENABLED", "0") == "0")
+    require(os.environ.get("EXECUTOR_NATIVE_ENABLED", "0") == "0")
+    require("K_SERVICE" not in os.environ and "FIRESTORE_EMULATOR_HOST" not in os.environ)
 
     # This public material is mounted/fetched by the separately reviewed creation
     # workflow. Root is pinned independently in its measured environment.
-    def read(name):
-        with Path(os.environ[name]).open("rb") as f:
-            return strict_json_loads(f.read(65537), max_bytes=65536)
-
-    draft, permit, root = read("EXECUTOR_DRAFT"), read("EXECUTOR_PERMIT"), read("EXECUTOR_ROOT_JWK")
+    names = ["EXECUTOR_DRAFT", "EXECUTOR_PERMIT", "EXECUTOR_ROOT_JWK"]
+    draft, permit, root = (read_public(name) for name in names)
+    pin_root(root, required=any(remote(name) for name in names))
+    measured_sources(draft["creationWorkload"], names)
     attestation = CreationAttestation(draft["issuer"])
     pending = None
     try:

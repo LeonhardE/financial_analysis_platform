@@ -19,6 +19,7 @@ from folioview_shared.encrypted.schema import validate_schema
 
 from .contracts import PROFILE, closed, digest, identity_digest, require, safe
 from .state import public, seal
+from .tls import subject_alt_name
 
 
 class EnrollmentObjects:
@@ -126,7 +127,9 @@ class PendingCreation:
         self.csr = (
             x509.CertificateSigningRequestBuilder()
             .subject_name(x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, hostname)]))
-            .add_extension(x509.SubjectAlternativeName([x509.DNSName(hostname)]), critical=False)
+            .add_extension(
+                x509.SubjectAlternativeName([subject_alt_name(hostname)]), critical=False
+            )
             .sign(private, hashes.SHA256())
             .public_bytes(serialization.Encoding.PEM)
             .decode()
@@ -355,8 +358,11 @@ def initialize(
             type(creation) is dict
             and type(runtime) is dict
             and creation["imageDigest"] == runtime["imageDigest"]
-            and creation["args"] == ["python", "-m", "app.initialize"]
+            and creation["args"]
+            in (["python", "-m", "app.main"], ["python", "-m", "app.initialize"])
             and runtime["args"] == ["python", "-m", "app.main"]
+            and creation["attestationAudience"] == draft_value["issuer"] + "/enrollment"
+            and runtime["attestationAudience"] == draft_value["issuer"] + "/attestation"
         )
         return PendingCreation(
             clone(draft_value),
