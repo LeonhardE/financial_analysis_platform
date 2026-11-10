@@ -36,7 +36,5 @@ resource "google_kms_crypto_key" "recovery" {
   lifecycle { prevent_destroy = true }
 }
 
-# Deliberately no KMS/STS/WIP/impersonation grant in D1. Ordinary executor
-# identities never receive direct KMS decrypt. The merged Policy verifies fresh
-# signed Google custom-audience evidence, original keys/current VM and Root state,
-# then wraps only the 32-byte DEK to the attested ephemeral boot recipient.
+# authority.tf grants only the independent Policy runtime sign/decrypt and the
+# exact reviewed D2 creator Encrypt-only. No executor runtime KMS decrypt or WIP.

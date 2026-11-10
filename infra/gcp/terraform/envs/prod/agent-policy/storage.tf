@@ -67,7 +67,7 @@ resource "google_storage_bucket" "snapshots" {
   }
   soft_delete_policy { retention_duration_seconds = 604800 }
   # No timer may delete a snapshot still selected by the live witness or lineage.
-  # No runtime/ordinary executor gets IAM yet; D3 binds exact approved authority.
+  # Optional D3 binds only Policy get/create on the immutable snapshot prefix.
   lifecycle { prevent_destroy = true }
   depends_on = [google_project_service.policy]
 }

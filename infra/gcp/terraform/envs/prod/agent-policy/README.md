@@ -1,4 +1,4 @@
-# Independent Policy base: INF-011 D1
+# Independent Policy deployment: INF-011
 
 This is a **trusted Owner administrator root in an independent Policy project**.
 It is deliberately absent from the ordinary repository bootstrap/catalog, which
@@ -21,8 +21,9 @@ they propose only this target's resources:
   impersonate runtime, sign, unwrap a DEK or edit authority.
 - A private `agent-policy-api` with the existing guarded configuration controller,
   original image/traffic ownership, min 0/max 1, 1 CPU/512 MiB, concurrency 4 and
-  60-second timeout. All application/release gates are fixed off, config/CORS empty,
-  no public or caller invoker grant. Changing an input cannot enable authority.
+  60-second timeout. Without `authority`, all application/release gates are off, config/CORS empty,
+  and there is no public or caller invoker grant. Explicit D3 bindings and
+  activation switches are described below.
 - Protected named `agent-policy-witness` Firestore, deny-all client Rules and
   index exemptions for actual live-pointer fields. No TTL/PITR import, backup
   restore or automatic recreation chooses authority.
@@ -33,7 +34,7 @@ they propose only this target's resources:
   The signer uses numeric version 1; symmetric automatic rotation is 90 days and
   old decrypt versions must remain available. No private keys enter Terraform.
 
-D1 grants **no runtime KMS, witness, snapshots, Owner lookup, compute metadata,
+With `authority=null`, D1 grants **no runtime KMS, witness, snapshots, Owner lookup, compute metadata,
 service-account impersonation or WIP/STS access**. Only build logging and exact
 repository writer IAM are present. It emits public resource references for the
 next stage; an endpoint or healthy image is not an active issuer/key authority.
@@ -94,22 +95,63 @@ VM/network/state resources and exact current-instance read permission for the Po
 runtime. Narrowly scoped creator **Encrypt-only** cross-project CryptoKey IAM belongs to this Policy target's D3 change after
 independently reviewed D2 identity outputs; no executor instance is managed here.
 
-D3 must bind the actual Owner Root/Policy public key, exact issuer/resource/native
-client/callback, owner/vault/state epoch, witness/snapshot references and original
-Agent/encryption/TLS keys. Root bootstrap/enrollment is separate from Terraform.
-Grant runtime only fixed-key ES256/public-key read and DEK decrypt, exact named-DB
-read/CAS and snapshot get/create, with no overwrite/delete/restore/list authority.
-Enable Owner Google account lookup only in the exact reviewed authentication
-project. Grant no ordinary executor/Hub operator Policy code/config/IAM/key/witness
-administration. Current VM identity-read IAM is owned by the executor project.
+D3 source accepts an optional `authority` object. Omission preserves D1 behavior.
+Supply only reviewed public values: Owner UID digest, existing vault/Root public key,
+actual fixed KMS signing-version public JWK, explicit state epoch, independent issuer,
+Web/executor origins, exact native client/callbacks, Firebase authentication project,
+and the distinct creator/runtime identities exported by D2. The executor project
+must appear in `operator_project_ids`; it cannot be the Policy project. Public JWKs
+reject private/extra fields and noncanonical coordinates. The runtime also checks
+that the actual valid Policy key matches its fixed KMS signing version. Synthetic
+test keys are never production authority.
+
+The closed configuration derives KMS/witness/snapshot references from this root,
+uses the Web `/agents` consent page, executor `/mcp` resource, and one public S256
+client with exact callbacks and no client secret. No arbitrary environment map,
+redirect wildcard, alternate storage/key selector or Owner secret is accepted.
+Configuration is public but integrity-sensitive and recorded in Terraform state.
+The public `creation_configuration` output is suitable for independent Root-domain
+review; do not treat it as a Root signature or copy an old authority snapshot.
+
+A populated binding grants only:
+
+- Policy runtime: signing and public-key read on the fixed signing CryptoKey,
+  DEK decrypt on the fixed recovery CryptoKey. KMS IAM is CryptoKey-level; the
+  application independently pins numeric signing version 1.
+- Exact reviewed D2 creator: **Encrypt-only** on the recovery CryptoKey. The
+  ordinary executor runtime, build identity and Hub receive no KMS grant.
+- Policy runtime: exact named-database get/create/update and transaction
+  begin/rollback permissions, with no entity list/delete or database restore/admin.
+  This is database-level access, not a claimed collection-level IAM restriction.
+- Policy runtime: get/create only under the snapshot bucket's `policy-state/`
+  object prefix. No list/update/delete/restore or backup fallback.
+- Policy runtime: only `firebaseauth.users.get` in the exact Firebase project,
+  supporting the existing revoked/disabled-user check. That project's Firebase
+  authentication and API readiness remain a separate reviewed prerequisite.
+
+Bindings require `stage="base"` and do **not** activate issuance, key release or
+public invocation. `authority_enabled`, `key_release_enabled` and
+`public_invocation` each default false. Release requires authority; issuance and
+public invocation require bindings. Public invocation grants only Cloud Run
+reachability; all application Google/Root/OAuth checks remain. Actual activation
+requires separately reviewed full saved plans and live prerequisites; merging
+these switches is not approval to apply them.
+
+Terraform never bootstraps a Root domain, enrolls Agent/TLS/encryption keys, chooses
+a live head, signs a Root approval or rewinds witness state. Use the existing
+explicit Root bootstrap/enrollment protocol after actual attested creation and
+Owner review. A config digest change changes the authority domain and fails
+closed against existing state; use explicit Root migration/new epoch, never edit
+or recreate the witness to make it pass. Original keys and exact resource scope
+are bound by the Root enrollment rather than a Terraform secret or inferred VM.
 
 The merged Policy verifies custom-audience Google attestation directly as a
 relying party, plus current VM/original-key/Root-state checks. It releases only a
 32-byte DEK sealed to the attested ephemeral recipient. It does not hand an
-executor a direct KMS credential. Therefore D1 creates no unused WIP. Any later
+executor a direct KMS credential. Therefore this root creates no unused WIP. Any later
 WIP path must independently pin exact claims/audience/image/identity and cannot
 bypass Policy or create ordinary executor Decrypt rights. Public invocation,
-application authority and key release require separate reviewed D3 activation.
+application authority and key release require separate reviewed activation.
 
 ## Recovery, cost and live acceptance
 
@@ -137,5 +179,7 @@ TEE/ingress/same-key and later offline/overnight evidence; WEB-015 owns Owner UX
 
 References: [Policy protocol/operations](../../../../../../services/agent-policy-service/docs/operations.md),
 [provider 7.28.0 storage contract](https://github.com/hashicorp/terraform-provider-google/blob/v7.28.0/website/docs/r/storage_bucket.html.markdown),
+[Firestore method permissions](https://docs.cloud.google.com/firestore/native/docs/security/iam),
+[KMS resource-level grants](https://docs.cloud.google.com/kms/docs/reference/permissions-and-roles),
 [named database IAM](https://firebase.google.com/docs/firestore/manage-databases#configure_access_permissions_for_your_databases),
 [custom-audience relying parties](https://docs.cloud.google.com/confidential-computing/confidential-space/docs/connect-external-resources).
