@@ -72,7 +72,7 @@ export class IndependentExperienceController {
       linkedAt: 0,
     };
   }
-  async current() {
+  private async destination(historical = false) {
     this.assert();
     const cfg = this.configuration,
       actor = { connectionId: cfg.connectionId, clientId: cfg.clientId };
@@ -80,6 +80,17 @@ export class IndependentExperienceController {
       "agent-hub",
       `/api/v2/executor-connections/${this.connection().vaultId}/${cfg.connectionId}`,
     );
+    await this.workspace().verifyIndependentDestination({
+      actor,
+      configuration: cfg,
+      hubState,
+      historical,
+    });
+    this.assert();
+    return { cfg, actor, hubState };
+  }
+  async current() {
+    const { cfg, actor, hubState } = await this.destination();
     const policyState = await this.api("agent-policy", `/api/v1/connections/${cfg.connectionId}`);
     this.assert();
     if (policyState.status === "revoked") throw new PersistentExperienceError("connection_revoked");
@@ -165,6 +176,7 @@ export class IndependentExperienceController {
     return policyRedirect(result.redirectUri, this.configuration);
   }
   async revoke() {
+    await this.destination(true);
     const configuration = this.configuration;
     const policyState = await this.api(
       "agent-policy",

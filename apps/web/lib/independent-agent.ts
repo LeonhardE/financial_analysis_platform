@@ -122,7 +122,9 @@ export function policyRequest(
   path: string,
   method: string,
   json?: any,
+  expectedIssuer?: string,
 ) {
+  if (config.issuer !== expectedIssuer) throw new Error("policy_destination_changed");
   const base = `/api/v1/connections/${config.connectionId}`;
   const pending = /^\/api\/v1\/authorizations\/pauth_[A-Za-z0-9_-]{43}(\/approvals)?$/.exec(path);
   const signed = (s: any) =>

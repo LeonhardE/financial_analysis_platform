@@ -47,6 +47,7 @@ type PrivateRequestOptions = {
   signal?: AbortSignal;
   json?: unknown;
   headers?: Record<string, string>;
+  expectedPolicyIssuer?: string;
 };
 const CONTRACT = "folioview.agent-workspace.v2.0";
 const PORTFOLIO_API_BASE_URL = process.env.NEXT_PUBLIC_PORTFOLIO_API_BASE_URL ?? "";
@@ -806,6 +807,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     ): Promise<Response> => {
       // Only a fixed route on its owning service may receive a Firebase token.
       const method = options.method ?? "GET";
+      if (service !== "agent-policy" && options.expectedPolicyIssuer !== undefined)
+        throw new Error("Invalid private API request");
       let origin: string;
       let contractHeaders: Record<string, string> = {};
       let maxBodyBytes = 589824;
@@ -816,7 +819,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const config = await loadIndependentConfiguration(options.signal);
         if (!config || Object.keys(options.headers ?? {}).some((k) => k !== "X-FolioView-Contract"))
           throw new Error("Independent connection is not configured.");
-        policyRequest(config, path, method, options.json);
+        policyRequest(config, path, method, options.json, options.expectedPolicyIssuer);
         origin = config.issuer;
         contractHeaders = { "X-FolioView-Contract": CONTRACT };
         maxBodyBytes = 65536;

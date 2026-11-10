@@ -137,3 +137,30 @@ shared input therefore runs the same checked Web release instead of leaving the
 old library deployed. Trigger identity, source binding, substitutions, execution
 identity and normal main-branch release behavior remain unchanged. This adds no
 new IAM or deployment gate.
+
+## Optional independent Agent selection
+
+The existing `owner_environment` variable also consumes the inseparable independent
+Agent pair emitted by the reviewed
+[profile-v5 managed Web projection](../../../../deployment-profiles/README.md#independent-web-public-selection-profile-v5).
+Legacy null/six-field inputs are unchanged. The extended input has exactly eight
+fields: the six existing Owner settings plus `FOLIOVIEW_INDEPENDENT_AGENT_ENABLED=true`
+and canonical `FOLIOVIEW_INDEPENDENT_AGENT_CONFIG`. It requires Hub Owner support,
+exact public-only six-field selection, bounded identifiers, public P-256 JWK and
+exact HTTPS Policy/resource/native callbacks. Private/extra fields, partial or
+false pairs, noncanonical JSON and unreviewed environment entries fail closed.
+The canonical selection stays within 1,024 bytes; the producer preserves its
+existing 4,000-byte complete target budget and pins the full server environment.
+
+Use the existing managed compiler, selected-source/target hash and full saved-plan
+approval path; never append environment overrides or locally bypass the projection.
+The application independently verifies the current Owner Root, original identity
+and Policy state. A checked configuration file is not Root enrollment or TEE proof.
+Initial administrator setup and actual backend issuance/release activation remain
+separate prerequisites. No new resources, identities, invokers or capacity changes
+are introduced by consuming this public pair. Omission keeps the UI module off.
+
+The administrator-owned Web image trigger includes both public browser contract
+packages, including `packages/executor-trust/**`. It retains the same trigger,
+build identity, main branch, nine public build substitutions and deployment path.
+This source change does not execute a cloud configuration apply or acceptance run.

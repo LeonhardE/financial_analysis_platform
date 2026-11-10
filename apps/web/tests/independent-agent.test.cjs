@@ -386,16 +386,22 @@ test("public selection and direct Policy transport reject private keys, arbitrar
         nativeRedirectUris: ["https://chatgpt.com/*"],
       }),
     );
-    publicConfig.policyRequest(cfg, `/api/v1/connections/${cfg.connectionId}/checkpoint`, "POST", {
-      contractVersion: contract,
-    });
+    publicConfig.policyRequest(
+      cfg,
+      `/api/v1/connections/${cfg.connectionId}/checkpoint`,
+      "POST",
+      {
+        contractVersion: contract,
+      },
+      cfg.issuer,
+    );
     for (const route of [
       "/oauth/token",
       "/v1/connections/x/releases",
       "https://evil.example.com",
       `/api/v1/connections/${cfg.connectionId}?x=y`,
     ])
-      assert.throws(() => publicConfig.policyRequest(cfg, route, "GET"));
+      assert.throws(() => publicConfig.policyRequest(cfg, route, "GET", undefined, cfg.issuer));
     assert.equal(
       publicConfig.independentHandoff("?request=pauth_" + "a".repeat(43)),
       "pauth_" + "a".repeat(43),
@@ -462,6 +468,7 @@ test("independent publication retries retain the exact original ciphertext and P
       phase: "unlocked",
       vault: { vaultId: x.f.vault.vaultId },
       verifyIndependentAgent: async () => ({ scope: x.args.hubState.scope }),
+      verifyIndependentDestination: async () => ({ issuer: x.args.configuration.issuer }),
       finishPersistentPending: async () => {
         finishes++;
       },
@@ -515,6 +522,85 @@ test("independent publication retries retain the exact original ciphertext and P
       /connection_revoked/,
     );
     assert.equal(posts, 1);
+  } finally {
+    await x.h.close();
+  }
+});
+test("Root-approved destination is checked before Policy credentials and a reloaded issuer cannot replace the approved destination", async () => {
+  const x = await fixture();
+  try {
+    const resources = require("./resource-library-helpers.cjs").contracts;
+    const taskTypes = compile("../lib/task-types.ts");
+    const persistent = compile(
+      "../lib/persistent-experience-controller.ts",
+      { "./resource-library": resources, "./task-types": taskTypes },
+      { Map, Set, Date },
+    );
+    const { IndependentExperienceController: Controller } = compile(
+      "../lib/independent-experience-controller.ts",
+      {
+        "./persistent-experience-controller": persistent,
+        "./independent-agent": publicConfig,
+      },
+    );
+    let policyCalls = 0;
+    const api = async (service, path) => {
+      if (service === "agent-hub") return x.args.hubState;
+      policyCalls++;
+      return path.endsWith("/checkpoint") ? { checkpoint: x.args.checkpoint } : x.args.policyState;
+    };
+    const workspace = {
+      phase: "unlocked",
+      vault: x.f.vault,
+      verifyIndependentDestination: (args) => x.f.session.verifyIndependentDestination(args),
+      verifyIndependentAgent: (args) => x.f.session.verifyIndependentAgent(args),
+    };
+    const make = (cfg) =>
+      new Controller(
+        cfg,
+        api,
+        () => workspace,
+        () => {},
+        new AbortController().signal,
+      );
+    await assert.rejects(
+      make({ ...x.args.configuration, issuer: "https://unapproved.example.com" }).current(),
+    );
+    assert.equal(policyCalls, 0);
+    await make(x.args.configuration).current();
+    assert.equal(policyCalls, 2);
+    assert.throws(
+      () =>
+        publicConfig.policyRequest(
+          { ...x.args.configuration, issuer: "https://changed.example.com" },
+          `/api/v1/connections/${x.args.actor.connectionId}`,
+          "GET",
+          undefined,
+          x.args.configuration.issuer,
+        ),
+      /policy_destination_changed/,
+    );
+    assert.throws(
+      () =>
+        publicConfig.policyRequest(
+          x.args.configuration,
+          `/api/v1/connections/${x.args.actor.connectionId}`,
+          "GET",
+        ),
+      /policy_destination_changed/,
+    );
+    x.f.time(2100);
+    const destination = {
+      actor: x.args.actor,
+      configuration: x.args.configuration,
+      hubState: x.args.hubState,
+      historical: false,
+    };
+    await assert.rejects(x.f.session.verifyIndependentDestination(destination));
+    assert.equal(
+      (await x.f.session.verifyIndependentDestination({ ...destination, historical: true })).issuer,
+      x.args.configuration.issuer,
+    );
   } finally {
     await x.h.close();
   }
