@@ -8,14 +8,14 @@ locals {
   database_id     = "agent-policy-witness"
   snapshot_name   = "${local.project_id}-policy-snapshots"
   labels          = { application = "folioview", target = "agent-policy", managed_by = "terraform" }
-  # Base cannot acquire authority merely by changing an input/config file.
-  environment = {
-    POLICY_ENABLED             = "0"
-    POLICY_KEY_RELEASE_ENABLED = "0"
+  # Omitted bindings retain the inert D1 base. Activation is a separate opt-in.
+  environment = merge({
+    POLICY_ENABLED             = var.authority_enabled ? "1" : "0"
+    POLICY_KEY_RELEASE_ENABLED = var.key_release_enabled ? "1" : "0"
     POLICY_STORE_BACKEND       = "cloud"
-    POLICY_CONFIG              = ""
-    CORS_ORIGINS               = ""
-  }
+    POLICY_CONFIG              = local.bound ? jsonencode(local.policy_config) : ""
+    CORS_ORIGINS               = local.bound ? var.authority.web_origin : ""
+  }, local.bound ? { FIREBASE_PROJECT_ID = var.authority.auth_project_id } : {})
   apis = toset([
     "artifactregistry.googleapis.com", "cloudbuild.googleapis.com", "cloudkms.googleapis.com",
     "firestore.googleapis.com", "firebaserules.googleapis.com", "iam.googleapis.com",
@@ -44,7 +44,7 @@ module "runtime_identity" {
   project_id   = local.project_id
   account_id   = var.deployment.runtime_account_id
   display_name = "FolioView independent Policy runtime"
-  description  = "Trusted Owner authority; base has no sign, decrypt, witness or impersonation grant."
+  description  = "Trusted Owner authority; explicit bindings only, never ordinary operator impersonation."
   depends_on   = [google_project_service.policy]
 }
 
@@ -108,7 +108,7 @@ module "agent_policy" {
   ingress                  = "INGRESS_TRAFFIC_ALL"
   environment              = local.environment
   secret_environment       = {}
-  allow_unauthenticated    = false
+  allow_unauthenticated    = var.public_invocation
   invoker_service_accounts = {}
   depends_on               = [google_project_service.policy, module.runtime_identity]
 }

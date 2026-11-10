@@ -24,6 +24,13 @@ run "default_none_proposes_no_cloud_resources_or_grants" {
       length(google_kms_crypto_key.recovery) == 0 && length(google_storage_bucket.snapshots) == 0 &&
       length(google_artifact_registry_repository_iam_member.build) == 0 &&
       length(google_project_iam_member.build_logging) == 0 &&
+      length(google_project_iam_custom_role.authority) == 0 &&
+      length(google_kms_crypto_key_iam_member.signing) == 0 &&
+      length(google_kms_crypto_key_iam_member.recovery) == 0 &&
+      length(google_kms_crypto_key_iam_member.creator) == 0 &&
+      length(google_project_iam_member.witness) == 0 &&
+      length(google_storage_bucket_iam_member.snapshots) == 0 &&
+      length(google_project_iam_member.owner_auth) == 0 &&
       length(google_firebaserules_release.deny_clients) == 0 &&
       output.base.service == null && output.base.witness == null &&
       !output.base.authority_enabled && !output.base.key_release_enabled && !output.base.public_invocation
