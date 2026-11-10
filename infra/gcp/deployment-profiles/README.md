@@ -480,3 +480,41 @@ This foundation adds no target marker, runtime settings, IAM, build substitution
 or cloud activation. Web consumption follows in its own target-only PR. Portfolio
 private invocation and Hub owner/JWKS availability remain producer prerequisites;
 Muse OAuth/adapter registration and activation stay independently gated.
+
+## Independent Web public selection (profile v5)
+
+[Profile v5](profile-v5.schema.json) retains all v4 fields and requires one additional
+`webIndependentAgent` field. The [example](example-v5.profile.json) sets it to `null`;
+this emits the same existing six-field Web Owner environment and does not activate
+an independent connection. Existing v1–v4 profiles remain valid with identical outputs.
+
+A non-null selection follows the closed
+[public selection schema](web-independent-agent.schema.json): `connectionId`,
+`clientId`, exact independent Policy `issuer`, executor `/mcp` `audience`, the actual
+fixed signing-version public `policyJwk`, and `nativeRedirectUris`. The loader rejects
+private/extra fields, invalid or noncanonical P-256 points, wildcard/query/fragment
+callbacks, duplicate callbacks and an ordinary service origin substituted for the
+independent endpoints. Existing Firebase and Hub Owner support must be selected.
+The selection cannot create a Root grant, adopt a former identity or enable backend
+issuance/key release. Actual Root/TEE setup and verification remain separate prerequisites.
+
+Use the existing `compile-web-owner-deployment` command for managed Web consumption.
+Only an explicitly selected non-null configuration adds the inseparable
+`FOLIOVIEW_INDEPENDENT_AGENT_ENABLED=true` / `FOLIOVIEW_INDEPENDENT_AGENT_CONFIG`
+pair to the selected Web server environment. The canonical JSON is public, bounded
+to 1,024 ASCII bytes, with 1–4 exact callbacks of at most 512 characters each. The
+complete managed target must still fit its existing 4,000-byte limit. Oversize
+configuration fails before artifacts are accepted; no budget is enlarged or value
+truncated. Ordinary service projections, Web public build values and the existing
+Portfolio/Hub capability flags remain unchanged.
+
+The complete server environment participates in its server hash, managed target
+hash, Terraform input hash and saved-plan checks. Both new fields must be present
+and consistent, require Hub Owner support, and retain canonical closed JSON. A
+caller cannot append an arbitrary environment map, omit the configured flag, reuse
+an older trusted hash or substitute another selected connection after plan review.
+The Web Terraform consumer and Web image-trigger dependency change are delivered
+in a subsequent Web-only infrastructure PR. This foundation changes no service
+resources, identities, invokers, billing or real deployment inputs. All candidate
+manifests still state `productionActivation=false` and `approval=not_requested`;
+actual input selection and protected native approval are required before any apply.
