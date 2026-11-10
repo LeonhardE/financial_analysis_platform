@@ -328,6 +328,30 @@ class OwnerLaneTests(unittest.TestCase):
             self.run_phase("plan")
         self.assertFalse(self.api.objects)
 
+    def test_replacement_review_binds_actual_generation_before_init(self):
+        self.consumer["replacement"] = {
+            "instanceAddress": "google_compute_instance.executor[0]",
+            "launchAddress": "terraform_data.launch[0]",
+        }
+        self.consumer["inputs"]["properties"]["instance_protection_enabled"] = {"type": "boolean"}
+        (self.directory / "owner-lane.consumer.json").write_bytes(lane.canonical(self.consumer))
+        self.contract["inputs"]["instance_protection_enabled"] = False
+        self.contract["replacementReview"] = {
+            "expectedInstanceId": "123456789",
+            "stateGeneration": "6",
+        }
+        self.api = API(self.contract)
+        with self.assertRaises(ValueError):
+            self.run_phase("plan")
+        self.assertFalse(any(x[1] in {"init", "plan", "apply"} for x in self.calls))
+
+    def test_downloaded_binary_is_rechecked_for_destruction(self):
+        self.prepare()
+        self.actions = ["delete", "create"]
+        with self.assertRaises(ValueError):
+            self.run_phase("apply")
+        self.assertFalse(any(x[1] == "apply" for x in self.calls))
+
 
 if __name__ == "__main__":
     unittest.main()

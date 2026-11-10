@@ -105,6 +105,19 @@ def consumer(root, target):
                 r"module\.[a-z_][a-z0-9_]*(?:\[0\])?\.terraform_data\.configuration", address
             )
         )
+    if value["replacement"] is not None:
+        closed(value["replacement"], ["instanceAddress", "launchAddress"])
+        require(
+            re.fullmatch(
+                r"google_compute_instance\.[a-z_][a-z0-9_]*\[0\]",
+                value["replacement"]["instanceAddress"],
+            )
+        )
+        require(
+            re.fullmatch(
+                r"terraform_data\.[a-z_][a-z0-9_]*\[0\]", value["replacement"]["launchAddress"]
+            )
+        )
     return directory, value
 
 
@@ -121,6 +134,7 @@ def contract(raw, root=ROOT):
             "repository",
             "repositoryUrl",
             "inputs",
+            *(["replacementReview"] if "replacementReview" in value else []),
         ],
     )
     require(type(value["schemaVersion"]) is int and value["schemaVersion"] == 1)
@@ -141,6 +155,14 @@ def contract(raw, root=ROOT):
     require(re.fullmatch(prefix + r"connections/[\w.-]+/repositories/[\w.-]+", value["repository"]))
     directory, adopted = consumer(root, value["target"])
     schema(value["inputs"], adopted["inputs"])
+    review = value.get("replacementReview")
+    if review is not None:
+        closed(review, ["expectedInstanceId", "stateGeneration"])
+        require(adopted["replacement"] is not None)
+        require(
+            all(type(v) is str and re.fullmatch(r"[1-9][0-9]{0,19}", v) for v in review.values())
+        )
+        require(value["inputs"].get("instance_protection_enabled") is False)
     deployment = value["inputs"]["deployment"]
     require(
         deployment["project_id"] == value["projectId"] and deployment["region"] == value["region"]
@@ -250,16 +272,72 @@ def execution(api, identifier, lane, mode, commit, producer=False, plan_id=None)
     return build
 
 
+def replacement_addresses(plan, lane, adopted):
+    """One fixed VM slot, only after a separate protection-off saved-plan apply."""
+    review = lane.get("replacementReview")
+    if review is None:
+        return set()
+    profile = adopted["replacement"]
+    require(profile is not None)
+    changes = plan.get("resource_changes", [])
+    instances = [v for v in changes if v.get("address") == profile["instanceAddress"]]
+    require(len(instances) == 1)
+    vm = instances[0]
+    require(vm.get("mode") == "managed" and vm.get("type") == "google_compute_instance")
+    require(vm.get("provider_name") == "registry.terraform.io/hashicorp/google")
+    change = vm["change"]
+    require(change["actions"] == ["delete", "create"])
+    before, after = change["before"], change["after"]
+    deployment = lane["inputs"]["deployment"]
+    require(before.get("instance_id") == review["expectedInstanceId"])
+    for key, expected in [
+        ("project", lane["projectId"]),
+        ("name", deployment["instance_name"]),
+        ("zone", deployment["zone"]),
+    ]:
+        require(before.get(key) == after.get(key) == expected)
+    require(
+        before.get("deletion_protection") is False and after.get("deletion_protection") is False
+    )
+    require(lane["inputs"].get("instance_protection_enabled") is False)
+    require(
+        before.get("machine_type") == after.get("machine_type") and bool(after.get("machine_type"))
+    )
+    allowed = {profile["instanceAddress"]}
+    launch = [
+        v
+        for v in changes
+        if v.get("address") == profile["launchAddress"] and "delete" in v["change"]["actions"]
+    ]
+    if launch:
+        require(len(launch) == 1 and launch[0].get("mode") == "managed")
+        require(
+            launch[0].get("type") == "terraform_data"
+            and launch[0].get("provider_name") == "terraform.io/builtin/terraform"
+        )
+        require(launch[0]["change"]["actions"] == ["delete", "create"])
+        allowed.add(profile["launchAddress"])
+    return allowed
+
+
 def summary(plan, version, lane, adopted, directory, root):
     require(plan.get("terraform_version") == version)
+    replacements = replacement_addresses(plan, lane, adopted)
     messages = []
     for resource in plan.get("resource_changes", []):
         change = resource["change"]
         actions = change["actions"]
+        if (
+            adopted["replacement"] is not None
+            and resource.get("type") == "google_compute_instance"
+            and resource.get("mode") == "managed"
+        ):
+            require(resource.get("address") == adopted["replacement"]["instanceAddress"])
         if "delete" in actions:
-            # Only source-registered local config controllers can be replaced.
-            # A VM replacement requires a separate target-owned explicit review.
             address = resource.get("address", "")
+            if address in replacements:
+                messages.append(f"{address}: replace reviewed fixed instance slot")
+                continue
             require(address in adopted["controllers"] and actions == ["delete", "create"])
             require(
                 resource.get("type") == "terraform_data"
@@ -333,6 +411,8 @@ def run(
     prefix = f"plans/{target}/{plan_id or identifier}/"
     moment = now or datetime.now(UTC)
     observed = generation()
+    if lane.get("replacementReview") is not None:
+        require(lane["replacementReview"]["stateGeneration"] == observed)
     expected = {
         "schemaVersion": 1,
         "target": target,
@@ -372,6 +452,8 @@ def run(
         binary = Path(temporary) / "terraform.tfplan"
         if mode == "plan":
             observed = generation()
+            if lane.get("replacementReview") is not None:
+                require(lane["replacementReview"]["stateGeneration"] == observed)
             variables = Path(temporary) / "inputs.tfvars.json"
             variables.write_bytes(canonical(lane["inputs"]))
             variables.chmod(0o600)

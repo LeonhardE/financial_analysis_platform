@@ -19,8 +19,17 @@ a successful matching plan producer, a plan at most six hours old, current backe
 generation, exact private artifact generations/digests, and the saved binary.
 Terraform backend locking/lineage/serial remain enforced. Deletes are denied except
 the source-registered local configuration controller, preserving its service.
-VM replacement remains refused until an explicit target-owned replacement protocol
-is adopted; never bypass it with local apply, empty state or `-target`.
+VM replacement is refused unless a target's source explicitly registers its one
+instance and launch-record addresses and the protected contract contains a fresh
+`replacementReview` with the original numeric instance ID/current backend generation.
+Only delete-before-create at the same project/name/zone/machine is permitted, with
+protection already off in both the prior state and proposed instance. First apply
+a separate protection-off full plan, then review a new replacement full plan, then
+restore protection with another full plan. Both the producer plan and downloaded
+saved binary enforce this guard. It never permits another resource deletion,
+create-before-destroy, a second slot or key/state reset; runtime still must restore
+the original identity under current Root authority. Never bypass with local apply,
+empty state or `-target`.
 
 `terraform/owner-lane-module` is a dormant reusable administrator module. Its
 execution triggers default disabled. It creates separate private versioned state
