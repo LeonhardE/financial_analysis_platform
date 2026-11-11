@@ -205,3 +205,7 @@ does not claim a new real-Muse run or browser key-management implementation.
 The separate [persistent content and operation-proof profile](docs/persistent-content.md)
 provides Root-approved exact deliveries, current Agent request proofs and frozen
 manifest contracts. It does not change P1 grants or enable any consumer.
+
+Owner-approved 90-day credential leases are documented in the
+[credential lifecycle contract](docs/agent-credentials.md). The profile is additive; consumers must
+implement atomic replacement and current-generation fences before enabling it.

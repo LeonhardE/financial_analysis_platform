@@ -47,6 +47,10 @@ def _document():
     extension = json.loads(
         files(__package__).joinpath("persistent_agents.json").read_text(encoding="utf-8")
     )
+    credentials = json.loads(
+        files(__package__).joinpath("agent_credentials.json").read_text(encoding="utf-8")
+    )
+    extension["$defs"].update(credentials["$defs"])
     # References are resolved locally. Do not register these DTOs in the legacy
     # validator or broaden any existing grant, envelope, certificate or route.
     legacy = load_schema("Identifier")
@@ -59,6 +63,8 @@ def _document():
 
 def load_persistent_schema(name: str) -> dict:
     if type(name) is not str or name not in {
+        "AgentCredentialApproval",
+        "AgentCredentialLease",
         "PersistentAgentBindingPayload",
         "PersistentAgentIdentity",
         "PersistentAgentRevocationPayload",
