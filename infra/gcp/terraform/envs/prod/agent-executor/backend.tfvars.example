@@ -1,3 +1,0 @@
-# Existing separately reviewed target backend, never prototype/ordinary repo state.
-bucket = "demo-executor-alpha-owner-tfstate"
-prefix = "prod/agent-executor"

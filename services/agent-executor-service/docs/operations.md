@@ -1,3 +1,7 @@
+> Archived reference for the retired Confidential VM target. Commands and
+> deployment requirements below are historical; use the existing
+> [Agent Hub](../../agent-hub-service/README.md).
+
 # Creation, TLS and operation
 
 ## Separate first-key ceremony

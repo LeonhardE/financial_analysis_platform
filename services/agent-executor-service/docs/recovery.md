@@ -1,3 +1,7 @@
+> Archived reference for the retired Confidential VM target. Commands and
+> deployment requirements below are historical; use the existing
+> [Agent Hub](../../agent-hub-service/README.md).
+
 # Recovery and encrypted state
 
 ## Independently pinned authority

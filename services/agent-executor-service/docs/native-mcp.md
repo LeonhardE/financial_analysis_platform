@@ -1,3 +1,7 @@
+> Archived reference for the retired Confidential VM target. Commands and
+> deployment requirements below are historical; use the existing
+> [Agent Hub](../../agent-hub-service/README.md).
+
 # Native MCP, frozen inputs and original reports
 
 ## Three independent checks
@@ -11,7 +15,7 @@ claims, clientInfo and model-supplied provider names cannot establish this ident
 Only the published Connectors mTLS intermediate is trusted, with strict chain
 validation and partial-chain support. Leaves can rotate without changing this
 trust anchor. Reviewed public CA files, hashes and sources are in
-[public-trust](../app/public-trust/README.md).
+[public-trust](public-trust.md).
 
 Provider identity does not identify the end user. Each protected tool independently
 checks the native OAuth bearer with the fixed Policy issuer, exact resource,

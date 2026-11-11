@@ -1,3 +1,7 @@
+> Archived reference for the retired Confidential VM target. Commands and
+> deployment requirements below are historical; use the existing
+> [Agent Hub](../../agent-hub-service/README.md).
+
 # OpenAI Connectors public trust anchors
 
 Reviewed and retrieved 2026-11-09 from OpenAI's official public authentication
