@@ -2,7 +2,13 @@
 const ID = "[A-Za-z0-9][A-Za-z0-9_-]{0,127}";
 const OP = "[A-Za-z0-9_-]{22,128}";
 export type PersistentOwnerRoute = {
-  kind: "read" | "control" | "small" | "persistent-publication" | "executor-binding";
+  kind:
+    | "read"
+    | "control"
+    | "small"
+    | "persistent-publication"
+    | "executor-binding"
+    | "credential-approval";
   max: number;
   operation?: boolean;
   author?: boolean;
@@ -39,6 +45,15 @@ export function persistentOwnerRoute(path: string, method: string): PersistentOw
     return mapped ? persistentOwnerRoute(mapped, method) : null;
   }
   const match = (pattern: string) => new RegExp(`^${pattern}$`).test(path);
+  if (
+    method === "GET" &&
+    (path === "/api/v3/agent-credentials/capabilities" ||
+      match(`/api/v3/agent-credentials/${ID}/${ID}(?:/(?:setups|operations)/${OP})?`))
+  )
+    return { kind: "read", max: 0, responseStatus: 200 };
+  if (method === "POST" && match(`/api/v3/agent-credentials/${ID}/${ID}/approvals`))
+    return { kind: "credential-approval", max: 33000, operation: true, responseStatus: 201 };
+
   if (
     method === "GET" &&
     (path === "/api/v2/persistent-agents/capabilities" ||

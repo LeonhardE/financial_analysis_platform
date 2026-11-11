@@ -139,6 +139,132 @@ export function persistentRequest(v: unknown) {
     formal("PersistentContentCarrier", v.envelope)
   );
 }
+function pairingPacket(v: unknown) {
+  return (
+    fields(v, ["version", "iv", "ciphertext"]) &&
+    v.version === 1 &&
+    typeof v.iv === "string" &&
+    /^[A-Za-z0-9_-]{16}$/.test(v.iv) &&
+    typeof v.ciphertext === "string" &&
+    /^[A-Za-z0-9_-]{22,10923}$/.test(v.ciphertext)
+  );
+}
+export function credentialApprovalRequest(v: unknown) {
+  return (
+    fields(v, ["contractVersion", "command"]) &&
+    v.contractVersion === CONTRACT &&
+    fields(v.command, ["binding", "approval", "activation"]) &&
+    signedObject(v.command.binding) &&
+    signedObject(v.command.approval) &&
+    pairingPacket(v.command.activation)
+  );
+}
+function credentialReceipt(v: unknown, operationId?: string) {
+  return (
+    fields(v, [
+      "contractVersion",
+      "profile",
+      "operationId",
+      "fingerprint",
+      "identity",
+      "binding",
+      "lease",
+      "approval",
+    ]) &&
+    v.contractVersion === CONTRACT &&
+    v.profile === "folioview.agent-credential.v1" &&
+    op(v.operationId) &&
+    (operationId === undefined || v.operationId === operationId) &&
+    hash(v.fingerprint) &&
+    formal("PersistentAgentIdentity", v.identity) &&
+    formal("AgentCredentialLease", v.lease) &&
+    signedObject(v.binding) &&
+    signedObject(v.approval)
+  );
+}
+function credentialResponse(
+  p: string[],
+  method: string,
+  v: Record<string, unknown>,
+  operationId?: string,
+) {
+  if (p[4] === "capabilities")
+    return (
+      fields(v, [
+        "contractVersion",
+        "profile",
+        "enabled",
+        "defaultValiditySeconds",
+        "noticeSeconds",
+      ]) &&
+      v.profile === "folioview.agent-credential.v1" &&
+      typeof v.enabled === "boolean" &&
+      v.defaultValiditySeconds === 7776000 &&
+      v.noticeSeconds === 604800
+    );
+  if (p.length === 6)
+    return (
+      fields(v, [
+        "contractVersion",
+        "profile",
+        "identity",
+        "binding",
+        "lease",
+        "approval",
+        "status",
+        "defaultValiditySeconds",
+        "noticeSeconds",
+      ]) &&
+      v.profile === "folioview.agent-credential.v1" &&
+      nullable(v.identity, (x) => formal("PersistentAgentIdentity", x)) &&
+      nullable(v.binding, signedObject) &&
+      nullable(v.lease, (x) => formal("AgentCredentialLease", x)) &&
+      nullable(v.approval, signedObject) &&
+      ["active", "expiring", "expired", "revoked", "reauthorization_required"].includes(
+        String(v.status),
+      ) &&
+      v.defaultValiditySeconds === 7776000 &&
+      v.noticeSeconds === 604800
+    );
+  if (p[6] === "setups")
+    return (
+      fields(v, [
+        "setupIntentId",
+        "ownerSubject",
+        "vaultId",
+        "connectionId",
+        "clientId",
+        "authorizationId",
+        "issuedAt",
+        "expiresAt",
+        "expectedGeneration",
+        "expectedCredentialFingerprint",
+        "offer",
+        "consumedBy",
+        "issuer",
+        "provider",
+        "predecessorConnectionId",
+      ]) &&
+      v.setupIntentId === p[7] &&
+      hash(v.ownerSubject) &&
+      v.vaultId === p[4] &&
+      v.connectionId === p[5] &&
+      id(v.clientId) &&
+      id(v.authorizationId) &&
+      integer(v.issuedAt, 0) &&
+      integer(v.expiresAt, 1) &&
+      v.expiresAt === Number(v.issuedAt) + 600 &&
+      integer(v.expectedGeneration, 0) &&
+      nullable(v.expectedCredentialFingerprint, hash) &&
+      nullable(v.offer, pairingPacket) &&
+      nullable(v.consumedBy, op) &&
+      typeof v.issuer === "string" &&
+      /^https:\/\/[^/]+$/.test(v.issuer) &&
+      ["muse", "chatgpt"].includes(String(v.provider)) &&
+      nullable(v.predecessorConnectionId, id)
+    );
+  return credentialReceipt(v, method === "GET" ? p[7] : operationId);
+}
 /** DTO validation only. Root/Agent signatures are independently verified inside the owner Worker. */
 export function persistentResponse(
   path: string,
@@ -147,6 +273,14 @@ export function persistentResponse(
   operationId?: string,
 ): boolean {
   const p = path.split("?", 1)[0].split("/");
+  if (p[3] === "agent-credentials") {
+    if (!record(v)) return false;
+    // Owner setup metadata is a closed object without a contractVersion wrapper.
+    return (
+      (p[6] === "setups" || v.contractVersion === CONTRACT) &&
+      credentialResponse(p, method, v, operationId)
+    );
+  }
   if (p[3] === "executor-connections") {
     if (p[6] === "bindings" && method === "POST")
       return (

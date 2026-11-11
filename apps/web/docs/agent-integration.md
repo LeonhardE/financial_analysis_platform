@@ -178,3 +178,24 @@ connections, resource/task publication and historical Inbox decryption remain.
 The original operator design is available in Git history; it is not a deployment
 prerequisite for personal Agent-owned credentials. No VM, TCP proxy or additional
 service is required by the current Web integration.
+
+## Agent-owned credential pairing foundation
+
+The default-off `/api/v3/agent-credentials` Owner transport is separate from native
+OAuth bootstrap and financial PoP. The existing unlocked Owner Worker decrypts a
+10-minute host offer, verifies its exact issuer/provider/Owner/vault/connection,
+client, authorization, generation and public-key signature, then appends fresh
+Agent certificates and signs a maximum 90-day lease. It encrypts the Root and
+checkpoint anchor back to the same pending host. Agent private keys stay in that
+host, never in Web state or a user-managed recovery file.
+
+The new credential packet has its own sealed original outbox and exact receipt
+checks. Read-only signature verification supports expiry/7-day notices and prior
+consent history after old Agent keys expire. Preparing or cancelling a replacement
+does not commit a directory or revoke current credentials. Root certificate
+publication precedes the Hub's atomic lease replacement; old public keys remain
+available for Owner historical report verification.
+
+These Worker methods and closed DTOs prepare the later simplified authorize and
+reauthorize interface. No deployment, real Passkey/host migration or native-plan
+acceptance is implied by local crypto or transport tests.

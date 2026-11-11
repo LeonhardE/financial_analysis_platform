@@ -204,7 +204,7 @@ function harness({ env = ENV, upstream, jwks, now = () => NOW, deadlineMs = 1000
     calls.push({ url, init });
     if (url === JWKS) return jwks ? jwks(init) : response({ keys: [jwk] });
     assert.ok(
-      url.startsWith(ORIGIN + "/api/v2/"),
+      url.startsWith(ORIGIN + "/api/v2/") || url.startsWith(ORIGIN + "/api/v3/agent-credentials/"),
       "Hub cannot acquire metadata identity or select a different upstream",
     );
     return upstream ? upstream(url, init) : response();
@@ -1438,4 +1438,68 @@ test("Executor enrollment proxy keeps its separate signed approval/scope body an
   } finally {
     await h.close();
   }
+});
+
+test("Agent credential Owner routes preserve opaque activation, fixed namespace and strict packets", async () => {
+  const capsValue = {
+    contractVersion: CONTRACT,
+    profile: "folioview.agent-credential.v1",
+    enabled: true,
+    defaultValiditySeconds: 7776000,
+    noticeSeconds: 604800,
+  };
+  const state = {
+    ...capsValue,
+    identity: null,
+    binding: null,
+    lease: null,
+    approval: null,
+    status: "reauthorization_required",
+  };
+  delete state.enabled;
+  const base = "/api/v3/agent-credentials/vault_A/connection_A";
+  const h = harness({ upstream: () => response(state) });
+  assert.equal((await h.proxy(request(base))).status, 200);
+  const packet = { version: 1, iv: "A".repeat(16), ciphertext: "A".repeat(43) };
+  const command = { binding: SIGNED, approval: SIGNED, activation: packet };
+  for (const bad of [
+    { contractVersion: CONTRACT, command: { ...command, privateKey: "DO_NOT_EXPOSE" } },
+    {
+      contractVersion: CONTRACT,
+      command: { ...command, activation: { ...packet, secret: "DO_NOT_EXPOSE" } },
+    },
+  ]) {
+    const value = await h.proxy(
+      request(base + "/approvals", {
+        method: "POST",
+        json: bad,
+        headers: { "Idempotency-Key": OP },
+      }),
+    );
+    assert.equal(value.status, 400);
+    assert.equal((await value.text()).includes("DO_NOT_EXPOSE"), false);
+  }
+  assert.equal(h.hub().length, 1);
+  assert.equal((await h.proxy(request(base + "?owner=other"))).status, 400);
+  const setup = {
+    setupIntentId: OP,
+    ownerSubject: "a".repeat(64),
+    vaultId: "vault_A",
+    connectionId: "connection_A",
+    clientId: "chatgpt_A",
+    authorizationId: "auth_A",
+    issuedAt: 1000,
+    expiresAt: 1600,
+    expectedGeneration: 0,
+    expectedCredentialFingerprint: null,
+    offer: packet,
+    consumedBy: null,
+    issuer: ORIGIN,
+    provider: "chatgpt",
+    predecessorConnectionId: null,
+  };
+  const read = harness({ upstream: () => response(setup) });
+  assert.equal((await read.proxy(request(base + "/setups/" + OP))).status, 200);
+  const wrong = harness({ upstream: () => response({ ...setup, connectionId: "other" }) });
+  assert.equal((await wrong.proxy(request(base + "/setups/" + OP))).status, 503);
 });

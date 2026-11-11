@@ -1479,7 +1479,7 @@ export class EncryptedVaultSession {
         row.vaultId !== this.vaultId ||
         row.connectionId !== actor.connectionId ||
         row.clientId !== actor.clientId ||
-        !["identity", "consent", "revocation", "publication"].includes(row.kind) ||
+        !["identity", "credential", "consent", "revocation", "publication"].includes(row.kind) ||
         !/^[A-Za-z0-9_-]{22,128}$/.test(row.pending?.operationId ?? ""))
     )
       throw new VaultError("binding_mismatch");
@@ -1516,6 +1516,27 @@ export class EncryptedVaultSession {
       this.assert(g);
       return packet;
     });
+  }
+  async prepareAgentCredential(args: Json) {
+    return this.preparePersistent("prepareAgentCredential", args);
+  }
+  async inspectAgentCredential(args: Json) {
+    const g = this.generation,
+      value = await this.rpc("inspectAgentCredential", args);
+    this.assert(g);
+    return value;
+  }
+  async inspectAgentCredentialSetup(args: Json) {
+    const g = this.generation,
+      value = await this.rpc("inspectAgentCredentialSetup", args);
+    this.assert(g);
+    return value;
+  }
+  async verifyHistoricalPolicy(args: Json) {
+    const g = this.generation,
+      value = await this.rpc("verifyHistoricalPolicy", args);
+    this.assert(g);
+    return value;
   }
   async preparePersistentEnrollment(args: Json) {
     return this.preparePersistent("preparePersistentEnrollment", args);

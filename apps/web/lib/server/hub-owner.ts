@@ -1,6 +1,10 @@
 import "server-only";
 import { persistentOwnerRoute } from "../persistent-owner-routes";
-import { persistentRequest, persistentResponse } from "./persistent-owner-contracts";
+import {
+  persistentRequest,
+  persistentResponse,
+  credentialApprovalRequest,
+} from "./persistent-owner-contracts";
 import { cancellationRequest, cancellationResponse } from "./upload-cancellation";
 
 import {
@@ -41,6 +45,7 @@ type Rule = {
   kind:
     | "persistent-publication"
     | "executor-binding"
+    | "credential-approval"
     | "read"
     | "bootstrap"
     | "registry"
@@ -293,6 +298,8 @@ function binding(value: unknown) {
 function validBody(body: unknown, kind: Rule["kind"], vaultId?: string) {
   if (!record(body) || body.contractVersion !== CONTRACT) return false;
   switch (kind) {
+    case "credential-approval":
+      return credentialApprovalRequest(body);
     case "small":
       return fields(body, ["contractVersion"]);
     case "executor-binding":
