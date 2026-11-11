@@ -5,7 +5,6 @@ import { useEffect, useRef, useState } from "react";
 import { usePreferences } from "@/components/PreferencesProvider";
 import type { Preferences } from "@/lib/preferences";
 import type { HoldingsWorkspace } from "./useHoldingsWorkspace";
-import IndependentSetupPanel from "./IndependentSetupPanel";
 import VaultManagementPanel from "./VaultManagementPanel";
 import styles from "./SettingsPanel.module.css";
 
@@ -154,7 +153,6 @@ export default function SettingsPanel({ workspace }: { workspace?: HoldingsWorks
         </div>
       )}
       {workspace && <VaultManagementPanel workspace={workspace} />}
-      {workspace && <IndependentSetupPanel workspace={workspace} />}
     </section>
   );
 }

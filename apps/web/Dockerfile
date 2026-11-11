@@ -8,7 +8,6 @@ RUN npm ci --ignore-scripts
 
 COPY apps/web ./apps/web
 COPY packages/encrypted-workspace ./packages/encrypted-workspace
-COPY packages/executor-trust ./packages/executor-trust
 
 # NEXT_PUBLIC values are compiled into the browser bundle by next build.
 ARG NEXT_PUBLIC_API_BASE_URL

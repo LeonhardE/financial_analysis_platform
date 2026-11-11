@@ -14,9 +14,6 @@ runtimeHash.update(readFileSync(path.join(__dirname, "../../package-lock.json"))
 runtimeHash.update(
   readFileSync(path.join(__dirname, "../../packages/encrypted-workspace/integrity.json")),
 );
-runtimeHash.update(
-  readFileSync(path.join(__dirname, "../../packages/executor-trust/integrity.json")),
-);
 
 const nextConfig: NextConfig = {
   env: { NEXT_PUBLIC_OWNER_UNLOCK_VERSION: runtimeHash.digest("hex") },

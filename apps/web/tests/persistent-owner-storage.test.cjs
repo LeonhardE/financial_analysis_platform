@@ -33,13 +33,6 @@ test("one unlocked owner prepares persistent registration; sealed original retri
         module: { type: "es6" },
       });
       code = code.replace(/from "\.\/(encrypted-[^"]+)"/g, (_, n) => `from "./${n}.mjs"`);
-      code = code.replaceAll(
-        '"../../../packages/executor-trust/dist/core.mjs"',
-        JSON.stringify(
-          pathToFileURL(path.resolve(__dirname, "../../../packages/executor-trust/dist/core.mjs"))
-            .href,
-        ),
-      );
       await fs.writeFile(path.join(directory, name + ".mjs"), code);
     }
     const load = (name) => import(pathToFileURL(path.join(directory, name + ".mjs")).href),

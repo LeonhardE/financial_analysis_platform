@@ -11,12 +11,12 @@ unlock. Persistent Agent identity is separate from this temporary owner session.
 
 ## Documentation
 
-| Guide                                          | Contents                                                                                          |
-| ---------------------------------------------- | ------------------------------------------------------------------------------------------------- |
-| [Workspace](docs/workspace.md)                 | Navigation, source types, CSV import, task editing and Inbox                                      |
-| [Keys and recovery](docs/key-management.md)    | Device review, Passkey replacement, renewal, original-operation recovery and archive removal      |
-| [Private transport](docs/transport.md)         | Fixed BFF routes, verified identity, limits and request/session fencing                           |
-| [Agent integration](docs/agent-integration.md) | Independent Policy connection, persistent consent/publication, reports and retained compatibility |
+| Guide                                          | Contents                                                                                     |
+| ---------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| [Workspace](docs/workspace.md)                 | Navigation, source types, CSV import, task editing and Inbox                                 |
+| [Keys and recovery](docs/key-management.md)    | Device review, Passkey replacement, renewal, original-operation recovery and archive removal |
+| [Private transport](docs/transport.md)         | Fixed BFF routes, verified identity, limits and request/session fencing                      |
+| [Agent integration](docs/agent-integration.md) | Hub connections, persistent consent/publication, reports and retained compatibility          |
 
 CSV holdings and private task/report content are encrypted in the existing owner Worker. User
 watchlists and manually entered creator text remain in User's ordinary plaintext domain.
@@ -24,7 +24,7 @@ Google login authenticates ownership; it does not reconstruct library keys. Keep
 recovery file and recovery code separately. The published frontend remains part of the trust boundary.
 
 Persistent producers/runtime and Web consumers are implemented behind default-off feature gates.
-Real independent/Muse setup, actual native plans, protected-host restart and cross-day encrypted results
+Real Agent-owned credential setup, actual native plans, host persistence and cross-day encrypted results
 require separate owner-led acceptance. A code deployment or Agent statement is not that evidence.
 
 ## Development and verification

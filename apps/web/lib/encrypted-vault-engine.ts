@@ -33,18 +33,6 @@ export function createVaultKernel(
           )
             throw new VaultError("archive_deletion_pending");
           switch (method) {
-            case "verifyIndependentAgent":
-              result = await core.verifyIndependentAgent(args);
-              break;
-            case "verifyIndependentDestination":
-              result = await core.verifyIndependentDestination(args);
-              break;
-            case "prepareIndependentSetup":
-              result = await core.prepareIndependentSetup(args);
-              break;
-            case "signIndependentPolicyControl":
-              result = await core.signIndependentPolicyControl(args);
-              break;
             case "preparePersistentEnrollment":
               result = await core.preparePersistentEnrollment(args);
               break;
