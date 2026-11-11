@@ -257,7 +257,7 @@ run "reject_unregistered_provider_or_unsafe_callback" {
 run "reject_combined_registration_over_application_budget" {
   command = plan
   variables {
-    connector = { muse_clients = [for i in range(2) : { client_id = "muse-${i}", redirect_uris = [for j in range(4) : "https://agent.example.invalid/${i}/${j}/${join("", [for k in range(120) : "abcdefghij"])}"] }] }
+    connector     = { muse_clients = [for i in range(2) : { client_id = "muse-${i}", redirect_uris = [for j in range(4) : "https://agent.example.invalid/${i}/${j}/${join("", [for k in range(120) : "abcdefghij"])}"] }] }
     agent_clients = [for i in range(2) : { provider = "chatgpt", client_id = "chatgpt-${i}", redirect_uris = [for j in range(4) : "https://other-agent.example.invalid/${i}/${j}/${join("", [for k in range(120) : "abcdefghij"])}"] }]
   }
   expect_failures = [var.agent_clients]
