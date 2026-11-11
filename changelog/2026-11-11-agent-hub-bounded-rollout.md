@@ -17,5 +17,7 @@ opening personal Agent authorization to every signed-in Owner.
 
 ## Validation
 
-- Targeted admission tests cover real OAuth, credential replacement, PoP/report
-  rejection and retained history. Full repository checks run before commit.
+- Six targeted admission tests cover real OAuth, credential replacement, PoP/report
+  rejection, scope removal during source retrieval and retained history.
+- All 26 Hub mock-provider deployment tests pass, including empty, duplicate, malformed
+  and oversized Owner admission scopes. Full repository and normal pre-commit checks pass.

@@ -190,6 +190,7 @@ run "personal_mode_is_closed_and_scale_to_zero_by_default" {
   assert {
     condition = (!var.agent_owned_mode_enabled && !var.persistent_mode_enabled &&
       output.creation_configuration.environment.HUB_AGENT_OWNED_CREDENTIALS_ENABLED == "0" &&
+      output.creation_configuration.environment.HUB_AGENT_OWNED_ALLOWED_OWNER_SUBJECTS_JSON == "[]" &&
       output.creation_configuration.environment.HUB_AGENT_OWNER_URL == "" &&
       alltrue([for name, value in output.creation_configuration.environment : value == "0" if startswith(name, "HUB_PERSISTENT_")]) &&
       output.creation_configuration.min_instances == 0 && output.creation_configuration.max_instances == 1 &&
@@ -202,13 +203,15 @@ run "personal_mode_is_closed_and_scale_to_zero_by_default" {
 run "explicit_personal_mode_uses_existing_hub_and_preregistered_providers" {
   command = plan
   variables {
-    agent_owned_mode_enabled = true
-    connector                = { oauth_enabled = true, muse_clients = [{ client_id = "synthetic-muse", redirect_uris = ["https://agent.example.invalid/callback"] }] }
-    agent_clients            = [{ provider = "chatgpt", client_id = "synthetic-chatgpt", redirect_uris = ["https://other-agent.example.invalid/callback"] }]
-    sources                  = { user_origin = "https://user.example.invalid", portfolio_origin = "https://portfolio.example.invalid", portfolio_caller_email = "example-portfolio@example-project-1234.iam.gserviceaccount.com", trusted_portfolio_callers = { "112010400000000710080" = "example-portfolio@example-project-1234.iam.gserviceaccount.com" } }
+    agent_owned_mode_enabled           = true
+    agent_owned_allowed_owner_subjects = [sha256("synthetic-owner")]
+    connector                          = { oauth_enabled = true, muse_clients = [{ client_id = "synthetic-muse", redirect_uris = ["https://agent.example.invalid/callback"] }] }
+    agent_clients                      = [{ provider = "chatgpt", client_id = "synthetic-chatgpt", redirect_uris = ["https://other-agent.example.invalid/callback"] }]
+    sources                            = { user_origin = "https://user.example.invalid", portfolio_origin = "https://portfolio.example.invalid", portfolio_caller_email = "example-portfolio@example-project-1234.iam.gserviceaccount.com", trusted_portfolio_callers = { "112010400000000710080" = "example-portfolio@example-project-1234.iam.gserviceaccount.com" } }
   }
   assert {
     condition = (output.creation_configuration.environment.HUB_AGENT_OWNED_CREDENTIALS_ENABLED == "1" &&
+      output.creation_configuration.environment.HUB_AGENT_OWNED_ALLOWED_OWNER_SUBJECTS_JSON == jsonencode(var.agent_owned_allowed_owner_subjects) &&
       output.creation_configuration.environment.HUB_AGENT_OWNER_URL == "https://web.example.invalid/agents" &&
       length([for name in keys(output.creation_configuration.environment) : name if startswith(name, "HUB_PERSISTENT_")]) == 6 &&
       alltrue([for name, value in output.creation_configuration.environment : value == "1" if startswith(name, "HUB_PERSISTENT_")]) &&
@@ -239,6 +242,30 @@ run "reject_personal_mode_without_registration_and_source_trust" {
   command = plan
   variables { agent_owned_mode_enabled = true }
   expect_failures = [var.agent_owned_mode_enabled]
+}
+run "reject_personal_mode_with_empty_owner_scope_despite_complete_client_and_source_trust" {
+  command = plan
+  variables {
+    agent_owned_mode_enabled = true
+    connector                = { oauth_enabled = true, muse_clients = [{ client_id = "synthetic-muse", redirect_uris = ["https://agent.example.invalid/callback"] }] }
+    sources                  = { user_origin = "https://user.example.invalid", portfolio_origin = "https://portfolio.example.invalid", portfolio_caller_email = "example-portfolio@example-project-1234.iam.gserviceaccount.com", trusted_portfolio_callers = { "112010400000000710080" = "example-portfolio@example-project-1234.iam.gserviceaccount.com" } }
+  }
+  expect_failures = [var.agent_owned_mode_enabled]
+}
+run "reject_duplicate_owner_scope" {
+  command = plan
+  variables { agent_owned_allowed_owner_subjects = [sha256("synthetic-owner"), sha256("synthetic-owner")] }
+  expect_failures = [var.agent_owned_allowed_owner_subjects]
+}
+run "reject_malformed_owner_scope" {
+  command = plan
+  variables { agent_owned_allowed_owner_subjects = ["unreviewed-owner-uid"] }
+  expect_failures = [var.agent_owned_allowed_owner_subjects]
+}
+run "reject_owner_scope_over_admission_budget" {
+  command = plan
+  variables { agent_owned_allowed_owner_subjects = [for i in range(33) : sha256("synthetic-owner-${i}")] }
+  expect_failures = [var.agent_owned_allowed_owner_subjects]
 }
 run "reject_duplicate_provider_client_identifier" {
   command = plan
