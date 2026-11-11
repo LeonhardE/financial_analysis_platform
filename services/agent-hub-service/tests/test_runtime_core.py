@@ -164,16 +164,19 @@ class PersistentRuntimeCoreTests(unittest.TestCase):
         self.assertEqual(manifest["runtimeVersion"], "1.0.0")
         for path, expected in manifest["files"].items():
             self.assertEqual(hashlib.sha256((RUNTIME / path).read_bytes()).hexdigest(), expected)
-        shared = RUNTIME.parents[2] / "packages/encrypted-workspace"
+        # A published runtime retains its reviewed dependency until rebuilt.
+        # Independent additive foundation PRs must not rewrite this distribution.
+        shared_integrity = (RUNTIME / "shared-contract.integrity.json").read_bytes()
+        shared = json.loads(shared_integrity)
+        self.assertEqual(shared["browserContractVersion"], "1.0.0")
+        self.assertEqual(shared["contractVersion"], "folioview.agent-workspace.v2.0")
         self.assertEqual(
             manifest["sharedLibrary"],
             {
                 "name": "@folioview/encrypted-workspace",
                 "version": "1.0.0",
-                "integritySha256": hashlib.sha256(
-                    (shared / "integrity.json").read_bytes()
-                ).hexdigest(),
-                "bundleSha256": hashlib.sha256((shared / "dist/core.mjs").read_bytes()).hexdigest(),
+                "integritySha256": hashlib.sha256(shared_integrity).hexdigest(),
+                "bundleSha256": shared["files"]["dist/core.mjs"],
             },
         )
         bundle = (RUNTIME / "dist/core.mjs").read_text()
