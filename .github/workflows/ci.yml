@@ -146,6 +146,10 @@ jobs:
           cache-dependency-path: |
             ${{ steps.target.outputs.directory }}/requirements*.txt
             services/common/pyproject.toml
+      - name: Set up Node.js for distributed client tests
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "24.12.0"
       - name: Install only this service's dependencies
         env:
           REQUIREMENTS_DEV: ${{ steps.target.outputs.requirements_dev }}
