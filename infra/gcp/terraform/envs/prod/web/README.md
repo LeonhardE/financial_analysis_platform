@@ -138,29 +138,28 @@ old library deployed. Trigger identity, source binding, substitutions, execution
 identity and normal main-branch release behavior remain unchanged. This adds no
 new IAM or deployment gate.
 
-## Optional independent Agent selection
+## Personal Agent rollout
 
-The existing `owner_environment` variable also consumes the inseparable independent
-Agent pair emitted by the reviewed
-[profile-v5 managed Web projection](../../../../deployment-profiles/README.md#independent-web-public-selection-profile-v5).
-Legacy null/six-field inputs are unchanged. The extended input has exactly eight
-fields: the six existing Owner settings plus `FOLIOVIEW_INDEPENDENT_AGENT_ENABLED=true`
-and canonical `FOLIOVIEW_INDEPENDENT_AGENT_CONFIG`. It requires Hub Owner support,
-exact public-only six-field selection, bounded identifiers, public P-256 JWK and
-exact HTTPS Policy/resource/native callbacks. Private/extra fields, partial or
-false pairs, noncanonical JSON and unreviewed environment entries fail closed.
-The canonical selection stays within 1,024 bytes; the producer preserves its
-existing 4,000-byte complete target budget and pins the full server environment.
+Personal Agent authorization uses the existing Hub Owner origin and six-field
+server environment above. No Policy issuer, Executor address, public trust key,
+Agent private key or new public build substitution is required. The retired
+independent Agent pair is refused, even if disabled; profile-v5 projections are
+historical specifications and cannot be compiled or applied as current inputs.
 
-Use the existing managed compiler, selected-source/target hash and full saved-plan
-approval path; never append environment overrides or locally bypass the projection.
-The application independently verifies the current Owner Root, original identity
-and Policy state. A checked configuration file is not Root enrollment or TEE proof.
-Initial administrator setup and actual backend issuance/release activation remain
-separate prerequisites. No new resources, identities, invokers or capacity changes
-are introduced by consuming this public pair. Omission keeps the UI module off.
+The Web trigger watches only the current encrypted-workspace browser contract;
+the retired executor-trust package filter is removed. Trigger identity, main
+branch, nine public build values, image release path and service boundaries stay
+unchanged. This source change does not resume or execute any trigger.
 
-The administrator-owned Web image trigger includes both public browser contract
-packages, including `packages/executor-trust/**`. It retains the same trigger,
-build identity, main branch, nine public build substitutions and deployment path.
-This source change does not execute a cloud configuration apply or acceptance run.
+After explicit deployment authorization, release a compatible Hub with its new
+capability closed, then the compatible Web image and reviewed existing-service
+configuration. Actual feature enablement belongs to Hub's explicit personal-mode
+switch, with real host readiness and synthetic acceptance checked separately.
+Do not reinterpret old browser flags or reuse an old eight-field saved plan.
+Rollback may close the capability or select a reviewed compatible image, while
+retaining generations, revocations, encrypted history and original receipts.
+
+The existing scale-to-zero Web, five backend services and storage remain the
+complete topology. No extra service, warm minimum, VM, proxy, NAT, content key
+store or cloud project is introduced. This preparation performs no apply, image
+deployment or online validation; ordinary usage can still incur existing charges.

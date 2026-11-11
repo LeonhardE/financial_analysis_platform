@@ -66,54 +66,27 @@ override_data {
   }
 }
 
-run "reviewed_independent_pair_preserves_existing_service_boundaries" {
+run "reject_retired_independent_pair" {
   command = plan
-  assert {
-    condition = (local.environment == var.owner_environment &&
-      output.adoption_boundary.invoker_iam_disabled && output.adoption_boundary.service_max_instances == 2 &&
-      local.independent_agent.issuer == "https://policy.example.com" &&
-      local.independent_agent.audience == "https://executor.example.com/mcp" &&
-    output.runtime_service_account == "browser-alpha-runtime@demo-web-alpha.iam.gserviceaccount.com")
-    error_message = "Only the reviewed public Web environment is consumed; no service recreation, IAM/access or capacity change."
-  }
+  expect_failures = [var.owner_environment]
 }
-run "reject_incomplete_pair" {
+run "reject_incomplete_retired_pair" {
   command = plan
   variables { owner_environment = { for k, v in var.owner_environment : k => v if k != "FOLIOVIEW_INDEPENDENT_AGENT_CONFIG" } }
   expect_failures = [var.owner_environment]
 }
-run "reject_disabled_pair" {
+run "reject_disabled_retired_pair" {
   command = plan
   variables { owner_environment = merge(var.owner_environment, { FOLIOVIEW_INDEPENDENT_AGENT_ENABLED = "false" }) }
   expect_failures = [var.owner_environment]
 }
-run "reject_missing_hub_owner" {
+run "personal_agent_uses_only_existing_owner_environment" {
   command = plan
-  variables { owner_environment = merge(var.owner_environment, { FOLIOVIEW_HUB_OWNER_ENABLED = "false", FOLIOVIEW_HUB_ORIGIN = "" }) }
-  expect_failures = [var.owner_environment]
-}
-run "reject_noncanonical_json" {
-  command = plan
-  variables { owner_environment = merge(var.owner_environment, { FOLIOVIEW_INDEPENDENT_AGENT_CONFIG = " ${var.owner_environment.FOLIOVIEW_INDEPENDENT_AGENT_CONFIG}" }) }
-  expect_failures = [var.owner_environment]
-}
-run "reject_private_key_field" {
-  command = plan
-  variables { owner_environment = merge(var.owner_environment, { FOLIOVIEW_INDEPENDENT_AGENT_CONFIG = jsonencode(merge(jsondecode(var.owner_environment.FOLIOVIEW_INDEPENDENT_AGENT_CONFIG), { policyJwk = merge(jsondecode(var.owner_environment.FOLIOVIEW_INDEPENDENT_AGENT_CONFIG).policyJwk, { d = "CANARY" }) })) }) }
-  expect_failures = [var.owner_environment]
-}
-run "reject_wildcard_callback" {
-  command = plan
-  variables { owner_environment = merge(var.owner_environment, { FOLIOVIEW_INDEPENDENT_AGENT_CONFIG = jsonencode(merge(jsondecode(var.owner_environment.FOLIOVIEW_INDEPENDENT_AGENT_CONFIG), { nativeRedirectUris = ["https://chatgpt.com/*"] })) }) }
-  expect_failures = [var.owner_environment]
-}
-run "reject_wrong_authority_origin" {
-  command = plan
-  variables { owner_environment = merge(var.owner_environment, { FOLIOVIEW_INDEPENDENT_AGENT_CONFIG = jsonencode(merge(jsondecode(var.owner_environment.FOLIOVIEW_INDEPENDENT_AGENT_CONFIG), { issuer = var.owner_environment.FOLIOVIEW_HUB_ORIGIN })) }) }
-  expect_failures = [var.owner_environment]
-}
-run "reject_extra_environment" {
-  command = plan
-  variables { owner_environment = merge(var.owner_environment, { UNREVIEWED_ENV = "1" }) }
-  expect_failures = [var.owner_environment]
+  variables { owner_environment = { for k, v in var.owner_environment : k => v if !startswith(k, "FOLIOVIEW_INDEPENDENT_AGENT_") } }
+  assert {
+    condition = (local.environment == var.owner_environment && length(local.environment) == 6 &&
+      output.adoption_boundary.invoker_iam_disabled && output.adoption_boundary.service_max_instances == 2 &&
+      output.runtime_service_account == "browser-alpha-runtime@demo-web-alpha.iam.gserviceaccount.com")
+    error_message = "Personal Agent support needs only the existing Hub Owner origin; retain service identity, invocation and capacity boundaries."
+  }
 }
