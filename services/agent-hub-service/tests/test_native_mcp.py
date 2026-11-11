@@ -99,6 +99,62 @@ class NativeMCPTests(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual([r.status_code for r in cases], [403, 403, 400, 400, 405])
                 self.assertTrue(all("private_marker" not in r.text for r in cases))
 
+    async def test_owned_sdk_has_only_private_host_bootstrap_and_opaque_offers(self):
+        from folioview_shared.encrypted.jsonutil import b64url_encode
+
+        with patch.dict(
+            os.environ,
+            {
+                "HUB_AGENT_OWNED_CREDENTIALS_ENABLED": "1",
+                "HUB_AGENT_OWNER_URL": "https://owner.example/agents",
+                "CORS_ORIGINS": "https://owner.example",
+            },
+        ):
+            async with self.client() as client:
+                tools = await client.list_tools()
+                self.assertEqual(
+                    {t.name for t in tools.tools},
+                    {
+                        "agent_connection",
+                        "prepare_agent_authorization",
+                        "submit_agent_offer",
+                        "agent_activation",
+                    },
+                )
+                inspected = await client.call_tool("agent_connection", {})
+                self.assertFalse(inspected.is_error)
+                self.assertEqual(inspected.structured_content["provider"], "muse")
+                prepared = await client.call_tool("prepare_agent_authorization", {})
+                self.assertFalse(prepared.is_error)
+                setup = prepared.structured_content["setup"]["setupIntentId"]
+                offer = await client.call_tool(
+                    "submit_agent_offer",
+                    {
+                        "setupIntentId": setup,
+                        "offer": {
+                            "version": 1,
+                            "iv": b64url_encode(b"i" * 12),
+                            "ciphertext": b64url_encode(b"c" * 32),
+                        },
+                    },
+                )
+                self.assertFalse(offer.is_error)
+                pending = await client.call_tool("agent_activation", {"setupIntentId": setup})
+                self.assertFalse(pending.is_error)
+                self.assertIsNone(pending.structured_content["activation"])
+                for name, args in [
+                    ("open_persistent_runtime", {}),
+                    ("prepare_agent_authorization", {"provider": "chatgpt"}),
+                    (
+                        "submit_agent_offer",
+                        {"setupIntentId": setup, "offer": {"privateKey": "synthetic_marker"}},
+                    ),
+                ]:
+                    rejected = await client.call_tool(name, args)
+                    self.assertTrue(rejected.is_error)
+                    self.assertNotIn("synthetic_marker", str(rejected))
+                self.assertNotIn(self.token, str(prepared.structured_content))
+
     async def test_disabled_surface_returns_closed_error_without_creating_setup(self):
         with patch.dict(os.environ, {"HUB_PERSISTENT_MCP_ENABLED": "0"}):
             async with self.app.router.lifespan_context(self.app):

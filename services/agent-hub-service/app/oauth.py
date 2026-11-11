@@ -515,6 +515,10 @@ class OAuthService(OwnerConnectionService):
             or _TOKEN.fullmatch(browser_secret or "") is None
         ):
             raise OAuthFailure("invalid_request")
+        if not any(
+            c.client_id == params["client_id"] and c.provider == "muse" for c in self.config.clients
+        ):
+            raise OAuthFailure("invalid_request")
         params = _copy(params)
         params["scope"] = " ".join(sorted(set(params["scope"].split())))
         request = _Request("GET", self.config.issuer + "/oauth/authorize", params)

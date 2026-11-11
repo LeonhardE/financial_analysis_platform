@@ -59,7 +59,7 @@ def validate_report_receipt(value):
         if (
             value["contractVersion"] != CONTRACT_VERSION
             or value["profile"] != PROFILE
-            or value["provider"] != "muse"
+            or value["provider"] not in {"muse", "chatgpt"}
             or value["authority"] != "agent_statement"
             or value["nativeScheduleAttested"] is not False
             or type(value["reportedStatus"]) is not str
@@ -295,7 +295,7 @@ class PersistentPlanService(PersistentExecutionService):
         if request["planReferenceHash"] is not None:
             validate_schema("Digest", request["planReferenceHash"])
         if (
-            request["provider"] != "muse"
+            request["provider"] not in {"muse", "chatgpt"}
             or type(request["reportedStatus"]) is not str
             or request["reportedStatus"] not in STATUSES
             or type(request["expectedVersion"]) is not int
@@ -311,9 +311,11 @@ class PersistentPlanService(PersistentExecutionService):
         fingerprint = digest(request)
 
         def write(unit):
-            _, _, registry, _, identity = self.authenticate(
+            _, _, registry, conn, identity = self.authenticate(
                 unit, owner, vault, connection, proof, path, request
             )
+            if request["provider"] != conn["provider"]:
+                raise ContractError("recipient_binding_mismatch")
             op = operation_path(owner, vault, connection, request["operationId"])
             previous = unit.get(op)
             if previous is not None:
@@ -357,7 +359,7 @@ class PersistentPlanService(PersistentExecutionService):
                 "version": head["version"] + 1,
                 "requestDigest": fingerprint,
                 "taskPublicationFingerprint": request["taskPublicationFingerprint"],
-                "provider": "muse",
+                "provider": conn["provider"],
                 "planReferenceHash": request["planReferenceHash"],
                 "reportedStatus": request["reportedStatus"],
                 "reportedAt": request["reportedAt"],

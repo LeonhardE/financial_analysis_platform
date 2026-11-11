@@ -208,11 +208,11 @@ class PersistentExecutionService(PersistentPublicationService):
             raise ContractError("malformed_request")
 
         def read(unit):
-            _, v, registry, _, identity = self.authenticate(
+            _, v, registry, conn, identity = self.authenticate(
                 unit, owner, vault, connection, proof, path, request
             )
             policy = stored_consent(unit, owner, vault, connection)
-            return {
+            result = {
                 "contractVersion": CONTRACT_VERSION,
                 "profile": CONTENT_PROFILE,
                 "identity": identity,
@@ -223,6 +223,16 @@ class PersistentExecutionService(PersistentPublicationService):
                 "consentOperations": [] if policy is None else policy["operations"],
                 "registrySequence": registry.registry_sequence,
             }
+            from .persistent_agents import stored_identity
+
+            row = stored_identity(unit, owner, vault, connection)
+            if "credentialLease" in row:
+                result.update(
+                    credentialLease=row["credentialLease"],
+                    credentialApproval=row["credentialApproval"],
+                    provider=conn["provider"],
+                )
+            return result
 
         return self.store.transact(read)
 

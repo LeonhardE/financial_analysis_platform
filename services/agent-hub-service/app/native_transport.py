@@ -5,6 +5,7 @@ namespaces and a sliding idle refresh deadline do not change legacy OAuth rules.
 """
 
 import hashlib
+import os
 import secrets
 import time
 from dataclasses import dataclass
@@ -95,7 +96,7 @@ class NativeConfig:
     @property
     def clients(self):
         return tuple(
-            NativeClient(c.client_id, c.redirects, c.method, c.secret_hash)
+            NativeClient(c.client_id, c.redirects, c.method, c.secret_hash, provider=c.provider)
             for c in self.base.clients
         )
 
@@ -312,6 +313,7 @@ class NativeTransportService(OwnerConnectionService):
                 "requestId": request,
                 "clientId": row["params"]["client_id"],
                 "scope": SCOPE,
+                "provider": self._provider(row["params"]["client_id"]),
                 "status": row["status"],
                 "expiresAt": row["expiresAt"],
                 "vaultId": None if v is None else v["vaultId"],
@@ -346,7 +348,9 @@ class NativeTransportService(OwnerConnectionService):
                     raise StoreUnavailable from None
             _current(unit, owner, self.now(), vault)
             index = self._owner(unit, uid)
-            conn = None
+            # A legacy identity/tombstone is create-only. Prepare a new slot and
+            # retire the predecessor only when the Owner commits new credentials.
+            candidates = []
             for connection in index["connectionIds"]:
                 candidate = _row(unit, "hub_oauth_connections", owner, connection)
                 if candidate is None:
@@ -357,9 +361,34 @@ class NativeTransportService(OwnerConnectionService):
                     and candidate["clientId"] == pending["params"]["client_id"]
                     and candidate["vaultId"] == vault
                 ):
-                    if conn is not None:
+                    if candidate["provider"] != self._provider(candidate["clientId"]):
                         raise StoreUnavailable
-                    conn = candidate
+                    candidates.append(candidate)
+            conn, predecessor = None, None
+            if os.getenv("HUB_AGENT_OWNED_CREDENTIALS_ENABLED") == "1":
+                from .persistent_agents import stored_identity
+
+                legacy = []
+                current = []
+                for candidate in candidates:
+                    row = stored_identity(unit, owner, vault, candidate["connectionId"])
+                    if row is not None and "credentialLease" not in row:
+                        legacy.append(candidate)
+                    else:
+                        current.append(candidate)
+                if len(current) > 1 or len(legacy) > 1:
+                    raise StoreUnavailable
+                if current:
+                    conn = current[0]
+                    expected = legacy[0]["connectionId"] if legacy else None
+                    if conn.get("predecessorConnectionId") != expected:
+                        raise StoreUnavailable
+                elif legacy:
+                    predecessor = legacy[0]["connectionId"]
+            elif len(candidates) > 1:
+                raise StoreUnavailable
+            elif candidates:
+                conn = candidates[0]
             now = self.now()
             if conn is None:
                 if len(index["connectionIds"]) >= MAX_CONNECTIONS:
@@ -367,7 +396,7 @@ class NativeTransportService(OwnerConnectionService):
                 conn = {
                     "ownerSubject": owner,
                     "vaultId": vault,
-                    "provider": "muse",
+                    "provider": self._provider(pending["params"]["client_id"]),
                     "clientId": pending["params"]["client_id"],
                     "connectionId": pending["connectionId"],
                     "authorizationCount": 0,
@@ -376,6 +405,8 @@ class NativeTransportService(OwnerConnectionService):
                     "status": "active",
                     "transportKind": "persistent_runtime",
                 }
+                if predecessor is not None:
+                    conn["predecessorConnectionId"] = predecessor
                 index["connectionIds"].append(conn["connectionId"])
             conn.update(
                 transportStatus="awaiting_exchange",
@@ -426,6 +457,12 @@ class NativeTransportService(OwnerConnectionService):
 
         return self.transact(write)
 
+    def _provider(self, client_id):
+        for client in self.config.clients:
+            if client.client_id == client_id:
+                return client.provider
+        raise OAuthFailure("invalid_client")
+
     def _context_active(self, unit, context):
         conn = _row(unit, "hub_oauth_connections", context["ownerSubject"], context["connectionId"])
         return bool(
@@ -433,7 +470,7 @@ class NativeTransportService(OwnerConnectionService):
             and conn.get("transportKind") == "persistent_runtime"
             and conn.get("ownerSubject") == context["ownerSubject"]
             and conn.get("connectionId") == context["connectionId"]
-            and conn.get("provider") == "muse"
+            and conn.get("provider") == self._provider(conn.get("clientId"))
             and conn["status"] == "active"
             and conn["vaultId"] == context["vaultId"]
             and conn["authorizationId"] == context["authorizationId"]
@@ -572,7 +609,7 @@ class NativeConnectionOwnerService(OwnerConnectionService):
             "connectionId": conn["connectionId"],
             "clientId": conn["clientId"],
             "vaultId": conn["vaultId"],
-            "provider": "muse",
+            "provider": conn["provider"],
             "status": conn["status"],
             "accountState": account,
             "linkedAt": conn["authorizedAt"],

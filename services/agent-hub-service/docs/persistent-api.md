@@ -583,3 +583,38 @@ managed records. Preserve current generations, archived bindings, consents and
 operation receipts. Never clear state to roll back. Keep UI recovery to login,
 existing Passkey and reauthorization; do not expose key files, fingerprints,
 certificate ceremonies or Agent recovery codes to users.
+
+## Native Agent-owned pairing
+
+With `HUB_AGENT_OWNED_CREDENTIALS_ENABLED=1`, native MCP replaces browser-runtime
+bootstrap tools with `agent_connection`, `prepare_agent_authorization`,
+`submit_agent_offer` and `agent_activation`. None accepts caller identity/provider
+claims or returns OAuth tokens/private keys. Preregister `provider` as `muse` or
+`chatgpt` against the exact client/callback; a provider name in model output is not
+provenance. Plan statements must match that connection's registered provider and
+remain `nativeScheduleAttested=false` until separate real-provider acceptance.
+
+`HUB_AGENT_OWNER_URL` must be the existing Web HTTPS `/agents` URL and its origin
+must be in explicit `CORS_ORIGINS`. Owner setup reads return that connection's
+trusted issuer/provider alongside the closed intent. A reviewed host client
+creates a local private pending profile and encrypts its signed public offer with
+a random pairing secret. The Owner receives the secret only in the authorization
+URL fragment, verifies the exact offer inside its Worker, then returns an opaque
+AES-GCM activation in the optional approval `activation` field. Activation is
+bounded to 8192 decoded bytes; private keys never enter these APIs.
+
+Only a still-authenticated native principal for the original setup authorization
+can retrieve activation. It must still refer to the current credential generation.
+The activation authenticates the Owner Root/checkpoint anchor to the host, which
+must independently verify the full PoP session registry, binding and signed lease
+before activating its local file. Server-provided Root pins alone are insufficient.
+Managed PoP sessions add public `credentialLease`, `credentialApproval` and
+`provider`; legacy session shapes remain unchanged.
+
+For a legacy create-only identity (including its tombstone), new native login
+prepares a fresh logical slot. It reuses an existing pending migration slot and
+keeps the old parent usable while authorization is incomplete. The new credential
+commit validates the server-recorded predecessor and revokes its parent atomically;
+failed approval does neither. Old identity/report records are retained. Later
+managed renewal reuses the managed slot with a new generation and fresh key pair.
+This is default-off source preparation, not deployed host/provider acceptance.

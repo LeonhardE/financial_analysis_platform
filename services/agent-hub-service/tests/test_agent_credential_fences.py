@@ -93,7 +93,10 @@ class CredentialExecutionFenceTests(unittest.TestCase):
     def test_expired_lease_denies_session_and_recovery_without_marking_owner_state(self):
         h = self.helper
         before = h.row()
-        self.result.x.service.session(*self.result.x.args("session", {}))
+        session = self.result.x.service.session(*self.result.x.args("session", {}))
+        self.assertEqual(session["credentialLease"], before["credentialLease"])
+        self.assertEqual(session["credentialApproval"], before["credentialApproval"])
+        self.assertEqual(session["provider"], "muse")
         h.fx.now = before["credentialLease"]["expiresAt"]
         with self.assertRaises(ContractError):
             self.result.x.service.session(*self.result.x.args("session", {}))

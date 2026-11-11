@@ -52,9 +52,11 @@ def https_url(value, *, origin=False):
 
 
 class Client(ClientMixin):
-    def __init__(self, client_id, redirects, method="none", secret_sha256=None):
+    def __init__(self, client_id, redirects, method="none", secret_sha256=None, *, provider="muse"):
         if (
-            type(client_id) is not str
+            type(provider) is not str
+            or provider not in {"muse", "chatgpt"}
+            or type(client_id) is not str
             or re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_-]{0,127}", client_id) is None
             or type(redirects) not in (list, tuple)
             or not 1 <= len(redirects) <= 4
@@ -77,6 +79,7 @@ class Client(ClientMixin):
                 raise ValueError
         self.client_id, self.redirects = client_id, tuple(redirects)
         self.method, self.secret_hash = method, secret_sha256
+        self.provider = provider
 
     def get_client_id(self):
         return self.client_id
@@ -147,7 +150,7 @@ class OAuthConfig:
                         "tokenEndpointAuthMethod",
                         "secretSha256",
                     }
-                    or row["provider"] != "muse"
+                    or row["provider"] not in {"muse", "chatgpt"}
                 ):
                     raise ValueError
                 clients.append(
@@ -156,6 +159,7 @@ class OAuthConfig:
                         row["redirectUris"],
                         row["tokenEndpointAuthMethod"],
                         row["secretSha256"],
+                        provider=row["provider"],
                     )
                 )
             return cls(
