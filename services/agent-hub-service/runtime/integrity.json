@@ -11,7 +11,8 @@
   "files": {
     "package.json": "8566201f350cbbb3645f8c6dbf95b697c93231262ab91c254a90774475566204",
     "package-lock.json": "9d9a3ee52f6659404ef2c30117d9c90fbc4b1cddf0f20e5202d34da2ab522f58",
-    "build.mjs": "0bd2c6fd2fe411c9d98b4f0326a1e4649844b366ea72279c59db0b1d07177eda",
+    "build.mjs": "ac017cd352ffdba0700e8e00495c593ba5e82d130c2eba775114145ebfb365a8",
+    "shared-contract.integrity.json": "23866e786461dcc2289f45d4d249837d77e99cbddc956a1961e2869f762b7d0a",
     "THIRD_PARTY_NOTICES.md": "16b1768276d7eed2a7ce1142f5766c211da784615fa004a36853f2658e18dd4d",
     "src/core.mjs": "bc979c99a138fa967075515259abdaa0346fe3df3ed0a47dac6a4fe174cc0f10",
     "src/crypto.mjs": "5a8c2378f3936ac4eb3f2547075cd6da7ffa348896f73e7099b69e33948f1268",

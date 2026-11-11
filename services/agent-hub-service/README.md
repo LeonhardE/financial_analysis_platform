@@ -71,3 +71,8 @@ The existing Cloud Build pipeline uses its pinned Cloud CLI builder's bundled Py
 guarded existing-service release helper. `_DEPLOY_SERVICE` defaults to `false` in source; the
 reviewed deployed trigger controls actual image release. Verify source commit, image digest,
 ready revision and traffic through the [delivery guide](../../infra/gcp/README.md).
+
+Runtime builds lock the exact shared-library manifest in
+`runtime/shared-contract.integrity.json`, covered by the runtime's own integrity
+manifest. A published distribution keeps that dependency until a reviewed Hub
+rebuild; additive shared-library PRs can be checked and merged independently.

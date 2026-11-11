@@ -14,6 +14,8 @@ if (shared.browserContractVersion !== "1.0.0" || shared.files["dist/core.mjs"] !
   throw new Error("Shared browser contract integrity mismatch");
 const format = (text, parser = "babel") => prettier.format(text, { parser, printWidth: 100 });
 await mkdir(resolve(root, "dist"), { recursive: true });
+// Lock the reviewed source dependency for this independently distributed runtime.
+await writeFile(resolve(root, "shared-contract.integrity.json"), sharedIntegrity);
 for (const entry of [
   "core",
   "session",
@@ -42,6 +44,7 @@ const files = [
   "package.json",
   "package-lock.json",
   "build.mjs",
+  "shared-contract.integrity.json",
   "THIRD_PARTY_NOTICES.md",
   "src/core.mjs",
   "src/crypto.mjs",
