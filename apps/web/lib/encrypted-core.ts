@@ -4666,7 +4666,7 @@ export class VaultCore {
       )
     )
       throw new VaultError("binding_mismatch");
-    const recipients = this.taskSelection(registry, this.now()).recipients;
+    const recipients = this.ownerSelection(registry, this.now()).recipients;
     if (recipients.length > 7) throw new VaultError("recipient_limit");
     const notBefore = Math.max(
       this.now() - 5,
@@ -6371,7 +6371,7 @@ export class VaultCore {
       sourceEpoch: null,
     };
   }
-  private taskSelection(registry: Registry, now: number) {
+  private ownerSelection(registry: Registry, now: number) {
     const eligible: Json[] = [];
     for (const id of [...registry.active].sort()) {
       try {
@@ -6429,7 +6429,7 @@ export class VaultCore {
   }
   async taskAuthority(current?: EncryptedTask | null) {
     const { registry, device } = this.ready();
-    const { writers, recipients } = this.taskSelection(registry, this.now());
+    const { writers, recipients } = this.ownerSelection(registry, this.now());
     resultRequire(writers.some((c) => c.keyId === device.sigId));
     let previousRecipientKeyIds: string[] | undefined;
     if (current) {
@@ -6488,7 +6488,7 @@ export class VaultCore {
       resultRequire(registry.checkpoint.registrySequence === i + 1);
     }
     const historical = registry!,
-      { writers, recipients } = this.taskSelection(historical, written);
+      { writers, recipients } = this.ownerSelection(historical, written);
     const raw = parsed(unb64(task.signedObject.payload, 524288));
     validate("ObjectMessage", raw);
     const author = cert(historical, raw.context.authorSigningKeyId, "device_sig", written);
@@ -6560,7 +6560,7 @@ export class VaultCore {
   }
   private async prepareTask(args: SealTaskArgs, action?: TaskAction): Promise<PendingTask> {
     const { registry, device, vault } = this.ready(),
-      { writers, recipients } = this.taskSelection(registry, this.now());
+      { writers, recipients } = this.ownerSelection(registry, this.now());
     const author = cert(registry, device.sigId, "device_sig", this.now());
     resultRequire(
       writers.some((w) => w.keyId === device.sigId) &&
@@ -6714,7 +6714,7 @@ export class VaultCore {
     return this.taskPendingAt(pending, registry, vault, this.now());
   }
   private async taskPendingAt(pending: PendingTask, registry: Registry, vault: Vault, at: number) {
-    const { writers, recipients } = this.taskSelection(registry, at);
+    const { writers, recipients } = this.ownerSelection(registry, at);
     exact(pending, [
       "taskId",
       "operationId",
@@ -6856,7 +6856,7 @@ export class VaultCore {
     for (const at of candidates) {
       try {
         for (const proof of certificates) cert(historical, proof!.keyId, undefined, at);
-        const selection = this.taskSelection(historical, at);
+        const selection = this.ownerSelection(historical, at);
         if (
           equal(
             message.context.recipients,
@@ -7436,16 +7436,7 @@ export class VaultCore {
     validate("ResourceContent", args.content);
     if (args.content.data.kind !== "holdings" || args.content.data.snapshotId !== snapshotId)
       throw new VaultError("invalid_data");
-    const recipients = [...registry.active]
-      .map((k) => cert(registry, k, undefined, this.now()))
-      .filter((c) => ["device_enc", "recovery_enc"].includes(c.role))
-      .sort((a, b) => (a.keyId < b.keyId ? -1 : 1));
-    if (
-      recipients.length > 8 ||
-      !recipients.some((c) => c.role === "device_enc") ||
-      !recipients.some((c) => c.role === "recovery_enc")
-    )
-      throw new VaultError("invalid_registry");
+    const { recipients } = this.ownerSelection(registry, this.now());
     const binding = this.binding(args.source, revision);
     const context = {
       contractVersion: CONTRACT,
