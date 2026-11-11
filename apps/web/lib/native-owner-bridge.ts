@@ -78,6 +78,7 @@ export class NativeOwnerBridge {
               "profile",
               "requestId",
               "clientId",
+              ...(Object.hasOwn(v, "provider") ? ["provider"] : []),
               "scope",
               "status",
               "expiresAt",
@@ -88,6 +89,7 @@ export class NativeOwnerBridge {
             v.profile === "folioview.persistent-account.v1" &&
             v.requestId === this.requestId &&
             identifier(v.clientId) &&
+            (!Object.hasOwn(v, "provider") || ["muse", "chatgpt"].includes(String(v.provider))) &&
             v.scope === "runtime:connect" &&
             ["pending", "authorized"].includes(v.status) &&
             Number.isSafeInteger(v.expiresAt) &&

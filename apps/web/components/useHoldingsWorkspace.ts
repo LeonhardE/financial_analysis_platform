@@ -2281,6 +2281,26 @@ export function useHoldingsWorkspace() {
     },
     [assertInboxSession, liveSession, taskGeneration],
   );
+  const prepareAgentCredential = useCallback(
+    (args: Parameters<EncryptedVaultSession["prepareAgentCredential"]>[0]) =>
+      taskCall((instance) => instance.prepareAgentCredential(args)),
+    [taskCall],
+  );
+  const inspectAgentCredential = useCallback(
+    (args: Parameters<EncryptedVaultSession["inspectAgentCredential"]>[0]) =>
+      taskCall((instance) => instance.inspectAgentCredential(args)),
+    [taskCall],
+  );
+  const inspectAgentCredentialSetup = useCallback(
+    (args: Parameters<EncryptedVaultSession["inspectAgentCredentialSetup"]>[0]) =>
+      taskCall((instance) => instance.inspectAgentCredentialSetup(args)),
+    [taskCall],
+  );
+  const verifyHistoricalPolicy = useCallback(
+    (args: Parameters<EncryptedVaultSession["verifyHistoricalPolicy"]>[0]) =>
+      taskCall((instance) => instance.verifyHistoricalPolicy(args)),
+    [taskCall],
+  );
   const preparePersistentEnrollment = useCallback(
     (args: Parameters<EncryptedVaultSession["preparePersistentEnrollment"]>[0]) =>
       taskCall((instance) => instance.preparePersistentEnrollment(args)),
@@ -4462,6 +4482,10 @@ export function useHoldingsWorkspace() {
     openResult,
     signResultState,
     refreshVault,
+    prepareAgentCredential,
+    inspectAgentCredential,
+    inspectAgentCredentialSetup,
+    verifyHistoricalPolicy,
     preparePersistentEnrollment,
     verifyPersistentIdentity,
     verifyPersistentPolicy,

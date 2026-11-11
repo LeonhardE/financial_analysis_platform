@@ -28,6 +28,10 @@ import {
   seal,
   privatePayload,
   matchBinding,
+  approveCredential,
+  credentialStatus,
+  DEFAULT_CREDENTIAL_SECONDS,
+  CREDENTIAL_NOTICE_SECONDS,
 } from "../../../packages/encrypted-workspace/dist/core.mjs";
 import { VaultError, type Json, type Vault, type RegistryBundle } from "./encrypted-types";
 const AGENT = "folioview.persistent-agent-identity.v1";
@@ -36,6 +40,7 @@ function fail(code = "binding_mismatch"): never {
   throw new VaultError(code);
 }
 const copy = <T>(v: T): T => structuredClone(v);
+const buffer = (value: Uint8Array): ArrayBuffer => new Uint8Array(value).buffer;
 const op = (prefix: string, parts: unknown[]) => digest(parts).then((d) => prefix + d);
 export type PersistentActor = { connectionId: string; clientId: string };
 type Context = {
@@ -68,7 +73,7 @@ export class PersistentOwner {
       checkpointDigest: await digest(last),
     }).load(bundles, at);
   }
-  private async actor(identity: Json, binding: Json, registry: Registry) {
+  private async actor(identity: Json, binding: Json, registry: Registry, at = this.ctx.now()) {
     validate("PersistentAgentIdentity", identity);
     if (
       !this.ctx.actor ||
@@ -79,7 +84,7 @@ export class PersistentOwner {
       identity.rootKeyId !== this.ctx.vault.rootKeyId
     )
       fail();
-    await registry.binding(binding, identity, identity, this.ctx.now());
+    await registry.binding(binding, identity, identity, at);
     return identity;
   }
   async identity(state: Json) {
@@ -189,7 +194,7 @@ export class PersistentOwner {
     const { offer } = await this.inspectSetup(value);
     return this.certifyAgent(offer);
   }
-  private async certifyAgent(p: Json) {
+  private async certifyAgent(p: Json, rotation = false) {
     const v = this.ctx.vault,
       registry = await this.registry();
     const bundle = copy(v.registryHistory.at(-1)!);
@@ -200,12 +205,17 @@ export class PersistentOwner {
       enc = await keyId(p.encryptionPublicJwk),
       now = this.ctx.now();
     const registered =
-      known.length === 2 &&
-      known.every((c) => c.principalId === p.agentId && [sig, enc].includes(c.keyId));
+      known.filter((c) => c.principalId === p.agentId && [sig, enc].includes(c.keyId)).length ===
+        2 &&
+      (rotation || known.length === 2);
     let registryUpdate: Json | null = null,
       accepted = registry;
     if (!registered) {
-      if (known.length || bundle.entries.length + 2 > 64 || v.registryHistory.length >= 32)
+      if (
+        (known.length && !rotation) ||
+        bundle.entries.length + 2 > 64 ||
+        v.registryHistory.length >= 32
+      )
         fail("device_limit");
       for (const [role, jwk, kid] of [
         ["agent_sig", p.signingPublicJwk, sig],
@@ -226,7 +236,7 @@ export class PersistentOwner {
           keyEpoch: 1,
           issuerKeyId: v.rootKeyId,
           notBefore: now,
-          expiresAt: now + 31536000,
+          expiresAt: now + (rotation ? DEFAULT_CREDENTIAL_SECONDS : 31536000),
           capabilities: role === "agent_sig" ? ["run_request", "result_write"] : [],
         };
         validate("KeyCertificatePayload", certificate);
@@ -319,6 +329,328 @@ export class PersistentOwner {
       body: { contractVersion: CONTRACT, command: binding },
       identity,
     };
+  }
+  /** Read-only verification also works after Agent expiry; no old Agent secret is used. */
+  async credentialState(state: Json, hubOrigin: string) {
+    exact(state, [
+      "contractVersion",
+      "profile",
+      "identity",
+      "binding",
+      "lease",
+      "approval",
+      "status",
+      "defaultValiditySeconds",
+      "noticeSeconds",
+    ]);
+    if (
+      state.contractVersion !== CONTRACT ||
+      state.profile !== "folioview.agent-credential.v1" ||
+      state.defaultValiditySeconds !== DEFAULT_CREDENTIAL_SECONDS ||
+      state.noticeSeconds !== CREDENTIAL_NOTICE_SECONDS
+    )
+      fail();
+    if (state.lease === null) return { status: "reauthorization_required", expiresAt: null };
+    validate("AgentCredentialLease", state.lease);
+    validate("PersistentAgentIdentity", state.identity);
+    const payload = parsed(bytes(state.approval.payload), true);
+    validate("AgentCredentialApproval", payload);
+    const registry = await this.registry(
+      this.ctx.vault.registryHistory.slice(0, payload.registrySequence),
+      payload.issuedAt,
+    );
+    const identity = { ...state.identity, identityEpoch: 1, status: "active", revokedAt: null };
+    await this.actor(identity, state.binding, registry, payload.issuedAt);
+    const author = registry.cert(payload.deviceSigningKeyId, "device_sig", null, payload.issuedAt);
+    await verify(state.approval, author.publicJwk, "fv-control+jws");
+    if (
+      !author.capabilities.includes("control_write") ||
+      payload.audience !== hubOrigin ||
+      payload.registrySequence !== registry.sequence ||
+      payload.checkpointDigest !== registry.current.digest ||
+      payload.keyEpoch !== registry.current.keyEpoch ||
+      payload.issuedAt < Math.max(author.notBefore, registry.current.issuedAt) ||
+      payload.issuedAt < identity.registeredAt ||
+      payload.issuedAt > this.ctx.now()
+    )
+      fail();
+    for (const k of BINDING) if (!same(payload[k], identity[k])) fail();
+    const { sig, enc } = registry.agent(identity, payload.issuedAt);
+    if (
+      payload.expiresAt <= payload.issuedAt ||
+      payload.expiresAt >
+        Math.min(payload.issuedAt + DEFAULT_CREDENTIAL_SECONDS, sig.expiresAt, enc.expiresAt)
+    )
+      fail();
+    const omitted = new Set([
+      "artifactType",
+      "deviceSigningKeyId",
+      "stableOperationId",
+      "registrySequence",
+      "checkpointDigest",
+      "keyEpoch",
+    ]);
+    const derived = {
+      ...Object.fromEntries(Object.entries(payload).filter(([k]) => !omitted.has(k))),
+      credentialFingerprint: await fingerprint(state.approval),
+      status: state.lease.status,
+    };
+    if (!same(derived, state.lease)) fail();
+    const status =
+      state.identity.status !== "active" || state.status === "revoked"
+        ? "revoked"
+        : credentialStatus(state.lease, this.ctx.now());
+    return { status, expiresAt: state.lease.expiresAt };
+  }
+  private async credentialOffer(args: Json) {
+    exact(args, ["handoff", "setup", "current", "hubOrigin"]);
+    const h = args.handoff,
+      s = args.setup;
+    exact(h, ["version", "issuer", "vaultId", "connectionId", "setupIntentId", "secret"]);
+    exact(s, [
+      "setupIntentId",
+      "ownerSubject",
+      "vaultId",
+      "connectionId",
+      "clientId",
+      "authorizationId",
+      "issuedAt",
+      "expiresAt",
+      "expectedGeneration",
+      "expectedCredentialFingerprint",
+      "offer",
+      "consumedBy",
+      "issuer",
+      "provider",
+      "predecessorConnectionId",
+    ]);
+    if (
+      h.version !== 1 ||
+      h.issuer !== args.hubOrigin ||
+      s.issuer !== args.hubOrigin ||
+      h.vaultId !== this.ctx.vault.vaultId ||
+      h.connectionId !== this.ctx.actor?.connectionId ||
+      s.connectionId !== h.connectionId ||
+      s.clientId !== this.ctx.actor?.clientId ||
+      s.ownerSubject !== this.ctx.ownerSubject ||
+      s.vaultId !== h.vaultId ||
+      s.setupIntentId !== h.setupIntentId ||
+      !["muse", "chatgpt"].includes(s.provider) ||
+      !s.offer ||
+      s.consumedBy !== null ||
+      !Number.isSafeInteger(s.issuedAt) ||
+      s.expiresAt !== s.issuedAt + 600 ||
+      s.issuedAt > this.ctx.now() ||
+      s.expiresAt <= this.ctx.now() ||
+      !Number.isSafeInteger(s.expectedGeneration) ||
+      s.expectedGeneration < 0 ||
+      bytes(h.secret).length !== 32
+    )
+      fail("agent_unavailable");
+    identifier(s.setupIntentId);
+    identifier(s.authorizationId);
+    if (s.predecessorConnectionId !== null) identifier(s.predecessorConnectionId);
+    await this.credentialState(args.current, args.hubOrigin);
+    const current = args.current.lease;
+    if (
+      s.expectedGeneration !== (current?.generation ?? 0) ||
+      s.expectedCredentialFingerprint !== (current?.credentialFingerprint ?? null)
+    )
+      fail("version_conflict");
+    const fields = [
+      "setupIntentId",
+      "ownerSubject",
+      "vaultId",
+      "connectionId",
+      "clientId",
+      "authorizationId",
+      "issuedAt",
+      "expiresAt",
+      "expectedGeneration",
+      "expectedCredentialFingerprint",
+    ];
+    const context = {
+      profile: "folioview.agent-pairing.v1",
+      issuer: s.issuer,
+      provider: s.provider,
+      ...Object.fromEntries(fields.map((k) => [k, s[k]])),
+    };
+    exact(s.offer, ["version", "iv", "ciphertext"]);
+    if (
+      s.offer.version !== 1 ||
+      bytes(s.offer.iv).length !== 12 ||
+      bytes(s.offer.ciphertext).length > 8192
+    )
+      fail();
+    const key = await crypto.subtle.importKey(
+      "raw",
+      buffer(bytes(h.secret)),
+      { name: "AES-GCM" },
+      false,
+      ["decrypt", "encrypt"],
+    );
+    let signed: Json;
+    try {
+      signed = parsed(
+        new Uint8Array(
+          await crypto.subtle.decrypt(
+            {
+              name: "AES-GCM",
+              iv: buffer(bytes(s.offer.iv)),
+              additionalData: buffer(canonical({ ...context, phase: "offer" })),
+            },
+            key,
+            buffer(bytes(s.offer.ciphertext)),
+          ),
+        ),
+      );
+    } catch {
+      fail("agent_unavailable");
+    }
+    const offer = parsed(bytes(signed.payload), true);
+    exact(offer, [
+      "contractVersion",
+      "profile",
+      "artifactType",
+      "issuer",
+      "provider",
+      ...fields,
+      "agentId",
+      "signingPublicJwk",
+      "encryptionPublicJwk",
+    ]);
+    const sig = await keyId(offer.signingPublicJwk),
+      enc = await keyId(offer.encryptionPublicJwk);
+    await verify(signed, offer.signingPublicJwk, "fv-control+jws");
+    if (
+      offer.contractVersion !== CONTRACT ||
+      offer.profile !== "folioview.agent-key-offer.v1" ||
+      offer.artifactType !== "agent_key_offer" ||
+      offer.issuer !== s.issuer ||
+      offer.provider !== s.provider ||
+      offer.agentId !== "agent_" + sig ||
+      sig === enc
+    )
+      fail();
+    for (const k of fields) if (!same(offer[k], s[k])) fail();
+    return { offer, context, key, current };
+  }
+  async inspectCredentialSetup(args: Json) {
+    const { offer } = await this.credentialOffer(args);
+    return {
+      provider: offer.provider,
+      expiresAt: args.setup.expiresAt,
+      reviewDigest: await digest([args.setup, args.current]),
+    };
+  }
+  async credentialEnrollment(args: Json) {
+    const { offer, context, key, current } = await this.credentialOffer(args);
+    const prepared = await this.certifyAgent({ ...offer, intentId: offer.setupIntentId }, true);
+    const binding = prepared.body.command;
+    const accepted = await this.registry(
+      prepared.registryUpdate
+        ? [...this.ctx.vault.registryHistory, prepared.registryUpdate.registryBundle]
+        : this.ctx.vault.registryHistory,
+    );
+    const payload = {
+      ...parsed(bytes(binding.payload), true),
+      profile: "folioview.agent-credential.v1",
+      artifactType: "agent_credential_approve",
+      bindingFingerprint: prepared.identity.bindingFingerprint,
+      generation: (current?.generation ?? 0) + 1,
+      previousCredentialFingerprint: current?.credentialFingerprint ?? null,
+      setupIntentId: offer.setupIntentId,
+      audience: args.hubOrigin,
+      expiresAt: this.ctx.now() + DEFAULT_CREDENTIAL_SECONDS,
+    };
+    const { sig, enc } = accepted.agent(prepared.identity, this.ctx.now());
+    payload.expiresAt = Math.min(payload.expiresAt, sig.expiresAt, enc.expiresAt);
+    const approval = await sign(
+      payload,
+      this.ctx.deviceSigningKey,
+      this.ctx.deviceSigningKeyId,
+      "fv-control+jws",
+    );
+    const lease = await approveCredential(approval, {
+      registry: accepted,
+      identity: prepared.identity,
+      currentLease: current,
+      setupIntentId: offer.setupIntentId,
+      audience: args.hubOrigin,
+      now: this.ctx.now(),
+    });
+    const activation = {
+      contractVersion: CONTRACT,
+      profile: "folioview.agent-activation.v1",
+      setupIntentId: offer.setupIntentId,
+      issuer: args.hubOrigin,
+      provider: offer.provider,
+      actor: Object.fromEntries(
+        ["ownerSubject", "vaultId", "connectionId", "clientId"].map((k) => [k, offer[k]]),
+      ),
+      rootJwk: this.ctx.vault.rootJwk,
+      rootKeyId: this.ctx.vault.rootKeyId,
+      anchor: accepted.pin(),
+      identity: prepared.identity,
+      binding,
+      lease,
+      approval,
+      previousLease: current,
+    };
+    const iv = crypto.getRandomValues(new Uint8Array(12)),
+      clear = canonical(activation);
+    if (clear.length + 16 > 8192) fail("invalid_data");
+    const encrypted = new Uint8Array(
+      await crypto.subtle.encrypt(
+        {
+          name: "AES-GCM",
+          iv,
+          additionalData: buffer(canonical({ ...context, phase: "activation" })),
+        },
+        key,
+        buffer(clear),
+      ),
+    );
+    const b64 = (v: Uint8Array) =>
+      btoa(String.fromCharCode(...v))
+        .replace(/\+/g, "-")
+        .replace(/\//g, "_")
+        .replace(/=+$/, "");
+    return {
+      ...prepared,
+      kind: "credential",
+      setupIntentId: offer.setupIntentId,
+      body: {
+        contractVersion: CONTRACT,
+        command: {
+          binding,
+          approval,
+          activation: { version: 1, iv: b64(iv), ciphertext: b64(encrypted) },
+        },
+      },
+      expectedLease: lease,
+    };
+  }
+  async historicalPolicy(state: Json, resourceState: Json, receipts: Json[]) {
+    const p = parsed(bytes(state.binding.payload), true);
+    const registry = await this.registry();
+    const identity = { ...state.identity, identityEpoch: 1, status: "active", revokedAt: null };
+    await this.actor(identity, state.binding, registry, p.issuedAt);
+    if (
+      resourceState.contractVersion !== CONTRACT ||
+      resourceState.profile !== CONSENT_PROFILE ||
+      !same(
+        resourceState.operations,
+        receipts.map((r) => r.operationId),
+      )
+    )
+      fail();
+    return verifyConsentChain({
+      consent: resourceState.consent,
+      receipts,
+      identity,
+      registry,
+    });
   }
   async policy(
     state: Json,
@@ -764,6 +1096,30 @@ export class PersistentOwner {
     return { operationId: packet.operationId };
   }
   async controlReceipt(packet: Json, receipt: Json) {
+    if (packet.kind === "credential") {
+      exact(receipt, [
+        "contractVersion",
+        "profile",
+        "operationId",
+        "fingerprint",
+        "identity",
+        "binding",
+        "lease",
+        "approval",
+      ]);
+      if (
+        receipt.contractVersion !== CONTRACT ||
+        receipt.profile !== "folioview.agent-credential.v1" ||
+        receipt.operationId !== packet.operationId ||
+        receipt.fingerprint !== (await fingerprint(packet.body.command.approval)) ||
+        !same(receipt.identity, packet.identity) ||
+        !same(receipt.binding, packet.body.command.binding) ||
+        !same(receipt.approval, packet.body.command.approval) ||
+        !same(receipt.lease, packet.expectedLease)
+      )
+        fail();
+      return { operationId: packet.operationId };
+    }
     if (
       receipt.contractVersion !== CONTRACT ||
       receipt.operationId !== packet.operationId ||

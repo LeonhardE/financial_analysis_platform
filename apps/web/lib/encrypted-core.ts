@@ -5153,6 +5153,32 @@ export class VaultCore {
       packet,
     );
   }
+  async inspectAgentCredential(args: { actor: PersistentActor; state: Json; hubOrigin: string }) {
+    exact(args, ["actor", "state", "hubOrigin"]);
+    return (await this.persistentOwner(args.actor, false)).credentialState(
+      args.state,
+      args.hubOrigin,
+    );
+  }
+  async inspectAgentCredentialSetup(args: Json) {
+    exact(args, ["actor", "handoff", "setup", "current", "hubOrigin"]);
+    const { actor, ...value } = args;
+    return (await this.persistentOwner(actor, false)).inspectCredentialSetup(value);
+  }
+  async prepareAgentCredential(args: Json) {
+    exact(args, ["actor", "handoff", "setup", "current", "hubOrigin"]);
+    const { actor, ...value } = args;
+    const packet = await (await this.persistentOwner(actor)).credentialEnrollment(value);
+    return { ...packet, localPending: await this.persistentLocal(packet) };
+  }
+  async verifyHistoricalPolicy(args: Json) {
+    exact(args, ["actor", "identityState", "resourceState", "receipts"]);
+    return (await this.persistentOwner(args.actor, false)).historicalPolicy(
+      args.identityState,
+      args.resourceState,
+      args.receipts,
+    );
+  }
   async preparePersistentEnrollment(args: {
     setup: Json;
     actor: PersistentActor;
