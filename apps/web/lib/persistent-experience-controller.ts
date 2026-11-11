@@ -12,7 +12,7 @@ export type PersistentConnection = {
   connectionId: string;
   clientId: string;
   vaultId: string;
-  provider: "muse";
+  provider: "muse" | "chatgpt";
   status: "active" | "revoked";
   accountState: string;
   linkedAt: number;
@@ -32,6 +32,7 @@ export type PersistentConnectionView = {
   tasks: PersistentTask[];
   pending: boolean;
   error: string;
+  credential?: Json | null;
 };
 export class PersistentExperienceError extends Error {
   constructor(readonly code: string) {
@@ -59,6 +60,7 @@ export class PersistentExperienceController {
     private readonly workspace: () => HoldingsWorkspace,
     private readonly assert: () => void,
     private readonly signal: AbortSignal,
+    private readonly hubOrigin = "",
   ) {}
   private async request(path: string, options: Parameters<PersistentApi>[2] = {}) {
     this.assert();
@@ -108,12 +110,15 @@ export class PersistentExperienceController {
       v = this.vault(),
       base = this.base(connection);
     if (packet.connectionId !== connection.connectionId) fail("verification_failed");
-    const publication = packet.kind === "publication";
-    const receiptPath = publication
-      ? `/api/v2/persistent-content/${v.vaultId}/connections/${connection.connectionId}/operations/${packet.operationId}`
-      : base +
-        (packet.kind === "identity" ? "/operations/" : "/resource-operations/") +
-        packet.operationId;
+    const publication = packet.kind === "publication",
+      credential = packet.kind === "credential";
+    const receiptPath = credential
+      ? `/api/v3/agent-credentials/${v.vaultId}/${connection.connectionId}/operations/${packet.operationId}`
+      : publication
+        ? `/api/v2/persistent-content/${v.vaultId}/connections/${connection.connectionId}/operations/${packet.operationId}`
+        : base +
+          (packet.kind === "identity" ? "/operations/" : "/resource-operations/") +
+          packet.operationId;
     let receipt: Json | null = null;
     try {
       receipt = await this.request(receiptPath);
@@ -121,7 +126,7 @@ export class PersistentExperienceController {
       if (!(e instanceof PersistentExperienceError) || e.code !== "not_found") throw e;
     }
     if (!receipt) {
-      if (packet.kind === "identity" && packet.registryUpdate) {
+      if ((packet.kind === "identity" || credential) && packet.registryUpdate) {
         await this.workspace().refreshVault(this.signal, true);
         this.assert();
         const fresh = (await this.request("/api/v2/vaults/current")).vault,
@@ -137,16 +142,18 @@ export class PersistentExperienceController {
         } else if (!same(fresh.registryHistory.at(-1), update.registryBundle))
           fail("version_conflict");
       }
-      const path = publication
-        ? `/api/v2/persistent-content/${v.vaultId}/connections/${connection.connectionId}/publications`
-        : base +
-          (
-            {
-              identity: "/bindings",
-              consent: "/resource-approvals",
-              revocation: "/resource-revocations",
-            } as Record<string, string>
-          )[packet.kind];
+      const path = credential
+        ? `/api/v3/agent-credentials/${v.vaultId}/${connection.connectionId}/approvals`
+        : publication
+          ? `/api/v2/persistent-content/${v.vaultId}/connections/${connection.connectionId}/publications`
+          : base +
+            (
+              {
+                identity: "/bindings",
+                consent: "/resource-approvals",
+                revocation: "/resource-revocations",
+              } as Record<string, string>
+            )[packet.kind];
       if (!path) fail("verification_failed");
       receipt = await this.request(path, {
         method: "POST",
@@ -166,6 +173,285 @@ export class PersistentExperienceController {
     const pending = await this.workspace().loadPersistentPending(this.actor(connection));
     this.assert();
     if (pending) await this.send(connection, pending);
+  }
+  private credentialBase(connection: PersistentConnection) {
+    this.actor(connection);
+    return `/api/v3/agent-credentials/${connection.vaultId}/${connection.connectionId}`;
+  }
+  async credential(connection: PersistentConnection) {
+    const state = await this.request(this.credentialBase(connection));
+    const verified = await this.workspace().inspectAgentCredential({
+      actor: this.actor(connection),
+      state,
+      hubOrigin: this.hubOrigin,
+    });
+    this.assert();
+    return { state, verified };
+  }
+  async restorationSources(
+    connection: PersistentConnection,
+    sourceConnection: string | null = null,
+  ) {
+    const base = this.credentialBase(connection),
+      lookup = sourceConnection ?? connection.connectionId;
+    const head = await this.request(
+      `/api/v3/agent-credentials/${connection.vaultId}/${lookup}/restoration`,
+    );
+    const result: Json[] = [],
+      seen = new Set<string>();
+    let ref = head.source;
+    while (ref !== null) {
+      const key = ref.connectionId + ":" + ref.bindingFingerprint;
+      if (seen.has(key) || result.length >= 32) fail("invalid_response");
+      seen.add(key);
+      const state = await this.request(
+        `${base}/restoration/${ref.connectionId}/${ref.bindingFingerprint}`,
+      );
+      if (!same(state.source, ref)) fail("invalid_response");
+      const receipts = [];
+      for (const operation of state.resourceState.operations)
+        receipts.push(
+          await this.request(
+            `/api/v2/persistent-agents/${connection.vaultId}/${ref.connectionId}/resource-operations/${operation}`,
+          ),
+        );
+      result.push({ state, receipts });
+      ref = state.predecessor;
+    }
+    return result;
+  }
+  private async restorationScope(
+    connection: PersistentConnection,
+    current: Json,
+    sources: Json[],
+    legacyConnectionId: string | null = null,
+  ) {
+    const scope = await this.workspace().verifyAgentRestoration({
+      actor: this.actor(connection),
+      current,
+      sources,
+      hubOrigin: this.hubOrigin,
+      legacyConnectionId,
+    });
+    this.assert();
+    return scope;
+  }
+  private matchingAuthority(task: PersistentTask, identities: Json[]) {
+    const c = task.authority.authority?.context;
+    return (
+      !!c &&
+      identities.some(
+        (identity) =>
+          c.connectionId === identity.connectionId &&
+          c.bindingFingerprint === identity.bindingFingerprint,
+      )
+    );
+  }
+  async inspectAuthorization(handoff: Json) {
+    if (handoff.issuer !== this.hubOrigin || handoff.vaultId !== this.vault().vaultId)
+      fail("invalid_handoff");
+    const base = `/api/v3/agent-credentials/${handoff.vaultId}/${handoff.connectionId}`;
+    const setup = await this.request(`${base}/setups/${handoff.setupIntentId}`);
+    const list = await this.request("/api/v2/persistent-connections");
+    const connection = list.connections.find(
+      (v: PersistentConnection) =>
+        v.connectionId === handoff.connectionId &&
+        v.clientId === setup.clientId &&
+        v.provider === setup.provider,
+    );
+    if (!connection) fail("connection_unavailable");
+    const current = await this.request(base),
+      actor = this.actor(connection);
+    const review = await this.workspace().inspectAgentCredentialSetup({
+      actor,
+      handoff,
+      setup,
+      current,
+      hubOrigin: this.hubOrigin,
+    });
+    this.assert();
+    const legacy = setup.predecessorConnectionId,
+      sources = await this.restorationSources(connection, current.identity ? null : legacy);
+    const scope = await this.restorationScope(connection, current, sources, legacy),
+      all = await this.tasks();
+    const renewing = scope.identities.length > 0;
+    const tasks = all.filter((task) =>
+      renewing
+        ? this.matchingAuthority(task, scope.identities) &&
+          task.packet.metadata.resourceBindings.every((b: Json) =>
+            scope.permissions.some(
+              (p: Json) => same(p.ref, b.ref) && p.sourceEpoch === b.sourceEpoch,
+            ),
+          )
+        : !task.authority.authority,
+    );
+    return { connection, setup, current, review, scope, tasks, renewing };
+  }
+  async authorize(handoff: Json, expected: Json, selected: string[]) {
+    const current = await this.inspectAuthorization(handoff);
+    if (
+      !same(
+        [
+          current.setup,
+          current.current,
+          current.scope.reviewDigest,
+          current.tasks.map((t) => t.packet.metadata),
+        ],
+        [
+          expected.setup,
+          expected.current,
+          expected.scope.reviewDigest,
+          expected.tasks.map((t: PersistentTask) => t.packet.metadata),
+        ],
+      )
+    )
+      fail("review_changed");
+    const connection = current.connection,
+      actor = this.actor(connection);
+    let pending = await this.workspace().loadPersistentPending(actor);
+    this.assert();
+    if (pending && pending.kind !== "credential") fail("persistent_operation_pending");
+    if (pending && pending.setupIntentId !== current.setup.setupIntentId) {
+      let receipt: Json | null = null;
+      try {
+        receipt = await this.request(
+          `${this.credentialBase(connection)}/operations/${pending.operationId}`,
+        );
+      } catch (e) {
+        if (!(e instanceof PersistentExperienceError) || e.code !== "not_found") throw e;
+      }
+      if (receipt) {
+        await this.workspace().finishPersistentPending(actor, receipt);
+        this.assert();
+        fail("review_changed");
+      }
+      const previousSetup = await this.request(
+        `${this.credentialBase(connection)}/setups/${pending.setupIntentId}`,
+      );
+      await this.workspace().archiveExpiredCredentialPending({
+        actor,
+        handoff,
+        setup: current.setup,
+        current: current.current,
+        hubOrigin: this.hubOrigin,
+        previousSetup,
+      });
+      this.assert();
+      pending = null;
+    }
+    if (
+      new Set(selected).size !== selected.length ||
+      selected.some((id) => !current.tasks.some((t) => t.taskId === id))
+    )
+      fail("review_changed");
+    const packet =
+      pending ??
+      (await this.workspace().prepareAgentCredential({
+        actor,
+        handoff,
+        setup: current.setup,
+        current: current.current,
+        hubOrigin: this.hubOrigin,
+      }));
+    this.assert();
+    await this.send(connection, packet);
+    const installed = await this.request(this.credentialBase(connection));
+    if (
+      installed.lease?.credentialFingerprint !== packet.expectedLease.credentialFingerprint ||
+      installed.identity?.bindingFingerprint !== packet.identity.bindingFingerprint
+    )
+      fail("version_conflict");
+    if (current.renewing) await this.restore(connection);
+    else if (selected.length) {
+      const review = await this.review(connection);
+      await this.approve(
+        connection,
+        current.tasks.filter((t) => selected.includes(t.taskId)),
+        review,
+        false,
+      );
+    }
+    return { connected: true };
+  }
+  async restore(connection: PersistentConnection) {
+    await this.resume(connection);
+    const { state: credentialState, verified } = await this.credential(connection);
+    if (!["active", "expiring"].includes(verified.status)) fail("agent_unavailable");
+    const sources = await this.restorationSources(connection),
+      scope = await this.restorationScope(connection, credentialState, sources);
+    let context = await this.context(connection);
+    const catalogue = await this.catalogue(),
+      resources: Json[] = [];
+    for (const permission of scope.permissions) {
+      const item = catalogue.groups
+        .flatMap((g) => g.items)
+        .find((i) => i.ref && sourceKey(i.ref) === sourceKey(permission.ref));
+      if (
+        !item ||
+        item.sourceEpoch !== permission.sourceEpoch ||
+        item.revision === null ||
+        item.revision < permission.fromRevision ||
+        !["active", "ready", "empty"].includes(item.state)
+      )
+        continue;
+      resources.push({
+        ref: item.ref,
+        sourceEpoch: item.sourceEpoch,
+        revision: item.revision,
+        state: "active",
+      });
+    }
+    if (resources.length) {
+      const packet = await this.workspace().prepareRestoredConsent({
+        ...this.control(context),
+        credentialState,
+        sources,
+        hubOrigin: this.hubOrigin,
+        resources,
+      });
+      this.assert();
+      await this.send(connection, packet);
+      context = await this.context(connection);
+    }
+    for (const permission of context.policy?.permissions ?? []) {
+      if (permission.status !== "active") continue;
+      const item = catalogue.groups
+        .flatMap((g) => g.items)
+        .find((i) => i.ref && sourceKey(i.ref) === sourceKey(permission.ref));
+      if (
+        item &&
+        item.sourceEpoch === permission.sourceEpoch &&
+        item.revision !== null &&
+        item.revision >= permission.fromRevision &&
+        ["active", "ready", "empty"].includes(item.state)
+      )
+        await this.publishResource(connection, context, item);
+    }
+    const tasks = await this.tasks();
+    let restored = 0;
+    for (const task of tasks) {
+      if (
+        !this.matchingAuthority(task, scope.identities) ||
+        !task.packet.metadata.resourceBindings.every((b: Json) =>
+          scope.permissions.some(
+            (p: Json) => same(p.ref, b.ref) && p.sourceEpoch === b.sourceEpoch,
+          ),
+        )
+      )
+        continue;
+      const packet = await this.workspace().prepareRestoredTask({
+        ...this.control(context),
+        credentialState,
+        sources,
+        hubOrigin: this.hubOrigin,
+        authority: task.authority,
+        task: task.packet,
+      });
+      this.assert();
+      await this.send(connection, packet);
+      restored++;
+    }
+    return { restored };
   }
   async inspectSetup(intentId: string) {
     this.vault();

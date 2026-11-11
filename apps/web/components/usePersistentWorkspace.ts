@@ -149,6 +149,7 @@ export function usePersistentWorkspace(workspace: HoldingsWorkspace, hubOrigin: 
             () => live.current.workspace,
             assert,
             abort.signal,
+            live.current.hubOrigin ?? "",
           ),
           hub,
           assert,
@@ -195,6 +196,7 @@ export function usePersistentWorkspace(workspace: HoldingsWorkspace, hubOrigin: 
       execute(async (c, api, assert) => {
         const caps = await api("/api/v2/persistent-agents/capabilities"),
           native = await api("/api/v2/persistent-account-authorizations/capabilities"),
+          credentials = await api("/api/v3/agent-credentials/capabilities"),
           list = await api("/api/v2/persistent-connections");
         const views: PersistentConnectionView[] = [],
           tasks =
@@ -205,6 +207,7 @@ export function usePersistentWorkspace(workspace: HoldingsWorkspace, hubOrigin: 
           const view: PersistentConnectionView = {
             connection,
             identity: null,
+            credential: null,
             policy: null,
             tasks: [],
             pending: false,
@@ -216,22 +219,36 @@ export function usePersistentWorkspace(workspace: HoldingsWorkspace, hubOrigin: 
             connection.vaultId === live.current.workspace.vault?.vaultId
           ) {
             try {
-              const context = await c.review(connection);
+              const credential = await c.credential(connection);
               assert();
-              view.identity = context.identity;
-              view.policy = context.policy;
-              if (caps.executionEnabled && live.current.workspace.canWriteState)
-                await c.synchronize(connection);
+              view.credential = credential.verified;
+              const context = ["active", "expiring"].includes(credential.verified.status)
+                ? await c.review(connection)
+                : null;
+              assert();
+              view.identity = context?.identity ?? credential.state.identity;
+              view.policy = context?.policy ?? null;
               for (const task of tasks.filter(
                 (t) => t.authority.authority?.context.connectionId === connection.connectionId,
               )) {
-                const raw = await c.plan(connection, task.taskId);
-                const plan = await live.current.workspace.verifyPersistentPlan({
-                  actor: { connectionId: connection.connectionId, clientId: connection.clientId },
-                  ...raw,
-                  taskId: task.taskId,
-                  hubOrigin: live.current.hubOrigin,
-                });
+                let plan = null;
+                if (context)
+                  try {
+                    const raw = await c.plan(connection, task.taskId);
+                    if (raw.state.reported && raw.state.reported.provider !== connection.provider)
+                      throw Error("provider_mismatch");
+                    plan = await live.current.workspace.verifyPersistentPlan({
+                      actor: {
+                        connectionId: connection.connectionId,
+                        clientId: connection.clientId,
+                      },
+                      ...raw,
+                      taskId: task.taskId,
+                      hubOrigin: live.current.hubOrigin,
+                    });
+                  } catch {
+                    assert();
+                  }
                 assert();
                 view.tasks.push({ ...task, plan });
               }
@@ -259,9 +276,7 @@ export function usePersistentWorkspace(workspace: HoldingsWorkspace, hubOrigin: 
         setState({
           owner: live.current.owner,
           enabled:
-            !!native.accountLinkEnabled &&
-            !!caps.enrollmentEnabled &&
-            !!caps.resourceConsentEnabled,
+            !!native.accountLinkEnabled && !!credentials.enabled && !!caps.resourceConsentEnabled,
           executionEnabled: !!caps.executionEnabled,
           views,
           tasks,
@@ -282,6 +297,7 @@ export function usePersistentWorkspace(workspace: HoldingsWorkspace, hubOrigin: 
             views: s.views.map((v) => ({
               ...v,
               identity: null,
+              credential: null,
               policy: null,
               tasks: [],
               pending: false,
@@ -306,11 +322,6 @@ export function usePersistentWorkspace(workspace: HoldingsWorkspace, hubOrigin: 
     document.addEventListener("visibilitychange", change);
     return () => document.removeEventListener("visibilitychange", change);
   }, []);
-  useEffect(() => {
-    if (!owner || !visible || !scope) return;
-    const timer = setInterval(() => void reload(), 60000);
-    return () => clearInterval(timer);
-  }, [owner, visible, scope, reload]);
   const perform = useCallback(
     async (action: (c: PersistentExperienceController) => Promise<unknown>) => {
       const result = await execute((c) => action(c));
@@ -326,7 +337,7 @@ export function usePersistentWorkspace(workspace: HoldingsWorkspace, hubOrigin: 
     views: visibleState.views.map((v) =>
       scope !== null && visibleState.scope === scope
         ? v
-        : { ...v, identity: null, policy: null, tasks: [], pending: false },
+        : { ...v, identity: null, credential: null, policy: null, tasks: [], pending: false },
     ),
     unlocked: !!scope,
     owner,
@@ -341,7 +352,9 @@ export function usePersistentWorkspace(workspace: HoldingsWorkspace, hubOrigin: 
     ) => perform((c) => c.approve(connection, tasks, review, allowReassign)),
     withdraw: (connection: PersistentConnection, ids: string[]) =>
       perform((c) => c.revoke(connection, ids)),
-    resume: (connection: PersistentConnection) => perform((c) => c.resume(connection)),
+    continueOperation: (connection: PersistentConnection) => perform((c) => c.resume(connection)),
+    resume: (connection: PersistentConnection) => perform((c) => c.restore(connection)),
+    synchronize: (connection: PersistentConnection) => perform((c) => c.synchronize(connection)),
     disconnect: async (connection: PersistentConnection) => {
       await execute(
         async (_c, api) =>

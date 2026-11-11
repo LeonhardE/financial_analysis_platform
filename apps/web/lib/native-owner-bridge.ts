@@ -91,7 +91,7 @@ export class NativeOwnerBridge {
             identifier(v.clientId) &&
             (!Object.hasOwn(v, "provider") || ["muse", "chatgpt"].includes(String(v.provider))) &&
             v.scope === "runtime:connect" &&
-            ["pending", "authorized"].includes(v.status) &&
+            ["pending", "authorized", "approved"].includes(v.status) &&
             Number.isSafeInteger(v.expiresAt) &&
             v.expiresAt > 0 &&
             (v.vaultId === null || identifier(v.vaultId)) &&

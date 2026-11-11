@@ -2281,6 +2281,26 @@ export function useHoldingsWorkspace() {
     },
     [assertInboxSession, liveSession, taskGeneration],
   );
+  const verifyAgentRestoration = useCallback(
+    (args: Parameters<EncryptedVaultSession["verifyAgentRestoration"]>[0]) =>
+      taskCall((instance) => instance.verifyAgentRestoration(args)),
+    [taskCall],
+  );
+  const prepareRestoredConsent = useCallback(
+    (args: Parameters<EncryptedVaultSession["prepareRestoredConsent"]>[0]) =>
+      taskCall((instance) => instance.prepareRestoredConsent(args)),
+    [taskCall],
+  );
+  const prepareRestoredTask = useCallback(
+    (args: Parameters<EncryptedVaultSession["prepareRestoredTask"]>[0]) =>
+      taskCall((instance) => instance.prepareRestoredTask(args)),
+    [taskCall],
+  );
+  const archiveExpiredCredentialPending = useCallback(
+    (args: Parameters<EncryptedVaultSession["archiveExpiredCredentialPending"]>[0]) =>
+      taskCall((instance) => instance.archiveExpiredCredentialPending(args)),
+    [taskCall],
+  );
   const prepareAgentCredential = useCallback(
     (args: Parameters<EncryptedVaultSession["prepareAgentCredential"]>[0]) =>
       taskCall((instance) => instance.prepareAgentCredential(args)),
@@ -4482,7 +4502,11 @@ export function useHoldingsWorkspace() {
     openResult,
     signResultState,
     refreshVault,
+    verifyAgentRestoration,
+    prepareRestoredConsent,
+    prepareRestoredTask,
     prepareAgentCredential,
+    archiveExpiredCredentialPending,
     inspectAgentCredential,
     inspectAgentCredentialSetup,
     verifyHistoricalPolicy,

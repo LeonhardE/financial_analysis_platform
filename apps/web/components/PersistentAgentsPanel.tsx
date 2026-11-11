@@ -6,12 +6,18 @@ import type { HoldingsWorkspace } from "./useHoldingsWorkspace";
 import type { PersistentWorkspaceModel } from "./usePersistentWorkspace";
 import type { PersistentConnection, PersistentTask } from "@/lib/persistent-experience-controller";
 import {
+  agentAuthorizationHandoff,
+  type AgentAuthorizationHandoff,
+} from "@/lib/agent-authorization";
+import {
   nativeHandoff,
   connectNativeOwnerBridge,
   type NativeOwnerBridge,
 } from "@/lib/native-owner-bridge";
 import styles from "./AgentsPanel.module.css";
 const CONTRACT = "folioview.agent-workspace.v2.0";
+type Json = Record<string, any>;
+const providerName = (provider: string) => (provider === "chatgpt" ? "ChatGPT" : "Muse");
 export function PersistentAgentsPanel({
   workspace,
   model,
@@ -23,152 +29,180 @@ export function PersistentAgentsPanel({
   origin: string | null;
   active: boolean;
 }) {
-  const t = useTranslations("persistent"),
+  const t = useTranslations("agentAccess"),
     locale = useLocale(),
     auth = useAuth();
+  const [accountBusy, setAccountBusy] = useState(false);
   const [bridge, setBridge] = useState<NativeOwnerBridge | null>(null),
-    [accountState, setAccount] = useState<{ owner: string; value: Record<string, any> } | null>(
-      null,
-    ),
-    [setup, setSetup] = useState<{ scope: string; value: Record<string, any> } | null>(null),
-    [handoffError, setHandoffError] = useState(false),
-    [copied, setCopied] = useState(false);
-  const [review, setReview] = useState<{
-    scope: string;
-    connection: PersistentConnection;
-    value: Record<string, any>;
-    tasks: string[];
-    reassign: boolean;
-    confirmed: boolean;
-  } | null>(null);
+    [account, setAccount] = useState<{ owner: string; value: Json } | null>(null),
+    [help, setHelp] = useState<string | null>(null),
+    [copied, setCopied] = useState(false),
+    [handoffReady, setHandoffReady] = useState(false),
+    [linkError, setLinkError] = useState(false),
+    [now, setNow] = useState(() => Date.now() / 1000);
+  const handoff = useRef<AgentAuthorizationHandoff | null>(null),
+    oldOwner = useRef(model.owner);
   const scope = model.unlocked ? `${model.owner}:${workspace.vaultGeneration}` : null;
   const live = useRef({ scope, owner: model.owner, active });
   live.current = { scope, owner: model.owner, active };
-  const account = accountState?.owner === model.owner ? accountState.value : null;
-  const accountJob = useRef<AbortController | null>(null);
+  const [authorization, setAuthorization] = useState<{
+      scope: string;
+      value: Json;
+      selected: string[];
+    } | null>(null),
+    [manage, setManage] = useState<{
+      scope: string;
+      connection: PersistentConnection;
+      value: Json;
+      selected: string[];
+    } | null>(null);
   useEffect(() => {
-    setReview(null);
-    setSetup(null);
+    const timer = setInterval(() => setNow(Date.now() / 1000), 60000);
+    return () => clearInterval(timer);
+  }, []);
+  useEffect(() => {
+    setAuthorization(null);
+    setManage(null);
   }, [scope]);
   useEffect(() => {
+    if (oldOwner.current && oldOwner.current !== model.owner) {
+      handoff.current = null;
+      setHandoffReady(false);
+      setAccount(null);
+    }
+    oldOwner.current = model.owner;
+  }, [model.owner]);
+  useEffect(() => {
     if (!active || !origin) return;
-    const abort = new AbortController();
-    let current: NativeOwnerBridge | null = null;
     try {
-      const handoff = nativeHandoff(window.location.search);
-      if (handoff)
-        void connectNativeOwnerBridge(handoff, origin, abort.signal)
+      const value = agentAuthorizationHandoff(window.location.hash, origin);
+      if (value) {
+        handoff.current = value;
+        setHandoffReady(true);
+        window.history.replaceState(null, "", "/agents");
+      }
+    } catch {
+      setLinkError(true);
+      window.history.replaceState(null, "", "/agents");
+    }
+    const abort = new AbortController();
+    let attached: NativeOwnerBridge | null = null;
+    try {
+      const value = nativeHandoff(window.location.search);
+      if (value)
+        void connectNativeOwnerBridge(value, origin, abort.signal)
           .then((v) => {
             if (abort.signal.aborted) v.close();
             else {
-              current = v;
+              attached = v;
               setBridge(v);
             }
           })
           .catch(() => {
-            if (!abort.signal.aborted) setHandoffError(true);
+            if (!abort.signal.aborted) setLinkError(true);
           });
     } catch {
-      setHandoffError(true);
+      setLinkError(true);
     }
     return () => {
       abort.abort();
-      current?.close();
+      attached?.close();
       setBridge(null);
-      accountJob.current?.abort();
     };
   }, [active, origin]);
   useEffect(() => {
-    setAccount(null);
     if (!bridge || !model.owner || !active) return;
-    const abort = new AbortController();
-    accountJob.current = abort;
+    const owner = model.owner,
+      abort = new AbortController();
     void auth
-      .requestNativeAccount(
-        bridge,
-        "pending",
-        { contractVersion: CONTRACT },
-        model.owner,
-        abort.signal,
-      )
-      .then((v) => {
-        if (!abort.signal.aborted)
-          setAccount({ owner: model.owner!, value: v as Record<string, any> });
+      .requestNativeAccount(bridge, "pending", { contractVersion: CONTRACT }, owner, abort.signal)
+      .then((value) => {
+        if (!abort.signal.aborted && live.current.owner === owner)
+          setAccount({ owner, value: value as Json });
       })
       .catch(() => {
-        if (!abort.signal.aborted) setHandoffError(true);
+        if (!abort.signal.aborted) setLinkError(true);
       });
     return () => abort.abort();
   }, [bridge, model.owner, active, auth.requestNativeAccount]);
-  const readSetup = async () => {
-    const q = new URLSearchParams(window.location.search),
-      id = q.get("runtime_setup");
-    if (
-      q.size !== 1 ||
-      q.getAll("runtime_setup").length !== 1 ||
-      !id ||
-      !/^setup_[A-Za-z0-9_-]{22,128}$/.test(id)
-    ) {
-      setHandoffError(true);
-      return;
-    }
-    const original = live.current.scope;
-    const value = await model.execute((c) => c.inspectSetup(id));
-    if (original && live.current.scope === original && value) setSetup({ scope: original, value });
+  const readAuthorization = async () => {
+    const original = live.current.scope,
+      value = handoff.current;
+    if (!original || !value) return;
+    const reviewed = await model.execute((c) => c.inspectAuthorization(value));
+    if (reviewed && live.current.scope === original)
+      setAuthorization({
+        scope: original,
+        value: reviewed,
+        selected: reviewed.renewing
+          ? reviewed.tasks.map((task: PersistentTask) => task.taskId)
+          : [],
+      });
   };
   const approveAccount = async () => {
-    if (!bridge || !model.owner || !model.unlocked || !workspace.vault || !account) return;
-    const owner = model.owner,
-      abort = new AbortController();
-    accountJob.current?.abort();
-    accountJob.current = abort;
+    if (!bridge || !model.owner || !workspace.vault) return;
+    if (accountBusy || !live.current.scope) return;
+    const owner = model.owner;
+    setAccountBusy(true);
     try {
       await auth.requestNativeAccount(
         bridge,
         "approve",
         { contractVersion: CONTRACT, vaultId: workspace.vault.vaultId },
         owner,
-        abort.signal,
       );
-      if (live.current.owner !== owner || abort.signal.aborted) return;
+      if (live.current.owner !== owner) return;
       setAccount(null);
       bridge.close();
       setBridge(null);
       window.history.replaceState(null, "", "/agents");
       await model.reload();
     } catch {
-      if (!abort.signal.aborted && live.current.owner === owner) setHandoffError(true);
+      if (live.current.owner === owner) setLinkError(true);
+    } finally {
+      setAccountBusy(false);
     }
   };
-  const inspect = async (connection: PersistentConnection) => {
+  const confirmAuthorization = async () => {
+    const value = authorization?.scope === scope ? authorization : null,
+      secret = handoff.current;
+    if (!value || !secret) return;
+    const result = await model.execute((c) => c.authorize(secret, value.value, value.selected));
+    if (result && live.current.scope === value.scope) {
+      handoff.current = null;
+      setHandoffReady(false);
+      setAuthorization(null);
+      await model.reload();
+    }
+  };
+  const reviewConnection = async (connection: PersistentConnection) => {
     const original = live.current.scope,
       value = await model.review(connection);
-    if (original && live.current.scope === original && value)
-      setReview({
-        scope: original,
-        connection,
-        value,
-        tasks: [],
-        reassign: false,
-        confirmed: false,
-      });
+    if (value && original && live.current.scope === original)
+      setManage({ scope: original, connection, value, selected: [] });
   };
-  const currentReview = scope && review?.scope === scope ? review : null,
-    currentSetup = scope && setup?.scope === scope ? setup.value : null;
-  const date = (n: number) =>
-    new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeStyle: "short" }).format(n * 1000);
-  const taskSchedule = (task: PersistentTask) => {
-    const d = task.content.deliveryExpectation;
-    return d !== null && d !== undefined ? `${d.localTime} · ${d.timeZone}` : t("manual");
+  const date = (value: number) =>
+    new Intl.DateTimeFormat(locale, { dateStyle: "medium" }).format(value * 1000);
+  const status = (view: (typeof model.views)[number]) => {
+    if (view.connection.status === "revoked") return "disconnected";
+    const value = view.credential;
+    if (!value || !["active", "expiring"].includes(value.status) || value.expiresAt <= now)
+      return "reauthorize";
+    return value.expiresAt - now <= 604800 ? "expiring" : "connected";
   };
-  const hasSetup =
-    typeof window !== "undefined" &&
-    new URLSearchParams(window.location.search).has("runtime_setup");
+  const currentAuthorization = authorization?.scope === scope ? authorization : null,
+    currentManage = manage?.scope === scope ? manage : null,
+    currentAccount = account?.owner === model.owner ? account.value : null;
+  const cancel = () => {
+    handoff.current = null;
+    setHandoffReady(false);
+    setAuthorization(null);
+  };
   return (
-    <section className={styles.panel} aria-labelledby="persistent-agents-title">
+    <section className={styles.panel} aria-labelledby="agent-access-title">
       <header className={styles.heading}>
         <div>
-          <h1 id="persistent-agents-title">{t("title")}</h1>
+          <h1 id="agent-access-title">{t("title")}</h1>
           <p>{t("description")}</p>
         </div>
         <button
@@ -180,7 +214,7 @@ export function PersistentAgentsPanel({
         </button>
       </header>
       {!workspace.authenticated ? (
-        <div className={styles.empty}>
+        <div className={styles.unlock}>
           <p>{t("signInHelp")}</p>
           <button className={styles.primary} onClick={() => void workspace.signIn()}>
             {t("signIn")}
@@ -202,278 +236,316 @@ export function PersistentAgentsPanel({
           )}
         </div>
       ) : null}
-      {(handoffError || model.error) && (
-        <p className={styles.warning} role="alert">
+      {(linkError || model.error) && (
+        <p role="alert" className={styles.warning}>
           {t(
-            model.error === "resource_not_approved"
-              ? "reviewNeeded"
-              : model.error === "review_changed"
-                ? "reviewChanged"
+            model.error === "review_changed"
+              ? "reviewChanged"
+              : model.error === "persistent_operation_pending"
+                ? "continueHelp"
                 : "requestFailed",
           )}
         </p>
       )}
-      {account && (
+      {currentAccount && (
         <div className={styles.setup}>
-          <h2>{t("connectTitle")}</h2>
-          <p>{t("accountOnly")}</p>
+          <h2>
+            {t("accountTitle", { provider: providerName(currentAccount.provider ?? "muse") })}
+          </h2>
+          <p>{t("accountHelp")}</p>
           <button
             className={styles.primary}
-            disabled={!model.unlocked || model.busy}
+            disabled={accountBusy || !model.unlocked || !workspace.canWriteState}
             onClick={() => void approveAccount()}
           >
-            {t("connect")}
+            {t("confirmAccount")}
           </button>
         </div>
       )}
-      {hasSetup && (
+      {handoffReady && (
         <div className={styles.setup}>
-          <h2>{t("pairTitle")}</h2>
-          <p>{t("pairHelp")}</p>
-          {!currentSetup ? (
-            <button
-              className={styles.primary}
-              disabled={!model.unlocked || model.busy}
-              onClick={() => void readSetup()}
-            >
-              {t("reviewConnection")}
-            </button>
-          ) : (
+          <h2>{t("authorizeTitle")}</h2>
+          {!currentAuthorization ? (
             <>
-              <p>{currentSetup.setup.confirmed ? t("pairMatched") : t("pairWait")}</p>
-              <details>
-                <summary>{t("details")}</summary>
-                <p>
-                  {t("signingKey")}: <code>{currentSetup.offer?.signingKeyId}</code>
-                </p>
-                <p>
-                  {t("encryptionKey")}: <code>{currentSetup.offer?.encryptionKeyId}</code>
-                </p>
-              </details>
+              <p>{t("authorizeHelp")}</p>
               <button
                 className={styles.primary}
-                disabled={
-                  model.busy ||
-                  !currentSetup.setup.confirmed ||
-                  !currentSetup.offer ||
-                  !workspace.canWriteState
-                }
-                onClick={async () => {
-                  const original = live.current.scope;
-                  const result = await model.execute(async (c) => {
-                    await c.enroll(currentSetup.setup.intentId, currentSetup);
-                    return true;
-                  });
-                  if (result && original === live.current.scope) {
-                    setSetup(null);
-                    window.history.replaceState(null, "", "/agents");
-                    await model.reload();
-                  }
-                }}
+                disabled={!model.unlocked || model.busy || !model.enabled}
+                onClick={() => void readAuthorization()}
               >
-                {t("confirmConnection")}
+                {t("review")}
+              </button>
+            </>
+          ) : (
+            <>
+              <p>
+                {t(currentAuthorization.value.renewing ? "restoreHelp" : "chooseTasks", {
+                  provider: providerName(currentAuthorization.value.connection.provider),
+                })}
+              </p>
+              {currentAuthorization.value.tasks.length ? (
+                <ul className={styles.taskChoices}>
+                  {currentAuthorization.value.tasks.map((task: PersistentTask) => (
+                    <li key={task.taskId}>
+                      {currentAuthorization.value.renewing ? (
+                        <span>{task.title}</span>
+                      ) : (
+                        <label>
+                          <input
+                            type="checkbox"
+                            checked={currentAuthorization.selected.includes(task.taskId)}
+                            onChange={(e) =>
+                              setAuthorization((v) =>
+                                v
+                                  ? {
+                                      ...v,
+                                      selected: e.target.checked
+                                        ? [...v.selected, task.taskId]
+                                        : v.selected.filter((id) => id !== task.taskId),
+                                    }
+                                  : v,
+                              )
+                            }
+                          />
+                          {task.title}
+                        </label>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p>{t("noAvailableTasks")}</p>
+              )}
+              <button
+                className={styles.primary}
+                disabled={model.busy || !workspace.canWriteState}
+                onClick={() => void confirmAuthorization()}
+              >
+                {t(currentAuthorization.value.renewing ? "confirmRestore" : "confirm")}
               </button>
             </>
           )}
+          <button className={styles.textButton} disabled={model.busy} onClick={cancel}>
+            {t("cancel")}
+          </button>
         </div>
       )}
-      <div className={styles.setup}>
-        <h2>Muse</h2>
-        <p>{t("connectOnce")}</p>
-        {origin && (
-          <div className={styles.address}>
-            <code>{origin + "/mcp/v3"}</code>
-            <button
-              className={styles.secondary}
-              onClick={async () => {
-                try {
-                  await navigator.clipboard.writeText(origin + "/mcp/v3");
-                  setCopied(true);
-                } catch {
-                  setCopied(false);
-                }
-              }}
-            >
-              {t(copied ? "copied" : "copyAddress")}
-            </button>
-          </div>
-        )}
-        <p>{t("syncHelp")}</p>
+      <div className={styles.providers}>
+        {["muse", "chatgpt"].map((provider) => (
+          <button
+            key={provider}
+            className={styles.provider}
+            disabled={!origin}
+            onClick={() => {
+              setHelp(provider);
+              setCopied(false);
+            }}
+          >
+            <strong>{t("connect", { provider: providerName(provider) })}</strong>
+          </button>
+        ))}
       </div>
-      {model.views.length === 0 && <p className={styles.empty}>{t("noConnections")}</p>}
-      {model.views.map((view) => (
-        <article key={view.connection.connectionId} className={styles.setup}>
-          <div className={styles.heading}>
-            <h2>
-              Muse{" "}
-              <small>
-                {t(
-                  view.connection.status === "revoked"
-                    ? "disconnected"
-                    : view.connection.accountState === "relogin_required"
-                      ? "relogin"
-                      : view.identity
-                        ? "connected"
-                        : "pairPending",
-                )}
-              </small>
-            </h2>
-            {view.connection.status === "active" && (
-              <button
-                className={styles.secondary}
-                disabled={model.busy}
-                onClick={() => void model.disconnect(view.connection)}
-              >
-                {t("disconnect")}
-              </button>
-            )}
-          </div>
-          {view.error && <p role="status">{t("reviewNeeded")}</p>}
-          {model.unlocked && view.connection.status === "active" && (
-            <>
-              <p>
-                {t("permissionsCount", {
-                  count:
-                    view.policy?.permissions.filter((p: any) => p.status === "active").length ?? 0,
-                })}
-              </p>
-              <button
-                className={styles.primary}
-                disabled={model.busy || !view.identity || !workspace.canWriteState}
-                onClick={() => void inspect(view.connection)}
-              >
-                {t("reviewAccess")}
-              </button>
-              {view.pending && (
+      {help && (
+        <div
+          className={styles.setup}
+          role="dialog"
+          aria-label={t("connect", { provider: providerName(help) })}
+        >
+          <p>{t("reconnectHelp", { provider: providerName(help) })}</p>
+          <button
+            className={styles.secondary}
+            disabled={!origin}
+            onClick={async () => {
+              try {
+                await navigator.clipboard.writeText(origin + "/mcp/v3");
+                setCopied(true);
+              } catch {
+                setCopied(false);
+              }
+            }}
+          >
+            {t(copied ? "copied" : "copyAddress")}
+          </button>
+          <button className={styles.textButton} onClick={() => setHelp(null)}>
+            {t("close")}
+          </button>
+        </div>
+      )}
+      {workspace.authenticated && !model.enabled && !model.busy && (
+        <p className={styles.note}>{t("notReady")}</p>
+      )}
+      {!model.views.length && <p className={styles.empty}>{t("noConnections")}</p>}
+      {model.views.map((view) => {
+        const value = status(view),
+          available = ["connected", "expiring"].includes(value);
+        return (
+          <article key={view.connection.connectionId} className={styles.setup}>
+            <div className={styles.heading}>
+              <h2>
+                {providerName(view.connection.provider)} <small>{t(value)}</small>
+              </h2>
+              <div className={styles.actions}>
                 <button
                   className={styles.secondary}
                   disabled={model.busy}
-                  onClick={() => void model.resume(view.connection)}
+                  onClick={() => {
+                    setHelp(view.connection.provider);
+                    setCopied(false);
+                  }}
                 >
-                  {t("resume")}
+                  {t("reauthorizeButton")}
                 </button>
-              )}
-              {view.policy?.permissions.some((p: any) => p.status === "active") && (
+                {view.connection.status === "active" && (
+                  <button
+                    className={styles.textButton}
+                    disabled={model.busy}
+                    onClick={() => void model.disconnect(view.connection)}
+                  >
+                    {t("disconnect")}
+                  </button>
+                )}
+              </div>
+            </div>
+            {view.credential?.expiresAt && (
+              <p>{t("expires", { date: date(view.credential.expiresAt) })}</p>
+            )}
+            {value === "expiring" && <p className={styles.warning}>{t("expiryHelp")}</p>}
+            {value === "reauthorize" && (
+              <p>{t("reauthorizeHelp", { provider: providerName(view.connection.provider) })}</p>
+            )}
+            {model.unlocked && view.tasks.length > 0 && (
+              <ul>
+                {view.tasks.map((task) => (
+                  <li key={task.taskId}>
+                    {task.title} ·{" "}
+                    {t(
+                      task.plan?.reported?.reportedStatus === "enabled" &&
+                        task.plan.reported.taskPublicationFingerprint ===
+                          task.plan.desired?.taskPublicationFingerprint
+                        ? "planReported"
+                        : "planWaiting",
+                    )}
+                    {task.content.deliveryExpectation && (
+                      <small>
+                        {" "}
+                        · {task.content.deliveryExpectation.localTime} (
+                        {task.content.deliveryExpectation.timeZone})
+                      </small>
+                    )}
+                    {task.plan?.observed?.receivedAt != null && (
+                      <small> · {t("reportReceived")}</small>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+            {view.pending && !available && (
+              <button
+                className={styles.secondary}
+                disabled={model.busy || !workspace.canWriteState}
+                onClick={() => void model.continueOperation(view.connection)}
+              >
+                {t("continue")}
+              </button>
+            )}
+            {available && (
+              <div className={styles.actions}>
                 <button
                   className={styles.secondary}
                   disabled={model.busy || !workspace.canWriteState}
-                  onClick={() =>
-                    void model.withdraw(
-                      view.connection,
-                      view
-                        .policy!.permissions.filter((p: any) => p.status === "active")
-                        .map((p: any) => p.permissionId),
-                    )
-                  }
+                  onClick={() => void model.resume(view.connection)}
+                >
+                  {t(view.pending ? "continue" : "restoreTasks")}
+                </button>
+                <button
+                  className={styles.secondary}
+                  disabled={model.busy || !workspace.canWriteState}
+                  onClick={() => void reviewConnection(view.connection)}
+                >
+                  {t("manage")}
+                </button>
+                <button
+                  className={styles.textButton}
+                  disabled={model.busy || !workspace.canWriteState}
+                  onClick={() => void model.synchronize(view.connection)}
+                >
+                  {t("sync")}
+                </button>
+              </div>
+            )}
+          </article>
+        );
+      })}
+      {currentManage && (
+        <div className={styles.setup} role="dialog" aria-label={t("manage")}>
+          <h2>{t("manage")}</h2>
+          <p>{t("chooseTasks", { provider: providerName(currentManage.connection.provider) })}</p>
+          <ul className={styles.taskChoices}>
+            {model.tasks
+              .filter(
+                (task) =>
+                  !task.authority.authority ||
+                  task.authority.authority.context.connectionId ===
+                    currentManage.connection.connectionId,
+              )
+              .map((task) => (
+                <li key={task.taskId}>
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={currentManage.selected.includes(task.taskId)}
+                      onChange={(e) =>
+                        setManage((v) =>
+                          v
+                            ? {
+                                ...v,
+                                selected: e.target.checked
+                                  ? [...v.selected, task.taskId]
+                                  : v.selected.filter((id) => id !== task.taskId),
+                              }
+                            : v,
+                        )
+                      }
+                    />
+                    {task.title}
+                  </label>
+                </li>
+              ))}
+          </ul>
+          <button
+            className={styles.primary}
+            disabled={model.busy || !currentManage.selected.length}
+            onClick={async () => {
+              const result = await model.approve(
+                currentManage.connection,
+                model.tasks.filter((task) => currentManage.selected.includes(task.taskId)),
+                currentManage.value,
+                false,
+              );
+              if (result) setManage(null);
+            }}
+          >
+            {t("approveTasks")}
+          </button>
+          {(currentManage.value.policy?.permissions ?? [])
+            .filter((p: Json) => p.status === "active")
+            .map((permission: Json) => (
+              <div key={permission.permissionId} className={styles.actions}>
+                <span>{t(permission.ref.kind)}</span>
+                <button
+                  className={styles.textButton}
+                  disabled={model.busy}
+                  onClick={async () => {
+                    if (await model.withdraw(currentManage.connection, [permission.permissionId]))
+                      setManage(null);
+                  }}
                 >
                   {t("withdraw")}
                 </button>
-              )}
-              {view.tasks.map((task) => (
-                <div className={styles.reconnect} key={task.taskId}>
-                  <h3>{task.title}</h3>
-                  <p>
-                    {t("desired")}: {taskSchedule(task)}
-                  </p>
-                  <p>
-                    {t("reported")}:{" "}
-                    {t(
-                      task.plan?.reported
-                        ? task.plan.reported.taskPublicationFingerprint !==
-                          task.plan.desired?.taskPublicationFingerprint
-                          ? "planOutOfSync"
-                          : `plan_${task.plan.reported.reportedStatus}`
-                        : "plan_unconfirmed",
-                    )}
-                  </p>
-                  <p>
-                    {t("observed")}:{" "}
-                    {task.plan?.observed
-                      ? `${date(task.plan.observed.receivedAt ?? task.plan.observed.runCreatedAt)} · ${t(task.plan.observed.resultId ? "reportReceived" : "runReceived")}`
-                      : t("notObserved")}
-                  </p>
-                  <p className={styles.note}>{t("planEvidenceHelp")}</p>
-                  <a href="/inbox">{t("openInbox")}</a>
-                </div>
-              ))}
-            </>
-          )}
-          <details>
-            <summary>{t("details")}</summary>
-            <p>
-              {t("linkedAt")}: {date(view.connection.linkedAt)}
-            </p>
-            <p>
-              {t("connectionId")}: <code>{view.connection.connectionId}</code>
-            </p>
-          </details>
-        </article>
-      ))}
-      {currentReview && (
-        <div className={styles.confirmation}>
-          <h2>{t("accessTitle")}</h2>
-          <p>{t("accessHelp")}</p>
-          {model.tasks.map((task) => (
-            <label key={task.taskId} style={{ display: "block", margin: "12px 0" }}>
-              <input
-                type="checkbox"
-                checked={currentReview.tasks.includes(task.taskId)}
-                onChange={(e) =>
-                  setReview((r) =>
-                    r
-                      ? {
-                          ...r,
-                          tasks: e.target.checked
-                            ? [...r.tasks, task.taskId]
-                            : r.tasks.filter((id) => id !== task.taskId),
-                          confirmed: false,
-                        }
-                      : r,
-                  )
-                }
-              />
-              {task.title} ·{" "}
-              {task.packet.metadata.resourceBindings
-                .map((b: any) => t(`resource_${b.ref.kind}`))
-                .join("、")}
-            </label>
-          ))}
-          <label style={{ display: "block", margin: "12px 0" }}>
-            <input
-              type="checkbox"
-              checked={currentReview.reassign}
-              onChange={(e) =>
-                setReview((r) => (r ? { ...r, reassign: e.target.checked, confirmed: false } : r))
-              }
-            />
-            {t("reassign")}
-          </label>
-          <label style={{ display: "block", margin: "12px 0" }}>
-            <input
-              type="checkbox"
-              checked={currentReview.confirmed}
-              onChange={(e) => setReview((r) => (r ? { ...r, confirmed: e.target.checked } : r))}
-            />
-            {t("confirmAccess")}
-          </label>
-          <button
-            className={styles.primary}
-            disabled={model.busy || !currentReview.tasks.length || !currentReview.confirmed}
-            onClick={async () => {
-              const original = live.current.scope;
-              const success = await model.approve(
-                currentReview.connection,
-                model.tasks.filter((task) => currentReview.tasks.includes(task.taskId)),
-                currentReview.value,
-                currentReview.reassign,
-              );
-              if (success && original === live.current.scope) setReview(null);
-            }}
-          >
-            {t("allowSelected")}
-          </button>
-          <button className={styles.secondary} onClick={() => setReview(null)}>
-            {t("cancel")}
+              </div>
+            ))}
+          <button className={styles.textButton} onClick={() => setManage(null)}>
+            {t("close")}
           </button>
         </div>
       )}

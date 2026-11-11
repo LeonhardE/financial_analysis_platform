@@ -33,11 +33,23 @@ export function createVaultKernel(
           )
             throw new VaultError("archive_deletion_pending");
           switch (method) {
+            case "verifyAgentRestoration":
+              result = await core.verifyAgentRestoration(args);
+              break;
+            case "prepareRestoredConsent":
+              result = await core.prepareRestoredConsent(args);
+              break;
+            case "prepareRestoredTask":
+              result = await core.prepareRestoredTask(args);
+              break;
             case "inspectAgentCredential":
               result = await core.inspectAgentCredential(args);
               break;
             case "inspectAgentCredentialSetup":
               result = await core.inspectAgentCredentialSetup(args);
+              break;
+            case "verifyExpiredCredentialPending":
+              result = await core.verifyExpiredCredentialPending(args);
               break;
             case "prepareAgentCredential":
               result = await core.prepareAgentCredential(args);

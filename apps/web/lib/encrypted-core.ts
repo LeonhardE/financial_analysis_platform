@@ -5165,6 +5165,11 @@ export class VaultCore {
     const { actor, ...value } = args;
     return (await this.persistentOwner(actor, false)).inspectCredentialSetup(value);
   }
+  async verifyExpiredCredentialPending(args: Json) {
+    exact(args, ["actor", "handoff", "setup", "current", "hubOrigin", "packet", "previousSetup"]);
+    const { actor, ...value } = args;
+    return (await this.persistentOwner(actor, false)).expiredCredentialPending(value);
+  }
   async prepareAgentCredential(args: Json) {
     exact(args, ["actor", "handoff", "setup", "current", "hubOrigin"]);
     const { actor, ...value } = args;
@@ -5178,6 +5183,52 @@ export class VaultCore {
       args.resourceState,
       args.receipts,
     );
+  }
+  async verifyAgentRestoration(args: Json) {
+    exact(args, ["actor", "current", "sources", "hubOrigin", "legacyConnectionId"]);
+    const { actor, ...value } = args;
+    return (await this.persistentOwner(actor, false)).restoration(value as any);
+  }
+  async prepareRestoredConsent(args: Json) {
+    exact(args, [
+      "actor",
+      "identityState",
+      "resourceState",
+      "receipts",
+      "credentialState",
+      "sources",
+      "hubOrigin",
+      "resources",
+    ]);
+    const packet = await (await this.persistentOwner(args.actor)).restoredConsent(args);
+    return packet.kind === "no_change"
+      ? packet
+      : { ...packet, localPending: await this.persistentLocal(packet) };
+  }
+  async prepareRestoredTask(args: Json) {
+    exact(args, [
+      "actor",
+      "identityState",
+      "resourceState",
+      "receipts",
+      "credentialState",
+      "sources",
+      "hubOrigin",
+      "authority",
+      "task",
+    ]);
+    const content = await this.openTask(args.task);
+    const packet = await (
+      await this.persistentOwner(args.actor)
+    ).restoredTask({
+      ...args,
+      metadata: args.task.metadata,
+      content,
+      resultPolicy: args.authority.authority?.context.resultPolicy,
+    });
+    return packet.kind === "no_change"
+      ? packet
+      : { ...packet, localPending: await this.persistentLocal(packet) };
   }
   async preparePersistentEnrollment(args: {
     setup: Json;
