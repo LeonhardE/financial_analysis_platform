@@ -4,8 +4,8 @@ The ordinary Terraform pipeline remains **disabled**, using `inactive-v1`.
 Administrator `agent_hub_provisioning_stage` defaults to `none`, so merging its
 configuration creates no service, database, API, identity or public invocation.
 For a provisioned instance, retain its reviewed `service` stage rather than
-resetting protected resources to `none`. OAuth/adapter gates remain independent.
-The application contains encrypted owner APIs, OAuth, helper/MCP, tasks, Runs and
+resetting protected resources to `none`. Native OAuth and personal Agent gates remain explicit.
+The application contains encrypted Owner APIs, native account OAuth/MCP, tasks, Runs and
 results; image health alone does not establish their production acceptance.
 
 ## Existing-service image release
@@ -53,14 +53,19 @@ unavailable; do not guess the numeric subject or trust email alone. Producer-sid
 trust and invoker permissions remain INF-007/008, not this target's IAM grants.
 The Hub catalogue caller is its selected runtime identity.
 
-`connector` supplies exact Muse registrations. OAuth and the encrypted adapter
-both default to `false`, no client is implicitly registered, and the adapter
-cannot be enabled without OAuth. Callbacks have no wildcards, userinfo, query or
-fragment; the serialized list is bounded to the application's 16 KiB budget.
-Public clients use PKCE with `none` authentication. Confidential clients use only
-a high-entropy secret's SHA256 verifier from private operator inputs; never place
-the raw secret in Terraform, source or logs. The configured consent page is the
-fixed same-origin `/agent/v2/helper/consent.html` asset.
+`connector` retains exact legacy Muse preregistration inputs. `agent_clients`
+adds explicit `muse`/`chatgpt` registrations, with globally distinct client IDs and
+the same combined eight-client/16 KiB application budget. No client is implicitly
+registered. OAuth defaults to `false`; the retired financial adapter must remain
+`false`. The consent asset is `/agent/v3/account/consent.html`, which only handles
+account linking and never stores Agent content keys.
+
+Callbacks are exact HTTPS endpoints, without wildcards, userinfo, ports, queries
+or fragments. Public clients use PKCE and `none` authentication. Confidential
+clients supply only a high-entropy secret's SHA256 verifier through private
+operator inputs. Never put raw client secrets or Agent private keys in Terraform,
+source or logs. Real provider callback registration and Node host readiness still
+require their separate acceptance window.
 
 ## Ownership and staged creation
 
@@ -93,9 +98,10 @@ Only `firebaseauth.users.get` is added to the runtime for the existing
 
 ## Storage and permissions
 
-`storage.tf` records 72 implemented opaque JSON/map/array fields. Each
+`storage.tf` records 79 current/historical opaque JSON/map/array fields. Each
 `google_firestore_field.opaque` has an empty `index_config` and **no `ttl_config`**.
-Persistent identity, signed continuing-consent history, encrypted publications,
+Credential leases, approvals and predecessor lineage, persistent identity,
+signed continuing-consent history, encrypted publications,
 native account credentials/setup, frozen Runs, report history and plan statement
 evidence use exact document lookups and inherit the same exemptions.
 This is deliberately separate from the shared database module's TTL input, which
@@ -153,18 +159,39 @@ acceptance separately. Keep protocol flags and public invocation closed until
 those checks are complete. Never recover a failed stage by granting broad IAM,
 recreating the DB, deleting histories or supplying a content key to the backend.
 
-## Persistent basic-flow activation
+## Personal Agent rollout and rollback
 
-`persistent_mode_enabled` defaults to `false`. It emits no additional environment
-variables in that state, preserving the current runtime configuration. A reviewed
-explicit opt-in requires existing OAuth clients and complete User/Portfolio source
-trust, then enables the nine implemented native identity/recovery, consent,
-publication, execution, result, account transport, MCP and runtime gates together.
-Each application API continues checking its own gate and current authority.
+`agent_owned_mode_enabled` defaults to `false`. Configuration explicitly emits
+`HUB_AGENT_OWNED_CREDENTIALS_ENABLED=0`, an empty Owner URL and six closed
+consent/publication/execution/result/transport/MCP gates. An opt-in requires
+reviewed OAuth client registrations and complete existing producer trust; it
+sets the Owner URL to the selected Web origin's `/agents` page. It does not
+approve any user's resources, install a native schedule or prove host retention.
 
-This setting does not grant Cloud Run invocation, approve a recipient, select a
-resource, install a native plan or complete protected-host acceptance. Keep it off
-while preparing code and storage. The owner must return for real Muse connection,
-resource review, restart and cross-day verification before considering the flow
-accepted. Use a separately reviewed complete plan for activation; ordinary image
-releases preserve the existing configuration.
+`persistent_mode_enabled` is retained as a false-only compatibility input. Old
+operator files with `true` are refused instead of enabling the new mode. Review
+and change that field explicitly before preparing a fresh complete rollout plan.
+Do not reuse an old saved plan or infer new authorization from browser-era flags.
+Old runtime/identity-recovery flags are never emitted. Application routes also
+refuse the retired financial adapter and old browser execution paths.
+
+This is an update to the existing Hub and named database. Min 0/max 1, CPU,
+memory, concurrency and existing operational signing key remain unchanged. There
+are no additional projects, services, VM, forwarding rule, NAT or always-on
+instance requirements. Point-read opaque fields use index exemptions, not a new
+database, composite index or TTL. Historical exemptions and immutable records
+remain to avoid destructive migration and index backfill. Usage and retained
+storage can still incur ordinary charges; these limits are not a billing cap.
+
+After explicit deployment authorization, first publish a compatible image with
+new capability closed, apply the reviewed existing-service configuration and
+verify actual revision/traffic/configuration. Publish compatible Web separately,
+then enable only an approved synthetic acceptance scope. Live credential loss,
+expiry, both providers and native offline cross-day runs remain separate gates.
+This source preparation performs no apply, image release or online validation.
+
+Rollback closes new authorization and execution, then selects a reviewed
+compatible image/configuration while preserving current credential generations,
+revocations, Root history, original receipts and encrypted reports. Do not reopen
+the retired browser/financial paths or restore revoked credentials. Historical
+Owner reading remains available; explicit user reauthorization recovers access.
