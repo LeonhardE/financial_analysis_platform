@@ -9,7 +9,6 @@ import selectors
 import shutil
 import subprocess
 import tempfile
-import time
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -482,7 +481,7 @@ class HelperDistributionTests(unittest.TestCase):
             },
             trusted=True,
         )
-        time.sleep(1.1)
+        self.assertTrue(peer.raw({"advanceTime": 1100})["value"])
         peer.generation += 1
         status = peer.call("status")
         self.assertEqual(status["state"], "LOCKED")

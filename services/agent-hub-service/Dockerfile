@@ -30,6 +30,10 @@ COPY services/agent-hub-service/runtime/static ./runtime/static
 COPY services/agent-hub-service/runtime/integrity.json ./runtime/integrity.json
 COPY services/agent-hub-service/runtime/THIRD_PARTY_NOTICES.md ./runtime/THIRD_PARTY_NOTICES.md
 
+COPY services/agent-hub-service/agent-client/dist ./agent-client/dist
+COPY services/agent-hub-service/agent-client/integrity.json ./agent-client/integrity.json
+COPY services/agent-hub-service/agent-client/THIRD_PARTY_NOTICES.md ./agent-client/THIRD_PARTY_NOTICES.md
+
 USER appuser
 EXPOSE 8080
 CMD ["sh", "-c", "exec uvicorn app.main:app --host 0.0.0.0 --port \"${PORT:-8080}\" --no-access-log"]

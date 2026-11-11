@@ -48,12 +48,15 @@ class NativeCredentialService:
     def inspect(self, token):
         p, conn, identity = self._context(token)
         state = self.credentials.state(p.owner_uid, p.vault_id, p.connection_id)
+        from .agent_client_assets import client_metadata
+
         lease = state["lease"]
         return {
             "contractVersion": CONTRACT_VERSION,
             "profile": "folioview.agent-credential.v1",
             "issuer": self.native.config.base.issuer,
             "provider": conn["provider"],
+            "client": client_metadata(),
             "actor": {
                 "ownerSubject": p.owner_subject,
                 "vaultId": p.vault_id,
