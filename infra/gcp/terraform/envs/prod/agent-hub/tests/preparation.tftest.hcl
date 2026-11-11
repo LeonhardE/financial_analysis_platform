@@ -64,7 +64,7 @@ run "current_opaque_storage_has_index_exemptions_without_ttl" {
   command = plan
   assert {
     condition = (
-      length(google_firestore_field.opaque) == 72 &&
+      length(google_firestore_field.opaque) == 79 &&
       alltrue([for field in google_firestore_field.opaque : field.database == "agent-hub" && length(field.index_config) == 1 && length(field.index_config[0].indexes) == 0 && length(field.ttl_config) == 0]) &&
       length(module.database.ttl_field_names) == 0 &&
       length(module.database.composite_index_names) == 0 &&
@@ -88,7 +88,7 @@ run "protocol_flags_and_unknown_source_trust_fail_closed" {
       output.creation_configuration.environment.HUB_ENCRYPTED_ADAPTER_ENABLED == "0" &&
       output.creation_configuration.environment.HUB_OAUTH_CLIENTS_JSON == "[]" &&
       output.creation_configuration.environment.HUB_OAUTH_ISSUER == var.deployment.hub_origin &&
-      output.creation_configuration.environment.HUB_OAUTH_CONSENT_URL == "https://hub.example.invalid/agent/v2/helper/consent.html" &&
+      output.creation_configuration.environment.HUB_OAUTH_CONSENT_URL == "https://hub.example.invalid/agent/v3/account/consent.html" &&
       output.creation_configuration.environment.HUB_TRUSTED_PORTFOLIO_CALLERS == "{}" &&
       output.creation_configuration.environment.HUB_PORTFOLIO_CALLER_EMAIL == "" &&
       output.creation_configuration.environment.HUB_USER_ORIGIN == "" &&
@@ -109,7 +109,7 @@ run "exact_registered_muse_and_21_digit_portfolio_subject_are_supported" {
     }
     connector = {
       oauth_enabled             = true
-      encrypted_adapter_enabled = true
+      encrypted_adapter_enabled = false
       muse_clients = [{
         client_id     = "synthetic-muse"
         redirect_uris = ["https://agent.example.invalid/api/callback"]
@@ -119,7 +119,7 @@ run "exact_registered_muse_and_21_digit_portfolio_subject_are_supported" {
   assert {
     condition = (
       output.creation_configuration.environment.HUB_OAUTH_ENABLED == "1" &&
-      output.creation_configuration.environment.HUB_ENCRYPTED_ADAPTER_ENABLED == "1" &&
+      output.creation_configuration.environment.HUB_ENCRYPTED_ADAPTER_ENABLED == "0" &&
       one(jsondecode(output.creation_configuration.environment.HUB_OAUTH_CLIENTS_JSON)[0].redirectUris) == "https://agent.example.invalid/api/callback" &&
       jsondecode(output.creation_configuration.environment.HUB_TRUSTED_PORTFOLIO_CALLERS)["112010400000000710080"] == var.sources.portfolio_caller_email
     )
@@ -145,7 +145,7 @@ run "reject_adapter_without_oauth" {
 run "reject_oauth_without_preregistered_client" {
   command = plan
   variables { connector = { oauth_enabled = true } }
-  expect_failures = [var.connector]
+  expect_failures = [var.agent_clients]
 }
 run "reject_callback_with_wildcard_or_query" {
   command = plan
@@ -185,45 +185,80 @@ run "reject_confidential_client_without_hash" {
   expect_failures = [var.connector]
 }
 
-run "persistent_mode_is_absent_by_default" {
+run "personal_mode_is_closed_and_scale_to_zero_by_default" {
   command = plan
   assert {
-    condition = !var.persistent_mode_enabled && alltrue([
-      for name in keys(output.creation_configuration.environment) : !startswith(name, "HUB_PERSISTENT_")
-    ])
-    error_message = "Default rollout preparation must preserve the exact existing runtime environment."
+    condition = (!var.agent_owned_mode_enabled && !var.persistent_mode_enabled &&
+      output.creation_configuration.environment.HUB_AGENT_OWNED_CREDENTIALS_ENABLED == "0" &&
+      output.creation_configuration.environment.HUB_AGENT_OWNER_URL == "" &&
+      alltrue([for name, value in output.creation_configuration.environment : value == "0" if startswith(name, "HUB_PERSISTENT_")]) &&
+      output.creation_configuration.min_instances == 0 && output.creation_configuration.max_instances == 1 &&
+      !contains(keys(output.creation_configuration.environment), "HUB_PERSISTENT_RUNTIME_ENABLED") &&
+      !contains(keys(output.creation_configuration.environment), "HUB_PERSISTENT_IDENTITY_RECOVERY_ENABLED")
+    )
+    error_message = "New mode defaults closed on the existing scale-to-zero service; old runtime flags cannot be emitted."
   }
 }
-
-run "explicit_persistent_mode_emits_only_the_closed_basic_chain" {
+run "explicit_personal_mode_uses_existing_hub_and_preregistered_providers" {
   command = plan
   variables {
-    persistent_mode_enabled = true
-    connector = {
-      oauth_enabled = true
-      muse_clients  = [{ client_id = "synthetic-muse", redirect_uris = ["https://agent.example.invalid/api/callback"] }]
-    }
-    sources = {
-      user_origin               = "https://user.example.invalid"
-      portfolio_origin          = "https://portfolio.example.invalid"
-      portfolio_caller_email    = "example-portfolio@example-project-1234.iam.gserviceaccount.com"
-      trusted_portfolio_callers = { "112010400000000710080" = "example-portfolio@example-project-1234.iam.gserviceaccount.com" }
-    }
+    agent_owned_mode_enabled = true
+    connector                = { oauth_enabled = true, muse_clients = [{ client_id = "synthetic-muse", redirect_uris = ["https://agent.example.invalid/callback"] }] }
+    agent_clients            = [{ provider = "chatgpt", client_id = "synthetic-chatgpt", redirect_uris = ["https://other-agent.example.invalid/callback"] }]
+    sources                  = { user_origin = "https://user.example.invalid", portfolio_origin = "https://portfolio.example.invalid", portfolio_caller_email = "example-portfolio@example-project-1234.iam.gserviceaccount.com", trusted_portfolio_callers = { "112010400000000710080" = "example-portfolio@example-project-1234.iam.gserviceaccount.com" } }
   }
   assert {
-    condition = (
-      length([for name in keys(output.creation_configuration.environment) : name if startswith(name, "HUB_PERSISTENT_")]) == 9 &&
+    condition = (output.creation_configuration.environment.HUB_AGENT_OWNED_CREDENTIALS_ENABLED == "1" &&
+      output.creation_configuration.environment.HUB_AGENT_OWNER_URL == "https://web.example.invalid/agents" &&
+      length([for name in keys(output.creation_configuration.environment) : name if startswith(name, "HUB_PERSISTENT_")]) == 6 &&
       alltrue([for name, value in output.creation_configuration.environment : value == "1" if startswith(name, "HUB_PERSISTENT_")]) &&
-      output.creation_configuration.environment.HUB_PERSISTENT_RUNTIME_ENABLED == "1" &&
-      output.creation_configuration.environment.HUB_PERSISTENT_RESULTS_ENABLED == "1" &&
-      output.creation_configuration.environment.HUB_ENCRYPTED_ADAPTER_ENABLED == "0"
+      jsondecode(output.creation_configuration.environment.HUB_OAUTH_CLIENTS_JSON)[1].provider == "chatgpt" &&
+      output.creation_configuration.environment.HUB_ENCRYPTED_ADAPTER_ENABLED == "0" &&
+      output.creation_configuration.min_instances == 0 && output.creation_configuration.max_instances == 1
     )
-    error_message = "Explicit opt-in enables exactly the native basic chain, without implicitly enabling the legacy adapter or granting content access."
+    error_message = "Both providers share only existing Hub resources, with no implicit old adapter, new service or minimum-instance increase."
   }
 }
-
-run "reject_persistent_mode_before_producer_trust_and_registration" {
+run "credential_records_have_no_index_or_ttl_requirement" {
+  command = plan
+  assert {
+    condition = (output.index_exemptions.hub_agent_identities_credentialLease.field == "credentialLease" &&
+      output.index_exemptions.hub_agent_credential_setups_offer.field == "offer" &&
+      output.index_exemptions.hub_agent_identity_history_record.field == "record" &&
+      output.index_exemptions.hub_credential_lineage_predecessor.field == "predecessor"
+    )
+    error_message = "Current and historical signed metadata must use direct document IDs without accidental index growth or TTL deletion."
+  }
+}
+run "reject_old_browser_mode" {
   command = plan
   variables { persistent_mode_enabled = true }
   expect_failures = [var.persistent_mode_enabled]
+}
+run "reject_personal_mode_without_registration_and_source_trust" {
+  command = plan
+  variables { agent_owned_mode_enabled = true }
+  expect_failures = [var.agent_owned_mode_enabled]
+}
+run "reject_duplicate_provider_client_identifier" {
+  command = plan
+  variables {
+    connector     = { muse_clients = [{ client_id = "same-client", redirect_uris = ["https://agent.example.invalid/callback"] }] }
+    agent_clients = [{ provider = "chatgpt", client_id = "same-client", redirect_uris = ["https://other-agent.example.invalid/callback"] }]
+  }
+  expect_failures = [var.agent_clients]
+}
+run "reject_unregistered_provider_or_unsafe_callback" {
+  command = plan
+  variables { agent_clients = [{ provider = "unknown", client_id = "synthetic-client", redirect_uris = ["https://agent.example.invalid/*?override=1"] }] }
+  expect_failures = [var.agent_clients]
+}
+
+run "reject_combined_registration_over_application_budget" {
+  command = plan
+  variables {
+    connector = { muse_clients = [for i in range(2) : { client_id = "muse-${i}", redirect_uris = [for j in range(4) : "https://agent.example.invalid/${i}/${j}/${join("", [for k in range(120) : "abcdefghij"])}"] }] }
+    agent_clients = [for i in range(2) : { provider = "chatgpt", client_id = "chatgpt-${i}", redirect_uris = [for j in range(4) : "https://other-agent.example.invalid/${i}/${j}/${join("", [for k in range(120) : "abcdefghij"])}"] }]
+  }
+  expect_failures = [var.agent_clients]
 }

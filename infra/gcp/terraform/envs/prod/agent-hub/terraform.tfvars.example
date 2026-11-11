@@ -24,3 +24,8 @@ connector = {
   encrypted_adapter_enabled = false
   muse_clients              = []
 }
+
+# No activation or deployment is implied by preparing these source inputs.
+persistent_mode_enabled = false # retired browser choice
+agent_owned_mode_enabled = false
+agent_clients = [] # supply only actual preregistered Muse/ChatGPT callbacks in the release window

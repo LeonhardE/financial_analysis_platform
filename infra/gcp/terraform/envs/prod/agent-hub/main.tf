@@ -3,17 +3,29 @@ locals {
   region        = var.deployment.region
   web_origin    = var.deployment.web_origin
   runtime_email = "${var.deployment.runtime_account_id}@${local.project_id}.iam.gserviceaccount.com"
-  persistent_environment = var.persistent_mode_enabled ? {
-    HUB_PERSISTENT_AGENTS_ENABLED            = "1"
-    HUB_PERSISTENT_IDENTITY_RECOVERY_ENABLED = "1"
-    HUB_PERSISTENT_RESOURCE_CONSENTS_ENABLED = "1"
-    HUB_PERSISTENT_PUBLICATIONS_ENABLED      = "1"
-    HUB_PERSISTENT_EXECUTION_ENABLED         = "1"
-    HUB_PERSISTENT_RESULTS_ENABLED           = "1"
-    HUB_PERSISTENT_TRANSPORT_ENABLED         = "1"
-    HUB_PERSISTENT_MCP_ENABLED               = "1"
-    HUB_PERSISTENT_RUNTIME_ENABLED           = "1"
-  } : {}
+  agent_clients = concat([for client in var.connector.muse_clients : {
+    provider                = "muse"
+    clientId                = client.client_id
+    redirectUris            = client.redirect_uris
+    tokenEndpointAuthMethod = client.token_endpoint_auth_method
+    secretSha256            = client.secret_sha256
+    }], [for client in var.agent_clients : {
+    provider                = client.provider
+    clientId                = client.client_id
+    redirectUris            = client.redirect_uris
+    tokenEndpointAuthMethod = client.token_endpoint_auth_method
+    secretSha256            = client.secret_sha256
+  }])
+  agent_owned_environment = {
+    HUB_AGENT_OWNED_CREDENTIALS_ENABLED      = var.agent_owned_mode_enabled ? "1" : "0"
+    HUB_AGENT_OWNER_URL                      = var.agent_owned_mode_enabled ? "${local.web_origin}/agents" : ""
+    HUB_PERSISTENT_RESOURCE_CONSENTS_ENABLED = var.agent_owned_mode_enabled ? "1" : "0"
+    HUB_PERSISTENT_PUBLICATIONS_ENABLED      = var.agent_owned_mode_enabled ? "1" : "0"
+    HUB_PERSISTENT_EXECUTION_ENABLED         = var.agent_owned_mode_enabled ? "1" : "0"
+    HUB_PERSISTENT_RESULTS_ENABLED           = var.agent_owned_mode_enabled ? "1" : "0"
+    HUB_PERSISTENT_TRANSPORT_ENABLED         = var.agent_owned_mode_enabled ? "1" : "0"
+    HUB_PERSISTENT_MCP_ENABLED               = var.agent_owned_mode_enabled ? "1" : "0"
+  }
   service_configuration = {
     min_instances     = 0
     max_instances     = 1
@@ -36,17 +48,11 @@ locals {
       HUB_PORTFOLIO_CALLER_EMAIL    = var.sources.portfolio_caller_email
       HUB_TRUSTED_PORTFOLIO_CALLERS = jsonencode(var.sources.trusted_portfolio_callers)
       HUB_OAUTH_ENABLED             = var.connector.oauth_enabled ? "1" : "0"
-      HUB_ENCRYPTED_ADAPTER_ENABLED = var.connector.encrypted_adapter_enabled ? "1" : "0"
+      HUB_ENCRYPTED_ADAPTER_ENABLED = "0"
       HUB_OAUTH_ISSUER              = var.deployment.hub_origin
-      HUB_OAUTH_CONSENT_URL         = "${var.deployment.hub_origin}/agent/v2/helper/consent.html"
-      HUB_OAUTH_CLIENTS_JSON = jsonencode([for client in var.connector.muse_clients : {
-        provider                = "muse"
-        clientId                = client.client_id
-        redirectUris            = client.redirect_uris
-        tokenEndpointAuthMethod = client.token_endpoint_auth_method
-        secretSha256            = client.secret_sha256
-      }])
-    }, local.persistent_environment)
+      HUB_OAUTH_CONSENT_URL         = "${var.deployment.hub_origin}/agent/v3/account/consent.html"
+      HUB_OAUTH_CLIENTS_JSON        = jsonencode(local.agent_clients)
+    }, local.agent_owned_environment)
   }
 }
 

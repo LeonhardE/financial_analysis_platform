@@ -9,7 +9,11 @@ locals {
     hub_native_oauth_access                = ["grantRefs"]
     hub_native_oauth_refresh               = ["grantRefs"]
     hub_native_oauth_families              = ["grantRefs"]
-    hub_agent_identities                   = ["identity", "binding", "revocation"]
+    hub_agent_identities                   = ["identity", "binding", "revocation", "credentialLease", "credentialApproval"]
+    hub_agent_identity_history             = ["record"]
+    hub_agent_credential_operations        = ["command", "receipt"]
+    hub_agent_credential_setups            = ["offer"]
+    hub_credential_lineage                 = ["predecessor"]
     hub_agent_identity_operations          = ["command", "receipt"]
     hub_resource_consents                  = ["consent", "operations"]
     hub_resource_consent_operations        = ["command", "sourceStates", "receipt"]
@@ -53,6 +57,8 @@ locals {
   }]...)
 }
 
+# Historical exemptions above stay in state to avoid a destructive migration or index backfill.
+# Credential limits and lineage use direct document IDs; no composite index or TTL.
 # An index exemption is not a TTL policy. The shared module's ttl_fields always
 # enables TTL and therefore must not own these fields.
 resource "google_firestore_field" "opaque" {
