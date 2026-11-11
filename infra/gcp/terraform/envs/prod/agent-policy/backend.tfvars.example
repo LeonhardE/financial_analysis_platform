@@ -1,4 +1,4 @@
 # Must already exist under the independent trusted Owner's reviewed state/lane.
 # Never reuse the ordinary repository backend or disposable prototype state.
-bucket = "demo-policy-alpha-owner-terraform-state"
+bucket = "demo-policy-alpha-owner-tfstate"
 prefix = "prod/agent-policy"
