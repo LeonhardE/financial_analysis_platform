@@ -33,6 +33,7 @@ import { VaultError, type Json, type Vault, type RegistryBundle } from "./encryp
 import {
   verifyExecutorApproval,
   validateExecutorSchema,
+  type ExecutorBinding,
 } from "../../../packages/executor-trust/dist/core.mjs";
 const AGENT = "folioview.persistent-agent-identity.v1";
 const PAIRING = "folioview.runtime-pairing.v1";
@@ -52,6 +53,7 @@ type Context = {
   now: () => number;
   reader: (ids: string[]) => Promise<CryptoKey>;
   checkpointPins?: Map<string, Json>;
+  enrollmentPins?: Map<string, Json>;
 };
 export class PersistentOwner {
   constructor(private readonly ctx: Context) {}
@@ -268,6 +270,704 @@ export class PersistentOwner {
       continuousExecutionAcceptance: "pending",
     };
   }
+  private async setupDomain(cfg: Json, config: Json) {
+    exact(cfg, [
+      "connectionId",
+      "clientId",
+      "issuer",
+      "audience",
+      "policyJwk",
+      "nativeRedirectUris",
+    ]);
+    if (
+      !this.ctx.actor ||
+      !same(this.ctx.actor, {
+        connectionId: cfg.connectionId,
+        clientId: cfg.clientId,
+      })
+    )
+      fail();
+    validate("PublicJWK", cfg.policyJwk);
+    exact(config, [
+      "issuer",
+      "consentUrl",
+      "ownerSubject",
+      "vaultId",
+      "rootJwk",
+      "policyJwk",
+      "stateEpoch",
+      "provider",
+      "providerClientId",
+      "audience",
+      "kmsSigningKeyVersion",
+      "kmsRecoveryKey",
+      "clients",
+      "witnessProject",
+      "witnessDatabase",
+      "snapshotBucket",
+    ]);
+    validate("PublicJWK", config.rootJwk);
+    validate("PublicJWK", config.policyJwk);
+    for (const field of ["vaultId", "stateEpoch", "provider", "providerClientId"])
+      identifier(config[field]);
+    if (
+      config.ownerSubject !== this.ctx.ownerSubject ||
+      config.vaultId !== this.ctx.vault.vaultId ||
+      !same(config.rootJwk, this.ctx.vault.rootJwk) ||
+      !same(config.policyJwk, cfg.policyJwk) ||
+      config.issuer !== cfg.issuer ||
+      config.audience !== cfg.audience ||
+      config.provider !== "openai_chatgpt" ||
+      config.providerClientId !== cfg.clientId ||
+      !/^https:\/\/[a-z0-9]+(?:[.-][a-z0-9]+)*$/.test(cfg.issuer) ||
+      !/^https:\/\/[a-z0-9]+(?:[.-][a-z0-9]+)*\/mcp$/.test(cfg.audience) ||
+      !Array.isArray(config.clients) ||
+      config.clients.length < 1 ||
+      config.clients.length > 8
+    )
+      fail();
+    const native = config.clients.find((c: Json) => c.clientId === cfg.clientId);
+    for (const client of config.clients) {
+      exact(client, ["clientId", "redirectUris", "tokenEndpointAuthMethod", "secretSha256"]);
+      identifier(client.clientId);
+      if (
+        client.tokenEndpointAuthMethod !== "none" ||
+        client.secretSha256 !== null ||
+        !Array.isArray(client.redirectUris) ||
+        client.redirectUris.length < 1 ||
+        client.redirectUris.length > 4 ||
+        new Set(client.redirectUris).size !== client.redirectUris.length ||
+        client.redirectUris.some(
+          (u: string) => !/^https:\/\/[a-z0-9]+(?:[.-][a-z0-9]+)*(?:\/[A-Za-z0-9._~-]+)+$/.test(u),
+        )
+      )
+        fail();
+    }
+    if (
+      !native ||
+      !same(native.redirectUris, cfg.nativeRedirectUris) ||
+      new Set(config.clients.map((c: Json) => c.clientId)).size !== config.clients.length
+    )
+      fail();
+    for (const name of ["kmsSigningKeyVersion", "kmsRecoveryKey"]) {
+      const suffix = name === "kmsSigningKeyVersion" ? "/cryptoKeyVersions/[1-9][0-9]*" : "";
+      if (
+        typeof config[name] !== "string" ||
+        !new RegExp(
+          "^projects/[a-z][a-z0-9-]+/locations/[a-z0-9-]+/keyRings/[A-Za-z0-9_-]+/cryptoKeys/[A-Za-z0-9_-]+" +
+            suffix +
+            "$",
+        ).test(config[name])
+      )
+        fail();
+    }
+    if (
+      !/^https:\/\/[a-z0-9]+(?:[.-][a-z0-9]+)*(?:\/[A-Za-z0-9_-]+)*\/?$/.test(config.consentUrl) ||
+      !/^[a-z][a-z0-9-]{4,61}[a-z0-9]$/.test(config.witnessProject) ||
+      !/^[a-z][a-z0-9-]{2,62}$/.test(config.witnessDatabase) ||
+      config.witnessDatabase === "default" ||
+      !/^[a-z0-9][a-z0-9.-]{2,221}$/.test(config.snapshotBucket) ||
+      cfg.issuer + "/mcp" === cfg.audience
+    )
+      fail();
+    if ((await keyId(config.policyJwk)) === this.ctx.vault.rootKeyId) fail();
+    return digest(config);
+  }
+  private setupWorkload(w: Json) {
+    exact(w, [
+      "projectId",
+      "projectNumber",
+      "zone",
+      "instanceName",
+      "serviceAccount",
+      "imageDigest",
+      "args",
+      "environment",
+      "hwmodel",
+      "attestationAudience",
+    ]);
+    if (
+      !/^[a-z][a-z0-9-]{4,28}[a-z0-9]$/.test(w.projectId) ||
+      !/^[1-9][0-9]{5,19}$/.test(w.projectNumber) ||
+      !/^[a-z]+(?:-[a-z0-9]+)+[0-9]-[a-z]$/.test(w.zone) ||
+      !/^[a-z][a-z0-9-]{0,61}[a-z0-9]$/.test(w.instanceName) ||
+      !new RegExp("^[a-z][a-z0-9-]+@" + w.projectId + "\\.iam\\.gserviceaccount\\.com$").test(
+        w.serviceAccount,
+      ) ||
+      !/^sha256:[a-f0-9]{64}$/.test(w.imageDigest) ||
+      !same(w.args, ["python", "-m", "app.main"]) ||
+      !["GCP_AMD_SEV", "GCP_AMD_SEV_ES", "GCP_INTEL_TDX"].includes(w.hwmodel) ||
+      !w.environment ||
+      typeof w.environment !== "object" ||
+      Array.isArray(w.environment) ||
+      Object.keys(w.environment).length > 16 ||
+      Object.entries(w.environment).some(
+        ([k, v]) => k.length > 128 || typeof v !== "string" || v.length > 256,
+      )
+    )
+      fail();
+    return w;
+  }
+  private async setupDraft(d: Json, cfg: Json, config: Json) {
+    exact(d, [
+      "ownerSubject",
+      "vaultId",
+      "connectionId",
+      "agentId",
+      "clientId",
+      "provider",
+      "providerClientId",
+      "identityEpoch",
+      "issuer",
+      "audience",
+      "policyJwk",
+      "recipientKeyIds",
+      "scope",
+      "workload",
+      "creationWorkload",
+      "kmsRecoveryKey",
+      "snapshotBucket",
+    ]);
+    for (const k of [
+      "ownerSubject",
+      "vaultId",
+      "issuer",
+      "audience",
+      "provider",
+      "providerClientId",
+      "kmsRecoveryKey",
+    ])
+      if (d[k] !== config[k]) fail();
+    if (
+      d.connectionId !== cfg.connectionId ||
+      d.clientId !== cfg.clientId ||
+      d.identityEpoch !== 1 ||
+      !same(d.policyJwk, cfg.policyJwk)
+    )
+      fail();
+    identifier(d.agentId);
+    const r = this.setupWorkload(d.workload),
+      c = this.setupWorkload(d.creationWorkload);
+    if (
+      c.attestationAudience !== cfg.issuer + "/enrollment" ||
+      r.attestationAudience !== cfg.issuer + "/attestation" ||
+      c.serviceAccount === r.serviceAccount ||
+      d.snapshotBucket !== r.projectId + "-executor-state" ||
+      ["projectId", "projectNumber", "zone", "instanceName", "imageDigest", "hwmodel"].some(
+        (k) => c[k] !== r[k],
+      )
+    )
+      fail();
+    exact(d.scope, ["profile", "purpose", "resultPolicy", "resourceBindings"]);
+    if (
+      d.scope.profile !== "folioview.hub-executor-ciphertext-scope.v1" ||
+      d.scope.purpose !== "analysis" ||
+      d.scope.resultPolicy !== "owner_inbox" ||
+      !Array.isArray(d.scope.resourceBindings) ||
+      d.scope.resourceBindings.length < 1 ||
+      d.scope.resourceBindings.length > 10
+    )
+      fail();
+    const refs = d.scope.resourceBindings.map((x: Json) => {
+      exact(x, ["ref", "sourceEpoch"]);
+      validate("ResourceRef", x.ref);
+      integer(x.sourceEpoch, 1);
+      return canonical(x.ref);
+    });
+    if (!same(refs, [...new Set(refs)].sort())) fail();
+    const registry = await this.registry(),
+      now = this.ctx.now();
+    const recipients = [...registry.current.keys.values()]
+      .filter(
+        (c) =>
+          !registry.current.revoked.has(c.keyId) &&
+          c.connectionId === null &&
+          ["device_enc", "recovery_enc"].includes(c.role) &&
+          c.notBefore <= now &&
+          now < c.expiresAt,
+      )
+      .map((c) => c.keyId)
+      .sort();
+    if (!same(recipients, d.recipientKeyIds)) fail();
+    return digest(d);
+  }
+  private async setupPermit(offer: Json, draftDigest: string) {
+    const p = await verify(offer.permit, this.ctx.vault.rootJwk, "fv-control+jws");
+    exact(p, ["profile", "action", "draftDigest", "operationId", "issuedAt", "expiresAt"]);
+    if (
+      p.profile !== "folioview.agent-executor.v1" ||
+      p.action !== "initialize" ||
+      p.draftDigest !== draftDigest ||
+      !Number.isSafeInteger(p.issuedAt) ||
+      !Number.isSafeInteger(p.expiresAt) ||
+      p.issuedAt > this.ctx.now() ||
+      p.expiresAt <= p.issuedAt ||
+      p.expiresAt > p.issuedAt + 300
+    )
+      fail();
+    validate("OperationIdentifier", p.operationId);
+  }
+  private async setupReview(args: Json, stage: string, domain: string) {
+    const p = await verify(args.review, args.configuration.policyJwk, "fv-control+jws"),
+      now = this.ctx.now();
+    exact(p, [
+      "profile",
+      "stage",
+      "domain",
+      "ownerSubject",
+      "vaultId",
+      "rootKeyId",
+      "policySigningKeyId",
+      "pendingOfferDigest",
+      "offerDigest",
+      "draftDigest",
+      "creationWorkloadDigest",
+      "statementDigest",
+      "certificateDigest",
+      "instanceId",
+      "issuedAt",
+      "expiresAt",
+    ]);
+    const pending = args.pendingOffer,
+      final = stage === "final" ? args.finalOffer : pending;
+    if (
+      p.profile !== "folioview.executor-enrollment-review.v1" ||
+      p.stage !== stage ||
+      p.domain !== domain ||
+      p.ownerSubject !== this.ctx.ownerSubject ||
+      p.vaultId !== this.ctx.vault.vaultId ||
+      p.rootKeyId !== this.ctx.vault.rootKeyId ||
+      p.policySigningKeyId !== (await keyId(args.configuration.policyJwk)) ||
+      p.pendingOfferDigest !== (await digest(pending)) ||
+      p.offerDigest !== (await digest(final)) ||
+      p.draftDigest !== (await digest(pending.draft)) ||
+      p.creationWorkloadDigest !== (await digest(pending.draft.creationWorkload)) ||
+      p.statementDigest !== (await digest(final.creationAttestation.statement)) ||
+      !/^[1-9][0-9]{0,19}$/.test(p.instanceId) ||
+      !Number.isSafeInteger(p.issuedAt) ||
+      !Number.isSafeInteger(p.expiresAt) ||
+      p.issuedAt > now ||
+      now >= p.expiresAt ||
+      p.expiresAt > p.issuedAt + 120
+    )
+      fail("stale_policy");
+    return p;
+  }
+  private async setupPolicyControl(
+    config: Json,
+    action: string,
+    connectionId: string,
+    version: number,
+    head: string | null,
+    parameters: Json,
+    operationId?: string,
+  ) {
+    const now = this.ctx.now();
+    const p = {
+      contractVersion: CONTRACT,
+      profile: "folioview.agent-policy-control.v1",
+      action,
+      ownerSubject: this.ctx.ownerSubject,
+      connectionId,
+      operationId: operationId ?? "policy_" + crypto.randomUUID().replaceAll("-", ""),
+      expectedVersion: version,
+      expectedHead: head,
+      parametersDigest: await digest(parameters),
+      issuedAt: now,
+      expiresAt: now + 120,
+    };
+    return sign(p, this.ctx.root, this.ctx.vault.rootKeyId, "fv-control+jws");
+  }
+  /** Administrator ceremony only: fixed purposes, public artifacts, no network or key export. */
+  async independentSetup(args: Json) {
+    if (canonical(args).length > 524288 || !this.ctx.enrollmentPins) fail();
+    const { action, configuration: cfg, policyConfig: config } = args;
+    const domain = await this.setupDomain(cfg, config),
+      now = this.ctx.now();
+    if (action === "inspect") {
+      exact(args, ["action", "configuration", "policyConfig"]);
+      return {
+        domain,
+        issuer: cfg.issuer,
+        rootKeyId: this.ctx.vault.rootKeyId,
+      };
+    }
+    if (action === "bootstrap") {
+      exact(args, ["action", "configuration", "policyConfig"]);
+      return {
+        domain,
+        rootJwk: this.ctx.vault.rootJwk,
+        rootKeyId: this.ctx.vault.rootKeyId,
+        command: await this.setupPolicyControl(config, "bootstrap", "policy", 0, null, { domain }),
+      };
+    }
+    if (action === "initialize") {
+      exact(args, ["action", "configuration", "policyConfig", "draft"]);
+      const draftDigest = await this.setupDraft(args.draft, cfg, config);
+      return {
+        draft: args.draft,
+        draftDigest,
+        rootJwk: this.ctx.vault.rootJwk,
+        rootKeyId: this.ctx.vault.rootKeyId,
+        permit: await sign(
+          {
+            profile: "folioview.agent-executor.v1",
+            action: "initialize",
+            draftDigest,
+            operationId: "initialize_" + crypto.randomUUID().replaceAll("-", ""),
+            issuedAt: now,
+            expiresAt: now + 300,
+          },
+          this.ctx.root,
+          this.ctx.vault.rootKeyId,
+          "fv-control+jws",
+        ),
+      };
+    }
+    if (action === "certificate") {
+      exact(args, [
+        "action",
+        "configuration",
+        "policyConfig",
+        "policyState",
+        "review",
+        "certificateChain",
+      ]);
+      const state = args.policyState,
+        binding = await this.independentDomain(cfg, state, true);
+      const p = await verify(args.review, cfg.policyJwk, "fv-control+jws");
+      exact(p, [
+        "profile",
+        "domain",
+        "bindingDigest",
+        "certificateDigest",
+        "stateVersion",
+        "stateHead",
+        "issuedAt",
+        "expiresAt",
+      ]);
+      if (typeof args.certificateChain !== "string" || args.certificateChain.length > 16384) fail();
+      const raw = [
+        ...new Uint8Array(
+          await crypto.subtle.digest("SHA-256", new TextEncoder().encode(args.certificateChain)),
+        ),
+      ]
+        .map((v) => v.toString(16).padStart(2, "0"))
+        .join("");
+      if (
+        p.profile !== "folioview.executor-certificate-review.v1" ||
+        p.domain !== domain ||
+        p.bindingDigest !== (await digest(binding)) ||
+        p.certificateDigest !== raw ||
+        state.status !== "active" ||
+        p.stateVersion !== state.stateVersion ||
+        p.stateHead !== state.stateHead ||
+        !Number.isSafeInteger(p.issuedAt) ||
+        !Number.isSafeInteger(p.expiresAt) ||
+        p.issuedAt > now ||
+        now >= p.expiresAt ||
+        p.expiresAt > p.issuedAt + 120
+      )
+        fail("stale_policy");
+      integer(p.stateVersion, 1);
+      validate("Digest", p.stateHead);
+      const parameters = { certificateDigest: raw },
+        approval = null;
+      return {
+        action: "certificate",
+        parameters,
+        approval,
+        command: await this.setupPolicyControl(
+          config,
+          "certificate",
+          cfg.connectionId,
+          p.stateVersion,
+          p.stateHead,
+          { parameters, approval },
+        ),
+      };
+    }
+    const pending = args.pendingOffer,
+      d = pending?.draft;
+    const draftDigest = await this.setupDraft(d, cfg, config);
+    await this.setupPermit(pending, draftDigest);
+    const pendingDigest = await digest(pending),
+      pins = this.ctx.enrollmentPins;
+    if (action === "review_pending") {
+      exact(args, ["action", "configuration", "policyConfig", "pendingOffer", "review"]);
+      await this.setupReview(args, "pending", domain);
+      const permit = await verify(pending.permit, this.ctx.vault.rootJwk, "fv-control+jws");
+      const finalizeBy = Math.min(now + 600, permit.issuedAt + 600);
+      if (now >= finalizeBy) fail("stale_policy");
+      pins.set(pendingDigest, {
+        ...pins.get(pendingDigest),
+        domain,
+        reviewedAt: now,
+        expiresAt: finalizeBy,
+      });
+      return {
+        pendingOfferDigest: pendingDigest,
+        draftDigest,
+        originalKeyIds: await Promise.all(
+          ["agentSigningJwk", "agentEncryptionJwk", "tlsJwk"].map((k) => keyId(pending[k])),
+        ),
+        reviewedAt: now,
+        finalizeBy,
+      };
+    }
+    const pin = pins.get(pendingDigest);
+    if (!pin || pin.domain !== domain || now >= pin.expiresAt) fail("stale_policy");
+    if (action === "finalize") {
+      exact(args, [
+        "action",
+        "configuration",
+        "policyConfig",
+        "pendingOffer",
+        "hubAudience",
+        "approvalExpiresAt",
+      ]);
+      if (pin.prepared) {
+        if (
+          !same(pin.preparedOptions, {
+            hubAudience: args.hubAudience,
+            approvalExpiresAt: args.approvalExpiresAt,
+          })
+        )
+          fail("persistent_operation_pending");
+        return copy(pin.prepared);
+      }
+      if (
+        !Number.isSafeInteger(args.approvalExpiresAt) ||
+        args.approvalExpiresAt <= now ||
+        args.approvalExpiresAt > now + 30 * 86400 ||
+        !/^https:\/\/[a-z0-9]+(?:[.-][a-z0-9]+)*$/.test(args.hubAudience)
+      )
+        fail();
+      const packet = await this.certifyAgent({
+        connectionId: d.connectionId,
+        clientId: d.clientId,
+        agentId: d.agentId,
+        signingPublicJwk: pending.agentSigningJwk,
+        encryptionPublicJwk: pending.agentEncryptionJwk,
+        intentId: pending.enrollmentId,
+      });
+      const nativeConfig = {
+        profile: "folioview.executor-native-mcp.v1",
+        hubAudience: args.hubAudience,
+        providerClientId: cfg.clientId,
+        registryAnchor:
+          packet.registryUpdate?.registryBundle ?? this.ctx.vault.registryHistory.at(-1),
+      };
+      const workload = copy(d.workload);
+      if (workload.environment.EXECUTOR_NATIVE_ENABLED === "1")
+        workload.environment.EXECUTOR_NATIVE_CONFIG_SHA256 = await digest(nativeConfig);
+      const binding = {
+        ...Object.fromEntries(
+          [
+            "ownerSubject",
+            "vaultId",
+            "connectionId",
+            "agentId",
+            "clientId",
+            "provider",
+            "providerClientId",
+            "identityEpoch",
+            "issuer",
+            "audience",
+            "recipientKeyIds",
+          ].map((k) => [k, d[k]]),
+        ),
+        rootKeyId: this.ctx.vault.rootKeyId,
+        policySigningKeyId: await keyId(cfg.policyJwk),
+        bindingFingerprint: packet.identity.bindingFingerprint,
+        agentSigningKeyId: await keyId(pending.agentSigningJwk),
+        agentEncryptionKeyId: await keyId(pending.agentEncryptionJwk),
+        tlsKeyId: await keyId(pending.tlsJwk),
+        scopeDigest: await digest(d.scope),
+        workloadDigest: await digest(workload),
+      };
+      validateExecutorSchema("ExecutorBinding", binding);
+      const approval = await sign(
+        {
+          contractVersion: CONTRACT,
+          profile: "folioview.executor-trust.v1",
+          artifactType: "executor_approval",
+          binding,
+          operationId: packet.operationId,
+          issuedAt: now,
+          expiresAt: args.approvalExpiresAt,
+        },
+        this.ctx.root,
+        this.ctx.vault.rootKeyId,
+        "fv-control+jws",
+      );
+      await verifyExecutorApproval(approval, {
+        expectedBinding: validateExecutorSchema("ExecutorBinding", binding) as ExecutorBinding,
+        rootJwk: this.ctx.vault.rootJwk,
+        now,
+      });
+      const finalization = await sign(
+        {
+          profile: "folioview.agent-executor.v1",
+          action: "finalize",
+          offerDigest: pendingDigest,
+          bindingFingerprint: binding.bindingFingerprint,
+          workload,
+          operationId: "finalize_" + crypto.randomUUID().replaceAll("-", ""),
+          issuedAt: now,
+          expiresAt: now + 300,
+        },
+        this.ctx.root,
+        this.ctx.vault.rootKeyId,
+        "fv-control+jws",
+      );
+      const prepared = {
+        ...packet,
+        setupIntentId: null,
+        body: { ...packet.body, approval, scope: d.scope },
+        binding,
+        approval,
+        workload,
+        finalization,
+        nativeConfig,
+      };
+      pin.prepared = prepared;
+      pin.preparedOptions = {
+        hubAudience: args.hubAudience,
+        approvalExpiresAt: args.approvalExpiresAt,
+      };
+      return copy(prepared);
+    }
+    if (action === "registry_status") {
+      exact(args, ["action", "configuration", "policyConfig", "pendingOffer"]);
+      const p = pin.prepared,
+        v = this.ctx.vault;
+      if (!p) fail();
+      if (!p.registryUpdate || same(v.registryHistory.at(-1), p.registryUpdate.registryBundle))
+        return { needsUpdate: false };
+      if (v.version !== p.registryUpdate.expectedVersion) fail("version_conflict");
+      return { needsUpdate: true };
+    }
+    if (action === "verify_hub") {
+      exact(args, ["action", "configuration", "policyConfig", "pendingOffer", "receipt"]);
+      const p = pin.prepared,
+        r = args.receipt;
+      exact(r, ["contractVersion", "profile", "operationId", "registrationDigest", "identity"]);
+      if (
+        !p ||
+        r.contractVersion !== CONTRACT ||
+        r.profile !== "folioview.hub-executor-ciphertext.v1" ||
+        r.operationId !== p.operationId ||
+        r.registrationDigest !==
+          (await digest({
+            command: p.body.command,
+            approval: p.approval,
+            scope: d.scope,
+          })) ||
+        !same(r.identity, p.identity)
+      )
+        fail();
+      return { bindingFingerprint: p.identity.bindingFingerprint };
+    }
+    if (action === "register") {
+      exact(args, [
+        "action",
+        "configuration",
+        "policyConfig",
+        "pendingOffer",
+        "finalOffer",
+        "review",
+        "certificateChain",
+      ]);
+      const checked = await this.setupReview(args, "final", domain),
+        prepared = pin.prepared,
+        offer = args.finalOffer;
+      if (
+        !prepared ||
+        !same(offer.binding, prepared.binding) ||
+        !same(offer.workload, prepared.workload) ||
+        !same(offer.finalization, prepared.finalization) ||
+        offer.offerDigest !== pendingDigest ||
+        ["agentSigningJwk", "agentEncryptionJwk", "tlsJwk", "certificateRequest", "permit"].some(
+          (k) => !same(offer[k], pending[k]),
+        )
+      )
+        fail();
+      await verifyExecutorApproval(prepared.approval, {
+        expectedBinding: prepared.binding,
+        rootJwk: this.ctx.vault.rootJwk,
+        now,
+      });
+      if (typeof args.certificateChain !== "string" || args.certificateChain.length > 16384) fail();
+      const chainDigest = [
+        ...new Uint8Array(
+          await crypto.subtle.digest("SHA-256", new TextEncoder().encode(args.certificateChain)),
+        ),
+      ]
+        .map((v) => v.toString(16).padStart(2, "0"))
+        .join("");
+      if (checked.certificateDigest !== chainDigest) fail();
+      if (pin.registration) {
+        if (
+          pin.registrationFinalDigest !== checked.offerDigest ||
+          pin.registrationCertificateDigest !== chainDigest
+        )
+          fail("persistent_operation_pending");
+        return copy(pin.registration);
+      }
+      const parameters = {
+        agentId: d.agentId,
+        clientId: d.clientId,
+        identityEpoch: d.identityEpoch,
+        bindingFingerprint: prepared.binding.bindingFingerprint,
+        agentSigningJwk: pending.agentSigningJwk,
+        agentEncryptionJwk: pending.agentEncryptionJwk,
+        tlsJwk: pending.tlsJwk,
+        scope: d.scope,
+        recipientKeyIds: d.recipientKeyIds,
+        workload: prepared.workload,
+        initialStateHead: offer.initialStateHead,
+        certificateDigest: chainDigest,
+        wrappedStateKey: offer.wrappedStateKey,
+      };
+      const approval = prepared.approval;
+      const command = await this.setupPolicyControl(
+        config,
+        "register",
+        cfg.connectionId,
+        0,
+        null,
+        { enrollment: parameters, approval },
+        prepared.operationId,
+      );
+      const registration = {
+        hub: prepared,
+        policy: { action: "register", parameters, approval, command },
+        coreConfig: {
+          profile: "folioview.agent-executor.v1",
+          binding: prepared.binding,
+          rootJwk: this.ctx.vault.rootJwk,
+          policyJwk: cfg.policyJwk,
+          approval,
+          workload: prepared.workload,
+          agentSigningJwk: pending.agentSigningJwk,
+          agentEncryptionJwk: pending.agentEncryptionJwk,
+          tlsJwk: pending.tlsJwk,
+          certificateChain: args.certificateChain,
+          snapshotBucket: d.snapshotBucket,
+          kmsRecoveryKey: d.kmsRecoveryKey,
+          scope: d.scope,
+        },
+        nativeConfig: prepared.nativeConfig,
+      };
+      pin.registration = registration;
+      pin.registrationFinalDigest = checked.offerDigest;
+      pin.registrationCertificateDigest = chainDigest;
+      return copy(registration);
+    }
+    fail();
+  }
+
   async independentControl(args: Json) {
     exact(args, ["configuration", "hubState", "policyState", "checkpoint", "action", "pending"]);
     const { action, pending, ...state } = args;
@@ -461,9 +1161,11 @@ export class PersistentOwner {
     return { setup: s, offer: p, fingerprint: offer.fingerprint, protectedHostAttested: false };
   }
   async enrollment(value: Json) {
-    const review = await this.inspectSetup(value),
-      { offer: p } = review,
-      v = this.ctx.vault,
+    const { offer } = await this.inspectSetup(value);
+    return this.certifyAgent(offer);
+  }
+  private async certifyAgent(p: Json) {
+    const v = this.ctx.vault,
       registry = await this.registry();
     const bundle = copy(v.registryHistory.at(-1)!);
     const known = [...registry.current.keys.values()].filter(

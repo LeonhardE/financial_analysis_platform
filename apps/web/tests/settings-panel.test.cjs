@@ -63,6 +63,7 @@ function mountPanel(overrides = {}, locale = "en") {
     "react/jsx-runtime": jsxRuntime,
     "@/components/PreferencesProvider": { usePreferences: () => state },
     "./SettingsPanel.module.css": { default: {} },
+    "./IndependentSetupPanel": { __esModule: true, default: () => null },
     "./VaultManagementPanel": { __esModule: true, default: () => null },
     "next-intl": {
       useTranslations: (namespace) =>

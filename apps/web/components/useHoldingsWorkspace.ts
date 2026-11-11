@@ -2301,6 +2301,11 @@ export function useHoldingsWorkspace() {
       taskCall((instance) => instance.verifyIndependentDestination(args)),
     [taskCall],
   );
+  const prepareIndependentSetup = useCallback(
+    (args: Parameters<EncryptedVaultSession["prepareIndependentSetup"]>[0]) =>
+      taskCall((instance) => instance.prepareIndependentSetup(args)),
+    [taskCall],
+  );
   const signIndependentPolicyControl = useCallback(
     (args: Parameters<EncryptedVaultSession["signIndependentPolicyControl"]>[0]) =>
       taskCall((instance) => instance.signIndependentPolicyControl(args)),
@@ -4481,6 +4486,7 @@ export function useHoldingsWorkspace() {
     verifyPersistentIdentity,
     verifyIndependentAgent,
     verifyIndependentDestination,
+    prepareIndependentSetup,
     signIndependentPolicyControl,
     verifyPersistentPolicy,
     preparePersistentConsent,

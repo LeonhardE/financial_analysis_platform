@@ -150,6 +150,7 @@ function render(f, { locale = "en", component = "panel", mode = "unlock", unlock
   const settings = load("SettingsPanel", {
     ...imports,
     "./SettingsPanel.module.css": { __esModule: true, default: {} },
+    "./IndependentSetupPanel": { __esModule: true, default: () => null },
     "./VaultManagementPanel": { __esModule: true, default: panel.default },
     "@/components/PreferencesProvider": {
       usePreferences: () => ({

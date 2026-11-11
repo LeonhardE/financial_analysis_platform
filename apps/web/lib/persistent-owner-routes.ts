@@ -2,7 +2,7 @@
 const ID = "[A-Za-z0-9][A-Za-z0-9_-]{0,127}";
 const OP = "[A-Za-z0-9_-]{22,128}";
 export type PersistentOwnerRoute = {
-  kind: "read" | "control" | "small" | "persistent-publication";
+  kind: "read" | "control" | "small" | "persistent-publication" | "executor-binding";
   max: number;
   operation?: boolean;
   author?: boolean;
@@ -29,6 +29,11 @@ export function executorLegacyPath(path: string): string | null {
   return null;
 }
 export function persistentOwnerRoute(path: string, method: string): PersistentOwnerRoute | null {
+  if (
+    method === "POST" &&
+    new RegExp(`^/api/v2/executor-connections/${ID}/${ID}/bindings$`).test(path)
+  )
+    return { kind: "executor-binding", max: 69632, operation: true, responseStatus: 201 };
   if (path.startsWith("/api/v2/executor-connections/")) {
     const mapped = executorLegacyPath(path);
     return mapped ? persistentOwnerRoute(mapped, method) : null;

@@ -253,3 +253,79 @@ packet and connects that same helper session before reading the task and saving 
 The helper confirms an authenticated server receipt before the owner checks Inbox. Legacy
 1.2.0 offers remain verifiable only with their original reviewed digest. This Web-only change
 does not register a client, enable OAuth or approve content access automatically.
+
+## Owner first-key preparation and certificate renewal
+
+The unlocked Owner's Settings has a collapsed **Independent executor administration**
+entry. It accepts public preparation files only; Root/device private key handles
+remain in the existing Owner Worker. Preparation itself performs no network write,
+deployment, CA issuance or native schedule installation. Every action needs a
+separate visible review/confirmation. Ordinary daily connection controls remain
+unchanged. Do not provide private JWKs, account tokens or financial plaintext.
+
+Each file contains `configuration` (the configured independent public channel) and
+`policyConfig` (the exact reviewed Policy public config). Its Root must match this
+unlocked library; its domain digest covers the selected witness/storage/KMS/client
+configuration. Action-specific fields are closed:
+
+| Operation               | Additional public fields                                   | Result                                                                                                                |
+| ----------------------- | ---------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `inspect` / `bootstrap` | none                                                       | Domain/destination review, or fresh purpose-limited Root bootstrap control                                            |
+| `initialize`            | `draft`                                                    | Fresh Root initialize permit, exact draft digest and public Root pin                                                  |
+| `review_pending`        | `pendingOffer`, `review`                                   | Verify fresh independently signed Policy review and remember original keys in this Worker                             |
+| `finalize`              | `pendingOffer`, `hubAudience`, `approvalExpiresAt`         | Original-key certificates/registry update, actual device Hub binding, finite Root approval and fresh finalize control |
+| `register`              | `pendingOffer`, `finalOffer`, `review`, `certificateChain` | Exact reviewed Hub/Policy registration plus public core/native configs                                                |
+| `certificate`           | `policyState`, `review`, `certificateChain`                | Fresh certificate-only Root control bound to the existing original-key binding and current version/head               |
+
+Obtain the pending public offer through the narrow Executor Owner publisher. The
+**Request live public-artifact review** button is an explicit online read of
+Policy's fixed authenticated review route, using the configured issuer after
+Worker domain inspection. It does not enroll or release keys. The returned receipt
+must be verified while fresh (120 seconds); no caller `verified` flag, supplied
+Google keys or invented VM response substitutes for Policy's actual verifier.
+The complete pending offer, draft, original keys and reconstructed statement are
+bound by the signed receipt. The Worker remembers the verified observation through
+the bounded creator window; the initial Root permit timestamp conservatively caps
+that window at 600 seconds. It never backdates a new verification.
+
+Keep this page unlocked and avoid reload through this administrator ceremony.
+Review the pending receipt immediately, use the original CSR to obtain a public
+CA chain while the creator waits, finalize the actual original keys, then request
+and verify the fresh final review **with that chain** before preparing registration.
+The Root approval expires at the explicitly reviewed `approvalExpiresAt` (at most
+30 days); it does not infer task schedule acceptance. Native configuration hashes
+are calculated from the actual Root directory containing these original keys and
+included in the final workload environment before DEK sealing. The actual Hub
+binding fingerprint is derived from the real device-signed command, never invented
+in a provisional draft. No Muse/native pairing offer is fabricated for this flow.
+
+Preparation results are public files; save each for the narrow operator handoff.
+Use the bootstrap result's `command` as Policy CLI input, initialize result's
+`permit`/`draft`/Root public pin as creation inputs, and finalize result's
+`finalization` as the create-only inbox payload. Never send the whole wrapper where
+a signed control is expected. The Executor's
+[public-artifact tool](../../../services/agent-executor-service/docs/operations.md#owner-public-artifact-tools)
+validates these exact controls and CAS paths; none runs automatically from the UI.
+Actual resources/images/workload claims and keyless publisher permissions must
+already have passed the separately approved deployment stages.
+
+**Publish approved registration** is an explicit later action. It refreshes the
+Root directory, applies only the selected pending directory update when needed,
+submits the exact original Hub approval/scope/device binding, verifies its closed
+registration receipt, then submits the exact Root Policy registration. There is
+no automatic retry or second binding/key generation. A failed/unknown publication
+keeps the original prepared packet; replay the same bytes and reconcile actual
+receipts. Preparing again in this Worker preserves its exact registration packet.
+A lock, reload or expired creator window clears/stops this transient ceremony;
+there is no private-key export or silent identity reset. Preserve any reservation,
+final encrypted genesis and original receipts and use an explicitly reviewed
+recovery procedure rather than erasing them to start over.
+
+Renewal uses the current Policy state and a fresh original-key certificate review.
+The Worker checks exact PEM-byte digest, pinned domain/binding and current
+version/head before signing only the `certificate` purpose. **Publish certificate
+approval** does not publish config or replace a TLS key. After the actual Policy
+receipt is reconciled, the separate Owner publisher CAS-updates the same public
+core-config URI with the approved chain. Missing/expired proofs, wrong original
+keys, changed bytes or stale state fail closed. The UI never accepts CA terms,
+starts Certbot, deploys, resumes a schedule or claims online/cross-day acceptance.
