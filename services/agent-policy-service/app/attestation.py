@@ -88,8 +88,37 @@ class GoogleAttestation:
                 body.extend(chunk)
         return strict_json_loads(bytes(body), max_bytes=maximum)
 
-    def verify(self, token, statement, workload):
+    def verify(self, token, statement, workload, *, allow_finished_creation=False):
         validate_workload(workload)
+        statuses = {"RUNNING"}
+        if type(allow_finished_creation) is not bool:
+            deny()
+        if allow_finished_creation:
+            # Production Confidential Space stops the VM when the create-only
+            # workload exits. This narrow review verifies the just-persisted
+            # original identity, not a live capability or secret release.
+            closed(
+                statement,
+                {
+                    "profile",
+                    "action",
+                    "issuer",
+                    "permitFingerprint",
+                    "offerDigest",
+                    "finalizationFingerprint",
+                    "binding",
+                    "initialStateHead",
+                    "wrappedKeyDigest",
+                    "csrDigest",
+                },
+            )
+            if (
+                statement["profile"] != "folioview.agent-executor.v1"
+                or statement["action"] != "finalize"
+                or workload["attestationAudience"] != statement["issuer"] + "/enrollment"
+            ):
+                deny()
+            statuses |= {"STOPPING", "TERMINATED"}
         if type(token) is not str or not 1 <= len(token) <= 32768:
             deny()
         now = int(self.clock())
@@ -167,7 +196,7 @@ class GoogleAttestation:
                 vm = self._get(client, base, headers)
                 if (
                     str(vm["id"]) != instance
-                    or vm["status"] != "RUNNING"
+                    or vm["status"] not in statuses
                     or [a["email"] for a in vm["serviceAccounts"]] != [workload["serviceAccount"]]
                 ):
                     deny()

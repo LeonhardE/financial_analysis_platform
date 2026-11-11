@@ -280,7 +280,12 @@ def review(policy, uid, request):
     evidence = closed(offer["creationAttestation"], {"statement", "token"}, maximum=32768)
     if evidence["statement"] != statement:
         deny()
-    proof = policy.attestor.verify(evidence["token"], statement, creation)
+    if stage == "final":
+        proof = policy.attestor.verify(
+            evidence["token"], statement, creation, allow_finished_creation=True
+        )
+    else:
+        proof = policy.attestor.verify(evidence["token"], statement, creation)
     # Recheck the actual witness after the external verification, before signing.
     policy.store.transact(policy.state)
     payload = {

@@ -163,6 +163,7 @@ class EnrollmentReviewTests(PolicyFixture):
             self.assertNotIn("wrappedStateKey", payload)
         self.assertEqual(self.store.load(), state_before)
         self.assertEqual(self.signer.unwrapped, [])
+        self.assertEqual(self.attestor.finished_creation_calls, [False, True])
 
     def test_owner_root_domain_and_actual_attestation_are_mandatory(self):
         with self.assertRaises(ContractError):
