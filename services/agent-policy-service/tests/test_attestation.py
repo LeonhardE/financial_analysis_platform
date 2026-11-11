@@ -197,3 +197,66 @@ class AttestationTests(PolicyFixture):
             claims["submods"]["container"].update(changes)
             with self.subTest(changes=changes), self.assertRaises(ContractError):
                 self.verify(claims)
+
+    def finished_creation(self):
+        self.workload["attestationAudience"] = self.config.issuer + "/enrollment"
+        self.claims["aud"] = self.workload["attestationAudience"]
+        self.statement = {
+            "profile": "folioview.agent-executor.v1",
+            "action": "finalize",
+            "issuer": self.config.issuer,
+            "permitFingerprint": "a" * 64,
+            "offerDigest": "b" * 64,
+            "finalizationFingerprint": "c" * 64,
+            "binding": self.binding,
+            "initialStateHead": "d" * 64,
+            "wrappedKeyDigest": "e" * 64,
+            "csrDigest": "f" * 64,
+        }
+        self.claims["eat_nonce"] = digest(self.statement)
+
+    def test_finished_creation_accepts_only_the_same_recent_production_instance(self):
+        self.finished_creation()
+        for status in ["RUNNING", "STOPPING", "TERMINATED"]:
+            self.vm["status"] = status
+            result = self.attestor.verify(
+                self.token(), self.statement, self.workload, allow_finished_creation=True
+            )
+            self.assertEqual(result["instanceId"], self.vm["id"])
+        for status in ["SUSPENDED", "SUSPENDING", "PROVISIONING", "REPAIRING"]:
+            self.vm["status"] = status
+            with self.assertRaises(ContractError):
+                self.attestor.verify(
+                    self.token(), self.statement, self.workload, allow_finished_creation=True
+                )
+        self.vm["status"] = "TERMINATED"
+        for mutate in [
+            lambda: self.vm.update(id="987654321"),
+            lambda: self.claims.update(iat=self.now - 121),
+            lambda: self.claims.update(dbgstat="enabled"),
+        ]:
+            vm, claims = copy.deepcopy(self.vm), copy.deepcopy(self.claims)
+            mutate()
+            with self.assertRaises(ContractError):
+                self.attestor.verify(
+                    self.token(), self.statement, self.workload, allow_finished_creation=True
+                )
+            self.vm, self.claims = vm, claims
+
+    def test_finished_creation_exception_is_unavailable_to_runtime_or_pending_proofs(self):
+        self.vm["status"] = "TERMINATED"
+        with self.assertRaises(ContractError):
+            self.verify()
+        with self.assertRaises(ContractError):
+            self.attestor.verify(
+                self.token(), self.statement, self.workload, allow_finished_creation=True
+            )
+        self.finished_creation()
+        # Even a final-shaped statement cannot relax the default runtime verifier.
+        with self.assertRaises(ContractError):
+            self.attestor.verify(self.token(), self.statement, self.workload)
+        self.workload["attestationAudience"] = self.config.issuer + "/attestation"
+        with self.assertRaises(ContractError):
+            self.attestor.verify(
+                self.token(), self.statement, self.workload, allow_finished_creation=True
+            )

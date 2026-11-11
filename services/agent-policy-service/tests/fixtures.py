@@ -59,13 +59,15 @@ class Signer:
 class Attestor:
     def __init__(self):
         self.calls = []
+        self.finished_creation_calls = []
         self.callback = None
         self.accept = True
 
-    def verify(self, token, statement, workload):
+    def verify(self, token, statement, workload, *, allow_finished_creation=False):
         from app.contracts import deny
 
         self.calls.append(copy(statement))
+        self.finished_creation_calls.append(allow_finished_creation)
         if self.callback:
             action, self.callback = self.callback, None
             action()

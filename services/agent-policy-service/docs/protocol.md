@@ -257,3 +257,16 @@ binding digest, certificate digest, current version/head and at most 120 seconds
 validity. Revoked connections are refused. Renewal still needs a fresh Root
 `certificate` control and CAS publication; this endpoint cannot approve itself,
 change the original key or extend an execution approval.
+
+The final creation-review verifier also accepts the **same current numeric
+instance** in STOPPING or TERMINATED, because production Confidential Space shuts
+the VM down when the create-only workload exits. This exception is internal to
+reviewing the closed original-key `finalize` statement at the `/enrollment`
+audience. Pending-offer review and every runtime/lease/recovery verifier still
+require RUNNING. Fresh Google signatures/nonces (at most 120 seconds old), original
+Root controls/keys/head, production image/environment and the current instance ID
+and service account remain mandatory; a deleted/replaced VM, old/debug proof or
+suspended host is refused. A final review attests recently persisted original
+identity metadata and grants no live capability or secret release. It never
+switches a stopped runtime back to RUNNING or silently regenerates keys.
+See the [production versus debug lifecycle](https://docs.cloud.google.com/confidential-computing/confidential-space/docs/create-your-first-confidential-space-environment).
