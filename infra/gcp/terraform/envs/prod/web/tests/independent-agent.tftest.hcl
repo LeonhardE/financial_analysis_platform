@@ -67,7 +67,7 @@ override_data {
 }
 
 run "reject_retired_independent_pair" {
-  command = plan
+  command         = plan
   expect_failures = [var.owner_environment]
 }
 run "reject_incomplete_retired_pair" {
@@ -86,7 +86,7 @@ run "personal_agent_uses_only_existing_owner_environment" {
   assert {
     condition = (local.environment == var.owner_environment && length(local.environment) == 6 &&
       output.adoption_boundary.invoker_iam_disabled && output.adoption_boundary.service_max_instances == 2 &&
-      output.runtime_service_account == "browser-alpha-runtime@demo-web-alpha.iam.gserviceaccount.com")
+    output.runtime_service_account == "browser-alpha-runtime@demo-web-alpha.iam.gserviceaccount.com")
     error_message = "Personal Agent support needs only the existing Hub Owner origin; retain service identity, invocation and capacity boundaries."
   }
 }
