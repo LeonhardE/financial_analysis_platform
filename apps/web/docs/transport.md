@@ -70,8 +70,7 @@ original operation facts, not an implicit refresh of newer state.
 
 All `/api/v2/agent-authorizations/...` browser-flow endpoints remain excluded: the existing Hub
 protocol requires its own exact issuer Origin and `fv_oauth_flow` cookie. Web does not copy that
-cookie, forge a Hub Origin or infer user approval. The separate owner-consent handoff is described
-below.
+cookie, forge a Hub Origin or infer user approval. The current native account-link handoff is described below.
 OAuth, MCP, agent REST, discovery/JWKS, internal and helper URLs are never exposed through this
 owner forwarder. Stripping browser-supplied identity/delegation headers does not make public Hub
 private; its application authorization must also hold for direct clients.
@@ -82,27 +81,15 @@ contract headers, rejects arbitrary destinations and identity-header overrides, 
 responses when an account changes. Bodies, bearer/delegation tokens, PRF output and private keys
 are not placed in URLs, localStorage, analytics or error messages.
 
-## Independent Policy and ciphertext parent
+## Personal Agent authorization
 
-The optional independent Agent selection is documented in
-[Agent integration](agent-integration.md#independent-executor-owner-flow).
-Hub ciphertext controls use the existing same-origin Firebase-verified Owner BFF with
-closed `/api/v2/executor-connections/...` paths. They retain the original publication
-size, idempotency and response limits; they do not grant a new parent through this BFF.
+See [Agent integration](agent-integration.md#persistent-owner-flow) for the current Owner
+flow. Closed `/api/v3/agent-credentials/...` routes carry only public metadata, signed
+approvals and bounded opaque activation packets. Historical restoration reads remain
+Owner/vault/client scoped and never grant execution authority themselves.
 
-The Policy Owner API is intentionally a separate direct request to the fixed
-server-selected independent issuer. It requires that issuer's exact CORS configuration
-and Secure HttpOnly consent cookie, plus the same current Firebase session. The closed
-route table cannot forward a token/refresh exchange, Agent lease/key release or arbitrary
-URL. Request and response bodies are bounded and account/lock/visibility fenced. Root
-and current Policy proofs are verified in the existing Owner Worker before public controls
-or content publication. This is independent of Hub native MessageChannel compatibility;
-no Root private key or plaintext report passes through the Web server.
-
-The independent issuer must first match a Root-approved parent read through the
-existing Hub Owner channel. `requestPrivate` also compares the caller's approved
-issuer assertion with its newly loaded server selection before retrieving a Google
-token; a changed/missing assertion fails closed. Only the configured server origin
-can select transport, and the assertion cannot redirect it to a caller URL. Current
-Policy signatures and state are still required for OAuth/content authority. Historical
-Root destination verification is used only for explicit terminal revocation.
+The Web BFF refuses the retired executor-connections and runtime-setups paths before
+forwarding. The old foreground consent bridge has no credential transport in the Web
+application. Only the branded native account-link window can receive a transient Google
+credential; it grants account association, and the Owner Worker separately approves
+resource access. Historical Inbox, immutable receipts and narrowing controls remain.

@@ -44,7 +44,6 @@ const BINDING = ["ref", "sourceEpoch"];
 type Rule = {
   kind:
     | "persistent-publication"
-    | "executor-binding"
     | "credential-approval"
     | "read"
     | "bootstrap"
@@ -302,20 +301,6 @@ function validBody(body: unknown, kind: Rule["kind"], vaultId?: string) {
       return credentialApprovalRequest(body);
     case "small":
       return fields(body, ["contractVersion"]);
-    case "executor-binding":
-      return (
-        fields(body, ["contractVersion", "command", "approval", "scope"]) &&
-        signedObject(body.command) &&
-        signedObject(body.approval) &&
-        fields(body.scope, ["profile", "purpose", "resultPolicy", "resourceBindings"]) &&
-        body.scope.profile === "folioview.hub-executor-ciphertext-scope.v1" &&
-        body.scope.purpose === "analysis" &&
-        body.scope.resultPolicy === "owner_inbox" &&
-        Array.isArray(body.scope.resourceBindings) &&
-        body.scope.resourceBindings.length >= 1 &&
-        body.scope.resourceBindings.length <= 10 &&
-        body.scope.resourceBindings.every(binding)
-      );
     case "control":
       return fields(body, ["contractVersion", "command"]) && signedObject(body.command);
     case "lifecycle-control":

@@ -2321,11 +2321,7 @@ export function useHoldingsWorkspace() {
       taskCall((instance) => instance.verifyHistoricalPolicy(args)),
     [taskCall],
   );
-  const preparePersistentEnrollment = useCallback(
-    (args: Parameters<EncryptedVaultSession["preparePersistentEnrollment"]>[0]) =>
-      taskCall((instance) => instance.preparePersistentEnrollment(args)),
-    [taskCall],
-  );
+
   const verifyPersistentIdentity = useCallback(
     (args: Parameters<EncryptedVaultSession["verifyPersistentIdentity"]>[0]) =>
       taskCall((instance) => instance.verifyPersistentIdentity(args)),
@@ -4510,7 +4506,6 @@ export function useHoldingsWorkspace() {
     inspectAgentCredential,
     inspectAgentCredentialSetup,
     verifyHistoricalPolicy,
-    preparePersistentEnrollment,
     verifyPersistentIdentity,
     verifyPersistentPolicy,
     preparePersistentConsent,

@@ -35,7 +35,6 @@ import {
 } from "../../../packages/encrypted-workspace/dist/core.mjs";
 import { VaultError, type Json, type Vault, type RegistryBundle } from "./encrypted-types";
 const AGENT = "folioview.persistent-agent-identity.v1";
-const PAIRING = "folioview.runtime-pairing.v1";
 function fail(code = "binding_mismatch"): never {
   throw new VaultError(code);
 }
@@ -106,95 +105,7 @@ export class PersistentOwner {
     const registry = await this.registry();
     return { identity: await this.actor(state.identity, state.binding, registry), registry };
   }
-  async inspectSetup(value: Json) {
-    exact(value, [
-      "contractVersion",
-      "profile",
-      "setup",
-      "offer",
-      "protectedHostAttested",
-      "authority",
-    ]);
-    if (
-      value.contractVersion !== CONTRACT ||
-      value.profile !== PAIRING ||
-      value.authority !== "pairing_observation_only" ||
-      !value.offer ||
-      value.setup.confirmed !== true
-    )
-      fail("agent_unavailable");
-    if (
-      !this.ctx.actor ||
-      value.setup.connectionId !== this.ctx.actor.connectionId ||
-      value.setup.clientId !== this.ctx.actor?.clientId
-    )
-      fail();
-    const s = value.setup,
-      offer = value.offer,
-      p = await verify(
-        offer.command,
-        parsed(bytes(offer.command.payload), true).signingPublicJwk,
-        "fv-control+jws",
-      );
-    exact(p, [
-      "contractVersion",
-      "profile",
-      "artifactType",
-      "intentId",
-      "ownerSubject",
-      "vaultId",
-      "connectionId",
-      "clientId",
-      "authorizationId",
-      "nonce",
-      "issuedAt",
-      "expiresAt",
-      "agentId",
-      "signingPublicJwk",
-      "encryptionPublicJwk",
-    ]);
-    if (
-      p.contractVersion !== CONTRACT ||
-      p.profile !== PAIRING ||
-      p.artifactType !== "runtime_key_offer" ||
-      p.ownerSubject !== this.ctx.ownerSubject ||
-      p.vaultId !== this.ctx.vault.vaultId ||
-      s.expiresAt <= this.ctx.now() ||
-      p.issuedAt < s.issuedAt ||
-      p.issuedAt > this.ctx.now() ||
-      p.expiresAt > Math.min(p.issuedAt + 300, s.expiresAt) ||
-      p.expiresAt <= p.issuedAt ||
-      bytes(p.nonce).length !== 32
-    )
-      fail();
-    for (const k of [
-      "intentId",
-      "ownerSubject",
-      "vaultId",
-      "connectionId",
-      "clientId",
-      "authorizationId",
-      "nonce",
-    ])
-      if (p[k] !== s[k]) fail();
-    const sig = await keyId(p.signingPublicJwk),
-      enc = await keyId(p.encryptionPublicJwk);
-    if (
-      sig === enc ||
-      p.agentId !== "agent_" + sig ||
-      offer.agentId !== p.agentId ||
-      offer.signingKeyId !== sig ||
-      offer.encryptionKeyId !== enc ||
-      offer.fingerprint !== (await fingerprint(offer.command))
-    )
-      fail();
-    return { setup: s, offer: p, fingerprint: offer.fingerprint, protectedHostAttested: false };
-  }
-  async enrollment(value: Json) {
-    const { offer } = await this.inspectSetup(value);
-    return this.certifyAgent(offer);
-  }
-  private async certifyAgent(p: Json, rotation = false) {
+  private async certifyAgent(p: Json) {
     const v = this.ctx.vault,
       registry = await this.registry();
     const bundle = copy(v.registryHistory.at(-1)!);
@@ -205,18 +116,11 @@ export class PersistentOwner {
       enc = await keyId(p.encryptionPublicJwk),
       now = this.ctx.now();
     const registered =
-      known.filter((c) => c.principalId === p.agentId && [sig, enc].includes(c.keyId)).length ===
-        2 &&
-      (rotation || known.length === 2);
+      known.filter((c) => c.principalId === p.agentId && [sig, enc].includes(c.keyId)).length === 2;
     let registryUpdate: Json | null = null,
       accepted = registry;
     if (!registered) {
-      if (
-        (known.length && !rotation) ||
-        bundle.entries.length + 2 > 64 ||
-        v.registryHistory.length >= 32
-      )
-        fail("device_limit");
+      if (bundle.entries.length + 2 > 64 || v.registryHistory.length >= 32) fail("device_limit");
       for (const [role, jwk, kid] of [
         ["agent_sig", p.signingPublicJwk, sig],
         ["agent_enc", p.encryptionPublicJwk, enc],
@@ -236,7 +140,7 @@ export class PersistentOwner {
           keyEpoch: 1,
           issuerKeyId: v.rootKeyId,
           notBefore: now,
-          expiresAt: now + (rotation ? DEFAULT_CREDENTIAL_SECONDS : 31536000),
+          expiresAt: now + DEFAULT_CREDENTIAL_SECONDS,
           capabilities: role === "agent_sig" ? ["run_request", "result_write"] : [],
         };
         validate("KeyCertificatePayload", certificate);
@@ -573,7 +477,7 @@ export class PersistentOwner {
   }
   async credentialEnrollment(args: Json) {
     const { offer, context, key, current } = await this.credentialOffer(args);
-    const prepared = await this.certifyAgent({ ...offer, intentId: offer.setupIntentId }, true);
+    const prepared = await this.certifyAgent({ ...offer, intentId: offer.setupIntentId });
     const binding = prepared.body.command;
     const accepted = await this.registry(
       prepared.registryUpdate

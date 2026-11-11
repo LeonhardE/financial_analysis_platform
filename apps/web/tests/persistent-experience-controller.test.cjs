@@ -99,7 +99,7 @@ test("a delayed receipt after lock cannot clear the sealed original", async () =
 test("registry registration recovers an already applied directory without repeating or replacing it", async () => {
   const identity = {
     ...packet,
-    kind: "identity",
+    kind: "credential",
     setupIntentId: "setup_synthetic_A",
     registryUpdate: { expectedVersion: 1, registryBundle: { checkpoint: "ORIGINAL_DIRECTORY" } },
     body: {
@@ -113,13 +113,13 @@ test("registry registration recovers an already applied directory without repeat
     if (path.includes("/operations/")) return missing();
     if (path === "/api/v2/vaults/current")
       return { vault: { version: 2, registryHistory: [identity.registryUpdate.registryBundle] } };
-    if (path.endsWith("/bindings")) return { fingerprint: packet.fingerprint };
+    if (path.endsWith("/approvals")) return { fingerprint: packet.fingerprint };
     if (path.endsWith("/completion")) return {};
     throw Error(path);
   });
   await h.c.send(connection, identity);
   assert.equal(calls.filter((c) => c.options.method === "PUT").length, 0);
-  assert.equal(calls.filter((c) => c.path.endsWith("/bindings")).length, 1);
+  assert.equal(calls.filter((c) => c.path.endsWith("/approvals")).length, 1);
   assert.equal(h.w.finishes, 1);
 });
 test("automatic synchronization uses only active continuing permissions; OAuth connection alone grants none", async () => {

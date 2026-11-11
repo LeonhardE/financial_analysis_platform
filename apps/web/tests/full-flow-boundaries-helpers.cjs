@@ -181,11 +181,6 @@ async function stack(options = {}) {
     },
     globals,
   );
-  const bridge = compile(
-    "../lib/owner-consent-bridge.ts",
-    { "./agent-connections": connections },
-    globals,
-  );
 
   async function token(uid) {
     if (!tokens.has(uid))
@@ -305,7 +300,6 @@ async function stack(options = {}) {
             hubOrigin: HUB,
           }),
         },
-        "@/lib/owner-consent-bridge": bridge,
         "@/lib/persistent-owner-routes": persistentRoutes,
         "@/lib/native-owner-bridge": nativeBridge,
       },

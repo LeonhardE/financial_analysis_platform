@@ -74,9 +74,7 @@ export default function WorkspaceShell() {
     [oldInboxOpen, setOldInboxOpen] = useState(false);
   useEffect(() => {
     const q = new URLSearchParams(window.location.search);
-    setPersistentHandoff(
-      q.has("native_request") || q.has("native_nonce") || q.has("runtime_setup"),
-    );
+    setPersistentHandoff(q.has("native_request") || q.has("native_nonce"));
   }, []);
   const persistentView = persistent.enabled || persistent.views.length > 0 || persistentHandoff;
 

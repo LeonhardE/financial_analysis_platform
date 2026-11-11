@@ -18,7 +18,8 @@ test("one unlocked owner prepares persistent registration; sealed original retri
     previousRange = Object.getOwnPropertyDescriptor(globalThis, "IDBKeyRange"),
     clients = [],
     workers = [];
-  let storage;
+  let storage,
+    logicalNow = 1000;
   Object.defineProperty(globalThis, "indexedDB", {
     configurable: true,
     value: new fake.IDBFactory(),
@@ -57,7 +58,7 @@ test("one unlocked owner prepares persistent registration; sealed original retri
         const worker = this;
         class ClockCore extends h.core.VaultCore {
           constructor(uid) {
-            super(uid, () => 1000);
+            super(uid, () => logicalNow);
           }
         }
         this.realm = {
@@ -156,77 +157,120 @@ test("one unlocked owner prepares persistent registration; sealed original retri
       session.signPersistentResultState({ metadata, changes: { archive: "not_boolean" } }),
     );
     const actor = { connectionId: "synthetic_persistent_connection", clientId: "synthetic_muse" },
-      keys = await crypto.subtle.generateKey({ name: "ECDSA", namedCurve: "P-256" }, false, [
-        "sign",
-        "verify",
-      ]),
-      encryption = await crypto.subtle.generateKey({ name: "ECDH", namedCurve: "P-256" }, false, [
-        "deriveBits",
-      ]),
-      sig = Object.fromEntries(
-        Object.entries(await crypto.subtle.exportKey("jwk", keys.publicKey)).filter(([key]) =>
-          ["kty", "crv", "x", "y"].includes(key),
-        ),
-      ),
-      enc = Object.fromEntries(
-        Object.entries(await crypto.subtle.exportKey("jwk", encryption.publicKey)).filter(([key]) =>
-          ["kty", "crv", "x", "y"].includes(key),
-        ),
-      ),
-      kid = await shared.keyId(sig),
-      encId = await shared.keyId(enc),
-      owner = await h.core.sha("synthetic_persistent_owner"),
-      setup = {
-        intentId: "synthetic_persistent_setup_0001",
+      owner = await h.core.sha("synthetic_persistent_owner");
+    const origin = "https://synthetic-hub.example",
+      pairingSecret = crypto.getRandomValues(new Uint8Array(32));
+    async function offer(intent, issuedAt) {
+      const keys = await crypto.subtle.generateKey({ name: "ECDSA", namedCurve: "P-256" }, false, [
+          "sign",
+          "verify",
+        ]),
+        encryption = await crypto.subtle.generateKey({ name: "ECDH", namedCurve: "P-256" }, false, [
+          "deriveBits",
+        ]),
+        clean = (j) => Object.fromEntries(["kty", "crv", "x", "y"].map((k) => [k, j[k]])),
+        sig = clean(await crypto.subtle.exportKey("jwk", keys.publicKey)),
+        enc = clean(await crypto.subtle.exportKey("jwk", encryption.publicKey)),
+        kid = await shared.keyId(sig);
+
+      const setup = {
+        setupIntentId: intent,
         ownerSubject: owner,
         vaultId: vault.vaultId,
         ...actor,
         authorizationId: "synthetic_native_authorization",
-        nonce: h.core.b64(crypto.getRandomValues(new Uint8Array(32))),
-        issuedAt: 1000,
-        expiresAt: 1300,
-        confirmed: true,
-      },
-      { confirmed, ...locator } = setup,
-      payload = {
+        issuedAt,
+        expiresAt: issuedAt + 600,
+        expectedGeneration: 0,
+        expectedCredentialFingerprint: null,
+        offer: null,
+        consumedBy: null,
+        issuer: origin,
+        provider: "muse",
+        predecessorConnectionId: null,
+      };
+      const fields = [
+        "setupIntentId",
+        "ownerSubject",
+        "vaultId",
+        "connectionId",
+        "clientId",
+        "authorizationId",
+        "issuedAt",
+        "expiresAt",
+        "expectedGeneration",
+        "expectedCredentialFingerprint",
+      ];
+      const context = {
+        profile: "folioview.agent-pairing.v1",
+        issuer: origin,
+        provider: "muse",
+        ...Object.fromEntries(fields.map((k) => [k, setup[k]])),
+      };
+      const payload = {
+        ...Object.fromEntries(Object.entries(context).filter(([k]) => k !== "profile")),
         contractVersion: shared.CONTRACT,
-        profile: "folioview.runtime-pairing.v1",
-        artifactType: "runtime_key_offer",
-        ...locator,
-        expiresAt: 1200,
+        profile: "folioview.agent-key-offer.v1",
+        artifactType: "agent_key_offer",
         agentId: "agent_" + kid,
         signingPublicJwk: sig,
         encryptionPublicJwk: enc,
-      },
-      command = await shared.sign(payload, keys.privateKey, kid, "fv-control+jws"),
-      state = {
-        contractVersion: shared.CONTRACT,
-        profile: "folioview.runtime-pairing.v1",
-        setup,
-        offer: {
-          command,
-          agentId: payload.agentId,
-          signingKeyId: kid,
-          encryptionKeyId: encId,
-          fingerprint: await shared.fingerprint(command),
-        },
-        protectedHostAttested: false,
-        authority: "pairing_observation_only",
       };
-    const packet = await session.preparePersistentEnrollment({
-      actor,
-      setup: state,
-      intentId: setup.intentId,
-    });
-    assert.equal(packet.kind, "identity");
+      const signed = await shared.sign(payload, keys.privateKey, kid, "fv-control+jws"),
+        iv = crypto.getRandomValues(new Uint8Array(12));
+      const key = await crypto.subtle.importKey("raw", pairingSecret, { name: "AES-GCM" }, false, [
+        "encrypt",
+      ]);
+      setup.offer = {
+        version: 1,
+        iv: h.core.b64(iv),
+        ciphertext: h.core.b64(
+          new Uint8Array(
+            await crypto.subtle.encrypt(
+              {
+                name: "AES-GCM",
+                iv,
+                additionalData: shared.canonical({ ...context, phase: "offer" }),
+              },
+              key,
+              shared.canonical(signed),
+            ),
+          ),
+        ),
+      };
+      return {
+        actor,
+        setup,
+        hubOrigin: origin,
+        handoff: {
+          version: 1,
+          issuer: origin,
+          vaultId: vault.vaultId,
+          connectionId: actor.connectionId,
+          setupIntentId: intent,
+          secret: h.core.b64(pairingSecret),
+        },
+        current: {
+          contractVersion: shared.CONTRACT,
+          profile: "folioview.agent-credential.v1",
+          identity: null,
+          binding: null,
+          lease: null,
+          approval: null,
+          status: "reauthorization_required",
+          defaultValiditySeconds: 7776000,
+          noticeSeconds: 604800,
+        },
+      };
+    }
+    const args = await offer("synthetic_persistent_setup_0001", 1000);
+    const packet = await session.prepareAgentCredential(args);
+    assert.equal(packet.kind, "credential");
     assert.equal((await session.listPersistentOutbox()).length, 1);
     assert.deepEqual(await session.loadPersistentPending(actor), packet);
-    await assert.rejects(
-      session.preparePersistentEnrollment({ actor, setup: state, intentId: setup.intentId }),
-      /persistent_operation_pending/,
-    );
+    await assert.rejects(session.prepareAgentCredential(args), /persistent_operation_pending/);
     const row = (await storage.list(owner + ":persistent-owner:"))[0].value;
-    assert.ok(!JSON.stringify(row).includes(packet.body.command.signature));
+    assert.ok(!JSON.stringify(row).includes(packet.body.command.approval.signature));
     assert.ok(!JSON.stringify(row).includes('"d":'));
     await assert.rejects(
       storage.stageKeyRenewal(owner, {
@@ -260,12 +304,29 @@ test("one unlocked owner prepares persistent registration; sealed original retri
       registryHistory: [...vault.registryHistory, packet.registryUpdate.registryBundle],
     };
     await restored.acceptVault(advanced);
+    const replacement = await offer("synthetic_persistent_setup_0002", 1601);
+    await assert.rejects(
+      restored.archiveExpiredCredentialPending({ ...replacement, previousSetup: args.setup }),
+    );
+    assert.deepEqual(await restored.loadPersistentPending(actor), packet);
+    logicalNow = 1601;
+    await restored.archiveExpiredCredentialPending({ ...replacement, previousSetup: args.setup });
+    assert.equal(await restored.loadPersistentPending(actor), null);
+    const archives = await storage.list(owner + ":persistent-expired:");
+    assert.equal(archives.length, 1);
+    assert.deepEqual(archives[0].value, row);
+    const replacementPacket = await restored.prepareAgentCredential(replacement);
+    assert.notEqual(replacementPacket.operationId, packet.operationId);
+    assert.equal((await storage.list(owner + ":persistent-expired:")).length, 1);
     const receipt = {
       contractVersion: shared.CONTRACT,
-      profile: "folioview.persistent-agent-identity.v1",
-      operationId: packet.operationId,
-      fingerprint: await shared.fingerprint(packet.body.command),
-      identity: packet.identity,
+      profile: "folioview.agent-credential.v1",
+      operationId: replacementPacket.operationId,
+      fingerprint: await shared.fingerprint(replacementPacket.body.command.approval),
+      identity: replacementPacket.identity,
+      binding: replacementPacket.body.command.binding,
+      lease: replacementPacket.expectedLease,
+      approval: replacementPacket.body.command.approval,
     };
     await assert.rejects(
       restored.finishPersistentPending(actor, { ...receipt, fingerprint: "0".repeat(64) }),
