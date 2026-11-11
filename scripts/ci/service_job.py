@@ -160,7 +160,7 @@ def verify_backend_jobs(
 def write_metadata(target_id: str) -> None:
     registry = load_registry(ROOT)
     target = registry.target(target_id)
-    if target.kind != "backend":
+    if target.kind != "backend" or not target.source_present:
         raise RegistryError("Backend job requires a registered backend target")
     values = {
         "directory": target.directory,
@@ -179,7 +179,7 @@ def write_metadata(target_id: str) -> None:
 def check_target(target_id: str) -> None:
     registry = load_registry(ROOT)
     target = registry.target(target_id)
-    if target.kind != "backend":
+    if target.kind != "backend" or not target.source_present:
         raise RegistryError("Backend job requires a registered backend target")
     configs = ["services/market-data-service/pyproject.toml"]
     if target.ruff_config and target.ruff_config not in configs:
@@ -215,7 +215,7 @@ def check_target(target_id: str) -> None:
 def smoke_target(target_id: str) -> None:
     """Offline image smoke only. A VM self-test is never live attestation evidence."""
     target = load_registry(ROOT).target(target_id)
-    if target.kind != "backend":
+    if target.kind != "backend" or not target.source_present:
         raise RegistryError("Backend smoke requires a registered backend target")
     if target.runtime == "confidential_vm":
         result = subprocess.run(

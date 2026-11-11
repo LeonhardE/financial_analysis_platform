@@ -296,3 +296,11 @@ Upstream release and checksum sources are recorded alongside the pinned hashes:
 To upgrade, independently review that release, verify each supported archive
 against its official checksum, recompute the regular executable hash, and rerun
 the positive, negative and tamper tests before changing the pins.
+
+Build-only targets can enter terminal `release_mode: retired` through a separate
+repository PR. Retirement rejects first provision and existing-service release.
+While executable source remains it must still pass complete tests/build checks.
+A following target-only PR may remove its entire source and Cloud Build file;
+the registry retains a metadata tombstone and excludes that absent target from
+CI jobs. Partial executable trees still fail validation. Retirement cannot
+reactivate a target, erase its identity or retire an existing production service.
