@@ -117,8 +117,13 @@ class AgentCredentialRouteTests(unittest.TestCase):
     def test_missing_owner_authentication_fails_before_storage_factory(self):
         self.app.dependency_overrides.pop(require_owner)
         self.app.dependency_overrides[get_credential_service] = lambda: self.calls.append("factory")
-        response = self.client.get(self.path, headers=self.headers)
-        self.assertEqual(response.status_code, 401)
+        for path in (
+            self.path,
+            self.path + "/restoration",
+            self.path + "/restoration/source_A/" + "a" * 64,
+        ):
+            response = self.client.get(path, headers=self.headers)
+            self.assertEqual(response.status_code, 401)
         self.assertEqual(self.calls, [])
 
     def test_setup_locator_cannot_choose_a_different_owner(self):
@@ -130,3 +135,35 @@ class AgentCredentialRouteTests(unittest.TestCase):
             self.calls,
             [("synthetic_owner", "vault_A", "connection_A", "synthetic_setup_operation_0001")],
         )
+
+    def test_restoration_reads_are_owner_only_closed_and_available_with_new_issuance_off(self):
+        def read(*args):
+            self.calls.append(args[1:])
+            return {"publicHistory": True}
+
+        with (
+            patch("app.credential_restoration.head", side_effect=read),
+            patch("app.credential_restoration.source", side_effect=read),
+            patch.dict(os.environ, HUB_AGENT_OWNED_CREDENTIALS_ENABLED="0"),
+        ):
+            for tail in ("/restoration", "/restoration/source_A/" + "a" * 64):
+                response = self.client.get(self.path + tail, headers=self.headers)
+                self.assertEqual(response.status_code, 200)
+                self.assertTrue(response.json()["publicHistory"])
+            self.assertEqual(self.calls[0], ("synthetic_owner", "vault_A", "connection_A"))
+            self.assertEqual(
+                self.calls[1], ("synthetic_owner", "vault_A", "connection_A", "source_A", "a" * 64)
+            )
+            self.calls.clear()
+            for headers, path in [
+                (self.headers, self.path + "/restoration?owner=other"),
+                ({**self.headers, "Idempotency-Key": self.operation}, self.path + "/restoration"),
+                (
+                    {**self.headers, "X-FolioView-Delegation": "private_marker"},
+                    self.path + "/restoration",
+                ),
+            ]:
+                response = self.client.get(path, headers=headers)
+                self.assertEqual(response.status_code, 400)
+                self.assertNotIn("private_marker", response.text)
+            self.assertEqual(self.calls, [])
