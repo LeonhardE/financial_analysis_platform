@@ -25,7 +25,7 @@ class TargetRetirementTests(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
-        self.document = write_registry_fixture(self.root, extra_vm=True)
+        self.document = write_registry_fixture(self.root, extra_backend=True)
         self.path = self.root / "scripts/service-targets.json"
         self.previous = parse_registry_document(self.path.read_bytes())
         self.document["targets"][-1]["release_mode"] = "retired"

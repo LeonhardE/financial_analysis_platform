@@ -61,18 +61,18 @@ build-only until a separate Hub-only deployment opt-in and exact service/runtime
 permissions are reviewed. Registration does not enable OAuth, the encrypted adapter
 or normal Terraform execution.
 
-## Confidential VM runtime extension
+## Retired runtime boundary
 
-A backend may opt into `runtime=confidential_vm` only in its own source PR,
-remaining `build_only` with an `app/health_check.py` offline probe. Omitted runtime
-still means Cloud Run; all current registrations are unchanged. VM runtime cannot
-be introduced by renaming an existing target or promoted into Cloud Run release.
+The old Confidential VM build/probe path has been removed. Current executable
+registrations support Cloud Run only; a new VM runtime registration is rejected
+before build, smoke, credentials or cloud access. Terminal metadata for the old
+Executor remains, without a runnable source tree, to prevent identity reuse.
 
-[VM source, smoke and release review](../infra/gcp/docs/confidential-vm-releases.md)
-defines the type-specific CI probe, digest-pinned first-provision/upgrade/restore
-material and separate live observation records. Ordinary Cloud Run publication
-refuses VM targets before credentials. These tools do not approve or deploy a VM;
-actual resources and saved-plan activation remain separate target infra work.
+The historical metadata parser still reads authenticated old Git snapshots for
+CI comparison; it cannot construct a runnable registry. Existing Cloud Run image
+checks keep their network-isolated HTTP health probes. The
+[retired release reference](../infra/gcp/docs/confidential-vm-releases.md) preserves
+old documentation links and does not provide deployment tooling.
 
 ## Dynamic CI and local tests
 

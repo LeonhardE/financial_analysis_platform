@@ -302,6 +302,8 @@ def load_registry(root: Path = ROOT) -> Registry:
         for target in metadata:
             directory = target.directory
             path = _inside(root, directory)
+            if target.runtime == "confidential_vm" and target.release_mode != "retired":
+                raise RegistryError("Confidential VM runtime registration is retired")
             if target.release_mode == "retired" and (
                 not path.exists()
                 or (path.is_dir() and not _is_unregistered_source(path, frontend=False))
@@ -310,6 +312,8 @@ def load_registry(root: Path = ROOT) -> Registry:
                 # retirement PR may remove its complete source/build tree.
                 targets.append(replace(target, source_present=False))
                 continue
+            if target.runtime != "cloud_run":
+                raise RegistryError("Only retired metadata may retain an obsolete runtime")
             _file(root, target.dockerfile)
             _file(root, target.cloudbuild)
             ruff_config = None
@@ -317,8 +321,6 @@ def load_registry(root: Path = ROOT) -> Registry:
                 for filename in ("app/main.py", "requirements.txt", "requirements-dev.txt"):
                     _file(root, directory + "/" + filename)
                 _test_directory(root, target.tests, "test*.py")
-                if target.runtime == "confidential_vm":
-                    _file(root, directory + "/app/health_check.py")
                 optional_config = _inside(root, directory + "/pyproject.toml")
                 if optional_config.exists():
                     _file(root, directory + "/pyproject.toml")

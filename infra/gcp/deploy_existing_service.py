@@ -239,7 +239,7 @@ def main():
     if target.release_mode == "retired":
         raise RuntimeError("Retired targets cannot publish or deploy images.")
     if target.runtime != "cloud_run":
-        raise RuntimeError("Confidential VM targets require their reviewed VM release workflow.")
+        raise RuntimeError("Only supported Cloud Run targets can enter existing-service release.")
     if target.release_mode == "build_only" and args.deploy_enabled != "false":
         raise RuntimeError("This target is build-only; reviewed first provision is required.")
     if args.branch != "main" or not re.fullmatch(r"[a-f0-9]{40}", args.commit):
