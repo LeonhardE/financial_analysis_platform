@@ -16,6 +16,7 @@ from folioview_shared.encrypted.errors import ContractError
 from folioview_shared.http import PrivateRoute
 
 from .agent_credentials import AgentCredentialService
+from .agent_rollout import uid_allowed
 from .api import Owner, _invoke, body
 from .oauth_config import OAuthConfig
 from .persistent_execution_routes import execution_enabled
@@ -53,7 +54,7 @@ Service = Annotated[AgentCredentialService, Depends(get_credential_service)]
 @router.get("/capabilities")
 def capabilities(request: Request, user: Owner):
     _invoke(lambda: control_transport(request))
-    enabled = _invoke(agent_owned_enabled)
+    enabled = _invoke(agent_owned_enabled) and uid_allowed(user.uid)
     if enabled:
         try:
             OAuthConfig.environment()
@@ -95,7 +96,7 @@ async def approve(vault: str, connection: str, request: Request, user: Owner, se
     _invoke(lambda: control_transport(request, operation=True))
 
     def require_enabled():
-        if not agent_owned_enabled():
+        if not agent_owned_enabled() or not uid_allowed(user.uid):
             raise ContractError("authorization_unavailable")
 
     _invoke(require_enabled)
