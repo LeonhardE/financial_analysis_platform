@@ -46,13 +46,6 @@ async function createHarness() {
           ).href,
         ),
       );
-      code = code.replaceAll(
-        '"../../../packages/executor-trust/dist/core.mjs"',
-        JSON.stringify(
-          pathToFileURL(path.resolve(__dirname, "../../../packages/executor-trust/dist/core.mjs"))
-            .href,
-        ),
-      );
       await fs.writeFile(path.join(directory, name + ".mjs"), code);
     }
     await fs.copyFile(

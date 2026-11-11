@@ -11,8 +11,6 @@ import InboxPanel from "@/components/InboxPanel";
 import { PersistentAgentsPanel } from "./PersistentAgentsPanel";
 import { PersistentInboxPanel } from "./PersistentInboxPanel";
 import { usePersistentWorkspace } from "./usePersistentWorkspace";
-import { useIndependentAgent } from "./useIndependentAgent";
-import { IndependentAgentPanel } from "./IndependentAgentPanel";
 import { useAgentLinkConfiguration } from "./useAgentLinkConfiguration";
 import AgentsPanel from "@/components/AgentsPanel";
 import TasksPanel, { type TaskRequest } from "@/components/TasksPanel";
@@ -73,7 +71,6 @@ export default function WorkspaceShell() {
     encryptedWorkspace,
     persistentConfiguration.data?.hubOrigin ?? null,
   );
-  const independent = useIndependentAgent(encryptedWorkspace, persistent);
   const [persistentHandoff, setPersistentHandoff] = useState(false),
     [oldInboxOpen, setOldInboxOpen] = useState(false);
   useEffect(() => {
@@ -82,11 +79,7 @@ export default function WorkspaceShell() {
       q.has("native_request") || q.has("native_nonce") || q.has("runtime_setup"),
     );
   }, []);
-  const persistentView =
-    !!independent.configuration ||
-    persistent.enabled ||
-    persistent.views.length > 0 ||
-    persistentHandoff;
+  const persistentView = persistent.enabled || persistent.views.length > 0 || persistentHandoff;
 
   useEffect(() => {
     let disposed = false;
@@ -447,11 +440,6 @@ export default function WorkspaceShell() {
           />
         </div>
         <div hidden={activeView !== "agents"}>
-          <IndependentAgentPanel
-            workspace={encryptedWorkspace}
-            model={independent}
-            active={activeView === "agents"}
-          />
           {persistent.enabled || persistent.views.length > 0 || persistentHandoff ? (
             <PersistentAgentsPanel
               workspace={encryptedWorkspace}
@@ -459,9 +447,9 @@ export default function WorkspaceShell() {
               origin={persistentConfiguration.data?.hubOrigin ?? null}
               active={activeView === "agents"}
             />
-          ) : !independent.configuration ? (
+          ) : (
             <AgentsPanel workspace={encryptedWorkspace} active={activeView === "agents"} />
-          ) : null}
+          )}
         </div>
         <div hidden={activeView !== "inbox"}>
           {persistentView ? (

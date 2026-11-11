@@ -8,92 +8,6 @@ Native schedule installation, protected-host restart and cross-day execution req
 The old foreground helper remains a compatibility path with explicit session limits. The
 legacy-specific details below do not describe the lifetime of a persistent connection.
 
-## Independent executor owner flow
-
-The independent route reuses the same Owner Worker, resource/task publication outbox and
-persistent Inbox. It is default off. Set the server-only
-`FOLIOVIEW_INDEPENDENT_AGENT_ENABLED=true` and `FOLIOVIEW_INDEPENDENT_AGENT_CONFIG`
-to a closed public JSON selection with exactly:
-
-```json
-{
-  "connectionId": "reviewed_connection_id",
-  "clientId": "reviewed_native_client_id",
-  "issuer": "https://policy.example.com",
-  "audience": "https://executor.example.com/mcp",
-  "policyJwk": { "kty": "EC", "crv": "P-256", "x": "PUBLIC_COORDINATE", "y": "PUBLIC_COORDINATE" },
-  "nativeRedirectUris": ["https://chatgpt.com/connector_platform/oauth/callback"]
-}
-```
-
-The coordinate strings above are deliberately invalid placeholders. Use the actual public
-fixed KMS signing-version key and exact independently reviewed native callback. Invalid,
-private-key-bearing or extra-field configuration disables only this new module. The public
-`/api/private/independent-agent/config` response contains this selection, never a credential,
-Root private key, financial data or proof that the connection is active.
-
-Initial deployment, explicit Root bootstrap, measured two-phase original-key creation,
-certificate provisioning and Root/Hub enrollment are administrator prerequisites from the
-[Policy operations](../../../services/agent-policy-service/docs/operations.md) and
-[executor operations](../../../services/agent-executor-service/docs/operations.md).
-The UI consumes that prepared original identity; it does not initialize a missing witness,
-generate replacement Agent keys, silently adopt a prototype identity or impersonate an
-administrator. Actual initial setup and activation have not been executed by source checks.
-There is no daily public-key import, helper card, separate Passkey session or copied recovery secret.
-
-Before any Google credential is sent to Policy, the Worker verifies the destination against the
-current Owner Root approval read through the existing Hub Owner transport. The exact approved
-issuer is also asserted against the freshly loaded server selection immediately before credential
-retrieval, so a configuration reload cannot switch the destination. Terminal revocation may use
-the original historical Root approval for this address check; this never grants new execution.
-
-Before displaying a usable connection or publishing another approved version, the Worker
-checks the current account/Vault Root, original device-signed Agent binding and Root registry,
-the exact independent Root approval, Policy issuer/resource/client/key, bounded resource scope,
-current Owner-only recipients and a fresh Policy-signed checkpoint matching the current
-state/head/authorization epoch. Within an unlocked Worker, lower versions/epochs or conflicting
-same-version heads are refused. Unavailable, expired, revoked or incompatible-epoch state
-stops new publication and authorization; it never widens scope or resets authority.
-A verified binding is not a browser claim of live TEE or native schedule acceptance.
-
-The ciphertext Owner BFF admits the separate Hub `/api/v2/executor-connections/...` parent,
-consent, original-operation receipt and publication paths. Existing immutable packet/receipt
-verification is reused. An unknown response retains the original sealed packet; reconciliation
-reads its original receipt first. Resource delivery continues only for already approved logical
-resources and already assigned tasks while the page is visible and unlocked. New scope and task
-reassignment require explicit review. Scope outside the finite Root-approved parent requires
-an explicit new approval/identity adoption; this UI cannot mutate the original parent or migrate
-an existing Muse connection automatically.
-
-Policy OAuth consent goes directly to the deployment-selected independent issuer with the
-current verified Firebase token and its Secure HttpOnly consent cookie. Only exact Owner
-connection/checkpoint/revoke and bounded pending/approval endpoints are allowed. No Agent token,
-refresh grant, arbitrary issuer/JWKS or financial payload is accepted. The existing session guard
-checks both before and after credentials/network/body reads. The Owner explicitly reviews the
-request; the Worker signs only `oauth_approve` or terminal `revoke`, bound to current version/head
-and exact parameters for 120 seconds. OAuth approval does not create or renew the original finite
-Root approval. No automatic retry creates another grant after a lost response.
-
-The return URL must match an exact configured native callback, contain one code/state/issuer
-and the pinned issuer, with no credentials or fragment. `/agents` sends `Referrer-Policy:
-no-referrer`. Restrictive browser cookie policy or missing independent CORS/invocation readiness
-fails closed; real browser/account acceptance remains separate from these source tests.
-
-Pause withdraws current resource consent. Re-approval inside the same Root scope is explicit.
-Terminal revoke stops Policy authorization/key recovery and OAuth families; it does not delete
-historical reports or ciphertext. Inbox continues verifying the original Run, author, recipients
-and receipt before decryption. Existing Muse connections and older Inbox history remain available.
-Native schedule installation/execution stays **not observed**, and offline/overnight continuous
-execution stays **pending acceptance**, independently of UI task expectations or a successful
-connection. No live deployment, ChatGPT installation, scheduling or acceptance is performed here.
-
-The Web image copies both shared public-verifier distributions, and both integrity manifests
-participate in the Owner Worker compatibility name. The Web-only infrastructure consumer now accepts the exact public pair from the reviewed
-profile-v5 managed projection, and its existing image trigger includes the additional dependency.
-Use that pinned projection and full saved-plan approval flow when selecting actual values; source
-checks do not perform configuration apply or backend activation. Other services keep their own
-separate deployment configuration.
-
 ## Persistent owner flow
 
 The persistent owner operations compose the shared browser contracts inside `VaultCore`. They use
@@ -254,78 +168,13 @@ The helper confirms an authenticated server receipt before the owner checks Inbo
 1.2.0 offers remain verifiable only with their original reviewed digest. This Web-only change
 does not register a client, enable OAuth or approve content access automatically.
 
-## Owner first-key preparation and certificate renewal
+<a id="independent-executor-owner-flow"></a>
 
-The unlocked Owner's Settings has a collapsed **Independent executor administration**
-entry. It accepts public preparation files only; Root/device private key handles
-remain in the existing Owner Worker. Preparation itself performs no network write,
-deployment, CA issuance or native schedule installation. Every action needs a
-separate visible review/confirmation. Ordinary daily connection controls remain
-unchanged. Do not provide private JWKs, account tokens or financial plaintext.
+## Retired independent executor route
 
-Each file contains `configuration` (the configured independent public channel) and
-`policyConfig` (the exact reviewed Policy public config). Its Root must match this
-unlocked library; its domain digest covers the selected witness/storage/KMS/client
-configuration. Action-specific fields are closed:
-
-| Operation               | Additional public fields                                   | Result                                                                                                                |
-| ----------------------- | ---------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| `inspect` / `bootstrap` | none                                                       | Domain/destination review, or fresh purpose-limited Root bootstrap control                                            |
-| `initialize`            | `draft`                                                    | Fresh Root initialize permit, exact draft digest and public Root pin                                                  |
-| `review_pending`        | `pendingOffer`, `review`                                   | Verify fresh independently signed Policy review and remember original keys in this Worker                             |
-| `finalize`              | `pendingOffer`, `hubAudience`, `approvalExpiresAt`         | Original-key certificates/registry update, actual device Hub binding, finite Root approval and fresh finalize control |
-| `register`              | `pendingOffer`, `finalOffer`, `review`, `certificateChain` | Exact reviewed Hub/Policy registration plus public core/native configs                                                |
-| `certificate`           | `policyState`, `review`, `certificateChain`                | Fresh certificate-only Root control bound to the existing original-key binding and current version/head               |
-
-Obtain the pending public offer through the narrow Executor Owner publisher. The
-**Request live public-artifact review** button is an explicit online read of
-Policy's fixed authenticated review route, using the configured issuer after
-Worker domain inspection. It does not enroll or release keys. The returned receipt
-must be verified while fresh (120 seconds); no caller `verified` flag, supplied
-Google keys or invented VM response substitutes for Policy's actual verifier.
-The complete pending offer, draft, original keys and reconstructed statement are
-bound by the signed receipt. The Worker remembers the verified observation through
-the bounded creator window; the initial Root permit timestamp conservatively caps
-that window at 600 seconds. It never backdates a new verification.
-
-Keep this page unlocked and avoid reload through this administrator ceremony.
-Review the pending receipt immediately, use the original CSR to obtain a public
-CA chain while the creator waits, finalize the actual original keys, then request
-and verify the fresh final review **with that chain** before preparing registration.
-The Root approval expires at the explicitly reviewed `approvalExpiresAt` (at most
-30 days); it does not infer task schedule acceptance. Native configuration hashes
-are calculated from the actual Root directory containing these original keys and
-included in the final workload environment before DEK sealing. The actual Hub
-binding fingerprint is derived from the real device-signed command, never invented
-in a provisional draft. No Muse/native pairing offer is fabricated for this flow.
-
-Preparation results are public files; save each for the narrow operator handoff.
-Use the bootstrap result's `command` as Policy CLI input, initialize result's
-`permit`/`draft`/Root public pin as creation inputs, and finalize result's
-`finalization` as the create-only inbox payload. Never send the whole wrapper where
-a signed control is expected. The Executor's
-[public-artifact tool](../../../services/agent-executor-service/docs/operations.md#owner-public-artifact-tools)
-validates these exact controls and CAS paths; none runs automatically from the UI.
-Actual resources/images/workload claims and keyless publisher permissions must
-already have passed the separately approved deployment stages.
-
-**Publish approved registration** is an explicit later action. It refreshes the
-Root directory, applies only the selected pending directory update when needed,
-submits the exact original Hub approval/scope/device binding, verifies its closed
-registration receipt, then submits the exact Root Policy registration. There is
-no automatic retry or second binding/key generation. A failed/unknown publication
-keeps the original prepared packet; replay the same bytes and reconcile actual
-receipts. Preparing again in this Worker preserves its exact registration packet.
-A lock, reload or expired creator window clears/stops this transient ceremony;
-there is no private-key export or silent identity reset. Preserve any reservation,
-final encrypted genesis and original receipts and use an explicitly reviewed
-recovery procedure rather than erasing them to start over.
-
-Renewal uses the current Policy state and a fresh original-key certificate review.
-The Worker checks exact PEM-byte digest, pinned domain/binding and current
-version/head before signing only the `certificate` purpose. **Publish certificate
-approval** does not publish config or replace a TLS key. After the actual Policy
-receipt is reconciled, the separate Owner publisher CAS-updates the same public
-core-config URI with the approved chain. Missing/expired proofs, wrong original
-keys, changed bytes or stale state fail closed. The UI never accepts CA terms,
-starts Certbot, deploys, resumes a schedule or claims online/cross-day acceptance.
+The unused standalone Policy/Confidential VM owner ceremonies and their public
+configuration endpoint have been removed. Existing Passkey unlock, Hub
+connections, resource/task publication and historical Inbox decryption remain.
+The original operator design is available in Git history; it is not a deployment
+prerequisite for personal Agent-owned credentials. No VM, TCP proxy or additional
+service is required by the current Web integration.
