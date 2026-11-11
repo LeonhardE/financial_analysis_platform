@@ -2,7 +2,6 @@
 
 import copy
 import json
-import time
 import unittest
 from unittest.mock import patch
 
@@ -448,7 +447,7 @@ class ResultHelperTests(unittest.TestCase):
         self.harness.install(response)
         self.read_inputs(begin["runId"])
         packet = self.seal(run_id=begin["runId"])
-        time.sleep(30.1)
+        self.assertTrue(self.peer.raw({"advanceTime": 30100})["value"])
         original = self.peer.call(
             "resultOutbox", {"runId": begin["runId"], "stableOperationId": self.operation}
         )

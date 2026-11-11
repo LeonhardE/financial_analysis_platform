@@ -30,7 +30,17 @@ const input = createInterface({ input: process.stdin });
 for await (const line of input) {
   try {
     const command = JSON.parse(line);
-    if (command.race) {
+    if (command.advanceTime !== undefined) {
+      if (!Number.isSafeInteger(command.advanceTime) || command.advanceTime < 0)
+        throw Error("invalid_synthetic_time");
+      await new Promise((resolve, reject) => {
+        worker.once("message", (reply) =>
+          reply?.fixtureClockAdvanced === true ? resolve() : reject(Error("clock_ack")),
+        );
+        worker.postMessage({ fixtureAdvanceTime: command.advanceTime });
+      });
+      process.stdout.write(JSON.stringify({ ok: true, value: true }) + "\n");
+    } else if (command.race) {
       const read = dispatch(command.read),
         locked = await dispatch(command.lock);
       process.stdout.write(

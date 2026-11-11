@@ -214,6 +214,7 @@ class AgentCredentialService(PersistentAgentService):
                 **snapshot(self._setup(unit, intent, owner, vault, connection, conn, live=False)),
                 "issuer": self.audience,
                 "provider": conn["provider"],
+                "predecessorConnectionId": conn.get("predecessorConnectionId"),
             }
 
         return self.store.transact(read)

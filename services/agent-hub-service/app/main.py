@@ -2,6 +2,7 @@
 
 from folioview_shared.http import create_app
 
+from .agent_client_assets import router as agent_client_router
 from .agent_credential_routes import router as agent_credential_router
 from .api import internal_router, owner_router, public_router
 from .catalogue import router as catalogue_router
@@ -62,6 +63,7 @@ app.include_router(preparation_owner_router)
 app.include_router(preparation_agent_router)
 app.include_router(persistent_owner_router)
 app.include_router(agent_credential_router)
+app.include_router(agent_client_router)
 app.include_router(persistent_publication_router)
 app.include_router(persistent_execution_router)
 app.include_router(persistent_plan_agent_router)

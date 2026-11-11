@@ -81,3 +81,5 @@ The default-off [Agent-owned credential lifecycle](docs/persistent-api.md#agent-
 adds 90-day Owner-approved replacement without a separate runtime service. The
 Hub stores public authority and ciphertext; personal Agent private keys remain in
 the Agent host. Existing report history retains its original signed binding.
+
+Personal Agent credential delivery: [host client and pairing](docs/agent-client.md).

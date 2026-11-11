@@ -43,14 +43,14 @@ METHODS = {
 
 
 class RuntimePeer:
-    def __init__(self, handle):
+    def __init__(self, handle, peer_file="runtime_session_peer.mjs"):
         self.handle = handle
         self.serial = 0
         node = os.getenv("FOLIOVIEW_NODE_BIN") or shutil.which("node")
         if node is None:
             raise AssertionError("Node required; this suite must not silently skip")
         self.process = subprocess.Popen(
-            [node, str(ROOT / "runtime_session_peer.mjs")],
+            [node, str(ROOT / peer_file)],
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
@@ -59,6 +59,8 @@ class RuntimePeer:
         )
 
     def close(self):
+        if self.process.poll() is not None:
+            return
         self.process.stdin.close()
         self.process.terminate()
         self.process.wait(timeout=5)
