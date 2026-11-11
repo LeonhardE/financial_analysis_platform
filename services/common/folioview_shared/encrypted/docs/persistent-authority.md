@@ -286,134 +286,22 @@ source/delivery rules, and reread relevant revocation state in the same committi
 transaction. Never authorize a later operation from a cached decision or from
 the incoming request's own state. Actual ciphertext preparation remains client-side.
 
-Hub identity/recovery, resource policy, execution and report producers plus runtime/Web
-consumers adopt this contract. Existing P1 grants are not upgraded or extended.
+Current Hub credential/resource/execution/report producers and private host/Web
+consumers use this contract; old browser identity-recovery APIs are retired. Existing P1 grants are not upgraded or extended.
 VAL-005's protected lifecycle, first-pairing and real encrypted cross-day gates
 remain open. No real Muse connection or user resource permission is created here.
 
 ## Independent executor trust
 
-`folioview.executor-trust.v1` is a separate opt-in public trust extension under
-`folioview.agent-workspace.v2.0`. It does not change P1, identity-v1's epoch rules,
-resource consent, content carriers or their existing validators. Import Python
-entry points from `folioview_shared.encrypted.executor_trust`; browser consumers
-use the same names in camelCase from the separate checked
-`@folioview/executor-trust` bundle. Consumers adopt
-it in separate target PRs. No provider, OAuth issuer, key-release service, database,
-attestation verifier, credential issuer or production identity is created here.
+The independent `folioview.executor-trust.v1` Policy/TEE extension is retired.
+Its Python verifier, separate browser package, build dependencies and dedicated
+vectors are removed after the runtime/Owner consumers were retired. Original public
+protocol specifications and experiment evidence are archived locally and retained in
+Git history; required package license notices remain in its README entry point.
 
-The packaged `executor_trust.json` and browser `packages/executor-trust/schemas.json` are
-identical closed schemas. `load_executor_schema` returns detached local definitions;
-`validate_executor_schema`/`validateExecutorSchema` check structure and the 32 KiB
-whole-object budget only. Semantic verification entry points remain mandatory.
-Unknown fields, private JWKs and other profiles are not accepted as these DTOs.
-
-### Trust and content binding
-
-`ExecutorBinding` identifies the independently selected Owner, vault, root,
-connection, Agent, client, identity epoch, original binding fingerprint, Agent
-signing/encryption keys, TLS key, policy signing key, issuer, audience, provider
-and provider client. It also binds the exact approved workload digest, content
-scope digest and sorted owner recipient key IDs. Scope digest means the JCS SHA-256
-digest of the reviewed content-policy descriptor selected by the consumer; it
-is not permission to use a packet's own scope claims as authority. The descriptor
-and originating Root consent, task/source fences, provider identity and actual
-ciphertext recipients still need independent verification during adoption.
-
-Key IDs use canonical RFC 7638 SHA-256 P-256 thumbprints; root, policy, Agent
-signing, Agent encryption and TLS keys must be distinct, with 1–10 distinct sorted
-owner recipients disjoint from those keys. The consumer resolves the actual public
-keys from independently trusted enrollment/registry state, never a key URL or the
-request itself. The binding alone does not prove private-key custody, ownership,
-provider authenticity or enclave measurement.
-
-This profile accepts lowercase ASCII HTTPS issuer origins without a trailing
-slash and exact HTTPS audience paths containing only slash-separated ASCII
-alphanumerics, underscores and hyphens (an optional final slash is distinct).
-Credentials, query, fragment, explicit port, percent encoding and dot segments
-are rejected, not normalized. Values are compared without discovery or network
-access. Alternative URL forms require a separately reviewed contract change.
-
-### Signed controls and verification
-
-All controls reuse the existing closed canonical flattened ES256
-`fv-control+jws` format implemented by mature JOSE libraries, with distinct
-profile/artifact discriminators. JSON integers retain the safe range; times are
-integer Unix seconds, no clock leeway, with `issuedAt <= now < expiresAt`.
-
-| DTO / verifier                                             | Meaning and required trusted inputs                                                                                                                                                                                                                                                              |
-| ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `ExecutorApprovalPayload` / `verify_executor_approval`     | Pinned Root signature over the exact independently expected binding and operation ID. Valid for at most 30 days; cannot widen scope or replace recipients implicitly.                                                                                                                            |
-| `ExecutorCheckpointPayload`                                | Independent Policy signature over binding digest, original approval signing-input fingerprint, latest state version/head, authorization epoch and revoked flag; at most 120 seconds. The complete payload must equal the caller's authoritative latest checkpoint, not merely a minimum version. |
-| `ExecutorChallenge`                                        | A persisted one-use 32-byte CSPRNG nonce and operation ID, bound to the exact binding digest and one of `execute`, `write_report`, `recover`; at most 120 seconds. This library does not generate/store/consume it.                                                                              |
-| `ExecutorLeasePayload` / `verify_executor_lease`           | Independent Policy signature binding that exact challenge, current checkpoint digest and exact requested operation. Rechecks Root approval and current nonrevoked checkpoint; requires `challenge_used is False`, exact purpose and expiry within all enclosing windows.                         |
-| `ExecutorOperation` / `ExecutorReceipt`                    | Binding digest, immutable Run/operation IDs and SHA-256 digest of the original submitted request bytes; original receipt ID/result digest. The producer derives these from the original bytes and committed Run state.                                                                           |
-| `ExecutorRecoveryPayload` / `verify_executor_recovery`     | Original Agent signing-key proof under a fresh **recover-only** lease. Recovered binding, all original keys/recipients, checkpoint/state head and the complete ordered retained receipt list must match trusted expectations. Duplicate operation/receipt IDs are rejected.                      |
-| `ExecutorTransitionPayload` / `verify_executor_transition` | Fresh (at most 300 seconds) Root control over the exact prior approval fingerprint/current checkpoint and selected next binding. Explicitly distinguishes code upgrade from epoch migration.                                                                                                     |
-| `check_executor_retry`                                     | Checks original operation/body binding and returns a detached original receipt. Both expected operation and original receipt must come from trusted immutable storage. This function does not authenticate a request or authorize execution.                                                     |
-
-A lease cannot precede its checkpoint or challenge, outlive either, or extend Root
-approval. A recover lease is never a content-read/write lease. A Hub signature or
-self-selected issuer cannot replace Policy authority. Public fingerprints exclude
-signature bytes, so valid ES256 signature variants do not create new operations.
-A digest or a signed historical checkpoint alone cannot establish global freshness.
-
-### Same-key recovery, upgrade and migration
-
-Same-key recovery retains the complete approved binding, including the original
-Agent signing/encryption and TLS key IDs, state head and original receipts.
-An Agent signature proves **signing-key possession only**. Actual encryption-key
-ECDH/decryption challenges, TLS-key challenges, measured workload and the hash of
-restored sealed state remain executor/policy runtime obligations. Do not present
-this public statement verifier as enclave attestation or proof of all private keys.
-
-A `code_upgrade` changes only the workload digest, with the exact same keys,
-epoch, scope, issuer and recipients. An `epoch_migration` advances the epoch by
-exactly one and requires new Agent signing and encryption keys. It can also update
-TLS/workload/original binding fingerprint, but retains stable principals, root,
-provider/client, policy authority, audience/issuer, scope and owner recipients.
-Retained historical receipts keep their original binding digest across approved
-upgrades/migrations; the exact independently trusted receipt list is compared,
-never rebound to the new binding. They do not authorize new execution.
-Each transition must be explicitly Root-signed against the exact current
-checkpoint and expected next binding. Neither transition automatically creates a
-new approval, extends certificates, activates new keys or rewrites old receipts.
-
-Permanent key loss is not recovery. There is no `lost_key`/implicit reset fallback.
-A separately approved epoch migration may establish a new future identity; it
-cannot decrypt old content or make the lost original key available again. Existing
-P1/identity-v1 users are not silently migrated into this profile.
-
-### Current-state transaction and replay obligations
-
-Policy/Executor/Hub consumers must independently authenticate their current
-checkpoint source, retain trusted pins, and in the committing transaction recheck
-current approval, nonrevoked identity, checkpoint, challenge-unused flag, source
-and Run fences. Consume the challenge and commit operation/outbox/receipt state
-atomically; a caller-supplied `False` or a cached verification dict is not replay
-protection. Missing or rolled-back trusted state must stop new work. Do not select
-expected bindings, latest checkpoints or receipt lists from the incoming proof.
-
-Transitions require expected-state CAS that installs the new approval/checkpoint
-and terminally fences the prior active epoch before new work. An old lease cannot
-match the current next-epoch binding/checkpoint. Restoring an old encrypted backup
-must not roll back that independent checkpoint or revocation epoch. Original
-operation IDs, original byte digests and receipts remain immutable; retries do not
-re-sign/re-encrypt or silently generate another report. Revocation/expiry stops
-new work; historical owner report reads are governed separately.
-
-The pure verifiers return detached dicts/objects, not persistent capabilities or
-an authorization cache. Release-policy management, key resolution, original-key
-backup/recovery, current-state reads and atomic storage belong to separately
-implemented targets. The personal trusted Owner assumption does not establish
-isolation from that same ultimate Owner or future SaaS administrators.
-
-### Independent checks
-
-`test_executor_trust.py` verifies public Node/JOSE vectors and sends Python-signed
-controls back through the actual dependency-free browser bundle. Browser tests
-also enforce identical packaged schemas and attack cases covering wrong identity,
-issuer/audience/provider, recipients, purpose, expiry, signatures, stale/revoked
-state, nonce replay, recovery substitution and epoch/upgrade confusion. Existing
-P1 and persistent-profile suites remain required. Run `npm run test:contracts`,
-the shared Python suite and root `npm run check` before delivery.
+Current Agents use [Owner-approved credentials](agent-credentials.md), capped at 90 days,
+with the existing Root identity, content carrier, consent, Run/report and immutable
+receipt contracts. Their historical readers do not import the retired extension.
+Generic supported compatibility schemas/verifiers remain unchanged. No datastore,
+Owner ciphertext, revocation floor, original receipt, recovery dependency or live
+cloud resource is removed by this source cleanup.

@@ -16,12 +16,11 @@ incremental logical-resource approval, current-and-future version policy and
 per-resource revocation. It is an additional current-policy gate, not a legacy
 P1 grant or permission to execute a task. Services and clients adopt it separately.
 
-The separate opt-in [independent executor trust extension](docs/persistent-authority.md#independent-executor-trust)
-verifies Root-approved independent Policy/workload bindings, current short leases,
-same-key recovery statements, explicit upgrades/migrations and original receipts.
-It contains public-only schemas/verifiers, not an issuer, attestation service or
-runtime. P1 and existing persistent profiles remain unchanged; consumers adopt
-it separately.
+The [independent executor trust extension](docs/persistent-authority.md#independent-executor-trust)
+is retired with its Policy/TEE consumers. Its separate verifiers and distribution
+are removed. Current personal Agents use the [90-day credential profile](docs/agent-credentials.md)
+with existing signed identity/content/consent formats. Historical Owner reads and
+original revocation/receipt verification retain their supported contracts.
 
 ## Wire format and versions
 
