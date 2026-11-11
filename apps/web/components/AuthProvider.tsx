@@ -28,12 +28,6 @@ import {
   type NativeOperation,
 } from "@/lib/native-owner-bridge";
 import { persistentOwnerRoute } from "@/lib/persistent-owner-routes";
-import {
-  verifiedOwnerBridge,
-  validateConsentCommand,
-  type OwnerConsentBridge,
-  type ConsentOperation,
-} from "@/lib/owner-consent-bridge";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
 // An unset service origin keeps the current deployment usable during migration.
@@ -176,20 +170,17 @@ function hubOwnerRule(path: string, method: PrivateMethod): EncryptedRule | null
         ? {}
         : {
             keys:
-              persistent.kind === "executor-binding"
-                ? ["contractVersion", "command", "approval", "scope"]
-                : persistent.kind === "small"
-                  ? ["contractVersion"]
-                  : [
-                      "contractVersion",
-                      persistent.kind === "persistent-publication" ? "envelope" : "command",
-                    ],
+              persistent.kind === "small"
+                ? ["contractVersion"]
+                : [
+                    "contractVersion",
+                    persistent.kind === "persistent-publication" ? "envelope" : "command",
+                  ],
           }),
       idempotent: persistent.operation,
       author: persistent.author,
       maxBytes: persistent.max,
       rootCommand: persistent.kind === "control" && !persistent.author,
-      ...(persistent.kind === "executor-binding" ? { rootCommands: ["command", "approval"] } : {}),
       rootCommandMaxBytes: persistent.max,
     };
   } else if (method === "GET") {
@@ -521,13 +512,6 @@ type AuthContextValue = AuthState & {
     sessionKey: string,
     options?: PrivateRequestOptions,
   ) => Promise<Response>;
-  requestAgentConsent: (
-    bridge: OwnerConsentBridge,
-    op: ConsentOperation,
-    json: unknown,
-    sessionKey: string,
-    signal?: AbortSignal,
-  ) => Promise<unknown>;
   requestNativeAccount: (
     bridge: NativeOwnerBridge,
     op: NativeOperation,
@@ -951,19 +935,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [],
   );
 
-  const requestAgentConsent = useCallback(
+  const requestNativeAccount = useCallback(
     async (
-      bridge: OwnerConsentBridge | NativeOwnerBridge,
-      op: ConsentOperation | NativeOperation,
+      bridge: NativeOwnerBridge,
+      op: NativeOperation,
       json: unknown,
       sessionKey: string,
       signal?: AbortSignal,
     ) => {
       // A fresh credential can reach only the source/origin/nonce-bound Hub owner port.
       // Agent/helper ports and arbitrary callback functions are never accepted here.
-      const verified = (v: unknown) => verifiedOwnerBridge(v) || verifiedNativeBridge(v);
-      if (verifiedNativeBridge(bridge)) validateNativeCommand(op as NativeOperation, json);
-      else validateConsentCommand(op as ConsentOperation, json);
+      const verified = verifiedNativeBridge;
+      validateNativeCommand(op, json);
       if (
         !verified(bridge) ||
         ownerConfigRef.current.status !== "ready" ||
@@ -1010,9 +993,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         throw changed();
       }
       if (!ownsSession()) throw changed();
-      const value = verifiedNativeBridge(bridge)
-        ? await bridge.request(op as NativeOperation, json, token, signal)
-        : await bridge.request(op as ConsentOperation, json, token, signal);
+      const value = await bridge.request(op, json, token, signal);
       if (!ownsSession()) throw changed();
       return value;
     },
@@ -1033,8 +1014,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       sessionKey:
         state.status === "authenticated" ? (verifiedSessionRef.current?.key ?? null) : null,
       requestPrivate,
-      requestAgentConsent,
-      requestNativeAccount: requestAgentConsent,
+      requestNativeAccount,
       signIn,
       signOut,
       retry,
@@ -1044,7 +1024,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       state,
       ownerConfig,
       requestPrivate,
-      requestAgentConsent,
+      requestNativeAccount,
       signIn,
       signOut,
       retry,

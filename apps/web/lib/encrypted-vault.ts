@@ -1579,9 +1579,7 @@ export class EncryptedVaultSession {
     this.assert(g);
     return value;
   }
-  async preparePersistentEnrollment(args: Json) {
-    return this.preparePersistent("preparePersistentEnrollment", args);
-  }
+
   async preparePersistentConsent(args: Json) {
     return this.preparePersistent("preparePersistentConsent", args);
   }

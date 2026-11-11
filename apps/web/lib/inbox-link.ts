@@ -18,7 +18,7 @@ export function inboxResultHref(resultId: string, revision?: number): string | n
 
 export function isAgentConsentHandoff(search: string): boolean {
   const query = new URLSearchParams(search);
-  return query.has("agent_request") || query.has("agent_nonce");
+  return query.has("native_request") || query.has("native_nonce");
 }
 
 /** Clearing app navigation must not reload the page and discard an unlocked Worker. */

@@ -32,7 +32,6 @@ const hash = (v: unknown) => typeof v === "string" && /^[a-f0-9]{64}$/.test(v);
 const AGENT = "folioview.persistent-agent-identity.v1",
   CONTENT = "folioview.persistent-content.v1",
   CONSENT = "folioview.persistent-resource-consent.v1",
-  PAIRING = "folioview.runtime-pairing.v1",
   PLAN = "folioview.persistent-native-plan.v1";
 const nullable = (v: unknown, fn: (v: unknown) => boolean) => v === null || fn(v);
 function metadata(v: unknown, result?: string) {
@@ -356,56 +355,7 @@ export function persistentResponse(
       credentialResponse(p, method, v, operationId)
     );
   }
-  if (p[3] === "executor-connections") {
-    if (p[6] === "bindings" && method === "POST")
-      return (
-        fields(v, [
-          "contractVersion",
-          "profile",
-          "operationId",
-          "registrationDigest",
-          "identity",
-        ]) &&
-        v.contractVersion === CONTRACT &&
-        v.profile === "folioview.hub-executor-ciphertext.v1" &&
-        v.operationId === operationId &&
-        op(v.operationId) &&
-        hash(v.registrationDigest) &&
-        formal("PersistentAgentIdentity", v.identity)
-      );
 
-    if (p.length === 6 && method === "GET")
-      return (
-        fields(v, [
-          "contractVersion",
-          "profile",
-          "identity",
-          "command",
-          "revocation",
-          "binding",
-          "scope",
-          "approval",
-          "receipt",
-        ]) &&
-        v.contractVersion === CONTRACT &&
-        v.profile === "folioview.hub-executor-ciphertext.v1" &&
-        formal("PersistentAgentIdentity", v.identity) &&
-        signedObject(v.command) &&
-        nullable(v.revocation, signedObject) &&
-        record(v.binding) &&
-        record(v.scope) &&
-        signedObject(v.approval) &&
-        record(v.receipt)
-      );
-    let mapped = `/api/v2/persistent-agents/${p[4]}/${p[5]}/${p.slice(6).join("/")}`;
-    if (p[6] === "identity-operations")
-      mapped = `/api/v2/persistent-agents/${p[4]}/${p[5]}/operations/${p[7]}`;
-    if (p[6] === "publications" || p[6] === "publication-operations")
-      mapped =
-        `/api/v2/persistent-content/${p[4]}/connections/${p[5]}/` +
-        (p[6] === "publications" ? "publications" : "operations/" + p[7]);
-    return persistentResponse(mapped, method, v, operationId);
-  }
   if (method === "PATCH") return metadata(v, p[5]);
   if (!record(v) || v.contractVersion !== CONTRACT) return false;
   if (p[3] === "persistent-account-authorizations")
@@ -538,63 +488,7 @@ export function persistentResponse(
       );
     return receipt(v, method === "GET" ? p[8] : operationId);
   }
-  if (p[3] === "runtime-setups") {
-    if (method === "POST")
-      return (
-        fields(v, ["contractVersion", "profile", "paired"]) &&
-        v.profile === PAIRING &&
-        fields(v.paired, ["identity", "rootJwk", "acceptedAt", "authority"]) &&
-        formal("PersistentAgentIdentity", v.paired.identity) &&
-        formal("PublicJWK", v.paired.rootJwk) &&
-        integer(v.paired.acceptedAt, 0) &&
-        v.paired.authority === "pairing_observation_only"
-      );
-    return (
-      fields(v, [
-        "contractVersion",
-        "profile",
-        "setup",
-        "offer",
-        "protectedHostAttested",
-        "authority",
-      ]) &&
-      v.profile === PAIRING &&
-      fields(v.setup, [
-        "intentId",
-        "ownerSubject",
-        "vaultId",
-        "connectionId",
-        "clientId",
-        "authorizationId",
-        "nonce",
-        "issuedAt",
-        "expiresAt",
-        "confirmed",
-      ]) &&
-      v.setup.intentId === p[4] &&
-      hash(v.setup.ownerSubject) &&
-      ["vaultId", "connectionId", "clientId", "authorizationId"].every((k) =>
-        id((v.setup as Record<string, unknown>)[k]),
-      ) &&
-      typeof v.setup.nonce === "string" &&
-      /^[A-Za-z0-9_-]{43}$/.test(v.setup.nonce) &&
-      integer(v.setup.issuedAt, 0) &&
-      integer(v.setup.expiresAt, 1) &&
-      typeof v.setup.confirmed === "boolean" &&
-      nullable(
-        v.offer,
-        (x) =>
-          fields(x, ["command", "fingerprint", "agentId", "signingKeyId", "encryptionKeyId"]) &&
-          signedObject(x.command) &&
-          hash(x.fingerprint) &&
-          id(x.agentId) &&
-          formal("KeyId", x.signingKeyId) &&
-          formal("KeyId", x.encryptionKeyId),
-      ) &&
-      v.protectedHostAttested === false &&
-      v.authority === "pairing_observation_only"
-    );
-  }
+
   if (p[3] === "persistent-results") {
     if (p.length === 5)
       return (

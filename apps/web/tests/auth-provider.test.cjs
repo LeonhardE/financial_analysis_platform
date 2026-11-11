@@ -13,9 +13,6 @@ const persistentRoutes = compileAgent("../lib/persistent-owner-routes.ts");
 const nativeBridgeCommands = compileAgent("../lib/native-owner-bridge.ts", {
   "./agent-connections": connectionContracts,
 });
-const ownerBridgeCommands = compileAgent("../lib/owner-consent-bridge.ts", {
-  "./agent-connections": connectionContracts,
-});
 
 // Exercise the actual provider's asynchronous SDK/API boundary without a browser or
 // an extra test framework. React rendering and Firebase are isolated at imports.
@@ -154,10 +151,6 @@ function mountProvider({
       validateNativeCommand: nativeBridgeCommands.validateNativeCommand,
       verifiedNativeBridge: (bridge) =>
         bridge?.testVerifiedNativeBridge === true && bridge.isLive(),
-    },
-    "@/lib/owner-consent-bridge": {
-      validateConsentCommand: ownerBridgeCommands.validateConsentCommand,
-      verifiedOwnerBridge: (bridge) => bridge?.testVerifiedOwnerBridge === true && bridge.isLive(),
     },
   };
   vm.runInNewContext(code, {
@@ -523,9 +516,9 @@ test("same-owner token refresh preserves an in-flight consent bridge response", 
   h.emitUser(account);
   await settle();
   const key = h.actions.sessionKey;
-  const pending = h.actions.requestAgentConsent(
+  const pending = h.actions.requestNativeAccount(
     {
-      testVerifiedOwnerBridge: true,
+      testVerifiedNativeBridge: true,
       hubOrigin: "https://agent-hub-api-123456789.northamerica-northeast2.run.app",
       isLive: () => true,
       request: async () => {
@@ -533,7 +526,7 @@ test("same-owner token refresh preserves an in-flight consent bridge response", 
         return response.promise;
       },
     },
-    "claim",
+    "pending",
     { contractVersion: "folioview.agent-workspace.v2.0" },
     key,
   );
@@ -2328,7 +2321,7 @@ test("owner consent uses only a verified fixed Hub bridge and a fresh raw creden
   await settle();
   const calls = [],
     bridge = {
-      testVerifiedOwnerBridge: true,
+      testVerifiedNativeBridge: true,
       hubOrigin: "https://agent-hub-api-123456789.northamerica-northeast2.run.app",
       isLive: () => true,
       async request(...args) {
@@ -2338,25 +2331,25 @@ test("owner consent uses only a verified fixed Hub bridge and a fresh raw creden
     };
   const key = h.actions.sessionKey,
     before = tokens;
-  await h.actions.requestAgentConsent(
+  await h.actions.requestNativeAccount(
     bridge,
-    "claim",
+    "pending",
     { contractVersion: "folioview.agent-workspace.v2.0" },
     key,
   );
   assert.equal(tokens, before + 1);
   assert.equal(calls[0][2], "RAW.JWT.fixture");
-  assert.equal(calls[0][0], "claim");
+  assert.equal(calls[0][0], "pending");
   await assert.rejects(
-    h.actions.requestAgentConsent(
-      { ...bridge, testVerifiedOwnerBridge: false },
-      "claim",
+    h.actions.requestNativeAccount(
+      { ...bridge, testVerifiedNativeBridge: false },
+      "pending",
       { contractVersion: "folioview.agent-workspace.v2.0" },
       key,
     ),
   );
   await assert.rejects(
-    h.actions.requestAgentConsent(
+    h.actions.requestNativeAccount(
       bridge,
       "decision",
       { contractVersion: "folioview.agent-workspace.v2.0", decision: "approve", signedGrants: [] },
@@ -2364,9 +2357,9 @@ test("owner consent uses only a verified fixed Hub bridge and a fresh raw creden
     ),
   );
   await assert.rejects(
-    h.actions.requestAgentConsent(
+    h.actions.requestNativeAccount(
       bridge,
-      "claim",
+      "pending",
       { contractVersion: "folioview.agent-workspace.v2.0", privateKey: "CANARY" },
       key,
     ),
@@ -2396,15 +2389,15 @@ test("owner consent never retrieves or sends a credential to a different configu
   await settle();
   const before = tokens,
     bridge = {
-      testVerifiedOwnerBridge: true,
+      testVerifiedNativeBridge: true,
       hubOrigin: "https://agent-hub-api-123456789.northamerica-northeast2.run.app",
       isLive: () => true,
       request: async () => calls++,
     };
   await assert.rejects(
-    h.actions.requestAgentConsent(
+    h.actions.requestNativeAccount(
       bridge,
-      "claim",
+      "pending",
       { contractVersion: "folioview.agent-workspace.v2.0" },
       h.actions.sessionKey,
     ),
@@ -2428,14 +2421,14 @@ test("a delayed owner-consent token cannot cross account changes or a closed bro
   await settle();
   wait = true;
   const bridge = {
-    testVerifiedOwnerBridge: true,
+    testVerifiedNativeBridge: true,
     hubOrigin: "https://agent-hub-api-123456789.northamerica-northeast2.run.app",
     isLive: () => live,
     request: async () => sends++,
   };
-  const pending = h.actions.requestAgentConsent(
+  const pending = h.actions.requestNativeAccount(
     bridge,
-    "claim",
+    "pending",
     { contractVersion: "folioview.agent-workspace.v2.0" },
     h.actions.sessionKey,
   );

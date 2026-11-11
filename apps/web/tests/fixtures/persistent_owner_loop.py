@@ -10,6 +10,7 @@ import tempfile
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
+from urllib.parse import parse_qs, urlsplit
 
 sys.path[:0] = [
     "services/agent-hub-service",
@@ -17,35 +18,34 @@ sys.path[:0] = [
     "services/common",
     "services/common/tests",
 ]
-import test_runtime_setup as setups
+import test_native_transport as accounts
 from fixtures import UID
-from jwcrypto import jwk
 from test_oauth import CLIENT, TASK, OAuthFixture
-from test_persistent_identity_store import CONNECTION
 
+from app.agent_credentials import AgentCredentialService
+from app.persistent_agents import PersistentAgentService
 from app.persistent_results import PersistentOwnerResultService, PersistentResultService
-from folioview_shared.encrypted.crypto import _signed_parts
+from app.vaults import VaultService
 from folioview_shared.encrypted.errors import ContractError
+from folioview_shared.encrypted.jsonutil import b64url_decode
 
 NODE = os.environ["FOLIOVIEW_NODE_BIN"]
 OWNER_PEER = os.environ["FOLIOVIEW_OWNER_PEER"]
 scratch = tempfile.TemporaryDirectory(prefix="folioview-owner-vectors-")
 ORIGIN = "https://agent-hub-api-123456789.northamerica-northeast2.run.app"
 p = subprocess.Popen(
-    [NODE, "services/agent-hub-service/tests/runtime_session_peer.mjs"],
+    [NODE, "services/agent-hub-service/tests/private_host_peer.mjs"],
     stdin=subprocess.PIPE,
     stdout=subprocess.PIPE,
     stderr=subprocess.PIPE,
     text=True,
 )
 seq = 0
-service = None
-plans = None
+service = plans = None
 fx = None
 dropped = False
 last_cipher = None
 setup_case = None
-captured_offer = None
 methods = {
     "session": "session",
     "consent-receipts": "consent_receipt",
@@ -67,7 +67,7 @@ def send(v):
 
 
 def call(method, args=None, ok=True):
-    global seq, dropped, last_cipher, captured_offer
+    global seq, dropped, last_cipher
     seq += 1
     send({"id": seq, "method": method, "args": args or {}, "origin": ORIGIN})
     while True:
@@ -79,38 +79,28 @@ def call(method, args=None, ok=True):
             if ok and not result["ok"]:
                 raise RuntimeError(result)
             return result.get("value") if ok else result
-        path = result["path"]
         response = {"response": result["fetch"]}
         try:
-            if path == "/agent/v3/runtime/config":
-                value = {
-                    "contractVersion": "folioview.agent-workspace.v2.0",
-                    "runtimeVersion": "1.0.0",
-                    "issuer": ORIGIN,
-                    "serverNow": fx.now,
-                }
-            elif path.startswith("/agent/v3/runtime/setups/"):
-                intent = path.split("/")[5]
-                if path.endswith("/offers"):
-                    captured_offer = result["body"]["proof"]
-                    value = setup_case.service.offer(intent, captured_offer)
-                else:
-                    value = setup_case.service.public_state(intent)
-            else:
-                route = path.removeprefix(base + "/")
-                body = result["body"]
-                value = getattr(plans if route.startswith("plans/") else service, methods[route])(
-                    fx.f.owner, fx.f.vault, CONNECTION, body["proof"], path, body["request"]
-                )
-                if route == "runs/submit":
-                    raw = json.dumps(body["request"]["envelope"], sort_keys=True)
-                    if last_cipher is not None:
-                        assert last_cipher == raw
-                    last_cipher = raw
-                    if not dropped:
-                        dropped = True
-                        send({**response, "networkError": True})
-                        continue
+            path = result["path"]
+            route = path.removeprefix(base + "/")
+            target = plans if route.startswith("plans/") else service
+            value = getattr(target, methods[route])(
+                f.owner,
+                f.vault,
+                sc.connection,
+                result["body"]["proof"],
+                path,
+                result["body"]["request"],
+            )
+            if route == "runs/submit":
+                raw = json.dumps(result["body"]["request"]["envelope"], sort_keys=True)
+                if last_cipher is not None:
+                    assert last_cipher == raw
+                last_cipher = raw
+                if not dropped:
+                    dropped = True
+                    send({**response, "networkError": True})
+                    continue
             response["value"] = value
         except ContractError as e:
             response.update(
@@ -125,53 +115,50 @@ def call(method, args=None, ok=True):
 
 
 try:
-    setup_case = setups.RuntimeSetupTests()
+    setup_case = accounts.NativeTransportTests()
     with patch("test_native_transport.VaultFixture", OAuthFixture):
         setup_case.setUp()
-    sc = setup_case
-    fx = SimpleNamespace(now=sc.a.now, f=sc.f)
-    f = sc.f
+    tokens = setup_case.connect()
+    principal = setup_case.service.authenticate(tokens["access_token"])
+    f = setup_case.f
+    fx = SimpleNamespace(now=1000, f=f)
+    sc = SimpleNamespace(a=setup_case, f=f, connection=principal.connection_id)
+    base = f"/agent/v3/persistent/owners/{f.owner}/vaults/{f.vault}/connections/{sc.connection}"
     service = PersistentResultService(
         sc.a.store, audience=ORIGIN, client_ids=[CLIENT], clock=lambda: fx.now, catalogue=None
     )
-    base = f"/agent/v3/persistent/owners/{f.owner}/vaults/{f.vault}/connections/{sc.connection}"
-    # The dispatcher uses the same fixture connection selector as the fixed actual request path.
-    CONNECTION = sc.connection
-    result = call("initialize", {"intentId": sc.intent, "rootKeyId": f.root_id})
-    assert result["state"] == "awaiting_owner_approval"
-    assert call("tasks", ok=False)["error"] == "runtime_not_connected"
-    print("unapproved offer has no authority")
-    _, payload = _signed_parts(captured_offer)
-    sc.proof = captured_offer
-    sc.payload = payload
-    sc.agent = payload["agentId"]
-    for name, field in [
-        ("runtime_sig", "signingPublicJwk"),
-        ("runtime_enc", "encryptionPublicJwk"),
-    ]:
-        key = jwk.JWK(**payload[field])
-        f.keys[name] = key
-        f.certificates[name].update(
-            publicJwk=payload[field], keyId=key.thumbprint(), principalId=sc.agent
-        )
-    sc.service.confirm(
-        sc.tokens["access_token"], sc.intent, sc.service.public_state(sc.intent)["offerFingerprint"]
+    credentials = AgentCredentialService(
+        sc.a.store, audience=ORIGIN, client_ids=[CLIENT], clock=lambda: fx.now
     )
-    row = sc.a.store.transact(
-        lambda u: u.get(
-            __import__("app.store", fromlist=["document_path"]).document_path("hub_vaults", f.owner)
-        )
-    )
-    vault = {
-        k: row[k]
-        for k in ["vaultId", "rootJwk", "rootKeyId", "registryHistory", "archive", "version"]
+    setup = credentials.begin_setup(principal)
+    actor = {
+        "ownerSubject": f.owner,
+        "vaultId": f.vault,
+        "connectionId": sc.connection,
+        "clientId": CLIENT,
     }
+    prepared = call(
+        "prepare",
+        {
+            "directory": scratch.name + "/agent-private",
+            "bootstrap": {
+                "issuer": ORIGIN,
+                "provider": "muse",
+                "actor": actor,
+                "setup": setup,
+                "ownerUrl": "https://owner.example/agents",
+            },
+        },
+    )
+    handoff = json.loads(
+        b64url_decode(
+            parse_qs(urlsplit(prepared["authorizationUrl"]).fragment)["agent_authorization"][0]
+        )
+    )
+    credentials.put_offer(principal, setup["setupIntentId"], prepared["offer"])
     request = {
         "actor": {"connectionId": sc.connection, "clientId": CLIENT},
-        "op": "enrollment",
-        "args": sc.service.owner_state(UID, sc.intent),
         "owner": f.owner,
-        "vault": vault,
         "rootPrivate": f.root.export(private_key=True, as_dict=True),
         "devicePrivate": f.keys["device_sig"].export(private_key=True, as_dict=True),
         "deviceKid": f.kid("device_sig"),
@@ -179,41 +166,7 @@ try:
         "now": 1000,
     }
     fixture_file = Path(scratch.name) / "owner.json"
-    fixture_file.write_text(json.dumps(request))
-    fixture_file.chmod(0o600)
-    proc = subprocess.run(
-        [NODE, OWNER_PEER, str(fixture_file)], text=True, capture_output=True, timeout=20
-    )
-    if proc.returncode:
-        raise RuntimeError(proc.stderr)
-    packet = json.loads(proc.stdout)
-    dtos = [
-        ("/api/v2/runtime-setups/" + sc.intent, "GET", sc.service.owner_state(UID, sc.intent), None)
-    ]
-    from app.persistent_agents import PersistentAgentService
-    from app.vaults import VaultService
-
-    VaultService(sc.a.store, clock=lambda: 1000).update_registry(
-        UID, f.vault, packet["registryUpdate"], "synthetic_browser_root_directory_001"
-    )
-    identity = PersistentAgentService(sc.a.store, client_ids=[CLIENT], clock=lambda: 1000).command(
-        UID, f.vault, sc.connection, packet["body"]["command"], packet["operationId"]
-    )["identity"]
-    assert identity == packet["identity"]
-    dtos.append(
-        (
-            "/api/v2/runtime-setups/" + sc.intent + "/completion",
-            "POST",
-            sc.service.complete(UID, sc.intent),
-            None,
-        )
-    )
-    paired = call("pairing")
-    assert paired["state"] == "connected"
-    print("first Root pairing", paired["state"])
-    resumed = call("initialize", {"intentId": sc.intent, "rootKeyId": f.root_id})
-    assert resumed["state"] == "connected"
-    print("partial-flow restart", resumed["state"])
+    fixture_file.touch(mode=0o600)
 
     def owner(operation, args, *, actor=None, denied=False):
         row = sc.a.store.transact(
@@ -253,6 +206,50 @@ try:
             raise RuntimeError(r.stderr)
         return json.loads(r.stdout)
 
+    setup_state = credentials.owner_setup(UID, f.vault, sc.connection, setup["setupIntentId"])
+    current = credentials.state(UID, f.vault, sc.connection)
+    args = {"handoff": handoff, "setup": setup_state, "current": current, "hubOrigin": ORIGIN}
+    packet = owner("credentialEnrollment", args)
+    VaultService(sc.a.store, clock=lambda: 1000).update_registry(
+        UID, f.vault, packet["registryUpdate"], "synthetic_browser_root_directory_001"
+    )
+    approved = credentials.command(
+        UID, f.vault, sc.connection, packet["body"]["command"], packet["operationId"]
+    )
+    assert approved["identity"] == packet["identity"]
+    dtos = [
+        (
+            f"/api/v3/agent-credentials/{f.vault}/{sc.connection}/setups/{setup['setupIntentId']}",
+            "GET",
+            setup_state,
+            None,
+        ),
+        (
+            f"/api/v3/agent-credentials/{f.vault}/{sc.connection}/approvals",
+            "POST",
+            approved,
+            packet["operationId"],
+        ),
+        (
+            f"/api/v3/agent-credentials/{f.vault}/{sc.connection}",
+            "GET",
+            credentials.state(UID, f.vault, sc.connection),
+            None,
+        ),
+    ]
+    assert (
+        call(
+            "activate",
+            {
+                "setupIntentId": setup["setupIntentId"],
+                "state": "approved",
+                "activation": packet["body"]["command"]["activation"],
+            },
+        )["state"]
+        == "connected"
+    )
+    assert call("initialize")["state"] == "connected"
+    print("Web Owner approval activated private host credentials")
     from test_encrypted_schema import report_content, resource_content, task_content
     from test_persistent_resource_store import Catalogue
 
@@ -414,10 +411,6 @@ try:
 
     f.bundle = request["vault"]["registryHistory"][-1]
     f.registry = f.verify(f.bundle, previous=f.registry)
-    f.certificates["A1_sig"] = f.certificates["runtime_sig"]
-    f.certificates["A1_enc"] = f.certificates["runtime_enc"]
-    f.keys["A1_sig"] = f.keys["runtime_sig"]
-    f.keys["A1_enc"] = f.keys["runtime_enc"]
     tasks_service = TaskService(sc.a.store, cat, clock=lambda: 1000)
     private_task = task_content()
     private_task["inputPolicy"]["allowUnknownAsOf"] = True
@@ -452,7 +445,7 @@ try:
     service = PersistentResultService(
         sc.a.store, cat, audience=ORIGIN, client_ids=[CLIENT], clock=lambda: 1000
     )
-    from app.persistent_plans import PersistentPlanService, PersistentOwnerPlanService
+    from app.persistent_plans import PersistentOwnerPlanService, PersistentPlanService
 
     plans = PersistentPlanService(
         sc.a.store, cat, audience=ORIGIN, client_ids=[CLIENT], clock=lambda: 1000

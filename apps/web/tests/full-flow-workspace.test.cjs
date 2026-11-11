@@ -516,7 +516,7 @@ test("public result links are closed canonical fragments and OAuth handoff retai
     assert.equal(h.links.readInboxResultLink(hash), null, hash);
   assert.equal(h.links.inboxResultHref("r\n", 1), null);
   assert.equal(h.render().active, "markets");
-  h.location.search = "?agent_request=request_synthetic&agent_nonce=nonce_synthetic";
+  h.location.search = "?native_request=request_synthetic&native_nonce=nonce_synthetic";
   assert.equal(h.link("#inbox/result/result_A1").active, "agents");
   await h.settle();
   assert.equal(h.opens.length, 0);
@@ -725,7 +725,7 @@ test("logout discards the old intent but a new anonymous link can be opened by t
 
 test("first-load Agent and Inbox handoffs wait for parent router setup and ignore a disposed mount", async () => {
   for (const [options, expected] of [
-    [{ search: "?agent_request=synthetic_request&agent_nonce=" + "n".repeat(43) }, "/agents"],
+    [{ search: "?native_request=synthetic_request&native_nonce=" + "n".repeat(43) }, "/agents"],
     [{ hash: "#inbox/result/synthetic_result/revisions/1" }, "/inbox"],
   ]) {
     const h = flow({ ...options, owner: null });
@@ -739,7 +739,7 @@ test("first-load Agent and Inbox handoffs wait for parent router setup and ignor
   }
   const h = flow({
     owner: null,
-    search: "?agent_request=synthetic_request&agent_nonce=" + "n".repeat(43),
+    search: "?native_request=synthetic_request&native_nonce=" + "n".repeat(43),
   });
   h.render();
   h.close();

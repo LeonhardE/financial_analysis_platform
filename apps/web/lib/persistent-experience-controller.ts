@@ -106,6 +106,8 @@ export class PersistentExperienceController {
   }
   async send(connection: PersistentConnection, packet: Json) {
     if (packet.kind === "no_change") return;
+    if (!["credential", "consent", "revocation", "publication"].includes(packet.kind))
+      fail("verification_failed");
     const actor = this.actor(connection),
       v = this.vault(),
       base = this.base(connection);
@@ -126,7 +128,7 @@ export class PersistentExperienceController {
       if (!(e instanceof PersistentExperienceError) || e.code !== "not_found") throw e;
     }
     if (!receipt) {
-      if ((packet.kind === "identity" || credential) && packet.registryUpdate) {
+      if (credential && packet.registryUpdate) {
         await this.workspace().refreshVault(this.signal, true);
         this.assert();
         const fresh = (await this.request("/api/v2/vaults/current")).vault,
@@ -163,11 +165,6 @@ export class PersistentExperienceController {
     }
     await this.workspace().finishPersistentPending(actor, receipt);
     this.assert();
-    if (packet.kind === "identity" && packet.setupIntentId)
-      await this.request(`/api/v2/runtime-setups/${packet.setupIntentId}/completion`, {
-        method: "POST",
-        json: { contractVersion: PERSISTENT_CONTRACT },
-      });
   }
   async resume(connection: PersistentConnection) {
     const pending = await this.workspace().loadPersistentPending(this.actor(connection));
@@ -452,39 +449,6 @@ export class PersistentExperienceController {
       restored++;
     }
     return { restored };
-  }
-  async inspectSetup(intentId: string) {
-    this.vault();
-    return this.request("/api/v2/runtime-setups/" + intentId);
-  }
-  async enroll(intentId: string, expectedSetup: Json) {
-    const setup = await this.inspectSetup(intentId);
-    if (!same(setup, expectedSetup)) fail("review_changed");
-    const c = setup.setup,
-      connection: PersistentConnection = {
-        connectionId: c.connectionId,
-        clientId: c.clientId,
-        vaultId: c.vaultId,
-        provider: "muse",
-        status: "active",
-        accountState: "connecting",
-        linkedAt: c.issuedAt,
-      };
-    const actor = this.actor(connection);
-    await this.resume(connection);
-    const current = await this.request(this.base(connection));
-    if (current.identity) {
-      await this.workspace().verifyPersistentIdentity({ state: current, actor });
-      this.assert();
-      await this.request(`/api/v2/runtime-setups/${intentId}/completion`, {
-        method: "POST",
-        json: { contractVersion: PERSISTENT_CONTRACT },
-      });
-      return;
-    }
-    const packet = await this.workspace().preparePersistentEnrollment({ actor, intentId, setup });
-    this.assert();
-    await this.send(connection, packet);
   }
   async tasks() {
     const v = this.vault(),

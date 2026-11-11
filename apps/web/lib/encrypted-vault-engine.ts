@@ -57,9 +57,6 @@ export function createVaultKernel(
             case "verifyHistoricalPolicy":
               result = await core.verifyHistoricalPolicy(args);
               break;
-            case "preparePersistentEnrollment":
-              result = await core.preparePersistentEnrollment(args);
-              break;
             case "verifyPersistentIdentity":
               result = await core.verifyPersistentIdentity(args);
               break;

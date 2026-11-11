@@ -5230,16 +5230,6 @@ export class VaultCore {
       ? packet
       : { ...packet, localPending: await this.persistentLocal(packet) };
   }
-  async preparePersistentEnrollment(args: {
-    setup: Json;
-    actor: PersistentActor;
-    intentId: string;
-  }) {
-    exact(args, ["setup", "actor", "intentId"]);
-    if (args.setup.setup?.intentId !== args.intentId) throw new VaultError("binding_mismatch");
-    const packet = await (await this.persistentOwner(args.actor)).enrollment(args.setup);
-    return { ...packet, localPending: await this.persistentLocal(packet) };
-  }
   async verifyPersistentIdentity(args: { state: Json; actor: PersistentActor }) {
     exact(args, ["state", "actor"]);
     const { identity } = await (await this.persistentOwner(args.actor, false)).identity(args.state);
