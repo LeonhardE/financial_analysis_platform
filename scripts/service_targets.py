@@ -45,6 +45,7 @@ class Target:
     release_mode: str
     ruff_config: str | None = None
     runtime: str = "cloud_run"
+    source_present: bool = True
 
     @property
     def dockerfile(self) -> str:
@@ -66,7 +67,9 @@ class Registry:
 
     @property
     def backends(self) -> tuple[Target, ...]:
-        return tuple(target for target in self.targets if target.kind == "backend")
+        return tuple(
+            target for target in self.targets if target.kind == "backend" and target.source_present
+        )
 
     @property
     def backend_ids(self) -> tuple[str, ...]:
@@ -90,7 +93,9 @@ class Registry:
 
     @property
     def cloudbuild_targets(self) -> Mapping[str, str]:
-        return MappingProxyType({target.cloudbuild: target.id for target in self.targets})
+        return MappingProxyType(
+            {target.cloudbuild: target.id for target in self.targets if target.source_present}
+        )
 
     def target(self, target_id: str) -> Target:
         try:
@@ -247,9 +252,10 @@ def parse_registry_document(raw: bytes | str) -> tuple[Target, ...]:
                 or runtime not in {"cloud_run", "confidential_vm"}
                 or (
                     runtime == "confidential_vm"
-                    and (kind != "backend" or release_mode != "build_only")
+                    and (kind != "backend" or release_mode not in {"build_only", "retired"})
                 )
-                or release_mode not in {"existing", "build_only"}
+                or release_mode not in {"existing", "build_only", "retired"}
+                or (kind == "web" and release_mode == "retired")
                 or _BUILD_PATH.fullmatch(cloudbuild) is None
                 or (
                     kind == "backend"
@@ -295,6 +301,15 @@ def load_registry(root: Path = ROOT) -> Registry:
         targets = []
         for target in metadata:
             directory = target.directory
+            path = _inside(root, directory)
+            if target.release_mode == "retired" and (
+                not path.exists()
+                or (path.is_dir() and not _is_unregistered_source(path, frontend=False))
+            ):
+                # Keep the terminal identity in metadata. A later target-only
+                # retirement PR may remove its complete source/build tree.
+                targets.append(replace(target, source_present=False))
+                continue
             _file(root, target.dockerfile)
             _file(root, target.cloudbuild)
             ruff_config = None
@@ -380,6 +395,10 @@ def validate_registry_transition(
         if old is None:
             if target.release_mode != "build_only":
                 raise RegistryError("New targets must first register as build_only")
+        elif old.release_mode == "retired" and target.release_mode != "retired":
+            raise RegistryError("Retired targets cannot be reactivated")
+        elif old.release_mode == "existing" and target.release_mode == "retired":
+            raise RegistryError("Existing production targets cannot enter build-target retirement")
         elif any(
             getattr(old, field) != getattr(target, field)
             for field in ("kind", "directory", "service", "runtime")

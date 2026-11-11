@@ -55,7 +55,7 @@
       "directory": "services/agent-policy-service",
       "service": "agent-policy-api",
       "cloudbuild": "infra/gcp/cloudbuild.agent-policy.yaml",
-      "release_mode": "build_only"
+      "release_mode": "retired"
     },
     {
       "id": "agent-executor-service",
@@ -63,7 +63,7 @@
       "directory": "services/agent-executor-service",
       "service": "agent-executor-api",
       "cloudbuild": "infra/gcp/cloudbuild.agent-executor.yaml",
-      "release_mode": "build_only",
+      "release_mode": "retired",
       "runtime": "confidential_vm"
     }
   ]
