@@ -1354,3 +1354,88 @@ test("persistent list uses its bounded opaque pagination and rejects plaintext u
   assert.equal(r.status, 503);
   assert.doesNotMatch(await r.text(), /CANARY/);
 });
+
+test("Executor enrollment proxy keeps its separate signed approval/scope body and closed receipt", async () => {
+  const { createHarness, createOwner } = require("./full-flow-crypto-fixture.cjs");
+  const h = await createHarness();
+  try {
+    const f = await createOwner(h, "owner_A");
+    const signed = SIGNED;
+    const identity = {
+      contractVersion: CONTRACT,
+      profile: "folioview.persistent-agent-identity.v1",
+      ownerSubject: f.owner,
+      vaultId: f.vault.vaultId,
+      rootKeyId: f.vault.rootKeyId,
+      connectionId: "connection_A",
+      agentId: "agent_A",
+      clientId: "native_A",
+      identityEpoch: 1,
+      agentSigningKeyId: "A".repeat(43),
+      agentEncryptionKeyId: "B".repeat(43),
+      bindingFingerprint: "c".repeat(64),
+      status: "active",
+      registeredAt: 1000,
+      revokedAt: null,
+    };
+    const scope = {
+      profile: "folioview.hub-executor-ciphertext-scope.v1",
+      purpose: "analysis",
+      resultPolicy: "owner_inbox",
+      resourceBindings: [
+        {
+          ref: {
+            kind: "holdings",
+            sourceService: "portfolio",
+            resourceId: "source_A",
+            incarnation: "incarnation_A",
+          },
+          sourceEpoch: 1,
+        },
+      ],
+    };
+    const body = {
+      contractVersion: CONTRACT,
+      command: signed,
+      approval: signed,
+      scope,
+    };
+    const receipt = {
+      contractVersion: CONTRACT,
+      profile: "folioview.hub-executor-ciphertext.v1",
+      operationId: OP,
+      registrationDigest: "d".repeat(64),
+      identity,
+    };
+    const route = `/api/v2/executor-connections/${f.vault.vaultId}/connection_A/bindings`;
+    const proxy = harness({ upstream: () => response(receipt, 201) });
+    const result = await proxy.proxy(
+      request(route, {
+        method: "POST",
+        json: body,
+        headers: { Origin: SITE, "Idempotency-Key": OP },
+      }),
+    );
+    assert.equal(result.status, 201);
+    assert.deepEqual(await result.json(), receipt);
+    assert.deepEqual(JSON.parse(new TextDecoder().decode(proxy.hub()[0].init.body)), body);
+    for (const bad of [
+      { ...body, privateKey: "secret" },
+      { ...body, scope: { ...scope, resourceBindings: [] } },
+      { ...body, approval: null },
+    ]) {
+      const x = harness();
+      const rejected = await x.proxy(
+        request(route, {
+          method: "POST",
+          json: bad,
+          headers: { Origin: SITE, "Idempotency-Key": OP },
+        }),
+      );
+      assert.equal(rejected.status, 400);
+      assert.equal(x.hub().length, 0);
+    }
+  } finally {
+    await h.close();
+  }
+});

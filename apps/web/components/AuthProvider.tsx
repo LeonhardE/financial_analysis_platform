@@ -177,17 +177,20 @@ function hubOwnerRule(path: string, method: PrivateMethod): EncryptedRule | null
         ? {}
         : {
             keys:
-              persistent.kind === "small"
-                ? ["contractVersion"]
-                : [
-                    "contractVersion",
-                    persistent.kind === "persistent-publication" ? "envelope" : "command",
-                  ],
+              persistent.kind === "executor-binding"
+                ? ["contractVersion", "command", "approval", "scope"]
+                : persistent.kind === "small"
+                  ? ["contractVersion"]
+                  : [
+                      "contractVersion",
+                      persistent.kind === "persistent-publication" ? "envelope" : "command",
+                    ],
           }),
       idempotent: persistent.operation,
       author: persistent.author,
       maxBytes: persistent.max,
       rootCommand: persistent.kind === "control" && !persistent.author,
+      ...(persistent.kind === "executor-binding" ? { rootCommands: ["command", "approval"] } : {}),
       rootCommandMaxBytes: persistent.max,
     };
   } else if (method === "GET") {
@@ -822,7 +825,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         policyRequest(config, path, method, options.json, options.expectedPolicyIssuer);
         origin = config.issuer;
         contractHeaders = { "X-FolioView-Contract": CONTRACT };
-        maxBodyBytes = 65536;
+        maxBodyBytes = path === "/api/v1/enrollment-reviews" ? 132096 : 65536;
       } else if (service === "portfolio" || service === "agent-hub") {
         let rule = encryptedRule(service, path, method);
         if (

@@ -39,6 +39,9 @@ export function createVaultKernel(
             case "verifyIndependentDestination":
               result = await core.verifyIndependentDestination(args);
               break;
+            case "prepareIndependentSetup":
+              result = await core.prepareIndependentSetup(args);
+              break;
             case "signIndependentPolicyControl":
               result = await core.signIndependentPolicyControl(args);
               break;

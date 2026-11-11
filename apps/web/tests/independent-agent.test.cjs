@@ -435,6 +435,13 @@ test("public selection and direct Policy transport reject private keys, arbitrar
       routes.persistentOwnerRoute(
         "/api/v2/executor-connections/vault_A/connection_A/bindings",
         "POST",
+      ).kind,
+      "executor-binding",
+    );
+    assert.equal(
+      routes.persistentOwnerRoute(
+        "/api/v2/executor-connections/vault_A/connection_A/bindings?other=1",
+        "POST",
       ),
       null,
     );

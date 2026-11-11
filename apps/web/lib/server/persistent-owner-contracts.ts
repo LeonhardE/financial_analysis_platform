@@ -148,6 +148,23 @@ export function persistentResponse(
 ): boolean {
   const p = path.split("?", 1)[0].split("/");
   if (p[3] === "executor-connections") {
+    if (p[6] === "bindings" && method === "POST")
+      return (
+        fields(v, [
+          "contractVersion",
+          "profile",
+          "operationId",
+          "registrationDigest",
+          "identity",
+        ]) &&
+        v.contractVersion === CONTRACT &&
+        v.profile === "folioview.hub-executor-ciphertext.v1" &&
+        v.operationId === operationId &&
+        op(v.operationId) &&
+        hash(v.registrationDigest) &&
+        formal("PersistentAgentIdentity", v.identity)
+      );
+
     if (p.length === 6 && method === "GET")
       return (
         fields(v, [

@@ -159,6 +159,61 @@ export function policyRequest(
     signed(json.request.command)
   )
     return;
+  if (
+    method === "POST" &&
+    path === "/api/v1/enrollment-reviews" &&
+    exact(json, ["contractVersion", "request"]) &&
+    json.contractVersion === INDEPENDENT_CONTRACT &&
+    exact(json.request, ["pendingOffer", "finalOffer", "certificateChain"]) &&
+    JSON.stringify(json).length <= 132096
+  )
+    return;
+  if (
+    method === "POST" &&
+    path === base + "/certificate-reviews" &&
+    exact(json, ["contractVersion", "request"]) &&
+    json.contractVersion === INDEPENDENT_CONTRACT &&
+    exact(json.request, ["certificateChain"]) &&
+    typeof json.request.certificateChain === "string" &&
+    json.request.certificateChain.length <= 16384
+  )
+    return;
+  if (
+    method === "POST" &&
+    path === base + "/controls" &&
+    exact(json, ["contractVersion", "request"]) &&
+    json.contractVersion === INDEPENDENT_CONTRACT &&
+    exact(json.request, ["action", "parameters", "approval", "command"]) &&
+    signed(json.request.command)
+  ) {
+    if (
+      json.request.action === "register" &&
+      signed(json.request.approval) &&
+      exact(json.request.parameters, [
+        "agentId",
+        "clientId",
+        "identityEpoch",
+        "bindingFingerprint",
+        "agentSigningJwk",
+        "agentEncryptionJwk",
+        "tlsJwk",
+        "scope",
+        "recipientKeyIds",
+        "workload",
+        "initialStateHead",
+        "certificateDigest",
+        "wrappedStateKey",
+      ])
+    )
+      return;
+    if (
+      json.request.action === "certificate" &&
+      json.request.approval === null &&
+      exact(json.request.parameters, ["certificateDigest"]) &&
+      /^[a-f0-9]{64}$/.test(json.request.parameters.certificateDigest)
+    )
+      return;
+  }
   throw new Error("invalid_policy_request");
 }
 export function independentHandoff(search: string) {
