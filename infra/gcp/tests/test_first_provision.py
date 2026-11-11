@@ -128,7 +128,11 @@ class FirstProvisionTests(unittest.TestCase):
         )
 
     def test_additional_backend_produces_digest_pinned_unapproved_review_material_only(self):
-        self.assertEqual(len(self.registry.backends), len(first.load_registry(ROOT).backends) + 1)
+        # Fixture repositories contain complete synthetic sources even for retired
+        # metadata. Real retired targets may already have no executable source.
+        actual = first.load_registry(ROOT)
+        self.assertEqual(set(self.registry.by_id) - set(actual.by_id), {"synthetic-service"})
+        self.assertIn("synthetic-service", self.registry.backend_ids)
         request = self.prepare()
         self.assertEqual(request["image"]["reference"], IMAGE_NAME + "@" + DIGEST)
         self.assertEqual(request["approval"], {"status": "not_requested"})
