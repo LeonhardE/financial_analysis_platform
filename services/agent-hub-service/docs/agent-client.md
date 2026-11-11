@@ -24,6 +24,11 @@ The bundle is standalone: no runtime npm install or server-side private-key prox
 Release maintainers reproduce it with `npm ci` then `npm run build` in
 `agent-client/`; `integrity.json` freezes the shared contract at build time.
 
+Native authorization accepts an optional bounded `ui_locales` display hint used by
+ChatGPT. The hint is discarded before consent state or Authlib processing; duplicate
+parameters, unknown fields and invalid locale lists remain rejected. Registered
+callbacks, resource, bootstrap scope and S256 PKCE checks are unchanged.
+
 ## Connect and recover
 
 1. Native OAuth/PKCE associates a preregistered Muse or ChatGPT client with its

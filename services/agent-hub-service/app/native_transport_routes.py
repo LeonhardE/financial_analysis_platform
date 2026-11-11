@@ -77,7 +77,7 @@ def protected_metadata(service: Service):
 
 @router.get("/oauth/persistent/authorize")
 async def authorize(request: Request, service: Service):
-    values = _pairs(request.scope["query_string"], AUTHORIZE_FIELDS)
+    values = _pairs(request.scope["query_string"], AUTHORIZE_FIELDS | {"ui_locales"})
     browser = secrets.token_urlsafe(32)
     ident = await run_in_threadpool(service.authorize, values, browser)
     response = RedirectResponse(
