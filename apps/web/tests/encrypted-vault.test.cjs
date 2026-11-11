@@ -123,6 +123,103 @@ async function stored(f, pending) {
     },
   };
 }
+async function signedSyntheticControl(f, payload) {
+  const { FlattenedSign } = await import("jose");
+  return new FlattenedSign(new TextEncoder().encode(core.canonical(payload)))
+    .setProtectedHeader({
+      alg: "ES256",
+      kid: f.vault.rootKeyId,
+      typ: "fv-control+jws",
+      cty: "application/json",
+    })
+    .sign(f.session.root);
+}
+async function adoptSyntheticEntries(f, entries, revoked = []) {
+  const bundle = await f.session.bundle(entries, f.session.registry);
+  const checkpoint = JSON.parse(Buffer.from(bundle.checkpoint.payload, "base64url"));
+  checkpoint.revokedKeyIds = [...new Set([...checkpoint.revokedKeyIds, ...revoked])].sort();
+  bundle.checkpoint = await signedSyntheticControl(f, checkpoint);
+  f.vault = {
+    ...f.vault,
+    version: f.vault.version + 1,
+    registryHistory: [...f.vault.registryHistory, bundle],
+  };
+  await f.session.acceptResultVault(f.vault);
+}
+test("snapshot encryption ignores expired Agent history and ineligible Owner recipients", async () => {
+  const f = await fixture();
+  const entries = structuredClone(f.vault.registryHistory.at(-1).entries);
+  const originalRecipients = entries
+    .map((e) => JSON.parse(Buffer.from(e.certificate.payload, "base64url")))
+    .filter((c) => ["device_enc", "recovery_enc"].includes(c.role))
+    .map((c) => c.keyId)
+    .sort();
+  for (const [label, role, notBefore, expiresAt] of [
+    ["expired_sig", "agent_sig", 990, 999],
+    ["expired_enc", "agent_enc", 990, 999],
+    ["valid_agent", "agent_enc", 995, 2000],
+    ["expired_device", "device_enc", 990, 999],
+    ["future_device", "device_enc", 1001, 2000],
+  ]) {
+    const signing = role === "agent_sig";
+    const pair = await crypto.subtle.generateKey(
+      { name: signing ? "ECDSA" : "ECDH", namedCurve: "P-256" },
+      true,
+      signing ? ["sign", "verify"] : ["deriveBits"],
+    );
+    const publicJwk = await crypto.subtle.exportKey("jwk", pair.publicKey);
+    const jwk = Object.fromEntries(["crv", "kty", "x", "y"].map((k) => [k, publicJwk[k]]));
+    const { calculateJwkThumbprint } = await import("jose");
+    const payload = {
+      artifactType: "key_certificate",
+      contractVersion: core.CONTRACT,
+      ownerSubject: await f.session.owner,
+      vaultId: f.vault.vaultId,
+      certificateId: "cert_synthetic_" + label,
+      keyId: await calculateJwkThumbprint(jwk),
+      role,
+      publicJwk: jwk,
+      principalId: "synthetic_" + label,
+      connectionId: role.startsWith("agent_") ? "connection_" + label : null,
+      keyEpoch: 1,
+      issuerKeyId: f.vault.rootKeyId,
+      notBefore,
+      expiresAt,
+      capabilities: signing ? ["run_request", "result_write"] : [],
+    };
+    entries.push({ certificate: await signedSyntheticControl(f, payload), active: true });
+  }
+  await adoptSyntheticEntries(f, entries);
+  const pending = await f.session.sealSnapshot({ content: content(), source, expectedRevision: 0 });
+  const message = JSON.parse(Buffer.from(pending.carrier.signedObject.payload, "base64url"));
+  assert.deepEqual(message.context.recipients.map((r) => r.keyId).sort(), originalRecipients);
+  assert.ok(message.context.recipients.every((r) => r.connectionId === null));
+  assert.deepEqual(await f.session.openSnapshot(await stored(f, pending), source), {
+    ...content(),
+    data: { ...content().data, snapshotId: pending.snapshotId },
+  });
+  assert.equal(
+    f.vault.registryHistory.at(-1).entries.length,
+    entries.length,
+    "Historical certificates remain immutable and present",
+  );
+});
+test("snapshot encryption still requires recovery and an active current signer", async () => {
+  for (const role of ["recovery_enc", "device_sig"]) {
+    const f = await fixture();
+    const entries = structuredClone(f.vault.registryHistory.at(-1).entries);
+    const target = entries.find(
+      (e) => JSON.parse(Buffer.from(e.certificate.payload, "base64url")).role === role,
+    );
+    const kid = JSON.parse(Buffer.from(target.certificate.payload, "base64url")).keyId;
+    target.active = false;
+    await adoptSyntheticEntries(f, entries, [kid]);
+    await assert.rejects(
+      f.session.sealSnapshot({ content: content(), source, expectedRevision: 0 }),
+      role === "device_sig" ? /key_revoked/ : /invalid_registry/,
+    );
+  }
+});
 test("copied formal schemas are byte-identical to the versioned shared producer", () => {
   assert.equal(
     createHash("sha256")

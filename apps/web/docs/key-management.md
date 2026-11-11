@@ -8,6 +8,12 @@ from an unexpected repeated-unlock bug. See the [Hub producer](../../../services
 First-use device approval, current certified writer checks and encrypted original outboxes remain
 independent safeguards. Device revocation does not revoke a Passkey or recall disclosed data.
 
+New holdings snapshots and tasks select only currently valid, unrevoked Owner device and
+recovery recipients. Public Agent history may contain expired certificates; those unrelated
+entries do not block Owner-only encryption and are never added as recipients. The current
+writer and the required device/recovery recipients must still be eligible. Historical public
+records remain intact and cannot make an expired or revoked credential valid again.
+
 ## Passkey replacement
 
 The Web client consumes the Hub-owned `folioview.vault-lifecycle.v1` API through
