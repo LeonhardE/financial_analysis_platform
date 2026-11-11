@@ -111,7 +111,10 @@ def capabilities(request: Request, user: Owner):
     _invoke(lambda: control_transport(request))
 
     def configured():
-        if os.getenv("HUB_PERSISTENT_TRANSPORT_ENABLED") != "1":
+        if (
+            os.getenv("HUB_PERSISTENT_TRANSPORT_ENABLED") != "1"
+            or os.getenv("HUB_AGENT_OWNED_CREDENTIALS_ENABLED") != "1"
+        ):
             return False
         OAuthConfig.environment()
         return True

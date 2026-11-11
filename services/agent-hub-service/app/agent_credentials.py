@@ -210,11 +210,14 @@ class AgentCredentialService(PersistentAgentService):
     def owner_setup(self, uid, vault, connection, intent):
         def read(unit):
             owner, _, _, conn = self._context(unit, uid, vault, connection)
+            previous_id = conn.get("predecessorConnectionId")
+            if previous_id is not None and stored_identity(unit, owner, vault, previous_id) is None:
+                previous_id = None
             return {
                 **snapshot(self._setup(unit, intent, owner, vault, connection, conn, live=False)),
                 "issuer": self.audience,
                 "provider": conn["provider"],
-                "predecessorConnectionId": conn.get("predecessorConnectionId"),
+                "predecessorConnectionId": previous_id,
             }
 
         return self.store.transact(read)
@@ -421,6 +424,14 @@ class AgentCredentialService(PersistentAgentService):
                 identifier(previous_id)
                 predecessor = unit.get(document_path("hub_oauth_connections", owner, previous_id))
                 prior_identity = stored_identity(unit, owner, vault, previous_id)
+                from .legacy_connections import unpaired_browser_slot
+
+                if (
+                    prior_identity is None
+                    and predecessor is not None
+                    and not unpaired_browser_slot(unit, owner, vault, predecessor)
+                ):
+                    raise StoreUnavailable
                 if (
                     previous_id == connection
                     or predecessor is None
@@ -430,8 +441,7 @@ class AgentCredentialService(PersistentAgentService):
                     )
                     or predecessor["status"] != "active"
                     or predecessor.get("transportKind") != "persistent_runtime"
-                    or prior_identity is None
-                    or "credentialLease" in prior_identity
+                    or (prior_identity is not None and "credentialLease" in prior_identity)
                 ):
                     raise StoreUnavailable
             if current is not None:

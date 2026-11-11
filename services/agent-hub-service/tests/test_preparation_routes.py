@@ -8,9 +8,9 @@ from unittest.mock import patch
 
 import test_preparations as fixtures
 from fastapi.testclient import TestClient
+from legacy_application_fixture import app
 
 from app.api import require_owner
-from app.main import app
 from app.oauth import get_oauth_service
 from app.oauth_routes import COOKIE as FLOW_COOKIE
 from app.preparations import get_preparation_service

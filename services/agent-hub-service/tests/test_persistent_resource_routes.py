@@ -55,8 +55,17 @@ class ResourceConsentRouteTests(unittest.TestCase):
 
     def test_capabilities_keep_execution_false_when_resource_control_is_activated(self):
         with (
-            patch.dict(os.environ, {"HUB_PERSISTENT_RESOURCE_CONSENTS_ENABLED": "1"}),
-            patch("app.persistent_routes.enrollment_clients", return_value=("synthetic_muse",)),
+            patch.dict(
+                os.environ,
+                {
+                    "HUB_PERSISTENT_RESOURCE_CONSENTS_ENABLED": "1",
+                    "HUB_AGENT_OWNED_CREDENTIALS_ENABLED": "1",
+                },
+            ),
+            patch(
+                "app.persistent_routes.OAuthConfig.environment",
+                return_value=SimpleNamespace(clients=[SimpleNamespace(client_id="synthetic_muse")]),
+            ),
         ):
             response = self.client.get(
                 "/api/v2/persistent-agents/capabilities", headers=self.headers
@@ -72,7 +81,10 @@ class ResourceConsentRouteTests(unittest.TestCase):
     def test_resource_flag_cannot_bypass_missing_identity_enrollment_configuration(self):
         with patch.dict(
             os.environ,
-            {"HUB_PERSISTENT_RESOURCE_CONSENTS_ENABLED": "1", "HUB_PERSISTENT_AGENTS_ENABLED": "0"},
+            {
+                "HUB_PERSISTENT_RESOURCE_CONSENTS_ENABLED": "1",
+                "HUB_AGENT_OWNED_CREDENTIALS_ENABLED": "0",
+            },
         ):
             response = self.client.post(
                 self.path + "/resource-approvals", headers=self.write_headers, json=self.body

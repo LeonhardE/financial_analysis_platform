@@ -8,9 +8,9 @@ from starlette.concurrency import run_in_threadpool
 from folioview_shared.encrypted.errors import ContractError
 from folioview_shared.http import PrivateRoute
 
+from .agent_transport import recovery_transport
 from .api import Owner, _invoke, body
 from .catalogue import CatalogueService, get_sources
-from .identity_recovery_routes import recovery_transport
 from .oauth_config import OAuthConfig
 from .persistent_execution_routes import execution_enabled
 from .persistent_plans import PersistentOwnerPlanService, PersistentPlanService
@@ -35,6 +35,7 @@ def get_plan_service():
             store,
             CatalogueService(VaultService(store), get_sources()),
             audience=config.issuer,
+            managed_only=True,
             client_ids=[c.client_id for c in config.clients],
         )
 

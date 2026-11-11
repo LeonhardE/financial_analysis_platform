@@ -25,28 +25,6 @@ class AgentHubBoundaryTests(unittest.TestCase):
             self.assertEqual(
                 set(client.get("/openapi.json").json()["paths"]),
                 {
-                    "/api/v2/executor-connections/{vault}/{connection}",
-                    "/api/v2/executor-connections/{vault}/{connection}/bindings",
-                    "/api/v2/executor-connections/{vault}/{connection}/revocations",
-                    "/api/v2/executor-connections/{vault}/{connection}/identity-operations/{operation}",
-                    "/api/v2/executor-connections/{vault}/{connection}/resource-consent",
-                    "/api/v2/executor-connections/{vault}/{connection}/resource-approvals",
-                    "/api/v2/executor-connections/{vault}/{connection}/resource-revocations",
-                    "/api/v2/executor-connections/{vault}/{connection}/resource-operations/{operation}",
-                    "/api/v2/executor-connections/{vault}/{connection}/publications",
-                    "/api/v2/executor-connections/{vault}/{connection}/publication-operations/{operation}",
-                    "/agent/v3/persistent/executor/owners/{owner}/vaults/{vault}/connections/{connection}/session",
-                    "/agent/v3/persistent/executor/owners/{owner}/vaults/{vault}/connections/{connection}/tasks",
-                    "/agent/v3/persistent/executor/owners/{owner}/vaults/{vault}/connections/{connection}/consent-receipts",
-                    "/agent/v3/persistent/executor/owners/{owner}/vaults/{vault}/connections/{connection}/runs/begin",
-                    "/agent/v3/persistent/executor/owners/{owner}/vaults/{vault}/connections/{connection}/runs/input",
-                    "/agent/v3/persistent/executor/owners/{owner}/vaults/{vault}/connections/{connection}/runs/receipt",
-                    "/agent/v3/persistent/executor/owners/{owner}/vaults/{vault}/connections/{connection}/runs/submit",
-                    "/agent/v3/persistent/executor/owners/{owner}/vaults/{vault}/connections/{connection}/runs/result-receipt",
-                    "/agent/v3/runtime/setups/{intent_id}",
-                    "/agent/v3/runtime/setups/{intent_id}/offers",
-                    "/api/v2/runtime-setups/{intent_id}",
-                    "/api/v2/runtime-setups/{intent_id}/completion",
                     "/api/v2/persistent-connections",
                     "/api/v2/persistent-connections/{connection_id}/revocations",
                     "/.well-known/oauth-authorization-server/oauth/persistent",
@@ -110,23 +88,10 @@ class AgentHubBoundaryTests(unittest.TestCase):
                     "/internal/v2/portfolio-authorities/read",
                     "/internal/v2/source-fences",
                     "/.well-known/jwks.json",
-                    "/.well-known/oauth-authorization-server",
-                    "/.well-known/oauth-protected-resource/mcp/v2",
-                    "/oauth/authorize",
-                    "/oauth/token",
-                    "/oauth/revoke",
-                    "/api/v2/agent-authorizations/{request_id}",
-                    "/api/v2/agent-authorizations/{request_id}/claim",
-                    "/api/v2/agent-authorizations/{request_id}/prepare",
-                    "/api/v2/agent-authorizations/{request_id}/prepare-encrypted",
-                    "/api/v2/agent-authorizations/{request_id}/decision",
                     "/api/v2/agent-capabilities",
-                    "/agent/v2/persistent/identity-recovery/challenges",
-                    "/agent/v2/persistent/identity-recovery/proofs",
                     "/api/v2/persistent-agents/capabilities",
                     "/api/v2/persistent-agents/{vault_id}/{connection_id}",
                     "/api/v2/persistent-agents/{vault_id}/{connection_id}/operations/{operation_id}",
-                    "/api/v2/persistent-agents/{vault_id}/{connection_id}/bindings",
                     "/api/v2/persistent-agents/{vault_id}/{connection_id}/revocations",
                     "/api/v2/persistent-agents/{vault_id}/{connection_id}/resource-consent",
                     "/api/v2/persistent-agents/{vault_id}/{connection_id}/resource-operations/{operation_id}",
@@ -135,20 +100,6 @@ class AgentHubBoundaryTests(unittest.TestCase):
                     "/api/v2/agent-connections",
                     "/api/v2/agent-connections/{connection_id}/revoke",
                     "/api/v2/agent-connections/{connection_id}/grants/{grant_id}/revoke",
-                    "/agent/v2/authorization",
-                    "/api/v2/agent-connections/{connection_id}/tasks/{task_id}/preparation-intent",
-                    "/api/v2/agent-connections/{connection_id}/tasks/{task_id}/preparation/objects/{object_id}",
-                    "/api/v2/agent-connections/{connection_id}/tasks/{task_id}/preparation/commit",
-                    "/agent/v2/tasks/{task_id}/preparation",
-                    "/agent/v2/preparations/{preparation_id}/objects/{object_id}",
-                    "/agent/v2/preparations/{preparation_id}/registries/{sequence}",
-                    "/agent/v2/tasks/{task_id}/runs",
-                    "/agent/v2/runs/{run_id}",
-                    "/agent/v2/runs/{run_id}/inputs",
-                    "/agent/v2/runs/{run_id}/registries/{sequence}",
-                    "/agent/v2/runs/{run_id}/results",
-                    "/agent/v2/results/{result_id}/revisions",
-                    "/agent/v2/runs/{run_id}/receipts/{operation}",
                     "/api/v2/results",
                     "/api/v2/results/counts",
                     "/api/v2/results/{result_id}",
@@ -198,8 +149,8 @@ class AgentHubBoundaryTests(unittest.TestCase):
             TestClient(app) as client,
         ):
             response = client.post("/mcp/v2", json={"private": "synthetic-private-marker"})
-            self.assertEqual(response.status_code, 503)
-            self.assertEqual(response.json(), {"error": "authorization_unavailable"})
+            self.assertEqual(response.status_code, 404)
+            self.assertEqual(response.json(), {"detail": "Not Found"})
             self.assertEqual(response.headers["cache-control"], "no-store")
             self.assertEqual(client.get("/health").status_code, 200)
 
@@ -223,7 +174,7 @@ class AgentHubBoundaryTests(unittest.TestCase):
                 ("GET", "/agent/v2/authorization"),
             ):
                 response = client.request(method, path)
-                self.assertEqual(response.status_code, 503, response.text)
+                self.assertEqual(response.status_code, 404, response.text)
                 self.assertEqual(response.headers["cache-control"], "no-store")
                 self.assertNotIn("credentials", response.text.lower())
 
@@ -271,3 +222,48 @@ print(json.dumps(response.json()))
             self.assertEqual(response.status_code, 404)
             self.assertEqual(response.headers["cache-control"], "no-store")
             self.assertNotIn("access-control-allow-origin", response.headers)
+
+
+class RetiredSurfaceTests(unittest.TestCase):
+    def test_old_flags_cannot_reactivate_browser_executor_or_financial_transports(self):
+        from unittest.mock import patch
+
+        from app import native_transport_routes
+
+        with (
+            patch.dict(
+                os.environ,
+                {
+                    "HUB_OAUTH_ENABLED": "1",
+                    "HUB_ENCRYPTED_ADAPTER_ENABLED": "1",
+                    "HUB_PERSISTENT_RUNTIME_ENABLED": "1",
+                    "HUB_EXECUTOR_CIPHERTEXT_ENABLED": "1",
+                    "HUB_PERSISTENT_TRANSPORT_ENABLED": "1",
+                    "HUB_PERSISTENT_MCP_ENABLED": "1",
+                    "HUB_AGENT_OWNED_CREDENTIALS_ENABLED": "0",
+                },
+            ),
+            patch.object(
+                native_transport_routes,
+                "get_store",
+                side_effect=AssertionError("retired requests cannot load storage"),
+            ),
+            TestClient(app) as client,
+        ):
+            for method, path in [
+                ("GET", "/agent/v3/runtime/controller.html"),
+                ("GET", "/agent/v3/runtime/config"),
+                ("POST", "/agent/v3/runtime/setups/old_setup/offers"),
+                ("POST", "/api/v2/runtime-setups/old_setup/completion"),
+                ("POST", "/api/v2/executor-connections/vault_A/connection_A/bindings"),
+                ("POST", "/agent/v2/persistent/identity-recovery/challenges"),
+                ("POST", "/mcp/v2"),
+                ("GET", "/oauth/authorize"),
+                ("POST", "/oauth/token"),
+                ("GET", "/agent/v2/authorization"),
+                ("POST", "/agent/v2/tasks/task_A/runs"),
+            ]:
+                response = client.request(method, path)
+                self.assertEqual(response.status_code, 404, path)
+            self.assertEqual(client.post("/mcp/v3", json={}).status_code, 503)
+            self.assertEqual(client.get("/health").status_code, 200)

@@ -80,13 +80,14 @@ def stored_run(unit, owner, vault, run):
 
 
 class PersistentExecutionService(PersistentPublicationService):
-    def __init__(self, store, catalogue, *, audience, **kwargs):
+    def __init__(self, store, catalogue, *, audience, managed_only=False, **kwargs):
         super().__init__(store, catalogue, **kwargs)
         from urllib.parse import urlsplit
 
         if not safe_https_url(audience) or urlsplit(audience).query or urlsplit(audience).fragment:
             raise ContractError("authorization_unavailable")
         self.audience = audience
+        self.managed_only = managed_only
 
     def authenticate(self, unit, owner, vault, connection, proof, path, request):
         if type(owner) is not str or re.fullmatch(r"[a-f0-9]{64}", owner) is None:
@@ -100,7 +101,11 @@ class PersistentExecutionService(PersistentPublicationService):
         if type(uid) is not str or owner_key(uid) != owner:
             raise StoreUnavailable
         actual_owner, v, registry, conn, identity = self.live(unit, uid, vault, connection)
-        if actual_owner != owner or conn["clientId"] not in self.client_ids:
+        if (
+            actual_owner != owner
+            or conn["clientId"] not in self.client_ids
+            or (self.managed_only and conn.get("credentialMode") != "agent_owned")
+        ):
             raise ContractError("key_authorization_required")
         verify_persistent_request(
             proof,

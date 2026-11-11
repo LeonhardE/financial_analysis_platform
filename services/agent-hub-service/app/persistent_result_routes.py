@@ -10,8 +10,8 @@ from starlette.concurrency import run_in_threadpool
 from folioview_shared.encrypted.errors import ContractError
 from folioview_shared.http import PrivateRoute
 
+from .agent_transport import recovery_transport
 from .api import Owner, _invoke, body
-from .identity_recovery_routes import recovery_transport
 from .inbox import _number, _protocol
 from .persistent_execution_routes import get_execution
 from .persistent_results import PersistentOwnerResultService, PersistentResultService
@@ -33,6 +33,7 @@ def get_result_writer():
             current.store,
             current.catalogue,
             audience=current.audience,
+            managed_only=True,
             client_ids=current.client_ids,
             clock=current.clock,
         )

@@ -5,8 +5,8 @@ import os
 import unittest
 from unittest.mock import patch
 
+import legacy_connection_fixture as legacy
 import test_native_transport as accounts
-import test_runtime_setup as legacy
 from fixtures import UID
 from test_oauth import CLIENT, configuration
 
@@ -30,7 +30,7 @@ class NativeCredentialTests(unittest.TestCase):
         env = patch.dict(os.environ, HUB_AGENT_OWNED_CREDENTIALS_ENABLED="1")
         env.start()
         self.addCleanup(env.stop)
-        self.case = legacy.RuntimeSetupTests()
+        self.case = legacy.LegacyConnectionFixture()
         self.case.setUp()
         self.addCleanup(self.case.doCleanups)
         self.case.enroll()
@@ -193,3 +193,55 @@ class NativeProviderTests(unittest.TestCase):
         for provider in ("other", "ChatGPT", None):
             with self.assertRaises(ValueError):
                 Client(client.client_id, client.redirects, provider=provider)
+
+
+class UnpairedBrowserMigrationTests(unittest.TestCase):
+    parent = NativeCredentialTests.parent
+    command = NativeCredentialTests.command
+
+    def setUp(self):
+        with patch.object(legacy.LegacyConnectionFixture, "register", False):
+            NativeCredentialTests.setUp(self)
+        self.domain.offer(self.token, self.setup["setupIntentId"], PACKET)
+
+    def test_uncommitted_browser_slot_gets_a_new_connection_without_inventing_old_scope(self):
+        from app.persistent_agents import stored_identity
+
+        self.assertNotEqual(self.new, self.old)
+        self.assertIsNone(
+            self.a.store.transact(
+                lambda u: stored_identity(u, self.f.owner, self.f.vault, self.old)
+            )
+        )
+        meta = self.domain.credentials.owner_setup(
+            UID, self.f.vault, self.new, self.setup["setupIntentId"]
+        )
+        self.assertIsNone(meta["predecessorConnectionId"])
+        self.assertEqual(self.parent(self.old)["status"], "active")
+        command, operation = self.command()
+        self.domain.credentials.command(UID, self.f.vault, self.new, command, operation)
+        self.assertEqual(self.parent(self.old)["status"], "revoked")
+        from app.credential_restoration import head, source
+
+        state = head(self.domain.credentials, UID, self.f.vault, self.new)
+        value = source(
+            self.domain.credentials,
+            UID,
+            self.f.vault,
+            self.new,
+            self.new,
+            state["source"]["bindingFingerprint"],
+        )
+        self.assertIsNone(value["predecessor"])
+        self.assertIsNone(value["resourceState"]["consent"])
+
+    def test_corrupt_pending_history_cannot_invalidate_the_predecessor(self):
+        path = document_path("hub_runtime_setup_heads", self.f.owner, self.f.vault, self.old)
+        self.a.store.transact(lambda u: u.put(path, {"intentId": "missing_intent_00000000001"}))
+        command, operation = self.command()
+        from app.store import StoreUnavailable
+
+        with self.assertRaises(StoreUnavailable):
+            self.domain.credentials.command(UID, self.f.vault, self.new, command, operation)
+        self.assertEqual(self.parent(self.old)["status"], "active")
+        self.assertNotIn("credentialMode", self.parent(self.new))

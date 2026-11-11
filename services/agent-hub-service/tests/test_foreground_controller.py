@@ -15,9 +15,9 @@ import test_helper as helpers
 import test_helper_runs as run_helpers
 import test_preparations as preparations
 from fastapi.testclient import TestClient
+from legacy_application_fixture import app
 from test_encrypted_schema import report_content
 
-from app.main import app
 from app.oauth import OAuthFailure, get_oauth_service
 from app.preparations import get_preparation_service
 from app.results import ResultService, get_result_service
