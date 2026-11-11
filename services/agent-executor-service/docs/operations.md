@@ -226,3 +226,21 @@ Future explicit publication uses the selected Owner-controlled publisher's keyle
 credentials, never the runtime/creator/build identities. The administrator source
 supplies its prefix-limited grants separately from workload deployment. No command
 in this guide is evidence of actual resource creation, CA trust or live readiness.
+
+## Reproducible public container environment
+
+The image fixes public `HOSTNAME=folioview-executor` so a fresh container does not
+introduce a random container ID into the exact Root-approved environment during
+initial enrollment or original-key restoration. This is an environment value, not
+the trusted VM identity: Policy still verifies Google's current project/number,
+zone/name, numeric instance ID and service account independently. HOSTNAME is not
+added to the operator override allowlist. No command/mount/debug override or
+measurement check is relaxed.
+
+After a future authorized immutable build, inspect that image's complete public
+environment, including base-image fields, the fixed hostname and exact selected
+operational variables, before preparing the Root draft. The actual Google
+`container.env`/override claims must later match it exactly; this source pin is
+not evidence that a VM has booted or been verified. See
+[Docker environment defaults](https://docs.docker.com/engine/containers/run/#environment-variables)
+and [Confidential Space workload environment](https://docs.cloud.google.com/confidential-computing/confidential-space/docs/create-customize-workloads).

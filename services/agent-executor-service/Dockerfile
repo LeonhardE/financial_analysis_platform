@@ -1,4 +1,6 @@
 FROM python:3.13-slim-bookworm
+# Keep the full attested environment reproducible across original-key restore.
+ENV HOSTNAME=folioview-executor
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONPATH=/app/common
