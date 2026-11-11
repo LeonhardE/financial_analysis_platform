@@ -76,3 +76,8 @@ Runtime builds lock the exact shared-library manifest in
 `runtime/shared-contract.integrity.json`, covered by the runtime's own integrity
 manifest. A published distribution keeps that dependency until a reviewed Hub
 rebuild; additive shared-library PRs can be checked and merged independently.
+
+The default-off [Agent-owned credential lifecycle](docs/persistent-api.md#agent-owned-credential-lifecycle)
+adds 90-day Owner-approved replacement without a separate runtime service. The
+Hub stores public authority and ciphertext; personal Agent private keys remain in
+the Agent host. Existing report history retains its original signed binding.

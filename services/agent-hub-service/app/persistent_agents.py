@@ -7,6 +7,11 @@ No bearer, execution authority or private key is stored or issued here.
 import math
 import time
 
+from folioview_shared.encrypted.agent_credentials import (
+    CREDENTIAL_BINDING_FIELDS,
+    credential_status,
+    require_current_credential,
+)
 from folioview_shared.encrypted.constants import CONTRACT_VERSION
 from folioview_shared.encrypted.crypto import _signed_parts, signing_input_fingerprint
 from folioview_shared.encrypted.errors import ContractError
@@ -27,6 +32,7 @@ from .vaults import _current, identifier
 
 MAX_IDENTITY_OPERATIONS = 2  # One enrollment and one terminal revocation.
 _FIELDS = {"identity", "binding", "revocation", "operationCount"}
+_MANAGED_FIELDS = _FIELDS | {"credentialLease", "credentialApproval"}
 _BINDING = (
     "ownerSubject",
     "vaultId",
@@ -51,12 +57,43 @@ def operation_path(owner, vault, operation):
     return document_path("hub_agent_identity_operations", owner, vault, operation)
 
 
-def stored_identity(unit, owner, vault, connection):
+def identity_history_path(owner, vault, connection, fingerprint):
+    validate_schema("Digest", fingerprint)
+    return document_path("hub_agent_identity_history", owner, vault, connection, fingerprint)
+
+
+def require_managed_credential(row, *, now, audience=None, connection=None):
+    """A disabled enrollment gate cannot undo an existing credential fence."""
+    lease = row.get("credentialLease")
+    if connection is not None:
+        if connection.get("credentialMode") == "agent_owned" and lease is None:
+            raise StoreUnavailable
+        if lease is not None and connection.get("credentialMode") != "agent_owned":
+            raise StoreUnavailable
+    if lease is not None:
+        require_current_credential(
+            lease, identity=row["identity"], audience=audience or lease["audience"], now=now
+        )
+    return row["identity"]
+
+
+def stored_identity(unit, owner, vault, connection, *, binding_fingerprint=None):
     row = unit.get(identity_path(owner, vault, connection))
+    if binding_fingerprint is not None:
+        validate_schema("Digest", binding_fingerprint)
+        if row is None or row.get("identity", {}).get("bindingFingerprint") != binding_fingerprint:
+            history = unit.get(identity_history_path(owner, vault, connection, binding_fingerprint))
+            if history is None:
+                return None
+            if type(history) is not dict or set(history) != {"record", "supersededAt"}:
+                raise StoreUnavailable
+            if type(history["supersededAt"]) is not int or history["supersededAt"] < 0:
+                raise StoreUnavailable
+            row = history["record"]
     if row is None:
         return None
     try:
-        if type(row) is not dict or set(row) != _FIELDS:
+        if type(row) is not dict or set(row) not in (_FIELDS, _MANAGED_FIELDS):
             raise StoreUnavailable
         identity = validate_persistent_schema("PersistentAgentIdentity", row["identity"])
         validate_schema("SignedObject", row["binding"])
@@ -71,6 +108,35 @@ def stored_identity(unit, owner, vault, connection):
             or identity["registeredAt"] != binding["issuedAt"]
             or binding["identityEpoch"] != 1
             or type(row["operationCount"]) is not int
+        ):
+            raise StoreUnavailable
+        if set(row) == _MANAGED_FIELDS:
+            lease = validate_persistent_schema("AgentCredentialLease", row["credentialLease"])
+            validate_schema("SignedObject", row["credentialApproval"])
+            _, approval = _signed_parts(row["credentialApproval"])
+            validate_persistent_schema("AgentCredentialApproval", approval)
+            credential_status(lease, now=lease["issuedAt"])
+            if (
+                lease["credentialFingerprint"]
+                != signing_input_fingerprint(row["credentialApproval"])
+                or any(
+                    lease[k] != approval[k]
+                    for k in lease
+                    if k not in {"status", "credentialFingerprint"}
+                )
+                or any(
+                    lease[k] != binding[k]
+                    for k in CREDENTIAL_BINDING_FIELDS
+                    if k != "bindingFingerprint"
+                )
+                or lease["bindingFingerprint"] != identity["bindingFingerprint"]
+                or lease["issuedAt"] < identity["registeredAt"]
+                or lease["status"] != identity["status"]
+            ):
+                raise StoreUnavailable
+        if (
+            binding_fingerprint is not None
+            and identity["bindingFingerprint"] != binding_fingerprint
         ):
             raise StoreUnavailable
         if identity["status"] == "active":
@@ -273,7 +339,11 @@ class PersistentAgentService:
                     "revocation": snapshot(signed),
                     "operationCount": 2,
                 }
+                if "credentialLease" in row:
+                    row["credentialLease"] = {**row["credentialLease"], "status": "revoked"}
             else:
+                if conn.get("credentialMode") == "agent_owned":
+                    raise ContractError("version_conflict")
                 if conn["status"] != "active" or conn["clientId"] not in self.client_ids:
                     raise ContractError("key_authorization_required")
                 verified = verify_agent_identity_binding(

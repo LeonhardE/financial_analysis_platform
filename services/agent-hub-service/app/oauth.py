@@ -691,6 +691,11 @@ class OAuthService(OwnerConnectionService):
                 ):
                     raise ContractError("not_found")
                 row["connectionId"] = connection_id
+            if conn and (
+                conn.get("credentialMode") == "agent_owned"
+                or conn.get("transportKind") == "persistent_runtime"
+            ):
+                raise ContractError("version_conflict")
             generation = conn["authorizationCount"] + 1 if conn else 1
             if generation > MAX_AUTHORIZATIONS:
                 raise ContractError("version_conflict")
@@ -944,6 +949,8 @@ class OAuthService(OwnerConnectionService):
             or conn["status"] != "active"
             or conn["authorizationId"] != context["authorizationId"]
             or conn["expiresAt"] <= now
+            or conn.get("credentialMode") == "agent_owned"
+            or conn.get("transportKind") == "persistent_runtime"
         ):
             return False
         return True
@@ -1042,6 +1049,10 @@ class OAuthService(OwnerConnectionService):
         if scope is not None and scope not in record["scope"].split():
             raise OAuthFailure("insufficient_scope", 403)
         conn = _row(unit, "hub_oauth_connections", record["ownerSubject"], record["connectionId"])
+        if conn.get("credentialMode") == "agent_owned":
+            # Native bootstrap uses its separate transport and credential tables.
+            # Every legacy financial consumer must recheck this in its final transaction.
+            raise OAuthFailure("invalid_token", 401)
         owner = _row(unit, "hub_oauth_owners", record["ownerSubject"])
         if owner is None or owner_key(owner["ownerUid"]) != record["ownerSubject"]:
             raise StoreUnavailable

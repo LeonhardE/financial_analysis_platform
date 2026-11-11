@@ -17,7 +17,13 @@ from folioview_shared.encrypted.persistent_agents import (
 from folioview_shared.encrypted.schema import safe_https_url, validate_schema
 from folioview_shared.identity import owner_key
 
-from .persistent_agents import PersistentAgentService, linked_connection, snapshot, stored_identity
+from .persistent_agents import (
+    PersistentAgentService,
+    linked_connection,
+    require_managed_credential,
+    snapshot,
+    stored_identity,
+)
 from .store import StoreUnavailable, document_path
 from .vaults import _current, identifier
 
@@ -74,6 +80,7 @@ class IdentityRecoveryService(PersistentAgentService):
             raise StoreUnavailable
         if identity["status"] != "active":
             raise ContractError("key_authorization_required")
+        require_managed_credential(row, now=self.now(), audience=self.audience, connection=conn)
         _agent_keys(identity, registry, self.now())
         return identity, registry
 

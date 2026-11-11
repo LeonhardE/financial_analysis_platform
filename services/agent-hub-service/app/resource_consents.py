@@ -14,7 +14,12 @@ from folioview_shared.encrypted.resource_consents import (
 from folioview_shared.encrypted.schema import validate_schema
 
 from .fences import require_current_bindings
-from .persistent_agents import PersistentAgentService, snapshot, stored_identity
+from .persistent_agents import (
+    PersistentAgentService,
+    require_managed_credential,
+    snapshot,
+    stored_identity,
+)
 from .preparations import source_versions
 from .store import StoreUnavailable, document_path
 from .vaults import identifier
@@ -24,8 +29,20 @@ MAX_CONSENT_REVOCATIONS = 32
 MAX_CONSENT_OPERATIONS = MAX_CONSENT_APPROVALS + MAX_CONSENT_REVOCATIONS
 
 
-def consent_path(owner, vault, connection):
-    return document_path("hub_resource_consents", owner, vault, connection)
+def consent_path(owner, vault, connection, binding_fingerprint=None):
+    parts = (owner, vault, connection)
+    if binding_fingerprint is not None:
+        validate_schema("Digest", binding_fingerprint)
+        parts += (binding_fingerprint,)
+    return document_path("hub_resource_consents", *parts)
+
+
+def current_consent_path(unit, owner, vault, connection):
+    identity = stored_identity(unit, owner, vault, connection)
+    fingerprint = None
+    if identity is not None and "credentialLease" in identity:
+        fingerprint = identity["identity"]["bindingFingerprint"]
+    return consent_path(owner, vault, connection, fingerprint)
 
 
 def operation_path(owner, vault, operation):
@@ -33,7 +50,7 @@ def operation_path(owner, vault, operation):
 
 
 def stored_consent(unit, owner, vault, connection):
-    row = unit.get(consent_path(owner, vault, connection))
+    row = unit.get(current_consent_path(unit, owner, vault, connection))
     if row is None:
         return None
     try:
@@ -81,8 +98,12 @@ class ResourceConsentService(PersistentAgentService):
         identity = row["identity"]
         if identity["clientId"] != conn["clientId"]:
             raise StoreUnavailable
-        if active and (identity["status"] != "active" or conn["status"] != "active"):
-            raise ContractError("key_authorization_required")
+        if active:
+            if identity["status"] != "active" or conn["status"] != "active":
+                raise ContractError("key_authorization_required")
+            require_managed_credential(
+                row, now=self.now(), audience=getattr(self, "audience", None), connection=conn
+            )
         return identity
 
     def state(self, uid, vault_id, connection):
@@ -280,7 +301,7 @@ class ResourceConsentService(PersistentAgentService):
                 "consent": policy,
             }
             unit.put(
-                consent_path(owner, vault_id, connection),
+                current_consent_path(unit, owner, vault_id, connection),
                 {
                     "consent": policy,
                     "operations": operations,
