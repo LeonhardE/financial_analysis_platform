@@ -53,13 +53,15 @@ def synthetic_registry(root):
     write("scripts/service-targets.json", json.dumps(data))
     write("services/common/pyproject.toml")
     write("services/common/tests/test_common.py", "import unittest\n")
+    original = first.load_registry(ROOT).by_id
     for target in data["targets"]:
         directory = target["directory"]
+        if target["id"] in original and not original[target["id"]].source_present:
+            write(directory + "/README.md", "Retired metadata tombstone.\n")
+            continue
         write(directory + "/Dockerfile")
         write(target["cloudbuild"])
         if target["kind"] == "backend":
-            if target.get("runtime") == "confidential_vm":
-                write(directory + "/app/health_check.py", "# Offline probe fixture\n")
             for name in (
                 "app/main.py",
                 "requirements.txt",
