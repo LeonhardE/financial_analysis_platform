@@ -49,8 +49,6 @@ services/user-service/           Verified identity and private watchlist members
 services/config-service/         Versioned private preferences
 services/portfolio-service/      Encrypted holdings snapshots and source lifecycle
 services/agent-hub-service/      Vaults, tasks, agent authority, Runs, results and Inbox
-services/agent-policy-service/   Independent Root-approved OAuth, leases and key-release policy (build-only)
-services/agent-executor-service/ Measured original-key recovery and encrypted state (Confidential VM, build-only)
 services/common/                 Shared Python authentication and encrypted wire contracts
 scripts/                         Registered targets, isolated tests and CI/security tooling
 infra/gcp/                       Independent Cloud Build releases and reviewed Terraform execution
@@ -74,9 +72,6 @@ services/market-data-service/.venv/bin/pip install \
   -r services/portfolio-service/requirements-dev.txt \
   -r services/agent-hub-service/requirements-dev.txt \
   -e ./services/common
-# Install the new independent policy target dependencies into the check environment.
-services/market-data-service/.venv/bin/pip install -r services/agent-policy-service/requirements-dev.txt
-services/market-data-service/.venv/bin/pip install -r services/agent-executor-service/requirements-dev.txt
 ```
 
 The shared development environment retains its established path. Production images install their
@@ -89,18 +84,18 @@ Start each needed backend in a separate terminal, changing the service directory
 PYTHONPATH=services/common services/market-data-service/.venv/bin/uvicorn app.main:app --app-dir services/market-data-service --env-file services/market-data-service/.env --reload --port 8000
 ```
 
-| Backend directory      | Suggested local port | Details                                                              |
-| ---------------------- | -------------------- | -------------------------------------------------------------------- |
-| `market-data-service`  | 8000                 | [Market](services/market-data-service/README.md)                     |
-| `user-service`         | 8001                 | [User](services/user-service/README.md)                              |
-| `config-service`       | 8002                 | [Config](services/config-service/README.md)                          |
-| `portfolio-service`    | 8003                 | [Portfolio](services/portfolio-service/README.md)                    |
-| `agent-hub-service`    | 8004                 | [Agent Hub](services/agent-hub-service/README.md)                    |
-| `agent-policy-service` | 8005                 | [Agent Policy](services/agent-policy-service/README.md) (build-only) |
+| Backend directory     | Suggested local port | Details                                           |
+| --------------------- | -------------------- | ------------------------------------------------- |
+| `market-data-service` | 8000                 | [Market](services/market-data-service/README.md)  |
+| `user-service`        | 8001                 | [User](services/user-service/README.md)           |
+| `config-service`      | 8002                 | [Config](services/config-service/README.md)       |
+| `portfolio-service`   | 8003                 | [Portfolio](services/portfolio-service/README.md) |
+| `agent-hub-service`   | 8004                 | [Agent Hub](services/agent-hub-service/README.md) |
 
-The [Confidential VM executor](services/agent-executor-service/README.md) is build-only.
-Its offline probe runs without cloud credentials; normal startup restores the original keys
-and binds TLS inside the measured workload on port 8443. It is not a local Cloud Run API.
+The standalone [Policy](services/agent-policy-service/README.md) and
+[Confidential VM Executor](services/agent-executor-service/README.md) routes are retired.
+Their metadata and historical documents do not add production services. The current
+Agent-owned credential route uses the existing Web, five services and storage.
 
 ```bash
 npm run dev:web

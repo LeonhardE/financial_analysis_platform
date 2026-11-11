@@ -27,6 +27,7 @@ def write_registry_fixture(
 ) -> dict:
     """Create marker files without starting a service, image build or cloud client."""
     document = json.loads((ROOT / REGISTRY_PATH).read_text())
+    original = load_registry(ROOT).by_id
     if extra_backend or extra_vm:
         document["targets"].append(
             {
@@ -43,6 +44,9 @@ def write_registry_fixture(
     for row in document["targets"]:
         directory = root / row["directory"]
         directory.mkdir(parents=True, exist_ok=True)
+        if row["id"] in original and not original[row["id"]].source_present:
+            (directory / "README.md").write_text("Retired metadata tombstone.\n")
+            continue
         (directory / "Dockerfile").write_text("FROM scratch\n")
         test_directory = directory / "tests"
         test_directory.mkdir()
@@ -95,14 +99,22 @@ class RegistryTests(unittest.TestCase):
         document = json.loads((ROOT / REGISTRY_PATH).read_text())
         self.assertEqual(
             registry.backend_ids,
-            tuple(row["id"] for row in document["targets"] if row["kind"] == "backend"),
+            tuple(
+                row["id"]
+                for row in document["targets"]
+                if row["kind"] == "backend" and registry.by_id[row["id"]].source_present
+            ),
         )
         self.assertEqual(registry.web.directory, "apps/web")
         for target in registry.targets:
-            self.assertTrue((ROOT / target.dockerfile).is_file())
-            self.assertTrue((ROOT / target.cloudbuild).is_file())
             self.assertIs(registry.by_service[target.service], target)
-            self.assertEqual(registry.cloudbuild_targets[target.cloudbuild], target.id)
+            if target.source_present:
+                self.assertTrue((ROOT / target.dockerfile).is_file())
+                self.assertTrue((ROOT / target.cloudbuild).is_file())
+                self.assertEqual(registry.cloudbuild_targets[target.cloudbuild], target.id)
+            else:
+                self.assertEqual(target.release_mode, "retired")
+                self.assertNotIn(target.cloudbuild, registry.cloudbuild_targets)
 
     def test_new_backend_registration_participates_in_immutable_views_without_hardcoded_list(self):
         new = copy.deepcopy(self.document["targets"][0])

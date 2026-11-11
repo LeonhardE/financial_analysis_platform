@@ -25,24 +25,17 @@ changes reach `main`. Each configuration builds and explicitly pushes a unique
 usable through **Run trigger**, with the `main` branch selected. During migration,
 the backend configurations stop after publishing that image.
 
-## Confidential VM build and release tooling
+## Retired confidential execution route
 
-[Confidential VM source and release review](docs/confidential-vm-releases.md)
-describes the optional registry runtime, isolated offline health probe and
-`confidential_vm_release.py` preparation/validation/observation commands. Existing
-Cloud Run registrations and release behavior remain compatible. This foundation
-adds no VM/service registration, cloud resources or automatic deployment rights.
+The unused standalone Policy and Confidential VM Executor targets are terminally
+retired in repository policy. Their dedicated VM release preparation tool has
+been removed; the [historical boundary](docs/confidential-vm-releases.md) is kept
+for old references. They cannot enter existing-service release or first provision.
 
-The [independent Policy base](terraform/envs/prod/agent-policy/README.md) prepares
-INF-011 D1 under a separately trusted Owner project/state. Its default stage is
-inert; ordered full resources/base plans retain closed authority/release gates.
-It is outside the routine operator pipeline. Actual independent approval-lane
-bootstrap, exact workload binding and live IAM/recovery acceptance remain separate.
-
-The [Executor infrastructure source](terraform/envs/prod/agent-executor/README.md)
-prepares INF-012 D2 with inert defaults, separate creation/runtime identities,
-immutable recovery state and TCP forwarding to original TLS inside the TEE.
-Its mocked plans do not establish actual provisioning, attestation or online acceptance.
+The current route uses the existing Web, five backend services and storage.
+Target-owned source and infra are removed through separate retirement PRs; general
+saved-plan and Owner lane tooling remains available for supported targets. Source
+retirement never applies a Terraform destroy or removes cloud history.
 
 ## CI target selection
 
