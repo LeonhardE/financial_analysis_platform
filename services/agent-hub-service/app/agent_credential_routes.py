@@ -106,3 +106,29 @@ async def approve(vault: str, connection: str, request: Request, user: Owner, se
             user.uid, vault, connection, value["command"], request.headers["idempotency-key"]
         ),
     )
+
+
+@router.get("/{vault}/{connection}/restoration")
+def restoration_head(vault: str, connection: str, request: Request, user: Owner, service: Service):
+    from .credential_restoration import head
+
+    _invoke(lambda: control_transport(request))
+    return _invoke(lambda: head(service, user.uid, vault, connection))
+
+
+@router.get("/{vault}/{connection}/restoration/{source_connection}/{fingerprint}")
+def restoration_source(
+    vault: str,
+    connection: str,
+    source_connection: str,
+    fingerprint: str,
+    request: Request,
+    user: Owner,
+    service: Service,
+):
+    from .credential_restoration import source
+
+    _invoke(lambda: control_transport(request))
+    return _invoke(
+        lambda: source(service, user.uid, vault, connection, source_connection, fingerprint)
+    )

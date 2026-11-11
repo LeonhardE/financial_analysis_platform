@@ -618,3 +618,32 @@ commit validates the server-recorded predecessor and revokes its parent atomical
 failed approval does neither. Old identity/report records are retained. Later
 managed renewal reuses the managed slot with a new generation and fresh key pair.
 This is default-off source preparation, not deployed host/provider acceptance.
+
+## Owner restoration lineage
+
+Credential replacement atomically stores a public `hub_credential_lineage` entry
+alongside the new identity, archived prior identity and original receipt. Its
+predecessor is selected from the transaction's current credential or the trusted
+native legacy-migration record. The Agent cannot submit this pointer. Managed
+links must match the signed lease generation/previous credential fingerprint;
+missing later-generation links and corrupt associations fail closed.
+
+Owner-only reads use `/api/v3/agent-credentials/{vault}/{connection}/restoration`
+for the current source descriptor, and `/restoration/{sourceConnection}/{bindingFingerprint}`
+for one bounded public source. The latter contains the historical binding,
+optional signed lease, original resource-consent state/operation IDs and prior
+source pointer, with `historical=true` when superseded. It is limited to the same
+Owner/vault/preregistered client/provider and never returns private keys, bearer
+credentials or plaintext resources. Existing Owner resource-operation endpoints
+return each immutable signed approval/revocation receipt, including after Agent
+expiry or replacement.
+
+A reviewed Owner client follows at most 32 unique links, verifies the Root-bound
+identity/lease and exact consent chain, and lets newer revocations override older
+scope. New permission requires explicit Owner approval and fresh publication to
+current Agent keys. Historical reads do not authorize old Agents, restore
+permissions by themselves, or reassign tasks already moved to another connection.
+The Owner uses the existing Passkey and encrypted resource/task copies. Recovery
+therefore does not require an old Agent key file or a pending record in the
+current browser. Unfinished renewals retain predecessor references for a later
+retry without resetting any consent/revocation ledger.

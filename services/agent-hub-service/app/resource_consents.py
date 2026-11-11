@@ -49,8 +49,19 @@ def operation_path(owner, vault, operation):
     return document_path("hub_resource_consent_operations", owner, vault, operation)
 
 
-def stored_consent(unit, owner, vault, connection):
-    row = unit.get(current_consent_path(unit, owner, vault, connection))
+def stored_consent(unit, owner, vault, connection, *, binding_fingerprint=None):
+    if binding_fingerprint is None:
+        path = current_consent_path(unit, owner, vault, connection)
+    else:
+        identity = stored_identity(
+            unit, owner, vault, connection, binding_fingerprint=binding_fingerprint
+        )
+        if identity is None:
+            raise ContractError("not_found")
+        path = consent_path(
+            owner, vault, connection, binding_fingerprint if "credentialLease" in identity else None
+        )
+    row = unit.get(path)
     if row is None:
         return None
     try:

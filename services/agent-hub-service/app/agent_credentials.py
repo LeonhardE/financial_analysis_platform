@@ -465,6 +465,18 @@ class AgentCredentialService(PersistentAgentService):
                     {**predecessor, "status": "revoked", "supersededByConnectionId": connection},
                 )
             next_conn = {k: v for k, v in conn.items() if k != "predecessorConnectionId"}
+            from .credential_restoration import write_lineage
+
+            write_lineage(
+                unit,
+                owner,
+                vault,
+                connection,
+                row,
+                current
+                if current is not None
+                else (prior_identity if predecessor is not None else None),
+            )
             unit.put(identity_path(owner, vault, connection), row)
             unit.put(
                 document_path("hub_oauth_connections", owner, connection),

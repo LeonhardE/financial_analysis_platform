@@ -121,9 +121,9 @@ class AgentCredentialTests(unittest.TestCase):
             lambda u: stored_identity(u, self.f.owner, self.f.vault, identities.CONNECTION)
         )
 
-    def fresh_keys(self):
+    def fresh_keys(self, label="second"):
         self.fx.now += 1
-        self.agent, self.signing, self.encryption = "second_agent", "second_sig", "second_enc"
+        self.agent, self.signing, self.encryption = f"{label}_agent", f"{label}_sig", f"{label}_enc"
         self.f.add_key(self.signing, "agent_sig", self.agent, identities.CONNECTION)
         self.f.add_key(self.encryption, "agent_enc", self.agent, identities.CONNECTION)
         bundle = self.f.make_bundle(previous=self.f.registry, issued_at=self.fx.now)
@@ -139,7 +139,9 @@ class AgentCredentialTests(unittest.TestCase):
                 "expectedVersion": version,
                 "registryBundle": bundle,
             },
-            "synthetic_credential_registry_0001",
+            "synthetic_credential_registry_0001"
+            if label == "second"
+            else f"synthetic_credential_registry_{label}_0001",
         )
         self.f.bundle, self.f.registry = bundle, registry
 

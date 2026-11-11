@@ -76,6 +76,8 @@ class AgentHubBoundaryTests(unittest.TestCase):
                     "/api/v2/persistent-content/{vault_id}/connections/{connection_id}/publications",
                     "/api/v2/persistent-content/{vault_id}/tasks/{task_id}/authority",
                     "/api/v2/persistent-content/{vault_id}/connections/{connection_id}/operations/{operation_id}",
+                    "/api/v3/agent-credentials/{vault}/{connection}/restoration",
+                    "/api/v3/agent-credentials/{vault}/{connection}/restoration/{source_connection}/{fingerprint}",
                     "/api/v3/agent-credentials/capabilities",
                     "/api/v3/agent-credentials/{vault}/{connection}",
                     "/api/v3/agent-credentials/{vault}/{connection}/setups/{intent}",
