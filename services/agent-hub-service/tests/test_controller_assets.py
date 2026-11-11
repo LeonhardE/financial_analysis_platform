@@ -7,8 +7,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from fastapi.testclient import TestClient
-
-from app.main import app
+from legacy_application_fixture import app
 
 
 class ControllerAssetsTests(unittest.TestCase):

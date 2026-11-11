@@ -185,7 +185,7 @@ class OwnerConnectionRolloutTests(unittest.TestCase):
         )
         self.assertEqual(response.headers["cache-control"], "no-store")
 
-    def test_capabilities_require_both_exact_gates_and_valid_configuration(self):
+    def test_retired_capability_cannot_be_enabled_by_old_flags_or_configuration(self):
         valid = {
             "HUB_OAUTH_ENABLED": "1",
             "HUB_ENCRYPTED_ADAPTER_ENABLED": "1",
@@ -203,7 +203,7 @@ class OwnerConnectionRolloutTests(unittest.TestCase):
                 ]
             ),
         }
-        variants = [({}, True)]
+        variants = [({}, False)]
         for key in ("HUB_OAUTH_ENABLED", "HUB_ENCRYPTED_ADAPTER_ENABLED"):
             variants.extend(({key: value}, False) for value in ("0", "true", "", "2"))
         variants.extend(

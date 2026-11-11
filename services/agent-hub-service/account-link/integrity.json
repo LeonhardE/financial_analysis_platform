@@ -1,0 +1,12 @@
+{
+  "accountLinkVersion": "1.0.0",
+  "files": {
+    "src/account-bridge.mjs": "b7bbaad10629577f8eed35f7e17b5ab6cac0db9e2d600bc066108e38e5fa4c1d",
+    "dist/account-bridge.mjs": "b7bbaad10629577f8eed35f7e17b5ab6cac0db9e2d600bc066108e38e5fa4c1d",
+    "src/account-consent-page.mjs": "8f712b8ca173227592031ff5091082761d5c8d08252e34baa679460578f0b3bb",
+    "dist/account-consent-page.mjs": "8f712b8ca173227592031ff5091082761d5c8d08252e34baa679460578f0b3bb",
+    "static/consent.html": "0b58af86eb6ebbbf78b287452b80cfec2309980379b1e6a15e76af48918e67ab",
+    "static/account.css": "3f1367481f1fe2535833733dbb72dfaf52f99dae27cf2cc50c7a1947c3410d2f",
+    "build.mjs": "614cc8b91663ceb20de28b03d4fd7604dfe1aa000aa11aeeae468dc25ba84c6c"
+  }
+}

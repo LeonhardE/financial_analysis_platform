@@ -9,7 +9,6 @@ from fixtures import UID
 from test_persistent_identity_store import CONNECTION
 
 from app.agent_credentials import AgentCredentialService
-from app.identity_recovery import IdentityRecoveryService
 from app.native_transport import SCOPE
 from app.oauth import OAuthFailure
 from app.persistent_agents import identity_path
@@ -90,7 +89,7 @@ class CredentialExecutionFenceTests(unittest.TestCase):
 
         h.store.transact(seed)
 
-    def test_expired_lease_denies_session_and_recovery_without_marking_owner_state(self):
+    def test_expired_lease_denies_session_without_marking_owner_state(self):
         h = self.helper
         before = h.row()
         session = self.result.x.service.session(*self.result.x.args("session", {}))
@@ -100,11 +99,6 @@ class CredentialExecutionFenceTests(unittest.TestCase):
         h.fx.now = before["credentialLease"]["expiresAt"]
         with self.assertRaises(ContractError):
             self.result.x.service.session(*self.result.x.args("session", {}))
-        recovery = IdentityRecoveryService(
-            h.store, audience=AUDIENCE, client_ids=[h.conn["clientId"]], clock=lambda: h.fx.now
-        )
-        with self.assertRaises(ContractError):
-            recovery.challenge(h.f.owner, h.f.vault, CONNECTION, h.conn["clientId"])
         self.assertEqual(h.row(), before)
 
     def test_expiry_between_source_read_and_final_write_cannot_save_result(self):
@@ -206,3 +200,27 @@ class CredentialOAuthFenceTests(unittest.TestCase):
             f.service.authenticate(refreshed["access_token"]).connection_id, principal.connection_id
         )
         self.assertEqual(f.store.transact(lambda u: u.get(path))["credentialMode"], "agent_owned")
+
+
+class CurrentEndpointIdentityTests(unittest.TestCase):
+    def test_current_execution_rejects_a_valid_legacy_identity_without_an_owned_lease(self):
+        import test_persistent_execution as executions
+
+        from app.persistent_execution import PersistentExecutionService
+
+        case = executions.PersistentExecutionTests()
+        case.setUp()
+        self.addCleanup(case.doCleanups)
+        args = case.args("session", {})
+        self.assertIsNotNone(case.service.session(*args)["identity"])
+        current = PersistentExecutionService(
+            case.fx.store,
+            case.fx.catalogue,
+            audience=case.service.audience,
+            client_ids=case.service.client_ids,
+            clock=case.service.clock,
+            managed_only=True,
+        )
+        with self.assertRaises(ContractError) as error:
+            current.session(*args)
+        self.assertEqual(error.exception.code, "key_authorization_required")

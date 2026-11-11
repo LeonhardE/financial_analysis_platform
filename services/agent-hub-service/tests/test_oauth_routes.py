@@ -316,7 +316,7 @@ class OAuthTransportTests(unittest.TestCase):
         self.assertEqual(resource.json()["resource"], ISSUER + "/mcp/v2")
 
 
-class OAuthProductionAppTests(unittest.TestCase):
+class HistoricalOAuthFixtureTests(unittest.TestCase):
     """Real ASGI and SQLite lifecycle, with only Firebase verification simulated."""
 
     def setUp(self):
@@ -325,9 +325,9 @@ class OAuthProductionAppTests(unittest.TestCase):
         from unittest.mock import patch
 
         from fixtures import BOOT, OTHER_UID, UID
+        from legacy_application_fixture import app
         from test_task_routes import HttpTaskFixture, NoSources
 
-        from app.main import app
         from app.oauth import OAuthService
         from app.oauth_config import Client, OAuthConfig
         from app.store import SQLiteHubStore

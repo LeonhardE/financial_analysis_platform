@@ -51,7 +51,7 @@ class PersistentRouteTests(unittest.TestCase):
                 headers={**self.headers, "Idempotency-Key": SYNTHETIC_OPERATION},
                 json={"contractVersion": CONTRACT_VERSION, "command": {}},
             )
-        self.assertEqual(response.status_code, 503)
+        self.assertEqual(response.status_code, 404)
         self.assertEqual(self.calls, [])
         self.assertNotIn("command", response.text)
 

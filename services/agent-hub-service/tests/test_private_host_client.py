@@ -7,9 +7,10 @@ import unittest
 from unittest.mock import patch
 from urllib.parse import parse_qs, urlsplit
 
+import private_client_fixture as sessions
+import test_encrypted_schema as payloads
 import test_persistent_identity_store as identities
 import test_persistent_publications as publications
-import test_runtime_session as sessions
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from fixtures import UID
 from jwcrypto import jwk
@@ -19,6 +20,7 @@ from test_persistent_identity_store import CONNECTION
 
 from app.native_transport import SCOPE
 from app.persistent_agents import identity_path
+from app.persistent_results import PersistentOwnerResultService
 from app.resource_consents import current_consent_path, stored_consent
 from app.store import document_path
 from folioview_shared.encrypted.agent_credentials import (
@@ -29,13 +31,12 @@ from folioview_shared.encrypted.crypto import _signed_parts, verify_jws
 from folioview_shared.encrypted.jsonutil import b64url_decode, b64url_encode, canonical_json
 from folioview_shared.encrypted.persistent_content import open_persistent_content
 
-payloads = sessions.private_payloads
 ORIGIN = sessions.ORIGIN
 
 
 class PrivateHostClientTests(unittest.TestCase):
-    configure_execution = sessions.PersistentRuntimeSessionTests.configure_execution
-    handle = sessions.PersistentRuntimeSessionTests.handle
+    configure_execution = sessions.PrivateClientServiceFixture.configure_execution
+    handle = sessions.PrivateClientServiceFixture.handle
 
     def setUp(self):
         scratch = tempfile.TemporaryDirectory()
@@ -263,9 +264,9 @@ class PrivateHostClientTests(unittest.TestCase):
         result = self.peer.call("submit", args)
         self.assertEqual(result["state"], "saved")
         self.assertEqual(self.ciphertexts[0], self.ciphertexts[1])
-        saved = sessions.PersistentOwnerResultService(
-            self.fx.store, clock=lambda: self.fx.now
-        ).owner_get(UID, self.f.vault, result["resultId"])
+        saved = PersistentOwnerResultService(self.fx.store, clock=lambda: self.fx.now).owner_get(
+            UID, self.f.vault, result["resultId"]
+        )
         _, signed = _signed_parts(saved["envelope"]["proof"])
         opened = open_persistent_content(
             saved["envelope"]["jwe"], self.f.keys["recovery_enc"], context=signed["context"]

@@ -11,8 +11,9 @@ content decryption authority are separate. Market, User and Portfolio remain ind
 | ---------------------------------------------- | ----------------------------------------------------------------------------------- |
 | [Owner API](docs/owner-api.md)                 | Vaults, resource discovery, encrypted tasks, source fences and owner Inbox          |
 | [Key management](docs/key-management.md)       | Root trust, archive replacement/removal, recovery and operational renewal           |
-| [Persistent API](docs/persistent-api.md)       | Stable identity, consent, publications, independent executors, reports and plans    |
-| [Persistent runtime](docs/runtime.md)          | Native OAuth, pairing, protected key storage, fixed browser runtime and scheduling  |
+| [Persistent API](docs/persistent-api.md)       | Credentials, consent, publications, encrypted reports and plans                     |
+| [Personal Agent host](docs/agent-client.md)    | Private credentials, Node/POSIX client and native schedule contract                 |
+| [Account transport](docs/runtime.md)           | Native bootstrap, reviewed Owner handoff and retired browser route                  |
 | [Legacy foreground](docs/legacy-foreground.md) | Retained P1/v2 OAuth, preparations, helper releases, Runs and receipt compatibility |
 
 Shared wire formats belong to [the encrypted contract](../common/folioview_shared/encrypted/README.md).
@@ -22,21 +23,20 @@ files to this directory. Commit history and changelog retain delivery history.
 
 ## Current implementation and activation
 
-Persistent producers, the fixed runtime, approved-version publication and owner Inbox consumers
-are implemented. The intended flow retains one connection and selected-resource permission,
-reuses one unlock per supported login session, and reports exact input versions. Owner resource
-updates synchronize while visible and unlocked; native execution uses already synchronized,
-approved versions after owner sign-out.
+The current route uses personal Agent-owned credentials with a 90-day maximum,
+seven-day notice and explicit reauthorization after loss/expiry. Muse and ChatGPT
+have separate logical connections. Owner approval uses the existing login and Passkey;
+private Agent keys stay on the host. Hub stores public authority and ciphertext only.
 
-Feature gates default off. Reviewed activation is separate from code delivery. Real Muse pairing,
-protected-host restart, actual native plan installation and cross-day encrypted results still
-require owner-led acceptance. Agent-reported plan state and actual Run/report receipts are
-different evidence. No fixed browser asset or identity-only receipt grants financial access.
+New capability flags default off. The default path has no browser Agent runtime,
+Policy service, dedicated executor, VM, TCP proxy or new project. The service's actual
+MCP surface is bootstrap-only `/mcp/v3`; financial requests require a current Agent
+proof and managed lease. Legacy financial OAuth/MCP and helper/runtime entry points
+are not mounted. Historical Owner Inbox, immutable receipts and narrowing controls remain.
 
-The [independent executor ciphertext adapter](docs/persistent-api.md#independent-executor-ciphertext)
-has its own default-off gate and public channel configuration. It accepts Root-approved executor
-parents without Muse OAuth records, reuses frozen Run inputs and original report receipts, and
-keeps the existing owner Inbox format. It supplies no private keys, attestation or plaintext lease.
+Real host retention, native plans, Owner-offline execution and cross-day encrypted
+results require the separate live acceptance stage. Native plan statements and actual
+Hub reports are different evidence; source tests do not claim native schedule attestation.
 
 ## Local development and verification
 
@@ -62,8 +62,8 @@ explicit named Firestore database; default DB, SQLite and emulator configuration
 Opaque fields use declared index exemptions. Per-object/document budgets and bounded histories
 fail closed without deleting revocations or resetting trust pins. See the guides for exact limits.
 
-The container runs as UID 10001 with access logging disabled. It distributes checked browser
-assets and third-party notices, never a backend decrypting process. No application endpoint
+The container runs as UID 10001 with access logging disabled. It distributes the checked private client, account window
+and required third-party notices, never a backend decrypting process. No application endpoint
 provisions cloud resources or grants IAM. [Hub infrastructure](../../infra/gcp/terraform/envs/prod/agent-hub/README.md)
 owns per-target deployment, storage and the default-off `persistent_mode_enabled` input.
 
@@ -72,10 +72,10 @@ guarded existing-service release helper. `_DEPLOY_SERVICE` defaults to `false` i
 reviewed deployed trigger controls actual image release. Verify source commit, image digest,
 ready revision and traffic through the [delivery guide](../../infra/gcp/README.md).
 
-Runtime builds lock the exact shared-library manifest in
-`runtime/shared-contract.integrity.json`, covered by the runtime's own integrity
-manifest. A published distribution keeps that dependency until a reviewed Hub
-rebuild; additive shared-library PRs can be checked and merged independently.
+The private-client distribution locks its shared dependency in
+`agent-client/shared-contract.integrity.json`. The account-link window contains
+first-party modules only. Historical helper source/releases and required notices
+remain for supported-format fixtures, and are not copied into the production image.
 
 The default-off [Agent-owned credential lifecycle](docs/persistent-api.md#agent-owned-credential-lifecycle)
 adds 90-day Owner-approved replacement without a separate runtime service. The

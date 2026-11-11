@@ -7,10 +7,10 @@ from unittest.mock import patch
 
 import test_results as fixtures
 from fastapi.testclient import TestClient
+from legacy_application_fixture import app
 from test_oauth import TASK
 from test_tasks import TaskFixture
 
-from app.main import app
 from app.oauth import get_oauth_service
 from app.results import get_result_service
 from app.store import StoreUnavailable

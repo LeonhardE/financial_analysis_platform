@@ -45,7 +45,7 @@ class NativeTransportRoutes(unittest.TestCase):
     def install(self):
         service = SimpleNamespace(
             config=SimpleNamespace(
-                consent_url="https://synthetic-hub.example/agent/v3/runtime/account-consent.html"
+                consent_url="https://synthetic-hub.example/agent/v3/account/consent.html"
             ),
             pending=lambda *a: self.calls.append(a) or {"authority": "account_link_only"},
             approve=lambda *a: (
@@ -78,7 +78,7 @@ class NativeTransportRoutes(unittest.TestCase):
         self.assertEqual(response.status_code, 303)
         self.assertTrue(
             response.headers["location"].startswith(
-                "https://synthetic-hub.example/agent/v3/runtime/account-consent.html?request="
+                "https://synthetic-hub.example/agent/v3/account/consent.html?request="
             )
         )
         cookie = response.headers["set-cookie"]

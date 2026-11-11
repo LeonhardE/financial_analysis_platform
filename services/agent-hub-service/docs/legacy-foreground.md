@@ -1,5 +1,7 @@
 # Legacy foreground compatibility
 
+> Legacy financial transports, helper pages and grant creation are retired from the deployed app. This guide preserves historical signed-format and receipt compatibility; current connections use [personal Agent credentials](agent-client.md).
+
 This guide covers the retained P1/v2 OAuth path and fixed helper releases 1.2.0–1.4.0.
 Existing encrypted deliveries and history retain their original contracts. The memory-only
 Agent keys, explicit handoff and bounded foreground session are distinct from the

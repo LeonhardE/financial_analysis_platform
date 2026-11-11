@@ -21,23 +21,16 @@ from .vaults import VaultService
 router = APIRouter(prefix="/api/v2/persistent-agents", route_class=PrivateRoute)
 
 
-def enrollment_clients():
-    if os.getenv("HUB_PERSISTENT_AGENTS_ENABLED") != "1":
-        return ()
-    return tuple(client.client_id for client in OAuthConfig.environment().clients)
-
-
-def require_enrollment():
-    clients = enrollment_clients()
-    if not clients:
-        raise ContractError("authorization_unavailable")
-    return clients
-
-
 def resource_approval_enabled():
-    return os.getenv("HUB_PERSISTENT_RESOURCE_CONSENTS_ENABLED") == "1" and bool(
-        enrollment_clients()
-    )
+    if not all(
+        os.getenv(flag) == "1"
+        for flag in (
+            "HUB_AGENT_OWNED_CREDENTIALS_ENABLED",
+            "HUB_PERSISTENT_RESOURCE_CONSENTS_ENABLED",
+        )
+    ):
+        return False
+    return bool(OAuthConfig.environment().clients)
 
 
 def require_resource_approval():
@@ -75,11 +68,10 @@ def capabilities(request: Request, user: Owner):
     from .persistent_execution_routes import execution_enabled
 
     _invoke(lambda: control_transport(request))
-    clients = _invoke(enrollment_clients)
     return {
         "contractVersion": CONTRACT_VERSION,
         "profile": "folioview.persistent-agent-capabilities.v1",
-        "enrollmentEnabled": bool(clients),
+        "enrollmentEnabled": False,
         "resourceConsentEnabled": _invoke(resource_approval_enabled),
         "executionEnabled": _invoke(execution_enabled),
     }
@@ -102,30 +94,6 @@ def receipt(
 ):
     _invoke(lambda: control_transport(request))
     return _invoke(lambda: service.receipt(user.uid, vault_id, connection_id, operation_id))
-
-
-@router.post("/{vault_id}/{connection_id}/bindings", status_code=201)
-async def enroll(
-    vault_id: str,
-    connection_id: str,
-    request: Request,
-    user: Owner,
-    service: Service,
-):
-    _invoke(lambda: control_transport(request, operation=True))
-    clients = _invoke(require_enrollment)
-    value = await body(request, {"contractVersion", "command"}, max_bytes=24576)
-    activated = PersistentAgentService(service.store, client_ids=clients, clock=service.clock)
-    return await run_in_threadpool(
-        _invoke,
-        lambda: activated.command(
-            user.uid,
-            vault_id,
-            connection_id,
-            value["command"],
-            request.headers["idempotency-key"],
-        ),
-    )
 
 
 @router.post("/{vault_id}/{connection_id}/revocations", status_code=201)

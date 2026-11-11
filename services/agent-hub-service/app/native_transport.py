@@ -91,7 +91,7 @@ class NativeConfig:
 
     @property
     def consent_url(self):
-        return self.base.issuer + "/agent/v3/runtime/account-consent.html"
+        return self.base.issuer + "/agent/v3/account/consent.html"
 
     @property
     def clients(self):
@@ -372,7 +372,11 @@ class NativeTransportService(OwnerConnectionService):
                 current = []
                 for candidate in candidates:
                     row = stored_identity(unit, owner, vault, candidate["connectionId"])
-                    if row is not None and "credentialLease" not in row:
+                    from .legacy_connections import unpaired_browser_slot
+
+                    if (row is not None and "credentialLease" not in row) or (
+                        row is None and unpaired_browser_slot(unit, owner, vault, candidate)
+                    ):
                         legacy.append(candidate)
                     else:
                         current.append(candidate)

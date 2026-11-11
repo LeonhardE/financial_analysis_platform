@@ -7,8 +7,8 @@ from unittest.mock import patch
 
 import test_runs as fixtures
 from fastapi.testclient import TestClient
+from legacy_application_fixture import app
 
-from app.main import app
 from app.oauth import get_oauth_service
 from app.runs import get_run_service
 from folioview_shared.encrypted.constants import CONTRACT_VERSION
