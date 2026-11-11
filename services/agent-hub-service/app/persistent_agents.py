@@ -174,7 +174,7 @@ def linked_connection(unit, owner, vault, connection, *, active=False):
         conn.get("ownerSubject") != owner
         or conn.get("vaultId") != vault
         or conn.get("connectionId") != connection
-        or conn.get("provider") != "muse"
+        or conn.get("provider") not in {"muse", "chatgpt"}
         or conn.get("status") not in {"active", "revoked"}
         or index is None
         or index.get("ownerSubject") != owner

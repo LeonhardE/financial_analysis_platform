@@ -36,7 +36,17 @@ def create_native_server(oauth):
     from mcp.server.transport_security import TransportSecuritySettings
     from mcp_types import CallToolResult, TextContent, Tool, ToolAnnotations
 
-    domain = RuntimeSetupService(oauth)
+    owned = os.getenv("HUB_AGENT_OWNED_CREDENTIALS_ENABLED") == "1"
+    if owned:
+        from .helper_assets import _owner_origins
+        from .native_credentials import NativeCredentialService
+
+        owner_url = os.getenv("HUB_AGENT_OWNER_URL", "")
+        if urlsplit(owner_url).scheme + "://" + urlsplit(owner_url).netloc not in _owner_origins():
+            raise ContractError("authorization_unavailable")
+        domain = NativeCredentialService(oauth, owner_url=owner_url)
+    else:
+        domain = RuntimeSetupService(oauth)
 
     class Verifier:
         async def verify_token(self, token):
@@ -56,6 +66,93 @@ def create_native_server(oauth):
 
     class NativeServer(MCPServer):
         async def list_tools(self):
+            if owned:
+                return [
+                    Tool(
+                        name=name,
+                        description=description,
+                        input_schema=schema,
+                        annotations=ToolAnnotations(
+                            read_only_hint=name in {"agent_connection", "agent_activation"},
+                            destructive_hint=False,
+                            idempotent_hint=name != "prepare_agent_authorization",
+                            open_world_hint=False,
+                        ),
+                    )
+                    for name, description, schema in [
+                        (
+                            "agent_connection",
+                            (
+                                "Inspect this preregistered Agent connection. Credentials live "
+                                "in the Agent "
+                                "private directory. Missing/expired/rejected credentials "
+                                "require user "
+                                "reauthorization; never recreate them silently. OAuth grants no "
+                                "financial access."
+                            ),
+                            {"type": "object", "properties": {}, "additionalProperties": False},
+                        ),
+                        (
+                            "prepare_agent_authorization",
+                            (
+                                "Only for explicit connection or reauthorization: create a "
+                                "10-minute pairing "
+                                "intent. Run the reviewed local credential helper, submit only "
+                                "its encrypted "
+                                "public offer, then show the user its authorization link. "
+                                "Private keys stay "
+                                "local. A failed setup preserves the current connection."
+                            ),
+                            {"type": "object", "properties": {}, "additionalProperties": False},
+                        ),
+                        (
+                            "submit_agent_offer",
+                            (
+                                "Submit the reviewed local helper's opaque encrypted public-key "
+                                "offer. Do not "
+                                "transcribe or upload private keys. This cannot activate keys "
+                                "without the Owner's "
+                                "signed approval."
+                            ),
+                            {
+                                "type": "object",
+                                "properties": {
+                                    "setupIntentId": {"type": "string"},
+                                    "offer": {
+                                        "type": "object",
+                                        "properties": {
+                                            "version": {"const": 1},
+                                            "iv": {"type": "string"},
+                                            "ciphertext": {"type": "string"},
+                                        },
+                                        "required": ["version", "iv", "ciphertext"],
+                                        "additionalProperties": False,
+                                    },
+                                },
+                                "required": ["setupIntentId", "offer"],
+                                "additionalProperties": False,
+                            },
+                        ),
+                        (
+                            "agent_activation",
+                            (
+                                "Get the opaque Owner-encrypted activation for this "
+                                "connection's setup. Pass it "
+                                "to the same local helper; it validates the trusted Root anchor "
+                                "before activating "
+                                "the locally saved keys. Never treats a platform receipt as a "
+                                "native scheduled "
+                                "task."
+                            ),
+                            {
+                                "type": "object",
+                                "properties": {"setupIntentId": {"type": "string"}},
+                                "required": ["setupIntentId"],
+                                "additionalProperties": False,
+                            },
+                        ),
+                    ]
+                ]
             return [
                 Tool(
                     name="open_persistent_runtime",
@@ -111,7 +208,30 @@ def create_native_server(oauth):
                 auth = get_access_token()
                 if auth is None:
                     raise ContractError("invalid_token")
-                if name == "open_persistent_runtime" and arguments == {}:
+                if owned:
+                    if name == "agent_connection" and arguments == {}:
+                        value = await run_in_threadpool(domain.inspect, auth.token)
+                    elif name == "prepare_agent_authorization" and arguments == {}:
+                        value = await run_in_threadpool(domain.prepare, auth.token)
+                    elif (
+                        name == "submit_agent_offer"
+                        and type(arguments) is dict
+                        and set(arguments) == {"setupIntentId", "offer"}
+                    ):
+                        value = await run_in_threadpool(
+                            domain.offer, auth.token, arguments["setupIntentId"], arguments["offer"]
+                        )
+                    elif (
+                        name == "agent_activation"
+                        and type(arguments) is dict
+                        and set(arguments) == {"setupIntentId"}
+                    ):
+                        value = await run_in_threadpool(
+                            domain.activation, auth.token, arguments["setupIntentId"]
+                        )
+                    else:
+                        raise ContractError("malformed_request")
+                elif name == "open_persistent_runtime" and arguments == {}:
                     value = await run_in_threadpool(domain.bootstrap, auth.token)
                 elif (
                     name == "confirm_runtime_offer"

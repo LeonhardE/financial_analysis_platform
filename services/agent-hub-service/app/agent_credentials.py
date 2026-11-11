@@ -47,6 +47,20 @@ def operation_path(owner, vault, operation):
     return document_path("hub_agent_credential_operations", owner, vault, operation)
 
 
+def validate_packet(offer):
+    if (
+        type(offer) is not dict
+        or set(offer) != {"version", "iv", "ciphertext"}
+        or type(offer["version"]) is not int
+        or offer["version"] != 1
+    ):
+        raise ContractError("malformed_request")
+    b64url_decode(offer["iv"], exact_bytes=12)
+    ciphertext = b64url_decode(offer["ciphertext"], max_bytes=MAX_OFFER_BYTES)
+    if len(ciphertext) < 16:
+        raise ContractError("malformed_request")
+
+
 class AgentCredentialService(PersistentAgentService):
     def __init__(self, *args, audience, **kwargs):
         super().__init__(*args, **kwargs)
@@ -177,17 +191,7 @@ class AgentCredentialService(PersistentAgentService):
         return self.store.transact(write)
 
     def put_offer(self, principal, intent, offer):
-        if (
-            type(offer) is not dict
-            or set(offer) != {"version", "iv", "ciphertext"}
-            or type(offer["version"]) is not int
-            or offer["version"] != 1
-        ):
-            raise ContractError("malformed_request")
-        b64url_decode(offer["iv"], exact_bytes=12)
-        ciphertext = b64url_decode(offer["ciphertext"], max_bytes=MAX_OFFER_BYTES)
-        if len(ciphertext) < 16:
-            raise ContractError("malformed_request")
+        validate_packet(offer)
 
         def write(unit):
             owner, _, _, conn = self._native(unit, principal)
@@ -206,7 +210,11 @@ class AgentCredentialService(PersistentAgentService):
     def owner_setup(self, uid, vault, connection, intent):
         def read(unit):
             owner, _, _, conn = self._context(unit, uid, vault, connection)
-            return snapshot(self._setup(unit, intent, owner, vault, connection, conn, live=False))
+            return {
+                **snapshot(self._setup(unit, intent, owner, vault, connection, conn, live=False)),
+                "issuer": self.audience,
+                "provider": conn["provider"],
+            }
 
         return self.store.transact(read)
 
@@ -335,12 +343,14 @@ class AgentCredentialService(PersistentAgentService):
         validate_schema("OperationIdentifier", operation)
         if (
             type(command) is not dict
-            or set(command) != {"binding", "approval"}
+            or set(command) not in ({"binding", "approval"}, {"binding", "approval", "activation"})
             or len(canonical_json(command)) > 32768
         ):
             raise ContractError("malformed_request")
-        for signed in command.values():
-            validate_schema("SignedObject", signed)
+        for field in ("binding", "approval"):
+            validate_schema("SignedObject", command[field])
+        if "activation" in command:
+            validate_packet(command["activation"])
         _, payload = _signed_parts(command["approval"])
         validate_persistent_schema("AgentCredentialApproval", payload)
         if payload["stableOperationId"] != operation:
@@ -404,6 +414,25 @@ class AgentCredentialService(PersistentAgentService):
                 audience=self.audience,
                 now=self.now(),
             )
+            predecessor = None
+            previous_id = conn.get("predecessorConnectionId")
+            if previous_id is not None:
+                identifier(previous_id)
+                predecessor = unit.get(document_path("hub_oauth_connections", owner, previous_id))
+                prior_identity = stored_identity(unit, owner, vault, previous_id)
+                if (
+                    previous_id == connection
+                    or predecessor is None
+                    or any(
+                        predecessor[k] != conn[k]
+                        for k in ("ownerSubject", "vaultId", "clientId", "provider")
+                    )
+                    or predecessor["status"] != "active"
+                    or predecessor.get("transportKind") != "persistent_runtime"
+                    or prior_identity is None
+                    or "credentialLease" in prior_identity
+                ):
+                    raise StoreUnavailable
             if current is not None:
                 history = identity_history_path(
                     owner, vault, connection, current["identity"]["bindingFingerprint"]
@@ -429,10 +458,16 @@ class AgentCredentialService(PersistentAgentService):
                 "lease": lease,
                 "approval": row["credentialApproval"],
             }
+            if predecessor is not None:
+                unit.put(
+                    document_path("hub_oauth_connections", owner, previous_id),
+                    {**predecessor, "status": "revoked", "supersededByConnectionId": connection},
+                )
+            next_conn = {k: v for k, v in conn.items() if k != "predecessorConnectionId"}
             unit.put(identity_path(owner, vault, connection), row)
             unit.put(
                 document_path("hub_oauth_connections", owner, connection),
-                {**conn, "credentialMode": "agent_owned"},
+                {**next_conn, "credentialMode": "agent_owned"},
             )
             unit.put(setup_path(setup["setupIntentId"]), {**setup, "consumedBy": operation})
             unit.put(
