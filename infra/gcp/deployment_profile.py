@@ -6,7 +6,6 @@ using their reviewed configuration until separately migrated per target.
 """
 
 import argparse
-import base64
 import hashlib
 import json
 import os
@@ -100,18 +99,6 @@ WEB_OWNER_ENVIRONMENT_FIELDS = {
     "FOLIOVIEW_PORTFOLIO_AUDIENCE",
     "FOLIOVIEW_HUB_OWNER_ENABLED",
     "FOLIOVIEW_HUB_ORIGIN",
-}
-WEB_INDEPENDENT_ENVIRONMENT_FIELDS = {
-    "FOLIOVIEW_INDEPENDENT_AGENT_ENABLED",
-    "FOLIOVIEW_INDEPENDENT_AGENT_CONFIG",
-}
-WEB_INDEPENDENT_FIELDS = {
-    "connectionId",
-    "clientId",
-    "issuer",
-    "audience",
-    "policyJwk",
-    "nativeRedirectUris",
 }
 WEB_OWNER_SERVER_FIELDS = {
     "schemaVersion",
@@ -225,14 +212,13 @@ def validate_profile(value):
     try:
         require(type(value) is dict)
         version = value.get("schemaVersion")
-        require(type(version) is int and version in {1, 2, 3, 4, 5})
+        require(type(version) is int and version in {1, 2, 3, 4})
         fields(
             value,
             TOP_FIELDS
             | ({"webOwnerApis"} if version >= 2 else set())
             | ({"userHubTrust"} if version >= 3 else set())
-            | ({"portfolioHubTrust"} if version >= 4 else set())
-            | ({"webIndependentAgent"} if version >= 5 else set()),
+            | ({"portfolioHubTrust"} if version >= 4 else set()),
         )
         matches(SLUG, value["profileId"])
         require(value["mode"] in {"adoption", "fresh_install"})
@@ -398,13 +384,6 @@ def validate_profile(value):
                     selected["origin"]
                     == f"https://{TARGET_SERVICES[name]}-{number}.{region}.run.app"
                 )
-        if version >= 5 and value["webIndependentAgent"] is not None:
-            config = validate_web_independent_agent(value["webIndependentAgent"])
-            require(value["webOwnerApis"]["agentHub"] and firebase["enabled"])
-            # Public selection cannot mistake an existing ordinary service for
-            # the independent authority or plaintext executor endpoint.
-            existing = {t["origin"] for t in value["targets"].values() if t["origin"]}
-            require(config["issuer"] not in existing and config["audience"][:-4] not in existing)
         # Canonical serialization rejects invalid Unicode and snapshots mutable callers.
         return json.loads(canonical(value))
     except (KeyError, TypeError, ValueError, OverflowError, RecursionError):
@@ -681,37 +660,6 @@ def compile_artifacts(profile, target):
     }
 
 
-def validate_web_independent_agent(value):
-    """Closed public selection, never a Root grant, backend activation or private key."""
-    fields(value, WEB_INDEPENDENT_FIELDS)
-    require(len(canonical(value)) <= 1024)
-    for name in ("connectionId", "clientId"):
-        matches(re.compile(r"[A-Za-z0-9][A-Za-z0-9_-]{0,127}\Z"), value[name])
-    origin(value["issuer"])
-    require(type(value["audience"]) is str and value["audience"].endswith("/mcp"))
-    origin(value["audience"][:-4])
-    require(value["audience"][:-4] != value["issuer"])
-    public = value["policyJwk"]
-    fields(public, {"kty", "crv", "x", "y"})
-    require(public["kty"] == "EC" and public["crv"] == "P-256")
-    coords = []
-    for name in ("x", "y"):
-        matches(re.compile(r"[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]\Z"), public[name])
-        coords.append(int.from_bytes(base64.urlsafe_b64decode(public[name] + "="), "big"))
-    prime = 0xFFFFFFFF00000001000000000000000000000000FFFFFFFFFFFFFFFFFFFFFFFF
-    curve_b = 0x5AC635D8AA3A93E7B3EBBD55769886BC651D06B0CC53B0F63BCE3C3E27D2604B
-    x, y = coords
-    require(x < prime and y < prime and (y * y - (x * x * x - 3 * x + curve_b)) % prime == 0)
-    callbacks = value["nativeRedirectUris"]
-    require(type(callbacks) is list and 1 <= len(callbacks) <= 4)
-    require(all(type(uri) is str for uri in callbacks) and len(set(callbacks)) == len(callbacks))
-    for uri in callbacks:
-        require(len(uri) <= 512)
-        matches(re.compile(r"https://[a-z0-9]+(?:[.-][a-z0-9]+)*(?:/[A-Za-z0-9._~-]+)+\Z"), uri)
-        require("/../" not in uri and not uri.endswith("/.."))
-    return value
-
-
 def validate_web_owner_server(value, instance):
     """Validate a separate future-consumer contract, never Terraform inputs."""
     try:
@@ -722,27 +670,10 @@ def validate_web_owner_server(value, instance):
         require(value["target"] == "web" and value["instanceId"] == instance["instanceId"])
         require(value["webDeploymentSha256"] == digest(instance))
         environment = value["environment"]
-        independent = bool(set(environment) & WEB_INDEPENDENT_ENVIRONMENT_FIELDS)
-        fields(
-            environment,
-            WEB_OWNER_ENVIRONMENT_FIELDS
-            | (WEB_INDEPENDENT_ENVIRONMENT_FIELDS if independent else set()),
-        )
+        fields(environment, WEB_OWNER_ENVIRONMENT_FIELDS)
         require(all(type(item) is str for item in environment.values()))
         portfolio_enabled = environment["FOLIOVIEW_PORTFOLIO_OWNER_ENABLED"]
         hub_enabled = environment["FOLIOVIEW_HUB_OWNER_ENABLED"]
-        if independent:
-            require(
-                hub_enabled == "true"
-                and environment["FOLIOVIEW_INDEPENDENT_AGENT_ENABLED"] == "true"
-            )
-            raw = environment["FOLIOVIEW_INDEPENDENT_AGENT_CONFIG"]
-            require(len(raw) <= 1024)
-            config = json.loads(raw, object_pairs_hook=unique_pairs, parse_constant=reject_constant)
-            validate_web_independent_agent(config)
-            require(raw == canonical(config).decode("ascii"))
-            require(config["issuer"] != environment["FOLIOVIEW_HUB_ORIGIN"])
-            require(config["audience"][:-4] != environment["FOLIOVIEW_HUB_ORIGIN"])
         require(portfolio_enabled in {"true", "false"} and hub_enabled in {"true", "false"})
         enabled = "true" in {portfolio_enabled, hub_enabled}
         project = instance["project"]["id"]
@@ -848,13 +779,6 @@ def compile_web_owner_artifacts(profile):
             "FOLIOVIEW_HUB_ORIGIN": hub,
         },
     }
-    if profile.get("webIndependentAgent") is not None:
-        server["environment"].update(
-            FOLIOVIEW_INDEPENDENT_AGENT_ENABLED="true",
-            FOLIOVIEW_INDEPENDENT_AGENT_CONFIG=canonical(profile["webIndependentAgent"]).decode(
-                "ascii"
-            ),
-        )
     parse_web_owner_server(canonical(server), instance=instance, expected_sha256=digest(server))
     public = {
         "schemaVersion": 1,
