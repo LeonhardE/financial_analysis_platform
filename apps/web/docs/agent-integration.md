@@ -199,3 +199,30 @@ available for Owner historical report verification.
 These Worker methods and closed DTOs prepare the later simplified authorize and
 reauthorize interface. No deployment, real Passkey/host migration or native-plan
 acceptance is implied by local crypto or transport tests.
+
+## Personal Agent authorization and recovery
+
+The Agents page uses the Agent-owned route for Muse and ChatGPT. The Owner signs in,
+unlocks the existing library with their Passkey, reviews the Agent link, and authorizes
+tasks. It displays a connection state, expiry date, seven-day reminder and reauthorization
+action. Private Agent keys, fingerprints, certificates and recovery files are not part
+of the product flow. The temporary pairing fragment is removed from the URL immediately
+and retained only in memory for that authorization.
+
+Reauthorization verifies the original Root bindings, signed leases and immutable consent
+receipts across the Hub's bounded predecessor chain. It restores only continuing access
+that remains approved, at the current resource incarnation/epoch and an allowed revision.
+A newer revocation blocks older approval; restoration never broadens selected history.
+Task assignments must still refer to a verified predecessor binding. Assignments to
+another Agent are not moved by recovery. Historical Inbox decryption remains available.
+
+An interrupted confirmation first uses its exact sealed original and original operation
+receipt. A replacement link can archive an uncommitted local credential journal only
+once its original ten-minute setup is expired, after checking its original receipt.
+The encrypted original is retained internally; no user-managed recovery artifact is
+required. An unfinished approval can also be continued from the connection row.
+
+Discovery and information sharing run on page visibility or explicit Owner actions;
+there is no periodic API polling or automatic background resource publication. A native
+plan report is distinct from a report actually received by the Hub. Real Agent host
+retention and native schedule execution still require the separate live validation stage.

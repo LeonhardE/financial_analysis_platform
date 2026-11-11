@@ -12,7 +12,6 @@ import { PersistentAgentsPanel } from "./PersistentAgentsPanel";
 import { PersistentInboxPanel } from "./PersistentInboxPanel";
 import { usePersistentWorkspace } from "./usePersistentWorkspace";
 import { useAgentLinkConfiguration } from "./useAgentLinkConfiguration";
-import AgentsPanel from "@/components/AgentsPanel";
 import TasksPanel, { type TaskRequest } from "@/components/TasksPanel";
 import { useHoldingsWorkspace } from "@/components/useHoldingsWorkspace";
 import { localizeMessage } from "@/lib/ui-messages";
@@ -440,16 +439,12 @@ export default function WorkspaceShell() {
           />
         </div>
         <div hidden={activeView !== "agents"}>
-          {persistent.enabled || persistent.views.length > 0 || persistentHandoff ? (
-            <PersistentAgentsPanel
-              workspace={encryptedWorkspace}
-              model={persistent}
-              origin={persistentConfiguration.data?.hubOrigin ?? null}
-              active={activeView === "agents"}
-            />
-          ) : (
-            <AgentsPanel workspace={encryptedWorkspace} active={activeView === "agents"} />
-          )}
+          <PersistentAgentsPanel
+            workspace={encryptedWorkspace}
+            model={persistent}
+            origin={persistentConfiguration.data?.hubOrigin ?? null}
+            active={activeView === "agents"}
+          />
         </div>
         <div hidden={activeView !== "inbox"}>
           {persistentView ? (

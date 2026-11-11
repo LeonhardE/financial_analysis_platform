@@ -206,3 +206,77 @@ test("source revision changing during owner retrieval prevents any new encryptio
   assert.equal(seals, 0);
   assert.equal(h.w.finishes, 0);
 });
+test("a repeated confirmation sends the sealed original credential and never generates another key approval", async () => {
+  const h = harness(async () => ({
+    lease: { credentialFingerprint: "credential_A" },
+    identity: { bindingFingerprint: "binding_A" },
+  }));
+  const original = {
+    kind: "credential",
+    connectionId: connection.connectionId,
+    setupIntentId: "setup_synthetic_A",
+    operationId: "original_credential_operation_0001",
+    expectedLease: { credentialFingerprint: "credential_A" },
+    identity: { bindingFingerprint: "binding_A" },
+  };
+  const review = {
+    connection,
+    setup: { setupIntentId: original.setupIntentId },
+    current: {},
+    scope: { reviewDigest: "scope_A" },
+    tasks: [],
+    renewing: false,
+  };
+  h.w.pending = original;
+  h.c.inspectAuthorization = async () => review;
+  h.w.prepareAgentCredential = async () => assert.fail("must use the sealed original");
+  let sent;
+  h.c.send = async (_c, p) => {
+    sent = p;
+  };
+  assert.equal((await h.c.authorize({}, review, [])).connected, true);
+  assert.equal(sent, original);
+});
+test("a changed offer checks the original receipt before archiving an expired journal", async () => {
+  const calls = [],
+    h = harness(async (_s, path) => {
+      calls.push(path);
+      if (path.includes("/operations/")) return missing();
+      if (path.includes("/setups/")) return { setupIntentId: "old_setup" };
+      return {
+        lease: { credentialFingerprint: "new_credential" },
+        identity: { bindingFingerprint: "new_binding" },
+      };
+    });
+  const original = {
+      kind: "credential",
+      setupIntentId: "old_setup",
+      operationId: "original_credential_operation_0001",
+    },
+    packet = {
+      kind: "credential",
+      expectedLease: { credentialFingerprint: "new_credential" },
+      identity: { bindingFingerprint: "new_binding" },
+    },
+    review = {
+      connection,
+      setup: { setupIntentId: "new_setup" },
+      current: {},
+      scope: { reviewDigest: "scope_A" },
+      tasks: [],
+      renewing: false,
+    };
+  h.w.pending = original;
+  h.c.inspectAuthorization = async () => review;
+  h.w.archiveExpiredCredentialPending = async (a) => {
+    assert.ok(calls.at(-2).includes("/operations/"));
+    assert.equal(a.previousSetup.setupIntentId, "old_setup");
+    calls.push("archive");
+  };
+  h.w.prepareAgentCredential = async () => {
+    assert.equal(calls.at(-1), "archive");
+    return packet;
+  };
+  h.c.send = async (_c, p) => assert.equal(p, packet);
+  assert.equal((await h.c.authorize({}, review, [])).connected, true);
+});

@@ -435,3 +435,17 @@
 .confirmation code {
   overflow-wrap: anywhere;
 }
+
+.taskChoices {
+  list-style: none;
+  padding: 0;
+  margin: 12px 0;
+}
+.taskChoices li {
+  margin: 8px 0;
+}
+.taskChoices label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}

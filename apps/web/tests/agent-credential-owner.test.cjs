@@ -2,7 +2,7 @@ const assert = require("node:assert/strict");
 const test = require("node:test");
 const { pathToFileURL } = require("node:url");
 const path = require("node:path");
-const { createHarness, createOwner } = require("./full-flow-crypto-fixture.cjs");
+const { createHarness, createOwner, createTask } = require("./full-flow-crypto-fixture.cjs");
 const clone = (v) => structuredClone(v);
 const b64 = (b) => Buffer.from(b).toString("base64url");
 async function fixture(t, { provider = "muse" } = {}) {
@@ -229,6 +229,34 @@ test("explicit renewal uses fresh keys, preserves old certificates through CAS a
     { owner, sdk, args } = f;
   const first = await owner.session.prepareAgentCredential(args);
   await install(f, first);
+  const a = await renewalOffer(f, first);
+  const renewed = await owner.session.prepareAgentCredential(a);
+  assert.equal(renewed.expectedLease.generation, 2);
+  assert.equal(
+    renewed.expectedLease.previousCredentialFingerprint,
+    first.expectedLease.credentialFingerprint,
+  );
+  assert.notEqual(renewed.identity.agentSigningKeyId, first.identity.agentSigningKeyId);
+  assert.notEqual(renewed.identity.agentEncryptionKeyId, first.identity.agentEncryptionKeyId);
+  const old = renewed.registryUpdate.registryBundle.entries.filter((e) =>
+    [first.identity.agentSigningKeyId, first.identity.agentEncryptionKeyId].includes(
+      JSON.parse(Buffer.from(e.certificate.payload, "base64url")).keyId,
+    ),
+  );
+  assert.equal(old.length, 2);
+  assert.ok(old.every((e) => e.active));
+  assert.equal(
+    owner.vault.registryHistory.length,
+    2,
+    "preparing cannot commit a directory or invalidate old credentials",
+  );
+  const wrong = clone(a);
+  wrong.setup.expectedGeneration = 0;
+  await assert.rejects(() => owner.session.prepareAgentCredential(wrong));
+});
+
+async function renewalOffer(f, first) {
+  const { args, owner, sdk } = f;
   const a = clone(args),
     sig = await crypto.subtle.generateKey({ name: "ECDSA", namedCurve: "P-256" }, true, [
       "sign",
@@ -290,27 +318,248 @@ test("explicit renewal uses fresh keys, preserves old certificates through CAS a
       ),
     ),
   };
-  const renewed = await owner.session.prepareAgentCredential(a);
-  assert.equal(renewed.expectedLease.generation, 2);
+  return a;
+}
+function credential(f, packet) {
+  return {
+    ...f.args.current,
+    identity: packet.identity,
+    binding: packet.body.command.binding,
+    approval: packet.body.command.approval,
+    lease: packet.expectedLease,
+    status: "active",
+  };
+}
+const identityState = (state) => ({
+  contractVersion: state.contractVersion,
+  profile: "folioview.persistent-agent-identity.v1",
+  identity: state.identity,
+  binding: state.binding,
+  revocation: null,
+  connectionRevoked: false,
+});
+const resourceState = (state, receipts = []) => ({
+  contractVersion: state.contractVersion,
+  profile: "folioview.persistent-resource-consent.v1",
+  consent: receipts.at(-1)?.consent ?? null,
+  operations: receipts.map((r) => r.operationId),
+  parentRevoked: false,
+});
+function source(state, receipts = [], predecessor = null) {
+  return {
+    state: {
+      contractVersion: state.contractVersion,
+      profile: "folioview.agent-restoration.v1",
+      source: {
+        connectionId: state.identity.connectionId,
+        bindingFingerprint: state.identity.bindingFingerprint,
+        credentialFingerprint: state.lease.credentialFingerprint,
+        generation: state.lease.generation,
+      },
+      historical: false,
+      identityState: identityState(state),
+      credential: { lease: state.lease, approval: state.approval },
+      resourceState: resourceState(state, receipts),
+      predecessor,
+    },
+    receipts,
+  };
+}
+async function consentReceipt(f, packet, resources, prior = null) {
+  return {
+    operationId: packet.operationId,
+    command: packet.body.command,
+    consent: packet.expected,
+    fingerprint: await f.sdk.fingerprint(packet.body.command),
+    priorDigest: prior ? await f.sdk.digest(prior) : null,
+    sourceStates: resources.map((r) => ({
+      ownerSubject: f.owner.owner,
+      vaultId: f.owner.vault.vaultId,
+      ref: r.ref,
+      sourceEpoch: r.sourceEpoch,
+      currentRevision: r.revision,
+      state: "active",
+    })),
+  };
+}
+test("Root-verified renewal restores only original continuing scope; latest revocation and source changes prevent revival", async (t) => {
+  const f = await fixture(t),
+    first = await f.owner.session.prepareAgentCredential(f.args);
+  await install(f, first);
+  const state = credential(f, first),
+    ref = {
+      kind: "watchlist",
+      sourceService: "user",
+      resourceId: "synthetic_watchlist",
+      incarnation: "synthetic_incarnation",
+    },
+    resources = [{ ref, sourceEpoch: 1, revision: 1, state: "active" }],
+    common = {
+      actor: f.args.actor,
+      identityState: identityState(state),
+      resourceState: resourceState(state),
+      receipts: [],
+    };
+  const approved = await f.owner.session.preparePersistentConsent({ ...common, resources }),
+    receipt = await consentReceipt(f, approved, resources);
+  const oldSource = source(state, [receipt]);
+  const { compile } = require("./resource-library-helpers.cjs");
+  const transport = compile("../lib/server/owner-transport.ts", {
+    "server-only": {},
+    "node:crypto": require("node:crypto"),
+    jose: {},
+  });
+  const dto = compile("../lib/server/persistent-owner-contracts.ts", {
+    "server-only": {},
+    "ajv/dist/2020": require("ajv/dist/2020"),
+    "ajv-formats": require("ajv-formats"),
+    "../../../../packages/encrypted-workspace/schemas.json": require("../../../packages/encrypted-workspace/schemas.json"),
+    "./owner-transport": transport,
+  });
+  const route = `/api/v3/agent-credentials/${state.identity.vaultId}/${state.identity.connectionId}/restoration/${oldSource.state.source.connectionId}/${oldSource.state.source.bindingFingerprint}`;
+  assert.equal(dto.persistentResponse(route, "GET", oldSource.state), true);
   assert.equal(
-    renewed.expectedLease.previousCredentialFingerprint,
-    first.expectedLease.credentialFingerprint,
+    dto.persistentResponse(route, "GET", { ...oldSource.state, secret: "FORBIDDEN" }),
+    false,
   );
-  assert.notEqual(renewed.identity.agentSigningKeyId, first.identity.agentSigningKeyId);
-  assert.notEqual(renewed.identity.agentEncryptionKeyId, first.identity.agentEncryptionKeyId);
-  const old = renewed.registryUpdate.registryBundle.entries.filter((e) =>
-    [first.identity.agentSigningKeyId, first.identity.agentEncryptionKeyId].includes(
-      JSON.parse(Buffer.from(e.certificate.payload, "base64url")).keyId,
+  assert.equal(
+    dto.persistentResponse(
+      route.replace(oldSource.state.source.bindingFingerprint, "f".repeat(64)),
+      "GET",
+      oldSource.state,
     ),
+    false,
   );
-  assert.equal(old.length, 2);
-  assert.ok(old.every((e) => e.active));
+
+  const task = (await createTask(f.h, f.owner, { bindings: [{ ref, sourceEpoch: 1 }] })).task;
+  const originalTask = await f.owner.session.preparePersistentTask({
+    ...common,
+    resourceState: resourceState(state, [receipt]),
+    receipts: [receipt],
+    task,
+    authority: {
+      contractVersion: f.sdk.CONTRACT,
+      profile: f.sdk.PROFILE,
+      authority: null,
+      envelope: null,
+    },
+    resultPolicy: "owner_inbox",
+    allowReassign: false,
+  });
+  const authority = {
+    contractVersion: f.sdk.CONTRACT,
+    profile: f.sdk.PROFILE,
+    authority: {
+      publicationId: originalTask.operationId,
+      fingerprint: originalTask.fingerprint,
+      context: originalTask.context,
+    },
+    envelope: originalTask.body.envelope,
+  };
+  const renew = await renewalOffer(f, first),
+    second = await f.owner.session.prepareAgentCredential(renew);
+  await install(f, second);
+  const current = credential(f, second),
+    currentSource = source(current, [], oldSource.state.source),
+    sources = [currentSource, oldSource],
+    args = { actor: f.args.actor, current, sources, hubOrigin: f.origin, legacyConnectionId: null };
+  const scope = await f.owner.session.verifyAgentRestoration(args);
+  assert.equal(scope.permissions.length, 1);
+  assert.equal(scope.identities.length, 2);
+  const control = {
+    actor: f.args.actor,
+    identityState: identityState(current),
+    resourceState: resourceState(current),
+    receipts: [],
+    credentialState: current,
+    sources,
+    hubOrigin: f.origin,
+  };
+  const restored = await f.owner.session.prepareRestoredConsent({
+    ...control,
+    resources: [{ ...resources[0], revision: 4 }],
+  });
+  assert.equal(restored.expected.permissions[0].fromRevision, 4);
+  assert.deepEqual(restored.expected.permissions[0].selectedHistory, []);
+  for (const change of [
+    (v) => v.resources[0].sourceEpoch++,
+    (v) => (v.resources[0].revision = 0),
+    (v) => (v.resources[0].ref.resourceId = "foreign_source"),
+  ]) {
+    const bad = clone({ ...control, resources });
+    change(bad);
+    await assert.rejects(() => f.owner.session.prepareRestoredConsent(bad));
+  }
+  const restoredReceipt = await consentReceipt(f, restored, [{ ...resources[0], revision: 4 }]);
+  const approvedControl = {
+    ...control,
+    resourceState: resourceState(current, [restoredReceipt]),
+    receipts: [restoredReceipt],
+  };
+  const restoredTask = await f.owner.session.prepareRestoredTask({
+    ...approvedControl,
+    task,
+    authority,
+  });
+  assert.equal(restoredTask.context.authorityVersion, originalTask.context.authorityVersion + 1);
+  assert.equal(restoredTask.context.agentId, current.identity.agentId);
+  const foreign = clone(authority);
+  foreign.authority.context.connectionId = "other_connection";
+  await assert.rejects(() =>
+    f.owner.session.prepareRestoredTask({ ...approvedControl, task, authority: foreign }),
+  );
+  const revoked = await f.owner.session.preparePersistentRevocation({
+    actor: f.args.actor,
+    identityState: approvedControl.identityState,
+    resourceState: approvedControl.resourceState,
+    receipts: approvedControl.receipts,
+    permissionIds: [restored.expected.permissions[0].permissionId],
+  });
+  const revokedReceipt = await consentReceipt(f, revoked, [], restored.expected),
+    chain = [restoredReceipt, revokedReceipt];
+  const newest = { ...control, resourceState: resourceState(current, chain), receipts: chain };
+  await assert.rejects(
+    () => f.owner.session.prepareRestoredConsent({ ...newest, resources }),
+    /resource_not_approved/,
+  );
+  const newSources = [source(current, chain, oldSource.state.source), oldSource];
   assert.equal(
-    owner.vault.registryHistory.length,
-    2,
-    "preparing cannot commit a directory or invalidate old credentials",
+    (await f.owner.session.verifyAgentRestoration({ ...args, sources: newSources })).permissions
+      .length,
+    0,
   );
-  const wrong = clone(a);
-  wrong.setup.expectedGeneration = 0;
-  await assert.rejects(() => owner.session.prepareAgentCredential(wrong));
+  for (const change of [
+    (v) => v.sources.reverse(),
+    (v) => (v.sources[0].state.predecessor = null),
+    (v) => (v.sources[1].state.source.credentialFingerprint = "f".repeat(64)),
+    (v) => (v.sources[1].receipts[0].consent.permissions[0].status = "revoked"),
+    (v) => (v.sources[1].state.identityState.identity.clientId = "other_client"),
+  ]) {
+    const bad = clone(args);
+    change(bad);
+    await assert.rejects(() => f.owner.session.verifyAgentRestoration(bad));
+  }
+});
+
+test("a fresh verified handoff may retire only an expired uncommitted credential journal", async (t) => {
+  const f = await fixture(t),
+    packet = await f.owner.session.prepareAgentCredential(f.args);
+  await install(f, packet);
+  const replacement = await renewalOffer(f, packet);
+  const args = { ...replacement, packet, previousSetup: f.args.setup };
+  assert.deepEqual(await f.owner.session.verifyExpiredCredentialPending(args), {
+    operationId: packet.operationId,
+  });
+  for (const change of [
+    (a) => (a.previousSetup.expiresAt = a.setup.issuedAt + 1),
+    (a) => (a.previousSetup.consumedBy = packet.operationId),
+    (a) => (a.previousSetup.connectionId = "other_connection"),
+    (a) => (a.packet.kind = "consent"),
+    (a) => (a.packet.operationId = "another_operation_0000000001"),
+    (a) => (a.handoff.secret = b64(new Uint8Array(32))),
+  ]) {
+    const bad = clone(args);
+    change(bad);
+    await assert.rejects(() => f.owner.session.verifyExpiredCredentialPending(bad));
+  }
 });

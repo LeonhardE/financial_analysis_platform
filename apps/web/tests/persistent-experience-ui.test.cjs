@@ -5,7 +5,7 @@ const { renderToStaticMarkup } = require("react-dom/server"),
   { createTranslator } = require("next-intl");
 const { compile } = require("./resource-library-helpers.cjs");
 const jsx = require("react/jsx-runtime");
-function render(locale, unlocked, plan) {
+function render(locale, unlocked, plan, credential = null) {
   const imports = {
     react: React,
     "react/jsx-runtime": jsx,
@@ -26,6 +26,7 @@ function render(locale, unlocked, plan) {
       }),
     },
     "@/lib/native-owner-bridge": {},
+    "@/lib/agent-authorization": {},
     "./AgentsPanel.module.css": new Proxy({}, { get: (_t, k) => String(k) }),
   };
   const Panel = compile("../components/PersistentAgentsPanel.tsx", imports, {
@@ -58,6 +59,7 @@ function render(locale, unlocked, plan) {
           linkedAt: 1000,
         },
         identity: {},
+        credential,
         policy: { permissions: [{ status: "active" }] },
         pending: false,
         tasks: [
@@ -97,15 +99,40 @@ test("both locales distinguish an unconfirmed native plan from an actual Hub rep
     assert.match(open, /PRIVATE_TASK_CANARY/);
     assert.match(open, /09:00/);
     assert.match(open, /America\/Toronto/);
-    assert.match(open, locale === "zh" ? /尚未确认/ : /Unconfirmed/);
+    assert.match(open, locale === "zh" ? /等待 Agent 确认/ : /Waiting for Agent confirmation/);
     assert.match(open, locale === "zh" ? /已收到报告/ : /Report received/);
+    const awaitingResult = render(locale, true, {
+      ...plan,
+      observed: { ...plan.observed, receivedAt: null, resultId: null },
+    });
+    assert.doesNotMatch(awaitingResult, locale === "zh" ? /已收到报告/ : /Report received/);
     const locked = render(locale, false, plan);
     assert.doesNotMatch(locked, /PRIVATE_TASK_CANARY|09:00|America\/Toronto/);
-    assert.match(locked, locale === "zh" ? /使用通行密钥解锁/ : /Unlock with Passkey/);
+    assert.match(locked, locale === "zh" ? /解锁/ : /Unlock/);
     const out = render(locale, true, {
       ...plan,
       reported: { reportedStatus: "enabled", taskPublicationFingerprint: "b".repeat(64) },
     });
-    assert.match(out, locale === "zh" ? /计划待同步/ : /plan synchronization needed/);
+    assert.match(out, locale === "zh" ? /等待 Agent 确认/ : /Waiting for Agent confirmation/);
+  }
+});
+
+test("connection UI offers ordinary reauthorization and expiry notice without exposing credential internals", () => {
+  for (const locale of ["zh", "en"]) {
+    const out = render(locale, true, null, {
+      status: "expiring",
+      expiresAt: Date.now() / 1000 + 86400,
+      privateKey: "PRIVATE_KEY_CANARY",
+      bindingFingerprint: "BINDING_CANARY",
+      generation: 9,
+    });
+    assert.match(out, locale === "zh" ? /即将到期/ : /Expires soon/);
+    assert.match(out, locale === "zh" ? /重新授权/ : /Authorize again/);
+    assert.match(out, /Muse/);
+    assert.match(out, /ChatGPT/);
+    assert.doesNotMatch(
+      out,
+      /PRIVATE_KEY_CANARY|BINDING_CANARY|fingerprint|certificate|恢复码|恢复文件|recovery code|recovery file|JSON/,
+    );
   }
 });

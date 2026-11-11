@@ -126,7 +126,7 @@ export class PersistentOwner {
     if (
       !this.ctx.actor ||
       value.setup.connectionId !== this.ctx.actor.connectionId ||
-      value.setup.clientId !== this.ctx.actor.clientId
+      value.setup.clientId !== this.ctx.actor?.clientId
     )
       fail();
     const s = value.setup,
@@ -543,6 +543,34 @@ export class PersistentOwner {
       reviewDigest: await digest([args.setup, args.current]),
     };
   }
+  async expiredCredentialPending(args: Json) {
+    const { packet, previousSetup, ...replacement } = args;
+    await this.credentialOffer(replacement);
+    const p = parsed(bytes(packet?.body?.command?.approval?.payload), true);
+    const previous = previousSetup;
+    if (
+      packet.kind !== "credential" ||
+      packet.connectionId !== this.ctx.actor?.connectionId ||
+      packet.setupIntentId !== previous.setupIntentId ||
+      p.setupIntentId !== previous.setupIntentId ||
+      p.stableOperationId !== packet.operationId ||
+      p.ownerSubject !== this.ctx.ownerSubject ||
+      p.vaultId !== this.ctx.vault.vaultId ||
+      p.clientId !== this.ctx.actor?.clientId ||
+      previous.ownerSubject !== p.ownerSubject ||
+      previous.vaultId !== p.vaultId ||
+      previous.connectionId !== p.connectionId ||
+      previous.clientId !== p.clientId ||
+      previous.setupIntentId === args.setup.setupIntentId ||
+      previous.consumedBy !== null ||
+      !Number.isSafeInteger(previous.issuedAt) ||
+      previous.expiresAt !== previous.issuedAt + 600 ||
+      previous.expiresAt > args.setup.issuedAt ||
+      previous.expiresAt > this.ctx.now()
+    )
+      fail("persistent_operation_pending");
+    return { operationId: packet.operationId };
+  }
   async credentialEnrollment(args: Json) {
     const { offer, context, key, current } = await this.credentialOffer(args);
     const prepared = await this.certifyAgent({ ...offer, intentId: offer.setupIntentId }, true);
@@ -634,8 +662,12 @@ export class PersistentOwner {
   async historicalPolicy(state: Json, resourceState: Json, receipts: Json[]) {
     const p = parsed(bytes(state.binding.payload), true);
     const registry = await this.registry();
+    const historical = await this.registry(
+      this.ctx.vault.registryHistory.slice(0, p.registrySequence),
+      p.issuedAt,
+    );
     const identity = { ...state.identity, identityEpoch: 1, status: "active", revokedAt: null };
-    await this.actor(identity, state.binding, registry, p.issuedAt);
+    await this.actor(identity, state.binding, historical, p.issuedAt);
     if (
       resourceState.contractVersion !== CONTRACT ||
       resourceState.profile !== CONSENT_PROFILE ||
@@ -651,6 +683,220 @@ export class PersistentOwner {
       identity,
       registry,
     });
+  }
+  async restoration(args: {
+    current: Json;
+    sources: Json[];
+    hubOrigin: string;
+    legacyConnectionId: string | null;
+  }) {
+    if (!this.ctx.actor || !Array.isArray(args.sources) || args.sources.length > 32) fail();
+    await this.credentialState(args.current, args.hubOrigin);
+    let expected: Json | null = args.current.identity
+      ? {
+          connectionId: args.current.identity.connectionId,
+          bindingFingerprint: args.current.identity.bindingFingerprint,
+          credentialFingerprint: args.current.lease?.credentialFingerprint ?? null,
+          generation: args.current.lease?.generation ?? 0,
+        }
+      : null;
+    if (!expected && args.legacyConnectionId !== null) {
+      identifier(args.legacyConnectionId);
+      expected = args.sources[0]?.state?.source;
+      if (
+        !expected ||
+        expected.connectionId !== args.legacyConnectionId ||
+        expected.generation !== 0
+      )
+        fail();
+    }
+    const seen = new Set<string>(),
+      decided = new Set<string>(),
+      permissions: Json[] = [],
+      identities: Json[] = [];
+    for (const entry of args.sources) {
+      exact(entry, ["state", "receipts"]);
+      const value = entry.state;
+      exact(value, [
+        "contractVersion",
+        "profile",
+        "source",
+        "historical",
+        "identityState",
+        "credential",
+        "resourceState",
+        "predecessor",
+      ]);
+      if (
+        value.contractVersion !== CONTRACT ||
+        value.profile !== "folioview.agent-restoration.v1" ||
+        typeof value.historical !== "boolean" ||
+        !expected ||
+        !same(expected, value.source)
+      )
+        fail();
+      const ref = value.source;
+      exact(ref, ["connectionId", "bindingFingerprint", "credentialFingerprint", "generation"]);
+      identifier(ref.connectionId);
+      validate("Digest", ref.bindingFingerprint);
+      integer(ref.generation, 0);
+      if (ref.credentialFingerprint !== null) validate("Digest", ref.credentialFingerprint);
+      const key = ref.connectionId + ":" + ref.bindingFingerprint;
+      if (seen.has(key)) fail("version_conflict");
+      seen.add(key);
+      const state = value.identityState;
+      exact(state, [
+        "contractVersion",
+        "profile",
+        "identity",
+        "binding",
+        "revocation",
+        "connectionRevoked",
+      ]);
+      if (
+        state.contractVersion !== CONTRACT ||
+        state.profile !== AGENT ||
+        state.identity.clientId !== this.ctx.actor.clientId ||
+        state.identity.connectionId !== ref.connectionId ||
+        state.identity.bindingFingerprint !== ref.bindingFingerprint
+      )
+        fail();
+      const sourceOwner = new PersistentOwner({
+        ...this.ctx,
+        actor: { connectionId: ref.connectionId, clientId: this.ctx.actor.clientId },
+      });
+      if (value.credential !== null) {
+        exact(value.credential, ["lease", "approval"]);
+        await sourceOwner.credentialState(
+          {
+            contractVersion: CONTRACT,
+            profile: "folioview.agent-credential.v1",
+            identity: state.identity,
+            binding: state.binding,
+            lease: value.credential.lease,
+            approval: value.credential.approval,
+            status: state.identity.status === "revoked" ? "revoked" : "active",
+            defaultValiditySeconds: DEFAULT_CREDENTIAL_SECONDS,
+            noticeSeconds: CREDENTIAL_NOTICE_SECONDS,
+          },
+          args.hubOrigin,
+        );
+        if (
+          ref.generation !== value.credential.lease.generation ||
+          ref.credentialFingerprint !== value.credential.lease.credentialFingerprint
+        )
+          fail();
+      } else if (ref.generation !== 0 || ref.credentialFingerprint !== null) fail();
+      const policy = await sourceOwner.historicalPolicy(state, value.resourceState, entry.receipts);
+      identities.push({ ...state.identity, identityEpoch: 1, status: "active", revokedAt: null });
+      const refs = new Map<string, Json[]>();
+      for (const permission of policy?.permissions ?? []) {
+        const token = JSON.stringify([
+          permission.ref.kind,
+          permission.ref.sourceService,
+          permission.ref.resourceId,
+          permission.ref.incarnation,
+        ]);
+        refs.set(token, [...(refs.get(token) ?? []), permission]);
+      }
+      for (const [token, items] of refs) {
+        if (decided.has(token)) continue;
+        decided.add(token);
+        const active = items.find(
+          (v) => v.status === "active" && v.versionPolicy === "current_and_future",
+        );
+        if (active) permissions.push(copy(active));
+      }
+      expected = value.predecessor;
+      if (expected !== null) {
+        exact(expected, [
+          "connectionId",
+          "bindingFingerprint",
+          "credentialFingerprint",
+          "generation",
+        ]);
+        if (ref.generation > 1) {
+          if (
+            expected.connectionId !== ref.connectionId ||
+            expected.generation + 1 !== ref.generation ||
+            expected.credentialFingerprint !== value.credential?.lease.previousCredentialFingerprint
+          )
+            fail();
+        } else if (
+          ref.generation !== 1 ||
+          expected.generation !== 0 ||
+          expected.credentialFingerprint !== null ||
+          expected.connectionId === ref.connectionId
+        )
+          fail();
+      } else if (ref.generation > 1) fail();
+    }
+    if (expected !== null) fail("version_conflict");
+    return {
+      permissions,
+      identities,
+      reviewDigest: await digest([
+        args.current.identity,
+        args.sources.map((v) => [v.state.source, v.state.resourceState.consent]),
+      ]),
+    };
+  }
+  private async restorationControl(args: Json) {
+    const current = args.credentialState;
+    const status = await this.credentialState(current, args.hubOrigin);
+    if (
+      !["active", "expiring"].includes(status.status) ||
+      !same(current.identity, args.identityState.identity) ||
+      !same(current.binding, args.identityState.binding)
+    )
+      fail("agent_unavailable");
+    const scope = await this.restoration({
+      current,
+      sources: args.sources,
+      hubOrigin: args.hubOrigin,
+      legacyConnectionId: null,
+    });
+    const { consent } = await this.policy(args.identityState, args.resourceState, args.receipts);
+    const blocked = (consent?.permissions ?? []).filter(
+      (p: Json) =>
+        p.status === "revoked" &&
+        !(consent?.permissions ?? []).some(
+          (v: Json) => v.status === "active" && same(v.ref, p.ref),
+        ),
+    );
+    return {
+      ...scope,
+      permissions: scope.permissions.filter((p) => !blocked.some((v: Json) => same(v.ref, p.ref))),
+    };
+  }
+  async restoredConsent(args: Json) {
+    const scope = await this.restorationControl(args);
+    for (const resource of args.resources) {
+      const allowed = scope.permissions.find(
+        (p) => same(p.ref, resource.ref) && p.sourceEpoch === resource.sourceEpoch,
+      );
+      if (!allowed || resource.revision < allowed.fromRevision) fail("resource_not_approved");
+    }
+    return this.approve(args as any);
+  }
+  async restoredTask(args: Json) {
+    const scope = await this.restorationControl(args),
+      authority = args.authority.authority;
+    if (
+      !authority ||
+      !scope.identities.some((identity) =>
+        BINDING.every((k) => same(authority.context[k], identity[k])),
+      )
+    )
+      fail("replacement_review_required");
+    for (const binding of args.metadata.resourceBindings)
+      if (
+        !scope.permissions.some(
+          (p) => same(p.ref, binding.ref) && p.sourceEpoch === binding.sourceEpoch,
+        )
+      )
+        fail("resource_not_approved");
+    return this.task({ ...args, allowReassign: true } as any);
   }
   async policy(
     state: Json,
@@ -1198,7 +1444,7 @@ export class PersistentOwner {
         r.authority !== "agent_statement" ||
         r.nativeScheduleAttested !== false ||
         !["enabled", "paused", "removed", "unconfirmed"].includes(r.reportedStatus) ||
-        r.provider !== "muse" ||
+        !["muse", "chatgpt"].includes(r.provider) ||
         !Number.isSafeInteger(r.receivedAt) ||
         r.receivedAt < 0 ||
         r.receivedAt > this.ctx.now() ||

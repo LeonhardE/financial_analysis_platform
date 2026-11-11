@@ -51,6 +51,11 @@ export function persistentOwnerRoute(path: string, method: string): PersistentOw
       match(`/api/v3/agent-credentials/${ID}/${ID}(?:/(?:setups|operations)/${OP})?`))
   )
     return { kind: "read", max: 0, responseStatus: 200 };
+  if (
+    method === "GET" &&
+    match(`/api/v3/agent-credentials/${ID}/${ID}/restoration(?:/${ID}/[a-f0-9]{64})?`)
+  )
+    return { kind: "read", max: 0, responseStatus: 200 };
   if (method === "POST" && match(`/api/v3/agent-credentials/${ID}/${ID}/approvals`))
     return { kind: "credential-approval", max: 33000, operation: true, responseStatus: 201 };
 

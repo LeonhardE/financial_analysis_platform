@@ -101,7 +101,7 @@ function planReceipt(v: unknown) {
     integer(v.version, 1) &&
     hash(v.requestDigest) &&
     hash(v.taskPublicationFingerprint) &&
-    v.provider === "muse" &&
+    ["muse", "chatgpt"].includes(String(v.provider)) &&
     nullable(v.planReferenceHash, hash) &&
     ["enabled", "paused", "removed", "unconfirmed"].includes(String(v.reportedStatus)) &&
     integer(v.reportedAt, 0) &&
@@ -182,12 +182,87 @@ function credentialReceipt(v: unknown, operationId?: string) {
     signedObject(v.approval)
   );
 }
+function restorationDescriptor(v: unknown) {
+  return (
+    fields(v, ["connectionId", "bindingFingerprint", "credentialFingerprint", "generation"]) &&
+    id(v.connectionId) &&
+    hash(v.bindingFingerprint) &&
+    integer(v.generation, 0) &&
+    nullable(v.credentialFingerprint, hash) &&
+    (v.generation === 0) === (v.credentialFingerprint === null)
+  );
+}
+function restorationResponse(p: string[], v: Record<string, unknown>) {
+  if (v.profile !== "folioview.agent-restoration.v1") return false;
+  if (p.length === 7)
+    return (
+      fields(v, ["contractVersion", "profile", "source"]) &&
+      nullable(v.source, restorationDescriptor)
+    );
+  return (
+    fields(v, [
+      "contractVersion",
+      "profile",
+      "source",
+      "historical",
+      "identityState",
+      "credential",
+      "resourceState",
+      "predecessor",
+    ]) &&
+    restorationDescriptor(v.source) &&
+    record(v.source) &&
+    v.source.connectionId === p[7] &&
+    v.source.bindingFingerprint === p[8] &&
+    typeof v.historical === "boolean" &&
+    fields(v.identityState, [
+      "contractVersion",
+      "profile",
+      "identity",
+      "binding",
+      "revocation",
+      "connectionRevoked",
+    ]) &&
+    v.identityState.contractVersion === CONTRACT &&
+    v.identityState.profile === AGENT &&
+    formal("PersistentAgentIdentity", v.identityState.identity) &&
+    record(v.identityState.identity) &&
+    v.identityState.identity.connectionId === p[7] &&
+    v.identityState.identity.bindingFingerprint === p[8] &&
+    signedObject(v.identityState.binding) &&
+    nullable(v.identityState.revocation, signedObject) &&
+    typeof v.identityState.connectionRevoked === "boolean" &&
+    nullable(
+      v.credential,
+      (c) =>
+        fields(c, ["lease", "approval"]) &&
+        formal("AgentCredentialLease", c.lease) &&
+        signedObject(c.approval),
+    ) &&
+    fields(v.resourceState, [
+      "contractVersion",
+      "profile",
+      "consent",
+      "operations",
+      "parentRevoked",
+    ]) &&
+    v.resourceState.contractVersion === CONTRACT &&
+    v.resourceState.profile === CONSENT &&
+    nullable(v.resourceState.consent, (c) => formal("PersistentResourceConsent", c)) &&
+    Array.isArray(v.resourceState.operations) &&
+    v.resourceState.operations.length <= 96 &&
+    v.resourceState.operations.every(op) &&
+    typeof v.resourceState.parentRevoked === "boolean" &&
+    nullable(v.predecessor, restorationDescriptor)
+  );
+}
 function credentialResponse(
   p: string[],
   method: string,
   v: Record<string, unknown>,
   operationId?: string,
 ) {
+  if (p[6] === "restoration") return restorationResponse(p, v);
   if (p[4] === "capabilities")
     return (
       fields(v, [
@@ -355,7 +430,7 @@ export function persistentResponse(
       id(x.connectionId) &&
       id(x.clientId) &&
       id(x.vaultId) &&
-      x.provider === "muse" &&
+      ["muse", "chatgpt"].includes(String(x.provider)) &&
       ["active", "revoked"].includes(String(x.status)) &&
       ["connected", "revoked", "relogin_required", "connecting"].includes(String(x.accountState)) &&
       integer(x.linkedAt, 0);

@@ -1517,6 +1517,47 @@ export class EncryptedVaultSession {
       return packet;
     });
   }
+  async verifyAgentRestoration(args: Json) {
+    const g = this.generation,
+      value = await this.rpc("verifyAgentRestoration", args);
+    this.assert(g);
+    return value;
+  }
+  async prepareRestoredConsent(args: Json) {
+    return this.preparePersistent("prepareRestoredConsent", args);
+  }
+  async prepareRestoredTask(args: Json) {
+    return this.preparePersistent("prepareRestoredTask", args);
+  }
+  async archiveExpiredCredentialPending(args: Json) {
+    return this.serial(async () => {
+      const g = this.generation,
+        actor = args.actor,
+        key = this.persistentKey(actor);
+      await this.started;
+      const row = await this.storage.get(key);
+      this.assert(g);
+      this.checkPersistentRow(row, actor);
+      const packet = await this.loadPersistentPending(actor);
+      if (!row || !packet || packet.kind !== "credential")
+        throw new VaultError("persistent_operation_pending");
+      const verified = await this.rpc("verifyExpiredCredentialPending", { ...args, packet });
+      this.assert(g);
+      if (verified.operationId !== packet.operationId) throw new VaultError("operation_conflict");
+      // Preserve the sealed original before removing only the exact expired outbox slot.
+      const archiveKey = `${this.owner}:persistent-expired:${this.vaultId}:${packet.operationId}`;
+      const existing = await this.storage.get(archiveKey);
+      this.assert(g);
+      if (existing && JSON.stringify(existing) !== JSON.stringify(row))
+        throw new VaultError("operation_conflict");
+      if (!existing && !(await this.storage.insert(archiveKey, row)))
+        throw new VaultError("operation_conflict");
+      this.assert(g);
+      if (!(await this.storage.removeOperation(key, packet.operationId)))
+        throw new VaultError("operation_conflict");
+      this.assert(g);
+    });
+  }
   async prepareAgentCredential(args: Json) {
     return this.preparePersistent("prepareAgentCredential", args);
   }
