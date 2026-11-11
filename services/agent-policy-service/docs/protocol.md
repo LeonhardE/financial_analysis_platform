@@ -1,3 +1,6 @@
+> Archived reference for the retired Policy target. Commands and deployment prerequisites
+> below are historical; use the existing [Agent Hub](../../agent-hub-service/README.md).
+
 # Independent policy protocol
 
 ## Domain and activation
