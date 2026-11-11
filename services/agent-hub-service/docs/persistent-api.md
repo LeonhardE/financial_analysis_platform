@@ -522,3 +522,64 @@ reference is hashed inside the Worker and is never sent as a URL or credential.
 Requested task schedules, Agent-reported native plan state and Hub-observed Run/report receipts
 are separate facts. A statement is not independent Muse attestation or proof that a native plan
 was installed. Delayed results cannot replace the observation for a newer Run.
+
+## Agent-owned credential lifecycle
+
+The additive `folioview.agent-credential.v1` lifecycle is disabled by default with
+`HUB_AGENT_OWNED_CREDENTIALS_ENABLED`. Enabling it also requires the configured
+persistent identity, consent, publication, execution and Native bootstrap gates.
+It uses this existing Hub and storage; it provisions no separate service, VM,
+proxy, key-release witness or background expiration job.
+
+Owner-only, closed JSON endpoints under `/api/v3/agent-credentials` are:
+
+| Method/path suffix                                 | Purpose                                                            |
+| -------------------------------------------------- | ------------------------------------------------------------------ |
+| `GET /capabilities`                                | Admission status, default 90-day duration and seven-day notice     |
+| `GET /{vault}/{connection}`                        | Current public identity, signed approval, lease and derived status |
+| `GET /{vault}/{connection}/setups/{intent}`        | Exact Owner-scoped pending Native offer; no private keys           |
+| `POST /{vault}/{connection}/approvals`             | Atomic Owner-approved first enrollment/replacement                 |
+| `GET /{vault}/{connection}/operations/{operation}` | Immutable original receipt                                         |
+
+Writes retain the existing contract and idempotency headers and accept
+`{"contractVersion":"folioview.agent-workspace.v2.0","command":{"binding":{...},"approval":{...}}}`.
+Both nested values are flattened JWS objects, not unsigned keys or a `verified`
+flag. The approval binds the exact Owner, client, connection, fresh key pair,
+identity binding, current Root registry, Native setup, audience, next generation,
+previous credential fingerprint and expiry. Agent signatures cannot renew an
+Owner approval. The maximum/default duration is 7,776,000 seconds; shorter explicit
+Owner approvals support bounded acceptance. Expiry is checked on demand.
+
+Only a verified Native bootstrap principal can create a ten-minute setup intent
+and submit its bounded, immutable encrypted public-key offer. The platform never
+receives the host's private keys or pairing secret. The reviewed host/Owner
+handoff protocol must establish first-key provenance before enabling the route;
+these endpoints alone do not prove host persistence or native scheduling.
+
+An unused slot may start at generation one. A used legacy v1 slot, including a
+terminal revocation record, cannot be reused as generation one; it needs a new
+Native logical connection. Managed slots replace only through fresh Owner-signed
+keys and a compare-and-swap transaction. The transaction archives the old binding,
+consumes the setup and commits the new current record and immutable receipt.
+Preparation failure preserves the previous current credential. Exact retries
+return the original receipt without reactivating its generation. Missing managed
+state or a mismatched parent marker fails closed, rather than becoming a new slot.
+
+Managed consents are namespaced by binding fingerprint. A new credential needs
+fresh Owner approval and resource/task ciphertext; prior grants, revocation
+history and original operations remain stored. Successful replacement does not
+erase ciphertext or plaintext already delivered. Existing legacy receipts remain
+immutable and cannot undo a later managed generation.
+
+Every persistent session/read/Run request and final result write rechecks the
+current identity and lease, including a recheck after producer RPCs. Legacy v2
+financial OAuth/refresh cannot bypass a managed connection; separate Native
+bootstrap refresh continues normally. Disabling admission cannot lift existing
+expiry or revocation fences. Owner history resolves the original Run binding and
+retains independent report decryption after reauthorization.
+
+After the first managed enrollment, rollback must retain a Hub version supporting
+managed records. Preserve current generations, archived bindings, consents and
+operation receipts. Never clear state to roll back. Keep UI recovery to login,
+existing Passkey and reauthorization; do not expose key files, fingerprints,
+certificate ceremonies or Agent recovery codes to users.

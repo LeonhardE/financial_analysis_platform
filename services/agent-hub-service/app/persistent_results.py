@@ -367,7 +367,13 @@ class PersistentOwnerResultService:
                 or signing_input_fingerprint(carrier["proof"]) != row["fingerprint"]
             ):
                 raise StoreUnavailable
-            identity = stored_identity(unit, owner, vault, m["connectionId"])
+            identity = stored_identity(
+                unit,
+                owner,
+                vault,
+                m["connectionId"],
+                binding_fingerprint=run["identity"]["bindingFingerprint"],
+            )
             if identity is None:
                 raise StoreUnavailable
             response = {
