@@ -5662,6 +5662,232 @@
         "inputs"
       ],
       "additionalProperties": false
+    },
+    "AgentCredentialApproval": {
+      "type": "object",
+      "properties": {
+        "contractVersion": {
+          "const": "folioview.agent-workspace.v2.0"
+        },
+        "profile": {
+          "const": "folioview.agent-credential.v1"
+        },
+        "artifactType": {
+          "const": "agent_credential_approve"
+        },
+        "ownerSubject": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "vaultId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "connectionId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "agentId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "clientId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "rootKeyId": {
+          "$ref": "#/$defs/KeyId"
+        },
+        "agentSigningKeyId": {
+          "$ref": "#/$defs/KeyId"
+        },
+        "agentEncryptionKeyId": {
+          "$ref": "#/$defs/KeyId"
+        },
+        "identityEpoch": {
+          "const": 1
+        },
+        "deviceSigningKeyId": {
+          "$ref": "#/$defs/KeyId"
+        },
+        "stableOperationId": {
+          "$ref": "#/$defs/OperationIdentifier"
+        },
+        "registrySequence": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "checkpointDigest": {
+          "$ref": "#/$defs/Digest"
+        },
+        "keyEpoch": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "issuedAt": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "generation": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "previousCredentialFingerprint": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Digest"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "bindingFingerprint": {
+          "$ref": "#/$defs/Digest"
+        },
+        "setupIntentId": {
+          "$ref": "#/$defs/OperationIdentifier"
+        },
+        "audience": {
+          "type": "string",
+          "format": "uri",
+          "maxLength": 512
+        },
+        "expiresAt": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": [
+        "contractVersion",
+        "profile",
+        "artifactType",
+        "ownerSubject",
+        "vaultId",
+        "connectionId",
+        "agentId",
+        "clientId",
+        "rootKeyId",
+        "agentSigningKeyId",
+        "agentEncryptionKeyId",
+        "identityEpoch",
+        "deviceSigningKeyId",
+        "stableOperationId",
+        "registrySequence",
+        "checkpointDigest",
+        "keyEpoch",
+        "issuedAt",
+        "generation",
+        "previousCredentialFingerprint",
+        "bindingFingerprint",
+        "setupIntentId",
+        "audience",
+        "expiresAt"
+      ],
+      "additionalProperties": false
+    },
+    "AgentCredentialLease": {
+      "type": "object",
+      "properties": {
+        "contractVersion": {
+          "const": "folioview.agent-workspace.v2.0"
+        },
+        "profile": {
+          "const": "folioview.agent-credential.v1"
+        },
+        "ownerSubject": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "vaultId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "connectionId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "agentId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "clientId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "rootKeyId": {
+          "$ref": "#/$defs/KeyId"
+        },
+        "agentSigningKeyId": {
+          "$ref": "#/$defs/KeyId"
+        },
+        "agentEncryptionKeyId": {
+          "$ref": "#/$defs/KeyId"
+        },
+        "identityEpoch": {
+          "const": 1
+        },
+        "issuedAt": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "generation": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "previousCredentialFingerprint": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Digest"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "bindingFingerprint": {
+          "$ref": "#/$defs/Digest"
+        },
+        "setupIntentId": {
+          "$ref": "#/$defs/OperationIdentifier"
+        },
+        "audience": {
+          "type": "string",
+          "format": "uri",
+          "maxLength": 512
+        },
+        "expiresAt": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "credentialFingerprint": {
+          "$ref": "#/$defs/Digest"
+        },
+        "status": {
+          "enum": ["active", "revoked"]
+        }
+      },
+      "required": [
+        "contractVersion",
+        "profile",
+        "ownerSubject",
+        "vaultId",
+        "connectionId",
+        "agentId",
+        "clientId",
+        "rootKeyId",
+        "agentSigningKeyId",
+        "agentEncryptionKeyId",
+        "identityEpoch",
+        "issuedAt",
+        "generation",
+        "previousCredentialFingerprint",
+        "bindingFingerprint",
+        "setupIntentId",
+        "audience",
+        "expiresAt",
+        "credentialFingerprint",
+        "status"
+      ],
+      "additionalProperties": false
     }
   }
 }

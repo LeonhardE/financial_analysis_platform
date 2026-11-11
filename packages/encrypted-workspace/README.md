@@ -40,3 +40,7 @@ Existing live Python/Node and service consumer tests remain separate checks.
 The schema snapshot preserves the four shared documents without definition-name
 collisions. Money/date/URL/private-content semantic checks accompany AJV structure
 checks. No real account data or private key fixture is stored in this package.
+
+Owner-approved 90-day credential leases are documented in the
+[credential lifecycle contract](../../services/common/folioview_shared/encrypted/docs/agent-credentials.md). The profile is additive; consumers must
+implement atomic replacement and current-generation fences before enabling it.

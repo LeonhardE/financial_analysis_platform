@@ -35,3 +35,9 @@ it never persists or prints the private JWK.
 This is fixture-authoring tooling only, not an application dependency or a
 client key-management implementation. No network service or cloud resource is
 started by the generator or the Python tests.
+
+`agent_credential_vectors.py` (repository Python test environment, from the repository root)
+and then `agent_credential_vectors.mjs` (Node 24, from any directory) regenerate
+`agent_credentials.json`. The device signer uses the deliberately public test
+scalar 1; the committed fixture contains public keys and two independently
+signed Owner approvals, and is verified by both implementations.

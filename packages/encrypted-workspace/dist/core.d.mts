@@ -129,3 +129,25 @@ export function verifyManifest(
     now: number;
   },
 ): Promise<{ manifest: PublicJson; fingerprint: string }>;
+export const AGENT_CREDENTIAL_PROFILE: string;
+export const DEFAULT_CREDENTIAL_SECONDS: number;
+export const CREDENTIAL_NOTICE_SECONDS: number;
+export function credentialStatus(
+  lease: PublicJson,
+  now: number,
+): "active" | "expiring" | "expired" | "revoked";
+export function requireCurrentCredential(
+  lease: PublicJson,
+  args: { identity: PublicJson; audience: string; now: number },
+): PublicJson;
+export function approveCredential(
+  signed: SignedObject,
+  args: {
+    registry: Registry;
+    identity: PublicJson;
+    currentLease?: PublicJson | null;
+    setupIntentId: string;
+    audience: string;
+    now: number;
+  },
+): Promise<PublicJson>;
