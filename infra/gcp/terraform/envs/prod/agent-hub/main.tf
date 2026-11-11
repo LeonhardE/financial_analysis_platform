@@ -17,14 +17,15 @@ locals {
     secretSha256            = client.secret_sha256
   }])
   agent_owned_environment = {
-    HUB_AGENT_OWNED_CREDENTIALS_ENABLED      = var.agent_owned_mode_enabled ? "1" : "0"
-    HUB_AGENT_OWNER_URL                      = var.agent_owned_mode_enabled ? "${local.web_origin}/agents" : ""
-    HUB_PERSISTENT_RESOURCE_CONSENTS_ENABLED = var.agent_owned_mode_enabled ? "1" : "0"
-    HUB_PERSISTENT_PUBLICATIONS_ENABLED      = var.agent_owned_mode_enabled ? "1" : "0"
-    HUB_PERSISTENT_EXECUTION_ENABLED         = var.agent_owned_mode_enabled ? "1" : "0"
-    HUB_PERSISTENT_RESULTS_ENABLED           = var.agent_owned_mode_enabled ? "1" : "0"
-    HUB_PERSISTENT_TRANSPORT_ENABLED         = var.agent_owned_mode_enabled ? "1" : "0"
-    HUB_PERSISTENT_MCP_ENABLED               = var.agent_owned_mode_enabled ? "1" : "0"
+    HUB_AGENT_OWNED_ALLOWED_OWNER_SUBJECTS_JSON = jsonencode(var.agent_owned_allowed_owner_subjects)
+    HUB_AGENT_OWNED_CREDENTIALS_ENABLED         = var.agent_owned_mode_enabled ? "1" : "0"
+    HUB_AGENT_OWNER_URL                         = var.agent_owned_mode_enabled ? "${local.web_origin}/agents" : ""
+    HUB_PERSISTENT_RESOURCE_CONSENTS_ENABLED    = var.agent_owned_mode_enabled ? "1" : "0"
+    HUB_PERSISTENT_PUBLICATIONS_ENABLED         = var.agent_owned_mode_enabled ? "1" : "0"
+    HUB_PERSISTENT_EXECUTION_ENABLED            = var.agent_owned_mode_enabled ? "1" : "0"
+    HUB_PERSISTENT_RESULTS_ENABLED              = var.agent_owned_mode_enabled ? "1" : "0"
+    HUB_PERSISTENT_TRANSPORT_ENABLED            = var.agent_owned_mode_enabled ? "1" : "0"
+    HUB_PERSISTENT_MCP_ENABLED                  = var.agent_owned_mode_enabled ? "1" : "0"
   }
   service_configuration = {
     min_instances     = 0

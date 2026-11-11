@@ -135,6 +135,21 @@ variable "persistent_mode_enabled" {
   }
 }
 
+variable "agent_owned_allowed_owner_subjects" {
+  description = "At most 32 explicitly reviewed Owner subject hashes admitted to personal Agent setup and execution. Empty denies all; this never grants resource authority."
+  type        = list(string)
+  default     = []
+  nullable    = false
+  validation {
+    condition = (
+      length(var.agent_owned_allowed_owner_subjects) <= 32 &&
+      length(distinct(var.agent_owned_allowed_owner_subjects)) == length(var.agent_owned_allowed_owner_subjects) &&
+      alltrue([for owner in var.agent_owned_allowed_owner_subjects : can(regex("^[a-f0-9]{64}$", owner))])
+    )
+    error_message = "Review a unique bounded list of lowercase SHA-256 Owner subjects."
+  }
+}
+
 variable "agent_owned_mode_enabled" {
   description = "Enable personal Agent bootstrap/90-day credentials on this existing service only after explicit deployment and host-readiness review. False by default; grants no user resource authority."
   type        = bool
@@ -142,11 +157,12 @@ variable "agent_owned_mode_enabled" {
   nullable    = false
   validation {
     condition = !var.agent_owned_mode_enabled || (
+      length(var.agent_owned_allowed_owner_subjects) > 0 &&
       var.connector.oauth_enabled && length(var.connector.muse_clients) + length(var.agent_clients) > 0 &&
       var.sources.user_origin != "" && var.sources.portfolio_origin != "" &&
       var.sources.portfolio_caller_email != "" && length(var.sources.trusted_portfolio_callers) > 0
     )
-    error_message = "Personal Agent mode needs explicit OAuth preregistration and complete reviewed User/Portfolio producer trust. It does not authorize public invocation, data access or deployment."
+    error_message = "Personal Agent mode needs a nonempty reviewed Owner admission list, explicit OAuth preregistration and complete reviewed User/Portfolio producer trust. It does not authorize public invocation, data access or deployment."
   }
 }
 

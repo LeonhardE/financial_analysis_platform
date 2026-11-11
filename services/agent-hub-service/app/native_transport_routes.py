@@ -14,6 +14,7 @@ from folioview_shared.encrypted.constants import CONTRACT_VERSION
 from folioview_shared.encrypted.errors import ContractError
 from folioview_shared.http import PrivateRoute
 
+from .agent_rollout import uid_allowed
 from .api import Owner, _invoke, body
 from .native_transport import PROFILE, SCOPE, NativeTransportService
 from .oauth import PENDING_SECONDS
@@ -114,6 +115,7 @@ def capabilities(request: Request, user: Owner):
         if (
             os.getenv("HUB_PERSISTENT_TRANSPORT_ENABLED") != "1"
             or os.getenv("HUB_AGENT_OWNED_CREDENTIALS_ENABLED") != "1"
+            or not uid_allowed(user.uid)
         ):
             return False
         OAuthConfig.environment()

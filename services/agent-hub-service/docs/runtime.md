@@ -51,3 +51,13 @@ a hash manifest. No crypto SDK or browser key worker is bundled there. The separ
 pinned private client is distributed by the existing Hub image. Feature gates default
 off; the service scales to zero under the existing deployment structure. Deployment,
 real host compatibility and cross-day/native acceptance require a separate approved window.
+
+The managed Hub target also supplies `HUB_AGENT_OWNED_ALLOWED_OWNER_SUBJECTS_JSON`,
+a bounded list of reviewed Owner subject hashes. Its default empty list denies all;
+enabling personal Agent mode requires a nonempty list. A restricted rollout admits
+only those accounts to native approval, credential setup/replacement and current
+credential execution. Removing an account also fences existing native tokens and
+managed execution; Owner history and disconnect remain available. Malformed lists
+fail closed. Installations that omit this optional restriction retain their prior
+admission behavior. The list grants no resource consent and bypasses no Root,
+lease, scope, freshness or revocation checks. No new cloud resource is required.

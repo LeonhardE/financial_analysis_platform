@@ -75,6 +75,9 @@ class AgentCredentialService(PersistentAgentService):
             raise ContractError("key_authorization_required")
         if owner_key(principal.owner_uid) != principal.owner_subject:
             raise ContractError("key_authorization_required")
+        from .agent_rollout import require_owner_allowed
+
+        require_owner_allowed(principal.owner_subject)
         owner, vault, registry, conn = self._context(
             unit, principal.owner_uid, principal.vault_id, principal.connection_id, active=True
         )
@@ -342,6 +345,9 @@ class AgentCredentialService(PersistentAgentService):
         return self.store.transact(read)
 
     def command(self, uid, vault, connection, command, operation):
+        from .agent_rollout import require_owner_allowed
+
+        require_owner_allowed(owner_key(uid))
         for value in (vault, connection):
             identifier(value)
         validate_schema("OperationIdentifier", operation)

@@ -164,9 +164,15 @@ recreating the DB, deleting histories or supplying a content key to the backend.
 `agent_owned_mode_enabled` defaults to `false`. Configuration explicitly emits
 `HUB_AGENT_OWNED_CREDENTIALS_ENABLED=0`, an empty Owner URL and six closed
 consent/publication/execution/result/transport/MCP gates. An opt-in requires
-reviewed OAuth client registrations and complete existing producer trust; it
+reviewed OAuth client registrations, a nonempty `agent_owned_allowed_owner_subjects`
+list (at most 32 unique Owner subject hashes), and complete existing producer trust; it
 sets the Owner URL to the selected Web origin's `/agents` page. It does not
 approve any user's resources, install a native schedule or prove host retention.
+The admission list defaults to empty and is always emitted to the service. Only
+reviewed accounts can approve native connections, set up/replace credentials or
+execute with them; removed accounts are also fenced on existing tokens/PoP. Owner
+history and disconnect remain available. Invalid lists deny admission. This is
+not resource authorization; all existing cryptographic checks still apply.
 
 `persistent_mode_enabled` is retained as a false-only compatibility input. Old
 operator files with `true` are refused instead of enabling the new mode. Review

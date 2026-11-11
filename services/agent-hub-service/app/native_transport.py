@@ -24,6 +24,7 @@ from folioview_shared.encrypted.jsonutil import (
 )
 from folioview_shared.identity import owner_key
 
+from .agent_rollout import owner_allowed, require_owner_allowed
 from .oauth import (
     _S256,
     _TOKEN,
@@ -292,6 +293,7 @@ class NativeTransportService(OwnerConnectionService):
 
     def _pending(self, unit, uid, request, browser):
         owner = owner_key(uid)
+        require_owner_allowed(owner)
         bucket = _pending_bucket(unit, self.now())
         row = bucket["entries"].get(request)
         if (
@@ -470,7 +472,8 @@ class NativeTransportService(OwnerConnectionService):
     def _context_active(self, unit, context):
         conn = _row(unit, "hub_oauth_connections", context["ownerSubject"], context["connectionId"])
         return bool(
-            conn
+            owner_allowed(context["ownerSubject"])
+            and conn
             and conn.get("transportKind") == "persistent_runtime"
             and conn.get("ownerSubject") == context["ownerSubject"]
             and conn.get("connectionId") == context["connectionId"]
