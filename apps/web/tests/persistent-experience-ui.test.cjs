@@ -5,7 +5,7 @@ const { renderToStaticMarkup } = require("react-dom/server"),
   { createTranslator } = require("next-intl");
 const { compile } = require("./resource-library-helpers.cjs");
 const jsx = require("react/jsx-runtime");
-function render(locale, unlocked, plan, credential = null) {
+function render(locale, unlocked, plan, credential = null, duration = null) {
   const imports = {
     react: React,
     "react/jsx-runtime": jsx,
@@ -27,11 +27,20 @@ function render(locale, unlocked, plan, credential = null) {
     },
     "@/lib/native-owner-bridge": {},
     "@/lib/agent-authorization": {},
+    "@/lib/persistent-experience-controller": {
+      DEFAULT_CONNECTION_SECONDS: 7776000,
+      TEMPORARY_CONNECTION_SECONDS: 900,
+    },
     "./AgentsPanel.module.css": new Proxy({}, { get: (_t, k) => String(k) }),
   };
-  const Panel = compile("../components/PersistentAgentsPanel.tsx", imports, {
+  const components = compile("../components/PersistentAgentsPanel.tsx", imports, {
     Intl,
-  }).PersistentAgentsPanel;
+  });
+  if (duration)
+    return renderToStaticMarkup(
+      React.createElement(components.AgentConnectionDuration, { ...duration, onChange() {} }),
+    );
+  const Panel = components.PersistentAgentsPanel;
   const workspace = {
     authenticated: true,
     owner: "owner_A",
@@ -133,6 +142,27 @@ test("connection UI offers ordinary reauthorization and expiry notice without ex
     assert.doesNotMatch(
       out,
       /PRIVATE_KEY_CANARY|BINDING_CANARY|fingerprint|certificate|恢复码|恢复文件|recovery code|recovery file|JSON/,
+    );
+  }
+});
+
+test("connection duration keeps ninety days selected by default and freezes pending originals", () => {
+  for (const locale of ["zh", "en"]) {
+    const normal = render(locale, true, null, null, {
+      seconds: 7776000,
+      pending: false,
+      busy: false,
+    });
+    assert.match(normal, /<option value="7776000" selected=""/);
+    assert.equal((normal.match(/<option\b/g) ?? []).length, 2);
+    assert.match(normal, locale === "zh" ? /15 分钟（临时）/ : /15 minutes \(temporary\)/);
+    const pending = render(locale, true, null, null, { seconds: 900, pending: true, busy: false });
+    assert.match(pending, /<select[^>]*disabled=""/);
+    assert.match(pending, /<option value="900" selected=""/);
+    assert.match(pending, locale === "zh" ? /时长已固定/ : /duration is fixed/);
+    assert.doesNotMatch(
+      normal + pending,
+      /fingerprint|certificate|恢复码|恢复文件|recovery code|JSON/,
     );
   }
 });

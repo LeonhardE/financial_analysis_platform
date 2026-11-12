@@ -280,3 +280,118 @@ test("a changed offer checks the original receipt before archiving an expired jo
   h.c.send = async (_c, p) => assert.equal(p, packet);
   assert.equal((await h.c.authorize({}, review, [])).connected, true);
 });
+
+test("temporary authorization sends the Owner-selected lifetime to the Worker", async () => {
+  const h = harness(async () => ({
+    lease: { credentialFingerprint: "temporary_credential" },
+    identity: { bindingFingerprint: "temporary_binding" },
+  }));
+  const review = {
+    connection,
+    setup: { setupIntentId: "setup_temporary" },
+    current: {},
+    scope: { reviewDigest: "scope_A" },
+    tasks: [],
+    renewing: false,
+  };
+  h.w.pending = null;
+  h.c.inspectAuthorization = async () => review;
+  let prepares = 0;
+  h.w.prepareAgentCredential = async (args) => {
+    prepares++;
+    assert.equal(args.lifetimeSeconds, 900);
+    return {
+      kind: "credential",
+      credentialLifetimeSeconds: 900,
+      expectedLease: { credentialFingerprint: "temporary_credential" },
+      identity: { bindingFingerprint: "temporary_binding" },
+    };
+  };
+  h.c.send = async () => {};
+  assert.equal((await h.c.authorize({}, review, [], 900)).connected, true);
+  assert.equal(prepares, 1);
+});
+
+test("a pending temporary approval is immutable and cannot become ninety days during retry", async () => {
+  const h = harness(async () => ({
+    lease: { credentialFingerprint: "temporary_credential" },
+    identity: { bindingFingerprint: "temporary_binding" },
+  }));
+  const original = {
+    kind: "credential",
+    setupIntentId: "setup_temporary",
+    credentialLifetimeSeconds: 900,
+    expectedLease: { credentialFingerprint: "temporary_credential" },
+    identity: { bindingFingerprint: "temporary_binding" },
+  };
+  const review = {
+    connection,
+    setup: { setupIntentId: original.setupIntentId },
+    current: {},
+    scope: { reviewDigest: "scope_A" },
+    tasks: [],
+    renewing: false,
+  };
+  h.w.pending = original;
+  h.c.inspectAuthorization = async () => review;
+  h.w.prepareAgentCredential = async () => assert.fail("must retain the sealed original");
+  let sends = 0;
+  h.c.send = async (_connection, packet) => {
+    sends++;
+    assert.equal(packet, original);
+  };
+  await assert.rejects(
+    h.c.authorize({}, review, [], 7776000),
+    (e) => e.code === "persistent_operation_pending",
+  );
+  assert.equal(sends, 0);
+  assert.equal(h.w.pending, original);
+  assert.equal((await h.c.authorize({}, review, [], 900)).connected, true);
+  assert.equal(sends, 1);
+});
+
+test("unsupported connection lifetime is refused before reads or Worker preparation", async () => {
+  const h = harness(async () => assert.fail("must not request unsupported duration"));
+  h.c.inspectAuthorization = async () => assert.fail("must not inspect unsupported duration");
+  for (const seconds of [0, 899, 901, 7776001, "900", null])
+    await assert.rejects(h.c.authorize({}, {}, [], seconds), (e) => e.code === "review_changed");
+});
+
+test("authorization review exposes only the immutable pending connection duration", async () => {
+  const setup = {
+    setupIntentId: "setup_temporary",
+    clientId: connection.clientId,
+    provider: "muse",
+    predecessorConnectionId: null,
+  };
+  const h = harness(async (_service, path) => {
+    if (path.includes("/setups/")) return setup;
+    if (path === "/api/v2/persistent-connections") return { connections: [connection] };
+    if (path.endsWith("/restoration")) return { source: null };
+    if (path.startsWith("/api/v2/tasks?"))
+      return { contractVersion: "folioview.agent-workspace.v2.0", items: [], nextCursor: null };
+    return { identity: null, lease: null };
+  });
+  h.w.inspectAgentCredentialSetup = async () => ({ provider: "muse", reviewDigest: "review_A" });
+  h.w.verifyAgentRestoration = async () => ({
+    identities: [],
+    permissions: [],
+    reviewDigest: "scope_A",
+  });
+  const handoff = {
+    issuer: h.c.hubOrigin,
+    vaultId: connection.vaultId,
+    connectionId: connection.connectionId,
+    setupIntentId: setup.setupIntentId,
+  };
+  h.w.pending = {
+    kind: "credential",
+    setupIntentId: setup.setupIntentId,
+    credentialLifetimeSeconds: 900,
+  };
+  assert.equal((await h.c.inspectAuthorization(handoff)).pendingLifetimeSeconds, 900);
+  delete h.w.pending.credentialLifetimeSeconds;
+  assert.equal((await h.c.inspectAuthorization(handoff)).pendingLifetimeSeconds, 7776000);
+  h.w.pending.credentialLifetimeSeconds = null;
+  await assert.rejects(h.c.inspectAuthorization(handoff), (e) => e.code === "verification_failed");
+});

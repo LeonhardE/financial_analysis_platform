@@ -201,3 +201,18 @@
   align-items: center;
   gap: 8px;
 }
+.durationChoice {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 12px 0;
+}
+.durationChoice select {
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: inherit;
+  background: var(--raised);
+  font: inherit;
+}

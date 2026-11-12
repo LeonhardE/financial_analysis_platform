@@ -73,6 +73,13 @@ action. Private Agent keys, fingerprints, certificates and recovery files are no
 of the product flow. The temporary pairing fragment is removed from the URL immediately
 and retained only in memory for that authorization.
 
+Connection duration defaults to 90 days, with an optional 15-minute temporary
+connection. The Owner Worker accepts only these two choices and signs the selected
+lifetime within the existing 90-day maximum and certificate expiry. A pending sealed
+approval keeps its original duration through retries, lock and resume. The UI freezes
+that choice while pending and displays the time for near-term expiry. No recovery
+file, key setup or new service is involved.
+
 Reauthorization verifies the original Root bindings, signed leases and immutable consent
 receipts across the Hub's bounded predecessor chain. It restores only continuing access
 that remains approved, at the current resource incarnation/epoch and an allowed revision.

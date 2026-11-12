@@ -476,7 +476,12 @@ export class PersistentOwner {
     return { operationId: packet.operationId };
   }
   async credentialEnrollment(args: Json) {
-    const { offer, context, key, current } = await this.credentialOffer(args);
+    const lifetimeSeconds = Object.hasOwn(args, "lifetimeSeconds")
+      ? args.lifetimeSeconds
+      : DEFAULT_CREDENTIAL_SECONDS;
+    if (![900, DEFAULT_CREDENTIAL_SECONDS].includes(lifetimeSeconds)) fail("invalid_data");
+    const { lifetimeSeconds: _selectedLifetime, ...offerArgs } = args;
+    const { offer, context, key, current } = await this.credentialOffer(offerArgs);
     const prepared = await this.certifyAgent({ ...offer, intentId: offer.setupIntentId });
     const binding = prepared.body.command;
     const accepted = await this.registry(
@@ -484,8 +489,9 @@ export class PersistentOwner {
         ? [...this.ctx.vault.registryHistory, prepared.registryUpdate.registryBundle]
         : this.ctx.vault.registryHistory,
     );
+    const bindingPayload = parsed(bytes(binding.payload), true);
     const payload = {
-      ...parsed(bytes(binding.payload), true),
+      ...bindingPayload,
       profile: "folioview.agent-credential.v1",
       artifactType: "agent_credential_approve",
       bindingFingerprint: prepared.identity.bindingFingerprint,
@@ -493,7 +499,7 @@ export class PersistentOwner {
       previousCredentialFingerprint: current?.credentialFingerprint ?? null,
       setupIntentId: offer.setupIntentId,
       audience: args.hubOrigin,
-      expiresAt: this.ctx.now() + DEFAULT_CREDENTIAL_SECONDS,
+      expiresAt: bindingPayload.issuedAt + lifetimeSeconds,
     };
     const { sig, enc } = accepted.agent(prepared.identity, this.ctx.now());
     payload.expiresAt = Math.min(payload.expiresAt, sig.expiresAt, enc.expiresAt);
@@ -551,6 +557,7 @@ export class PersistentOwner {
     return {
       ...prepared,
       kind: "credential",
+      credentialLifetimeSeconds: lifetimeSeconds,
       setupIntentId: offer.setupIntentId,
       body: {
         contractVersion: CONTRACT,

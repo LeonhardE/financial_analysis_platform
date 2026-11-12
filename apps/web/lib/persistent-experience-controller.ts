@@ -7,6 +7,16 @@ import {
 import { taskPage } from "./task-types";
 import type { HoldingsWorkspace } from "../components/useHoldingsWorkspace";
 export const PERSISTENT_CONTRACT = "folioview.agent-workspace.v2.0";
+export const DEFAULT_CONNECTION_SECONDS = 7776000;
+export const TEMPORARY_CONNECTION_SECONDS = 900;
+function credentialLifetime(packet: Json) {
+  const seconds = Object.hasOwn(packet, "credentialLifetimeSeconds")
+    ? packet.credentialLifetimeSeconds
+    : DEFAULT_CONNECTION_SECONDS;
+  if (![DEFAULT_CONNECTION_SECONDS, TEMPORARY_CONNECTION_SECONDS].includes(seconds))
+    fail("verification_failed");
+  return seconds as number;
+}
 type Json = Record<string, any>;
 export type PersistentConnection = {
   connectionId: string;
@@ -282,9 +292,22 @@ export class PersistentExperienceController {
           )
         : !task.authority.authority,
     );
-    return { connection, setup, current, review, scope, tasks, renewing };
+    const pending = await this.workspace().loadPersistentPending(this.actor(connection));
+    this.assert();
+    const pendingLifetimeSeconds =
+      pending?.kind === "credential" && pending.setupIntentId === setup.setupIntentId
+        ? credentialLifetime(pending)
+        : null;
+    return { connection, setup, current, review, scope, tasks, renewing, pendingLifetimeSeconds };
   }
-  async authorize(handoff: Json, expected: Json, selected: string[]) {
+  async authorize(
+    handoff: Json,
+    expected: Json,
+    selected: string[],
+    lifetimeSeconds = DEFAULT_CONNECTION_SECONDS,
+  ) {
+    if (![DEFAULT_CONNECTION_SECONDS, TEMPORARY_CONNECTION_SECONDS].includes(lifetimeSeconds))
+      fail("review_changed");
     const current = await this.inspectAuthorization(handoff);
     if (
       !same(
@@ -336,6 +359,8 @@ export class PersistentExperienceController {
       this.assert();
       pending = null;
     }
+    if (pending && credentialLifetime(pending) !== lifetimeSeconds)
+      fail("persistent_operation_pending");
     if (
       new Set(selected).size !== selected.length ||
       selected.some((id) => !current.tasks.some((t) => t.taskId === id))
@@ -349,6 +374,7 @@ export class PersistentExperienceController {
         setup: current.setup,
         current: current.current,
         hubOrigin: this.hubOrigin,
+        lifetimeSeconds,
       }));
     this.assert();
     await this.send(connection, packet);

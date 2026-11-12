@@ -4,7 +4,12 @@ import { useLocale, useTranslations } from "next-intl";
 import { useAuth } from "./AuthProvider";
 import type { HoldingsWorkspace } from "./useHoldingsWorkspace";
 import type { PersistentWorkspaceModel } from "./usePersistentWorkspace";
-import type { PersistentConnection, PersistentTask } from "@/lib/persistent-experience-controller";
+import {
+  DEFAULT_CONNECTION_SECONDS,
+  TEMPORARY_CONNECTION_SECONDS,
+  type PersistentConnection,
+  type PersistentTask,
+} from "@/lib/persistent-experience-controller";
 import {
   agentAuthorizationHandoff,
   type AgentAuthorizationHandoff,
@@ -18,6 +23,39 @@ import styles from "./AgentsPanel.module.css";
 const CONTRACT = "folioview.agent-workspace.v2.0";
 type Json = Record<string, any>;
 const providerName = (provider: string) => (provider === "chatgpt" ? "ChatGPT" : "Muse");
+export function AgentConnectionDuration({
+  seconds,
+  pending,
+  busy,
+  onChange,
+}: {
+  seconds: number;
+  pending: boolean;
+  busy: boolean;
+  onChange: (seconds: number) => void;
+}) {
+  const t = useTranslations("agentAccess");
+  return (
+    <>
+      <label className={styles.durationChoice}>
+        {t("durationLabel")}
+        <select
+          value={seconds}
+          disabled={pending || busy}
+          onChange={(e) => {
+            const seconds = Number(e.target.value);
+            if ([DEFAULT_CONNECTION_SECONDS, TEMPORARY_CONNECTION_SECONDS].includes(seconds))
+              onChange(seconds);
+          }}
+        >
+          <option value={DEFAULT_CONNECTION_SECONDS}>{t("duration90Days")}</option>
+          <option value={TEMPORARY_CONNECTION_SECONDS}>{t("duration15Minutes")}</option>
+        </select>
+      </label>
+      {pending && <p className={styles.note}>{t("durationPending")}</p>}
+    </>
+  );
+}
 export function PersistentAgentsPanel({
   workspace,
   model,
@@ -49,6 +87,7 @@ export function PersistentAgentsPanel({
       scope: string;
       value: Json;
       selected: string[];
+      lifetimeSeconds: number;
     } | null>(null),
     [manage, setManage] = useState<{
       scope: string;
@@ -134,6 +173,7 @@ export function PersistentAgentsPanel({
       setAuthorization({
         scope: original,
         value: reviewed,
+        lifetimeSeconds: reviewed.pendingLifetimeSeconds ?? DEFAULT_CONNECTION_SECONDS,
         selected: reviewed.renewing
           ? reviewed.tasks.map((task: PersistentTask) => task.taskId)
           : [],
@@ -167,7 +207,9 @@ export function PersistentAgentsPanel({
     const value = authorization?.scope === scope ? authorization : null,
       secret = handoff.current;
     if (!value || !secret) return;
-    const result = await model.execute((c) => c.authorize(secret, value.value, value.selected));
+    const result = await model.execute((c) =>
+      c.authorize(secret, value.value, value.selected, value.lifetimeSeconds),
+    );
     if (result && live.current.scope === value.scope) {
       handoff.current = null;
       setHandoffReady(false);
@@ -182,7 +224,12 @@ export function PersistentAgentsPanel({
       setManage({ scope: original, connection, value, selected: [] });
   };
   const date = (value: number) =>
-    new Intl.DateTimeFormat(locale, { dateStyle: "medium" }).format(value * 1000);
+    new Intl.DateTimeFormat(
+      locale,
+      Math.abs(value - now) <= 86400
+        ? { dateStyle: "medium", timeStyle: "short" }
+        : { dateStyle: "medium" },
+    ).format(value * 1000);
   const status = (view: (typeof model.views)[number]) => {
     if (view.connection.status === "revoked") return "disconnected";
     const value = view.credential;
@@ -317,6 +364,14 @@ export function PersistentAgentsPanel({
               ) : (
                 <p>{t("noAvailableTasks")}</p>
               )}
+              <AgentConnectionDuration
+                seconds={currentAuthorization.lifetimeSeconds}
+                pending={currentAuthorization.value.pendingLifetimeSeconds != null}
+                busy={model.busy}
+                onChange={(lifetimeSeconds) =>
+                  setAuthorization((v) => (v ? { ...v, lifetimeSeconds } : v))
+                }
+              />
               <button
                 className={styles.primary}
                 disabled={model.busy || !workspace.canWriteState}

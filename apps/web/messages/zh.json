@@ -1326,6 +1326,10 @@
     "watchlist": "关注列表",
     "channel_follows": "订阅内容",
     "withdraw": "撤回授权",
-    "reportReceived": "已收到报告"
+    "reportReceived": "已收到报告",
+    "durationLabel": "连接时长",
+    "duration90Days": "90 天（默认）",
+    "duration15Minutes": "15 分钟（临时）",
+    "durationPending": "这次连接正在处理中，时长已固定。"
   }
 }

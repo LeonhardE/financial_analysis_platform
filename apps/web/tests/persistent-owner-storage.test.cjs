@@ -263,9 +263,14 @@ test("one unlocked owner prepares persistent registration; sealed original retri
         },
       };
     }
-    const args = await offer("synthetic_persistent_setup_0001", 1000);
+    const args = {
+      ...(await offer("synthetic_persistent_setup_0001", 1000)),
+      lifetimeSeconds: 900,
+    };
     const packet = await session.prepareAgentCredential(args);
     assert.equal(packet.kind, "credential");
+    assert.equal(packet.credentialLifetimeSeconds, 900);
+    assert.equal(packet.expectedLease.expiresAt - packet.expectedLease.issuedAt, 900);
     assert.equal((await session.listPersistentOutbox()).length, 1);
     assert.deepEqual(await session.loadPersistentPending(actor), packet);
     await assert.rejects(session.prepareAgentCredential(args), /persistent_operation_pending/);
