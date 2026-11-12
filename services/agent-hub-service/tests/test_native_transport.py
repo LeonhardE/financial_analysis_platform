@@ -131,6 +131,40 @@ class NativeTransportTests(unittest.TestCase):
             with self.assertRaises(OAuthFailure):
                 self.service.authorize(self.authorize_params | change, BROWSER)
 
+    def test_optional_locale_hint_does_not_change_native_authority_or_code_exchange(self):
+        for locale in ("en-US", "zh-Hans-CN en-US"):
+            with self.subTest(locale=locale):
+                self.authorize_params["ui_locales"] = locale
+                _, _, code = self.authorize()
+                status, tokens, _ = self.exchange(code)
+                self.assertEqual(status, 200)
+                self.assertEqual(tokens["scope"], SCOPE)
+                principal = self.service.authenticate(tokens["access_token"])
+                self.assertEqual(principal.owner_subject, self.f.owner)
+                pending = self.service.transact(
+                    lambda unit: unit.get(document_path("hub_oauth_pending", "pool"))
+                )
+                self.assertTrue(pending["entries"])
+                self.assertTrue(
+                    all("ui_locales" not in row["params"] for row in pending["entries"].values())
+                )
+
+    def test_locale_hint_cannot_carry_unbounded_or_invalid_authorization_fields(self):
+        for locale in ("", "en_US", "en\nUS", "en-US " * 30, "a" * 129, 123, None):
+            with self.subTest(locale=locale), self.assertRaises(OAuthFailure):
+                self.service.authorize(self.authorize_params | {"ui_locales": locale}, BROWSER)
+        for change in (
+            {"scope": "portfolio:read"},
+            {"resource": configuration().resource},
+            {"redirect_uri": "https://other.example/callback"},
+            {"code_challenge_method": "plain"},
+            {"prompt": "none"},
+        ):
+            with self.subTest(change=change), self.assertRaises(OAuthFailure):
+                self.service.authorize(
+                    self.authorize_params | {"ui_locales": "en-US"} | change, BROWSER
+                )
+
     def test_native_tokens_are_not_accepted_by_legacy_oauth(self):
         tokens = self.connect()
         legacy = OAuthService(self.store, configuration(), clock=lambda: self.now)

@@ -6,6 +6,7 @@ namespaces and a sliding idle refresh deadline do not change legacy OAuth rules.
 
 import hashlib
 import os
+import re
 import secrets
 import time
 from dataclasses import dataclass
@@ -240,7 +241,7 @@ class NativeTransportService(OwnerConnectionService):
     def authorize(self, params, browser):
         if (
             type(params) is not dict
-            or set(params)
+            or set(params) - {"ui_locales"}
             != {
                 "response_type",
                 "client_id",
@@ -251,6 +252,19 @@ class NativeTransportService(OwnerConnectionService):
                 "code_challenge",
                 "code_challenge_method",
             }
+            or (
+                "ui_locales" in params
+                and (
+                    type(params["ui_locales"]) is not str
+                    or len(params["ui_locales"]) > 128
+                    or re.fullmatch(
+                        r"[A-Za-z]{1,8}(?:-[A-Za-z0-9]{1,8})*"
+                        r"(?: [A-Za-z]{1,8}(?:-[A-Za-z0-9]{1,8})*){0,7}",
+                        params["ui_locales"],
+                    )
+                    is None
+                )
+            )
             or params.get("resource") != self.config.resource
             or set(params.get("scope", "").split()) != {SCOPE}
             or params.get("code_challenge_method") != "S256"
@@ -262,6 +276,8 @@ class NativeTransportService(OwnerConnectionService):
         ):
             raise OAuthFailure("invalid_request")
         params = _copy(params)
+        # A client display hint has no role in consent, authority or token binding.
+        params.pop("ui_locales", None)
         params["scope"] = SCOPE
         try:
             NativeServer(self).get_consent_grant(

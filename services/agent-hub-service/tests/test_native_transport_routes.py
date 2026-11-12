@@ -88,6 +88,24 @@ class NativeTransportRoutes(unittest.TestCase):
         self.assertIn("Path=" + COOKIE_PATH, cookie)
         self.assertIn("SameSite=lax", cookie)
 
+    def test_native_authorize_accepts_locale_hint_but_rejects_duplicates_and_unknown_fields(self):
+        self.install()
+        values = {"client_id": "synthetic_client", "ui_locales": "en-US"}
+        response = self.client.get(
+            "/oauth/persistent/authorize?" + urlencode(values), follow_redirects=False
+        )
+        self.assertEqual(response.status_code, 303)
+        self.assertEqual(self.calls[-1][0], values)
+        before = len(self.calls)
+        for extra in ("&ui_locales=fr", "&prompt=none"):
+            response = self.client.get(
+                "/oauth/persistent/authorize?" + urlencode(values) + extra,
+                follow_redirects=False,
+            )
+            self.assertEqual(response.status_code, 400)
+            self.assertNotIn("set-cookie", response.headers)
+        self.assertEqual(len(self.calls), before)
+
     def test_owner_pending_and_approval_bind_exact_origin_cookie_and_google_identity(self):
         self.install()
         self.assertEqual(self.client.get(self.path, headers=self.headers).status_code, 200)
