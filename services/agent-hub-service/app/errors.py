@@ -1,4 +1,4 @@
-"""Formal v2 error framing, including auth, middleware and missing routes."""
+"""Formal encrypted API errors, including auth, middleware and missing routes."""
 
 import json
 import uuid
@@ -36,6 +36,7 @@ class HubErrors:
         if scope["type"] != "http" or not scope.get("path", "").startswith(
             (
                 "/api/v2/",
+                "/api/v3/agent-credentials/",
                 "/internal/v2/",
                 "/.well-known/",
                 "/agent/v2/tasks/",
