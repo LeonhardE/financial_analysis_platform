@@ -11,6 +11,7 @@ from .agent_credential_routes import agent_owned_enabled
 from .helper_assets import _asset_response
 
 ROOT = Path(__file__).resolve().parents[1] / "agent-client"
+VERSION = "1.0.1"
 FILES = {
     "client.mjs": ("dist/cli.mjs", "text/javascript; charset=utf-8", 2097152),
     "integrity.json": ("integrity.json", "application/json", 131072),
@@ -23,22 +24,31 @@ def require_client():
         raise HTTPException(503, "Agent client unavailable")
 
 
-def client_metadata():
+def _release_root(version):
+    if version == VERSION:
+        return ROOT
+    if version == "1.0.0":
+        return ROOT / "releases" / "1.0.0"
+    raise HTTPException(404, "Not found")
+
+
+def client_metadata(version=VERSION):
+    root = _release_root(version)
     try:
-        manifest = strict_json_loads((ROOT / "integrity.json").read_bytes(), max_bytes=131072)
+        manifest = strict_json_loads((root / "integrity.json").read_bytes(), max_bytes=131072)
         digest = manifest["files"]["dist/cli.mjs"]
         if (
-            manifest["clientVersion"] != "1.0.0"
+            manifest["clientVersion"] != version
             or manifest["nodeMinimum"] != "24.12.0"
-            or hashlib.sha256((ROOT / "dist/cli.mjs").read_bytes()).hexdigest() != digest
+            or hashlib.sha256((root / "dist/cli.mjs").read_bytes()).hexdigest() != digest
         ):
             raise ValueError
         return {
-            "version": "1.0.0",
+            "version": version,
             "nodeMinimum": "24.12.0",
-            "path": "/agent/v3/client/1.0.0/client.mjs",
+            "path": f"/agent/v3/client/{version}/client.mjs",
             "sha256": digest,
-            "integrityPath": "/agent/v3/client/1.0.0/integrity.json",
+            "integrityPath": f"/agent/v3/client/{version}/integrity.json",
             "retention": "personal_host_files_not_guaranteed",
         }
     except (OSError, ValueError, KeyError, TypeError):
@@ -48,12 +58,12 @@ def client_metadata():
 router = APIRouter(dependencies=[Depends(require_client)])
 
 
-@router.get("/agent/v3/client/1.0.0/{asset}", include_in_schema=False)
-def client_asset(asset: str, request: Request):
+@router.get("/agent/v3/client/{version}/{asset}", include_in_schema=False)
+def client_asset(version: str, asset: str, request: Request):
     if request.query_params:
         raise HTTPException(400, "Invalid request")
-    metadata = client_metadata()
-    response = _asset_response(asset, ROOT, FILES)
+    metadata = client_metadata(version)
+    response = _asset_response(asset, _release_root(version), FILES)
     if asset == "client.mjs":
         response.headers["ETag"] = '"sha256-' + metadata["sha256"] + '"'
     return response

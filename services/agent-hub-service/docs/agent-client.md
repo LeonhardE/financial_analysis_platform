@@ -24,6 +24,18 @@ The bundle is standalone: no runtime npm install or server-side private-key prox
 Release maintainers reproduce it with `npm ci` then `npm run build` in
 `agent-client/`; `integrity.json` freezes the shared contract at build time.
 
+Client 1.0.1 distinguishes input-policy rejection, invalid report formatting,
+operation conflicts, run timing and temporary service failures from missing/rejected
+credentials. These failures stop the task with a bounded, fixed message; they do not
+silently replace credentials. An existing sealed report outbox still takes precedence
+over changed retry arguments. New manifests at most two seconds ahead of the host
+wait for real monotonic time to catch up before repeating the complete original
+verification. No clock is shifted and no expiry or permission check is widened.
+
+The original 1.0.0 download remains byte-identical at its existing versioned URL.
+Upgrades require an explicit reviewed version/pin and reuse the same private profile;
+downloading a newer client does not grant authority or require new authorization.
+
 Native authorization accepts an optional bounded `ui_locales` display hint used by
 ChatGPT. The hint is discarded before consent state or Authlib processing; duplicate
 parameters, unknown fields and invalid locale lists remain rejected. Registered

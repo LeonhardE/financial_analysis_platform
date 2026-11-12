@@ -4,6 +4,51 @@ import { pathToFileURL } from "node:url";
 import { AgentClient, HostStorage, prepare, activate } from "./index.mjs";
 import { exact, parsed, canonical, deny } from "./crypto.mjs";
 
+export function clientFailure(error) {
+  const code = error?.code;
+  const failure = (error, message) => ({ ok: false, error, message });
+  if (code === "agent_busy")
+    return failure("agent_busy", "Retry after the current Agent operation finishes.");
+  if (code === "authorization_pending")
+    return failure("authorization_pending", "Wait for the user to authorize in FolioView.");
+  if (
+    [
+      "input_policy_partial",
+      "input_policy_asof",
+      "input_policy_fetched_age",
+      "input_policy_freshness",
+    ].includes(code)
+  )
+    return failure(
+      "input_policy_rejected",
+      "Stop this task. Its inputs do not meet the approved data rules. Ask the user to review the task rules or update its shared data in FolioView; reauthorization is not required for this error.",
+    );
+  if (code === "version_conflict")
+    return failure(
+      "operation_conflict",
+      "Stop this task. Check the original operation and current state in FolioView before continuing the same intended work.",
+    );
+  if (code === "invalid_report")
+    return failure(
+      "invalid_report",
+      "Stop this submission. Correct the report format before submitting the same intended run again; reauthorization is not required for this error.",
+    );
+  if (code === "run_expired")
+    return failure(
+      "run_unavailable",
+      "Stop this task. The run's time window could not be verified. Check the host time and saved run before retrying the same intended operation.",
+    );
+  if (["runtime_network_unavailable", "runtime_service_unavailable"].includes(code))
+    return failure(
+      "service_unavailable",
+      "Stop this task while the service is unavailable. Keep the original pending operation and verify its receipt before retrying; do not create a replacement authorization.",
+    );
+  return failure(
+    "reauthorization_required",
+    "Stop this task. Ask the user to sign in to FolioView and authorize this Agent again. Keep private credentials out of chat and uploads.",
+  );
+}
+
 export async function execute(
   value,
   {
@@ -75,23 +120,7 @@ async function main() {
     const result = await execute(value);
     process.stdout.write(new TextDecoder().decode(canonical({ ok: true, result })) + "\n");
   } catch (error) {
-    const retry = error.code === "agent_busy",
-      pending = error.code === "authorization_pending";
-    process.stdout.write(
-      JSON.stringify({
-        ok: false,
-        error: retry
-          ? "agent_busy"
-          : pending
-            ? "authorization_pending"
-            : "reauthorization_required",
-        message: retry
-          ? "Retry after the current Agent operation finishes."
-          : pending
-            ? "Wait for the user to authorize in FolioView."
-            : "Stop this task. Ask the user to sign in to FolioView and authorize this Agent again. Keep private credentials out of chat and uploads.",
-      }) + "\n",
-    );
+    process.stdout.write(JSON.stringify(clientFailure(error)) + "\n");
     process.exitCode = 1;
   }
 }

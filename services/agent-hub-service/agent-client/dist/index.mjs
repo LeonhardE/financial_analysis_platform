@@ -17,7 +17,7 @@ function Br(...o) {
   for (let c of o) (s.set(c, p), (p += c.length));
   return s;
 }
-function ma(o, n, s) {
+function da(o, n, s) {
   if (n < 0 || n >= wi) throw new RangeError(`value must be >= 0 and <= ${wi - 1}. Received ${n}`);
   o.set([n >>> 24, n >>> 16, n >>> 8, n & 255], s);
 }
@@ -25,11 +25,11 @@ function Dn(o) {
   let n = Math.floor(o / wi),
     s = o % wi,
     p = new Uint8Array(8);
-  return (ma(p, n, 0), ma(p, s, 4), p);
+  return (da(p, n, 0), da(p, s, 4), p);
 }
-function Da(o) {
+function Aa(o) {
   let n = new Uint8Array(4);
-  return (ma(n, o), n);
+  return (da(n, o), n);
 }
 function Hr(o) {
   if (typeof o == "string" && o.length >= 128) {
@@ -72,7 +72,7 @@ async function Sn(o, n) {
 }
 function At(o) {
   try {
-    return En(typeof o == "string" ? o : ba.decode(o), !0);
+    return En(typeof o == "string" ? o : Ia.decode(o), !0);
   } catch (n) {
     throw new TypeError(Is, { cause: n });
   }
@@ -122,14 +122,14 @@ function $n(o, n, s) {
 function ji(o, n, s) {
   let p;
   try {
-    p = JSON.parse(Aa.decode(At(o)));
+    p = JSON.parse(ba.decode(At(o)));
   } catch (c) {
     throw new n(s, { cause: c });
   }
   if (!Xe(p)) throw new n(s);
   return p;
 }
-function ha(o, n) {
+function la(o, n) {
   if (n !== void 0 && (!Array.isArray(n) || n.some((s) => typeof s != "string")))
     throw new TypeError(`"${o}" option must be an array of strings`);
   return n === void 0 ? void 0 : new Set(n);
@@ -161,7 +161,7 @@ function Rt(o, n, s, p, c) {
   }
   return p.crit;
 }
-function _a(o, n) {
+function Sa(o, n) {
   if (n.includes("b64")) {
     let s = o.b64;
     if (typeof s != "boolean")
@@ -186,7 +186,7 @@ async function It(o, n, s) {
   if (c && n instanceof Uint8Array) return n;
   let h, P;
   if (Xe(n)) {
-    if (((h = $a(n)), typeof h.kty != "string")) throw fn(p, n, c);
+    if (((h = ja(n)), typeof h.kty != "string")) throw fn(p, n, c);
     if (
       !(c
         ? h.kty === "oct" && typeof h.k == "string"
@@ -213,11 +213,11 @@ async function It(o, n, s) {
     if (dt(n)) return n;
     if (((P = n), P.type === "secret")) return P.export();
   }
-  Yi ||= new WeakMap();
+  Xi ||= new WeakMap();
   let E = n,
-    _ = Yi.get(E);
+    _ = Xi.get(E);
   if (_?.[p]) return _[p];
-  if ((_ || Yi.set(E, (_ = {})), P && typeof P.toCryptoKey == "function")) {
+  if ((_ || Xi.set(E, (_ = {})), P && typeof P.toCryptoKey == "function")) {
     let N = P.type === "public",
       B = Ds[P.asymmetricKeyDetails?.namedCurve],
       C = o.resolve?.({ crv: B, asymmetricKeyType: P.asymmetricKeyType }) ?? o.subtle;
@@ -225,7 +225,7 @@ async function It(o, n, s) {
   }
   return ((h ??= P.export({ format: "jwk" })), (h.alg = p), (_[p] = await bt(o, h)));
 }
-function Na(o) {
+function _a(o) {
   if (!dt(o)) throw new Error("CryptoKey instance expected");
 }
 function Tn(o, n, ...s) {
@@ -256,7 +256,7 @@ function qn(o, n) {
   if (n && !o.usages.includes(n))
     throw new TypeError(`CryptoKey does not support this operation, its usages must include ${n}.`);
 }
-function ja(o, n) {
+function Ka(o, n) {
   let { modulusLength: s } = n.algorithm;
   if (typeof s != "number" || s < 2048)
     throw new TypeError(`${o} requires key modulusLength to be 2048 bits or larger`);
@@ -272,7 +272,7 @@ function Cn(o, n, s) {
 function Ai(o) {
   return { __proto__: null, ...o };
 }
-function $a(o) {
+function ja(o) {
   let n = Ai(o);
   if (n.ext !== void 0 && typeof n.ext != "boolean")
     throw new TypeError('"ext" (Extractable) Parameter must be a boolean');
@@ -311,7 +311,7 @@ async function mt(o, n, s, p = !1) {
     o
   );
 }
-function La(o, n) {
+function $a(o, n) {
   let s = o.byteLength << 3;
   if (s !== n)
     throw new re(`Invalid Content Encryption Key length. Expected ${n} bits, got ${s} bits`);
@@ -363,7 +363,7 @@ async function _s(o, n, s, p, c, m) {
 async function Hn(o, n, s, p, c) {
   if (!dt(s) && !(s instanceof Uint8Array))
     throw new TypeError(pt(s, "CryptoKey", "KeyObject", "Uint8Array", "JSON Web Key"));
-  if ((p ? Rn(o, p) : (p = xs(o)), s instanceof Uint8Array && La(s, o.cekBits), o.cbc))
+  if ((p ? Rn(o, p) : (p = xs(o)), s instanceof Uint8Array && $a(s, o.cekBits), o.cbc))
     return Es(o, n, s, p, c);
   let m = await mt(s, o.subtle, "encrypt"),
     h = new Uint8Array(
@@ -381,7 +381,7 @@ async function Wn(o, n, s, p, c, m) {
   if (!p) throw new re("JWE Initialization Vector missing");
   if (!c) throw new re("JWE Authentication Tag missing");
   if (!o.cbc && c.length !== 16) throw new re("Invalid Authentication Tag length");
-  if ((Rn(o, p), n instanceof Uint8Array && La(n, o.cekBits), o.cbc)) return _s(o, n, s, p, c, m);
+  if ((Rn(o, p), n instanceof Uint8Array && $a(n, o.cekBits), o.cbc)) return _s(o, n, s, p, c, m);
   let h = await mt(n, o.subtle, "decrypt");
   try {
     return new Uint8Array(
@@ -395,7 +395,7 @@ async function Wn(o, n, s, p, c, m) {
     throw new Lt();
   }
 }
-function Oa(o) {
+function La(o) {
   let n = { __proto__: null };
   for (let s in o) n[s] = { ...o[s], alg: s };
   return n;
@@ -433,7 +433,7 @@ function ft(o, n = !1) {
     ops: n ? ["encrypt", "decrypt"] : ["wrapKey", "unwrapKey"],
   };
 }
-function Qi() {
+function Yi() {
   return {
     kty: ["oct"],
     mode: "key-wrapping",
@@ -497,7 +497,7 @@ async function Os(o, n, s) {
   return new Uint8Array(await crypto.subtle.exportKey("raw", c));
 }
 function Un(o, n, s) {
-  (Cn(n, lt(o).subtle, s), ja(o, n));
+  (Cn(n, lt(o).subtle, s), Ka(o, n));
 }
 async function Bn(o, n, s, p) {
   if (!(o instanceof Uint8Array) || o.length < 8)
@@ -510,8 +510,8 @@ async function Bn(o, n, s, p) {
     P = await mt(p, lt(n).subtle, "deriveBits");
   return new Uint8Array(await crypto.subtle.deriveBits(h, P, m));
 }
-function ea(o) {
-  return Br(Da(o.length), o);
+function Qi(o) {
+  return Br(Aa(o.length), o);
 }
 async function Vs(o, n, s) {
   let p = n >> 3,
@@ -519,14 +519,14 @@ async function Vs(o, n, s) {
     m = Math.ceil(p / c),
     h = new Uint8Array(m * c);
   for (let P = 1; P <= m; P++) {
-    let E = await Sn("sha256", Br(Da(P), o, s));
+    let E = await Sn("sha256", Br(Aa(P), o, s));
     h.set(E, (P - 1) * c);
   }
   return h.slice(0, p);
 }
 async function Mn(o, n, s, p, c = new Uint8Array(), m = new Uint8Array()) {
   (vn(o), vn(n, "deriveBits"));
-  let h = Br(ea(Hr(s)), ea(c), ea(m), Da(p)),
+  let h = Br(Qi(Hr(s)), Qi(c), Qi(m), Aa(p)),
     P = new Uint8Array(
       await crypto.subtle.deriveBits(
         { name: o.algorithm.name, public: o },
@@ -539,7 +539,7 @@ async function Mn(o, n, s, p, c = new Uint8Array(), m = new Uint8Array()) {
   return Vs(P, p, h);
 }
 function Zn(o) {
-  Na(o);
+  _a(o);
   let n = o.algorithm.namedCurve;
   if (n !== "P-256" && n !== "P-384" && n !== "P-521" && o.algorithm.name !== "X25519")
     throw new yr(
@@ -595,7 +595,7 @@ async function Cs(o, n, s, p, c, m) {
     }
     case "RSA-OAEP":
       return (
-        Na(s),
+        _a(s),
         Un(h, s, "decrypt"),
         new Uint8Array(await crypto.subtle.decrypt("RSA-OAEP", s, p))
       );
@@ -635,7 +635,7 @@ async function Xn(o, n, s, p, c, m = {}) {
   let _ = await It(P === "direct-encryption" ? n : o, s, "encrypt");
   if (P === "direct-encryption") return [_, void 0, void 0];
   let N = E ? (c ?? Di(n)) : void 0;
-  N && La(N, n.cekBits);
+  N && $a(N, n.cekBits);
   let B, C;
   switch (o.subtle.name) {
     case "ECDH": {
@@ -679,7 +679,7 @@ async function Xn(o, n, s, p, c, m = {}) {
       break;
     }
     case "RSA-OAEP": {
-      (Na(_),
+      (_a(_),
         Un(h, _, "encrypt"),
         (B = new Uint8Array(await crypto.subtle.encrypt("RSA-OAEP", _, N))));
       break;
@@ -790,14 +790,14 @@ function ao(o) {
 }
 function Vi(o) {
   return [
-    o && ha("keyManagementAlgorithms", o.keyManagementAlgorithms),
-    o && ha("contentEncryptionAlgorithms", o.contentEncryptionAlgorithms),
+    o && la("keyManagementAlgorithms", o.keyManagementAlgorithms),
+    o && la("contentEncryptionAlgorithms", o.contentEncryptionAlgorithms),
     o?.crit,
     o?.maxPBES2Count,
     o?.maxDecompressedLength,
   ];
 }
-async function Va(o, n, s, p = ao(o)) {
+async function Oa(o, n, s, p = ao(o)) {
   let [c, m, h, P, E] = p,
     { header: _, unprotected: N, aad: B } = o,
     C;
@@ -882,11 +882,11 @@ async function Va(o, n, s, p = ao(o)) {
   };
 }
 async function no(o, n, s) {
-  if ((o instanceof Uint8Array && (o = ba.decode(o)), typeof o != "string"))
+  if ((o instanceof Uint8Array && (o = Ia.decode(o)), typeof o != "string"))
     throw new re("Compact JWE must be a string or Uint8Array");
   let { 0: p, 1: c, 2: m, 3: h, 4: P, length: E } = o.split(".");
   if (E !== 5) throw new re("Invalid Compact JWE");
-  return Va(
+  return Oa(
     { ciphertext: h, iv: m || void 0, protected: p, tag: P || void 0, encrypted_key: c || void 0 },
     n,
     s,
@@ -901,7 +901,7 @@ async function Hs(o, n, s) {
     [c, , m] = to(o);
   if (!c) throw m;
   let h = { ...p, ...c };
-  return (io(h), Va(h, Vi(s), n));
+  return (io(h), Oa(h, Vi(s), n));
 }
 async function oo(o, n, s) {
   if (!Xe(o)) throw new re("General JWE must be an object");
@@ -927,11 +927,11 @@ async function oo(o, n, s) {
     if (_)
       try {
         let N = { ...h, ..._ };
-        return (io(N), await Va(N, m, n, P));
+        return (io(N), await Oa(N, m, n, P));
       } catch {}
   throw new Lt();
 }
-function Ta(o, n, s) {
+function Va(o, n, s) {
   if (!Ki(o, n, s))
     throw new re(
       "JWE Protected, JWE Shared Unprotected and JWE Per-Recipient Header Parameter names must be disjoint",
@@ -954,7 +954,7 @@ function so(o, n, s = !1) {
     _ !== void 0 && !Xe(_))
   )
     throw new TypeError("JWE Key Management Parameters must be an object");
-  Ta(p, c, m);
+  Va(p, c, m);
   let B = { ...p, ...c, ...m };
   (On(re, p), Rt(re, Ln, N, p, B), Yn(B, p));
   let { alg: C, enc: F } = B;
@@ -993,7 +993,7 @@ async function po(o, n, s) {
     ? (De = await It(fe, s, "encrypt"))
     : ([De, Q, me] = await Xn(fe, c, s, p, B, F)),
     me &&
-      (X ? (oe = oe ? { ...oe, ...me } : me) : (pe = pe ? { ...pe, ...me } : me), Ta(pe, oe, _)));
+      (X ? (oe = oe ? { ...oe, ...me } : me) : (pe = pe ? { ...pe, ...me } : me), Va(pe, oe, _)));
   let ee = pe ? ar(JSON.stringify(pe)) : "",
     nr = N?.byteLength ? ar(N) : void 0,
     Me = Hr(nr ? `${ee}.${nr}` : ee),
@@ -1018,13 +1018,13 @@ async function po(o, n, s) {
     Te
   );
 }
-async function qa(o, n, s) {
+async function Ta(o, n, s) {
   return po(o, so(o, s), n);
 }
 function co(o) {
   return [o.protected, o.encrypted_key, o.iv, o.ciphertext, o.tag].join(".");
 }
-function ra(o) {
+function ea(o) {
   let n = { name: "HMAC", hash: `SHA-${o}` };
   return { kty: ["oct"], secret: !0, subtle: n, signing: n, usages: Jt };
 }
@@ -1038,7 +1038,7 @@ function gt(o, n) {
     minRsaBits: 2048,
   };
 }
-function ta(o, n) {
+function ra(o, n) {
   return {
     kty: ["EC"],
     crv: o,
@@ -1051,12 +1051,12 @@ function Pn() {
   let o = { name: "Ed25519" };
   return { kty: ["OKP"], crv: "Ed25519", subtle: o, signing: o, usages: Jt };
 }
-function ia(o) {
+function ta(o) {
   let n = { name: `ML-DSA-${o}` };
   return { kty: ["AKP"], subtle: n, signing: n, usages: Jt };
 }
-function Ra(o) {
-  let n = typeof o == "string" ? Ca[o] : void 0;
+function Ca(o) {
+  let n = typeof o == "string" ? qa[o] : void 0;
   if (!n) throw new yr(`alg ${o} is not supported either by JOSE or your javascript runtime`);
   return n;
 }
@@ -1081,7 +1081,7 @@ function lo(o, n) {
   return P;
 }
 function Ti(o) {
-  return [o && ha("algorithms", o.algorithms), o?.crit];
+  return [o && la("algorithms", o.algorithms), o?.crit];
 }
 function ho(o) {
   return o === void 0 ? {} : ji(o, we, "JWS Protected Header is invalid");
@@ -1103,13 +1103,13 @@ function zs(o) {
     throw new we("JWS Compact Serialization payload must use only ASCII characters", { cause: n });
   }
 }
-async function Fa(o, n, s, p, c) {
+async function Ra(o, n, s, p, c) {
   let { protected: m, header: h, payload: P } = o,
     E = c ?? ho(m);
   if (!Ki(E, h))
     throw new we("JWS Protected and JWS Unprotected Header Parameter names must be disjoint");
   let _ = { ...E, ...h },
-    N = _a(E, Rt(we, Sa, n[1], E, _)),
+    N = Sa(E, Rt(we, Ea, n[1], E, _)),
     { alg: B } = _;
   if (typeof B != "string" || !B)
     throw new we('JWS "alg" (Algorithm) Header Parameter missing or invalid');
@@ -1121,7 +1121,7 @@ async function Fa(o, n, s, p, c) {
   let C = N || typeof P != "string" ? P : p(P),
     F = !1;
   typeof s == "function" && ((s = await s(E, o)), (F = !0));
-  let X = Ra(B),
+  let X = Ca(B),
     pe = Br(
       m !== void 0 ? Hr(m) : new Uint8Array(),
       Hr("."),
@@ -1130,7 +1130,7 @@ async function Fa(o, n, s, p, c) {
     oe = Cr(o.signature, "signature", we),
     fe = await It(X, s, "verify"),
     Q = await mt(fe, X.subtle, "verify");
-  X.minRsaBits && ja(X.alg, Q);
+  X.minRsaBits && Ka(X.alg, Q);
   let me = !1;
   try {
     me = await crypto.subtle.verify(X.signing, Q, oe, pe);
@@ -1146,11 +1146,11 @@ async function Fa(o, n, s, p, c) {
   );
 }
 async function uo(o, n, s) {
-  if ((o instanceof Uint8Array && (o = ba.decode(o)), typeof o != "string"))
+  if ((o instanceof Uint8Array && (o = Ia.decode(o)), typeof o != "string"))
     throw new we("Compact JWS must be a string or Uint8Array");
   let { 0: p, 1: c, 2: m, length: h } = o.split(".");
   if (h !== 3) throw new we("Invalid Compact JWS");
-  return Fa({ payload: c, protected: p, signature: m }, n, s, zs);
+  return Ra({ payload: c, protected: p, signature: m }, n, s, zs);
 }
 async function Us(o, n, s) {
   let [p] = await uo(o, Ti(s), n);
@@ -1159,7 +1159,7 @@ async function Us(o, n, s) {
 async function fo(o, n, s) {
   if (!Xe(o)) throw new we("Flattened JWS must be an object");
   let p = lo(o),
-    [c] = await Fa(p, Ti(s), n, yo);
+    [c] = await Ra(p, Ti(s), n, yo);
   return c;
 }
 function Bs(o, n) {
@@ -1196,27 +1196,27 @@ async function Ms(o, n, s) {
     if (((_ |= N), _ === 3)) throw new we("inconsistent use of JWS Unencoded Payload (RFC7797)");
   for (let N of E)
     try {
-      let [B] = await Fa(N[0], h, n, yo, N[1]);
+      let [B] = await Ra(N[0], h, n, yo, N[1]);
       return B;
     } catch {}
   throw new Ot();
 }
-function aa() {
+function ia() {
   throw new TypeError("Invalid time period format");
 }
 function Ei(o) {
-  typeof o != "string" && aa();
+  typeof o != "string" && ia();
   let n = Gs.exec(o);
-  (!n || (n[4] && n[1])) && aa();
+  (!n || (n[4] && n[1])) && ia();
   let s = parseFloat(n[2]),
     p = Math.round(s * Zs[n[3][0].toLowerCase()]);
-  return (Number.isFinite(p) || aa(), n[1] === "-" || n[4] === "ago" ? -p : p);
+  return (Number.isFinite(p) || ia(), n[1] === "-" || n[4] === "ago" ? -p : p);
 }
 function wt(o, n) {
   if (!Number.isFinite(n)) throw new TypeError(`Invalid ${o} input`);
   return n;
 }
-function na(o, n) {
+function aa(o, n) {
   if (typeof n != "string") throw new TypeError(`"${o}" claim must be a string`);
 }
 function Xs(o) {
@@ -1226,27 +1226,27 @@ function Xs(o) {
   )
     throw new TypeError('"aud" claim must be a string or an array of strings');
 }
-function oa(o, n) {
+function na(o, n) {
   return typeof o == "number"
     ? wt(n, o)
     : o instanceof Date
       ? wt(n, Vt(o))
       : Vt(new Date()) + Ei(o);
 }
-function sa(o, n, s = !1) {
+function oa(o, n, s = !1) {
   let p = o[n];
   if (!(p === void 0 && !s)) {
     if (typeof p != "number") throw new et(`"${n}" claim must be a number`, o, n, "invalid");
     return p;
   }
 }
-function pa(o, n) {
+function sa(o, n) {
   throw new et(`unexpected "${n}" claim value`, o, n, Pt);
 }
-function Ja(o, n, s = {}) {
+function Fa(o, n, s = {}) {
   let p;
   try {
-    p = JSON.parse(Aa.decode(n));
+    p = JSON.parse(ba.decode(n));
   } catch (Q) {
     throw new Pr("JWT Claims Set must be a top-level JSON object", { cause: Q });
   }
@@ -1262,9 +1262,9 @@ function Ja(o, n, s = {}) {
     h !== void 0 && N.push("iss"));
   for (let Q of new Set(N.reverse()))
     if (!Object.hasOwn(p, Q)) throw new et(`missing required "${Q}" claim`, p, Q, "missing");
-  (h !== void 0 && !(Array.isArray(h) ? h : [h]).includes(p.iss) && pa(p, "iss"),
-    P !== void 0 && p.sub !== P && pa(p, "sub"),
-    E !== void 0 && !Ys(p.aud, typeof E == "string" ? [E] : E) && pa(p, "aud"));
+  (h !== void 0 && !(Array.isArray(h) ? h : [h]).includes(p.iss) && sa(p, "iss"),
+    P !== void 0 && p.sub !== P && sa(p, "sub"),
+    E !== void 0 && !Ys(p.aud, typeof E == "string" ? [E] : E) && sa(p, "aud"));
   let { clockTolerance: B } = s,
     C = 0;
   if (typeof B == "string") C = Ei(B);
@@ -1275,17 +1275,17 @@ function Ja(o, n, s = {}) {
   wt("clockTolerance option", C);
   let { currentDate: F } = s,
     X = wt("currentDate option", Vt(F === void 0 ? new Date() : F)),
-    pe = sa(p, "iat", _ !== void 0),
-    oe = sa(p, "nbf");
+    pe = oa(p, "iat", _ !== void 0),
+    oe = oa(p, "nbf");
   if (oe !== void 0 && oe > X + C) throw new et('"nbf" claim timestamp check failed', p, "nbf", Pt);
-  let fe = sa(p, "exp");
+  let fe = oa(p, "exp");
   if (fe !== void 0 && fe <= X - C)
-    throw new la('"exp" claim timestamp check failed', p, "exp", Pt);
+    throw new ma('"exp" claim timestamp check failed', p, "exp", Pt);
   if (_ !== void 0) {
     let Q = X - pe,
       me = wt("maxTokenAge option", typeof _ == "number" ? _ : Ei(_));
     if (Q - C > me)
-      throw new la('"iat" claim timestamp check failed (too far in the past)', p, "iat", Pt);
+      throw new ma('"iat" claim timestamp check failed (too far in the past)', p, "iat", Pt);
     if (Q < -C)
       throw new et('"iat" claim timestamp check failed (it should be in the past)', p, "iat", Pt);
   }
@@ -1294,7 +1294,7 @@ function Ja(o, n, s = {}) {
 function Gr(o) {
   return vo.get(o);
 }
-function Ha(o) {
+function Ja(o) {
   let n = Gr(o);
   for (let s of ["iat", "nbf", "exp"]) {
     let p = n[s];
@@ -1303,19 +1303,19 @@ function Ha(o) {
   }
   return Ct.encode(JSON.stringify(n));
 }
-function ca(o, n) {
+function pa(o, n) {
   return Gr(o)[n];
 }
 async function Qs(o, n, s) {
   let [p, c] = await uo(o, Ti(s), n);
   if (!c) throw new Pr("JWTs MUST NOT use unencoded payload");
-  let m = Ja(p.protectedHeader, p.payload, s);
+  let m = Fa(p.protectedHeader, p.payload, s);
   return { ...p, payload: m };
 }
 async function ep(o, n, s) {
   let { plaintext: p, ...c } = await no(o, Vi(s), n),
     { protectedHeader: m } = c,
-    h = Ja(m, p, s);
+    h = Fa(m, p, s);
   for (let P of ["iss", "sub", "aud"])
     if (
       m[P] !== void 0 &&
@@ -1324,7 +1324,7 @@ async function ep(o, n, s) {
       throw new et(`replicated "${P}" claim header parameter mismatch`, h, P, "mismatch");
   return { payload: h, ...c };
 }
-async function za(o, n, s) {
+async function Wa(o, n, s) {
   let [p, c, m, h] = o,
     P = "";
   if (c !== void 0) {
@@ -1337,12 +1337,12 @@ async function za(o, n, s) {
     throw new we("JWS Protected and JWS Unprotected Header Parameter names must be disjoint");
   let E = { ...c, ...m };
   On(we, c);
-  let _ = _a(c, Rt(we, Sa, h, c, E));
+  let _ = Sa(c, Rt(we, Ea, h, c, E));
   _ || s?.();
   let { alg: N } = E;
   if (typeof N != "string" || !N)
     throw new we('JWS "alg" (Algorithm) Header Parameter missing or invalid');
-  let B = Ra(N),
+  let B = Ca(N),
     C = "",
     F = p,
     X;
@@ -1354,7 +1354,7 @@ async function za(o, n, s) {
   }
   X ??= Br(Hr(P), Hr("."), F);
   let pe = await mt(await It(B, n, "sign"), B.subtle, "sign");
-  B.minRsaBits && ja(B.alg, pe);
+  B.minRsaBits && Ka(B.alg, pe);
   let oe = {
     signature: ar(new Uint8Array(await crypto.subtle.sign(B.signing, pe, X))),
     payload: C,
@@ -1362,14 +1362,14 @@ async function za(o, n, s) {
   return (c && (oe.protected = P), m && (oe.header = m), [oe, _]);
 }
 async function go(o, n, s, p, c) {
-  let [m] = await za([o, n, void 0, s], p, c);
+  let [m] = await Wa([o, n, void 0, s], p, c);
   return `${m.protected}.${m.payload}.${m.signature}`;
 }
 function qi(o = 'JWK "alg" (Algorithm) Parameter') {
   throw new yr(`Invalid or unsupported ${o} value`);
 }
 function Si(o, n) {
-  return (typeof o == "string" ? (Ca[o] ?? Ft[o]) : void 0) ?? qi(n);
+  return (typeof o == "string" ? (qa[o] ?? Ft[o]) : void 0) ?? qi(n);
 }
 function yp(o, n) {
   if ((rt(o, 48, `Invalid ${n === "spki" ? "SPKI" : "PKCS#8"} structure`), Xr(o), n === "pkcs8")) {
@@ -1397,7 +1397,7 @@ function kp(o) {
   return lp(o);
 }
 async function bo(o) {
-  if (Ka(o))
+  if (Na(o))
     if (o.type === "secret") o = o.export();
     else return o.export({ format: "jwk" });
   if (o instanceof Uint8Array) return { kty: "oct", k: ar(o) };
@@ -1408,7 +1408,7 @@ async function bo(o) {
   for (let s of Object.keys(n)) n[s] === void 0 && delete n[s];
   return n;
 }
-async function Ma(o, n) {
+async function Ba(o, n) {
   let s;
   if (Xe(o)) {
     if (((s = Ai(o)), typeof s.kty != "string"))
@@ -1441,7 +1441,7 @@ async function Ma(o, n) {
         (p = { e: s.e, kty: s.kty, n: s.n }));
       break;
     case "oct":
-      if (typeof s.k != "string") throw new xa('"k" (Key Value) Parameter missing or invalid');
+      if (typeof s.k != "string") throw new Da('"k" (Key Value) Parameter missing or invalid');
       p = { k: s.k, kty: s.kty };
       break;
     default:
@@ -1452,7 +1452,7 @@ async function Ma(o, n) {
 }
 async function Ip(o, n) {
   n ??= "sha256";
-  let s = await Ma(o, n);
+  let s = await Ba(o, n);
   return `urn:ietf:params:oauth:jwk-thumbprint:sha-${n.slice(-3)}:${s}`;
 }
 async function bp(o, n) {
@@ -1460,11 +1460,11 @@ async function bp(o, n) {
   if (!Xe(s.jwk)) throw new we('"jwk" (JSON Web Key) Header Parameter must be a JSON object');
   let p;
   try {
-    p = $a(s.jwk);
+    p = ja(s.jwk);
   } catch (h) {
     throw new we("Invalid Embedded JWK", { cause: h });
   }
-  let c = Ra(s.alg);
+  let c = Ca(s.alg);
   if (p.use !== void 0 && p.use !== "sig")
     throw new we('Invalid Embedded JWK, its "use" must be "sig" when present');
   if (p.alg !== void 0 && p.alg !== c.alg)
@@ -1505,7 +1505,7 @@ async function In(o, n, s) {
   }
   return p[c];
 }
-function ua(o) {
+function ya(o) {
   let n;
   try {
     n = structuredClone(o);
@@ -1521,11 +1521,11 @@ function ua(o) {
   return Object.defineProperty(
     async (c, m) => {
       let { alg: h, kid: P } = { ...c, ...m?.header },
-        E = typeof h == "string" ? Ca[h] : void 0;
+        E = typeof h == "string" ? qa[h] : void 0;
       if (!E || E.secret) throw new yr('Unsupported "alg" value for a JSON Web Key Set');
       let _ = n.keys.filter((C, F) => Ap(s[F], E, h, P)),
         { 0: N, length: B } = _;
-      if (!B) throw new Ea();
+      if (!B) throw new xa();
       if (B !== 1) {
         let C = new Nn();
         throw (
@@ -1580,7 +1580,7 @@ function Ep(o, n) {
     h = bn(p.cooldownDuration, 3e4, "cooldownDuration"),
     P = bn(p.cacheMaxAge, 6e5, "cacheMaxAge"),
     E = new Headers(p.headers);
-  (fa && !E.has("User-Agent") && E.set("User-Agent", fa),
+  (ua && !E.has("User-Agent") && E.set("User-Agent", ua),
     E.has("accept") || E.set("accept", "application/json, application/jwk-set+json"));
   let _ = p[Ao],
     N = p[Do],
@@ -1591,14 +1591,14 @@ function Ep(o, n) {
     pe;
   if (N && typeof N == "object") {
     let { uat: fe, jwks: Q } = N;
-    Kt(fe, P) && jn(Q) && ((B = fe), (pe = ua(Q)));
+    Kt(fe, P) && jn(Q) && ((B = fe), (pe = ya(Q)));
   }
   let oe = async () => {
     if ((C && Dp() && (C = void 0), !C)) {
       let fe = ++F,
         Q = (C = xp(s, E, AbortSignal.timeout(m), _)
           .then((me) => {
-            let De = ua(me);
+            let De = ya(me);
             if (fe <= X) return;
             pe = De;
             let ee = Date.now();
@@ -1616,7 +1616,7 @@ function Ep(o, n) {
       try {
         return await pe(fe, Q);
       } catch (me) {
-        if (me instanceof Ea && !Kt(B, h)) return (await oe(), pe(fe, Q));
+        if (me instanceof xa && !Kt(B, h)) return (await oe(), pe(fe, Q));
         throw me;
       }
     },
@@ -1646,7 +1646,7 @@ async function jp(o, n, s) {
 }
 async function Ci(o, n, s) {
   if (!Xe(o)) throw new TypeError("JWK must be an object");
-  let p = $a(o),
+  let p = ja(o),
     c = $i(s?.extractable),
     { alg: m } = p;
   if (((n ??= m), p.kty !== "oct" && !n))
@@ -1696,7 +1696,7 @@ function Lp(o) {
   }
   let c;
   try {
-    c = JSON.parse(Aa.decode(p));
+    c = JSON.parse(ba.decode(p));
   } catch (m) {
     throw new Pr("Failed to parse the decoded payload as JSON", { cause: m });
   }
@@ -1770,7 +1770,7 @@ async function Tp(o, n) {
   }
   return crypto.subtle.generateKey(c, s ?? !1, m);
 }
-function va(o) {
+function fa(o) {
   if (!o.isWellFormed()) throw new Error("Lone surrogate is not allowed");
   return JSON.stringify(o);
 }
@@ -1781,14 +1781,14 @@ function Pi(o) {
       if (!isFinite(o)) throw new Error("Infinity is not allowed");
       return JSON.stringify(o);
     case "string":
-      return va(o);
+      return fa(o);
     case "boolean":
       return o ? "true" : "false";
     default:
       return JSON.stringify(o);
   }
 }
-function da(o, n) {
+function ca(o, n) {
   let s = null;
   for (; o !== null && typeof o == "object" && typeof o.toJSON == "function";) {
     if (n.has(o)) throw new Error("Circular reference detected");
@@ -1816,7 +1816,7 @@ function da(o, n) {
 function _i(o) {
   if (o === null || typeof o != "object") return Pi(o);
   let n = new Set(),
-    s = da(o, n);
+    s = ca(o, n);
   if (typeof s != "object") return s;
   let p = s.keys === null ? "[" : "{",
     c = [s];
@@ -1833,7 +1833,7 @@ function _i(o) {
           p += Pi(_);
           continue;
         }
-        let N = da(_, n);
+        let N = ca(_, n);
         if (typeof N != "object") {
           p += N === void 0 ? "null" : N;
           continue;
@@ -1849,12 +1849,12 @@ function _i(o) {
           _ = h[E];
         if (_ === void 0 || typeof _ == "symbol" || typeof _ == "function") continue;
         if (_ === null || typeof _ != "object") {
-          (m.first ? (m.first = !1) : (p += ","), (p += va(E) + ":" + Pi(_)));
+          (m.first ? (m.first = !1) : (p += ","), (p += fa(E) + ":" + Pi(_)));
           continue;
         }
-        let N = da(_, n);
+        let N = ca(_, n);
         if (N !== void 0) {
-          if ((m.first ? (m.first = !1) : (p += ","), (p += va(E) + ":"), typeof N != "object")) {
+          if ((m.first ? (m.first = !1) : (p += ","), (p += fa(E) + ":"), typeof N != "object")) {
             p += N;
             continue;
           }
@@ -1969,9 +1969,9 @@ function pr(o, n = !1) {
     };
   (h(0), c(), p !== s.length && b("malformed_json"));
   let P = JSON.parse(s);
-  return ($t(P), n && !Za(xe(P), o) && b("noncanonical_json"), P);
+  return ($t(P), n && !Ma(xe(P), o) && b("noncanonical_json"), P);
 }
-function Za(o, n) {
+function Ma(o, n) {
   return o.length === n.length && o.every((s, p) => s === n[p]);
 }
 function zr(o, n = 0) {
@@ -1998,7 +1998,7 @@ async function Mr(o) {
     .map((s) => s.toString(16).padStart(2, "0"))
     .join("");
 }
-function Ga(o, n, s = 0) {
+function Za(o, n, s = 0) {
   return ((!Array.isArray(o) || o.length < s || o.length > n) && b("invalid_array"), o);
 }
 function hr(o) {
@@ -2014,7 +2014,7 @@ async function zt(o) {
   );
 }
 async function wr(o) {
-  return (await zt(o), Ma(o, "sha256"));
+  return (await zt(o), Ba(o, "sha256"));
 }
 function Fp(o, n, s) {
   Ce(o, ["protected", "payload", "signature"]);
@@ -2215,7 +2215,7 @@ function it(o) {
     b("payload_too_large"),
     Ce(p, ["protected", "aad", "iv", "ciphertext", "tag", "recipients"]),
     (!ne(pr(Oe(p.protected)), Ht) ||
-      !Za(Oe(p.aad), xe(s)) ||
+      !Ma(Oe(p.aad), xe(s)) ||
       Oe(p.iv).length !== 12 ||
       Oe(p.tag).length !== 16) &&
       b("recipient_binding_mismatch"),
@@ -2238,7 +2238,7 @@ async function Zt(o, n, s) {
     contentEncryptionAlgorithms: ["A256GCM"],
   });
   return (
-    (!ne(c.protectedHeader, Ht) || !Za(c.additionalAuthenticatedData, xe(s))) &&
+    (!ne(c.protectedHeader, Ht) || !Ma(c.additionalAuthenticatedData, xe(s))) &&
       b("recipient_binding_mismatch"),
     Fi(pr(c.plaintext, !0), s)
   );
@@ -2282,7 +2282,7 @@ function No(o) {
       o.selectedHistory.some((n) => n >= o.fromRevision)) &&
       b("invalid_history"));
 }
-function ga(o) {
+function va(o) {
   (ke("PersistentResourceConsent", o), o.createdAt > o.updatedAt && b("invalid_consent"));
   let n = [];
   (hr(o.permissions.map((s) => s.permissionId)),
@@ -2324,7 +2324,7 @@ async function Ko(o, n, s, p, c) {
   }
   (await Rr(o, _, "fv-control+jws"),
     m.authorKeyId !== E.kid && b("recipient_binding_mismatch"),
-    n && (ga(n), An(n, s), n.consentId !== m.consentId && b("recipient_binding_mismatch")),
+    n && (va(n), An(n, s), n.consentId !== m.consentId && b("recipient_binding_mismatch")),
     (m.expectedVersion !== (n?.version ?? 0) ||
       m.expectedConsentDigest !== (n ? await Ae(n) : null) ||
       m.issuedAt < (n?.updatedAt ?? s.registeredAt)) &&
@@ -2414,7 +2414,7 @@ async function Ko(o, n, s, p, c) {
         }));
     }
   }
-  return ga({
+  return va({
     contractVersion: jr,
     profile: _o,
     ...Object.fromEntries($r.map((C) => [C, s[C]])),
@@ -2428,7 +2428,7 @@ async function Ko(o, n, s, p, c) {
     permissions: [...N.values()].sort((C, F) => (C.permissionId < F.permissionId ? -1 : 1)),
   });
 }
-async function Xa({ consent: o, receipts: n, identity: s, registry: p, pin: c = null }) {
+async function Ga({ consent: o, receipts: n, identity: s, registry: p, pin: c = null }) {
   if (o === null) return ((n.length || c) && b("consent_rollback"), null);
   ((!Array.isArray(n) || n.length !== o.version || n.length > 96) && b("invalid_consent_chain"),
     hr(n.map((P) => P.operationId)));
@@ -2474,7 +2474,7 @@ async function Wi(o, { registry: n, identity: s, expected: p, now: c, purpose: m
     "recipients",
     ...(h.objectType === "task"
       ? [
-          ...Pa,
+          ...ga,
           "expectedAuthorityVersion",
           "expectedAuthorityDigest",
           "resultPolicy",
@@ -2482,7 +2482,7 @@ async function Wi(o, { registry: n, identity: s, expected: p, now: c, purpose: m
           "resourceBindings",
         ]
       : h.objectType === "result_revision"
-        ? [...Pa, "runId", "manifestFingerprint"]
+        ? [...ga, "runId", "manifestFingerprint"]
         : [
             "ref",
             "sourceEpoch",
@@ -2516,7 +2516,7 @@ async function Wi(o, { registry: n, identity: s, expected: p, now: c, purpose: m
     { context: structuredClone(h), fingerprint: await Mr(o.proof) }
   );
 }
-async function Ya({ identity: o, audience: n, path: s, request: p, now: c, privateKey: m }) {
+async function Xa({ identity: o, audience: n, path: s, request: p, now: c, privateKey: m }) {
   let h = new URL(n);
   (h.protocol !== "https:" ||
     h.username ||
@@ -2550,7 +2550,7 @@ async function Ya({ identity: o, audience: n, path: s, request: p, now: c, priva
     tt(P, m, o.agentSigningKeyId, "fv-control+jws")
   );
 }
-async function zi(o, { identity: n, taskContext: s, taskFingerprint: p, consent: c, now: m }) {
+async function Ya(o, { identity: n, taskContext: s, taskFingerprint: p, consent: c, now: m }) {
   (ke("PersistentRunManifest", o),
     ct(o, n),
     (o.createdAt <= m &&
@@ -2560,7 +2560,7 @@ async function zi(o, { identity: n, taskContext: s, taskFingerprint: p, consent:
       b("run_expired"),
     o.runId !== "prun_" + (await Ae([o.ownerSubject, o.vaultId, o.taskId, o.triggerId])) &&
       b("recipient_binding_mismatch"));
-  for (let P of Pa) ne(o[P], s[P]) || b("version_conflict");
+  for (let P of ga) ne(o[P], s[P]) || b("version_conflict");
   (o.taskPublicationFingerprint !== p || o.resultPolicy !== s.resultPolicy) &&
     b("recipient_binding_mismatch");
   let h = [...o.inputs].sort((P, E) =>
@@ -2665,51 +2665,51 @@ async function $o(
   return (ke("AgentCredentialLease", pe), ht(pe, { identity: s, audience: m, now: h }));
 }
 var ds,
-  wa,
+  Pa,
   ms,
   ls,
   hs,
   ys,
   Ni,
-  ka,
+  wa,
   us,
   fs,
   vs,
   gs,
   Ps,
   ws,
-  Ia,
+  ka,
   Ct,
+  Ia,
   ba,
-  Aa,
   wi,
   ks,
   _n,
   kr,
   et,
-  la,
+  ma,
   ki,
   yr,
   Lt,
   re,
   we,
   Pr,
-  xa,
+  Da,
   Ii,
-  Ea,
+  xa,
   Nn,
   Kn,
   Ot,
   bi,
   Is,
-  Sa,
+  Ea,
   Ln,
   bs,
   As,
-  Yi,
+  Xi,
   Ds,
   dt,
-  Ka,
+  Na,
   Vn,
   pt,
   fi,
@@ -2724,7 +2724,7 @@ var ds,
   Ws,
   mo,
   Jt,
-  Ca,
+  qa,
   Vt,
   Zs,
   Gs,
@@ -2732,7 +2732,7 @@ var ds,
   wn,
   Ys,
   vo,
-  Wa,
+  Ha,
   rp,
   tp,
   ip,
@@ -2750,20 +2750,20 @@ var ds,
   lp,
   Nt,
   ko,
-  ya,
+  ha,
   Xr,
   kn,
   rt,
   Io,
   hp,
   up,
+  za,
   Ua,
-  Ba,
   fp,
   vp,
   Pp,
   Zr,
-  fa,
+  ua,
   Ao,
   Do,
   Sp,
@@ -2782,12 +2782,12 @@ var ds,
   Gt,
   _o,
   An,
-  Pa,
+  ga,
   jo,
   Wp,
   yt = un(() => {
     ((ds = Object.create),
-      (wa = Object.defineProperty),
+      (Pa = Object.defineProperty),
       (ms = Object.getOwnPropertyDescriptor),
       (ls = Object.getOwnPropertyNames),
       (hs = Object.getPrototypeOf),
@@ -2799,20 +2799,20 @@ var ds,
           throw ((n = 0), s);
         }
       }),
-      (ka = (o, n) => {
-        for (var s in n) wa(o, s, { get: n[s], enumerable: !0 });
+      (wa = (o, n) => {
+        for (var s in n) Pa(o, s, { get: n[s], enumerable: !0 });
       }),
       (us = (o, n, s, p) => {
         if ((n && typeof n == "object") || typeof n == "function")
           for (let c of ls(n))
             !ys.call(o, c) &&
               c !== s &&
-              wa(o, c, { get: () => n[c], enumerable: !(p = ms(n, c)) || p.enumerable });
+              Pa(o, c, { get: () => n[c], enumerable: !(p = ms(n, c)) || p.enumerable });
         return o;
       }),
       (fs = (o, n, s) => (
         (s = o != null ? ds(hs(o)) : {}),
-        us(n || !o || !o.__esModule ? wa(s, "default", { value: o, enumerable: !0 }) : s, o)
+        us(n || !o || !o.__esModule ? Pa(s, "default", { value: o, enumerable: !0 }) : s, o)
       )),
       (vs = Ni((o) => {
         "use strict";
@@ -6142,7 +6142,7 @@ var ds,
         }
         ((Xt.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 }),
           (o.KeyCertificatePayload = Yt));
-        var Mi = {
+        var Bi = {
           type: "object",
           properties: {
             artifactType: { const: "key_certificate" },
@@ -6498,7 +6498,7 @@ var ds,
               {
                 let l = r;
                 for (let w in e)
-                  if (!X.call(Mi.properties, w))
+                  if (!X.call(Bi.properties, w))
                     return (
                       (ye.errors = [
                         {
@@ -6786,7 +6786,7 @@ var ds,
                                         instancePath: i + "/role",
                                         schemaPath: "#/properties/role/enum",
                                         keyword: "enum",
-                                        params: { allowedValues: Mi.properties.role.enum },
+                                        params: { allowedValues: Bi.properties.role.enum },
                                       },
                                     ]),
                                     !1
@@ -7201,7 +7201,7 @@ var ds,
                                                                 keyword: "enum",
                                                                 params: {
                                                                   allowedValues:
-                                                                    Mi.properties.capabilities.items
+                                                                    Bi.properties.capabilities.items
                                                                       .enum,
                                                                 },
                                                               },
@@ -11446,7 +11446,7 @@ var ds,
                                                                                   Ur = r,
                                                                                   ut = r,
                                                                                   St = !1,
-                                                                                  Xi = r;
+                                                                                  Gi = r;
                                                                                 Z(Kr, {
                                                                                   instancePath:
                                                                                     i +
@@ -11464,7 +11464,7 @@ var ds,
                                                                                           Z.errors,
                                                                                         )),
                                                                                   (r = t.length));
-                                                                                var y = Xi === r;
+                                                                                var y = Gi === r;
                                                                                 St = St || y;
                                                                                 let ot = r;
                                                                                 if (Kr !== null) {
@@ -11610,11 +11610,11 @@ var ds,
                                                                                         {
                                                                                           var u =
                                                                                             !0;
-                                                                                          let Xi =
+                                                                                          let Gi =
                                                                                             Ur.length;
                                                                                           for (
                                                                                             let ot = 0;
-                                                                                            ot < Xi;
+                                                                                            ot < Gi;
                                                                                             ot++
                                                                                           ) {
                                                                                             let ss =
@@ -16928,7 +16928,7 @@ var ds,
             required: ["currency", "cashBalance", "buyingPower"],
             additionalProperties: !1,
           },
-          Zi = new RegExp("^-?(0|[1-9][0-9]{0,19})(\\.[0-9]{1,12})?$", "u");
+          Mi = new RegExp("^-?(0|[1-9][0-9]{0,19})(\\.[0-9]{1,12})?$", "u");
         function _r(
           e,
           {
@@ -17031,7 +17031,7 @@ var ds,
                               params: { limit: 1 },
                             };
                             (t === null ? (t = [K]) : t.push(K), r++);
-                          } else if (!Zi.test(k)) {
+                          } else if (!Mi.test(k)) {
                             let K = {
                               instancePath: i + "/cashBalance",
                               schemaPath: "#/properties/cashBalance/anyOf/0/pattern",
@@ -17100,7 +17100,7 @@ var ds,
                                 params: { limit: 1 },
                               };
                               (t === null ? (t = [K]) : t.push(K), r++);
-                            } else if (!Zi.test(k)) {
+                            } else if (!Mi.test(k)) {
                               let K = {
                                 instancePath: i + "/buyingPower",
                                 schemaPath: "#/properties/buyingPower/anyOf/0/pattern",
@@ -17162,7 +17162,7 @@ var ds,
           return ((_r.errors = t), r === 0);
         }
         _r.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
-        var Gi = {
+        var Zi = {
             type: "object",
             properties: {
               assetId: {
@@ -17323,7 +17323,7 @@ var ds,
                               ]),
                               !1
                             );
-                          if (!Zi.test(u))
+                          if (!Mi.test(u))
                             return (
                               (Ar.errors = [
                                 {
@@ -17407,7 +17407,7 @@ var ds,
               {
                 let w = r;
                 for (let k in e)
-                  if (!X.call(Gi.properties, k))
+                  if (!X.call(Zi.properties, k))
                     return (
                       (Le.errors = [
                         {
@@ -17708,7 +17708,7 @@ var ds,
                                       instancePath: i + "/assetType",
                                       schemaPath: "#/properties/assetType/enum",
                                       keyword: "enum",
-                                      params: { allowedValues: Gi.properties.assetType.enum },
+                                      params: { allowedValues: Zi.properties.assetType.enum },
                                     },
                                   ]),
                                   !1
@@ -17796,7 +17796,7 @@ var ds,
                                           instancePath: i + "/currency",
                                           schemaPath: "#/properties/currency/enum",
                                           keyword: "enum",
-                                          params: { allowedValues: Gi.properties.currency.enum },
+                                          params: { allowedValues: Zi.properties.currency.enum },
                                         },
                                       ]),
                                       !1
@@ -27653,8 +27653,8 @@ var ds,
         }
         ui.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
       })),
-      (Ia = {}));
-    ka(Ia, {
+      (ka = {}));
+    wa(ka, {
       CompactEncrypt: () => rp,
       CompactSign: () => ip,
       EmbeddedJWK: () => bp,
@@ -27666,11 +27666,11 @@ var ds,
       SignJWT: () => sp,
       UnsecuredJWT: () => _p,
       base64url: () => bi,
-      calculateJwkThumbprint: () => Ma,
+      calculateJwkThumbprint: () => Ba,
       calculateJwkThumbprintUri: () => Ip,
       compactDecrypt: () => Js,
       compactVerify: () => Us,
-      createLocalJWKSet: () => ua,
+      createLocalJWKSet: () => ya,
       createRemoteJWKSet: () => Ep,
       cryptoRuntime: () => qp,
       customFetch: () => Ao,
@@ -27695,26 +27695,26 @@ var ds,
       jwtVerify: () => Qs,
     });
     ((Ct = new TextEncoder()),
-      (ba = new TextDecoder()),
-      (Aa = new TextDecoder("utf-8", { fatal: !0 })),
+      (Ia = new TextDecoder()),
+      (ba = new TextDecoder("utf-8", { fatal: !0 })),
       (wi = 2 ** 32));
     ks = /[^\x00-\x7f]/;
     _n = {};
-    ka(_n, {
+    wa(_n, {
       JOSEAlgNotAllowed: () => ki,
       JOSEError: () => kr,
       JOSENotSupported: () => yr,
       JWEDecryptionFailed: () => Lt,
       JWEInvalid: () => re,
-      JWKInvalid: () => xa,
+      JWKInvalid: () => Da,
       JWKSInvalid: () => Ii,
       JWKSMultipleMatchingKeys: () => Nn,
-      JWKSNoMatchingKey: () => Ea,
+      JWKSNoMatchingKey: () => xa,
       JWKSTimeout: () => Kn,
       JWSInvalid: () => we,
       JWSSignatureVerificationFailed: () => Ot,
       JWTClaimValidationFailed: () => et,
-      JWTExpired: () => la,
+      JWTExpired: () => ma,
       JWTInvalid: () => Pr,
     });
     ((kr = class extends Error {
@@ -27739,7 +27739,7 @@ var ds,
             (this.payload = n));
         }
       }),
-      (la = class extends kr {
+      (ma = class extends kr {
         static code = "ERR_JWT_EXPIRED";
         code = "ERR_JWT_EXPIRED";
         claim;
@@ -27779,7 +27779,7 @@ var ds,
         static code = "ERR_JWT_INVALID";
         code = "ERR_JWT_INVALID";
       }),
-      (xa = class extends kr {
+      (Da = class extends kr {
         static code = "ERR_JWK_INVALID";
         code = "ERR_JWK_INVALID";
       }),
@@ -27787,7 +27787,7 @@ var ds,
         static code = "ERR_JWKS_INVALID";
         code = "ERR_JWKS_INVALID";
       }),
-      (Ea = class extends kr {
+      (xa = class extends kr {
         static code = "ERR_JWKS_NO_MATCHING_KEY";
         code = "ERR_JWKS_NO_MATCHING_KEY";
         constructor(o = "no applicable key found in the JSON Web Key Set", n) {
@@ -27817,9 +27817,9 @@ var ds,
         }
       }),
       (bi = {}));
-    ka(bi, { decode: () => At, encode: () => ar });
+    wa(bi, { decode: () => At, encode: () => ar });
     Is = "The input to be decoded is not correctly encoded.";
-    ((Sa = { __proto__: null, b64: !0 }), (Ln = { __proto__: null }));
+    ((Ea = { __proto__: null, b64: !0 }), (Ln = { __proto__: null }));
     ((bs = (o) => o[Symbol.toStringTag]),
       (As = (o, n, s) => {
         let { alg: p } = o;
@@ -27851,8 +27851,8 @@ var ds,
         return !1;
       }
     }),
-      (Ka = (o) => o?.[Symbol.toStringTag] === "KeyObject"),
-      (Vn = (o) => dt(o) || Ka(o)));
+      (Na = (o) => o?.[Symbol.toStringTag] === "KeyObject"),
+      (Vn = (o) => dt(o) || Na(o)));
     pt = (o, ...n) => Tn("Key must be ", o, ...n);
     fi = (o, n = "algorithm.name") =>
       new TypeError(`CryptoKey does not support this operation, its ${n} must be ${o}`);
@@ -27864,7 +27864,7 @@ var ds,
     ]),
       (Ks = [[], ["deriveBits"]]),
       (Li = [[], []]));
-    ((Ft = Oa({
+    ((Ft = La({
       dir: {
         kty: ["oct"],
         mode: "direct-encryption",
@@ -27887,12 +27887,12 @@ var ds,
       A128GCMKW: ft(128, !0),
       A192GCMKW: ft(192, !0),
       A256GCMKW: ft(256, !0),
-      "PBES2-HS256+A128KW": Qi(),
-      "PBES2-HS384+A192KW": Qi(),
-      "PBES2-HS512+A256KW": Qi(),
+      "PBES2-HS256+A128KW": Yi(),
+      "PBES2-HS384+A192KW": Yi(),
+      "PBES2-HS512+A256KW": Yi(),
     })),
       (js = ["encrypt", "decrypt"]));
-    $s = Oa({
+    $s = La({
       A128GCM: vt(128),
       A192GCM: vt(192),
       A256GCM: vt(256),
@@ -27927,7 +27927,7 @@ var ds,
         #t = [];
         #a;
         #o;
-        #h;
+        #l;
         constructor(o) {
           this.#e = o;
         }
@@ -27942,7 +27942,7 @@ var ds,
           return (Ge(this.#o, "setSharedUnprotectedHeader"), (this.#o = o), this);
         }
         setAdditionalAuthenticatedData(o) {
-          return ((this.#h = o), this);
+          return ((this.#l = o), this);
         }
         async encrypt() {
           if (!this.#t.length) throw new re("at least one recipient must be added");
@@ -27954,7 +27954,7 @@ var ds,
             c = [];
           for (let F of this.#t) {
             let [X, pe, oe, fe] = F.state,
-              Q = [this.#e, s, X, p, this.#h, void 0, void 0, pe, fe, o],
+              Q = [this.#e, s, X, p, this.#l, void 0, void 0, pe, fe, o],
               me = so(Q, void 0, c.length > 0);
             (c.length || ((s = Q[1]), (p = Q[3])), c.push([Q, me, oe]));
             let [{ alg: De, enc: ee }, , nr] = me;
@@ -27979,7 +27979,7 @@ var ds,
               nr = { encrypted_key: ar(De) };
             if (me || ee) {
               let Me = { ...me, ...ee };
-              (ee && Ta(X[1], Me, X[3]), (nr.header = Me));
+              (ee && Va(X[1], Me, X[3]), (nr.header = Me));
             }
             C.recipients.push(nr);
           }
@@ -27987,24 +27987,24 @@ var ds,
         }
       }),
       (Jt = [["verify"], ["sign"]]));
-    Ca = Oa({
-      HS256: ra(256),
-      HS384: ra(384),
-      HS512: ra(512),
+    qa = La({
+      HS256: ea(256),
+      HS384: ea(384),
+      HS512: ea(512),
       RS256: gt(256),
       RS384: gt(384),
       RS512: gt(512),
       PS256: gt(256, 32),
       PS384: gt(384, 48),
       PS512: gt(512, 64),
-      ES256: ta("P-256", 256),
-      ES384: ta("P-384", 384),
-      ES512: ta("P-521", 512),
+      ES256: ra("P-256", 256),
+      ES384: ra("P-384", 384),
+      ES512: ra("P-521", 512),
       EdDSA: Pn(),
       Ed25519: Pn(),
-      "ML-DSA-44": ia(44),
-      "ML-DSA-65": ia(65),
-      "ML-DSA-87": ia(87),
+      "ML-DSA-44": ta(44),
+      "ML-DSA-65": ta(65),
+      "ML-DSA-87": ta(87),
     });
     ((Vt = (o) => Math.floor(o.getTime() / 1e3)),
       (Zs = { s: 1, m: 60, h: 3600, d: 86400, w: 604800, y: 31557600 }),
@@ -28021,28 +28021,28 @@ var ds,
           : Array.isArray(o)
             ? n.some((s) => o.includes(s))
             : !1));
-    Wa = class {
+    Ha = class {
       constructor(o = {}) {
         if (!Xe(o)) throw new TypeError("JWT Claims Set MUST be an object");
         (vo ||= new WeakMap()).set(this, structuredClone(o));
       }
       setIssuer(o) {
-        return (na("iss", o), (Gr(this).iss = o), this);
+        return (aa("iss", o), (Gr(this).iss = o), this);
       }
       setSubject(o) {
-        return (na("sub", o), (Gr(this).sub = o), this);
+        return (aa("sub", o), (Gr(this).sub = o), this);
       }
       setAudience(o) {
         return (Xs(o), (Gr(this).aud = o), this);
       }
       setJti(o) {
-        return (na("jti", o), (Gr(this).jti = o), this);
+        return (aa("jti", o), (Gr(this).jti = o), this);
       }
       setNotBefore(o) {
-        return ((Gr(this).nbf = oa(o, "setNotBefore")), this);
+        return ((Gr(this).nbf = na(o, "setNotBefore")), this);
       }
       setExpirationTime(o) {
-        return ((Gr(this).exp = oa(o, "setExpirationTime")), this);
+        return ((Gr(this).exp = na(o, "setExpirationTime")), this);
       }
       setIssuedAt(o) {
         let n = Gr(this);
@@ -28051,7 +28051,7 @@ var ds,
             ? (n.iat = Vt(new Date()))
             : typeof o == "string"
               ? (n.iat = wt("setIssuedAt", Vt(new Date()) + Ei(o)))
-              : (n.iat = oa(o, "setIssuedAt")),
+              : (n.iat = na(o, "setIssuedAt")),
           this
         );
       }
@@ -28074,7 +28074,7 @@ var ds,
         return (Ge(this.#e[7], "setKeyManagementParameters"), (this.#e[7] = o), this);
       }
       async encrypt(o, n) {
-        return co(await qa([...this.#e], o, n));
+        return co(await Ta([...this.#e], o, n));
       }
     }),
       (tp = class {
@@ -28104,7 +28104,7 @@ var ds,
           return (Ge(this.#e[6], "setInitializationVector"), (this.#e[6] = o), this);
         }
         async encrypt(o, n) {
-          return qa([...this.#e], o, n);
+          return Ta([...this.#e], o, n);
         }
       }));
     ((ip = class {
@@ -28136,7 +28136,7 @@ var ds,
         async sign(o, n) {
           let s = [...this.#e];
           s[3] = n?.crit;
-          let [p] = await za(s, o);
+          let [p] = await Wa(s, o);
           return p;
         }
       }),
@@ -28180,7 +28180,7 @@ var ds,
             s;
           for (let p of this.#t) {
             let [c, m, h, P] = p.state,
-              [{ payload: E, ..._ }, N] = await za([this.#e, c, m, P, n], h);
+              [{ payload: E, ..._ }, N] = await Wa([this.#e, c, m, P, n], h);
             if (s === void 0) ((s = N), (o.payload = E));
             else if (s !== N) throw new we("inconsistent use of JWS Unencoded Payload (RFC7797)");
             o.signatures.push(_);
@@ -28188,19 +28188,19 @@ var ds,
           return o;
         }
       }),
-      (op = Wa),
+      (op = Ha),
       (sp = class extends op {
         #e;
         setProtectedHeader(o) {
           return (Ge(this.#e, "setProtectedHeader"), (this.#e = o), this);
         }
         async sign(o, n) {
-          return go(Ha(this), this.#e, n?.crit, o, () => {
+          return go(Ja(this), this.#e, n?.crit, o, () => {
             throw new Pr("JWTs MUST NOT use unencoded payload");
           });
         }
       }),
-      (pp = Wa),
+      (pp = Ha),
       (cp = class extends pp {
         #e = [void 0];
         #t;
@@ -28228,17 +28228,17 @@ var ds,
           return ((this.#o = !0), this);
         }
         async encrypt(o, n) {
-          let s = Ha(this);
+          let s = Ja(this);
           this.#e[1] &&
             (this.#t || this.#a || this.#o) &&
             (this.#e[1] = {
               ...this.#e[1],
-              iss: this.#t ? ca(this, "iss") : void 0,
-              sub: this.#a ? ca(this, "sub") : void 0,
-              aud: this.#o ? ca(this, "aud") : void 0,
+              iss: this.#t ? pa(this, "iss") : void 0,
+              sub: this.#a ? pa(this, "sub") : void 0,
+              aud: this.#o ? pa(this, "aud") : void 0,
             });
           let p = [...this.#e];
-          return ((p[0] = s), co(await qa(p, o, n)));
+          return ((p[0] = s), co(await Ta(p, o, n)));
         }
       }),
       (Tt = '"alg" (Algorithm)'));
@@ -28250,7 +28250,7 @@ ${s}
 -----END ${n}-----`;
     }),
       (wo = async (o, n, s) => {
-        if (Ka(s)) {
+        if (Na(s)) {
           if (s.type !== o) throw new TypeError(`key is not a ${o} key`);
           return s.export({ format: "pem", type: n });
         }
@@ -28270,17 +28270,17 @@ ${s}
         return !0;
       }),
       (ko = (o) => ({ data: o, pos: 0 })),
-      (ya = (o) => {
+      (ha = (o) => {
         let n = o.data[o.pos++];
         if (n === void 0) throw new Error("Unexpected end of ASN.1 input");
         return n;
       }),
       (Xr = (o) => {
-        let n = ya(o);
+        let n = ha(o);
         if (n & 128) {
           let s = n & 127,
             p = 0;
-          for (let c = 0; c < s; c++) p = (p << 8) | ya(o);
+          for (let c = 0; c < s; c++) p = (p << 8) | ha(o);
           return p;
         }
         return n;
@@ -28293,7 +28293,7 @@ ${s}
         }
       }),
       (rt = (o, n, s) => {
-        if (ya(o) !== n) throw new Error(s);
+        if (ha(o) !== n) throw new Error(s);
       }),
       (Io = (o, n) => {
         if (n < 0 || o.pos + n > o.data.length) throw new Error("Unexpected end of ASN.1 input");
@@ -28317,7 +28317,7 @@ ${s}
       if (Nt(p, [43, 129, 4, 0, 35])) return "P-521";
       throw new Error("Unsupported named curve");
     }),
-      (Ua = async (o, n, s, p) => {
+      (za = async (o, n, s, p) => {
         let c = $i(p?.extractable),
           m = Si(s, Tt);
         m.secret && qi(Tt);
@@ -28333,37 +28333,37 @@ ${s}
         else P = m.subtle;
         return crypto.subtle.importKey(o, n, P, c ?? h, m.usages[h ? 0 : 1]);
       }),
-      (Ba = (o, n) => En(o.replace(n, ""))),
+      (Ua = (o, n) => En(o.replace(n, ""))),
       (fp = (o, n, s) => {
-        let p = Ba(o, /(?:-----(?:BEGIN|END) PRIVATE KEY-----|\s)/g);
-        return Ua("pkcs8", p, n, s);
+        let p = Ua(o, /(?:-----(?:BEGIN|END) PRIVATE KEY-----|\s)/g);
+        return za("pkcs8", p, n, s);
       }),
       (vp = (o, n, s) => {
-        let p = Ba(o, /(?:-----(?:BEGIN|END) PUBLIC KEY-----|\s)/g);
-        return Ua("spki", p, n, s);
+        let p = Ua(o, /(?:-----(?:BEGIN|END) PUBLIC KEY-----|\s)/g);
+        return za("spki", p, n, s);
       }));
     Pp = (o, n, s) => {
       let p;
       try {
-        let c = Ba(o, /(?:-----(?:BEGIN|END) CERTIFICATE-----|\s)/g);
+        let c = Ua(o, /(?:-----(?:BEGIN|END) CERTIFICATE-----|\s)/g);
         p = gp(c);
       } catch (c) {
         throw new TypeError("Failed to parse the X.509 certificate", { cause: c });
       }
-      return Ua("spki", p, n, s);
+      return za("spki", p, n, s);
     };
     Zr = (o, n) => {
-      if (typeof o != "string" || !o) throw new xa(`${n} missing or invalid`);
+      if (typeof o != "string" || !o) throw new Da(`${n} missing or invalid`);
     };
     (typeof navigator > "u" || !navigator.userAgent?.startsWith?.("Mozilla/5.0 ")) &&
-      (fa = "jose/v6.2.13");
+      (ua = "jose/v6.2.13");
     Ao = Symbol();
     Do = Symbol();
-    ((Sp = Wa),
+    ((Sp = Ha),
       (_p = class extends Sp {
         encode() {
           let o = ar(JSON.stringify({ alg: "none" })),
-            n = ar(Ha(this));
+            n = ar(Ja(this));
           return `${o}.${n}.`;
         }
         static decode(o, n) {
@@ -28373,14 +28373,14 @@ ${s}
           let h, P;
           try {
             h = ji(s, we, "JWS Protected Header is invalid");
-            let E = Rt(we, Sa, void 0, h, h);
-            P = _a(h, E);
+            let E = Rt(we, Ea, void 0, h, h);
+            P = Sa(h, E);
           } catch (E) {
             throw E instanceof we ? new Pr("Invalid Unsecured JWT", { cause: E }) : E;
           }
           if (h.alg !== "none") throw new Pr("Invalid Unsecured JWT");
           if (!P) throw new Pr("JWTs MUST NOT use unencoded payload");
-          return { payload: Ja(h, Cr(p, "payload", Pr), n), header: h };
+          return { payload: Fa(h, Cr(p, "payload", Pr), n), header: h };
         }
       }));
     qp = "WebCryptoAPI";
@@ -28429,7 +28429,7 @@ ${s}
         }
         async load(o, n) {
           ((await wr(this.anchor.rootJwk)) !== this.anchor.rootKeyId && b("root_pin_mismatch"),
-            Ga(o, 32, 1));
+            Za(o, 32, 1));
           for (let s of o) {
             (ke("RegistryBundle", s), xe(s).length > 131072 && b("payload_too_large"));
             let p = await Rr(s.checkpoint, this.anchor.rootJwk, "fv-control+jws");
@@ -28612,7 +28612,7 @@ ${s}
       (An = (o, n) => {
         for (let s of $r) ne(o[s], n[s]) || b("recipient_binding_mismatch");
       }));
-    Pa = ["taskId", "taskVersion", "executionEpoch", "authorityId", "authorityVersion"];
+    ga = ["taskId", "taskVersion", "executionEpoch", "authorityId", "authorityVersion"];
     ((jo = 2160 * 60 * 60), (Wp = 10080 * 60));
   });
 var Lo = {};
@@ -28622,7 +28622,7 @@ cs(Lo, {
   JWE_HEADER: () => Ht,
   PROFILE: () => Yr,
   RuntimeDenied: () => Wt,
-  array: () => Ga,
+  array: () => Za,
   bytes: () => Oe,
   canonical: () => xe,
   context: () => Mt,
@@ -28634,7 +28634,7 @@ cs(Lo, {
   identifier: () => Ir,
   inspect: () => it,
   integer: () => zr,
-  jose: () => Ia,
+  jose: () => ka,
   keyId: () => wr,
   object: () => Ri,
   open: () => Zt,
@@ -28738,8 +28738,8 @@ var Vo = "folioview.persistent-native-plan.v1",
     #t;
     #a;
     #o;
-    #h;
-    #D;
+    #l;
+    #x;
     #s;
     #r;
     #i;
@@ -28747,7 +28747,7 @@ var Vo = "folioview.persistent-native-plan.v1",
     #n;
     #m;
     #d;
-    #l;
+    #h;
     #f = new Map();
     #v = new Map();
     constructor({
@@ -28759,7 +28759,7 @@ var Vo = "folioview.persistent-native-plan.v1",
     } = {}) {
       let h = new URL(n);
       ((h.protocol !== "https:" || h.origin !== n) && b("invalid_runtime_origin"),
-        (this.#h = m),
+        (this.#l = m),
         (this.#a = n),
         (this.#e = s),
         p || b("reauthorization_required"),
@@ -28769,7 +28769,7 @@ var Vo = "folioview.persistent-native-plan.v1",
     now() {
       return Math.floor(this.#o.seconds + (this.#o.monotonic() - this.#o.started) / 1e3);
     }
-    async #x(n, s = null, p = 4194304) {
+    async #E(n, s = null, p = 4194304) {
       (!n.startsWith("/") ||
         n.includes("//") ||
         n.includes("?") ||
@@ -28816,12 +28816,12 @@ var Vo = "folioview.persistent-native-plan.v1",
       return pr(E);
     }
     async #g() {
-      let n = Math.floor(this.#h());
+      let n = Math.floor(this.#l());
       return (
         await this.#t.noteTime(n),
         (this.#o.seconds = n),
         (this.#o.started = this.#o.monotonic()),
-        this.#D
+        this.#x
       );
     }
     #P() {
@@ -28846,9 +28846,9 @@ var Vo = "folioview.persistent-native-plan.v1",
         ].includes(n) || b("invalid_operation"));
       let c = this.#P() + "/" + n,
         m = async () =>
-          this.#x(c, {
+          this.#E(c, {
             contractVersion: jr,
-            proof: await Ya({
+            proof: await Xa({
               identity: this.#i,
               audience: this.#a,
               path: c,
@@ -28869,7 +28869,7 @@ var Vo = "folioview.persistent-native-plan.v1",
       let p = "public:" + (await Ae([this.#r, n]));
       return this.#t.transact(p, s);
     }
-    #E(n) {
+    #S(n) {
       return (
         Ce(n, ["ownerSubject", "vaultId", "connectionId", "clientId"]),
         Object.values(n).forEach(Ir),
@@ -28883,15 +28883,15 @@ var Vo = "folioview.persistent-native-plan.v1",
         (this.#n = n.activation),
         (this.#m = n.provider),
         (this.#u = n.activation.rootKeyId),
-        (this.#r = this.#E(n.actor)),
+        (this.#r = this.#S(n.actor)),
         (this.#s = await this.#t.profile(this.#r)),
-        await this.#S(n.activation.identity),
+        await this.#_(n.activation.identity),
         ht(this.#n.lease, { identity: this.#i, audience: this.#a, now: this.now() }),
         await this.synchronize(),
         this.status()
       );
     }
-    async #S(n) {
+    async #_(n) {
       (ke("PersistentAgentIdentity", n), n.rootKeyId !== this.#u && b("root_pin_mismatch"));
       for (let m of ["ownerSubject", "vaultId", "connectionId", "clientId"])
         n[m] !== this.#r[m] && b("recipient_binding_mismatch");
@@ -28941,7 +28941,7 @@ var Vo = "folioview.persistent-native-plan.v1",
       for (let N of n.consentOperations)
         P.push(await this.#p("consent-receipts", { operationId: N }));
       let E = await this.#c("consent-pin", (N) => ({ result: N })),
-        _ = await Xa({ consent: n.consent, receipts: P, identity: this.#i, registry: p, pin: E });
+        _ = await Ga({ consent: n.consent, receipts: P, identity: this.#i, registry: p, pin: E });
       if (_) {
         let N = { version: _.version, digest: await Ae(_) };
         await this.#c(
@@ -28957,7 +28957,7 @@ var Vo = "folioview.persistent-native-plan.v1",
       return (
         (this.#s = await this.#t.bind(this.#r, this.#i, p.pin())),
         (this.#d = p),
-        (this.#l = _),
+        (this.#h = _),
         this.status()
       );
     }
@@ -28968,7 +28968,7 @@ var Vo = "folioview.persistent-native-plan.v1",
         expiresAt: this.#n?.lease.expiresAt ?? null,
         connectionId: this.#i?.connectionId ?? null,
         registrySequence: this.#d?.sequence ?? null,
-        consentVersion: this.#l?.version ?? null,
+        consentVersion: this.#h?.version ?? null,
       };
     }
     async #y(n) {
@@ -28998,7 +28998,7 @@ var Vo = "folioview.persistent-native-plan.v1",
       );
       let m = await Zt(s.envelope, this.#s.encryptionPrivateKey, p);
       for (let P of p.resourceBindings)
-        this.#l?.permissions.some(
+        this.#h?.permissions.some(
           (E) => E.status === "active" && ne(E.ref, P.ref) && E.sourceEpoch === P.sourceEpoch,
         ) || b("insufficient_scope");
       let h = {
@@ -29053,7 +29053,7 @@ var Vo = "folioview.persistent-native-plan.v1",
         n
       );
     }
-    #_(n, s) {
+    #N(n, s) {
       if (
         (Ce(n, [
           "contractVersion",
@@ -29119,7 +29119,7 @@ var Vo = "folioview.persistent-native-plan.v1",
     }
     async planStatus({ taskId: n }) {
       (Ir(n), await this.synchronize());
-      let s = this.#_(await this.#p("plans/state", { taskId: n }), n);
+      let s = this.#N(await this.#p("plans/state", { taskId: n }), n);
       if (s.reported !== null) {
         let p = s.reportedEvidence;
         (p || b("invalid_plan_observation"),
@@ -29295,6 +29295,27 @@ var Vo = "folioview.persistent-native-plan.v1",
       }
       return s;
     }
+    async #I(n, s) {
+      let p = (m) =>
+          Ya(n, {
+            identity: this.#i,
+            taskContext: s.context,
+            taskFingerprint: s.fingerprint,
+            consent: this.#h,
+            now: m,
+          }),
+        c = this.now();
+      try {
+        return await p(c);
+      } catch (m) {
+        if (m?.code !== "run_expired") throw m;
+        let h = n.createdAt - c;
+        if (h <= 0 || h > 2 || n.expiresAt <= n.createdAt || n.expiresAt > n.createdAt + 7200)
+          throw m;
+        let P = n.createdAt - this.now();
+        return (P > 0 && (await new Promise((E) => setTimeout(E, P * 1e3))), p(this.now()));
+      }
+    }
     async begin({ taskId: n, triggerId: s }) {
       (Ir(n), ke("OperationIdentifier", s), await this.synchronize());
       let p = await this.#y(n),
@@ -29305,13 +29326,7 @@ var Vo = "folioview.persistent-native-plan.v1",
           operationId: c,
           taskPublicationFingerprint: p.fingerprint,
         }),
-        h = await zi(m.manifest, {
-          identity: this.#i,
-          taskContext: p.context,
-          taskFingerprint: p.fingerprint,
-          consent: this.#l,
-          now: this.now(),
-        });
+        h = await this.#I(m.manifest, p);
       return (
         (h.fingerprint !== m.manifestFingerprint ||
           h.manifest.triggerId !== s ||
@@ -29339,7 +29354,7 @@ var Vo = "folioview.persistent-native-plan.v1",
         }
       );
     }
-    async #I(n) {
+    async #b(n) {
       (Ir(n), await this.synchronize());
       let s = await this.#p("runs/receipt", { runId: n }),
         p = s.manifest;
@@ -29347,21 +29362,15 @@ var Vo = "folioview.persistent-native-plan.v1",
       let c = await this.#c("run:" + n, (P) => ({ result: P }));
       c && !ne(c, p) && b("run_conflict");
       let m = await this.#y(p.taskId),
-        h = await zi(p, {
-          identity: this.#i,
-          taskContext: m.context,
-          taskFingerprint: m.fingerprint,
-          consent: this.#l,
-          now: this.now(),
-        });
+        h = await this.#I(p, m);
       return (h.fingerprint !== s.manifestFingerprint && b("invalid_manifest"), { ...h, task: m });
     }
     async input({ runId: n, publicationId: s }) {
       ke("OperationIdentifier", s);
-      let p = await this.#I(n);
-      return this.#b(p, s);
+      let p = await this.#b(n);
+      return this.#A(p, s);
     }
-    async #b(n, s) {
+    async #A(n, s) {
       let p = n.manifest.runId,
         c = n.manifest.inputs.find((E) => E.publicationId === s);
       c || b("insufficient_scope");
@@ -29373,7 +29382,7 @@ var Vo = "folioview.persistent-native-plan.v1",
         b("recipient_binding_mismatch");
       for (let E of ["ref", "sourceEpoch", "sourceRevision", "permissionId", "permissionEpoch"])
         ne(h[E], c[E]) || b("recipient_binding_mismatch");
-      (Hi(this.#l, h),
+      (Hi(this.#h, h),
         await Wi(m.envelope, {
           registry: this.#d,
           identity: this.#i,
@@ -29391,11 +29400,23 @@ var Vo = "folioview.persistent-native-plan.v1",
       let p = "report_" + (await Ae([this.#r.ownerSubject, this.#r.vaultId, n])),
         c = await this.#t.outbox(this.#r, p);
       if (!c) {
-        let h = await this.#I(n);
-        (h.manifest.resultPolicy !== "owner_inbox" && b("insufficient_scope"),
-          Bt(s, h.task.task.outputSpec));
+        let h = await this.#b(n);
+        h.manifest.resultPolicy !== "owner_inbox" && b("insufficient_scope");
+        try {
+          Bt(s, h.task.task.outputSpec);
+        } catch (F) {
+          throw (
+            [
+              "invalid_schema",
+              "private_schema_invalid",
+              "private_output_mismatch",
+              "duplicate_value",
+            ].includes(F?.code) && b("invalid_report"),
+            F
+          );
+        }
         let P = [];
-        for (let F of h.manifest.inputs) P.push(await this.#b(h, F.publicationId));
+        for (let F of h.manifest.inputs) P.push(await this.#A(h, F.publicationId));
         for (let { resource: F } of P) Qa(h.task.task.inputPolicy, F, this.now());
         let E = this.#d,
           _ = [];
@@ -29434,7 +29455,7 @@ var Vo = "folioview.persistent-native-plan.v1",
         c = await this.#t.originalCiphertext(this.#r, p, C);
       }
       let m = await this.#p("runs/submit", { runId: n, operationId: p, envelope: c });
-      return this.#A(m, c, n);
+      return this.#D(m, c, n);
     }
     async receipt({ runId: n }) {
       Ir(n);
@@ -29442,10 +29463,10 @@ var Vo = "folioview.persistent-native-plan.v1",
         p = await this.#t.outbox(this.#r, s);
       return (
         p || b("not_found"),
-        this.#A(await this.#p("runs/result-receipt", { runId: n }), p, n)
+        this.#D(await this.#p("runs/result-receipt", { runId: n }), p, n)
       );
     }
-    async #A(n, s, p) {
+    async #D(n, s, p) {
       let c = it(s).context;
       for (let [m, h] of Object.entries({
         contractVersion: jr,
@@ -29477,7 +29498,7 @@ import { resolve as Zp, isAbsolute as Gp } from "node:path";
 import { randomBytes as Xp } from "node:crypto";
 import { DatabaseSync as Yp } from "node:sqlite";
 var Qp = 12 * 1024 * 1024;
-function Ui(o, n = !1) {
+function zi(o, n = !1) {
   ((n ? !o.isDirectory() : !o.isFile()) ||
     o.isSymbolicLink() ||
     (o.mode & 63) !== 0 ||
@@ -29489,7 +29510,7 @@ async function Co(o) {
   return (
     Gp(o) || b("private_storage_unavailable"),
     await Bp(o, { recursive: !0, mode: 448 }),
-    Ui(await tn(o), !0),
+    zi(await tn(o), !0),
     Zp(o)
   );
 }
@@ -29560,7 +29581,7 @@ var an = class {
     try {
       m = await Mp(c, rn.O_RDWR | rn.O_NOFOLLOW | (s ? rn.O_CREAT : 0), 384);
       let P = await m.stat();
-      (Ui(P),
+      (zi(P),
         P.size > 20 * 1024 * 1024 && b("private_storage_unavailable"),
         await m.close(),
         (m = null),
@@ -29644,11 +29665,11 @@ var an = class {
   async resetCorruptForAuthorization() {
     let n = (await this.folder()) + "/credentials.sqlite",
       s = await tn(n);
-    (Ui(s), await qo(n));
+    (zi(s), await qo(n));
     for (let p of ["-journal", "-wal", "-shm"])
       try {
         let c = await tn(n + p);
-        (Ui(c), await qo(n + p));
+        (zi(c), await qo(n + p));
       } catch (c) {
         if (c.code !== "ENOENT") throw c;
       }
@@ -29732,7 +29753,7 @@ var ec = "folioview.agent-pairing.v1",
     "expectedGeneration",
     "expectedCredentialFingerprint",
   ],
-  Bi = (o) => Buffer.from(o).toString("base64url");
+  Ui = (o) => Buffer.from(o).toString("base64url");
 function tc(o) {
   let { issuer: n, provider: s, actor: p, setup: c } = o,
     m = new URL(n);
@@ -29769,8 +29790,8 @@ async function ic(o, n, s, p = void 0) {
     P.length + 16 > 8192 && b("payload_too_large"),
     {
       version: 1,
-      iv: Bi(h),
-      ciphertext: Bi(
+      iv: Ui(h),
+      ciphertext: Ui(
         await crypto.subtle.encrypt({ name: "AES-GCM", iv: h, additionalData: m }, c, P),
       ),
     }
@@ -29842,7 +29863,7 @@ async function oc(o, n, { clock: s = () => Date.now() / 1e3 } = {}) {
   if (!P || P.context.setupIntentId !== p.setupIntentId) {
     let _ = await nc(o),
       N = await Et(_, { issuer: o.origin, ...o.actor }),
-      B = Bi(Ro(32)),
+      B = Ui(Ro(32)),
       C = await wr(N.signingPublicJwk),
       F = {
         contractVersion: "folioview.agent-workspace.v2.0",
@@ -29874,7 +29895,7 @@ async function oc(o, n, { clock: s = () => Date.now() / 1e3 } = {}) {
     await Et(E.profile, { issuer: o.origin, ...o.actor }),
     (m.hash =
       "agent_authorization=" +
-      Bi(
+      Ui(
         xe({
           version: 1,
           issuer: p.issuer,

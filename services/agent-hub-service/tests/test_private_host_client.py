@@ -250,6 +250,11 @@ class PrivateHostClientTests(unittest.TestCase):
             self.f, PersistentContentFixture.content_context(self.f, "result_revision")
         )["payload"]
         args = {"runId": run["runId"], "report": report}
+        invalid_args = {"runId": run["runId"], "report": {**report, "limitations": "wrong type"}}
+        self.assertEqual(
+            self.peer.call("submit", invalid_args, ok=False)["error"], "invalid_report"
+        )
+        self.assertEqual(self.ciphertexts, [])
         self.drop_next_report = True
         self.assertEqual(
             self.peer.call("submit", args, ok=False)["error"], "runtime_network_unavailable"
@@ -261,7 +266,7 @@ class PrivateHostClientTests(unittest.TestCase):
             "load", {"directory": self.directory, "actor": self.actor, "provider": "muse"}
         )
         self.assertEqual(self.peer.call("initialize")["state"], "connected")
-        result = self.peer.call("submit", args)
+        result = self.peer.call("submit", invalid_args)
         self.assertEqual(result["state"], "saved")
         self.assertEqual(self.ciphertexts[0], self.ciphertexts[1])
         saved = PersistentOwnerResultService(self.fx.store, clock=lambda: self.fx.now).owner_get(
@@ -293,6 +298,78 @@ class PrivateHostClientTests(unittest.TestCase):
         )
         self.assertEqual(receipt["receipt"]["provider"], "chatgpt")
         self.assertFalse(receipt["receipt"]["nativeScheduleAttested"])
+
+    def test_new_run_waits_for_small_host_clock_lag_then_preserves_the_same_frozen_run(self):
+        self.execution()
+        self.peer.call("activate", self.response())
+        self.peer.call("initialize", {"advanceMonotonic": True})
+        self.fx.now = 1002
+        args = {"taskId": TASK, "triggerId": "synthetic_host_clock_run_0001"}
+        run = self.peer.call("begin", args)
+        self.assertEqual(self.peer.call("begin", args)["runId"], run["runId"])
+        item = self.peer.call(
+            "input", {"runId": run["runId"], "publicationId": run["inputs"][0]["publicationId"]}
+        )
+        self.assertEqual(item["resource"]["data"]["snapshotId"], self.f.resource["resourceId"])
+
+    def test_host_clock_lag_beyond_two_seconds_is_not_silently_accepted(self):
+        self.execution()
+        self.peer.call("activate", self.response())
+        self.peer.call("initialize")
+        self.fx.now = 1003
+        self.assertEqual(
+            self.peer.call(
+                "begin",
+                {"taskId": TASK, "triggerId": "synthetic_host_clock_run_0002"},
+                ok=False,
+            )["error"],
+            "run_expired",
+        )
+
+    def test_small_clock_wait_still_checks_the_complete_original_manifest_context(self):
+        self.execution()
+        self.peer.call("activate", self.response())
+        self.peer.call("initialize", {"advanceMonotonic": True})
+        self.fx.now = 1002
+        original = self.peer.handle
+
+        def mismatch(value):
+            result = original(value)
+            if value["path"].endswith("/runs/begin") and "value" in result:
+                result["value"]["manifest"]["taskVersion"] += 1
+            return result
+
+        self.peer.handle = mismatch
+        self.assertEqual(
+            self.peer.call(
+                "begin",
+                {"taskId": TASK, "triggerId": "synthetic_host_clock_run_0004"},
+                ok=False,
+            )["error"],
+            "version_conflict",
+        )
+
+    def test_expired_manifest_remains_rejected_at_the_original_expiry_boundary(self):
+        self.execution()
+        self.peer.call("activate", self.response())
+        self.peer.call("initialize")
+        original = self.peer.handle
+
+        def expired(value):
+            result = original(value)
+            if value["path"].endswith("/runs/begin") and "value" in result:
+                result["value"]["manifest"].update(createdAt=999, expiresAt=1000)
+            return result
+
+        self.peer.handle = expired
+        self.assertEqual(
+            self.peer.call(
+                "begin",
+                {"taskId": TASK, "triggerId": "synthetic_host_clock_run_0003"},
+                ok=False,
+            )["error"],
+            "run_expired",
+        )
 
     def test_wrong_activation_origin_root_keys_or_aead_phase_never_activate_pending(self):
         self.execution()

@@ -59,7 +59,7 @@ createInterface({ input: process.stdin }).on("line", (line) => {
           storage,
           fetch,
           clock: () => clock,
-          monotonic: () => 0,
+          monotonic: v.args.advanceMonotonic ? () => performance.now() : () => 0,
         });
         value = await client.initialize();
       } else if (v.method === "clock") {

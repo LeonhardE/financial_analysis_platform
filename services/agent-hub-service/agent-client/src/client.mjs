@@ -671,6 +671,36 @@ export class AgentClient {
     }
     return result;
   }
+  async #verifiedManifest(manifest, task) {
+    const check = (now) =>
+      verifyManifest(manifest, {
+        identity: this.#identity,
+        taskContext: task.context,
+        taskFingerprint: task.fingerprint,
+        consent: this.#consent,
+        now,
+      });
+    const observedNow = this.now();
+    try {
+      return await check(observedNow);
+    } catch (error) {
+      if (error?.code !== "run_expired") throw error;
+      const ahead = manifest.createdAt - observedNow;
+      if (
+        ahead <= 0 ||
+        ahead > 2 ||
+        manifest.expiresAt <= manifest.createdAt ||
+        manifest.expiresAt > manifest.createdAt + 7200
+      )
+        throw error;
+      // A new Hub run may arrive just ahead of the host's whole-second clock.
+      // Let real monotonic time advance, then run every original check again.
+      // Never shift the clock, widen validity or retry the begin write here.
+      const remaining = manifest.createdAt - this.now();
+      if (remaining > 0) await new Promise((resolve) => setTimeout(resolve, remaining * 1000));
+      return check(this.now());
+    }
+  }
   async begin({ taskId, triggerId }) {
     identifier(taskId);
     validate("OperationIdentifier", triggerId);
@@ -684,13 +714,7 @@ export class AgentClient {
       operationId,
       taskPublicationFingerprint: t.fingerprint,
     });
-    const checked = await verifyManifest(response.manifest, {
-      identity: this.#identity,
-      taskContext: t.context,
-      taskFingerprint: t.fingerprint,
-      consent: this.#consent,
-      now: this.now(),
-    });
+    const checked = await this.#verifiedManifest(response.manifest, t);
     if (
       checked.fingerprint !== response.manifestFingerprint ||
       checked.manifest.triggerId !== triggerId ||
@@ -724,13 +748,7 @@ export class AgentClient {
     const local = await this.#record("run:" + runId, (v) => ({ result: v }));
     if (local && !same(local, m)) deny("run_conflict");
     const t = await this.#task(m.taskId),
-      checked = await verifyManifest(m, {
-        identity: this.#identity,
-        taskContext: t.context,
-        taskFingerprint: t.fingerprint,
-        consent: this.#consent,
-        now: this.now(),
-      });
+      checked = await this.#verifiedManifest(m, t);
     if (checked.fingerprint !== response.manifestFingerprint) deny("invalid_manifest");
     return { ...checked, task: t };
   }
@@ -779,7 +797,20 @@ export class AgentClient {
     if (!carrier) {
       const r = await this.#run(runId);
       if (r.manifest.resultPolicy !== "owner_inbox") deny("insufficient_scope");
-      resultContent(report, r.task.task.outputSpec);
+      try {
+        resultContent(report, r.task.task.outputSpec);
+      } catch (error) {
+        if (
+          [
+            "invalid_schema",
+            "private_schema_invalid",
+            "private_output_mismatch",
+            "duplicate_value",
+          ].includes(error?.code)
+        )
+          deny("invalid_report");
+        throw error;
+      }
       // First publication verifies every frozen input even if the caller skipped
       // readInput. Unknown-outcome retries above retain the original ciphertext.
       const resources = [];
