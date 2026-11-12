@@ -99,6 +99,26 @@ def document_path(collection: str, *parts: str) -> str:
     return f"{collection}/{document_id(*parts)}"
 
 
+def _read_document(value: dict, *, path: str) -> dict:
+    """Read the original array or its bounded, canonical UTF-8 storage form.
+
+    Only these two existing, unindexed fields may use bytes. Public APIs and
+    signature verification continue to receive the original JSON arrays.
+    """
+    try:
+        if path.split("/", 1)[0] in {"hub_vaults", "hub_persistent_runs"} and isinstance(
+            value.get("registryHistory"), bytes
+        ):
+            payload = value["registryHistory"]
+            history = strict_json_loads(payload, max_bytes=MAX_STORED_DOCUMENT_BYTES)
+            if type(history) is not list or canonical_json(history) != payload:
+                raise StoreUnavailable
+            value = {**value, "registryHistory": history}
+        return strict_json_loads(canonical_json(value), max_bytes=MAX_STORED_DOCUMENT_BYTES)
+    except ContractError:
+        raise StoreUnavailable from None
+
+
 def stored_document(value: dict, *, path: str, project: str, database: str) -> dict:
     """Account for the exact SDK Document, not a JSON-only size estimate.
 
@@ -251,10 +271,7 @@ class FirestoreTransaction:
         value = row.to_dict()
         if type(value) is not dict:
             raise StoreUnavailable
-        try:
-            return strict_json_loads(canonical_json(value), max_bytes=MAX_STORED_DOCUMENT_BYTES)
-        except ContractError:
-            raise StoreUnavailable from None
+        return _read_document(value, path=path)
 
     def get_many(self, paths, *, field_paths=None) -> dict[str, dict | None]:
         paths = _batch_paths(paths)
@@ -280,13 +297,9 @@ class FirestoreTransaction:
                 value = row.to_dict()
                 if type(value) is not dict:
                     raise StoreUnavailable
-                try:
-                    result[expected[name]] = strict_json_loads(
-                        canonical_json(_project(value, field_paths)),
-                        max_bytes=MAX_STORED_DOCUMENT_BYTES,
-                    )
-                except ContractError:
-                    raise StoreUnavailable from None
+                result[expected[name]] = _read_document(
+                    _project(value, field_paths), path=expected[name]
+                )
             if seen != set(expected):
                 raise StoreUnavailable
         return result
