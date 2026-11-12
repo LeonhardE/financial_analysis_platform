@@ -52,7 +52,25 @@ export class PersistentExperienceError extends Error {
 const fail = (code: string): never => {
   throw new PersistentExperienceError(code);
 };
-const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
+// JSON object property order is not authority. Hub history snapshots sort their
+// keys, while current descriptors may retain construction order. Arrays, field
+// sets and every nested value must still match exactly before restoring scope.
+const same = (a: unknown, b: unknown): boolean => {
+  if (a === b) return true;
+  if (a === null || b === null || typeof a !== "object" || typeof b !== "object") return false;
+  if (Array.isArray(a) || Array.isArray(b))
+    return (
+      Array.isArray(a) &&
+      Array.isArray(b) &&
+      a.length === b.length &&
+      a.every((v, i) => same(v, b[i]))
+    );
+  const keys = Object.keys(a);
+  return (
+    keys.length === Object.keys(b).length &&
+    keys.every((key) => Object.hasOwn(b, key) && same((a as Json)[key], (b as Json)[key]))
+  );
+};
 const sourceKey = (r: Json) =>
   JSON.stringify([r.kind, r.sourceService, r.resourceId, r.incarnation]);
 export type PersistentApi = (
