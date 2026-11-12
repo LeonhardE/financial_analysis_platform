@@ -23,8 +23,9 @@ from google.protobuf.empty_pb2 import Empty
 from app.holdings import PortfolioError, PortfolioService
 from app.lifecycle import state_path
 from app.store import FirestorePortfolioStore, StoreUnavailable, document_path, get_store
+from folioview_shared.encrypted.constants import MAX_STORED_DOCUMENT_BYTES
 from folioview_shared.encrypted.errors import ContractError
-from folioview_shared.encrypted.jsonutil import canonical_json
+from folioview_shared.encrypted.jsonutil import canonical_json, strict_json_loads
 from folioview_shared.identity import owner_key
 
 
@@ -190,13 +191,15 @@ class FirestorePortfolioTests(unittest.TestCase):
         self.assertEqual(result.exception.code, "payload_too_large")
         self.assertEqual(len(self.rpc.documents), 1)
 
-    def test_compact_authority_reads_identically_while_writes_remain_legacy_arrays(self):
+    def test_compact_authority_writes_and_legacy_reads_are_equivalent(self):
         name, row = next(iter(self.rpc.documents.items()))
         self.assertIn("/portfolio_authorities/", name)
         expected = self.service.metadata(UID, SOURCE)
-        self.assertIsInstance(row["registryHistory"], list)
-        row["registryHistory"] = canonical_json(row["registryHistory"])
+        self.assertIsInstance(row["registryHistory"], bytes)
         original = row["registryHistory"]
+        row["registryHistory"] = strict_json_loads(original)
+        self.assertEqual(self.service.metadata(UID, SOURCE), expected)
+        row["registryHistory"] = original
         self.assertEqual(self.service.metadata(UID, SOURCE), expected)
         receipt = self.fixture.write(self.service)
         self.assertEqual(self.service.snapshot(UID, SOURCE)["receipt"], receipt)
@@ -205,7 +208,7 @@ class FirestorePortfolioTests(unittest.TestCase):
     def test_compact_authority_rejects_invalid_noncanonical_oversized_and_tampered_history(self):
         name, row = next(iter(self.rpc.documents.items()))
         path = name.split("/documents/", 1)[1]
-        altered = copy.deepcopy(row["registryHistory"])
+        altered = strict_json_loads(row["registryHistory"])
         altered[0]["checkpoint"]["signature"] = "A" * 86
         for payload in (b"{}", b"[ ]", b"[1,]", b"[\xff]", b" " * 786433):
             with self.subTest(payload=payload[:16]), self.assertRaises(StoreUnavailable):
@@ -222,6 +225,50 @@ class FirestorePortfolioTests(unittest.TestCase):
         self.rpc.documents[other._document_path] = {"registryHistory": b"[]"}
         with self.assertRaises(StoreUnavailable):
             self.store.transact(lambda unit: unit.get(other.path))
+
+    def test_compact_full_signed_authority_history_fits_unchanged_logical_and_wire_budgets(self):
+        name, stored = next(iter(self.rpc.documents.items()))
+        history = strict_json_loads(stored["registryHistory"])
+        previous = self.fixture.verify(history[-1])
+        for i in range(10):
+            for suffix, role in (("sig", "agent_sig"), ("enc", "agent_enc")):
+                self.fixture.add_key(f"long_{i}_{suffix}", role, f"agent_{i}", f"connection_{i}")
+        logical = {**stored, "registryHistory": history}
+        for _ in range(31):
+            candidate = self.fixture.make_bundle(previous=previous)
+            proposed = {**logical, "registryHistory": [*history, candidate]}
+            if len(canonical_json(proposed)) > MAX_STORED_DOCUMENT_BYTES - 2000:
+                # Retain a fully signed consecutive final checkpoint, with the
+                # owner keys plus as many Agent certificates as fit the budget.
+                names = list(self.fixture.certificates)
+                for count in range(len(names) - 1, 2, -1):
+                    candidate = self.fixture.make_bundle(
+                        previous=previous,
+                        certificates={k: self.fixture.certificates[k] for k in names[:count]},
+                    )
+                    proposed = {**logical, "registryHistory": [*history, candidate]}
+                    if len(canonical_json(proposed)) <= MAX_STORED_DOCUMENT_BYTES - 2000:
+                        self.fixture.verify(candidate, previous=previous)
+                        history.append(candidate)
+                        break
+                break
+            previous = self.fixture.verify(candidate, previous=previous)
+            history.append(candidate)
+        logical = {**logical, "registryHistory": history}
+        original = copy.deepcopy(logical)
+        self.assertGreater(len(history), 20)
+        self.assertLess(len(canonical_json(logical)), MAX_STORED_DOCUMENT_BYTES)
+        legacy_wire = Document(name=name, fields=encode_dict(logical))._pb.SerializeToString()
+        self.assertGreater(len(legacy_wire), MAX_STORED_DOCUMENT_BYTES)
+        path = name.split("/documents/", 1)[1]
+        self.store.transact(lambda unit: unit.put(path, logical))
+        wire = Document(
+            name=name, fields=encode_dict(self.rpc.documents[name])
+        )._pb.SerializeToString()
+        self.assertLess(len(wire), MAX_STORED_DOCUMENT_BYTES)
+        self.assertEqual(self.service.metadata(UID, SOURCE)["state"], "active")
+        self.assertEqual(self.store.transact(lambda unit: unit.get(path)), original)
+        self.assertEqual(logical, original)
 
     def test_production_never_falls_back_to_default_db_sqlite_or_emulator(self):
         for config in (
