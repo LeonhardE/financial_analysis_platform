@@ -7,7 +7,7 @@ const vm = require("node:vm");
 const { pathToFileURL } = require("node:url");
 const test = require("node:test");
 const { transformSync } = require("next/dist/build/swc");
-const { createHarness } = require("./full-flow-crypto-fixture.cjs");
+const { createHarness, createTask } = require("./full-flow-crypto-fixture.cjs");
 const { compileVaultWorker } = require("./worker-dispatch-helpers.cjs");
 
 test("one unlocked owner prepares persistent registration; sealed original retries survive lock and block key changes until verified", async () => {
@@ -341,6 +341,118 @@ test("one unlocked owner prepares persistent registration; sealed original retri
     await restored.finishPersistentPending(actor, receipt);
     assert.equal((await restored.listPersistentOutbox()).length, 0);
     assert.equal(workers[1].methods.filter((method) => method === "unlock").length, 1);
+    // An original sealed under the previous directory must survive until its
+    // exact absence is checked and the Worker verifies the advancing Root chain.
+    const ref = {
+      kind: "watchlist",
+      sourceService: "user",
+      resourceId: "synthetic_watchlist",
+      incarnation: "synthetic_incarnation",
+    };
+    const identityState = {
+      contractVersion: shared.CONTRACT,
+      profile: "folioview.persistent-agent-identity.v1",
+      identity: packet.identity,
+      binding: packet.body.command.binding,
+      revocation: null,
+      connectionRevoked: false,
+    };
+    const resourceState = {
+      contractVersion: shared.CONTRACT,
+      profile: shared.CONSENT_PROFILE,
+      consent: null,
+      operations: [],
+      parentRevoked: false,
+    };
+    const consent = await restored.preparePersistentConsent({
+      actor,
+      identityState,
+      resourceState,
+      receipts: [],
+      resources: [{ ref, sourceEpoch: 1, revision: 1, state: "active" }],
+    });
+    const consentReceipt = {
+      contractVersion: shared.CONTRACT,
+      profile: shared.CONSENT_PROFILE,
+      operationId: consent.operationId,
+      command: consent.body.command,
+      consent: consent.expected,
+      fingerprint: await shared.fingerprint(consent.body.command),
+      priorDigest: null,
+      sourceStates: [
+        {
+          ownerSubject: owner,
+          vaultId: vault.vaultId,
+          ref,
+          sourceEpoch: 1,
+          currentRevision: 1,
+          state: "active",
+        },
+      ],
+    };
+    await restored.finishPersistentPending(actor, consentReceipt);
+    const task = await createTask(
+      h,
+      { session: restored, vault: advanced, now: () => logicalNow },
+      { template: "custom", bindings: [{ ref, sourceEpoch: 1 }] },
+    );
+    const publication = await restored.preparePersistentTask({
+      actor,
+      identityState,
+      resourceState: {
+        ...resourceState,
+        consent: consent.expected,
+        operations: [consent.operationId],
+      },
+      receipts: [consentReceipt],
+      task: task.task,
+      authority: {
+        contractVersion: shared.CONTRACT,
+        profile: shared.PROFILE,
+        authority: null,
+        envelope: null,
+      },
+      resultPolicy: "owner_inbox",
+      allowReassign: false,
+    });
+    const publicationRow = (await storage.list(owner + ":persistent-owner:"))[0].value;
+    const recovery = {
+      actor,
+      current: {
+        ...replacement.current,
+        identity: replacementPacket.identity,
+        binding: receipt.binding,
+        lease: receipt.lease,
+        approval: receipt.approval,
+        status: "active",
+      },
+      hubOrigin: origin,
+      expectedOperationId: publication.operationId,
+      expectedFingerprint: publication.fingerprint,
+    };
+    await assert.rejects(restored.archiveSupersededPersistentPublication(recovery));
+    assert.deepEqual(await restored.loadPersistentPending(actor), publication);
+    await restored.acceptVault({
+      ...advanced,
+      version: advanced.version + 1,
+      registryHistory: [
+        ...advanced.registryHistory,
+        replacementPacket.registryUpdate.registryBundle,
+      ],
+    });
+    await assert.rejects(
+      restored.archiveSupersededPersistentPublication({
+        ...recovery,
+        expectedFingerprint: "0".repeat(64),
+      }),
+      /operation_conflict/,
+    );
+    assert.equal(await restored.archiveSupersededPersistentPublication(recovery), true);
+    assert.equal(await restored.loadPersistentPending(actor), null);
+    const preserved = await storage.list(owner + ":persistent-superseded:");
+    assert.equal(preserved.length, 1);
+    assert.deepEqual(preserved[0].value, publicationRow);
+    assert.ok(workers[1].methods.includes("verifySupersededPublicationPending"));
   } finally {
     for (const client of clients) client.lock();
     if (storage) await storage.close();

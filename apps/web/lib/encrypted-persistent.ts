@@ -447,6 +447,63 @@ export class PersistentOwner {
       reviewDigest: await digest([args.setup, args.current]),
     };
   }
+  async supersededPublicationPending(args: Json) {
+    exact(args, ["packet", "current", "hubOrigin"]);
+    const { packet, current } = args,
+      status = await this.credentialState(current, args.hubOrigin),
+      registry = await this.registry();
+    if (!["active", "expiring"].includes(status.status)) fail("agent_unavailable");
+    await this.actor(current.identity, current.binding, registry);
+    if (
+      packet?.kind !== "publication" ||
+      packet.connectionId !== this.ctx.actor?.connectionId ||
+      canonical(packet.body?.envelope).length > 524288 ||
+      packet.body?.contractVersion !== CONTRACT
+    )
+      fail();
+    const { context, payload } = inspect(packet.body.envelope);
+    validate("PersistentAgentIdentity", packet.identity);
+    if (
+      !["task", "holdings_snapshot", "watchlist_evidence", "channel_follows_evidence"].includes(
+        context.objectType,
+      ) ||
+      context.ownerSubject !== this.ctx.ownerSubject ||
+      context.vaultId !== this.ctx.vault.vaultId ||
+      context.rootKeyId !== this.ctx.vault.rootKeyId ||
+      context.connectionId !== this.ctx.actor?.connectionId ||
+      context.clientId !== this.ctx.actor?.clientId ||
+      packet.operationId !== context.stableOperationId ||
+      packet.fingerprint !== (await fingerprint(packet.body.envelope.proof)) ||
+      !same(packet.context, context) ||
+      payload.ciphertextDigest !== (await digest(packet.body.envelope.jwe))
+    )
+      fail();
+    const checkpoint = registry.snapshots.get(context.registrySequence);
+    if (
+      !checkpoint ||
+      checkpoint.digest !== context.checkpointDigest ||
+      checkpoint.keyEpoch !== context.keyEpoch
+    )
+      fail();
+    // Verify the original at its authenticated historical directory, including
+    // bindings and Root signature. Never reinterpret it under replacement keys.
+    const historical = await this.registry(
+      this.ctx.vault.registryHistory.slice(0, context.registrySequence),
+      context.issuedAt,
+    );
+    await verifyEnvelope(packet.body.envelope, {
+      registry: historical,
+      identity: packet.identity,
+      expected: context,
+      now: this.ctx.now(),
+      purpose: "owner_history",
+    });
+    return {
+      operationId: packet.operationId,
+      fingerprint: packet.fingerprint,
+      superseded: context.registrySequence < registry.sequence,
+    };
+  }
   async expiredCredentialPending(args: Json) {
     const { packet, previousSetup, ...replacement } = args;
     await this.credentialOffer(replacement);

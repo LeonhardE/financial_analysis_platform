@@ -195,8 +195,38 @@ export class PersistentExperienceController {
     this.assert();
   }
   async resume(connection: PersistentConnection) {
-    const pending = await this.workspace().loadPersistentPending(this.actor(connection));
+    const actor = this.actor(connection),
+      pending = await this.workspace().loadPersistentPending(actor);
     this.assert();
+    if (
+      pending?.kind === "publication" &&
+      pending.context?.registrySequence < this.vault().registryHistory.length
+    ) {
+      // A committed original always wins, even if the directory has since advanced.
+      let receipt: Json | null = null;
+      try {
+        receipt = await this.request(
+          `/api/v2/persistent-content/${connection.vaultId}/connections/${connection.connectionId}/operations/${pending.operationId}`,
+        );
+      } catch (e) {
+        if (!(e instanceof PersistentExperienceError) || e.code !== "not_found") throw e;
+      }
+      if (receipt) {
+        await this.workspace().finishPersistentPending(actor, receipt);
+        this.assert();
+        return;
+      }
+      const current = await this.request(this.credentialBase(connection));
+      const archived = await this.workspace().archiveSupersededPersistentPublication({
+        actor,
+        current,
+        hubOrigin: this.hubOrigin,
+        expectedOperationId: pending.operationId,
+        expectedFingerprint: pending.fingerprint,
+      });
+      this.assert();
+      if (archived) return;
+    }
     if (pending) await this.send(connection, pending);
   }
   private credentialBase(connection: PersistentConnection) {

@@ -2309,6 +2309,11 @@ export function useHoldingsWorkspace() {
       taskCall((instance) => instance.prepareRestoredTask(args)),
     [taskCall],
   );
+  const archiveSupersededPersistentPublication = useCallback(
+    (args: Parameters<EncryptedVaultSession["archiveSupersededPersistentPublication"]>[0]) =>
+      taskCall((instance) => instance.archiveSupersededPersistentPublication(args)),
+    [taskCall],
+  );
   const archiveExpiredCredentialPending = useCallback(
     (args: Parameters<EncryptedVaultSession["archiveExpiredCredentialPending"]>[0]) =>
       taskCall((instance) => instance.archiveExpiredCredentialPending(args)),
@@ -4515,6 +4520,7 @@ export function useHoldingsWorkspace() {
     prepareRestoredConsent,
     prepareRestoredTask,
     prepareAgentCredential,
+    archiveSupersededPersistentPublication,
     archiveExpiredCredentialPending,
     inspectAgentCredential,
     inspectAgentCredentialSetup,

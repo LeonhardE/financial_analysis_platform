@@ -48,6 +48,9 @@ export function createVaultKernel(
             case "inspectAgentCredentialSetup":
               result = await core.inspectAgentCredentialSetup(args);
               break;
+            case "verifySupersededPublicationPending":
+              result = await core.verifySupersededPublicationPending(args);
+              break;
             case "verifyExpiredCredentialPending":
               result = await core.verifyExpiredCredentialPending(args);
               break;

@@ -1529,6 +1529,49 @@ export class EncryptedVaultSession {
   async prepareRestoredTask(args: Json) {
     return this.preparePersistent("prepareRestoredTask", args);
   }
+  async archiveSupersededPersistentPublication(args: Json) {
+    return this.serial(async () => {
+      const g = this.generation,
+        signal = this.lifetime.signal,
+        actor = args.actor,
+        key = this.persistentKey(actor);
+      await this.started;
+      const row = await this.storage.get(key);
+      this.assert(g);
+      this.checkPersistentRow(row, actor);
+      if (!row || row.kind !== "publication") throw new VaultError("persistent_operation_pending");
+      const packet = await this.rpc("openPersistentPending", {
+        record: row.pending.record,
+        operationId: row.pending.operationId,
+        connectionId: actor.connectionId,
+      });
+      this.assert(g);
+      if (packet.kind !== "publication") throw new VaultError("binding_mismatch");
+      if (
+        packet.operationId !== args.expectedOperationId ||
+        packet.fingerprint !== args.expectedFingerprint
+      )
+        throw new VaultError("operation_conflict");
+      const verified = await this.rpc("verifySupersededPublicationPending", {
+        actor,
+        current: args.current,
+        hubOrigin: args.hubOrigin,
+        packet,
+      });
+      this.assert(g);
+      if (
+        verified.operationId !== packet.operationId ||
+        verified.fingerprint !== packet.fingerprint
+      )
+        throw new VaultError("operation_conflict");
+      if (!verified.superseded) return false;
+      if (!this.storage.archivePersistentPublication) throw new VaultError("storage_unavailable");
+      if (!(await this.storage.archivePersistentPublication(key, row, packet.fingerprint, signal)))
+        throw new VaultError("operation_conflict");
+      this.assert(g);
+      return true;
+    });
+  }
   async archiveExpiredCredentialPending(args: Json) {
     return this.serial(async () => {
       const g = this.generation,

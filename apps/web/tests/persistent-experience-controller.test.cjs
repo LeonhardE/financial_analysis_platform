@@ -96,6 +96,47 @@ test("a delayed receipt after lock cannot clear the sealed original", async () =
   assert.equal(h.w.finishes, 0);
   assert.equal(h.w.pending, packet);
 });
+for (const outcome of ["committed", "missing", "unknown", "not_superseded"]) {
+  test(`directory-advanced publication recovery preserves the original on ${outcome}`, async () => {
+    const calls = [],
+      current = { identity: "CURRENT_AUTHORITY" },
+      h = harness(async (_service, path, options = {}) => {
+        calls.push({ path, options });
+        if (path.includes("/operations/")) {
+          if (outcome === "committed") return { fingerprint: packet.fingerprint };
+          if (outcome === "unknown") throw new ErrorType("service_unavailable");
+          return missing();
+        }
+        if (path.startsWith("/api/v3/agent-credentials/")) return current;
+        if (options.method === "POST") return { fingerprint: packet.fingerprint };
+        throw Error(path);
+      });
+    h.w.pending = { ...packet, context: { registrySequence: 1 } };
+    h.w.vault.registryHistory = [{}, {}];
+    let archives = 0;
+    h.w.archiveSupersededPersistentPublication = async (args) => {
+      archives++;
+      assert.equal(args.current, current);
+      assert.equal(args.actor.connectionId, connection.connectionId);
+      assert.equal(args.expectedOperationId, packet.operationId);
+      assert.equal(args.expectedFingerprint, packet.fingerprint);
+      assert.equal(Object.hasOwn(args, "packet"), false, "Worker reloads the actual sealed row");
+      if (outcome === "not_superseded") return false;
+      h.w.pending = null;
+      return true;
+    };
+    if (outcome === "unknown") {
+      await assert.rejects(h.c.resume(connection), /service_unavailable/);
+      assert.equal(h.w.pending.operationId, packet.operationId);
+      assert.equal(h.w.finishes, 0);
+    } else await h.c.resume(connection);
+    assert.equal(archives, ["missing", "not_superseded"].includes(outcome) ? 1 : 0);
+    const posts = calls.filter((c) => c.options.method === "POST");
+    assert.equal(posts.length, outcome === "not_superseded" ? 1 : 0);
+    if (posts.length) assert.equal(posts[0].options.json, packet.body);
+    assert.equal(h.w.finishes, ["committed", "not_superseded"].includes(outcome) ? 1 : 0);
+  });
+}
 test("registry registration recovers an already applied directory without repeating or replacing it", async () => {
   const identity = {
     ...packet,
