@@ -20,6 +20,8 @@ COPY services/agent-hub-service/account-link/integrity.json ./account-link/integ
 COPY services/agent-hub-service/agent-client/dist ./agent-client/dist
 COPY services/agent-hub-service/agent-client/integrity.json ./agent-client/integrity.json
 COPY services/agent-hub-service/agent-client/THIRD_PARTY_NOTICES.md ./agent-client/THIRD_PARTY_NOTICES.md
+COPY services/agent-hub-service/agent-client/releases ./agent-client/releases
+RUN python -c "from app.agent_client_assets import client_metadata; client_metadata('1.0.0'); client_metadata('1.0.1')"
 
 USER appuser
 EXPOSE 8080
