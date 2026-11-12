@@ -120,6 +120,16 @@ export class PersistentOwner {
     let registryUpdate: Json | null = null,
       accepted = registry;
     if (!registered) {
+      // Expired Agent keys cannot authorize a request at this checkpoint's
+      // issuance time. Keep their signed historical bundles for old reports,
+      // while avoiding another copy in every subsequent current directory.
+      // Never remove a still-valid key before the replacement lease commits.
+      bundle.entries = bundle.entries.filter((entry) => {
+        const certificate = parsed(bytes(entry.certificate.payload), true);
+        return (
+          !["agent_sig", "agent_enc"].includes(certificate.role) || certificate.expiresAt > now
+        );
+      });
       if (bundle.entries.length + 2 > 64 || v.registryHistory.length >= 32) fail("device_limit");
       for (const [role, jwk, kid] of [
         ["agent_sig", p.signingPublicJwk, sig],

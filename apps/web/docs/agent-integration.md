@@ -14,6 +14,13 @@ certificates and signed approvals are bounded to 90 days; the seven-day notice i
 computed from the verified lease. The Owner explicitly authorizes each connection's
 tasks and resource scope. OAuth only links an account and supplies bootstrap metadata.
 
+When certifying fresh Agent keys, the new checkpoint omits Agent certificates whose
+expiry is at or before its issuance time. Still-valid certificates, including the
+previous credential's keys and other connections' keys, remain eligible until their
+existing fences change. Earlier signed bundles and revocation high-water marks stay
+intact, so historical report verification does not depend on expired keys remaining
+in every new checkpoint. Storage, history and transport limits are unchanged.
+
 ### Persistent owner flow: Closed owner transport
 
 The same-origin Firebase-verified BFF admits named credential, restoration, consent,

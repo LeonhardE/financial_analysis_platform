@@ -2,7 +2,12 @@ const assert = require("node:assert/strict");
 const test = require("node:test");
 const { pathToFileURL } = require("node:url");
 const path = require("node:path");
-const { createHarness, createOwner, createTask } = require("./full-flow-crypto-fixture.cjs");
+const {
+  createHarness,
+  createOwner,
+  createTask,
+  enroll,
+} = require("./full-flow-crypto-fixture.cjs");
 const clone = (v) => structuredClone(v);
 const b64 = (b) => Buffer.from(b).toString("base64url");
 async function fixture(t, { provider = "muse" } = {}) {
@@ -266,7 +271,7 @@ test("explicit renewal uses fresh keys, preserves old certificates through CAS a
     { owner, sdk, args } = f;
   const first = await owner.session.prepareAgentCredential(args);
   await install(f, first);
-  const a = await renewalOffer(f, first);
+  const a = await renewalOffer(f, first, { now: 1100 });
   const renewed = await owner.session.prepareAgentCredential(a);
   assert.equal(renewed.expectedLease.generation, 2);
   assert.equal(
@@ -292,7 +297,7 @@ test("explicit renewal uses fresh keys, preserves old certificates through CAS a
   await assert.rejects(() => owner.session.prepareAgentCredential(wrong));
 });
 
-async function renewalOffer(f, first) {
+async function renewalOffer(f, first, { now = 1000 + 7776000 } = {}) {
   const { args, owner, sdk } = f;
   const a = clone(args),
     sig = await crypto.subtle.generateKey({ name: "ECDSA", namedCurve: "P-256" }, true, [
@@ -315,8 +320,8 @@ async function renewalOffer(f, first) {
   };
   a.setup.setupIntentId = "setup_synthetic_owner_credential_02";
   a.handoff.setupIntentId = a.setup.setupIntentId;
-  owner.time(1000 + 7776000);
-  a.current.status = "expired";
+  owner.time(now);
+  a.current.status = now >= first.expectedLease.expiresAt ? "expired" : "active";
   a.setup.issuedAt = owner.now();
   a.setup.expiresAt = owner.now() + 600;
   a.setup.expectedGeneration = 1;
@@ -367,6 +372,67 @@ function credential(f, packet) {
     status: "active",
   };
 }
+test("renewal omits only expired Agent certificates from the new checkpoint and retains verifiable history", async (t) => {
+  const f = await fixture(t),
+    first = await f.owner.session.prepareAgentCredential(f.args);
+  await install(f, first);
+  const oldSequence = f.owner.vault.registryHistory.length,
+    task = (await createTask(f.h, f.owner, { template: "custom", bindings: [] })).task;
+  await enroll(f.h, f.owner, task, "synthetic_expired_legacy");
+  f.owner.time(first.expectedLease.expiresAt - 1000);
+  const live = await enroll(f.h, f.owner, task, "synthetic_live_other_connection");
+  const args = await renewalOffer(f, first),
+    before = clone(f.owner.vault.registryHistory),
+    certificate = (entry) => f.sdk.parsed(f.sdk.bytes(entry.certificate.payload), true),
+    expired = before.at(-1).entries.filter((entry) => {
+      const c = certificate(entry);
+      return ["agent_sig", "agent_enc"].includes(c.role) && c.expiresAt <= f.owner.now();
+    });
+  assert.equal(expired.length, 4, "the original credential and old legacy pair have expired");
+  const next = await f.owner.session.prepareAgentCredential(args),
+    entries = next.registryUpdate.registryBundle.entries,
+    nextIds = new Set(entries.map((entry) => certificate(entry).keyId)),
+    expiredIds = new Set(expired.map((entry) => certificate(entry).keyId));
+  for (const entry of before.at(-1).entries) {
+    const c = certificate(entry);
+    assert.equal(nextIds.has(c.keyId), !expiredIds.has(c.keyId), c.role + ":" + c.keyId);
+  }
+  assert.ok(nextIds.has(live.offer.agentSigningKeyId));
+  assert.ok(nextIds.has(live.offer.agentEncryptionKeyId));
+  assert.equal(entries.length, before.at(-1).entries.length - expired.length + 2);
+  assert.deepEqual(f.owner.vault.registryHistory, before, "preparing must not rewrite any history");
+  await install(f, next);
+  assert.deepEqual(f.owner.vault.registryHistory.slice(0, -1), before);
+  const last = f.sdk.parsed(
+      f.sdk.bytes(next.registryUpdate.registryBundle.checkpoint.payload),
+      true,
+    ),
+    registry = await new f.sdk.Registry({
+      rootJwk: f.owner.vault.rootJwk,
+      rootKeyId: f.owner.vault.rootKeyId,
+      ownerSubject: f.owner.owner,
+      vaultId: f.owner.vault.vaultId,
+      rootEpoch: 1,
+      registrySequence: last.registrySequence,
+      checkpointDigest: await f.sdk.digest(last),
+    }).load(f.owner.vault.registryHistory, f.owner.now());
+  const historical = registry.agent(first.identity, 1001, oldSequence);
+  assert.equal(historical.sig.keyId, first.identity.agentSigningKeyId);
+  assert.equal(historical.enc.keyId, first.identity.agentEncryptionKeyId);
+  registry.cert(
+    live.offer.agentSigningKeyId,
+    "agent_sig",
+    "synthetic_live_other_connection",
+    f.owner.now(),
+  );
+  registry.cert(
+    live.offer.agentEncryptionKeyId,
+    "agent_enc",
+    "synthetic_live_other_connection",
+    f.owner.now(),
+  );
+  assert.throws(() => registry.agent(first.identity, f.owner.now()), /key_authorization_required/);
+});
 const identityState = (state) => ({
   contractVersion: state.contractVersion,
   profile: "folioview.persistent-agent-identity.v1",
