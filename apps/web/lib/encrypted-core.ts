@@ -5171,7 +5171,14 @@ export class VaultCore {
     return (await this.persistentOwner(actor, false)).expiredCredentialPending(value);
   }
   async prepareAgentCredential(args: Json) {
-    exact(args, ["actor", "handoff", "setup", "current", "hubOrigin"]);
+    exact(args, [
+      "actor",
+      "handoff",
+      "setup",
+      "current",
+      "hubOrigin",
+      ...(Object.hasOwn(args ?? {}, "lifetimeSeconds") ? ["lifetimeSeconds"] : []),
+    ]);
     const { actor, ...value } = args;
     const packet = await (await this.persistentOwner(actor)).credentialEnrollment(value);
     return { ...packet, localPending: await this.persistentLocal(packet) };

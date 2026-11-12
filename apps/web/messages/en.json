@@ -1326,6 +1326,10 @@
     "watchlist": "Watchlist",
     "channel_follows": "Followed content",
     "withdraw": "Remove access",
-    "reportReceived": "Report received"
+    "reportReceived": "Report received",
+    "durationLabel": "Connection duration",
+    "duration90Days": "90 days (default)",
+    "duration15Minutes": "15 minutes (temporary)",
+    "durationPending": "This connection change is pending; its duration is fixed."
   }
 }

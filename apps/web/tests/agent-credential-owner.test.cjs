@@ -206,6 +206,43 @@ test("Owner Worker verifies encrypted offer and signs one 90-day credential with
     operationId: packet.operationId,
   });
 });
+test("Owner-selected temporary connection signs a bounded lease and expires without clock bypass", async (t) => {
+  const f = await fixture(t);
+  const packet = await f.owner.session.prepareAgentCredential({ ...f.args, lifetimeSeconds: 900 });
+  assert.equal(packet.credentialLifetimeSeconds, 900);
+  assert.equal(packet.expectedLease.expiresAt - packet.expectedLease.issuedAt, 900);
+  await install(f, packet);
+  const state = {
+    ...f.args.current,
+    identity: packet.identity,
+    binding: packet.body.command.binding,
+    approval: packet.body.command.approval,
+    lease: packet.expectedLease,
+    status: "active",
+  };
+  const inspect = () =>
+    f.owner.session.inspectAgentCredential({ actor: f.args.actor, state, hubOrigin: f.origin });
+  assert.equal((await inspect()).status, "expiring");
+  f.owner.time(packet.expectedLease.expiresAt - 1);
+  assert.equal((await inspect()).status, "expiring");
+  f.owner.time(packet.expectedLease.expiresAt);
+  assert.equal((await inspect()).status, "expired");
+});
+
+test("Owner Worker rejects unsupported or Agent-supplied connection lifetimes", async (t) => {
+  const f = await fixture(t);
+  for (const lifetimeSeconds of [0, 899, 901, 7776001, -1, "900", null, undefined])
+    await assert.rejects(() =>
+      f.owner.session.prepareAgentCredential({ ...f.args, lifetimeSeconds }),
+    );
+  await assert.rejects(() =>
+    f.owner.session.prepareAgentCredential({
+      ...f.args,
+      handoff: { ...f.args.handoff, lifetimeSeconds: 900 },
+    }),
+  );
+});
+
 test("wrong Owner/provider/intent/secret/origin and expired setup fail before producing a registry update", async (t) => {
   const f = await fixture(t, { provider: "chatgpt" });
   assert.equal((await f.owner.session.inspectAgentCredentialSetup(f.args)).provider, "chatgpt");
