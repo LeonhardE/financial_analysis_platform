@@ -65,6 +65,13 @@ paths or ask the user to back up or manage this file. Tools in the personal Agen
 can read it, as accepted by the user. This is not a TEE or nonextractable store;
 provider retention and a 90-day host lifetime are not guaranteed.
 
+Owner credential controls under `/api/v3/agent-credentials/` use the same closed
+error envelope as the existing encrypted API, including authentication, missing
+operation receipts and unexpected storage failures. A formal `404 not_found`
+receipt allows the Owner to submit its sealed original; it is not a service outage
+or permission to generate a second approval. Raw framework/storage errors are never
+forwarded to the Web client.
+
 ## Pairing wire format
 
 AES-256-GCM packets are closed `{version:1,iv,ciphertext}` objects: base64url,

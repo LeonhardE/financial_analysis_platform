@@ -12,6 +12,7 @@ from app.agent_credential_routes import get_credential_service, router
 from app.api import require_owner
 from app.errors import HubErrors
 from folioview_shared.encrypted.constants import CONTRACT_VERSION
+from folioview_shared.encrypted.errors import ContractError
 
 
 class AgentCredentialRouteTests(unittest.TestCase):
@@ -167,3 +168,58 @@ class AgentCredentialRouteTests(unittest.TestCase):
                 self.assertEqual(response.status_code, 400)
                 self.assertNotIn("private_marker", response.text)
             self.assertEqual(self.calls, [])
+
+    def assert_formal_error(self, response, status, code):
+        self.assertEqual(response.status_code, status)
+        value = response.json()
+        self.assertEqual(set(value), {"contractVersion", "error"})
+        self.assertEqual(value["contractVersion"], CONTRACT_VERSION)
+        self.assertEqual(set(value["error"]), {"code", "retryable", "requestId"})
+        self.assertEqual(value["error"]["code"], code)
+        self.assertEqual(value["error"]["retryable"], status == 503)
+        self.assertRegex(value["error"]["requestId"], r"^[a-f0-9]{32}$")
+        self.assertEqual(response.headers["cache-control"], "no-store")
+        self.assertNotIn("private_marker", response.text)
+
+    def test_uncommitted_receipt_is_a_formal_not_found_for_owner_retry_orchestration(self):
+        def missing(*args):
+            self.calls.append(args)
+            raise ContractError("not_found")
+
+        self.app.dependency_overrides[get_credential_service] = lambda: SimpleNamespace(
+            receipt=missing
+        )
+        response = self.client.get(
+            self.path + "/operations/" + self.operation, headers=self.headers
+        )
+        self.assert_formal_error(response, 404, "not_found")
+        self.assertEqual(
+            self.calls,
+            [("synthetic_owner", "vault_A", "connection_A", self.operation)],
+        )
+
+    def test_authentication_and_closed_transport_failures_keep_the_v3_error_contract(self):
+        response = self.client.get(self.path + "?owner=private_marker", headers=self.headers)
+        self.assert_formal_error(response, 400, "unsupported_query")
+        self.assertEqual(self.calls, [])
+        self.app.dependency_overrides.pop(require_owner)
+        response = self.client.get(self.path, headers=self.headers)
+        self.assert_formal_error(response, 401, "invalid_token")
+        self.assertEqual(self.calls, [])
+
+    def test_unexpected_v3_failure_is_sanitized_and_unknown_receipt_route_stays_formal(self):
+        def broken(*args):
+            raise RuntimeError("private_marker: credential storage diagnostic")
+
+        self.app.dependency_overrides[get_credential_service] = lambda: SimpleNamespace(
+            receipt=broken
+        )
+        response = self.client.get(
+            self.path + "/operations/" + self.operation, headers=self.headers
+        )
+        self.assert_formal_error(response, 503, "authorization_unavailable")
+        self.assert_formal_error(
+            self.client.get(self.path + "/private_marker", headers=self.headers),
+            404,
+            "not_found",
+        )
