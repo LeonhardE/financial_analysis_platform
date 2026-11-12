@@ -22,8 +22,9 @@ from google.protobuf.empty_pb2 import Empty
 
 from app.store import FirestoreHubStore, StoreUnavailable, document_path, get_store
 from app.vaults import VaultService
+from folioview_shared.encrypted.constants import MAX_STORED_DOCUMENT_BYTES
 from folioview_shared.encrypted.errors import ContractError
-from folioview_shared.encrypted.jsonutil import canonical_json
+from folioview_shared.encrypted.jsonutil import b64url_encode, canonical_json, strict_json_loads
 
 
 class MemoryRpc:
@@ -142,13 +143,16 @@ class FirestoreHubTests(unittest.TestCase):
         self.assertEqual(self.rpc.documents, {})
         self.assertFalse(any(name == "commit" for name, _ in self.rpc.calls))
 
-    def test_compact_history_reads_identically_and_writes_still_use_legacy_arrays(self):
+    def test_compact_writes_and_legacy_history_read_identically(self):
         expected = self.service.bootstrap(UID, self.f.bootstrap(), BOOT)
         name, row = next(
             (name, row) for name, row in self.rpc.documents.items() if "/hub_vaults/" in name
         )
-        self.assertIsInstance(row["registryHistory"], list)
-        row["registryHistory"] = canonical_json(row["registryHistory"])
+        self.assertIsInstance(row["registryHistory"], bytes)
+        original = row["registryHistory"]
+        row["registryHistory"] = strict_json_loads(original)
+        self.assertEqual(self.service.current(UID), expected)
+        row["registryHistory"] = original
         self.assertEqual(self.service.current(UID), expected)
         path = name.split("/documents/", 1)[1]
         both = self.service.store.transact(lambda unit: (unit.get(path), unit.get_many([path])))
@@ -166,7 +170,7 @@ class FirestoreHubTests(unittest.TestCase):
             (name, row) for name, row in self.rpc.documents.items() if "/hub_vaults/" in name
         )
         path = name.split("/documents/", 1)[1]
-        valid = canonical_json(row["registryHistory"])
+        valid = row["registryHistory"]
         for payload in (b"not json", b"{}", b"[ ]", b"[1,]", b"[\xff]", b" " * 786433):
             for batch in (False, True):
                 with self.subTest(payload=payload[:16], batch=batch):
@@ -187,7 +191,7 @@ class FirestoreHubTests(unittest.TestCase):
         name, row = next(
             (name, row) for name, row in self.rpc.documents.items() if "/hub_vaults/" in name
         )
-        altered = copy.deepcopy(row["registryHistory"])
+        altered = strict_json_loads(row["registryHistory"])
         altered[0]["checkpoint"]["signature"] = "A" * 86
         row["registryHistory"] = canonical_json(altered)
         with self.assertRaises((StoreUnavailable, ContractError)):
@@ -196,6 +200,51 @@ class FirestoreHubTests(unittest.TestCase):
         self.rpc.documents[unrelated._document_path] = {"registryHistory": b"[]"}
         with self.assertRaises(StoreUnavailable):
             self.service.store.transact(lambda unit: unit.get(unrelated.path))
+
+    def test_compact_write_retains_complete_verified_history_inside_both_budgets(self):
+        for i in range(10):
+            for suffix, role in (("sig", "agent_sig"), ("enc", "agent_enc")):
+                self.f.add_key(f"long_{i}_{suffix}", role, f"agent_{i}", f"connection_{i}")
+        self.f.bundle = self.f.make_bundle()
+        previous = self.f.verify(self.f.bundle)
+        self.service.bootstrap(UID, self.f.bootstrap(), BOOT)
+        name, row = next(
+            (name, row) for name, row in self.rpc.documents.items() if "/hub_vaults/" in name
+        )
+        history = [self.f.bundle]
+        for _ in range(31):
+            bundle = self.f.make_bundle(previous=previous)
+            if len(canonical_json({**row, "registryHistory": [*history, bundle]})) > (
+                MAX_STORED_DOCUMENT_BYTES - 3000
+            ):
+                break
+            previous = self.f.verify(bundle, previous=previous)
+            history.append(bundle)
+        self.assertGreater(len(history), 20)
+        logical = {
+            **row,
+            "registryHistory": history,
+            "version": len(history),
+            "operationCount": len(history),
+        }
+        padding = MAX_STORED_DOCUMENT_BYTES - 2000 - len(canonical_json(logical))
+        archive = logical["archive"]
+        size = (len(archive["ciphertext"]) + padding) * 3 // 4
+        self.assertLessEqual(size, 24576)
+        logical["archive"] = {**archive, "ciphertext": b64url_encode(b"x" * size)}
+        before = copy.deepcopy(logical)
+        legacy_wire = Document(name=name, fields=encode_dict(logical))._pb.SerializeToString()
+        self.assertLess(len(canonical_json(logical)), MAX_STORED_DOCUMENT_BYTES)
+        self.assertGreater(len(legacy_wire), MAX_STORED_DOCUMENT_BYTES)
+        path = name.split("/documents/", 1)[1]
+        self.service.store.transact(lambda unit: unit.put(path, logical))
+        stored = self.rpc.documents[name]
+        actual_wire = Document(name=name, fields=encode_dict(stored))._pb.SerializeToString()
+        self.assertLess(len(actual_wire), MAX_STORED_DOCUMENT_BYTES)
+        self.assertIsInstance(stored["registryHistory"], bytes)
+        self.assertEqual(logical, before, "serialization cannot mutate a caller's signed history")
+        self.assertEqual(self.service.current(UID)["vault"]["registryHistory"], history)
+        self.assertEqual(self.service.store.transact(lambda unit: unit.get(path)), logical)
 
     def test_cloud_configuration_never_falls_back_to_default_db_sqlite_or_emulator(self):
         for config in (

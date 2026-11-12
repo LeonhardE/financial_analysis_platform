@@ -123,7 +123,8 @@ class FirestoreOAuthTests(unittest.TestCase):
                 "hub_oauth_codes",
             },
         )
-        stored = json.dumps(self.rpc.documents)
+        # Include the public registry's UTF-8 bytes in the plaintext-secret scan.
+        stored = json.dumps(self.rpc.documents, default=lambda value: value.decode("utf-8"))
         for value in (code, tokens["access_token"], tokens["refresh_token"], COOKIE):
             self.assertNotIn(value, stored)
         restarted = OAuthService(self.store, configuration(), clock=lambda: 1000)

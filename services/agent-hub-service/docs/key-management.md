@@ -9,9 +9,11 @@ Neither rewrapping nor renewal recalls plaintext or already exported recovery ma
 Firestore readers accept the original `registryHistory` arrays and canonical UTF-8 JSON bytes
 in the same existing unindexed field of Vault and persistent Run documents. Both forms return
 the identical bounded JSON array to signature verification and public APIs; malformed,
-noncanonical or oversized bytes fail closed. This reader-first release continues to write
-arrays. Enable compact writes only after every serving revision has compatible readers, and
-retain such a revision as the rollback floor after the first compact write. No history is
+noncanonical or oversized bytes fail closed. Writes use canonical bytes in those same two
+fields, while SQLite retains logical JSON arrays. Both the complete logical JSON document and
+the actual encoded Firestore document must fit the unchanged storage budget before any write
+commits. Deploy compatible readers to every serving revision before enabling compact writes,
+and retain such a revision as the rollback floor after the first compact write. No history is
 removed, compressed or trusted without its original verification.
 
 ## Archive lifecycle
