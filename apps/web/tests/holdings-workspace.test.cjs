@@ -2514,6 +2514,48 @@ test("Hub-only Inbox unlock reuses one Passkey worker without Portfolio or impli
   h.unmount();
 });
 
+test("action-bound vault refresh preserves validation and reuses the unlocked Worker", async () => {
+  const h = harness();
+  const model = await unlocked(h);
+  const previousRequests = h.requests.length;
+  let reads = 0;
+  const refreshed = await model.refreshVault(new AbortController().signal, true, async () => {
+    reads++;
+    return new Response(JSON.stringify({ contractVersion: CONTRACT, vault, sources: [source] }));
+  });
+  assert.equal(refreshed.vaultId, vault.vaultId);
+  assert.equal(reads, 1);
+  assert.equal(h.requests.length, previousRequests, "do not issue a second unguarded read");
+  assert.equal(h.instances.length, 1);
+  assert.equal(h.render().phase, "unlocked");
+  for (const invalid of [
+    JSON.stringify({ contractVersion: "unknown", vault, sources: [source] }),
+    " ".repeat(1_048_577),
+  ])
+    await assert.rejects(
+      model.refreshVault(new AbortController().signal, true, async () => new Response(invalid)),
+      (e) => e.code === "invalid_response",
+    );
+  h.unmount();
+});
+
+test("action-bound refresh cannot accept a late response after account change", async () => {
+  const h = harness();
+  const model = await unlocked(h);
+  const response = deferred();
+  const refreshing = model.refreshVault(new AbortController().signal, true, () => response.promise);
+  const rejected = assert.rejects(refreshing, (e) => e.code === "cancelled");
+  await settle();
+  h.auth({ status: "anonymous", sessionKey: null, profile: null });
+  h.render();
+  response.resolve(
+    new Response(JSON.stringify({ contractVersion: CONTRACT, vault, sources: [source] })),
+  );
+  await rejected;
+  assert.equal(h.render().vault, null);
+  h.unmount();
+});
+
 test("new Inbox device enablement pauses for explicit review before strict registration without Portfolio", async () => {
   const h = harness({ configured: false, needsDeviceRegistration: true });
   let model = await ready(h);

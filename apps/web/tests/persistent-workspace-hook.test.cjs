@@ -70,7 +70,14 @@ function harness(authOverride, ownerRequest) {
   };
   const requestPrivate = async (_service, path, _key, options) => {
     calls.push({ path, options });
-    if (ownerRequest && path.includes("/operations/")) return ownerRequest(path, options);
+    if (
+      ownerRequest &&
+      (path.includes("/operations/") ||
+        path === "/api/v2/vaults/current" ||
+        path.endsWith("/registry") ||
+        path.endsWith("/approvals"))
+    )
+      return ownerRequest(path, options);
     return Response.json(
       path.endsWith("/persistent-connections")
         ? { connections: [] }
@@ -320,6 +327,81 @@ const admissionDenied = (delay = "60", safe = true) =>
       },
     },
   );
+
+test("vault refreshes before and after a registry append use bounded admission recovery", async () => {
+  let attempts = 0,
+    appended = false,
+    deniedAfterAppend = false,
+    approvals = 0;
+  const h = harness(undefined, async (path) => {
+    if (path.includes("/operations/")) return Response.json({}, { status: 404 });
+    if (path.endsWith("/registry")) {
+      assert.equal(appended, false);
+      appended = true;
+      return Response.json({});
+    }
+    if (path.endsWith("/approvals")) {
+      assert.equal(deniedAfterAppend, true);
+      approvals++;
+      return Response.json({ acknowledged: true });
+    }
+    attempts++;
+    if (attempts === 1 || (appended && !deniedAfterAppend)) {
+      if (appended) deniedAfterAppend = true;
+      return admissionDenied("1");
+    }
+    return Response.json({ vault: { version: appended ? 2 : 1, registryHistory: [] } });
+  });
+  try {
+    h.render();
+    await h.settle();
+    const refreshes = [];
+    h.workspace.refreshVault = async (signal, forState, readCurrent) => {
+      assert.equal(typeof readCurrent, "function", "refresh must use action-bound transport");
+      const response = await readCurrent();
+      assert.equal(signal.aborted, false);
+      assert.equal(response.ok, true);
+      refreshes.push(forState);
+      return (await response.json()).vault;
+    };
+    h.workspace.finishPersistentPending = async (_actor, receipt) => {
+      assert.equal(receipt.acknowledged, true);
+    };
+    const pending = h.render().execute((c) =>
+      c.send(
+        {
+          connectionId: "connection_A",
+          clientId: "client_A",
+          vaultId: "vault_A",
+          status: "active",
+        },
+        {
+          kind: "credential",
+          connectionId: "connection_A",
+          operationId: "synthetic_original_operation_0001",
+          registryUpdate: { expectedVersion: 1, registryBundle: {} },
+          body: { original: "SEALED_APPROVAL" },
+        },
+      ),
+    );
+    await waitUntil(() => attempts === 1, "initial refresh admission denial");
+    await h.settle();
+    assert.equal(h.render().waitingForService, true);
+    h.releaseTimer(1000);
+    await waitUntil(() => deniedAfterAppend, "post-append refresh admission denial");
+    await h.settle();
+    assert.equal(h.render().waitingForService, true);
+    assert.equal(approvals, 0, "do not submit before the refreshed registry is verified");
+    h.releaseTimer(1000);
+    assert.equal(await pending, undefined);
+    assert.deepEqual(refreshes, [false, true, true]);
+    assert.equal(attempts, 6);
+    assert.equal(approvals, 1);
+    assert.equal(h.unlocks, 0);
+  } finally {
+    h.close();
+  }
+});
 
 test("safe admission waits once and retries the exact sealed original within the existing action", async () => {
   let attempts = 0;

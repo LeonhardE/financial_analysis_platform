@@ -108,7 +108,7 @@ export function usePersistentWorkspace(workspace: HoldingsWorkspace, hubOrigin: 
         )
           throw new PersistentExperienceError("cancelled");
       };
-      const api = async (
+      const request = async (
         service: "agent-hub" | "portfolio" | "user",
         path: string,
         options: any = {},
@@ -148,6 +148,14 @@ export function usePersistentWorkspace(workspace: HoldingsWorkspace, hubOrigin: 
             setState((s) => (s.owner === start.owner ? { ...s, waitingForService: false } : s));
           }
         }
+        return r;
+      };
+      const api = async (
+        service: "agent-hub" | "portfolio" | "user",
+        path: string,
+        options: any = {},
+      ) => {
+        const r = await request(service, path, options);
         if (!r.ok)
           throw new PersistentExperienceError(
             r.status === 404
@@ -188,6 +196,10 @@ export function usePersistentWorkspace(workspace: HoldingsWorkspace, hubOrigin: 
           reader.releaseLock();
         }
       };
+      const refreshVault = (signal: AbortSignal, forState = false) =>
+        live.current.workspace.refreshVault(signal, forState, () =>
+          request("agent-hub", "/api/v2/vaults/current"),
+        );
       const hub = (path: string, options: any = {}) => api("agent-hub", path, options);
       setState((s) =>
         s.owner === start.owner
@@ -197,13 +209,13 @@ export function usePersistentWorkspace(workspace: HoldingsWorkspace, hubOrigin: 
       try {
         assert();
         if (privateRead) {
-          await live.current.workspace.refreshVault(abort.signal, false);
+          await refreshVault(abort.signal, false);
           assert();
         }
         const result = await action(
           new PersistentExperienceController(
             api,
-            () => live.current.workspace,
+            () => ({ ...live.current.workspace, refreshVault }),
             assert,
             abort.signal,
             live.current.hubOrigin ?? "",

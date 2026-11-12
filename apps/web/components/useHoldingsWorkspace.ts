@@ -631,15 +631,18 @@ export function useHoldingsWorkspace() {
         headers?: Record<string, string>;
         allowMissing?: boolean;
       } = {},
+      readResponse?: () => Promise<Response>,
     ): Promise<unknown> => {
       if (!owner || ownerRef.current !== owner || signal.aborted)
         throw new WorkspaceError("cancelled");
       const { allowMissing, ...transport } = options;
-      const response = await auth.requestPrivate(service, path, owner, {
-        ...transport,
-        signal,
-        headers: { ...contractHeaders, ...(options.headers ?? {}) },
-      });
+      const response = readResponse
+        ? await readResponse()
+        : await auth.requestPrivate(service, path, owner, {
+            ...transport,
+            signal,
+            headers: { ...contractHeaders, ...(options.headers ?? {}) },
+          });
       if (ownerRef.current !== owner || signal.aborted) throw new WorkspaceError("cancelled");
       if (!response.ok) {
         if (allowMissing && response.status === 404) {
@@ -2219,11 +2222,21 @@ export function useHoldingsWorkspace() {
   );
 
   const refreshVault = useCallback(
-    async (signal: AbortSignal, forState = false): Promise<Vault> => {
+    async (
+      signal: AbortSignal,
+      forState = false,
+      readCurrentResponse?: () => Promise<Response>,
+    ): Promise<Vault> => {
       const instance = liveSession(),
         generation = vaultGeneration.current;
       assertInboxSession(instance, generation);
-      const refreshed = await readCurrent(signal);
+      // Agent actions supply their cancellable admission-aware GET transport.
+      // Keep the same bounded parser, Owner fences and Worker verification here.
+      const refreshed = readCurrentResponse
+        ? aggregate(
+            await api("agent-hub", "/api/v2/vaults/current", signal, {}, readCurrentResponse),
+          )
+        : await readCurrent(signal);
       assertInboxSession(instance, generation);
       if (signal.aborted || !refreshed.vault) throw new WorkspaceError("invalid_response");
       const access = forState
@@ -2239,7 +2252,7 @@ export function useHoldingsWorkspace() {
       }));
       return refreshed.vault;
     },
-    [assertInboxSession, liveSession, readCurrent],
+    [api, assertInboxSession, liveSession, readCurrent],
   );
 
   const openResult = useCallback(
