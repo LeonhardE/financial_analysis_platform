@@ -40,11 +40,18 @@ headers. Portfolio queries, encoded paths, internal/agent routes, caller-selecte
 redirects are rejected. Actual streamed request sizes follow the existing 576 KiB snapshot, 65 KiB mutation
 and 1 KiB authority limits; responses are bounded to 1 MiB. Duplicate JSON keys, excessive depth
 and unsafe numbers are rejected. Valid ciphertext/signature bytes and operation identifiers are
-forwarded unchanged, with no write retries. The total deadline is 12 seconds including bodies,
+forwarded unchanged; the proxy never retries an upstream write. The total deadline is 12 seconds including bodies,
 verification and identity fetches; each shared identity/key fetch has its own 4-second ceiling.
 For each target, per-process admission is bounded to 16 requests, four active requests and 30 attempts per minute
 per verified UID, with at most 1,024 tracked UID windows. These local bounds do not replace
-separate deployment-wide cost controls. Only fixed formal application errors cross the boundary;
+separate deployment-wide cost controls. A rejected admission carries the remaining
+bounded cooldown and a first-party marker proving that nothing was forwarded. The
+Agent connection UI waits once (at most 60 seconds) and retries the same read or
+operation-ID-bound sealed write within its existing 120-second action deadline.
+Lock, hiding, account changes or cancellation abort that wait. Generic service
+errors and unknown commits never qualify; upstream headers cannot supply the marker.
+The original admission limits and all authority checks remain unchanged.
+Only fixed formal application errors cross the boundary;
 metadata/IAM/network/key-fetch failures become retryable service errors, not a user logout.
 
 Browser Origin checks use the incoming `Host` and the request URL's protocol. Next standalone

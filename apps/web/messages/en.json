@@ -1275,6 +1275,7 @@
     "previousReports": "View reports from previous foreground connections"
   },
   "agentAccess": {
+    "waitingForService": "The service is busy. Your connection will continue automatically.",
     "title": "Your Agents",
     "description": "Authorize an Agent to work with the information you choose and return reports to your Inbox.",
     "refresh": "Refresh",

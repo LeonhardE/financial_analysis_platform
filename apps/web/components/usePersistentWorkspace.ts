@@ -10,6 +10,35 @@ import {
   type PersistentConnectionView,
   type PersistentTask,
 } from "@/lib/persistent-experience-controller";
+// Only the first-party proxy can mark rejection before forwarding. Upstream
+// headers are stripped; generic failures and unknown commits never get retried.
+function admissionWait(response: Response) {
+  const delay = response.headers.get("retry-after");
+  return response.status === 503 &&
+    response.headers.get("x-folioview-admission-retry") === "safe" &&
+    delay !== null &&
+    /^(?:[1-9]|[1-5][0-9]|60)$/.test(delay)
+    ? Number(delay)
+    : null;
+}
+function waitForAdmission(seconds: number, signal: AbortSignal) {
+  return new Promise<void>((resolve, reject) => {
+    if (signal.aborted) return reject(new PersistentExperienceError("cancelled"));
+    const finish = () => {
+      clearTimeout(timer);
+      signal.removeEventListener("abort", cancel);
+    };
+    const cancel = () => {
+      finish();
+      reject(new PersistentExperienceError("cancelled"));
+    };
+    const timer = setTimeout(() => {
+      finish();
+      resolve();
+    }, seconds * 1000);
+    signal.addEventListener("abort", cancel, { once: true });
+  });
+}
 type State = {
   owner: string | null;
   enabled: boolean;
@@ -17,6 +46,7 @@ type State = {
   views: PersistentConnectionView[];
   tasks: PersistentTask[];
   busy: boolean;
+  waitingForService: boolean;
   error: string;
   scope: string | null;
 };
@@ -27,6 +57,7 @@ const initial: State = {
   views: [],
   tasks: [],
   busy: false,
+  waitingForService: false,
   error: "",
   scope: null,
 };
@@ -83,14 +114,40 @@ export function usePersistentWorkspace(workspace: HoldingsWorkspace, hubOrigin: 
         options: any = {},
       ) => {
         assert();
-        const r = await start.auth.requestPrivate(service, path, start.owner!, {
+        const suppliedHeaders = new Headers(options.headers),
+          operation = suppliedHeaders.get("idempotency-key"),
+          method = options.method ?? "GET",
+          safeRetry =
+            method === "GET" ||
+            (["POST", "PUT", "PATCH"].includes(method) &&
+              operation !== null &&
+              /^[A-Za-z0-9_-]{22,128}$/.test(operation));
+        const requestHeaders = new Headers(
+          service === "user" ? undefined : { "X-FolioView-Contract": PERSISTENT_CONTRACT },
+        );
+        suppliedHeaders.forEach((value, key) => requestHeaders.set(key, value));
+        // Snapshot the sealed original once so a delayed retry cannot adopt edits.
+        const requestOptions = {
           ...options,
+          ...(options.json === undefined ? {} : { json: JSON.parse(JSON.stringify(options.json)) }),
           signal: abort.signal,
-          ...(service === "user"
-            ? {}
-            : { headers: { "X-FolioView-Contract": PERSISTENT_CONTRACT, ...options.headers } }),
-        });
-        assert();
+          headers: Object.fromEntries(requestHeaders),
+        };
+        let r: Response;
+        for (let attempt = 0; ; attempt++) {
+          r = await start.auth.requestPrivate(service, path, start.owner!, requestOptions);
+          assert();
+          const delay = admissionWait(r);
+          if (attempt !== 0 || !safeRetry || delay === null) break;
+          void r.body?.cancel().catch(() => {});
+          setState((s) => ({ ...s, waitingForService: true }));
+          try {
+            await waitForAdmission(delay, abort.signal);
+            assert();
+          } finally {
+            setState((s) => (s.owner === start.owner ? { ...s, waitingForService: false } : s));
+          }
+        }
         if (!r.ok)
           throw new PersistentExperienceError(
             r.status === 404
@@ -134,7 +191,7 @@ export function usePersistentWorkspace(workspace: HoldingsWorkspace, hubOrigin: 
       const hub = (path: string, options: any = {}) => api("agent-hub", path, options);
       setState((s) =>
         s.owner === start.owner
-          ? { ...s, busy: true, error: "" }
+          ? { ...s, busy: true, waitingForService: false, error: "" }
           : { ...initial, owner: start.owner, busy: true },
       );
       try {
@@ -185,7 +242,11 @@ export function usePersistentWorkspace(workspace: HoldingsWorkspace, hubOrigin: 
         abort.abort();
         if (job.current === abort) {
           job.current = null;
-          setState((s) => (s.owner === live.current.owner ? { ...s, busy: false } : initial));
+          setState((s) =>
+            s.owner === live.current.owner
+              ? { ...s, busy: false, waitingForService: false }
+              : initial,
+          );
         }
       }
     },
@@ -281,6 +342,7 @@ export function usePersistentWorkspace(workspace: HoldingsWorkspace, hubOrigin: 
           views,
           tasks,
           busy: true,
+          waitingForService: false,
           error: "",
           scope: live.current.scope,
         });
@@ -306,6 +368,7 @@ export function usePersistentWorkspace(workspace: HoldingsWorkspace, hubOrigin: 
             tasks: [],
             scope: null,
             busy: false,
+            waitingForService: false,
             error: "",
           }
         : initial,

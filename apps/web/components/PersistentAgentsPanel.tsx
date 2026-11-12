@@ -236,6 +236,7 @@ export function PersistentAgentsPanel({
           )}
         </div>
       ) : null}
+      {model.waitingForService && <p role="status">{t("waitingForService")}</p>}
       {(linkError || model.error) && (
         <p role="alert" className={styles.warning}>
           {t(

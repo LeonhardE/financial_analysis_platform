@@ -308,7 +308,10 @@ export function createPortfolioProxy(options: Options = {}) {
             : undefined,
       );
     } catch (error) {
-      return errorResponse(error instanceof Failure ? error.code : "authorization_unavailable");
+      return errorResponse(
+        error instanceof Failure ? error.code : "authorization_unavailable",
+        error instanceof Failure ? error.admissionRetrySeconds : undefined,
+      );
     } finally {
       releaseOwner?.();
       releaseGlobal?.();

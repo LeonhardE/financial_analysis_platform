@@ -1275,6 +1275,7 @@
     "previousReports": "查看之前前台连接的报告"
   },
   "agentAccess": {
+    "waitingForService": "服务暂时繁忙，稍后会自动继续连接。",
     "title": "我的 Agent",
     "description": "授权 Agent 在你允许的范围内处理资料，并将报告提交到收件箱。",
     "refresh": "刷新",

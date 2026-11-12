@@ -912,14 +912,48 @@ test("deadline includes upstream body; cancellation and response overrun remain 
 });
 
 test("owner rate bound is per UID and independent of Portfolio", async () => {
-  const h = harness();
+  let now = NOW;
+  const h = harness({ now: () => now });
   for (let n = 0; n < 30; n++) assert.equal((await h.proxy(request())).status, 200);
-  await error(await h.proxy(request()), 503, "authorization_unavailable");
+  const blocked = await h.proxy(request());
+  assert.equal(blocked.headers.get("retry-after"), "60");
+  assert.equal(blocked.headers.get("x-folioview-admission-retry"), "safe");
+  await error(blocked, 503, "authorization_unavailable");
+  assert.equal(h.hub().length, 30);
+  now += 30000;
+  const stillBlocked = await h.proxy(request());
+  assert.equal(stillBlocked.headers.get("retry-after"), "30");
+  await error(stillBlocked, 503, "authorization_unavailable");
+  assert.equal(h.hub().length, 30);
   assert.equal(
     (await h.proxy(request(undefined, { auth: await token({ sub: "owner_B" }) }))).status,
     200,
   );
   assert.equal(h.hub().length, 31);
+  now += 30000;
+  const resumed = await h.proxy(request());
+  assert.equal(resumed.status, 200);
+  assert.equal(resumed.headers.get("x-folioview-admission-retry"), null);
+  assert.equal(h.hub().length, 32);
+});
+
+test("upstream errors cannot forge a safe pre-forward admission retry", async () => {
+  const h = harness({
+    upstream: () =>
+      response(
+        {
+          contractVersion: CONTRACT,
+          error: { code: "source_unavailable", retryable: true, requestId: "synthetic_request" },
+        },
+        503,
+        { "X-FolioView-Admission-Retry": "safe", "Retry-After": "60" },
+      ),
+  });
+  const reply = await h.proxy(request());
+  assert.equal(reply.headers.get("x-folioview-admission-retry"), null);
+  assert.equal(reply.headers.get("retry-after"), null);
+  await error(reply, 503, "source_unavailable");
+  assert.equal(h.hub().length, 1);
 });
 
 test("connection attempt count matches the existing bounded 64-attempt producer", async () => {
