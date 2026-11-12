@@ -5165,6 +5165,11 @@ export class VaultCore {
     const { actor, ...value } = args;
     return (await this.persistentOwner(actor, false)).inspectCredentialSetup(value);
   }
+  async verifySupersededPublicationPending(args: Json) {
+    exact(args, ["actor", "current", "hubOrigin", "packet"]);
+    const { actor, ...value } = args;
+    return (await this.persistentOwner(actor, false)).supersededPublicationPending(value);
+  }
   async verifyExpiredCredentialPending(args: Json) {
     exact(args, ["actor", "handoff", "setup", "current", "hubOrigin", "packet", "previousSetup"]);
     const { actor, ...value } = args;

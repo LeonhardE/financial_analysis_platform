@@ -39,6 +39,12 @@ export interface EncryptedStorage {
   remove(key: string): Promise<void>;
   insert(key: string, value: any): Promise<boolean>;
   removeOperation(key: string, operationId: string): Promise<boolean>;
+  archivePersistentPublication?(
+    key: string,
+    expected: any,
+    fingerprint: string,
+    signal?: AbortSignal,
+  ): Promise<boolean>;
   reconcileHoldingsOutbox?(key: string, expected: any, signal?: AbortSignal): Promise<boolean>;
   finishSourceCreation?(key: string, expected: any, signal?: AbortSignal): Promise<boolean>;
   finishSourceMutation?(key: string, expected: any, signal?: AbortSignal): Promise<boolean>;
@@ -863,6 +869,64 @@ export class BrowserEncryptedStorage implements EncryptedStorage {
         done(true);
       };
     });
+  }
+  archivePersistentPublication(
+    key: string,
+    expected: any,
+    fingerprint: string,
+    signal?: AbortSignal,
+  ) {
+    const context = this.archiveContext,
+      validId = (value: unknown) =>
+        typeof value === "string" && /^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/.test(value);
+    if (
+      !context ||
+      expected?.ownerSubject !== context.owner ||
+      !validId(expected?.vaultId) ||
+      !validId(expected?.connectionId) ||
+      !validId(expected?.clientId) ||
+      expected?.kind !== "publication" ||
+      !/^[A-Za-z0-9_-]{22,128}$/.test(expected?.pending?.operationId ?? "") ||
+      !/^[a-f0-9]{64}$/.test(fingerprint) ||
+      Object.keys(expected).sort().join(",") !==
+        "clientId,connectionId,kind,ownerSubject,pending,vaultId" ||
+      key !== `${context.owner}:persistent-owner:${expected.vaultId}:${expected.connectionId}`
+    )
+      return Promise.reject(new VaultError("wrong_account"));
+    const archiveKey = `${context.owner}:persistent-superseded:${expected.vaultId}:${expected.pending.operationId}:${fingerprint}`;
+    return this.guarded<boolean>(
+      key,
+      (s, done, fail) => {
+        const original = s.get(key);
+        original.onsuccess = () => {
+          if (this.archiveContext !== context) {
+            fail(new VaultError("archive_session_stale"));
+            return;
+          }
+          // Same operation IDs can be rebased by another tab. Compare all sealed
+          // bytes before archiving and clearing, in one cancellable transaction.
+          if (!sameEncryptedRecord(original.result, expected)) {
+            done(false);
+            return;
+          }
+          const archive = s.get(archiveKey);
+          archive.onsuccess = () => {
+            if (this.archiveContext !== context) {
+              fail(new VaultError("archive_session_stale"));
+              return;
+            }
+            if (archive.result !== undefined && !sameEncryptedRecord(archive.result, expected)) {
+              fail(new VaultError("operation_conflict"));
+              return;
+            }
+            if (archive.result === undefined) s.put(expected, archiveKey);
+            s.delete(key);
+            done(true);
+          };
+        };
+      },
+      signal,
+    );
   }
   reconcileHoldingsOutbox(key: string, expected: any, signal?: AbortSignal) {
     const context = this.archiveContext,

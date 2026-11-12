@@ -493,6 +493,17 @@ test("Root-verified renewal restores only original continuing scope; latest revo
     },
     envelope: originalTask.body.envelope,
   };
+  const pendingCheck = {
+    actor: f.args.actor,
+    current: state,
+    hubOrigin: f.origin,
+    packet: originalTask,
+  };
+  assert.equal(
+    (await f.owner.session.verifySupersededPublicationPending(pendingCheck)).superseded,
+    false,
+    "the current directory cannot supersede its own original publication",
+  );
   const renew = await renewalOffer(f, first),
     second = await f.owner.session.prepareAgentCredential(renew);
   await install(f, second);
@@ -500,6 +511,27 @@ test("Root-verified renewal restores only original continuing scope; latest revo
     currentSource = source(current, [], oldSource.state.source),
     sources = [currentSource, oldSource],
     args = { actor: f.args.actor, current, sources, hubOrigin: f.origin, legacyConnectionId: null };
+  const superseded = { ...pendingCheck, current };
+  assert.deepEqual(await f.owner.session.verifySupersededPublicationPending(superseded), {
+    operationId: originalTask.operationId,
+    fingerprint: originalTask.fingerprint,
+    superseded: true,
+  });
+  for (const change of [
+    (v) => (v.packet.operationId = "synthetic_foreign_operation_0001"),
+    (v) => (v.packet.fingerprint = "f".repeat(64)),
+    (v) => v.packet.context.registrySequence++,
+    (v) => (v.packet.identity.clientId = "foreign_client"),
+    (v) => (v.packet.body.envelope.proof.signature = "a".repeat(86)),
+    (v) => (v.actor.connectionId = "foreign_connection"),
+    (v) => (v.current.status = "revoked"),
+    (v) => (v.packet.kind = "credential"),
+    (v) => (v.hubOrigin = "https://foreign.example"),
+  ]) {
+    const bad = clone(superseded);
+    change(bad);
+    await assert.rejects(() => f.owner.session.verifySupersededPublicationPending(bad));
+  }
   const scope = await f.owner.session.verifyAgentRestoration(args);
   assert.equal(scope.permissions.length, 1);
   assert.equal(scope.identities.length, 2);
