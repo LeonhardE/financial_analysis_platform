@@ -6,6 +6,14 @@ Passkey PRF material. Ordinary owner routes and transport bounds are documented 
 [owner API](owner-api.md); browser flows are in the [Web guide](../../../apps/web/docs/key-management.md).
 Neither rewrapping nor renewal recalls plaintext or already exported recovery material.
 
+Firestore readers accept the original `registryHistory` arrays and canonical UTF-8 JSON bytes
+in the same existing unindexed field of Vault and persistent Run documents. Both forms return
+the identical bounded JSON array to signature verification and public APIs; malformed,
+noncanonical or oversized bytes fail closed. This reader-first release continues to write
+arrays. Enable compact writes only after every serving revision has compatible readers, and
+retain such a revision as the rollback floor after the first compact write. No history is
+removed, compressed or trusted without its original verification.
+
 ## Archive lifecycle
 
 This Hub-owned API profile is `folioview.vault-lifecycle.v1`. It reuses the existing flattened

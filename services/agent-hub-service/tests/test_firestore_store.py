@@ -23,6 +23,7 @@ from google.protobuf.empty_pb2 import Empty
 from app.store import FirestoreHubStore, StoreUnavailable, document_path, get_store
 from app.vaults import VaultService
 from folioview_shared.encrypted.errors import ContractError
+from folioview_shared.encrypted.jsonutil import canonical_json
 
 
 class MemoryRpc:
@@ -140,6 +141,61 @@ class FirestoreHubTests(unittest.TestCase):
             self.assertEqual(result.exception.code, "payload_too_large")
         self.assertEqual(self.rpc.documents, {})
         self.assertFalse(any(name == "commit" for name, _ in self.rpc.calls))
+
+    def test_compact_history_reads_identically_and_writes_still_use_legacy_arrays(self):
+        expected = self.service.bootstrap(UID, self.f.bootstrap(), BOOT)
+        name, row = next(
+            (name, row) for name, row in self.rpc.documents.items() if "/hub_vaults/" in name
+        )
+        self.assertIsInstance(row["registryHistory"], list)
+        row["registryHistory"] = canonical_json(row["registryHistory"])
+        self.assertEqual(self.service.current(UID), expected)
+        path = name.split("/documents/", 1)[1]
+        both = self.service.store.transact(lambda unit: (unit.get(path), unit.get_many([path])))
+        self.assertEqual(both[0], both[1][path])
+        self.assertIsInstance(both[0]["registryHistory"], list)
+        self.assertIsInstance(self.rpc.documents[name]["registryHistory"], bytes)
+        run = self.client.document(document_path("hub_persistent_runs", "frozen"))
+        self.rpc.documents[run._document_path] = {"registryHistory": row["registryHistory"]}
+        frozen = self.service.store.transact(lambda unit: unit.get_many([run.path]))
+        self.assertEqual(frozen[run.path]["registryHistory"], both[0]["registryHistory"])
+
+    def test_compact_history_rejects_malformed_noncanonical_and_oversized_payloads(self):
+        self.service.bootstrap(UID, self.f.bootstrap(), BOOT)
+        name, row = next(
+            (name, row) for name, row in self.rpc.documents.items() if "/hub_vaults/" in name
+        )
+        path = name.split("/documents/", 1)[1]
+        valid = canonical_json(row["registryHistory"])
+        for payload in (b"not json", b"{}", b"[ ]", b"[1,]", b"[\xff]", b" " * 786433):
+            for batch in (False, True):
+                with self.subTest(payload=payload[:16], batch=batch):
+                    row["registryHistory"] = payload
+                    with self.assertRaises(StoreUnavailable):
+                        self.service.store.transact(
+                            lambda unit, batch=batch: (
+                                unit.get_many([path]) if batch else unit.get(path)
+                            )
+                        )
+        row["registryHistory"] = valid
+        row["opaque"] = "x" * 786432
+        with self.assertRaises(StoreUnavailable):
+            self.service.store.transact(lambda unit: unit.get(path))
+
+    def test_compact_history_cannot_bypass_signatures_or_expand_to_other_collections(self):
+        self.service.bootstrap(UID, self.f.bootstrap(), BOOT)
+        name, row = next(
+            (name, row) for name, row in self.rpc.documents.items() if "/hub_vaults/" in name
+        )
+        altered = copy.deepcopy(row["registryHistory"])
+        altered[0]["checkpoint"]["signature"] = "A" * 86
+        row["registryHistory"] = canonical_json(altered)
+        with self.assertRaises((StoreUnavailable, ContractError)):
+            self.service.current(UID)
+        unrelated = self.client.document(document_path("hub_tasks", "unrelated"))
+        self.rpc.documents[unrelated._document_path] = {"registryHistory": b"[]"}
+        with self.assertRaises(StoreUnavailable):
+            self.service.store.transact(lambda unit: unit.get(unrelated.path))
 
     def test_cloud_configuration_never_falls_back_to_default_db_sqlite_or_emulator(self):
         for config in (
