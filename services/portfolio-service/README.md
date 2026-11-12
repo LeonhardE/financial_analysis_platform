@@ -76,9 +76,11 @@ replicas directly through this internal interface.
 Firestore readers also accept canonical UTF-8 JSON bytes in the same existing unindexed
 `portfolio_authorities.registryHistory` field, restoring the original bounded array before normal
 signature and fence verification. Malformed, noncanonical and oversized bytes fail closed.
-This reader-first release retains array writes. Enable compact writes only after compatible
-readers serve all traffic, and preserve such a revision as the subsequent rollback floor.
-No history is removed or compressed, and public APIs retain the original arrays.
+Firestore writes use canonical bytes in this field; SQLite retains logical JSON arrays. The
+complete logical document and actual SDK wire encoding must both fit the unchanged storage
+budget before committing. Deploy compatible readers to all traffic before enabling these writes,
+and preserve such a revision as the subsequent rollback floor. No history is removed or compressed,
+and public APIs retain the original arrays.
 
 Every committing transaction re-reads current authority, operation, snapshot and latest before
 staging writes. Firestore conflict retries re-run authorization and verification against changed

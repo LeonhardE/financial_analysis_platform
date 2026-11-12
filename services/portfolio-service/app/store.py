@@ -60,6 +60,15 @@ def _read_document(value: dict, *, path: str) -> dict:
         raise StoreUnavailable from None
 
 
+def _firestore_document(value: dict, *, path: str) -> dict:
+    if (
+        path.split("/", 1)[0] == "portfolio_authorities"
+        and type(value.get("registryHistory")) is list
+    ):
+        return {**value, "registryHistory": canonical_json(value["registryHistory"])}
+    return value
+
+
 def stored_document(value: dict, *, path: str, project: str, database: str) -> dict:
     """Account for the exact SDK Document, not a JSON-only size estimate.
 
@@ -72,7 +81,9 @@ def stored_document(value: dict, *, path: str, project: str, database: str) -> d
 
     data = strict_json_loads(canonical_json(value), max_bytes=MAX_STORED_DOCUMENT_BYTES)
     name = f"projects/{project}/databases/{database}/documents/{path}"
-    encoded = Document(name=name, fields=encode_dict(data))._pb.SerializeToString()
+    encoded = Document(
+        name=name, fields=encode_dict(_firestore_document(data, path=path))
+    )._pb.SerializeToString()
     check_document_budget(data, encoded_document=encoded)
     return data
 
@@ -158,7 +169,7 @@ class FirestoreTransaction:
         data = stored_document(
             value, path=path, project=self.store.project, database=self.store.database
         )
-        self.pending.append((path, data))
+        self.pending.append((path, _firestore_document(data, path=path)))
 
     def flush(self):
         for path, data in self.pending:
