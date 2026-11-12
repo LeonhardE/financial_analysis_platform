@@ -86,6 +86,12 @@ once its original ten-minute setup is expired, after checking its original recei
 The encrypted original is retained internally; no user-managed recovery artifact is
 required. An unfinished approval can also be continued from the connection row.
 
+Agent actions use the same cancellable admission-aware transport for the initial vault
+read and refreshes around registry admission. A marked pre-forward denial may wait and
+retry once within the original action deadline. Refresh responses still pass the existing
+bounded parser, Owner/session fences and Worker verification before approval proceeds.
+Generic errors and unknown write outcomes do not acquire retry permission.
+
 Discovery and information sharing run on page visibility or explicit Owner actions;
 there is no periodic API polling or automatic background resource publication. A native
 plan report is distinct from a report actually received by the Hub. Real Agent host
