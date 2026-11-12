@@ -395,3 +395,98 @@ test("authorization review exposes only the immutable pending connection duratio
   h.w.pending.credentialLifetimeSeconds = null;
   await assert.rejects(h.c.inspectAuthorization(handoff), (e) => e.code === "verification_failed");
 });
+
+test("restoration follows equivalent descriptors across server JSON property order", async () => {
+  // The Hub head builds this descriptor directly, while source() snapshots its
+  // response through canonical JSON (recursively sorted object properties).
+  const ref = {
+    connectionId: connection.connectionId,
+    bindingFingerprint: "a".repeat(64),
+    credentialFingerprint: "b".repeat(64),
+    generation: 1,
+  };
+  const reordered = Object.fromEntries(Object.entries(ref).sort(([a], [b]) => a.localeCompare(b)));
+  const source = {
+    source: reordered,
+    resourceState: { operations: ["consent_operation_original"] },
+    predecessor: null,
+  };
+  const receipt = { operationId: "consent_operation_original" };
+  const calls = [];
+  const h = harness(async (_service, path) => {
+    calls.push(path);
+    if (path.endsWith("/restoration")) return { source: ref };
+    if (path.includes("/restoration/")) return source;
+    if (path.endsWith("/resource-operations/consent_operation_original")) return receipt;
+    assert.fail("unexpected request: " + path);
+  });
+  assert.deepEqual(JSON.parse(JSON.stringify(await h.c.restorationSources(connection))), [
+    { state: source, receipts: [receipt] },
+  ]);
+  assert.equal(calls.length, 3);
+
+  for (const changed of [
+    { ...reordered, generation: 2 },
+    { ...reordered, bindingFingerprint: "c".repeat(64) },
+    { ...reordered, credentialFingerprint: null },
+    { ...reordered, connectionId: "another_connection" },
+    { ...reordered, extra: true },
+    Object.fromEntries(Object.entries(reordered).filter(([k]) => k !== "generation")),
+  ]) {
+    source.source = changed;
+    calls.length = 0;
+    await assert.rejects(h.c.restorationSources(connection), (e) => e.code === "invalid_response");
+    assert.equal(calls.length, 2, "changed binding must stop before reading consent receipts");
+  }
+});
+
+test("authorization accepts reordered JSON fields but rejects changed nested values and array order", async () => {
+  const h = harness(async () => assert.fail("must stop before a write"));
+  const expected = {
+    connection,
+    setup: { setupIntentId: "setup_original", binding: { generation: 1, clientId: "muse_A" } },
+    current: { lease: { generation: 1, status: "active" } },
+    scope: { reviewDigest: "scope_original" },
+    tasks: [
+      { taskId: "task_A", packet: { metadata: { version: 2, sections: ["overview", "risks"] } } },
+    ],
+  };
+  const reverseObjects = (v) =>
+    Array.isArray(v)
+      ? v.map(reverseObjects)
+      : v !== null && typeof v === "object"
+        ? Object.fromEntries(
+            Object.entries(v)
+              .reverse()
+              .map(([k, x]) => [k, reverseObjects(x)]),
+          )
+        : v;
+  let actual = reverseObjects(expected);
+  h.c.inspectAuthorization = async () => actual;
+  let pendingReads = 0;
+  h.w.loadPersistentPending = async () => {
+    pendingReads++;
+    throw new ErrorType("original_pending_read");
+  };
+  await assert.rejects(h.c.authorize({}, expected, []), (e) => e.code === "original_pending_read");
+  assert.equal(pendingReads, 1, "equivalent review reached the existing sealed-pending boundary");
+  for (const change of [
+    (v) => {
+      v.setup.binding.generation = 2;
+    },
+    (v) => {
+      v.current.lease.status = "revoked";
+    },
+    (v) => {
+      v.tasks[0].packet.metadata.sections.reverse();
+    },
+    (v) => {
+      v.setup.binding.extra = null;
+    },
+  ]) {
+    actual = reverseObjects(expected);
+    change(actual);
+    await assert.rejects(h.c.authorize({}, expected, []), (e) => e.code === "review_changed");
+    assert.equal(pendingReads, 1, "changed review stops before opening or sending a pending write");
+  }
+});
