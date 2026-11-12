@@ -24,6 +24,7 @@ from app.holdings import PortfolioError, PortfolioService
 from app.lifecycle import state_path
 from app.store import FirestorePortfolioStore, StoreUnavailable, document_path, get_store
 from folioview_shared.encrypted.errors import ContractError
+from folioview_shared.encrypted.jsonutil import canonical_json
 from folioview_shared.identity import owner_key
 
 
@@ -188,6 +189,39 @@ class FirestorePortfolioTests(unittest.TestCase):
             )
         self.assertEqual(result.exception.code, "payload_too_large")
         self.assertEqual(len(self.rpc.documents), 1)
+
+    def test_compact_authority_reads_identically_while_writes_remain_legacy_arrays(self):
+        name, row = next(iter(self.rpc.documents.items()))
+        self.assertIn("/portfolio_authorities/", name)
+        expected = self.service.metadata(UID, SOURCE)
+        self.assertIsInstance(row["registryHistory"], list)
+        row["registryHistory"] = canonical_json(row["registryHistory"])
+        original = row["registryHistory"]
+        self.assertEqual(self.service.metadata(UID, SOURCE), expected)
+        receipt = self.fixture.write(self.service)
+        self.assertEqual(self.service.snapshot(UID, SOURCE)["receipt"], receipt)
+        self.assertEqual(self.rpc.documents[name]["registryHistory"], original)
+
+    def test_compact_authority_rejects_invalid_noncanonical_oversized_and_tampered_history(self):
+        name, row = next(iter(self.rpc.documents.items()))
+        path = name.split("/documents/", 1)[1]
+        altered = copy.deepcopy(row["registryHistory"])
+        altered[0]["checkpoint"]["signature"] = "A" * 86
+        for payload in (b"{}", b"[ ]", b"[1,]", b"[\xff]", b" " * 786433):
+            with self.subTest(payload=payload[:16]), self.assertRaises(StoreUnavailable):
+                row["registryHistory"] = payload
+                self.store.transact(lambda unit: unit.get(path))
+        row["registryHistory"] = canonical_json(altered)
+        with self.assertRaises(StoreUnavailable):
+            self.service.metadata(UID, SOURCE)
+        row["registryHistory"] = b"[]"
+        row["opaque"] = "x" * 786432
+        with self.assertRaises(StoreUnavailable):
+            self.store.transact(lambda unit: unit.get(path))
+        other = self.client.document(document_path("portfolio_heads", "unrelated"))
+        self.rpc.documents[other._document_path] = {"registryHistory": b"[]"}
+        with self.assertRaises(StoreUnavailable):
+            self.store.transact(lambda unit: unit.get(other.path))
 
     def test_production_never_falls_back_to_default_db_sqlite_or_emulator(self):
         for config in (

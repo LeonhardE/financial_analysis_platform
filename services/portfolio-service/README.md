@@ -73,6 +73,13 @@ overflow fails closed instead of dropping revocation history. No private key is 
 projection authorization/freshness/delivery belongs to Hub/trust work. Tests install synthetic
 replicas directly through this internal interface.
 
+Firestore readers also accept canonical UTF-8 JSON bytes in the same existing unindexed
+`portfolio_authorities.registryHistory` field, restoring the original bounded array before normal
+signature and fence verification. Malformed, noncanonical and oversized bytes fail closed.
+This reader-first release retains array writes. Enable compact writes only after compatible
+readers serve all traffic, and preserve such a revision as the subsequent rollback floor.
+No history is removed or compressed, and public APIs retain the original arrays.
+
 Every committing transaction re-reads current authority, operation, snapshot and latest before
 staging writes. Firestore conflict retries re-run authorization and verification against changed
 authority. SQLite uses real immediate transactions. No fingerprint cache bypasses a lock/revocation.
