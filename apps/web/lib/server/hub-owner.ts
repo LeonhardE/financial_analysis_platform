@@ -501,7 +501,10 @@ export function createHubProxy(options: Options = {}) {
             : hubResponse(path, request.method, body, headers.get("idempotency-key") ?? undefined),
       );
     } catch (error) {
-      return errorResponse(error instanceof Failure ? error.code : "authorization_unavailable");
+      return errorResponse(
+        error instanceof Failure ? error.code : "authorization_unavailable",
+        error instanceof Failure ? error.admissionRetrySeconds : undefined,
+      );
     } finally {
       releaseOwner?.();
       releaseGlobal?.();

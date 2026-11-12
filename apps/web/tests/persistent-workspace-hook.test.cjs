@@ -15,7 +15,7 @@ async function waitUntil(check, label) {
     await new Promise((resolve) => setTimeout(resolve, 5));
   }
 }
-function harness(authOverride) {
+function harness(authOverride, ownerRequest) {
   let owner = authOverride?.sessionKey ?? "owner_A:login1",
     visible = true,
     index = 0,
@@ -23,7 +23,8 @@ function harness(authOverride) {
   const cells = [],
     effects = [],
     events = new Map(),
-    timers = new Map();
+    timers = new Map(),
+    timerDelays = new Map();
   let nextTimer = 0;
   const changed = (a, b) => !a || b.some((v, i) => v !== a[i]);
   const react = {
@@ -69,6 +70,7 @@ function harness(authOverride) {
   };
   const requestPrivate = async (_service, path, _key, options) => {
     calls.push({ path, options });
+    if (ownerRequest && path.includes("/operations/")) return ownerRequest(path, options);
     return Response.json(
       path.endsWith("/persistent-connections")
         ? { connections: [] }
@@ -84,9 +86,10 @@ function harness(authOverride) {
     addEventListener: (e, f) => events.set(e, f),
     removeEventListener: (e) => events.delete(e),
   };
-  const timer = (f) => {
+  const timer = (f, delay) => {
     const n = ++nextTimer;
     timers.set(n, f);
+    timerDelays.set(n, delay);
     return n;
   };
   const hook = compile(
@@ -115,6 +118,7 @@ function harness(authOverride) {
     },
     {
       document,
+      Headers,
       setTimeout: timer,
       clearTimeout: (n) => timers.delete(n),
       setInterval: timer,
@@ -145,6 +149,11 @@ function harness(authOverride) {
     workspace,
     calls,
     cells,
+    releaseTimer(delay) {
+      const pending = [...timers].find(([id]) => timerDelays.get(id) === delay);
+      assert.ok(pending, "expected pending timer " + delay);
+      pending[1]();
+    },
     get unlocks() {
       return unlocks;
     },
@@ -295,5 +304,131 @@ test("persistent user-resource synchronization crosses the actual AuthProvider a
   } finally {
     h.close();
     boundary.close();
+  }
+});
+
+const retryProbe =
+  "/api/v3/agent-credentials/vault_A/connection_A/operations/synthetic_probe_operation_0001";
+const admissionDenied = (delay = "60", safe = true) =>
+  Response.json(
+    { error: { code: "authorization_unavailable" } },
+    {
+      status: 503,
+      headers: {
+        "Retry-After": delay,
+        ...(safe ? { "X-FolioView-Admission-Retry": "safe" } : {}),
+      },
+    },
+  );
+
+test("safe admission waits once and retries the exact sealed original within the existing action", async () => {
+  let attempts = 0;
+  const h = harness(undefined, async () =>
+    ++attempts === 1 ? admissionDenied() : Response.json({ accepted: true }),
+  );
+  try {
+    h.render();
+    await h.settle();
+    const original = { envelope: { ciphertext: "ORIGINAL_SEALED_CANDIDATE" } };
+    const result = h.render().execute((_c, api) =>
+      api(retryProbe, {
+        method: "POST",
+        json: original,
+        headers: {
+          "Idempotency-Key": "synthetic_original_operation_0001",
+          "X-FolioView-Contract": "folioview.agent-workspace.v2.0",
+        },
+      }),
+    );
+    await waitUntil(() => attempts === 1, "first admission denial");
+    await h.settle();
+    assert.equal(h.render().waitingForService, true);
+    original.envelope.ciphertext = "UNREVIEWED_EDIT";
+    h.releaseTimer(60000);
+    assert.equal((await result).accepted, true);
+    const sent = h.calls.filter((c) => c.path === retryProbe);
+    assert.equal(sent.length, 2);
+    assert.equal(sent[0].options.json.envelope.ciphertext, "ORIGINAL_SEALED_CANDIDATE");
+    assert.deepEqual(sent[1].options.json, sent[0].options.json);
+    assert.deepEqual(sent[1].options.headers, sent[0].options.headers);
+    assert.equal(
+      new Headers(sent[0].options.headers).get("x-folioview-contract"),
+      "folioview.agent-workspace.v2.0",
+    );
+    await h.settle();
+    assert.equal(h.render().waitingForService, false);
+    assert.equal(h.unlocks, 0);
+  } finally {
+    h.close();
+  }
+});
+
+test("hiding during admission cooldown cancels the wait without another request or unlock", async () => {
+  let attempts = 0;
+  const h = harness(undefined, async () => {
+    attempts++;
+    return admissionDenied();
+  });
+  try {
+    h.render();
+    await h.settle();
+    const pending = h.render().execute((_c, api) => api(retryProbe));
+    await waitUntil(() => attempts === 1, "first admission denial");
+    await h.settle();
+    h.hide(true);
+    assert.equal(await pending, null);
+    assert.equal(attempts, 1);
+    assert.equal(h.render().waitingForService, false);
+    assert.equal(h.unlocks, 0);
+  } finally {
+    h.close();
+  }
+});
+
+test("generic failures, malformed cooldowns and writes without an operation ID never retry", async () => {
+  for (const [delay, safe, options] of [
+    ["1", false, {}],
+    ["0", true, {}],
+    ["61", true, {}],
+    ["1.5", true, {}],
+    ["60", true, { method: "POST", json: { ciphertext: "SEALED" } }],
+  ]) {
+    let attempts = 0;
+    const h = harness(undefined, async () => {
+      attempts++;
+      return admissionDenied(delay, safe);
+    });
+    try {
+      h.render();
+      await h.settle();
+      assert.equal(await h.render().execute((_c, api) => api(retryProbe, options)), null);
+      assert.equal(attempts, 1);
+      await h.settle();
+      assert.equal(h.render().waitingForService, false);
+    } finally {
+      h.close();
+    }
+  }
+});
+
+test("a second admission denial ends the action instead of looping", async () => {
+  let attempts = 0;
+  const h = harness(undefined, async () => {
+    attempts++;
+    return admissionDenied();
+  });
+  try {
+    h.render();
+    await h.settle();
+    const pending = h.render().execute((_c, api) => api(retryProbe));
+    await waitUntil(() => attempts === 1, "first admission denial");
+    await h.settle();
+    h.releaseTimer(60000);
+    assert.equal(await pending, null);
+    assert.equal(attempts, 2);
+    await h.settle();
+    assert.equal(h.render().waitingForService, false);
+  } finally {
+    h.close();
   }
 });

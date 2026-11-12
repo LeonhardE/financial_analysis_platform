@@ -39,7 +39,10 @@ export const ERROR_STATUS: Record<string, number> = {
 };
 
 export class Failure extends Error {
-  constructor(readonly code: string) {
+  constructor(
+    readonly code: string,
+    readonly admissionRetrySeconds?: number,
+  ) {
     super(code);
   }
 }
@@ -74,8 +77,13 @@ export const fields = (v: unknown, names: string[]): v is Json =>
   names.every((name) => Object.hasOwn(v, name));
 export const integer = (v: unknown, min: number) => Number.isSafeInteger(v) && (v as number) >= min;
 
-export function errorResponse(code: string) {
+export function errorResponse(code: string, admissionRetrySeconds?: number) {
   const status = ERROR_STATUS[code] ?? 503;
+  const safeAdmission =
+    status === 503 &&
+    Number.isSafeInteger(admissionRetrySeconds) &&
+    admissionRetrySeconds! >= 1 &&
+    admissionRetrySeconds! <= 60;
   return Response.json(
     {
       contractVersion: CONTRACT,
@@ -85,7 +93,10 @@ export function errorResponse(code: string) {
       status,
       headers: {
         "Cache-Control": "no-store",
-        ...(status === 503 ? { "Retry-After": "1" } : {}),
+        ...(status === 503
+          ? { "Retry-After": String(safeAdmission ? admissionRetrySeconds : 1) }
+          : {}),
+        ...(safeAdmission ? { "X-FolioView-Admission-Retry": "safe" } : {}),
         ...(status === 401 ? { "WWW-Authenticate": "Bearer" } : {}),
       },
     },
@@ -301,7 +312,7 @@ export function createAdmission(now: () => number) {
   const owners = new Map<string, { since: number; count: number; active: number }>();
   return {
     enter() {
-      if (active >= 16) fail("authorization_unavailable");
+      if (active >= 16) throw new Failure("authorization_unavailable", 1);
       active++;
       return () => {
         active--;
@@ -312,11 +323,16 @@ export function createAdmission(now: () => number) {
         if (value.active === 0 && now() - value.since >= 60000) owners.delete(key);
       let owner = owners.get(uid);
       if (!owner) {
-        if (owners.size >= 1024) fail("authorization_unavailable");
+        if (owners.size >= 1024) throw new Failure("authorization_unavailable", 1);
         owner = { since: now(), count: 0, active: 0 };
         owners.set(uid, owner);
       }
-      if (owner.active >= 4 || owner.count >= 30) fail("authorization_unavailable");
+      if (owner.active >= 4) throw new Failure("authorization_unavailable", 1);
+      if (owner.count >= 30)
+        throw new Failure(
+          "authorization_unavailable",
+          Math.max(1, Math.ceil((60000 - (now() - owner.since)) / 1000)),
+        );
       owner.active++;
       owner.count++;
       return () => {
