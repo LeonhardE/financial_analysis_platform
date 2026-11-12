@@ -56,7 +56,7 @@ await writeFile(
   root + "/integrity.json",
   await prettier.format(
     JSON.stringify({
-      clientVersion: "1.0.0",
+      clientVersion: "1.0.1",
       nodeMinimum: "24.12.0",
       contractVersion: "folioview.agent-workspace.v2.0",
       profile: "folioview.agent-credential.v1",

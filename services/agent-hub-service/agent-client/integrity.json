@@ -1,5 +1,5 @@
 {
-  "clientVersion": "1.0.0",
+  "clientVersion": "1.0.1",
   "nodeMinimum": "24.12.0",
   "contractVersion": "folioview.agent-workspace.v2.0",
   "profile": "folioview.agent-credential.v1",
@@ -8,14 +8,14 @@
     "bundleSha256": "f875c586528a981c469e06557230210f2af5be288c8ed2551fd43224ea0d2548"
   },
   "files": {
-    "package.json": "d0b92848afa3de3962b98a26dab883fd08c4927870a7f3c65b45d8ef767ee82a",
-    "package-lock.json": "aed16bc92efcde6fb2d63b62b005d46e7435ae2a2a13a1215542f4324ff77ad8",
-    "build.mjs": "7660b2b075d4c1bff7d4ff735ccc21f2c2451ef1de6d41c04f49dc24dc85f338",
+    "package.json": "96f102822cec4f8cdb8c7982b1393d85474b6f96831283e59e0f65df9757ac1e",
+    "package-lock.json": "4c5cce2a58ab18d56c072401abf11f63b5fc7a316a0bcaee302bd4ddd1419deb",
+    "build.mjs": "0f558386608c20111ab4a827530ce146390d87317d82746be7cb90a72aa02500",
     "shared-contract.integrity.json": "b288644578f35570030c94a3f0cc6f1f125b0865151ada1aa1c48b79f798e3bd",
     "THIRD_PARTY_NOTICES.md": "16b1768276d7eed2a7ce1142f5766c211da784615fa004a36853f2658e18dd4d",
-    "src/cli.mjs": "3e84b9192d5907bb2162bb9c85c2731ad6c6b94a9f9d8096e9ed7b0dfc2a373f",
+    "src/cli.mjs": "a0f31e7c7d93736b78d4f71e50e0be02ca0853912eac4172a8a8c888385dc746",
     "src/index.mjs": "c0462d668038863410f86b1da43fc19fbc17d7619ef0ae0da5c64c29809fc343",
-    "src/client.mjs": "1ae4192808e562f127f077e67da18e2597db7a6ee5f15ef1dfc9a84640c95667",
+    "src/client.mjs": "24e7286af6824d0c2173c961214852c2c6711c9a3fc0ab4128879aef177fa742",
     "src/files.mjs": "d1c55e3316c5064a51cedbea73d8f47113e2f38afd227edb057169d0850bdbb7",
     "src/pairing.mjs": "b5fed749e00a1db336eef1aabb11964dcdd37aa07588d304e48f002f5679fefd",
     "src/crypto.mjs": "5a8c2378f3936ac4eb3f2547075cd6da7ffa348896f73e7099b69e33948f1268",
@@ -24,7 +24,7 @@
     "src/authority.mjs": "0d7768a62e087497c19aaa358788761cbb5f258f6b64078a207bd26aae074861",
     "src/schedule.mjs": "c9fcc6c59026de54dcb846d071532316f52ba75bc4cb9e94ff0b6e334caae42e",
     "src/policy.mjs": "9425478e061142accddbb32502eb4eb17817bf32843ec87693913a12d8e0ba2b",
-    "dist/index.mjs": "5cb180bb96006039fb29248154695f5038bf14f8da25ce0510a7483d8449d127",
-    "dist/cli.mjs": "5b99a8fe60e12f39d05adf945251526da2651a3651c01e11975913926aabe77e"
+    "dist/index.mjs": "d0eaf67d4f80544cba4dec1e1f0d05964ba0b4e5f63fc97ffc496fc6353d0f0c",
+    "dist/cli.mjs": "d7ff5f706bd67f63b71d964e2bf52113ecf1fdac2557e28838f821f048f60619"
   }
 }
