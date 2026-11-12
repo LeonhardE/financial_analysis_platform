@@ -2,7 +2,7 @@
 
 import re
 
-from folioview_shared.encrypted.constants import CONTRACT_VERSION
+from folioview_shared.encrypted.constants import CONTRACT_VERSION, MAX_STORED_DOCUMENT_BYTES
 from folioview_shared.encrypted.errors import ContractError
 from folioview_shared.encrypted.jsonutil import canonical_json, strict_json_loads
 from folioview_shared.encrypted.persistent_content import (
@@ -489,7 +489,13 @@ class PersistentExecutionService(PersistentPublicationService):
                 "state": "ready",
                 "resultId": None,
                 "identity": snapshot(identity),
-                "registryHistory": snapshot(v["registryHistory"]),
+                # This is already verified stored authority, not a new HTTP
+                # upload. Preserve its complete immutable history within the
+                # existing storage budget; unit.put still checks the entire
+                # serialized run document before any transaction commits.
+                "registryHistory": strict_json_loads(
+                    canonical_json(v["registryHistory"]), max_bytes=MAX_STORED_DOCUMENT_BYTES
+                ),
             }
             self.quota(unit, owner, connection)
             # The source/crypto work may outlive the short request proof. Its

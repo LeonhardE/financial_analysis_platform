@@ -9,8 +9,13 @@ import test_persistent_publications as publications
 from fixtures import UID
 from test_oauth import TASK, OAuthFixture
 
-from app.persistent_execution import PersistentExecutionService
-from folioview_shared.encrypted.constants import CONTRACT_VERSION
+from app.persistent_execution import PersistentExecutionService, run_path
+from app.store import document_path
+from folioview_shared.encrypted.constants import (
+    CONTRACT_VERSION,
+    MAX_HTTP_WRITE_BYTES,
+    MAX_STORED_DOCUMENT_BYTES,
+)
 from folioview_shared.encrypted.errors import ContractError
 from folioview_shared.encrypted.jsonutil import b64url_encode, canonical_json
 from folioview_shared.encrypted.persistent_content import (
@@ -101,6 +106,57 @@ class PersistentExecutionTests(unittest.TestCase):
 
     def rejects(self, code, action):
         self.fx.rejects(code, action)
+
+    def test_freeze_uses_storage_budget_for_already_verified_registry_history(self):
+        # Grow real, Root-signed history through the normal bounded vault API.
+        # Every incoming bundle fits its write budget; accumulated history may
+        # legitimately be larger than a single incoming HTTP write.
+        for index in range(24):
+            self.f.add_key(
+                f"history_agent_{index}",
+                "agent_enc",
+                f"history_agent_{index}",
+                f"history_connection_{index}",
+            )
+        path = document_path("hub_vaults", self.f.owner)
+
+        def append():
+            row = self.fx.store.transact(lambda unit: unit.get(path))
+            bundle = self.f.make_bundle(previous=self.f.registry, issued_at=self.fx.now)
+            self.fx.vaults.update_registry(
+                UID,
+                self.f.vault,
+                {
+                    "contractVersion": CONTRACT_VERSION,
+                    "expectedVersion": row["version"],
+                    "registryBundle": bundle,
+                },
+                f"synthetic_history_append_{len(row['registryHistory']):04d}",
+            )
+            self.f.registry = self.f.verify(bundle, previous=self.f.registry, now=self.fx.now)
+            return self.fx.store.transact(lambda unit: unit.get(path))["registryHistory"]
+
+        history = append()
+        while len(canonical_json(history)) <= MAX_HTTP_WRITE_BYTES:
+            self.assertLess(len(history), 31, "fixture must stay within supported registry history")
+            history = append()
+        self.assertLess(len(canonical_json(history)), MAX_STORED_DOCUMENT_BYTES)
+        response = self.begin()
+        saved_path = run_path(self.f.owner, self.f.vault, response["manifest"]["runId"])
+        saved = self.fx.store.transact(lambda unit: unit.get(saved_path))
+        self.assertEqual(saved["registryHistory"], history)
+        self.assertLess(len(canonical_json(saved)), MAX_STORED_DOCUMENT_BYTES)
+
+        # Normal SDK document-budget checks still ran at the committing write.
+        # A later valid registry update and catalogue outage must not replace or
+        # rebuild the original immutable run on an exact trigger retry.
+        newer = append()
+        self.assertEqual(len(newer), len(history) + 1)
+        self.fx.catalogue.unavailable = True
+        self.assertEqual(self.begin(), response)
+        self.assertEqual(
+            self.fx.store.transact(lambda unit: unit.get(saved_path))["registryHistory"], history
+        )
 
     def test_transport_expiry_does_not_erase_identity_or_exact_authorized_task(self):
         self.fx.now = 1002
