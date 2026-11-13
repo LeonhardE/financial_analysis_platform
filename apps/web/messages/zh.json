@@ -809,7 +809,9 @@
       "version_limit": "此任务已达到 50 个版本的上限。",
       "stale_epoch": "资源库密钥已改变，请丢弃本地重试记录，再重新审核更改。",
       "review_required": "审核期间规则发生变化，请重新预览并确认。",
-      "nothing_to_save": "没有需要保存的更改。"
+      "nothing_to_save": "没有需要保存的更改。",
+      "service_busy": "服务暂时繁忙，重试前请检查待确认操作。",
+      "network_unavailable": "连接失败，重试前请检查待确认操作。"
     },
     "notices": {
       "draft_saved": "草稿已在此设备加密保存。",
@@ -841,7 +843,21 @@
     "notChecked": "尚未检查供 agent 使用的资源是否就绪",
     "resourceLimit": "最多选择 10 项资源。",
     "archiveUnavailable": "密钥包移除请求尚待处理，或云端密钥包已移除。请到设置核对原请求，或使用独立恢复包恢复；原内容并未因此清空。",
-    "archiveSettings": "前往设置处理密钥包"
+    "archiveSettings": "前往设置处理密钥包",
+    "loadingResources": "正在加载资料…",
+    "retryTasks": "重试任务列表",
+    "retryResources": "重试资料",
+    "readErrors": {
+      "request_timeout": "加载超时，请重试。",
+      "service_busy": "服务暂时繁忙，请稍后重试。",
+      "source_unavailable": "服务暂时不可用，请稍后重试。",
+      "network_unavailable": "连接失败，请检查网络后重试。",
+      "session_expired": "请重新登录后继续。",
+      "insufficient_scope": "你没有访问此内容的权限。",
+      "not_found": "此内容已不可用。",
+      "invalid_response": "无法验证此内容，请重试。",
+      "request_failed": "这部分内容未能加载，请重试。"
+    }
   },
   "vaultManagement": {
     "title": "资源库密钥与设备",

@@ -160,6 +160,24 @@ device. The existing unified catalogue supplies holdings, watchlist and YouTube 
 watchlist task needs no broker connection. A selected source is discovery metadata, not evidence
 that agent-encrypted inputs are already prepared or access has been granted.
 
+Task-list and resource-catalogue reads publish independently. Each keeps its last successful
+metadata during refresh or failure, displays its own loading/error state and offers a local retry.
+A stale or refreshing catalogue cannot seed or select resources; saves still fetch current authority,
+head and catalogue before sealing. Read failures do not replace the editor or successful task rows.
+Brief non-actionable feedback expires after 4.5 seconds; refresh/reentry also clears old notices.
+No new persistent cache is introduced here.
+
+These two reads each have an 11.5-second browser budget covering token acquisition, response bodies
+and backoff, inside the unchanged 12-second Web proxy limit. Hub reserves finalization time inside
+its cooperative 10-second catalogue budget. A Web GET deadline adds only the fixed
+`X-FolioView-Read-Failure: deadline` header to the existing closed error DTO; upstream headers cannot
+forge it. Cancellation is silent, while timeout, pre-forward admission, service/network failure and
+permission/session rejection have separate fixed UI messages. No server exception text is shown.
+Only a GET rejected before forwarding with the existing safe-admission marker and exactly a
+one-second retry hint may retry automatically, once, inside its original browser budget. Longer
+hints, downstream failures and writes do not retry automatically. Write deadlines, exact signed
+retry packets, idempotency and acknowledgement verification retain their existing behavior.
+
 Drafts, including incomplete rules, are PRF-sealed in IndexedDB with owner, vault, task and base
 version binding and atomic cross-tab revision checks. The server receives only the existing signed
 envelope, opaque bindings and approved metadata. Local preview checks resource requirements and

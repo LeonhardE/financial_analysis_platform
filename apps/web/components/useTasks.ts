@@ -33,6 +33,7 @@ type PendingSummary = {
   expectedVersion: number;
 };
 type Context = { signal: AbortSignal; assert: () => void };
+type ReadRegion = "tasks" | "catalogue";
 type Editor = {
   scope: string;
   slot: string;
@@ -45,6 +46,9 @@ type State = {
   owner: string | null;
   privateScope: string | null;
   loading: boolean;
+  catalogueLoading: boolean;
+  listError: string;
+  catalogueError: string;
   busy: boolean;
   error: string;
   notice: string;
@@ -68,6 +72,9 @@ const initial: State = {
   owner: null,
   privateScope: null,
   loading: false,
+  catalogueLoading: false,
+  listError: "",
+  catalogueError: "",
   busy: false,
   error: "",
   notice: "",
@@ -109,7 +116,8 @@ export function useTasks(workspace: HoldingsWorkspace, { active }: { active: boo
   const jobs = useRef(new Set<AbortController>()),
     generation = useRef(0),
     selection = useRef(0),
-    listSerial = useRef(0);
+    readSerial = useRef({ tasks: 0, catalogue: 0 }),
+    readJobs = useRef<Partial<Record<ReadRegion, AbortController>>>({});
   const editor = useRef<Editor | null>(null),
     writeJob = useRef<object | null>(null);
   const reviewed = useRef<{
@@ -124,16 +132,27 @@ export function useTasks(workspace: HoldingsWorkspace, { active }: { active: boo
   }>({ saving: false, queued: false, waiters: [], failure: null });
 
   const operation = useCallback(
-    async <T>(privateRead: boolean, action: (context: Context) => Promise<T>): Promise<T> => {
+    async <T>(
+      privateRead: boolean,
+      action: (context: Context) => Promise<T>,
+      region?: ReadRegion,
+    ): Promise<T> => {
       const start = live.current,
         epoch = generation.current,
         controller = new AbortController();
+      if (region) {
+        readJobs.current[region]?.abort();
+        readJobs.current[region] = controller;
+      }
       jobs.current.add(controller);
       let timedOut = false;
-      const timeout = window.setTimeout(() => {
-        timedOut = true;
-        controller.abort();
-      }, 60_000);
+      const timeout = window.setTimeout(
+        () => {
+          timedOut = true;
+          controller.abort();
+        },
+        region ? 11_500 : 60_000,
+      );
       const assert = () => {
         const now = live.current;
         if (
@@ -161,6 +180,7 @@ export function useTasks(workspace: HoldingsWorkspace, { active }: { active: boo
         controller.abort();
         window.clearTimeout(timeout);
         jobs.current.delete(controller);
+        if (region && readJobs.current[region] === controller) delete readJobs.current[region];
       }
     },
     [],
@@ -173,16 +193,68 @@ export function useTasks(workspace: HoldingsWorkspace, { active }: { active: boo
         method?: "GET" | "POST" | "PUT";
         json?: unknown;
         headers?: Record<string, string>;
+        retryAdmission?: boolean;
       } = {},
     ) => {
       context.assert();
-      const response = await auth.requestPrivate("agent-hub", path, owner!, {
-        ...options,
-        signal: context.signal,
-        headers: { "X-FolioView-Contract": TASK_CONTRACT, ...options.headers },
-      });
+      const { retryAdmission, ...request } = options;
+      const send = async () => {
+        try {
+          const response = await auth.requestPrivate("agent-hub", path, owner!, {
+            ...request,
+            signal: context.signal,
+            headers: { "X-FolioView-Contract": TASK_CONTRACT, ...request.headers },
+          });
+          try {
+            context.assert();
+          } catch (error) {
+            void response.body?.cancel().catch(() => {});
+            throw error;
+          }
+          return response;
+        } catch (error) {
+          context.assert();
+          throw new TaskError(
+            error !== null &&
+              typeof error === "object" &&
+              "name" in error &&
+              error.name === "SessionChangedError"
+              ? "session_expired"
+              : "network_unavailable",
+          );
+        }
+      };
+      let response = await send();
       context.assert();
-      if (!response.ok)
+      // Only retry a safe GET rejected before forwarding, once and inside the same deadline.
+      const retrySeconds = response.headers.get("Retry-After");
+      if (
+        retryAdmission &&
+        (!request.method || request.method === "GET") &&
+        response.status === 503 &&
+        response.headers.get("X-FolioView-Admission-Retry") === "safe" &&
+        retrySeconds === "1"
+      ) {
+        void response.body?.cancel().catch(() => {});
+        await new Promise<void>((resolve, reject) => {
+          const cancel = () => {
+            window.clearTimeout(timer);
+            context.signal.removeEventListener("abort", cancel);
+            reject(new TaskError("cancelled"));
+          };
+          const timer = window.setTimeout(() => {
+            context.signal.removeEventListener("abort", cancel);
+            resolve();
+          }, 1000);
+          context.signal.addEventListener("abort", cancel, { once: true });
+          if (context.signal.aborted) cancel();
+        });
+        context.assert();
+        response = await send();
+      }
+      context.assert();
+      if (!response.ok) {
+        void response.body?.cancel().catch(() => {});
         throw new TaskError(
           response.status === 409
             ? "version_conflict"
@@ -192,8 +264,17 @@ export function useTasks(workspace: HoldingsWorkspace, { active }: { active: boo
                 ? "insufficient_scope"
                 : response.status === 404
                   ? "not_found"
-                  : "request_failed",
+                  : response.headers.get("X-FolioView-Read-Failure") === "deadline" ||
+                      response.status === 504
+                    ? "request_timeout"
+                    : response.status === 503 &&
+                        response.headers.get("X-FolioView-Admission-Retry") === "safe"
+                      ? "service_busy"
+                      : response.status >= 500
+                        ? "source_unavailable"
+                        : "request_failed",
         );
+      }
       if (
         !response.body ||
         response.headers.get("content-type")?.split(";", 1)[0].trim().toLowerCase() !==
@@ -263,6 +344,61 @@ export function useTasks(workspace: HoldingsWorkspace, { active }: { active: boo
     },
     [updatePrivate],
   );
+  const loadRead = useCallback(
+    async (region: ReadRegion) => {
+      if (
+        !owner ||
+        live.current.owner !== owner ||
+        !configured ||
+        !live.current.active ||
+        !live.current.visible
+      )
+        return;
+      const serial = ++readSerial.current[region];
+      const loading = region === "tasks" ? "loading" : "catalogueLoading";
+      const failure = region === "tasks" ? "listError" : "catalogueError";
+      setState((previous) => ({
+        ...(previous.owner === owner ? previous : initial),
+        owner,
+        [loading]: true,
+        [failure]: "",
+        notice: "",
+      }));
+      try {
+        await operation(
+          false,
+          async (context) => {
+            const body = await api(
+              region === "tasks" ? "/api/v2/tasks?limit=32" : "/api/v2/resources/catalogue",
+              context,
+              { retryAdmission: true },
+            );
+            const data =
+              region === "tasks" ? { items: taskPage(body) } : { catalogue: taskCatalogue(body) };
+            context.assert();
+            if (serial !== readSerial.current[region]) return;
+            setState((previous) =>
+              previous.owner === owner ? { ...previous, ...data } : previous,
+            );
+          },
+          region,
+        );
+      } catch (error) {
+        if (
+          live.current.owner === owner &&
+          serial === readSerial.current[region] &&
+          taskError(error) !== "cancelled"
+        )
+          setState((previous) => ({ ...previous, [failure]: taskError(error) }));
+      } finally {
+        if (live.current.owner === owner && serial === readSerial.current[region])
+          setState((previous) => ({ ...previous, [loading]: false }));
+      }
+    },
+    [api, configured, operation, owner],
+  );
+  const reloadTasks = useCallback(() => loadRead("tasks"), [loadRead]);
+  const reloadCatalogue = useCallback(() => loadRead("catalogue"), [loadRead]);
   const reload = useCallback(async () => {
     if (
       !owner ||
@@ -272,39 +408,9 @@ export function useTasks(workspace: HoldingsWorkspace, { active }: { active: boo
       !live.current.visible
     )
       return;
-    const serial = ++listSerial.current;
-    setState((previous) => ({
-      ...(previous.owner === owner ? previous : initial),
-      owner,
-      loading: true,
-      error: "",
-    }));
-    try {
-      await operation(false, async (context) => {
-        const [page, catalogue] = await Promise.all([
-          api("/api/v2/tasks?limit=32", context),
-          api("/api/v2/resources/catalogue", context),
-        ]);
-        const items = taskPage(page),
-          resources = taskCatalogue(catalogue);
-        context.assert();
-        if (serial !== listSerial.current) return;
-        setState((previous) =>
-          previous.owner === owner ? { ...previous, items, catalogue: resources } : previous,
-        );
-      });
-    } catch (error) {
-      if (
-        live.current.owner === owner &&
-        serial === listSerial.current &&
-        taskError(error) !== "cancelled"
-      )
-        setState((previous) => ({ ...previous, error: taskError(error) }));
-    } finally {
-      if (live.current.owner === owner && serial === listSerial.current)
-        setState((previous) => ({ ...previous, loading: false }));
-    }
-  }, [api, configured, operation, owner]);
+    setState((previous) => ({ ...previous, error: "", notice: "" }));
+    await Promise.all([reloadTasks(), reloadCatalogue()]);
+  }, [configured, owner, reloadTasks, reloadCatalogue]);
 
   const persistDraft = useCallback(async () => {
     const queue = draftQueue.current;
@@ -386,10 +492,12 @@ export function useTasks(workspace: HoldingsWorkspace, { active }: { active: boo
       }
       if (
         seed &&
-        !stateRef.current.catalogue.some(
-          (row) =>
-            row.selectable && row.binding && bindingsKey([row.binding]) === bindingsKey([seed]),
-        )
+        (stateRef.current.catalogueLoading ||
+          stateRef.current.catalogueError ||
+          !stateRef.current.catalogue.some(
+            (row) =>
+              row.selectable && row.binding && bindingsKey([row.binding]) === bindingsKey([seed]),
+          ))
       ) {
         updatePrivate((previous) => ({ ...previous, error: "source_unavailable" }));
         return;
@@ -451,6 +559,10 @@ export function useTasks(workspace: HoldingsWorkspace, { active }: { active: boo
   const setBindings = useCallback(
     (bindings: ResourceBindingMetadata[]) => {
       if (!editable() || !editor.current || !stateRef.current.form || bindings.length > 10) return;
+      if (stateRef.current.catalogueLoading || stateRef.current.catalogueError) {
+        fail(new TaskError("source_unavailable"));
+        return;
+      }
       if (
         !stateRef.current.dirty &&
         stateRef.current.drafts.some((row) => row.slot === editor.current!.slot)
@@ -1122,7 +1234,8 @@ export function useTasks(workspace: HoldingsWorkspace, { active }: { active: boo
   useEffect(() => {
     ++generation.current;
     ++selection.current;
-    ++listSerial.current;
+    ++readSerial.current.tasks;
+    ++readSerial.current.catalogue;
     for (const job of jobs.current) job.abort();
     jobs.current.clear();
     editor.current = null;
@@ -1148,6 +1261,10 @@ export function useTasks(workspace: HoldingsWorkspace, { active }: { active: boo
       conflictCurrent: null,
       busy: false,
       loading: false,
+      catalogueLoading: false,
+      listError: "",
+      catalogueError: "",
+      notice: "",
     }));
     if (scope && active && visible) void operation(true, summaries).catch(fail);
     return () => {
@@ -1174,6 +1291,22 @@ export function useTasks(workspace: HoldingsWorkspace, { active }: { active: boo
     persistDraft,
     fail,
   ]);
+  useEffect(() => {
+    const notice = state.notice;
+    if (
+      !scope ||
+      !active ||
+      !visible ||
+      !["draft_saved", "draft_restored", "draft_discarded", "saved", "no_pending"].includes(notice)
+    )
+      return;
+    const timer = window.setTimeout(() => {
+      updatePrivate((previous) =>
+        previous.notice === notice ? { ...previous, notice: "" } : previous,
+      );
+    }, 4500);
+    return () => window.clearTimeout(timer);
+  }, [state.notice, scope, active, visible, updatePrivate]);
 
   const display = state.owner === owner ? state : { ...initial, owner };
   const privateVisible = Boolean(scope && active && visible && display.privateScope === scope);
@@ -1204,6 +1337,8 @@ export function useTasks(workspace: HoldingsWorkspace, { active }: { active: boo
     canWrite: privateVisible && workspace.canWriteState,
     nextExpectedAt: output.form ? reviewTask(output.form, output.bindings).nextExpectedAt : null,
     reload,
+    reloadTasks,
+    reloadCatalogue,
     startNew,
     openTask,
     setForm,

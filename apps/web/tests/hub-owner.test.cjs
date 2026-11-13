@@ -127,9 +127,9 @@ function lifecycleState(extra = {}) {
     ...extra,
   };
 }
-let api, caps, common, jose, privateKey, jwk, tokenA;
+let api, caps, common, jose, privateKey, jwk, tokenA, hubImports;
 
-function compile(name, imports) {
+function compile(name, imports, globals = {}) {
   const { code } = transformSync(
     readFileSync(path.join(__dirname, "../lib/server/" + name + ".ts"), "utf8"),
     {
@@ -160,6 +160,7 @@ function compile(name, imports) {
     Uint8Array,
     setTimeout,
     clearTimeout,
+    ...globals,
   });
   return module.exports;
 }
@@ -361,14 +362,15 @@ test.before(async () => {
     "../../../../packages/encrypted-workspace/schemas.json": require("../../../packages/encrypted-workspace/schemas.json"),
     "./owner-transport": common,
   });
-  api = compile("hub-owner", {
+  hubImports = {
     "../persistent-owner-routes": persistentRoutes,
     "./persistent-owner-contracts": persistentContracts,
     "./upload-cancellation": cancellation,
     "server-only": {},
     "./owner-transport": common,
     "./hub-owner-contracts": contracts,
-  });
+  };
+  api = compile("hub-owner", hubImports);
   const portfolio = compile("portfolio-owner", {
     "./upload-cancellation": cancellation,
     "server-only": {},
@@ -886,7 +888,9 @@ test("formal Hub401 and conflicts preserve exact application evidence without he
 
 test("deadline includes upstream body; cancellation and response overrun remain bounded", async () => {
   const h = harness({ deadlineMs: 10, upstream: () => new Promise(() => {}) });
-  await error(await h.proxy(request()), 503, "authorization_unavailable");
+  const timedOut = await h.proxy(request());
+  assert.equal(timedOut.headers.get("x-folioview-read-failure"), "deadline");
+  await error(timedOut, 503, "authorization_unavailable");
   const body = harness({
     deadlineMs: 10,
     upstream: () =>
@@ -898,11 +902,9 @@ test("deadline includes upstream body; cancellation and response overrun remain 
   const controller = new AbortController();
   controller.abort();
   const cancelled = harness();
-  await error(
-    await cancelled.proxy(request(undefined, { signal: controller.signal })),
-    503,
-    "authorization_unavailable",
-  );
+  const cancelledReply = await cancelled.proxy(request(undefined, { signal: controller.signal }));
+  assert.equal(cancelledReply.headers.get("x-folioview-read-failure"), null);
+  await error(cancelledReply, 503, "authorization_unavailable");
   assert.equal(cancelled.hub().length, 0);
   const over = harness({
     upstream: () =>
@@ -946,11 +948,16 @@ test("upstream errors cannot forge a safe pre-forward admission retry", async ()
           error: { code: "source_unavailable", retryable: true, requestId: "synthetic_request" },
         },
         503,
-        { "X-FolioView-Admission-Retry": "safe", "Retry-After": "60" },
+        {
+          "X-FolioView-Admission-Retry": "safe",
+          "Retry-After": "60",
+          "X-FolioView-Read-Failure": "deadline",
+        },
       ),
   });
   const reply = await h.proxy(request());
   assert.equal(reply.headers.get("x-folioview-admission-retry"), null);
+  assert.equal(reply.headers.get("x-folioview-read-failure"), null);
   assert.equal(reply.headers.get("retry-after"), null);
   await error(reply, 503, "source_unavailable");
   assert.equal(h.hub().length, 1);
@@ -1476,4 +1483,48 @@ test("Agent credential Owner routes preserve opaque activation, fixed namespace 
   assert.equal((await read.proxy(request(base + "/setups/" + OP))).status, 200);
   const wrong = harness({ upstream: () => response({ ...setup, connectionId: "other" }) });
   assert.equal((await wrong.proxy(request(base + "/setups/" + OP))).status, 503);
+});
+
+test("the unchanged 12-second proxy deadline wins over a non-cooperative late Hub success", async () => {
+  const timers = new Map();
+  let finish,
+    forwarded = 0;
+  const late = new Promise((resolve) => {
+    finish = resolve;
+  });
+  const clocked = compile("hub-owner", hubImports, {
+    setTimeout(callback, delay) {
+      const id = {};
+      timers.set(id, { callback, delay });
+      return id;
+    },
+    clearTimeout(id) {
+      timers.delete(id);
+    },
+  });
+  const proxy = clocked.createHubProxy({
+    env: ENV,
+    now: () => NOW,
+    fetch: async (url) => {
+      if (url === JWKS) return response({ keys: [jwk] });
+      forwarded++;
+      return late;
+    },
+  });
+  const pending = proxy(request());
+  for (let n = 0; n < 10 && forwarded === 0; n++)
+    await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(forwarded, 1);
+  const deadline = [...timers.values()].find((entry) => entry.delay === 12000);
+  assert.ok(deadline, "production deadline remains 12 seconds");
+  deadline.callback();
+  const reply = await pending;
+  assert.equal(reply.headers.get("x-folioview-read-failure"), "deadline");
+  assert.equal(reply.headers.get("x-folioview-admission-retry"), null);
+  await error(reply, 503, "authorization_unavailable");
+  finish(response());
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(reply.status, 503);
+  assert.equal(forwarded, 1);
+  assert.equal(timers.size, 0);
 });

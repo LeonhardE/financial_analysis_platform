@@ -501,10 +501,13 @@ export function createHubProxy(options: Options = {}) {
             : hubResponse(path, request.method, body, headers.get("idempotency-key") ?? undefined),
       );
     } catch (error) {
-      return errorResponse(
+      const response = errorResponse(
         error instanceof Failure ? error.code : "authorization_unavailable",
         error instanceof Failure ? error.admissionRetrySeconds : undefined,
       );
+      if (request.method === "GET" && controller.signal.aborted && !request.signal.aborted)
+        response.headers.set("X-FolioView-Read-Failure", "deadline");
+      return response;
     } finally {
       releaseOwner?.();
       releaseGlobal?.();

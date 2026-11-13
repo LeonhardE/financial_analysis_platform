@@ -71,6 +71,9 @@ function fixture(changes = {}, ws = {}) {
       canWrite: true,
       busy: false,
       loading: false,
+      catalogueLoading: false,
+      listError: "",
+      catalogueError: "",
       error: "",
       notice: "",
       items: [metadata],
@@ -90,6 +93,8 @@ function fixture(changes = {}, ws = {}) {
       nextExpectedAt: "2026-10-31T13:00:00Z",
       preview: null,
       reload: noop,
+      reloadTasks: noop,
+      reloadCatalogue: noop,
       startNew: noop,
       openTask: noop,
       setForm: noop,
@@ -272,4 +277,73 @@ test("resource handoff only seeds an explicitly started task for the current own
     const button = captured.find((item) => item.children === "Start with this resource");
     assert.ok(!button || button.disabled);
   }
+});
+
+test("read failures stay in their region with local retry and preserve the editor and rows", () => {
+  for (const locale of ["en", "zh"]) {
+    const calls = [],
+      buttons = [];
+    const html = render(
+      fixture({
+        listError: "request_timeout",
+        catalogueError: "source_unavailable",
+        reloadTasks: () => calls.push("tasks"),
+        reloadCatalogue: () => calls.push("catalogue"),
+      }),
+      locale,
+      buttons,
+    );
+    assert.match(html, /Synthetic private task/);
+    assert.match(html, /task_synthetic_A/);
+    assert.doesNotMatch(html, /Check pending operations|重试前请检查待确认/);
+    buttons
+      .find((b) => b.children === (locale === "en" ? "Retry tasks" : "重试任务列表"))
+      .onClick();
+    buttons
+      .find((b) => b.children === (locale === "en" ? "Retry resources" : "重试资料"))
+      .onClick();
+    assert.deepEqual(calls, ["tasks", "catalogue"]);
+  }
+});
+
+test("loading and stale catalogue are distinct from empty and cannot seed a new resource grant", () => {
+  const binding = {
+    ref: {
+      kind: "watchlist",
+      sourceService: "user",
+      resourceId: "watchlist_A",
+      incarnation: "incarnation_A",
+    },
+    sourceEpoch: 1,
+  };
+  for (const flags of [{ catalogueLoading: true }, { catalogueError: "source_unavailable" }]) {
+    const html = render(
+      fixture({
+        ...flags,
+        catalogue: [{ kind: "watchlist", binding, selectable: true, revision: 1 }],
+      }),
+    );
+    assert.match(html, /type="checkbox" disabled=""/);
+    assert.doesNotMatch(html, /No current resources/);
+    const buttons = [];
+    render(
+      {
+        ...fixture({
+          ...flags,
+          form: null,
+          selected: null,
+          catalogue: [{ kind: "watchlist", binding, selectable: true }],
+        }),
+        request: { owner: "session_A", binding, nonce: 1 },
+      },
+      "en",
+      buttons,
+    );
+    assert.ok(
+      !buttons.some((button) => button.children === "Start with this resource" && !button.disabled),
+    );
+  }
+  const loading = render(fixture({ loading: true, catalogueLoading: true }));
+  assert.match(loading, /aria-busy="true"/);
+  assert.match(loading, /class="readLoading" role="status"/);
 });
