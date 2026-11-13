@@ -573,6 +573,8 @@ atomically increments the lifecycle epoch and hides all actors' results from bot
 ordinary and historical Owner entry points. Existing Begin/input/result writes
 fail closed; legacy foreground writers cannot resume after a restore. Restore
 within 30 days recovers Owner history only, requiring fresh assignment approval.
+A paused or archived legacy task may initialize signed rules solely to enter this
+lifecycle; its business task status stays inactive, with no assignments or execution.
 The explicit purge control is allowed only after that retention deadline.
 
 `GET /{vault}/trash` returns the first task and its encrypted original (before

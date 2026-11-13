@@ -204,3 +204,47 @@ class ManualIntentTests(unittest.TestCase):
         request = self.create()["requestId"]
         self.fx.fx.now += 599
         self.assertIsNotNone(self.begin(request)["manifest"])
+
+
+class InactiveLegacyTaskLifecycleTests(unittest.TestCase):
+    def test_paused_and_archived_legacy_tasks_can_be_trashed_without_reactivation(self):
+        from types import SimpleNamespace
+
+        import test_tasks as legacy
+
+        for action, status in [("pause", "paused"), ("archive", "archived")]:
+            with self.subTest(status=status):
+                old = legacy.TaskTests()
+                old.setUp()
+                self.addCleanup(old.doCleanups)
+                old.save()
+                operation = "legacy_lifecycle_transition_0001"
+                old.save(
+                    old.fixture.body(version=2, operation=operation, action=action, epoch=2),
+                    operation=operation,
+                    mode="transition",
+                )
+                owner = ManualOwnerService(old.store, clock=lambda old=old: old.clock)
+                signer = SimpleNamespace(
+                    serial=0,
+                    definition=None,
+                    f=old.fixture,
+                    fx=SimpleNamespace(now=old.clock),
+                    owner=owner,
+                )
+
+                def control(action, signer=signer):
+                    receipt = centers.TaskCenterStoreTests.control(
+                        signer, action, task=legacy.TASK, taskVersion=2, executionEpoch=2
+                    )
+                    signer.definition = receipt["definition"]
+                    return receipt
+
+                control("set_rules")
+                control("trash")
+                self.assertEqual(old.service.list(UID)["items"], [])
+                control("restore")
+                self.assertEqual(old.service.get(UID, legacy.TASK)["metadata"]["status"], status)
+                self.assertEqual(
+                    owner.state(UID, old.fixture.vault, legacy.TASK)["assignments"], []
+                )
