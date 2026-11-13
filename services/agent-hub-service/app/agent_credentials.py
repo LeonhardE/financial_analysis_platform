@@ -344,7 +344,7 @@ class AgentCredentialService(PersistentAgentService):
 
         return self.store.transact(read)
 
-    def command(self, uid, vault, connection, command, operation):
+    def command(self, uid, vault, connection, command, operation, *, _unit=None):
         from .agent_rollout import require_owner_allowed
 
         require_owner_allowed(owner_key(uid))
@@ -375,6 +375,11 @@ class AgentCredentialService(PersistentAgentService):
                 if saved.get("command") != command or saved.get("connectionId") != connection:
                     raise ContractError("idempotency_conflict")
                 return self._receipt(saved, owner, vault, connection, operation)
+            if _unit is None:
+                from .provider_connections import slot_path
+
+                if unit.get(slot_path(owner, conn["provider"])) is not None:
+                    raise ContractError("version_conflict")
             if (
                 conn["clientId"] not in self.client_ids
                 or conn["status"] != "active"
@@ -513,4 +518,4 @@ class AgentCredentialService(PersistentAgentService):
             )
             return snapshot(result)
 
-        return self.store.transact(write)
+        return write(_unit) if _unit is not None else self.store.transact(write)

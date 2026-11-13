@@ -134,3 +134,10 @@ the preregistered provider and remain `nativeScheduleAttested=false`. A later
 provider failure must be reported accurately and never replaced with a fabricated
 plan ID. Actual tool compatibility, host retention, three native cycles and the
 Owner-offline cross-day run remain VAL-010/011, not completed by local tests.
+
+The optional [Owner/provider connection API](persistent-api.md#unique-provider-connections-compatible-producer-api)
+uses `agent-client/owner-connections.mjs` as a source SDK for authenticated Owner
+applications. It accepts pre-signed, durably retained commands and never manages
+Agent private files, signs approvals or retries writes automatically. This is
+separate from the existing pinned native Agent bundles; those retain their exact
+version/integrity and are compatible with server-enforced provider slots.

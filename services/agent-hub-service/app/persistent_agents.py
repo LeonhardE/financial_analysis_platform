@@ -345,6 +345,10 @@ class PersistentAgentService:
                 if "credentialLease" in row:
                     row["credentialLease"] = {**row["credentialLease"], "status": "revoked"}
             else:
+                from .provider_connections import slot_path
+
+                if unit.get(slot_path(owner, conn["provider"])) is not None:
+                    raise ContractError("version_conflict")
                 if conn.get("credentialMode") == "agent_owned":
                     raise ContractError("version_conflict")
                 if conn["status"] != "active" or conn["clientId"] not in self.client_ids:

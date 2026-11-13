@@ -47,6 +47,8 @@ COLLECTIONS = frozenset(
         "hub_agent_credential_operations",
         "hub_agent_credential_setups",
         "hub_agent_credential_limits",
+        "hub_provider_slots",
+        "hub_provider_slot_operations",
         "hub_credential_lineage",
         "hub_agent_identity_operations",
         "hub_vault_lifecycle",
