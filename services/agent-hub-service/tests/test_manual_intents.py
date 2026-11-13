@@ -9,7 +9,7 @@ from test_oauth import TASK
 
 from app.manual_intents import ManualAgentService, ManualOwnerService
 from app.task_center import center_reference
-from folioview_shared.encrypted.crypto import _signed_parts
+from folioview_shared.encrypted.crypto import _signed_parts, signing_input_fingerprint
 from folioview_shared.encrypted.errors import ContractError
 from folioview_shared.encrypted.persistent_content import digest
 from folioview_shared.encrypted.task_center import assignment_trigger_id
@@ -204,6 +204,66 @@ class ManualIntentTests(unittest.TestCase):
         request = self.create()["requestId"]
         self.fx.fx.now += 599
         self.assertIsNotNone(self.begin(request)["manifest"])
+
+    def test_cancel_never_submitted_command_fences_delayed_submission(self):
+        self.fx.control("set_rules")
+        signed, operation = self.fx.last_signed, self.fx.last_op
+        # A fresh signed command with no accepted receipt.
+        _, payload = _signed_parts(signed)
+        payload["stableOperationId"] = "never_submitted_operation"
+        payload["expectedDefinitionVersion"] = self.fx.definition["definitionVersion"]
+        signed = self.f.sign(payload)
+        operation = payload["stableOperationId"]
+        fp = signing_input_fingerprint(signed)
+        first = self.owner.cancel_operation(UID, self.f.vault, TASK, operation, fp)
+        self.assertEqual(first["state"], "cancelled")
+        self.assertEqual(first, self.owner.cancel_operation(UID, self.f.vault, TASK, operation, fp))
+        with self.assertRaises(ContractError):
+            self.owner.command(UID, self.f.vault, TASK, signed, operation)
+        with self.assertRaises(ContractError):
+            self.owner.cancel_operation(UID, self.f.vault, TASK, operation, "a" * 43)
+        with self.assertRaises(ContractError):
+            self.owner.cancel_operation(OTHER_UID, self.f.vault, TASK, operation, fp)
+
+    def test_committed_command_and_manual_return_original_receipt(self):
+        receipt = self.owner.receipt(UID, self.f.vault, TASK, self.fx.last_op)
+        outcome = self.owner.cancel_operation(
+            UID, self.f.vault, TASK, self.fx.last_op, signing_input_fingerprint(self.fx.last_signed)
+        )
+        self.assertEqual(outcome["state"], "committed")
+        self.assertEqual(outcome["receipt"], receipt)
+        manual = self.create()
+        outcome = self.owner.cancel_operation(
+            UID, self.f.vault, TASK, self.operation, signing_input_fingerprint(self.signed)
+        )
+        self.assertEqual(outcome["state"], "committed")
+        self.assertEqual(outcome["receipt"], manual)
+
+    def test_cancellation_races_manual_submission_without_replacement(self):
+        self.create()
+        _, payload = _signed_parts(self.signed)
+        payload["stableOperationId"] = "racing_unconfirmed_manual"
+        signed = self.f.sign(payload)
+        operation, fp = payload["stableOperationId"], signing_input_fingerprint(signed)
+
+        def submit():
+            try:
+                return self.owner.manual(UID, self.f.vault, TASK, signed, operation)
+            except ContractError as error:
+                return error.code
+
+        def cancel():
+            return self.owner.cancel_operation(UID, self.f.vault, TASK, operation, fp)
+
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            a, b = pool.submit(submit), pool.submit(cancel)
+            result, outcome = a.result(), b.result()
+        if outcome["state"] == "committed":
+            self.assertEqual(result, outcome["receipt"])
+        else:
+            self.assertEqual(result, "idempotency_conflict")
+            self.assertEqual(outcome["state"], "cancelled")
+        self.assertEqual(cancel(), outcome)
 
 
 class InactiveLegacyTaskLifecycleTests(unittest.TestCase):
