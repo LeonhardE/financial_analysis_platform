@@ -290,3 +290,27 @@ full existing operation-ID alphabet; source and snapshot identifiers retain thei
 No backend, shared contract, cloud permission, broker connection or Muse activation changes are
 part of this Web delivery. Synthetic crypto/storage/controller checks and local responsive previews
 remain separate from real Google/Passkey and cloud-workload lifecycle acceptance.
+
+### Task center
+
+The unlocked task view shows verified private names with a three-item decryption
+pool and a version/scoped memory cache. Name loading does not select the editor or
+create a draft. Each failed name can be retried independently. Safe metadata
+revisits reuse their brief display cache; writes still fetch fresh authority.
+
+The editor uses Goal → Resources and execution → Review. Advanced output options
+stay collapsed. Optional Hub capabilities enable zero or more provider assignments,
+Manual/Scheduled modes, user-selected days/time/IANA zone, task-local manual
+requests, and Trash/restore. Schedule previews skip DST gaps and choose the first
+fold occurrence. An Agent-reported enabled plan is distinct from a proven native
+schedule or a completed Run. Existing rollout gates remain unchanged.
+
+Root-bound controls are signed only in the Worker and sealed into a separate
+IndexedDB outbox before transport. Unknown saves retrieve the original receipt,
+replay the identical request, or explicitly cancel a never-submitted operation
+using the Hub's atomic fingerprint fence. Committed operations cannot be undone by
+that recovery action. Task deletion and restore leave old assignments inert.
+Manual requests select one or more current executors, survive navigation and
+reload, and display actual pickup/Run/result stages. Explicit copy-to-Agent
+continuation is offered while waiting; this release does not claim automatic
+native dispatch. No production migration or online acceptance is performed.

@@ -1,6 +1,9 @@
 "use client";
 
 import { useRef } from "react";
+import { useTaskCenter } from "./useTaskCenter";
+import { TaskCenterView } from "./TaskCenterPanel";
+import type { PersistentWorkspaceModel } from "./usePersistentWorkspace";
 import { useLocale, useTranslations } from "next-intl";
 import type { HoldingsWorkspace } from "./useHoldingsWorkspace";
 import { useTasks, type TaskModel } from "./useTasks";
@@ -318,7 +321,6 @@ export function TasksView({
                           ? form.name
                           : t("encryptedTask"))}
                     </strong>
-                    <span>{short(item.taskId)}</span>
                     <div>
                       <span>{t(`statuses.${item.status}`)}</span>
                       <span>{t("version", { version: item.taskVersion })}</span>
@@ -944,13 +946,30 @@ export default function TasksPanel({
   active,
   request,
   onRequestConsumed,
+  persistent,
+  onNavigate,
 }: {
   workspace: HoldingsWorkspace;
   active: boolean;
   request?: TaskRequest | null;
   onRequestConsumed?: () => void;
+  persistent?: PersistentWorkspaceModel;
+  onNavigate?: (view: "agents" | "inbox") => void;
 }) {
   const model = useTasks(workspace, { active });
+  const center = useTaskCenter(workspace, active, model.selected);
+  if (model.unlocked && workspace.phase === "unlocked" && !workspace.needsDeviceApproval)
+    return (
+      <TaskCenterView
+        workspace={workspace}
+        model={model}
+        center={center}
+        persistent={persistent}
+        request={request}
+        onRequestConsumed={onRequestConsumed}
+        onNavigate={onNavigate}
+      />
+    );
   return (
     <TasksView
       workspace={workspace}

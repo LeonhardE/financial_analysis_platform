@@ -5153,6 +5153,63 @@ export class VaultCore {
       packet,
     );
   }
+  async verifyTaskCenterState(args: Json) {
+    exact(args, ["state"]);
+    return (await this.persistentOwner(undefined, false)).taskCenterState(args.state);
+  }
+  async prepareTaskCenterControl(args: Json) {
+    const packet = await (await this.persistentOwner()).taskCenterControl(args);
+    if (!this.wrapping || !this.vault) throw new VaultError("locked");
+    const localPending = await seal(
+      this.wrapping,
+      {
+        profile: "folioview.task-center-outbox.v1",
+        ownerSubject: await this.owner,
+        vaultId: this.vault.vaultId,
+        rootKeyId: this.vault.rootKeyId,
+        taskId: packet.taskId,
+        operationId: packet.operationId,
+      },
+      packet,
+    );
+    return { ...packet, localPending };
+  }
+  async openTaskCenterPending(args: Json) {
+    exact(args, ["record", "taskId", "operationId"]);
+    this.requireOrdinarySession();
+    if (!this.wrapping || !this.vault) throw new VaultError("locked");
+    const r = args.record;
+    exact(r, [
+      "profile",
+      "ownerSubject",
+      "vaultId",
+      "rootKeyId",
+      "taskId",
+      "operationId",
+      "iv",
+      "ciphertext",
+    ]);
+    if (
+      r.profile !== "folioview.task-center-outbox.v1" ||
+      r.ownerSubject !== (await this.owner) ||
+      r.vaultId !== this.vault.vaultId ||
+      r.rootKeyId !== this.vault.rootKeyId ||
+      r.taskId !== args.taskId ||
+      r.operationId !== args.operationId
+    )
+      throw new VaultError("binding_mismatch");
+    const packet = await open(this.wrapping, r);
+    if (packet.taskId !== args.taskId || packet.operationId !== args.operationId)
+      throw new VaultError("binding_mismatch");
+    return packet;
+  }
+  async verifyTaskCenterReceipt(args: Json) {
+    exact(args, ["packet", "receipt"]);
+    return (await this.persistentOwner(undefined, false)).taskCenterReceipt(
+      args.packet,
+      args.receipt,
+    );
+  }
   async inspectAgentCredential(args: { actor: PersistentActor; state: Json; hubOrigin: string }) {
     exact(args, ["actor", "state", "hubOrigin"]);
     return (await this.persistentOwner(args.actor, false)).credentialState(

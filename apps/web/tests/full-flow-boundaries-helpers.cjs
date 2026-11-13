@@ -112,6 +112,10 @@ async function stack(options = {}) {
     globals,
   );
   const hub = server("hub-owner", {
+    "./task-center-owner": server("task-center-owner", {
+      "server-only": {},
+      "./owner-transport": transport,
+    }),
     "../persistent-owner-routes": persistentRoutes,
     "./persistent-owner-contracts": persistentContracts,
     "./upload-cancellation": cancellation,

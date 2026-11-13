@@ -1,4 +1,5 @@
 import "server-only";
+import { taskCenterRoute, taskCenterRequest, taskCenterResponse } from "./task-center-owner";
 import { persistentOwnerRoute } from "../persistent-owner-routes";
 import {
   persistentRequest,
@@ -43,6 +44,7 @@ const digest = (value: unknown) => typeof value === "string" && /^[a-f0-9]{64}$/
 const BINDING = ["ref", "sourceEpoch"];
 type Rule = {
   kind:
+    | "center"
     | "persistent-publication"
     | "credential-approval"
     | "read"
@@ -101,8 +103,10 @@ function route(request: Request): { path: string; rule: Rule } {
   const path = url.pathname.slice(PREFIX.length);
   const get = request.method === "GET";
   let rule: Rule | undefined;
+  const center = taskCenterRoute(path, request.method);
   const persistent = persistentOwnerRoute(path, request.method);
-  if (persistent) rule = persistent;
+  if (center) rule = center;
+  else if (persistent) rule = persistent;
   else if (
     get &&
     [
@@ -435,9 +439,11 @@ async function transport(request: Request, rule: Rule, signal: AbortSignal) {
   if (request.headers.get("content-type")?.split(";", 1)[0].toLowerCase() !== "application/json")
     fail("unsupported_media_type");
   if (
-    rule.cancel
-      ? !cancellationRequest("task", json(raw), rule.cancel.slot, headers.get("idempotency-key")!)
-      : !validBody(json(raw), rule.kind, rule.vaultId)
+    rule.kind === "center"
+      ? !taskCenterRequest(new URL(request.url).pathname.slice(PREFIX.length), json(raw))
+      : rule.cancel
+        ? !cancellationRequest("task", json(raw), rule.cancel.slot, headers.get("idempotency-key")!)
+        : !validBody(json(raw), rule.kind, rule.vaultId)
   )
     fail();
   headers.set("Content-Type", "application/json");
@@ -484,21 +490,28 @@ export function createHubProxy(options: Options = {}) {
         fail("authorization_unavailable");
       }
       return await forwardResponse(response, signal, (body) =>
-        rule.cancel
-          ? cancellationResponse(
-              "task",
-              body,
-              rule.cancel.slot,
-              rule.cancel.id ?? headers.get("idempotency-key") ?? undefined,
-            )
-          : persistentOwnerRoute(path.split("?", 1)[0], request.method)
-            ? persistentResponse(
-                path,
-                request.method,
+        taskCenterRoute(path, request.method)
+          ? taskCenterResponse(path, body)
+          : rule.cancel
+            ? cancellationResponse(
+                "task",
                 body,
-                headers.get("idempotency-key") ?? undefined,
+                rule.cancel.slot,
+                rule.cancel.id ?? headers.get("idempotency-key") ?? undefined,
               )
-            : hubResponse(path, request.method, body, headers.get("idempotency-key") ?? undefined),
+            : persistentOwnerRoute(path.split("?", 1)[0], request.method)
+              ? persistentResponse(
+                  path,
+                  request.method,
+                  body,
+                  headers.get("idempotency-key") ?? undefined,
+                )
+              : hubResponse(
+                  path,
+                  request.method,
+                  body,
+                  headers.get("idempotency-key") ?? undefined,
+                ),
       );
     } catch (error) {
       const response = errorResponse(

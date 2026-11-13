@@ -133,6 +133,8 @@ function render(f = fixture(), locale = "en", capture = []) {
         createTranslator({ locale, messages: catalogs[locale], namespace }),
     },
     "./useTasks": { useTasks: () => f.model },
+    "./useTaskCenter": {},
+    "./TaskCenterPanel": {},
     "@/lib/task-forms": { defaultTask: () => form() },
     "@/lib/task-types": { bindingKey: JSON.stringify },
     "./TasksPanel.module.css": {
@@ -296,7 +298,7 @@ test("read failures stay in their region with local retry and preserve the edito
       buttons,
     );
     assert.match(html, /Synthetic private task/);
-    assert.match(html, /task_synthetic_A/);
+    assert.doesNotMatch(html, /task_synthetic_A/);
     assert.doesNotMatch(html, /Check pending operations|重试前请检查待确认/);
     buttons
       .find((b) => b.children === (locale === "en" ? "Retry tasks" : "重试任务列表"))

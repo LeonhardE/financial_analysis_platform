@@ -2448,6 +2448,23 @@ export function useHoldingsWorkspace() {
       taskCall((instance) => instance.prepareAgentCredential(args)),
     [taskCall],
   );
+  const verifyTaskCenterState = useCallback(
+    (state: Record<string, any>) => taskCall((instance) => instance.verifyTaskCenterState(state)),
+    [taskCall],
+  );
+  const prepareTaskCenterControl = useCallback(
+    (args: Record<string, any>) => taskCall((instance) => instance.prepareTaskCenterControl(args)),
+    [taskCall],
+  );
+  const loadTaskCenterPending = useCallback(
+    (taskId: string) => taskCall((instance) => instance.loadTaskCenterPending(taskId)),
+    [taskCall],
+  );
+  const finishTaskCenterPending = useCallback(
+    (taskId: string, receipt: Record<string, any>) =>
+      taskCall((instance) => instance.finishTaskCenterPending(taskId, receipt)),
+    [taskCall],
+  );
   const inspectAgentCredential = useCallback(
     (args: Parameters<EncryptedVaultSession["inspectAgentCredential"]>[0]) =>
       taskCall((instance) => instance.inspectAgentCredential(args)),
@@ -4654,6 +4671,10 @@ export function useHoldingsWorkspace() {
     prepareAgentCredential,
     archiveSupersededPersistentPublication,
     archiveExpiredCredentialPending,
+    verifyTaskCenterState,
+    prepareTaskCenterControl,
+    loadTaskCenterPending,
+    finishTaskCenterPending,
     inspectAgentCredential,
     inspectAgentCredentialSetup,
     verifyHistoricalPolicy,

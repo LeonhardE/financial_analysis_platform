@@ -242,6 +242,10 @@ test.before(async () => {
     "server-only": {},
     "./owner-transport": common,
     "./hub-owner-contracts": contracts,
+    "./task-center-owner": compile("task-center-owner", {
+      "server-only": {},
+      "./owner-transport": common,
+    }),
   });
   tokenA = await token();
 });
