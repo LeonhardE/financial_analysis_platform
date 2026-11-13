@@ -4574,6 +4574,7 @@ export function useHoldingsWorkspace() {
   );
   const visible = owner && configured && state.owner === owner ? state : { ...empty, owner };
   return {
+    providerSlotsSupported: true,
     displayCache: displayCache.current,
     contentRefreshing: state.busy === "reading" && Boolean(state.content),
     contentStale: Boolean(state.error && state.content),

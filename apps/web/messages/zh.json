@@ -1302,8 +1302,8 @@
   },
   "agentAccess": {
     "waitingForService": "服务暂时繁忙，稍后会自动继续连接。",
-    "title": "我的 Agent",
-    "description": "授权 Agent 在你允许的范围内处理资料，并将报告提交到收件箱。",
+    "title": "Agent 管理",
+    "description": "管理连接，在任务中选择资料和执行者。",
     "refresh": "刷新",
     "signInHelp": "登录后管理你的连接。",
     "signIn": "登录",
@@ -1330,7 +1330,7 @@
     "copyAddress": "复制连接地址",
     "copied": "已复制",
     "close": "关闭",
-    "notReady": "连接功能暂未开放，现有报告仍可在收件箱查看。",
+    "notReady": "连接暂不可用。",
     "noConnections": "暂无连接。",
     "connected": "已连接",
     "expiring": "即将到期",
@@ -1356,7 +1356,16 @@
     "durationLabel": "连接时长",
     "duration90Days": "90 天（默认）",
     "duration15Minutes": "15 分钟（临时）",
-    "durationPending": "这次连接正在处理中，时长已固定。"
+    "durationPending": "这次连接正在处理中，时长已固定。",
+    "loading": "正在加载连接",
+    "unlockStatus": "解锁后查看",
+    "reviewRequired": "需要整理连接",
+    "reviewConnections": "请先检查历史连接，再重新授权。",
+    "replaceReview": "此连接将替换此前 {count} 项授权。",
+    "taskReview": "连接后，在任务中心选择它要执行的任务。",
+    "history": "历史连接（{count}）",
+    "notSupported": "暂未支持",
+    "moreOptions": "更多选项"
   },
   "taskCenter": {
     "title": "任务中心",
@@ -1474,6 +1483,7 @@
     },
     "abandonSave": "取消未提交的保存",
     "nextExpected": "下次预计：{date}",
-    "dstHint": "夏令时：跳过不存在的时间，重复时取第一次"
+    "dstHint": "夏令时：跳过不存在的时间，重复时取第一次",
+    "unsavedLink": "请先保存或放弃当前编辑，再打开所选任务。"
   }
 }

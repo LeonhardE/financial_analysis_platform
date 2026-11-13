@@ -110,3 +110,25 @@ Discovery and information sharing run on page visibility or explicit Owner actio
 there is no periodic API polling or automatic background resource publication. A native
 plan report is distinct from a report actually received by the Hub. Real Agent host
 retention and native schedule execution still require the separate live validation stage.
+
+## Provider connection management
+
+The Agent management page groups each provider into one current card and a folded
+history. A canonical slot selects its exact verified credential reference. Before
+migration, one live credential may be shown; multiple live legacy credentials
+require review and never acquire an arbitrary winner. Expired history does not
+contradict the current card. Task links use in-workspace navigation to preserve
+the unlocked Worker. Claude and Gemini are explicitly unavailable. Provider badges
+are first-party typographic marks with adjacent text, without remote artwork or
+third-party logo dependencies.
+
+When the existing provider-slot capability is enabled, a fresh Agent offer is
+reviewed against the complete current retirement inventory. The Worker seals the
+provider approval and credential approval together under their single original
+operation ID. Registry admission precedes the Hub's atomic provider command.
+Unknown outcomes recover that original provider receipt; they never fall back to
+the old per-connection writer. Reconnecting replaces the current credential while
+leaving task selections empty and requiring explicit fresh grants in the task
+center. Historical reports and old public verification records remain available.
+When the capability is disabled, existing installations retain the compatible
+credential flow. This release changes no rollout flags or production records.
