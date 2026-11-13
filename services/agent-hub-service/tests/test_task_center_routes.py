@@ -46,6 +46,7 @@ class TaskCenterRouteTests(unittest.TestCase):
                     "manual_list",
                     "manual_state",
                     "cancel_manual",
+                    "cancel_operation",
                 ]
             }
         )
@@ -174,3 +175,21 @@ class TaskCenterRouteTests(unittest.TestCase):
                 201,
             )
         self.assertEqual(self.calls[-1][0], "manual")
+
+    def test_unknown_operation_cancellation_is_owner_only_and_available_with_gates_off(self):
+        with patch.dict(os.environ, {"HUB_TASK_CENTER_ENABLED": "0"}):
+            response = self.client.post(
+                self.path + "/operations/" + self.op + "/cancel",
+                headers=self.headers,
+                json={"contractVersion": CONTRACT_VERSION, "fingerprint": "a" * 43},
+            )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(self.calls[-1][0], "cancel_operation")
+        self.assertEqual(
+            self.client.post(
+                self.path + "/operations/" + self.op + "/cancel",
+                headers=self.headers,
+                json={"contractVersion": CONTRACT_VERSION, "fingerprint": "a" * 43, "extra": 1},
+            ).status_code,
+            400,
+        )

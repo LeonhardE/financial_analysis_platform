@@ -225,3 +225,15 @@ async def manual_cancel(
     return await run_in_threadpool(
         _invoke, lambda: service.cancel_manual(user.uid, vault, task, intent)
     )
+
+
+@owner_router.post("/{vault}/tasks/{task}/operations/{operation}/cancel")
+async def cancel_operation(
+    vault: str, task: str, operation: str, request: Request, user: Owner, service: OwnerService
+):
+    _invoke(lambda: control_transport(request))
+    value = await body(request, {"contractVersion", "fingerprint"}, max_bytes=1024)
+    return await run_in_threadpool(
+        _invoke,
+        lambda: service.cancel_operation(user.uid, vault, task, operation, value["fingerprint"]),
+    )

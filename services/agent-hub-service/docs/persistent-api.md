@@ -623,3 +623,16 @@ polling at the next native scheduled job. Native dispatch and schedule-source
 attestation require separate real-host acceptance. Unverified calendar invocations
 continue to be labeled `legacy_unknown`, regardless of report text. The shipped
 calendar contract skips missing DST times and chooses the first repeated time.
+
+### Recovering a never-submitted task-center request
+
+`POST /api/v3/task-center/{vault}/tasks/{task}/operations/{operation}/cancel`
+accepts the closed Owner body `{contractVersion, fingerprint}`. It atomically
+returns `state: committed` with the original receipt, or records `state: cancelled`
+with a null receipt. A cancellation tombstone fences a delayed original command or
+manual intent in the same transaction as admission; it never undoes a committed
+operation. Matching retries are stable, conflicting fingerprints fail, and the
+narrowing endpoint stays available when widening feature gates are off. Clients
+may clear their encrypted outbox only after validating this exact operation,
+fingerprint and outcome, and must never manufacture a replacement request to
+resolve an unknown result.

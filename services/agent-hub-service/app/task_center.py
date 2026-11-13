@@ -281,7 +281,7 @@ class TaskCenterOwnerService(PersistentPublicationService):
         def read(unit):
             owner, *_ = self._owner_task(unit, uid, vault, task)
             old = unit.get(document_path("hub_center_operations", owner, vault, operation))
-            if old is None or old["taskId"] != task:
+            if old is None or old.get("cancelled") or old["taskId"] != task:
                 raise ContractError("not_found")
             return old["receipt"]
 
@@ -312,7 +312,7 @@ class TaskCenterOwnerService(PersistentPublicationService):
             op = document_path("hub_center_operations", owner, vault, operation)
             old = unit.get(op)
             if old is not None:
-                if old["fingerprint"] != fp or old["taskId"] != task:
+                if old.get("cancelled") or old["fingerprint"] != fp or old["taskId"] != task:
                     raise ContractError("idempotency_conflict")
                 return old["receipt"]
             if meta["status"] != "active" and action not in {

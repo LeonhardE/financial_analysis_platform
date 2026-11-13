@@ -245,6 +245,47 @@ def _summary(unit, owner, vault, task, row, now):
 
 
 class ManualOwnerService(TaskLifecycleService):
+    def cancel_operation(self, uid, vault, task, operation, fingerprint):
+        """Fence a never-committed request atomically; never undo a committed grant."""
+        import re
+
+        validate_schema("OperationIdentifier", operation)
+        if not isinstance(fingerprint, str) or not re.fullmatch(r"[a-f0-9]{64}", fingerprint):
+            raise ContractError("malformed_request")
+
+        def write(unit):
+            owner, *_ = self._owner_task(unit, uid, vault, task)
+            path = document_path("hub_center_operations", owner, vault, operation)
+            command = unit.get(path)
+            intent = unit.get(intent_path(owner, vault, task, operation))
+            old = command or intent
+            if old is not None and (
+                old.get("taskId", task if intent is old else None) != task
+                or old["fingerprint"] != fingerprint
+            ):
+                raise ContractError("idempotency_conflict")
+            cancelled = old is None or old.get("cancelled", False) and command is not None
+            if old is None:
+                unit.put(
+                    path,
+                    {
+                        "taskId": task,
+                        "fingerprint": fingerprint,
+                        "cancelled": True,
+                        "receipt": None,
+                    },
+                )
+            return {
+                "contractVersion": CONTRACT_VERSION,
+                "taskId": task,
+                "operationId": operation,
+                "fingerprint": fingerprint,
+                "state": "cancelled" if cancelled else "committed",
+                "receipt": None if cancelled else old["receipt"],
+            }
+
+        return self.store.transact(write)
+
     def manual(self, uid, vault, task, signed, operation):
         validate_schema("SignedObject", signed)
         validate_schema("OperationIdentifier", operation)
@@ -258,6 +299,9 @@ class ManualOwnerService(TaskLifecycleService):
 
         def write(unit):
             owner, _, registry, meta = self._owner_task(unit, uid, vault, task)
+            command = unit.get(document_path("hub_center_operations", owner, vault, operation))
+            if command is not None:
+                raise ContractError("idempotency_conflict")
             require_visible(unit, owner, vault, task)
             path = intent_path(owner, vault, task, operation)
             old = unit.get(path)
@@ -325,6 +369,7 @@ class ManualOwnerService(TaskLifecycleService):
                 "nativeScheduleAttested": False,
             }
             stored = {
+                "taskId": task,
                 "requestId": operation,
                 "control": signed,
                 "fingerprint": fingerprint,
