@@ -360,6 +360,9 @@ class PersistentOwnerResultService:
         def read(unit):
             v, _ = _current(unit, owner, self.now(), vault)
             row = stored_result(unit, owner, vault, result)
+            from .task_lifecycle import require_visible
+
+            require_visible(unit, owner, vault, row["context"]["taskId"])
             run, m = stored_run(unit, owner, vault, row["context"]["runId"])
             if (
                 run["ownerUid"] != uid
@@ -442,7 +445,11 @@ class PersistentOwnerResultService:
                     raise ContractError("unsupported_query")
             begin = max(0, before - limit)
             ids = list(reversed(page["resultIds"][begin:before]))
-            items = [stored_result(unit, owner, vault, r)["metadata"] for r in ids]
+            from .task_lifecycle import visible_metadata
+
+            items = visible_metadata(
+                unit, owner, vault, [stored_result(unit, owner, vault, r)["metadata"] for r in ids]
+            )
             cursor = f"{page['pageId']}:{begin}" if begin else None
             if not begin and page["previous"] is not None:
                 previous = self._page(unit, owner, vault, page["previous"])
@@ -464,6 +471,9 @@ class PersistentOwnerResultService:
         def write(unit):
             _, registry = _current(unit, owner, self.now(), vault)
             row = stored_result(unit, owner, vault, result)
+            from .task_lifecycle import require_visible
+
+            require_visible(unit, owner, vault, row["context"]["taskId"])
             header, payload = _signed_parts(signed)
             command = verify_control_command(
                 signed,

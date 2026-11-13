@@ -338,6 +338,7 @@ class FirestoreTaskOperationTests(OperationSetup, unittest.TestCase):
         required = [
             document_path("hub_vaults", owner_key(UID)),
             document_path("hub_task_indexes", owner_key(UID), self.fixture.vault),
+            document_path("hub_center_lifecycle", owner_key(UID), self.fixture.vault),
             self.head_path(),
             self.op_path(),
             self.version_path(),

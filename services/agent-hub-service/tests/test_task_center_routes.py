@@ -27,14 +27,22 @@ class TaskCenterRouteTests(unittest.TestCase):
             uid="synthetic_owner"
         )
 
-        def call(kind, *args):
+        def call(kind, *args, **kwargs):
             self.calls.append((kind, args))
             return {"kind": kind}
 
         self.app.dependency_overrides[get_owner_center] = lambda: SimpleNamespace(
             **{
-                name: lambda *args, name=name: call(name, *args)
-                for name in ["command", "state", "receipt", "results", "progress"]
+                name: lambda *args, name=name, **kwargs: call(name, *args, **kwargs)
+                for name in [
+                    "command",
+                    "state",
+                    "receipt",
+                    "results",
+                    "progress",
+                    "trash",
+                    "maintenance",
+                ]
             }
         )
         self.app.dependency_overrides[get_agent_center] = lambda: SimpleNamespace(
@@ -115,3 +123,18 @@ class TaskCenterRouteTests(unittest.TestCase):
         self.assertEqual(self.calls, [])
         self.app.dependency_overrides.pop(require_owner)
         self.assertEqual(self.client.get(self.path, headers=self.headers).status_code, 401)
+
+    def test_trash_pagination_uses_closed_post_body_not_url_queries(self):
+        response = self.client.post(
+            "/api/v3/task-center/vault_A/trash/query",
+            headers=self.headers,
+            json={"contractVersion": CONTRACT_VERSION, "cursor": "task_A"},
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(self.calls[-1][0], "trash")
+        self.assertEqual(
+            self.client.get(
+                "/api/v3/task-center/vault_A/trash?cursor=task_A", headers=self.headers
+            ).status_code,
+            400,
+        )

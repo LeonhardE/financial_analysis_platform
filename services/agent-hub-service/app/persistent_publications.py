@@ -45,7 +45,7 @@ def source_path(owner, vault, connection, ref):
 
 def stored_publication(unit, owner, vault, operation):
     row = unit.get(publication_path(owner, vault, operation))
-    if row is None:
+    if row is None or row.get("retiredTaskContent"):
         return None
     try:
         if set(row) != {"context", "carrierJson", "fingerprint", "receipt"}:
@@ -129,6 +129,9 @@ class PersistentPublicationService(ResourceConsentService):
         return owner, vault_row, registry, conn, identity
 
     def task(self, unit, owner, vault, task):
+        from .task_lifecycle import require_visible
+
+        require_visible(unit, owner, vault, task)
         head = _head(unit, owner, vault, task, _index(unit, owner, vault))
         if head is None:
             raise ContractError("not_found")

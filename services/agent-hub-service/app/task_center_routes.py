@@ -21,6 +21,7 @@ from .provider_connection_routes import provider_slots_enabled
 from .store import get_store
 from .task_center import TaskCenterAgentService
 from .task_center_results import TaskCenterResultService
+from .task_lifecycle_service import TaskLifecycleService
 
 owner_router = APIRouter(prefix="/api/v3/task-center", route_class=PrivateRoute)
 agent_router = APIRouter(
@@ -34,7 +35,7 @@ def task_center_enabled():
 
 
 def get_owner_center():
-    return TaskCenterResultService(get_store())
+    return TaskLifecycleService(get_store())
 
 
 def get_agent_center():
@@ -60,7 +61,14 @@ def capabilities(request: Request, user: Owner):
         "contractVersion": CONTRACT_VERSION,
         "profile": TASK_CENTER_PROFILE,
         "enabled": _invoke(task_center_enabled) and uid_allowed(user.uid),
-        "actions": ["set_rules", "set_assignment", "remove_assignment"],
+        "actions": [
+            "set_rules",
+            "set_assignment",
+            "remove_assignment",
+            "trash",
+            "restore",
+            "purge",
+        ],
         "dispatchSupported": False,
         "nativeScheduleAttested": False,
     }
@@ -89,7 +97,7 @@ async def command(vault: str, task: str, request: Request, user: Owner, service:
         _, payload = _signed_parts(value["command"])
         # Narrowing survives rollback. The service still verifies Owner signature,
         # exact task/version/assignment and Root registry before changing anything.
-        if payload.get("action") != "remove_assignment" and (
+        if payload.get("action") not in {"remove_assignment", "trash", "purge"} and (
             not task_center_enabled() or not uid_allowed(user.uid)
         ):
             raise ContractError("authorization_unavailable")
@@ -154,3 +162,25 @@ for route, method in {
     "plans/report": "report_plan",
 }.items():
     agent_router.add_api_route("/" + route, endpoint(method), methods=["POST"])
+
+
+@owner_router.get("/{vault}/trash")
+def trash(vault: str, request: Request, user: Owner, service: OwnerService):
+    _invoke(lambda: control_transport(request))
+    return _invoke(lambda: service.trash(user.uid, vault))
+
+
+@owner_router.post("/{vault}/trash/query")
+async def trash_query(vault: str, request: Request, user: Owner, service: OwnerService):
+    _invoke(lambda: control_transport(request))
+    value = await body(request, {"contractVersion", "cursor"}, max_bytes=2048)
+    return await run_in_threadpool(
+        _invoke, lambda: service.trash(user.uid, vault, cursor=value["cursor"])
+    )
+
+
+@owner_router.post("/{vault}/tasks/{task}/maintenance")
+async def maintenance(vault: str, task: str, request: Request, user: Owner, service: OwnerService):
+    _invoke(lambda: control_transport(request))
+    await body(request, {"contractVersion"}, max_bytes=1024)
+    return await run_in_threadpool(_invoke, lambda: service.maintenance(user.uid, vault, task))

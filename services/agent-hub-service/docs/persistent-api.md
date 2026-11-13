@@ -565,3 +565,26 @@ receipts do not prove what invoked the host. This implementation accepts only
 `legacy_unknown` trigger attribution. Verified manual dispatch/source attribution,
 trash/restore/purge consumers, Web integration and actual host acceptance remain
 ordered follow-up work; no scheduler, worker, new database, VM or capacity is added.
+
+### Task trash and request-driven retention
+
+Signed `trash`, `restore` and `purge` commands use the same Owner endpoint. Trash
+atomically increments the lifecycle epoch and hides all actors' results from both
+ordinary and historical Owner entry points. Existing Begin/input/result writes
+fail closed; legacy foreground writers cannot resume after a restore. Restore
+within 30 days recovers Owner history only, requiring fresh assignment approval.
+The explicit purge control is allowed only after that retention deadline.
+
+`GET /{vault}/trash` returns the first task and its encrypted original (before
+expiry). `POST /{vault}/trash/query` accepts `{contractVersion,cursor}` for
+subsequent one-task pages with a nullable `nextCursor`. After expiry no original is returned.
+`POST /{vault}/tasks/{task}/maintenance` with `{contractVersion}` processes at most
+four Owner-scoped documents in one cleanup phase, in the current request. It can
+be safely repeated; no background response thread, worker or scheduler is created.
+The optional Web Trash view is the maintenance trigger. Thirty days is the restore
+deadline, **not a promise of precise physical cleanup at that instant**. Copies
+are retired as authenticated maintenance runs. Shared resource publications and
+public certificates are retained. Legacy uncommitted copies without a provable
+task association produce `reviewRequired:true` rather than a false completion.
+Minimal task/receipt tombstones remain to prevent ID and request resurrection.
+All maintenance is local-test only until separately authorized for real data.

@@ -34,6 +34,7 @@ from .api import Owner, _invoke, body, transport
 from .catalogue import CatalogueService, get_sources
 from .fences import require_current_bindings
 from .store import StoreUnavailable, document_path, get_store
+from .task_lifecycle import lifecycle_index, require_visible
 from .task_upload_cancellations import TaskUploadCancellationService, operation_cancelled
 from .vaults import VaultService, _current, _selection, identifier, positive
 
@@ -377,6 +378,7 @@ class TaskService:
             now = self.now()
             vault, registry = _current(unit, owner, now)
             vault_id = vault["vaultId"]
+            require_visible(unit, owner, vault_id, task_id)
             index = _index(unit, owner, vault_id)
             head = _head(unit, owner, vault_id, task_id, index)
             op_path = document_path("hub_task_operations", owner, vault_id, task_id, operation)
@@ -645,6 +647,7 @@ class TaskService:
 
         def read(unit):
             vault, _ = _current(unit, owner, self.now())
+            require_visible(unit, owner, vault["vaultId"], task_id)
             index = _index(unit, owner, vault["vaultId"])
             head = _head(unit, owner, vault["vaultId"], task_id, index)
             if head is None or (version is not None and version > head["metadata"]["taskVersion"]):
@@ -664,6 +667,7 @@ class TaskService:
         def read(unit):
             vault, _ = _current(unit, owner, self.now())
             vault_id = vault["vaultId"]
+            require_visible(unit, owner, vault_id, task_id)
             index = _index(unit, owner, vault_id)
             head = _head(unit, owner, vault_id, task_id, index)
             saved = unit.get(
@@ -730,8 +734,17 @@ class TaskService:
             now = self.now()
             vault, _ = _current(unit, owner, now)
             index = _index(unit, owner, vault["vaultId"])
-            ids = sorted(index["tasks"])
-            snapshot = _digest({"version": index["version"], "tasks": index["tasks"]})
+            lifecycle = lifecycle_index(unit, owner, vault["vaultId"])
+            ids = sorted(
+                t for t in index["tasks"] if lifecycle["tasks"].get(t, "active") == "active"
+            )
+            snapshot = _digest(
+                {
+                    "version": index["version"],
+                    "tasks": index["tasks"],
+                    "lifecycle": lifecycle["version"],
+                }
+            )
             start = 0
             if cursor is not None:
                 saved = index["cursors"].get(cursor)

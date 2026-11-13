@@ -48,6 +48,7 @@ COLLECTIONS = frozenset(
         "hub_agent_credential_setups",
         "hub_agent_credential_limits",
         "hub_center_tasks",
+        "hub_center_lifecycle",
         "hub_center_assignments",
         "hub_center_operations",
         "hub_center_preparations",
@@ -237,6 +238,19 @@ class SQLiteTransaction:
                 result[path] = _project(value, field_paths)
         return result
 
+    def scan_owner(self, collection, field, owner, *, after=None, limit=4):
+        from .task_lifecycle import CLEANUP_FIELDS
+
+        if CLEANUP_FIELDS.get(collection) != field or limit != 4:
+            raise StoreUnavailable
+        prefix = collection + "/"
+        rows = self.connection.execute(
+            "SELECT path, body FROM hub_documents WHERE path LIKE ? AND path > ? "
+            "AND json_extract(body, ?) = ? ORDER BY path LIMIT ?",
+            (prefix + "%", after or prefix, "$." + field, owner, limit),
+        ).fetchall()
+        return [(path, strict_json_loads(body)) for path, body in rows]
+
     def put(self, path: str, value: dict) -> None:
         data = stored_document(
             value, path=path, project=self.store.project, database=self.store.database
@@ -325,6 +339,26 @@ class FirestoreTransaction:
             if seen != set(expected):
                 raise StoreUnavailable
         return result
+
+    def scan_owner(self, collection, field, owner, *, after=None, limit=4):
+        from .task_lifecycle import CLEANUP_FIELDS
+
+        if CLEANUP_FIELDS.get(collection) != field or limit != 4:
+            raise StoreUnavailable
+        from google.cloud.firestore_v1.base_query import FieldFilter
+
+        query = (
+            self.store.client.collection(collection)
+            .where(filter=FieldFilter(field, "==", owner))
+            .order_by("__name__")
+            .limit(limit)
+        )
+        if after is not None:
+            query = query.start_after({"__name__": self.store.client.document(after)})
+        return [
+            (row.reference.path, _read_document(row.to_dict(), path=row.reference.path))
+            for row in query.stream(transaction=self.transaction, timeout=4, retry=None)
+        ]
 
     def put(self, path: str, value: dict) -> None:
         data = stored_document(

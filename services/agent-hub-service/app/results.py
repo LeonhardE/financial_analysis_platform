@@ -101,6 +101,9 @@ class ResultService:
     def _new_authority(self, unit, token, run_id, scope):
         principal, row, conn = self._relationship(unit, token, run_id, scope)
         run, owner = row["run"], principal.owner_subject
+        from .task_lifecycle import require_visible
+
+        require_visible(unit, owner, run["vaultId"], run["taskId"], legacy_writer=True)
         now = self.oauth.now()
         vault, registry = _current(unit, owner, now)
         task = _head(
