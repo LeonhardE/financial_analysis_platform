@@ -88,3 +88,7 @@ Hub stores public authority and ciphertext; personal Agent private keys remain i
 the Agent host. Existing report history retains its original signed binding.
 
 Personal Agent credential delivery: [host client and pairing](docs/agent-client.md).
+
+Owner-only encrypted source aliases are documented in
+[private display names](docs/owner-api.md#private-display-names). Their independent
+CAS/receipts reuse the existing database and never modify financial or Agent state.

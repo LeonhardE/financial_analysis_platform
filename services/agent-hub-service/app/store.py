@@ -15,6 +15,8 @@ from folioview_shared.encrypted.jsonutil import canonical_json, strict_json_load
 COLLECTIONS = frozenset(
     {
         "hub_vaults",
+        "hub_private_display_names",
+        "hub_private_display_name_operations",
         "hub_agent_recoveries",
         "hub_executor_connections",
         "hub_executor_owners",

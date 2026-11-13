@@ -551,3 +551,47 @@ cannot replay an operation. A client receiving an old acknowledgement must not o
 newer stateVersion/revision in its cache. This service profile retains at most 128 distinct
 state operations per logical result in `hub_result_state_operations`. New operations are refused
 at capacity without evicting replay records; known operations and owner reads remain available.
+
+## Private display names
+
+The optional `folioview.private-display-name.v1` Owner profile stores a small
+holdings-source alias in the existing Hub database. It changes no source snapshot,
+epoch, task input, grant, credential or Root history. It introduces no Agent route,
+cloud resource, data migration or rollout setting. The Web consumer is independent.
+
+All routes require the existing Google Owner identity, exact
+`X-FolioView-Contract: folioview.agent-workspace.v2.0`, no query string/delegation/
+author override, and closed bodies. GET bodies and Idempotency-Key headers are
+rejected. POST requires the exact signed stable operation ID as Idempotency-Key.
+
+| Method | Path under `/api/v3/private-display-names`          | Result                                                                 |
+| ------ | --------------------------------------------------- | ---------------------------------------------------------------------- |
+| GET    | `/capabilities`                                     | Profile, enabled, maxSources=10, maxNameLength=80                      |
+| GET    | `/{vault}/holdings`                                 | `{contractVersion,profile,items}` for current known nondeleted sources |
+| GET    | `/{vault}/holdings/{source}`                        | `{contractVersion,profile,item}`; null for an unnamed old source       |
+| POST   | `/{vault}/holdings/{source}/commands`               | HTTP 201 with the accepted item                                        |
+| GET    | `/{vault}/holdings/{source}/operations/{operation}` | Immutable original accepted item, or 404                               |
+
+A POST body contains only `{contractVersion,command}` and is limited to 16 KiB
+before JSON parsing. The detached shared profile verifies current device control,
+Owner recovery recipient, purpose/AAD, source incarnation and independent CAS.
+An item contains only `{state,command}`; the command carries the opaque envelope.
+Original issuance checkpoint/sequence is already in the command and retained
+vault history, so no registry bundles are duplicated for each name. The trusted
+Owner Worker must authenticate original issuance before returning the name.
+
+The source anchor is selected from the current Owner vault, not a caller-provided
+catalogue. Its current deletion fence is read in the same write transaction.
+Name state and original-operation receipt commit atomically in two small existing-
+database documents. Exact original replay returns its original receipt even after
+later renaming or signer expiry; it never reinstalls an old alias. Owner history
+can inspect the original receipt after source deletion, while normal reads/listing
+hide deleted sources and new writes are refused. A new incarnation cannot inherit
+another source's alias or receipt.
+
+Listing uses one vault read and one bounded batch for at most ten names plus their
+fences, including missing documents. It calls no producer or catalogue service.
+A four-entry cache memoizes only static Root signature verification by fresh
+complete history; current source/lifecycle/authority and identity are not cached.
+Stored state and command binding/fingerprint are checked on every read. The
+existing SQLite and Firestore SDK paths retain atomic CAS and document budgets.
