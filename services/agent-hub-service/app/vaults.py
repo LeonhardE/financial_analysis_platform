@@ -107,7 +107,7 @@ def _selection(registry, now):
     return writers, recipients
 
 
-def _verify_row(row, owner, now, *, unit=None):
+def _verify_row(row, owner, now, *, unit=None, registry_cache=None):
     if type(row) is not dict or set(row) != _VAULT_FIELDS or row["ownerSubject"] != owner:
         raise StoreUnavailable
     identifier(row["vaultId"])
@@ -122,25 +122,37 @@ def _verify_row(row, owner, now, *, unit=None):
     history = row["registryHistory"]
     if type(history) is not list or not 1 <= len(history) <= MAX_HISTORY:
         raise StoreUnavailable
-    registry = None
-    for bundle in history:
-        registry = verify_registry(
-            bundle,
-            root_jwk=row["rootJwk"],
-            pinned_root_key_id=row["rootKeyId"],
-            owner_subject=owner,
-            vault_id=row["vaultId"],
-            now=now,
-            previous=registry,
+    key, cached = None, None
+    if registry_cache is not None:
+        key = (
+            owner,
+            row["vaultId"],
+            row["rootKeyId"],
+            hashlib.sha256(canonical_json(history)).digest(),
         )
-    first = verify_registry(
-        history[0],
-        root_jwk=row["rootJwk"],
-        pinned_root_key_id=row["rootKeyId"],
-        owner_subject=owner,
-        vault_id=row["vaultId"],
-        now=now,
-    )
+        cached = registry_cache.get(key)
+    if cached is None:
+        first = registry = None
+        for bundle in history:
+            registry = verify_registry(
+                bundle,
+                root_jwk=row["rootJwk"],
+                pinned_root_key_id=row["rootKeyId"],
+                owner_subject=owner,
+                vault_id=row["vaultId"],
+                now=now,
+                previous=registry,
+            )
+            if first is None:
+                first = registry
+        if registry_cache is not None:
+            registry_cache[key] = (registry, first)
+    else:
+        registry, first = cached
+        # Only static history signatures are memoized. Recheck the time bound;
+        # current row/archive/source and lifecycle validation still runs below.
+        if registry.issued_at > now or first.issued_at > now:
+            raise ContractError("registry_conflict")
     if (first.root_epoch, first.registry_sequence, first.key_epoch) != (1, 1, 1):
         raise StoreUnavailable
     if type(row["sources"]) is not list or len(row["sources"]) > MAX_SOURCES:

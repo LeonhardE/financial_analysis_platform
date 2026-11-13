@@ -161,24 +161,26 @@ class CatalogueFixture:
             )
         body = json.loads(request.content)
         self.assertEqual(set(body), {"contractVersion", "refs"})
-        ref = body["refs"][0]
         self.assertEqual(body["contractVersion"], CONTRACT_VERSION)
-        if ref["resourceId"] == self.fail_source:
+        if any(ref["resourceId"] == self.fail_source for ref in body["refs"]):
             return httpx.Response(404, text="synthetic-private-error-marker")
-        row = {
-            "ref": ref,
-            "revision": 1 if self.snapshot else 0,
-            "sourceEpoch": self.epoch,
-            "state": self.lifecycle,
-        }
-        if request.url.path.endswith("states/read"):
-            row["observedAt"] = STAMP
-        else:
-            self.assertEqual(request.url.path, "/internal/v2/resources/projections/read")
-            row["snapshotId"] = self.snapshot
-        if self.portfolio_change:
-            self.portfolio_change(row)
-        return httpx.Response(200, json={"contractVersion": CONTRACT_VERSION, "items": [row]})
+        items = []
+        for ref in body["refs"]:
+            row = {
+                "ref": ref,
+                "revision": 1 if self.snapshot else 0,
+                "sourceEpoch": self.epoch,
+                "state": self.lifecycle,
+            }
+            if request.url.path.endswith("states/read"):
+                row["observedAt"] = STAMP
+            else:
+                self.assertEqual(request.url.path, "/internal/v2/resources/projections/read")
+                row["snapshotId"] = self.snapshot
+            if self.portfolio_change:
+                self.portfolio_change(row)
+            items.append(row)
+        return httpx.Response(200, json={"contractVersion": CONTRACT_VERSION, "items": items})
 
     def read(self, uid=UID, sources=None):
         return CatalogueService(self.vaults, sources or self.sources).read(uid)
@@ -207,7 +209,7 @@ class CatalogueTests(CatalogueFixture, unittest.TestCase):
                 if request.url.host == "portfolio.synthetic.example":
                     timeout = request.extensions["timeout"]
                     timeouts.append(timeout)
-                    self.assertLessEqual(timeout["read"], 112.0 - clock[0])
+                    self.assertLessEqual(timeout["read"], 109.0 - clock[0])
                     self.assertLessEqual(timeout["connect"], 4.0)
                     if request.url.path.endswith("states/read"):
                         if timeout["read"] < delay:
@@ -223,7 +225,7 @@ class CatalogueTests(CatalogueFixture, unittest.TestCase):
             self.assertEqual(result["groups"][0]["items"][0]["state"], expected)
             self.assertEqual(timeouts[0]["read"], 8.0)
             if expected == "active":
-                self.assertAlmostEqual(timeouts[1]["read"], 5.7)
+                self.assertAlmostEqual(timeouts[1]["read"], 2.7)
 
     def test_closed_refusal_diagnostic_survives_mcp_root_logging_level(self):
         records = []
@@ -436,7 +438,7 @@ class CatalogueTests(CatalogueFixture, unittest.TestCase):
         self.assertEqual(result["groups"][0]["status"], "available")
         self.assertTrue(all(group["status"] == "unavailable" for group in result["groups"][1:]))
 
-    def test_ten_sources_share_at_most_four_joined_workers_and_one_credential_per_target(self):
+    def test_ten_sources_use_two_portfolio_batches_two_joined_workers_and_one_credential(self):
         for i in range(1, 10):
             operation = f"synthetic_source_parallel_{i:04}"
             source = f"holdings_parallel_{i}"
@@ -448,7 +450,7 @@ class CatalogueTests(CatalogueFixture, unittest.TestCase):
                 operation,
                 self.fixture.kid("device_sig"),
             )
-        barrier = threading.Barrier(4)
+        barrier = threading.Barrier(2)
         active = peak = entered = 0
         lock = threading.Lock()
 
@@ -457,7 +459,7 @@ class CatalogueTests(CatalogueFixture, unittest.TestCase):
             with lock:
                 active += 1
                 peak = max(peak, active)
-                first = entered < 4
+                first = entered < 2
                 entered += 1
             try:
                 if first:
@@ -470,9 +472,12 @@ class CatalogueTests(CatalogueFixture, unittest.TestCase):
         result = self.read(sources=self.make_sources(transport=httpx.MockTransport(handler)))
         self.assertEqual(len(result["groups"][0]["items"]), 10)
         self.assertTrue(all(row["state"] == "active" for row in result["groups"][0]["items"]))
-        self.assertEqual(peak, 4)
+        self.assertEqual(peak, 2)
         self.assertEqual(active, 0)
         self.assertCountEqual(self.token_calls, [USER, PORTFOLIO])
+        portfolio_calls = [row for row in self.calls if row[1].startswith(PORTFOLIO)]
+        self.assertEqual(len(portfolio_calls), 2)
+        self.assertTrue(all(len(json.loads(row[2])["refs"]) == 10 for row in portfolio_calls))
 
     def test_missing_configuration_is_unavailable_without_credentials_or_network(self):
         with patch("socket.create_connection", side_effect=AssertionError("network")):
@@ -519,20 +524,127 @@ class CatalogueTests(CatalogueFixture, unittest.TestCase):
             clock[0] += 13
             return "a.b.c"
 
-        result = self.read(
-            sources=self.make_sources(
-                clock=lambda: clock[0],
-                token_factory=expired_token,
-                signer_factory=lambda: self.fail("expired signer must not run"),
+        with self.assertRaises(ContractError) as error:
+            self.read(
+                sources=self.make_sources(
+                    clock=lambda: clock[0],
+                    token_factory=expired_token,
+                    signer_factory=lambda: self.fail("expired signer must not run"),
+                )
             )
-        )
-        self.assertTrue(all(group["status"] == "unavailable" for group in result["groups"]))
+        self.assertEqual(error.exception.code, "source_unavailable")
 
     def test_request_scoped_credentials_and_uid_are_not_reused_between_owners(self):
         self.read(UID)
         self.read(OTHER_UID)
         self.assertCountEqual(self.token_calls, [USER, PORTFOLIO, USER])
         self.assertIn(OTHER_UID, self.owners)
+
+    def add_second_source(self):
+        name, operation = "holdings_batch_B", "synthetic_batch_source_0002"
+        self.vaults.create_source(
+            UID,
+            self.fixture.vault,
+            name,
+            self.fixture.control(name, operation),
+            operation,
+            self.fixture.kid("device_sig"),
+        )
+        return name
+
+    def test_two_sources_match_exact_refs_even_when_producer_reorders_rows(self):
+        second = self.add_second_source()
+
+        def reordered(request):
+            response = self.handle(request)
+            value = response.json()
+            if request.url.host == "portfolio.synthetic.example":
+                value["items"].reverse()
+            return httpx.Response(200, json=value)
+
+        result = self.read(sources=self.make_sources(transport=httpx.MockTransport(reordered)))
+        rows = result["groups"][0]["items"]
+        self.assertEqual([row["ref"]["resourceId"] for row in rows], [SOURCE, second])
+        self.assertTrue(all(row["state"] == "active" for row in rows))
+        self.assertEqual(len(self.calls), 3)
+
+    def test_duplicate_batch_rows_fail_closed_without_unbounded_source_fallback(self):
+        self.add_second_source()
+
+        def duplicate(request):
+            response = self.handle(request)
+            value = response.json()
+            if request.url.host == "portfolio.synthetic.example":
+                value["items"][1] = value["items"][0]
+            return httpx.Response(200, json=value)
+
+        result = self.read(sources=self.make_sources(transport=httpx.MockTransport(duplicate)))
+        self.assertEqual(result["groups"][0]["status"], "unavailable")
+        self.assertEqual(result["groups"][1]["status"], "available")
+        self.assertEqual(len(self.calls), 2)  # User plus one refused state batch.
+
+    def test_same_history_verified_once_but_current_context_read_twice(self):
+        from app.vaults import verify_registry
+
+        with (
+            patch("app.vaults.verify_registry", wraps=verify_registry) as verify,
+            patch.object(self.store, "transact", wraps=self.store.transact) as transactions,
+        ):
+            self.read()
+        self.assertEqual(verify.call_count, 1)
+        self.assertEqual(transactions.call_count, 2)
+
+    def test_context_work_consumes_shared_budget_and_timings_contain_no_identities(self):
+        clock, timeouts = [100.0], []
+
+        def handle(request):
+            timeouts.append(request.extensions["timeout"]["read"])
+            return self.handle(request)
+
+        sources = self.make_sources(clock=lambda: clock[0], transport=httpx.MockTransport(handle))
+        service = CatalogueService(self.vaults, sources)
+        context = service.context
+
+        def delayed(uid, **kwargs):
+            value = context(uid, **kwargs)
+            clock[0] += 2
+            return value
+
+        with (
+            patch.object(service, "context", side_effect=delayed),
+            self.assertLogs("uvicorn.error.hub_catalogue", level="INFO") as logs,
+        ):
+            service.read(UID)
+        self.assertTrue(all(value <= 7 for value in timeouts))
+        text = "\n".join(logs.output)
+        for name in ("before_ms=2000", "discover_ms=", "after_ms=2000", "total_ms=4000"):
+            self.assertIn(name, text)
+        for private in (UID, EMAIL, self.fixture.vault, self.source["resourceId"]):
+            self.assertNotIn(private, text)
+
+    def test_slow_final_context_cannot_return_success_after_whole_read_budget(self):
+        clock, calls = [100.0], [0]
+        service = CatalogueService(self.vaults, self.make_sources(clock=lambda: clock[0]))
+        context = service.context
+
+        def delayed(uid, **kwargs):
+            value = context(uid, **kwargs)
+            calls[0] += 1
+            if calls[0] == 2:
+                clock[0] += 11
+            return value
+
+        with (
+            patch.object(service, "context", side_effect=delayed),
+            self.assertRaises(ContractError),
+        ):
+            service.read(UID)
+
+    def test_cached_static_history_still_checks_time_on_final_context(self):
+        self.on_request = lambda: setattr(self.vaults, "clock", lambda: 0)
+        with self.assertRaises(ContractError) as error:
+            self.read()
+        self.assertEqual(error.exception.code, "registry_conflict")
 
 
 class CatalogueRoutesTests(CatalogueFixture, unittest.TestCase):
