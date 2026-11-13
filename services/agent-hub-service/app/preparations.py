@@ -251,7 +251,7 @@ class PreparationService:
             raise ContractError("not_found")
         try:
             if (
-                set(row)
+                (set(row) - {"taskId", "vaultId"})
                 != {
                     "ownerSubject",
                     "preparationId",
@@ -293,6 +293,10 @@ class PreparationService:
 
     def _authority(self, unit, uid, connection_id, task_id, *, verify_original=True):
         owner = owner_key(uid)
+        from .task_lifecycle import require_visible
+
+        vault, _ = _current(unit, owner, self.oauth.now())
+        require_visible(unit, owner, vault["vaultId"], task_id, legacy_writer=True)
         connection = unit.get(document_path("hub_oauth_connections", owner, connection_id))
         if (
             connection is None
@@ -527,6 +531,8 @@ class PreparationService:
                 {
                     "ownerSubject": owner_key(uid),
                     "preparationId": prep,
+                    "taskId": task_id,
+                    "vaultId": state[2]["vaultId"],
                     "descriptor": item,
                     "carrierJson": canonical_json(parsed).decode(),
                     "authorKeyId": author,

@@ -140,7 +140,7 @@ class RunService:
 
     def _row(self, unit, owner, run_id):
         row = unit.get(_path("hub_runs", owner, run_id))
-        if row is None:
+        if row is None or row.get("retiredTaskContent"):
             raise ContractError("not_found")
         try:
             if (
@@ -205,6 +205,9 @@ class RunService:
     def _authority(self, unit, token, row, scope):
         principal = self._base(unit, token, scope)
         run, owner = row["run"], principal.owner_subject
+        from .task_lifecycle import require_visible
+
+        require_visible(unit, owner, run["vaultId"], run["taskId"], legacy_writer=True)
         if row["ownerSubject"] != owner or row["ownerUid"] != principal.owner_uid:
             raise ContractError("not_found")
         if (

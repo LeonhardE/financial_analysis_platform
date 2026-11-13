@@ -45,7 +45,7 @@ def run_operation_path(owner, vault, connection, operation):
 
 def stored_run(unit, owner, vault, run):
     row = unit.get(run_path(owner, vault, run))
-    if row is None:
+    if row is None or row.get("retiredTaskContent"):
         raise ContractError("not_found")
     try:
         if set(row) - {"taskCenter"} != {
@@ -285,8 +285,13 @@ class PersistentExecutionService(PersistentPublicationService):
             _, _, _, _, identity = self.authenticate(
                 unit, owner, vault, connection, proof, path, request
             )
+            from .task_lifecycle import lifecycle_index
+
+            states = lifecycle_index(unit, owner, vault)["tasks"]
             result = []
             for task, meta in _index(unit, owner, vault)["tasks"].items():
+                if states.get(task, "active") != "active":
+                    continue
                 authority = stored_authority(unit, owner, vault, task, connection)
                 if authority is None or meta["status"] != "active":
                     continue

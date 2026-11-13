@@ -113,6 +113,9 @@ class TaskCenterResultService(TaskCenterOwnerService):
 
         def read(unit):
             owner, *_ = self._owner_task(unit, uid, vault, task)
+            from .task_lifecycle import require_visible
+
+            require_visible(unit, owner, vault, task)
             row = definition_row(unit, owner, vault, task)
             if row is None:
                 raise ContractError("not_found")

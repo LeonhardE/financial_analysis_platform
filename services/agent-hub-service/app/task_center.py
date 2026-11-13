@@ -15,6 +15,7 @@ from folioview_shared.encrypted.task_center import (
     assignment_trigger_id,
     bind_task_run,
     plan_assignment,
+    plan_task_lifecycle,
     plan_task_rules,
     require_assignment_current,
     require_run_current,
@@ -65,7 +66,12 @@ def definition_row(unit, owner, vault, task):
     if row is None:
         return None
     try:
-        if set(row) != {"definition", "control", "assignmentIds", "legacyHead"}:
+        if set(row) - {"lifecycleControls", "cleanup"} != {
+            "definition",
+            "control",
+            "assignmentIds",
+            "legacyHead",
+        }:
             raise StoreUnavailable
         d = validate_definition(row["definition"])
         if (d["ownerSubject"], d["vaultId"], d["taskId"]) != (owner, vault, task):
@@ -204,7 +210,7 @@ class TaskCenterOwnerService(PersistentPublicationService):
             owner, _, _, meta = self._owner_task(unit, uid, vault, task)
             row = definition_row(unit, owner, vault, task)
             assignments = []
-            if row is not None:
+            if row is not None and row["definition"]["status"] == "active":
                 for ident in row["assignmentIds"]:
                     record = assigned_row(unit, owner, vault, task, ident)
                     if record is None:
@@ -254,7 +260,14 @@ class TaskCenterOwnerService(PersistentPublicationService):
         validate_schema("SignedObject", signed)
         _, payload = _signed_parts(signed)
         action = payload.get("action")
-        if action not in {"set_rules", "set_assignment", "remove_assignment"}:
+        if action not in {
+            "set_rules",
+            "set_assignment",
+            "remove_assignment",
+            "trash",
+            "restore",
+            "purge",
+        }:
             raise ContractError("malformed_request")
         if payload.get("stableOperationId") != operation:
             raise ContractError("recipient_binding_mismatch")
@@ -268,7 +281,7 @@ class TaskCenterOwnerService(PersistentPublicationService):
                 if old["fingerprint"] != fp or old["taskId"] != task:
                     raise ContractError("idempotency_conflict")
                 return old["receipt"]
-            if meta["status"] != "active":
+            if meta["status"] != "active" and action not in {"trash", "restore", "purge"}:
                 raise ContractError("key_authorization_required")
             row = definition_row(unit, owner, vault, task)
             definition = None if row is None else row["definition"]
@@ -281,7 +294,25 @@ class TaskCenterOwnerService(PersistentPublicationService):
                 now=self.now(),
             )
             assigned = None
-            if action == "set_rules":
+            if action in {"trash", "restore", "purge"}:
+                if definition is None or (
+                    definition["taskVersion"],
+                    definition["executionEpoch"],
+                ) != (meta["taskVersion"], meta["executionEpoch"]):
+                    raise ContractError("version_conflict")
+                from .task_lifecycle import lifecycle_index, lifecycle_path
+
+                definition = plan_task_lifecycle(signed, **args, action=action)
+                controls = [*row.get("lifecycleControls", []), signed]
+                # Same bounded lifetime as task revisions; never silently discard proof.
+                if len(controls) > 50:
+                    raise ContractError("version_conflict")
+                row = {**row, "definition": definition, "lifecycleControls": controls}
+                index = lifecycle_index(unit, owner, vault)
+                index["tasks"][task] = definition["status"]
+                index["version"] += 1
+                unit.put(lifecycle_path(owner, vault), index)
+            elif action == "set_rules":
                 definition = plan_task_rules(
                     signed,
                     **args,
@@ -316,10 +347,15 @@ class TaskCenterOwnerService(PersistentPublicationService):
                 else:
                     row = {**row, "definition": definition, "control": signed}
             else:
-                if definition is None or (
-                    definition["taskVersion"],
-                    definition["executionEpoch"],
-                ) != (meta["taskVersion"], meta["executionEpoch"]):
+                if (
+                    definition is None
+                    or definition["status"] != "active"
+                    or (
+                        definition["taskVersion"],
+                        definition["executionEpoch"],
+                    )
+                    != (meta["taskVersion"], meta["executionEpoch"])
+                ):
                     raise ContractError("version_conflict")
                 ident = payload.get("assignmentId")
                 validate_schema("Identifier", ident)
@@ -451,6 +487,7 @@ class TaskCenterAgentService(PersistentExecutionService):
                 "definition": d,
                 "assignment": assigned,
                 "ruleControl": row["control"],
+                "lifecycleControls": row.get("lifecycleControls", []),
                 "assignmentControl": original["control"],
                 "binding": center_reference(d, assigned),
                 "authority": a,

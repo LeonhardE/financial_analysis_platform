@@ -158,6 +158,9 @@ class InboxService:
         anchor = self._anchor(unit, owner)
         ids = self._index(unit, owner, anchor)
         head = self._head(unit, uid, owner, anchor, result_id, ids)
+        from .task_lifecycle import require_visible
+
+        require_visible(unit, owner, anchor["vaultId"], head["metadata"]["taskId"])
         run = self.history_reader.runs._row(unit, owner, head["runId"])
         verified_head = self.history_reader._head(unit, run)
         if verified_head != head or run["ownerUid"] != uid:
@@ -290,7 +293,11 @@ class InboxService:
         def read(unit):
             anchor = self._anchor(unit, owner)
             ids = self._index(unit, owner, anchor)
+            from .task_lifecycle import visible_metadata
+
             rows = self._heads(unit, uid, owner, anchor, ids)
+            if anchor is not None:
+                rows = visible_metadata(unit, owner, anchor["vaultId"], rows)
             selected = self._select(rows, filter, task_id)
             selected.sort(
                 key=lambda row: (datetime.fromisoformat(row["receivedAt"]), row["resultId"]),
@@ -319,7 +326,11 @@ class InboxService:
         def read(unit):
             anchor = self._anchor(unit, owner)
             ids = self._index(unit, owner, anchor)
+            from .task_lifecycle import visible_metadata
+
             rows = self._heads(unit, uid, owner, anchor, ids)
+            if anchor is not None:
+                rows = visible_metadata(unit, owner, anchor["vaultId"], rows)
             selected = [row for row in rows if task_id is None or row["taskId"] == task_id]
             result = {
                 "contractVersion": CONTRACT_VERSION,
