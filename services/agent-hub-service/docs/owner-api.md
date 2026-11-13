@@ -148,25 +148,37 @@ and only that producer's kinds. Browser Firebase tokens are never forwarded. Mis
 producer 401/403, redirects, malformed/oversize/private-field responses and timeouts make the affected
 source unavailable; they do not sign the owner out or expose upstream diagnostics.
 
-Credential preparation and upstream metadata calls share a cooperative 12-second admission budget,
-at most four request-scoped joined workers, and no more than eleven jobs. Queued work and target-lock
-waits check the same budget. Metadata and producer HTTP use fixed URLs, no ambient proxies, no
+The complete catalogue operation, including both local context checks, uses a cooperative ten-second
+budget. Discovery reserves one second for the final context/response work, leaving additional margin
+under the existing twelve-second Web proxy. Two request-scoped joined workers handle User and Portfolio;
+normal Portfolio discovery uses one state batch and one projection batch for its active subset,
+independent of whether one, two or ten sources are registered. Terminal fences skip producer calls.
+The existing all-or-error producer contract is unchanged: bounded 403/404/503 batch refusals may be
+bisected under the same deadline to preserve other sources; malformed/auth/transport failures never
+create that fan-out. Target-lock waits check the same budget. HTTP uses fixed URLs, no ambient proxies, no
 redirects, identity encoding and streaming byte limits. Producer response reads allow up to eight
 seconds, capped by the remaining admission budget, to tolerate a cold source; connection, pool,
 write and credential I/O retain their four-second caps. Optional KMS
 timeouts use remaining budget for cold public-key retrieval and signing with `retry=None`; existing
-signing/JWKS calls retain their four-second defaults. This is **not** an exact twelve-second wall-clock
-guarantee: SDK client/ADC discovery and credential refresh, a final blocking read and the separate
-bounded Hub database transactions are not a fully cancellable asynchronous operation. There is no
-detached worker, retry loop, scheduler or persistent owner/token/metadata cache.
+signing/JWKS calls retain their four-second defaults. This is **not** an exact ten-second wall-clock
+guarantee: SDK client/ADC discovery, credential refresh, a final blocking read and bounded Hub database
+transactions are not fully cancellable asynchronous operations. Each completed stage rechecks the
+shared deadline; an over-budget final context cannot return active success. There is no detached
+worker, unbounded retry, scheduler or persistent owner/token/metadata cache.
 
 Closed catalogue refusal diagnostics retain WARNING visibility even when the MCP SDK configures
 the root logger at CRITICAL. Only the fixed source, stage and closed error code are logged;
 identities, resource references, credentials, response bodies and exception messages are excluded.
+Closed `uvicorn.error.hub_catalogue` timing diagnostics report source count, completion and before/
+discovery/after/total durations, including failed reads, without adding identifiers or content.
 
 Hub verifies its current vault, signed registry checkpoint/key epoch, source refs and source fences
 before RPCs and again afterward in separate read transactions. Changes return a conflict rather than
-old active discovery. The initial epoch recorded on a vault source is only registration metadata;
+old active discovery. Each context batches its source fences using the existing store adapter.
+Exact history signatures are memoized only inside one catalogue read, bound to owner/vault/root/history
+digest; the checkpoint time bound and current row/archive/lifecycle/fences are checked again.
+The first directory anchor is checked without verifying the same first bundle twice. No signature
+result or authorization decision is reused across requests. The initial epoch recorded on a vault source is only registration metadata;
 fresh Portfolio metadata is compared with the actual Hub fence and cannot reset it to epoch one.
 Terminal local fences are shown without reading old source data. No network call runs inside a
 database transaction. The result is not a globally atomic snapshot across User, Portfolio and Hub:

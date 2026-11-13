@@ -1,6 +1,6 @@
 """Owner-only discovery of existing source metadata, never encrypted Run evidence.
 
-Upstream calls have one request-scoped deadline and at most four joined workers.
+Context and upstream calls share one read budget and at most two joined workers.
 Neither upstream content nor credentials are cached or persisted by this module.
 """
 
@@ -29,14 +29,15 @@ from folioview_shared.http import PrivateRoute
 from folioview_shared.identity import owner_key
 
 from .api import Owner, Service, _invoke, transport
-from .fences import _state
+from .fences import _state, fence_path
 from .signing import _EMAIL, get_signer, origin
 from .store import document_path
 from .vaults import _verify_row
 
 PROFILE = "folioview.owner-resource-discovery.v1"
 MAX_SOURCE_BYTES = 16_384
-TOTAL_SECONDS = 12
+TOTAL_SECONDS = 10
+FINALIZE_SECONDS = 1
 _JWT = re.compile(r"[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\Z")
 _USER_KINDS = ("watchlist", "channel_follows")
 _SOURCE_STATES = {"active", "revoking", "disconnected", "deleted"}
@@ -45,6 +46,13 @@ _LOGGER = logging.getLogger(__name__)
 # The MCP SDK configures the root logger at CRITICAL. These closed diagnostics
 # must still be emitted without enabling SDK request or exception logging.
 _LOGGER.setLevel(logging.WARNING)
+_TIMING_LOGGER = logging.getLogger("uvicorn.error.hub_catalogue")
+
+
+class _ProducerRefusal(ContractError):
+    def __init__(self, status):
+        super().__init__("source_unavailable")
+        self.status = status
 
 
 def _refusal(service, stage, error):
@@ -188,8 +196,11 @@ class CatalogueSources:
         )
         self.clock, self.wall_clock = clock, wall_clock
 
-    def discover(self, uid, sources):
-        deadline = self.clock() + TOTAL_SECONDS
+    def discover(self, uid, sources, *, deadline=None):
+        deadline = min(
+            self.clock() + TOTAL_SECONDS,
+            deadline if deadline is not None else self.clock() + TOTAL_SECONDS,
+        )
         credentials, failures = {}, set()
         locks = {name: threading.Lock() for name in self.origins}
         with httpx.Client(
@@ -287,7 +298,7 @@ class CatalogueSources:
                         stage = "response_status"
                         if response.status_code != 200:
                             # Never read, persist or forward a producer's error body.
-                            raise ContractError("source_unavailable")
+                            raise _ProducerRefusal(response.status_code)
                         stage = "response_media_type"
                         if (
                             response.headers.get("content-type", "").split(";", 1)[0]
@@ -359,38 +370,78 @@ class CatalogueSources:
                     _refusal("user", stage, error)
                     return {kind: failure(evidence="not_prepared") for kind in _USER_KINDS}
 
-            def portfolio(source):
-                ref, fence = source["ref"], source["fence"]
-                if fence["state"] in {"disconnected", "deleted"}:
-                    return item(ref, state=fence["state"], epoch=fence["sourceEpoch"])
-                stage = "state_read"
+            def portfolio_read(refs, *, states):
+                if not refs:
+                    return {}
+                stage = "state_read" if states else "projection_read"
                 try:
-                    body = {"contractVersion": CONTRACT_VERSION, "refs": [ref]}
-                    state = request("portfolio", "/internal/v2/resources/states/read", body)
-                    stage = "state_contract"
-                    state = validate_portfolio(state, ref, states=True)
+                    value = request(
+                        "portfolio",
+                        "/internal/v2/resources/states/read"
+                        if states
+                        else "/internal/v2/resources/projections/read",
+                        {"contractVersion": CONTRACT_VERSION, "refs": refs},
+                    )
+                    stage = "state_contract" if states else "projection_contract"
+                    return validate_portfolio_batch(value, refs, states=states)
+                except Exception as error:
+                    _refusal("portfolio", stage, error)
+                    # The unchanged producer contract fails a whole batch for a
+                    # missing/fenced source. Isolate only those bounded refusals;
+                    # malformed payloads/auth/transport errors never fan out.
+                    if (
+                        isinstance(error, _ProducerRefusal)
+                        and error.status in {403, 404, 503}
+                        and len(refs) > 1
+                    ):
+                        middle = len(refs) // 2
+                        return portfolio_read(refs[:middle], states=states) | portfolio_read(
+                            refs[middle:], states=states
+                        )
+                    return {}
+
+            def portfolio():
+                result, active = {}, []
+                live = []
+                for source in sources:
+                    ref, fence = source["ref"], source["fence"]
+                    key = canonical_json(ref)
+                    if fence["state"] in {"disconnected", "deleted"}:
+                        result[key] = item(ref, state=fence["state"], epoch=fence["sourceEpoch"])
+                    else:
+                        live.append(ref)
+                states = portfolio_read(live, states=True)
+                for source in sources:
+                    ref, fence = source["ref"], source["fence"]
+                    key = canonical_json(ref)
+                    if key in result:
+                        continue
+                    state = states.get(key)
+                    if state is None:
+                        result[key] = failure(ref)
+                        continue
                     if state["sourceEpoch"] != fence["sourceEpoch"]:
-                        return item(ref, state="pending", epoch=fence["sourceEpoch"])
-                    if state["state"] != "active":
-                        return item(
+                        result[key] = item(ref, state="pending", epoch=fence["sourceEpoch"])
+                    elif state["state"] != "active":
+                        result[key] = item(
                             ref,
                             state=state["state"],
                             revision=state["revision"],
                             epoch=state["sourceEpoch"],
                         )
-                    stage = "projection_read"
-                    projection = request(
-                        "portfolio", "/internal/v2/resources/projections/read", body
-                    )
-                    stage = "projection_contract"
-                    projection = validate_portfolio(projection, ref, states=False)
-                    stage = "projection_binding"
-                    if any(
+                    else:
+                        active.append(ref)
+                projections = portfolio_read(active, states=False)
+                for ref in active:
+                    key = canonical_json(ref)
+                    state, projection = states[key], projections.get(key)
+                    if projection is None or any(
                         projection[k] != state[k]
                         for k in ("ref", "revision", "sourceEpoch", "state")
                     ):
-                        raise ContractError("source_unavailable")
-                    return item(
+                        result[key] = failure(ref)
+                        continue
+                    result[key] = item(
                         ref,
                         state="active",
                         revision=state["revision"],
@@ -400,24 +451,45 @@ class CatalogueSources:
                         if projection["snapshotId"] is None
                         else "not_checked",
                     )
-                except Exception as error:
-                    _refusal("portfolio", stage, error)
-                    return failure(ref)
+                return [result[canonical_json(source["ref"])] for source in sources]
 
             try:
                 with ThreadPoolExecutor(
-                    max_workers=4, thread_name_prefix="hub-catalogue"
+                    max_workers=2, thread_name_prefix="hub-catalogue"
                 ) as workers:
                     user_future = workers.submit(user)
-                    holdings = [workers.submit(portfolio, source) for source in sources]
+                    holdings = workers.submit(portfolio)
                     result = {
                         "user": user_future.result(),
-                        "portfolio": [future.result() for future in holdings],
+                        "portfolio": holdings.result(),
                     }
             finally:
                 credentials.clear()
                 failures.clear()
         return result
+
+
+def validate_portfolio_batch(value, refs, *, states):
+    if (
+        type(value) is not dict
+        or set(value) != {"contractVersion", "items"}
+        or value["contractVersion"] != CONTRACT_VERSION
+        or type(value["items"]) is not list
+        or len(value["items"]) != len(refs)
+    ):
+        raise ContractError("source_unavailable")
+    expected = {canonical_json(ref): ref for ref in refs}
+    result = {}
+    for row in value["items"]:
+        if type(row) is not dict or type(row.get("ref")) is not dict:
+            raise ContractError("source_unavailable")
+        key = canonical_json(row["ref"])
+        if key not in expected or key in result:
+            raise ContractError("source_unavailable")
+        result[key] = validate_portfolio(
+            {"contractVersion": CONTRACT_VERSION, "items": [row]}, expected[key], states=states
+        )
+    return result
 
 
 def validate_portfolio(value, ref, *, states):
@@ -453,16 +525,30 @@ class CatalogueService:
     def __init__(self, vaults, sources):
         self.vaults, self.sources = vaults, sources
 
-    def context(self, uid):
+    def context(self, uid, *, registry_cache=None):
         owner = owner_key(uid)
 
         def read(unit):
             row = unit.get(document_path("hub_vaults", owner))
             if row is None:
                 return {"vault": None, "sources": []}
-            registry = _verify_row(row, owner, self.vaults.now(), unit=unit)
+            registry = _verify_row(
+                row, owner, self.vaults.now(), unit=unit, registry_cache=registry_cache
+            )
+            fences = unit.get_many(
+                [fence_path(owner, source["resourceRef"]) for source in row["sources"]]
+            )
+
+            class Snapshot:
+                def get(self, path):
+                    return fences[path]
+
+            snapshot = Snapshot()
             sources = [
-                {"ref": source["resourceRef"], "fence": _state(unit, owner, source["resourceRef"])}
+                {
+                    "ref": source["resourceRef"],
+                    "fence": _state(snapshot, owner, source["resourceRef"]),
+                }
                 for source in row["sources"]
             ]
             return {
@@ -478,46 +564,91 @@ class CatalogueService:
         return self.vaults.store.transact(read)
 
     def read(self, uid):
-        before = self.context(uid)
-        result = self.sources.discover(uid, before["sources"])
-        # No network in a database transaction. This post-read check prevents a
-        # changed local authority/fence being presented as active discovery.
-        if canonical_json(self.context(uid)) != canonical_json(before):
-            raise ContractError("version_conflict")
-        holdings = result["portfolio"]
-        states = {row["state"] for row in holdings}
-        status = (
-            "uninitialized"
-            if not holdings
-            else "unavailable"
-            if states == {"unavailable"}
-            else "partial"
-            if "unavailable" in states
-            else "available"
-        )
-        groups = [
-            {"kind": "holdings", "sourceService": "portfolio", "status": status, "items": holdings}
-        ]
-        for kind in _USER_KINDS:
-            row = result["user"][kind]
-            groups.append(
-                {
-                    "kind": kind,
-                    "sourceService": "user",
-                    "status": "unavailable" if row["state"] == "unavailable" else "available",
-                    "items": [row],
-                }
+        clock = self.sources.clock
+        started = clock()
+        deadline = started + TOTAL_SECONDS
+        registry_cache = {}
+        timing = dict.fromkeys(("before", "discover", "after"), 0.0)
+        complete, source_count = False, 0
+        stage_name, stage = None, started
+        try:
+            stage_name = "before"
+            stage = started
+            before = self.context(uid, registry_cache=registry_cache)
+            timing["before"] = clock() - stage
+            source_count = len(before["sources"])
+            stage_name = None
+            remaining(deadline - FINALIZE_SECONDS, clock)
+            stage_name = "discover"
+            stage = clock()
+            result = self.sources.discover(
+                uid, before["sources"], deadline=deadline - FINALIZE_SECONDS
             )
-        value = {
-            "contractVersion": CONTRACT_VERSION,
-            "profile": PROFILE,
-            "readAt": datetime.fromtimestamp(self.vaults.now(), UTC)
-            .isoformat()
-            .replace("+00:00", "Z"),
-            "groups": groups,
-        }
-        check_read_response(value)
-        return value
+            timing["discover"] = clock() - stage
+            stage_name = None
+            remaining(deadline, clock)
+            # No network in a database transaction. This post-read check prevents a
+            # changed local authority/fence being presented as active discovery.
+            stage_name = "after"
+            stage = clock()
+            after = self.context(uid, registry_cache=registry_cache)
+            timing["after"] = clock() - stage
+            stage_name = None
+            remaining(deadline, clock)
+            if canonical_json(after) != canonical_json(before):
+                raise ContractError("version_conflict")
+            holdings = result["portfolio"]
+            states = {row["state"] for row in holdings}
+            status = (
+                "uninitialized"
+                if not holdings
+                else "unavailable"
+                if states == {"unavailable"}
+                else "partial"
+                if "unavailable" in states
+                else "available"
+            )
+            groups = [
+                {
+                    "kind": "holdings",
+                    "sourceService": "portfolio",
+                    "status": status,
+                    "items": holdings,
+                }
+            ]
+            for kind in _USER_KINDS:
+                row = result["user"][kind]
+                groups.append(
+                    {
+                        "kind": kind,
+                        "sourceService": "user",
+                        "status": "unavailable" if row["state"] == "unavailable" else "available",
+                        "items": [row],
+                    }
+                )
+            value = {
+                "contractVersion": CONTRACT_VERSION,
+                "profile": PROFILE,
+                "readAt": datetime.fromtimestamp(self.vaults.now(), UTC)
+                .isoformat()
+                .replace("+00:00", "Z"),
+                "groups": groups,
+            }
+            check_read_response(value)
+            remaining(deadline, clock)
+            complete = True
+            return value
+        finally:
+            if stage_name is not None:
+                timing[stage_name] += clock() - stage
+            _TIMING_LOGGER.info(
+                "hub_catalogue sources=%d complete=%s before_ms=%.3f discover_ms=%.3f "
+                "after_ms=%.3f total_ms=%.3f",
+                source_count,
+                complete,
+                *(timing[name] * 1000 for name in ("before", "discover", "after")),
+                (clock() - started) * 1000,
+            )
 
 
 def get_sources():
