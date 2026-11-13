@@ -21,6 +21,7 @@ from .persistent_publication_routes import router as persistent_publication_rout
 from .persistent_result_routes import agent_router as persistent_result_agent_router
 from .persistent_result_routes import owner_router as persistent_result_owner_router
 from .persistent_routes import router as persistent_owner_router
+from .provider_connection_routes import router as provider_connection_router
 from .tasks import router as tasks_router
 
 app = create_app(
@@ -45,6 +46,7 @@ app.include_router(catalogue_router)
 app.include_router(tasks_router)
 app.include_router(persistent_owner_router)
 app.include_router(agent_credential_router)
+app.include_router(provider_connection_router)
 app.include_router(agent_client_router)
 app.include_router(account_assets_router)
 app.include_router(persistent_publication_router)

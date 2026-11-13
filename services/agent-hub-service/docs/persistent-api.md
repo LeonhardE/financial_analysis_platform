@@ -435,3 +435,65 @@ The Owner uses the existing Passkey and encrypted resource/task copies. Recovery
 therefore does not require an old Agent key file or a pending record in the
 current browser. Unfinished renewals retain predecessor references for a later
 retry without resetting any consent/revocation ledger.
+
+## Unique provider connections (compatible producer API)
+
+`/api/v3/provider-connections` implements the additive shared Owner/provider slot
+profile. Capability and writes are default-off behind
+`HUB_PROVIDER_CONNECTION_SLOTS_ENABLED=1` plus existing Agent-owned/runtime gates
+and Owner admission. This source/deployment does not enable it or migrate accounts.
+Owner-authenticated state and original-operation reads remain available when off.
+All routes require the exact contract header, closed transport/no query or
+delegation headers; writes additionally require the original Idempotency-Key.
+
+- `GET /capabilities`: exact profile/providers, enabled flag, automaticMigration=false.
+- `GET /{vault}/{provider}`: current slot, exact retirement snapshots, legacy
+  blockers and retained restoration selections. Resource/task names remain encrypted.
+- `GET /{vault}/{provider}/operations/{operation}`: original immutable receipt.
+- `POST /{vault}/{provider}/commands`: `{contractVersion, command}`; activate uses
+  `{approval, review, credential}` and disconnect uses `{approval}`. `approval` is
+  the distinct shared signed provider control; `credential` is the unchanged
+  signed binding/90-day approval/optional encrypted activation packet. Both
+  approvals bind the same operation. Persist this entire original body before send.
+
+The existing Hub transaction reads the Owner connection index, complete current
+provider inventory, current slot, native setup intent and candidate credential.
+It atomically consumes setup, installs the candidate, advances the unique slot,
+retires exact old actors, archives superseded bindings and records the original
+receipt. Concurrent creation/replacement loses CAS or exact inventory comparison;
+any verification/storage failure rolls back all writes. Same-physical-connection
+renewal revokes the old generation through the current credential/slot fences;
+retiring by physical connection alone must not revoke its replacement. Other
+retired connections become revoked. Both current slot and original-operation
+receipts survive future disconnect/replacement, including lost acknowledgements.
+Signature-only JWS variants retain the same operation identity and return the
+original receipt; changed review, activation ciphertext or signed input conflicts.
+
+Review never copies old grants or creates ciphertext. Selected task versions,
+execution epochs, authority fingerprints and resource IDs must still match live
+Owner task state. Selections are a pending restoration plan only; fresh explicit
+Owner grants/deliveries remain necessary. Unselected scopes gain nothing. Old
+create-only identities without a credential lease are returned as `legacyBlockers`:
+Owner must explicitly disconnect them through existing narrowing controls and
+regrant on the reviewed route. They are not turned into synthetic leases or
+silently ignored. Cross-vault active records block cutover; this profile cannot
+implicitly rebind an Owner/provider slot to another vault. Unpaired native OAuth
+bootstrap records have no identity/content authority and are not active actors.
+
+Installed provider markers enforce the current slot on all persistent live
+identity checks, including Begin, manifest/content access and final result write;
+turning off the feature gate cannot remove this fence. Legacy credential and
+create-only enrollment routes cannot install another identity once a slot exists.
+Unmigrated connections retain their existing read path without extra slot reads.
+Explicit native disconnect also denies through the existing parent-connection
+check; a reviewed reconnect can replace its retained current snapshot. Historical
+Owner report access, original actor identities and receipts remain unchanged.
+
+The optional Owner source SDK is `agent-client/owner-connections.mjs`. Inject an
+authenticated same-origin transport; it supplies contract/operation headers,
+closed paths and one write attempt. Recover an uncertain response via the original
+receipt or exact packet, never automatically sign/issue a new command. Existing
+pinned native Agent client bundles and their physical actor/proof shapes are
+unchanged; the server resolves the current logical slot without client claims.
+No Web switch, production consent, schedule, live run or infrastructure provisioning
+is performed by deploying these compatible producer APIs.

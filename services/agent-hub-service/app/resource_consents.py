@@ -115,6 +115,9 @@ class ResourceConsentService(PersistentAgentService):
             require_managed_credential(
                 row, now=self.now(), audience=getattr(self, "audience", None), connection=conn
             )
+            from .provider_connections import require_provider_current
+
+            require_provider_current(unit, owner, vault_id, connection, conn, row, self.now())
         return identity
 
     def state(self, uid, vault_id, connection):
