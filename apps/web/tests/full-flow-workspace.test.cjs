@@ -159,7 +159,9 @@ const metadata = (resultId, connectionId, revision = 1) => ({
 });
 
 /**
- * Compose the shipped Dashboard, useWatchlist, useResourceLibrary, InboxPanel and
+ * Compose current workspace routing and resource hooks with the retained legacy
+ * report reader inside its task host. The current result consumer has dedicated
+ * task-results-hook/reader tests; this fixture preserves historical reader behavior and
  * useInbox with one owner workspace. Hooks/window/HTTP and the decryptor are
  * explicit synthetic facades: this checks orchestration, not native React/DOM,
  * Firebase, server authorization or cryptography (covered in the crypto suite).
@@ -417,7 +419,7 @@ function flow({ hash = "", search = "", owner = "A:1", locked = false, hidden = 
   const render = (flush = true) => {
     page = pageHooks.run(() => Dashboard(), flush);
     active = find(page, (n) => n.type === Sidebar).props.activeView;
-    const props = find(page, (n) => n.type === InboxPanel).props;
+    const props = find(page, (n) => n.type === TasksPanel).props;
     inbox = inboxHooks.run(() => InboxPanel(props), flush).props.model;
     resources = libraryHooks.run(
       () => useResourceLibrary({ active: active === "resources" }),
@@ -568,7 +570,7 @@ test("Market edits and resource discovery use the same owner source through the 
 test("a direct locked link waits for unlock, keeps history exact and survives a memory lock", async () => {
   const h = flow({ hash: "#inbox/result/result_A1/revisions/2", locked: true });
   let state = await h.ready();
-  assert.equal(state.active, "inbox");
+  assert.equal(state.active, "tasks");
   assert.equal(h.opens.length, 0);
   assert.ok(h.calls.every((call) => !/\/results\/result_/.test(call.route)));
   h.unlock();
@@ -701,7 +703,7 @@ test("result arrivals preserve the active page and selection without portfolio s
   h.store.A.rows.unshift(metadata("result_A_newer", "agent_A1"));
   h.poll();
   state = await h.settle();
-  assert.equal(state.active, "inbox");
+  assert.equal(state.active, "tasks");
   assert.equal(state.inbox.selected.content.title, selected);
   assert.equal(state.inbox.notice, "new_results");
   assert.ok(h.calls.every((call) => call.service !== "portfolio"));
@@ -732,7 +734,7 @@ test("logout discards the old intent but a new anonymous link can be opened by t
 test("first-load Agent and Inbox handoffs wait for parent router setup and ignore a disposed mount", async () => {
   for (const [options, expected] of [
     [{ search: "?native_request=synthetic_request&native_nonce=" + "n".repeat(43) }, "/agents"],
-    [{ hash: "#inbox/result/synthetic_result/revisions/1" }, "/inbox"],
+    [{ hash: "#inbox/result/synthetic_result/revisions/1" }, "/tasks"],
   ]) {
     const h = flow({ ...options, owner: null });
     h.render();

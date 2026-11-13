@@ -1459,3 +1459,24 @@ test("background name verification limits concurrent decryption to three", async
   assert.ok(peak <= 3);
   h.unmount();
 });
+
+test("task deletion immediately masks its editor and names while preserving sealed local recovery records", async () => {
+  const h = harness();
+  let m = await h.ready();
+  await m.openTask("task_A");
+  m = h.render();
+  m.setForm(content({ name: "DELETED_TASK_DRAFT" }));
+  m = await h.drain();
+  assert.ok(h.drafts.has("task_A"));
+  m.invalidateTask("task_A");
+  m = h.render();
+  assert.equal(m.selected, null);
+  assert.equal(m.form, null);
+  assert.equal(m.taskNames.task_A, undefined);
+  assert.ok(h.drafts.has("task_A"));
+  assert.equal(
+    m.drafts.some((d) => d.taskId === "task_A"),
+    false,
+  );
+  h.unmount();
+});

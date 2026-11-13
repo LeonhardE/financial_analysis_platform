@@ -1,6 +1,8 @@
 "use client";
 
 import { useRef, useEffect, useState } from "react";
+import { useTaskResults } from "./useTaskResults";
+import { TaskResultsPanel } from "./TaskResultsPanel";
 import { useTaskCenter } from "./useTaskCenter";
 import { TaskCenterView } from "./TaskCenterPanel";
 import type { PersistentWorkspaceModel } from "./usePersistentWorkspace";
@@ -958,6 +960,18 @@ export default function TasksPanel({
 }) {
   const model = useTasks(workspace, { active });
   const center = useTaskCenter(workspace, active, model.selected);
+  const observed = Object.values(center.manual)
+    .flatMap((rows) =>
+      rows.flatMap(
+        (row) =>
+          row.snapshot?.executors?.map((e: Record<string, any>) => e.resultId).filter(Boolean) ??
+          [],
+      ),
+    )
+    .sort()
+    .join("|");
+  const results = useTaskResults(workspace, persistent, model, active, observed);
+
   const [linkedTask, setLinkedTask] = useState<string | null>(null);
   const tc = useTranslations("taskCenter");
   useEffect(() => {
@@ -989,7 +1003,12 @@ export default function TasksPanel({
     model.openTask,
   ]);
 
-  if (model.unlocked && workspace.phase === "unlocked" && !workspace.needsDeviceApproval)
+  if (
+    workspace.authenticated &&
+    workspace.owner === model.owner &&
+    workspace.phase === "unlocked" &&
+    !workspace.needsDeviceApproval
+  )
     return (
       <>
         {linkedTask && model.dirty && <InlineError message={tc("unsavedLink")} />}
@@ -998,6 +1017,10 @@ export default function TasksPanel({
           model={model}
           center={center}
           persistent={persistent}
+          results={<TaskResultsPanel model={results} taskId={model.selected?.taskId ?? ""} />}
+          unreadCounts={results.unreadCounts}
+          unreadPartial={results.partial}
+          resultsFocusKey={results.detail?.row.metadata.resultId}
           request={request}
           onRequestConsumed={onRequestConsumed}
           onNavigate={onNavigate}

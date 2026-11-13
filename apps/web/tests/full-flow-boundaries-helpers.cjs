@@ -113,6 +113,7 @@ async function stack(options = {}) {
   );
   const hub = server("hub-owner", {
     "./task-center-owner": server("task-center-owner", {
+      "../persistent-owner-routes": persistentRoutes,
       "server-only": {},
       "./owner-transport": transport,
     }),

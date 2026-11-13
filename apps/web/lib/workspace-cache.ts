@@ -76,6 +76,53 @@ export class DisplayReadPool {
     string,
     { controller: AbortController; promise: Promise<Response>; users: number; settled: boolean }
   >();
+  private queued = new Set<AbortController>();
+  queue(send: (signal: AbortSignal) => Promise<Response>, signal?: AbortSignal): Promise<Response> {
+    if (signal?.aborted) return Promise.reject(new Error("cancelled"));
+    if (this.queued.size >= 16) return Promise.reject(new Error("read_capacity"));
+    const controller = new AbortController();
+    const abort = () => controller.abort();
+    signal?.addEventListener("abort", abort, { once: true });
+    this.queued.add(controller);
+    return this.schedule(() => send(controller.signal), controller.signal).finally(() => {
+      signal?.removeEventListener("abort", abort);
+      this.queued.delete(controller);
+    });
+  }
+  private active = 0;
+  private waiting: Array<() => void> = [];
+  private schedule(send: () => Promise<Response>, signal: AbortSignal): Promise<Response> {
+    return new Promise((resolve, reject) => {
+      let started = false,
+        finished = false;
+      const abort = () => {
+        if (started || finished) return;
+        finished = true;
+        this.waiting = this.waiting.filter((entry) => entry !== start);
+        reject(new Error("cancelled"));
+      };
+      const start = () => {
+        signal.removeEventListener("abort", abort);
+        if (finished || signal.aborted) {
+          abort();
+          return;
+        }
+        started = true;
+        this.active++;
+        void Promise.resolve()
+          .then(send)
+          .then(resolve, reject)
+          .finally(() => {
+            this.active--;
+            this.waiting.shift()?.();
+          });
+      };
+      signal.addEventListener("abort", abort, { once: true });
+      if (signal.aborted) abort();
+      else if (this.active < 2) start();
+      else this.waiting.push(start);
+    });
+  }
   run(
     key: string,
     send: (signal: AbortSignal) => Promise<Response>,
@@ -88,7 +135,7 @@ export class DisplayReadPool {
       const controller = new AbortController();
       row = {
         controller,
-        promise: Promise.resolve().then(() => send(controller.signal)),
+        promise: this.schedule(() => send(controller.signal), controller.signal),
         users: 0,
         settled: false,
       };
@@ -146,6 +193,8 @@ export class DisplayReadPool {
     });
   }
   clear() {
+    for (const controller of this.queued) controller.abort();
+    this.queued.clear();
     for (const row of this.rows.values()) row.controller.abort();
     this.rows.clear();
   }

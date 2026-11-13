@@ -7,6 +7,7 @@ const t = compile("../lib/server/owner-transport.ts", {
     jose: {},
   }),
   dto = compile("../lib/server/task-center-owner.ts", {
+    "../persistent-owner-routes": compile("../lib/persistent-owner-routes.ts"),
     "server-only": {},
     "./owner-transport": t,
   });

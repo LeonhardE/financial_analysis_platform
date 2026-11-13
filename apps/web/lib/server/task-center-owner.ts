@@ -34,39 +34,7 @@ const slotResponse = (v: unknown) =>
   integer(v.slotGeneration, 1) &&
   (v.currentCredential === null || credentialRef(v.currentCredential)) &&
   credentialRef(v.lastCredential);
-export function taskCenterRoute(path: string, method: string) {
-  const providerPath = new RegExp(
-    `^/api/v3/provider-connections/${ID}/(?:muse|chatgpt)(?:/operations/${OP})?$`,
-  );
-  if (
-    method === "GET" &&
-    (path === "/api/v3/provider-connections/capabilities" || providerPath.test(path))
-  )
-    return { kind: "read" as const, max: 0, responseStatus: 200 as const };
-  if (
-    method === "POST" &&
-    new RegExp(`^/api/v3/provider-connections/${ID}/(?:muse|chatgpt)/commands$`).test(path)
-  )
-    return { kind: "center" as const, max: 140000, operation: true, responseStatus: 201 as const };
-  if (
-    method === "GET" &&
-    (path === "/api/v3/task-center/capabilities" ||
-      new RegExp(
-        `^/api/v3/task-center/${ID}/(?:trash|tasks/${ID}(?:/operations/${OP}|/manual(?:/${OP})?)?)$`,
-      ).test(path))
-  )
-    return { kind: "read" as const, max: 0, responseStatus: 200 as const };
-  if (method !== "POST") return null;
-  if (new RegExp(`^/api/v3/task-center/${ID}/tasks/${ID}/(?:commands|manual)$`).test(path))
-    return { kind: "center" as const, max: 24576, operation: true, responseStatus: 201 as const };
-  if (
-    new RegExp(
-      `^/api/v3/task-center/${ID}/(?:trash/query|tasks/${ID}/(?:results/query|progress/query|maintenance|manual/${OP}/cancel|operations/${OP}/cancel))$`,
-    ).test(path)
-  )
-    return { kind: "center" as const, max: 8192, responseStatus: 200 as const };
-  return null;
-}
+export { taskCenterRoute } from "../persistent-owner-routes";
 export function taskCenterRequest(path: string, body: unknown) {
   if (!record(body) || body.contractVersion !== CONTRACT) return false;
   if (path.startsWith("/api/v3/provider-connections/")) {

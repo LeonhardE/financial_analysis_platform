@@ -5,8 +5,8 @@ is documented separately in [Agent integration](agent-integration.md).
 
 ## Workspace routes
 
-`/` and `/market` both open Market. Resources, Tasks, Agents, Inbox and Settings have their own
-`/resources`, `/tasks`, `/agents`, `/inbox` and `/settings` pages. Sidebar links support ordinary
+`/` and `/market` both open Market. Resources, Task Center, Agent Management and Settings use
+`/resources`, `/tasks`, `/agents` and `/settings`. The retained `/inbox` route opens Task Center. Sidebar links support ordinary
 navigation, copied/bookmarked URLs and opening another tab. Direct loads and refresh stay on the
 selected page; unknown paths return the normal 404 rather than becoming Market.
 
@@ -154,33 +154,40 @@ combined without an explicit FX source. Unsupported assets/directions remain vis
 
 ## Private agent Inbox
 
-Inbox is an additional bottom-sidebar view; Markets remains the default. Resources and Inbox
-share one mounted owner workspace, Passkey unlock and terminated-on-lock crypto Worker. Inbox
-needs only the independent Hub capability, so it works without a configured Portfolio target.
-Sign out, account changes, lock and lost capabilities hide private content in the same render,
-clear the search/decryption cache and invalidate late network bodies, crypto replies and actions.
+Results now live in each Task Center detail, grouped by their actual historical
+Agent connection. Removing an executor does not remove its history. The sidebar
+has no separate Inbox or foreground-report section. `/inbox` and the existing
+result/revision fragments resolve to the owning task and open its report dialog.
+Unsaved task edits take precedence over a pending deep link.
 
-Lists, counts and history contain bounded approved metadata. Opening a result locally verifies
-the pinned root, full selected registry chain, signed agent grant, original Run/manifest, receipt,
-carrier, recipient and AEAD before returning private content. Historical verification uses the
-selected acceptance time and retained recovery keys; later key/agent expiry does not rewrite
-history. A narrow historical unlock does not authorize current state writes. A new device can
-use the existing Passkey enrollment flow to enable changes, including on a Hub-only instance.
+Persistent and original foreground ciphertext retain their separate verification
+adapters and original evidence. The Worker verifies the pinned root, registry,
+Run/manifest/receipt, recipient and AEAD before returning report text. Historical
+revisions remain read only; old scheduling claims display Unknown unless the
+producer supplies verified trigger provenance. Current assignment does not infer
+which Agent produced a historical report.
 
-Read, star and archive are logical result state across revisions. A latest successful authenticated
-opening can mark its exact body read; opening an old revision does not mark the latest report read.
-Writes use the current device and directory, a signed stateVersion CAS and a fresh stable operation.
-There is no automatic write retry or replacement signing after conflict. A lost response retains
-the original in-memory packet for explicit replay; the original acknowledgement is confirmed
-against fresh metadata before displaying current flags. Lock/logout discards that local retry;
-the next owner read retrieves the authoritative logical state.
+Metadata loads independently with visible progress, bounded pagination and local
+retry. Loaded unread counts show a lower bound until all pages are loaded.
+Title verification preloads visible rows through a three-item pool without marking
+reports read. Bodies use the owner/vault/generation scoped memory-only LRU
+(10 reports, 16 MiB); metadata/title indexes are bounded to 2,048 resident rows.
+List filters, selected row and scroll survive internal navigation. All private
+content is hidden on lock/account/generation/visibility changes, and task deletion
+invalidates open reports across same-root tabs. An explicit fresh ordinary-task
+read precedes displaying a cached report.
 
-The visible Inbox polls metadata once per minute only while active and visible. It loads at most
-100 metadata rows,32 historical revisions and20 exact authenticated decrypted deliveries. Search
-only covers opened reports in the currently loaded view; no private text or plaintext index reaches
-the backend, URLs, logs or persistent browser storage. Counts are server snapshots from the last
-refresh. Navigation back from a detail preserves list filters and scroll. A changed cursor requires
-refresh rather than mixing snapshots or silently re-running old state commands.
+Only a successfully presented current report may request its signed read-state CAS.
+Prefetching, failed verification, historical reading and hidden dialogs cannot mark
+it read. State changes retain the exact original signed packet after an unknown
+response; explicit retry replays it rather than creating a replacement operation.
+Conflicts require fresh metadata. Star/archive remain available within the dialog;
+opening an old revision does not mark the latest revision read.
+
+Background and fresh private reads share a two-transport queue, preserving distinct
+fresh authority requests. Only opted-in display GETs coalesce; writes never do.
+Queued cancellation cannot dispatch a late request after account change. Task-center
+and provider route tables are shared by the browser boundary and server proxy.
 
 The report viewer renders a small React-text Markdown subset with no HTML parsing, images or
 automatic linked-page fetching. Links require credential-free HTTPS; citation/model conclusions

@@ -109,3 +109,33 @@ test("all cancelled subscribers abort transport; completed reads and different o
   assert.equal(await next.text(), "fresh");
   assert.equal(calls, 3);
 });
+
+test("private reads queue at two transports, cancel before dispatch and release capacity on failure", async () => {
+  const p = new DisplayReadPool(),
+    gates = [gate(), gate(), gate(), gate()];
+  const a = new AbortController();
+  const calls = [];
+  const send = (i) => () => {
+    calls.push(i);
+    return gates[i].promise;
+  };
+  const first = p.run("one", send(0));
+  const second = p.run("two", send(1));
+  const cancelled = p.run("three", send(2), a.signal);
+  const rejects = assert.rejects(cancelled, /cancelled/);
+  const fourth = p.run("four", send(3));
+  await Promise.resolve();
+  assert.deepEqual(calls, [0, 1]);
+  a.abort();
+  await rejects;
+  gates[0].resolve(new Response("first"));
+  await first;
+  await new Promise((r) => setImmediate(r));
+  assert.deepEqual(calls, [0, 1, 3]);
+  p.clear();
+  gates[1].resolve(new Response("second"));
+  gates[3].resolve(new Response("fourth"));
+  await Promise.allSettled([second, fourth]);
+  const fresh = await p.run("fresh", async () => new Response("fresh"));
+  assert.equal(await fresh.text(), "fresh");
+});

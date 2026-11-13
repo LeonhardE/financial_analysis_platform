@@ -133,6 +133,8 @@ function render(f = fixture(), locale = "en", capture = []) {
         createTranslator({ locale, messages: catalogs[locale], namespace }),
     },
     "./useTasks": { useTasks: () => f.model },
+    "./useTaskResults": {},
+    "./TaskResultsPanel": {},
     "./useTaskCenter": {},
     "./TaskCenterPanel": {},
     "@/lib/task-forms": { defaultTask: () => form() },

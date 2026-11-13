@@ -116,6 +116,7 @@ export function useTasks(workspace: HoldingsWorkspace, { active }: { active: boo
   stateRef.current = state;
   const live = useRef({ owner, configured, scope, visible, active, workspace });
   live.current = { owner, configured, scope, visible, active, workspace };
+  const hiddenTaskIds = useRef(new Set<string>());
   const names = useRef(workspace.displayCache?.taskNames ?? new DisplayLru<string>(32, 128 * 1024));
   const nameKey = (item: TaskMetadata) =>
     JSON.stringify([
@@ -363,7 +364,11 @@ export function useTasks(workspace: HoldingsWorkspace, { active }: { active: boo
         live.current.workspace.listTaskOutbox(),
       ]);
       context.assert();
-      updatePrivate((previous) => ({ ...previous, drafts, pendingOperations }));
+      updatePrivate((previous) => ({
+        ...previous,
+        drafts: drafts.filter((d) => !hiddenTaskIds.current.has(d.taskId)),
+        pendingOperations: pendingOperations.filter((d) => !hiddenTaskIds.current.has(d.taskId)),
+      }));
     },
     [updatePrivate],
   );
@@ -1292,6 +1297,7 @@ export function useTasks(workspace: HoldingsWorkspace, { active }: { active: boo
     for (const job of jobs.current) job.abort();
     jobs.current.clear();
     names.current.clear();
+    hiddenTaskIds.current.clear();
     nameFailures.current.clear();
     namePending.current.clear();
     freshReads.current = {};
@@ -1445,6 +1451,41 @@ export function useTasks(workspace: HoldingsWorkspace, { active }: { active: boo
   }, [state.notice, scope, active, visible, updatePrivate]);
 
   const display = state.owner === owner ? state : { ...initial, owner };
+  const invalidateTask = (taskId: string, restored = false) => {
+    if (restored) {
+      hiddenTaskIds.current.delete(taskId);
+      void reloadTasks();
+      return;
+    }
+    hiddenTaskIds.current.add(taskId);
+    names.current.clear();
+    generation.current++;
+    selection.current++;
+    for (const job of jobs.current) job.abort();
+    if (stateRef.current.selected?.taskId === taskId) {
+      editor.current = null;
+      reviewed.current = null;
+    }
+    updatePrivate((previous) => ({
+      ...previous,
+      items: previous.items.filter((row) => row.taskId !== taskId),
+      drafts: previous.drafts.filter((row) => row.taskId !== taskId),
+      pendingOperations: previous.pendingOperations.filter((row) => row.taskId !== taskId),
+      ...(previous.selected?.taskId === taskId
+        ? {
+            selected: null,
+            form: null,
+            bindings: [],
+            dirty: false,
+            history: [],
+            confirmation: null,
+            confirmationReasons: [],
+            pending: null,
+            busy: false,
+          }
+        : {}),
+    }));
+  };
   const privateVisible = Boolean(scope && active && visible && display.privateScope === scope);
   const output = privateVisible
     ? display
@@ -1480,6 +1521,7 @@ export function useTasks(workspace: HoldingsWorkspace, { active }: { active: boo
         setNameRetry((v) => v + 1);
       }
     },
+    invalidateTask,
     taskNames: Object.fromEntries(
       output.items.flatMap((item) => {
         const name = names.current.get(nameKey(item));

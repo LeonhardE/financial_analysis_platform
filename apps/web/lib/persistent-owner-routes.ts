@@ -66,3 +66,38 @@ export function persistentOwnerRoute(path: string, method: string): PersistentOw
     return { kind: "control", max: 24576, operation: true, author: true, responseStatus: 200 };
   return null;
 }
+
+/** Shared by the browser admission boundary and the server proxy. No query strings. */
+export function taskCenterRoute(path: string, method: string) {
+  const providerPath = new RegExp(
+    `^/api/v3/provider-connections/${ID}/(?:muse|chatgpt)(?:/operations/${OP})?$`,
+  );
+  if (
+    method === "GET" &&
+    (path === "/api/v3/provider-connections/capabilities" || providerPath.test(path))
+  )
+    return { kind: "read" as const, max: 0, responseStatus: 200 as const };
+  if (
+    method === "POST" &&
+    new RegExp(`^/api/v3/provider-connections/${ID}/(?:muse|chatgpt)/commands$`).test(path)
+  )
+    return { kind: "center" as const, max: 140000, operation: true, responseStatus: 201 as const };
+  if (
+    method === "GET" &&
+    (path === "/api/v3/task-center/capabilities" ||
+      new RegExp(
+        `^/api/v3/task-center/${ID}/(?:trash|tasks/${ID}(?:/operations/${OP}|/manual(?:/${OP})?)?)$`,
+      ).test(path))
+  )
+    return { kind: "read" as const, max: 0, responseStatus: 200 as const };
+  if (method !== "POST") return null;
+  if (new RegExp(`^/api/v3/task-center/${ID}/tasks/${ID}/(?:commands|manual)$`).test(path))
+    return { kind: "center" as const, max: 24576, operation: true, responseStatus: 201 as const };
+  if (
+    new RegExp(
+      `^/api/v3/task-center/${ID}/(?:trash/query|tasks/${ID}/(?:results/query|progress/query|maintenance|manual/${OP}/cancel|operations/${OP}/cancel))$`,
+    ).test(path)
+  )
+    return { kind: "center" as const, max: 8192, responseStatus: 200 as const };
+  return null;
+}

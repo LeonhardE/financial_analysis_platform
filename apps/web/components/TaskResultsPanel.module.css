@@ -1,0 +1,230 @@
+.panel {
+  min-width: 0;
+}
+.toolbar,
+.tools,
+.filters,
+.meta,
+.reportActions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.toolbar {
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+.filters {
+  gap: 5px;
+}
+.panel button,
+.panel input,
+.panel select {
+  font: inherit;
+  font-size: 12px;
+}
+.panel button {
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text);
+  padding: 8px 12px;
+  cursor: pointer;
+  transition:
+    background 0.16s,
+    opacity 0.16s;
+}
+.panel button[aria-pressed="true"] {
+  background: color-mix(in srgb, var(--accent) 9%, transparent);
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 30%, var(--border));
+}
+.panel button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.panel button:focus-visible,
+.panel input:focus-visible,
+.panel select:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+.panel .quiet {
+  border-color: transparent;
+  color: var(--muted);
+}
+.tools {
+  margin-bottom: 18px;
+}
+.tools select,
+.tools input {
+  min-height: 35px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--bg);
+  color: var(--text);
+}
+.search {
+  margin-left: auto;
+}
+.search input {
+  max-width: 240px;
+  width: 100%;
+}
+.list {
+  display: grid;
+  gap: 10px;
+  max-height: 62vh;
+  overflow: auto;
+  padding: 4px;
+  scrollbar-gutter: stable;
+}
+.card {
+  position: relative;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--bg);
+  animation: reportEnter 0.18s ease-out;
+}
+.panel .open {
+  border: 0;
+  width: 100%;
+  padding: 17px 18px;
+  text-align: left;
+  display: grid;
+  gap: 11px;
+  background: transparent;
+  min-height: 82px;
+}
+.open strong {
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.open:hover {
+  background: color-mix(in srgb, var(--accent) 5%, transparent);
+}
+.meta {
+  font-size: 11px;
+  color: var(--muted);
+  gap: 8px 14px;
+}
+.dot {
+  position: absolute;
+  right: 9px;
+  top: 9px;
+  pointer-events: none;
+}
+.dot span {
+  position: static;
+  display: block;
+  box-shadow: 0 0 0 3px var(--bg);
+}
+.more {
+  display: block;
+  margin: 18px auto 0;
+}
+.empty {
+  font-size: 13px;
+  color: var(--muted);
+  text-align: center;
+  margin: 40px 10px;
+}
+.notice {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+  padding: 12px;
+  font-size: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  margin: 12px 0;
+}
+.skeleton {
+  display: block;
+  width: 65%;
+  height: 13px;
+  max-width: 300px;
+  border-radius: 4px;
+  background: linear-gradient(
+    90deg,
+    var(--border),
+    color-mix(in srgb, var(--border) 40%, transparent),
+    var(--border)
+  );
+  background-size: 200% 100%;
+  animation: reportShimmer 1.4s ease-in-out infinite;
+}
+.report {
+  line-height: 1.8;
+  font-size: 14px;
+}
+.report h3 {
+  font-size: 16px;
+  margin-top: 26px;
+}
+.reportActions {
+  margin: 18px 0;
+}
+.summary {
+  font-size: 15px;
+  white-space: pre-wrap;
+}
+.report details {
+  margin-top: 22px;
+  color: var(--muted);
+  font-size: 12px;
+}
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+@keyframes reportEnter {
+  from {
+    opacity: 0;
+    transform: translateY(3px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes reportShimmer {
+  to {
+    background-position: -200% 0;
+  }
+}
+@media (max-width: 700px) {
+  .search {
+    width: 100%;
+    margin-left: 0;
+  }
+  .search input {
+    max-width: none;
+  }
+  .list {
+    max-height: 60vh;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .panel * {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+.card[data-selected="true"] {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+}
