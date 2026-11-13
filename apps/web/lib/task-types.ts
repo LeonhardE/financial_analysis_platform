@@ -225,6 +225,8 @@ export function taskError(error: unknown): string {
     "pending_stale",
     "draft_conflict",
     "source_unavailable",
+    "service_busy",
+    "network_unavailable",
     "validation_failed",
     "review_required",
     "task_limit",

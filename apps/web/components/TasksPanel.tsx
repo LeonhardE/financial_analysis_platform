@@ -82,6 +82,8 @@ export function TasksView({
     request?.owner === workspace.owner && request.owner === model.owner ? request.binding : null;
   const requestedReady = Boolean(
     requested &&
+    !model.catalogueLoading &&
+    !model.catalogueError &&
     model.catalogue.some(
       (row) =>
         row.selectable &&
@@ -91,6 +93,14 @@ export function TasksView({
   );
   const failure = model.error || (workspace.phase !== "unlocked" ? workspace.error : "");
   const errorKey = `errors.${failure}`;
+  const readFailure = (code: string, retry: () => Promise<void>, label: string) => (
+    <div className={styles.readError} role="alert">
+      <p>{t(t.has(`readErrors.${code}`) ? `readErrors.${code}` : "readErrors.request_failed")}</p>
+      <button className={styles.secondary} onClick={() => void retry()}>
+        {t(label)}
+      </button>
+    </div>
+  );
   const headVersion = Math.max(
     selected?.taskVersion ?? 1,
     ...model.history.map((row) => row.taskVersion),
@@ -288,7 +298,7 @@ export function TasksView({
             </div>
           )}
           <div className={styles.layout}>
-            <aside className={styles.listColumn} aria-label={t("title")}>
+            <aside className={styles.listColumn} aria-label={t("title")} aria-busy={model.loading}>
               <button
                 className={styles.primary}
                 disabled={!unlocked || !model.canWrite || busy || Boolean(form)}
@@ -296,7 +306,12 @@ export function TasksView({
               >
                 {t("new")}
               </button>
-              {model.loading && <p role="status">{t("loading")}</p>}
+              {model.loading && (
+                <p className={styles.readLoading} role="status">
+                  {t("loading")}
+                </p>
+              )}
+              {model.listError && readFailure(model.listError, model.reloadTasks, "retryTasks")}
               <div className={styles.list}>
                 {model.items.map((item) => (
                   <button
@@ -403,11 +418,20 @@ export function TasksView({
                       onChange={(event) => change({ ...form, goal: event.target.value })}
                     />
                   </label>
-                  <section>
+                  <section aria-busy={model.catalogueLoading}>
                     <h2>{t("resources")}</h2>
                     <p>{t("resourcesHelp")}</p>
                     <p>{t("resourceLimit")}</p>
-                    {model.catalogue.length === 0 && <p>{t("noResources")}</p>}
+                    {model.catalogueLoading && (
+                      <p className={styles.readLoading} role="status">
+                        {t("loadingResources")}
+                      </p>
+                    )}
+                    {model.catalogueError &&
+                      readFailure(model.catalogueError, model.reloadCatalogue, "retryResources")}
+                    {!model.catalogueLoading &&
+                      !model.catalogueError &&
+                      model.catalogue.length === 0 && <p>{t("noResources")}</p>}
                     {model.catalogue.map((option, index) => {
                       const key = option.binding
                         ? bindingIdentity(option.binding)
@@ -422,6 +446,8 @@ export function TasksView({
                             type="checkbox"
                             checked={checked}
                             disabled={
+                              model.catalogueLoading ||
+                              Boolean(model.catalogueError) ||
                               (!option.selectable && !checked) ||
                               (!checked && model.bindings.length >= 10)
                             }

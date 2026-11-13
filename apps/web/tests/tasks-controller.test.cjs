@@ -340,9 +340,9 @@ function harness({
     throw new Error("unexpected route");
   };
   const window = {
-    setTimeout(callback) {
+    setTimeout(callback, delay) {
       const id = ++timer;
-      timers.set(id, callback);
+      timers.set(id, { callback, delay });
       return id;
     },
     clearTimeout(id) {
@@ -463,8 +463,16 @@ function harness({
     authority(next) {
       authority = { ...authority, ...next };
     },
-    deadline() {
-      for (const callback of [...timers.values()]) callback();
+    deadline(delay) {
+      for (const [id, entry] of [...timers]) {
+        if (delay === undefined || entry.delay === delay) {
+          timers.delete(id);
+          entry.callback();
+        }
+      }
+    },
+    timerDelays() {
+      return [...timers.values()].map((entry) => entry.delay);
     },
     unmount() {
       for (const cell of cells) cell?.cleanup?.();
@@ -992,5 +1000,314 @@ test("unavailable resource blocks fresh save while existing version remains read
   model.setForm(content({ goal: "forbidden" }));
   await model.save(true);
   assert.equal(h.seals.length, before);
+  h.unmount();
+});
+
+test("slow catalogue never holds the task list; its failure and retry stay local", async () => {
+  const gate = deferred();
+  let slow = true;
+  const h = harness({
+    transport: ({ route }) => (route.endsWith("/catalogue") && slow ? gate.promise : undefined),
+  });
+  let model = await h.ready();
+  assert.equal(model.items.length, 1);
+  assert.equal(model.loading, false);
+  assert.equal(model.catalogueLoading, true);
+  assert.equal(model.error, "");
+  gate.resolve(response({}, 503));
+  model = await h.drain();
+  assert.equal(model.catalogueError, "source_unavailable");
+  assert.equal(model.listError, "");
+  assert.equal(model.items[0].taskId, "task_A");
+  slow = false;
+  await model.reloadCatalogue();
+  model = h.render();
+  assert.equal(model.catalogueError, "");
+  assert.ok(model.catalogue.some((row) => row.selectable));
+  assert.equal(h.calls.filter((call) => call.route.includes("tasks?limit")).length, 1);
+  h.unmount();
+});
+
+test("task-list failure preserves independently loaded resources and retries only the list", async () => {
+  let failed = true;
+  const h = harness({
+    transport: ({ route }) =>
+      route.includes("tasks?limit") && failed ? response({}, 403) : undefined,
+  });
+  let model = await h.ready();
+  assert.equal(model.listError, "insufficient_scope");
+  assert.ok(model.catalogue.some((row) => row.selectable));
+  assert.equal(model.catalogueError, "");
+  assert.equal(model.error, "");
+  failed = false;
+  await model.reloadTasks();
+  model = h.render();
+  assert.equal(model.listError, "");
+  assert.equal(model.items.length, 1);
+  assert.equal(h.calls.filter((call) => call.route.endsWith("/catalogue")).length, 1);
+  h.unmount();
+});
+
+test("read budget is below the proxy; timeout retains rows and a late success cannot overwrite recovery", async () => {
+  const late = deferred();
+  let slow = false;
+  const h = harness({
+    transport: ({ route }) => (slow && route.includes("tasks?limit") ? late.promise : undefined),
+  });
+  let model = await h.ready();
+  slow = true;
+  const waiting = model.reloadTasks();
+  await settle();
+  assert.ok(h.timerDelays().includes(11500));
+  h.deadline(11500);
+  await waiting;
+  model = h.render();
+  assert.equal(model.listError, "request_timeout");
+  assert.equal(model.items[0].taskId, "task_A");
+  assert.equal(model.loading, false);
+  assert.equal(model.error, "");
+  slow = false;
+  await model.reloadTasks();
+  late.resolve(
+    response({
+      contractVersion: CONTRACT,
+      items: [meta(1, { taskId: "task_LATE" })],
+      nextCursor: null,
+    }),
+  );
+  model = await h.drain();
+  assert.equal(model.items[0].taskId, "task_A");
+  assert.equal(model.listError, "");
+  h.unmount();
+});
+
+test("a superseding list refresh cancels the previous read without a false error", async () => {
+  const late = deferred();
+  let attempt = 0;
+  const h = harness({
+    transport: ({ route }) =>
+      route.includes("tasks?limit") && ++attempt === 1 ? late.promise : undefined,
+  });
+  let model = await h.ready();
+  await model.reloadTasks();
+  late.resolve(response({ contractVersion: CONTRACT, items: [], nextCursor: null }));
+  model = await h.drain();
+  assert.equal(model.items.length, 1);
+  assert.equal(model.listError, "");
+  assert.equal(model.error, "");
+  h.unmount();
+});
+
+test("timeout also cancels a streamed list body while preserving successful resources", async () => {
+  let cancelled = false;
+  const h = harness({
+    transport: ({ route }) =>
+      route.includes("tasks?limit")
+        ? new Response(
+            new ReadableStream({
+              start() {},
+              cancel() {
+                cancelled = true;
+              },
+            }),
+            { headers: { "content-type": "application/json" } },
+          )
+        : undefined,
+  });
+  await h.ready();
+  h.deadline(11500);
+  const model = await h.drain();
+  assert.equal(model.listError, "request_timeout");
+  assert.equal(model.loading, false);
+  assert.equal(cancelled, true);
+  assert.ok(model.catalogue.some((row) => row.selectable));
+  h.unmount();
+});
+
+const busyResponse = (seconds = "1") =>
+  new Response("{}", {
+    status: 503,
+    headers: {
+      "content-type": "application/json",
+      "X-FolioView-Admission-Retry": "safe",
+      "Retry-After": seconds,
+    },
+  });
+test("only pre-forward safe GET admission retries once, with bounded backoff", async () => {
+  const h = harness({
+    transport: ({ route }) => (route.includes("tasks?limit") ? busyResponse() : undefined),
+  });
+  await h.ready();
+  assert.equal(h.calls.filter((c) => c.route.includes("tasks?limit")).length, 1);
+  assert.ok(h.timerDelays().includes(1000));
+  h.deadline(1000);
+  const model = await h.drain();
+  assert.equal(h.calls.filter((c) => c.route.includes("tasks?limit")).length, 2);
+  assert.equal(model.listError, "service_busy");
+  assert.equal(model.loading, false);
+  assert.ok(!h.timerDelays().includes(1000));
+  h.unmount();
+});
+
+test("read retry can recover; long admission waits and downstream errors never auto-retry", async () => {
+  let attempts = 0;
+  const recovered = harness({
+    transport: ({ route }) =>
+      route.includes("tasks?limit") && ++attempts === 1 ? busyResponse() : undefined,
+  });
+  await recovered.ready();
+  recovered.deadline(1000);
+  let model = await recovered.drain();
+  assert.equal(model.items.length, 1);
+  assert.equal(model.listError, "");
+  assert.equal(attempts, 2);
+  recovered.unmount();
+  for (const [reply, code] of [
+    [() => busyResponse("60"), "service_busy"],
+    [() => response({}, 503), "source_unavailable"],
+    [
+      () =>
+        new Response("{}", { status: 503, headers: { "X-FolioView-Read-Failure": "deadline" } }),
+      "request_timeout",
+    ],
+  ]) {
+    const h = harness({
+      transport: ({ route }) => (route.includes("tasks?limit") ? reply() : undefined),
+    });
+    model = await h.ready();
+    assert.equal(model.listError, code);
+    assert.equal(h.calls.filter((c) => c.route.includes("tasks?limit")).length, 1);
+    assert.ok(!h.timerDelays().includes(1000));
+    h.unmount();
+  }
+});
+
+test("leaving during retry backoff cancels silently and cannot send another request", async () => {
+  const h = harness({
+    transport: ({ route }) => (route.includes("tasks?limit") ? busyResponse() : undefined),
+  });
+  await h.ready();
+  h.active(false);
+  h.render();
+  h.deadline(1000);
+  const model = await h.drain();
+  assert.equal(h.calls.filter((c) => c.route.includes("tasks?limit")).length, 1);
+  assert.equal(model.listError, "");
+  assert.equal(model.error, "");
+  assert.ok(!h.timerDelays().includes(1000));
+  h.unmount();
+});
+
+test("read transport and session failures have distinct closed errors without exposing exception text", async () => {
+  for (const [name, expected] of [
+    ["TypeError", "network_unavailable"],
+    ["SessionChangedError", "session_expired"],
+  ]) {
+    const h = harness({
+      transport({ route }) {
+        if (route.includes("tasks?limit")) {
+          const error = new Error("PRIVATE_EXCEPTION");
+          error.name = name;
+          throw error;
+        }
+      },
+    });
+    const model = await h.ready();
+    assert.equal(model.listError, expected);
+    assert.equal(model.error, "");
+    assert.ok(!JSON.stringify(model).includes("PRIVATE_EXCEPTION"));
+    h.unmount();
+  }
+});
+
+test("write admission never retries or replaces the exact recoverable packet", async () => {
+  const h = harness({
+    rows: [],
+    transport: ({ options }) => (options.method === "POST" ? busyResponse() : undefined),
+  });
+  let model = await h.ready();
+  model.startNew(undefined, content());
+  model = await h.drain();
+  await model.save(true);
+  model = h.render();
+  await model.save(true);
+  model = await h.drain();
+  assert.equal(model.error, "service_busy");
+  assert.equal(h.calls.filter((c) => c.options.method === "POST").length, 1);
+  assert.equal(h.seals.length, 1);
+  assert.equal(h.outbox.size, 1);
+  assert.ok(!h.timerDelays().includes(1000));
+  h.unmount();
+});
+
+test("read refresh clears old draft notices and account changes discard old rows and late replies", async () => {
+  const late = deferred();
+  let slow = false;
+  const h = harness({
+    transport: ({ route, key }) =>
+      route.includes("tasks?limit") && slow && key === "owner_A:1" ? late.promise : undefined,
+  });
+  let model = await h.ready();
+  model.startNew(undefined, content());
+  model = await h.drain();
+  await model.discardDraft();
+  model = h.render();
+  assert.equal(model.notice, "draft_discarded");
+  await model.reloadTasks();
+  model = h.render();
+  assert.equal(model.notice, "");
+  slow = true;
+  const pending = model.reloadTasks();
+  h.owner("owner_B:2");
+  h.render();
+  late.resolve(
+    response({
+      contractVersion: CONTRACT,
+      items: [meta(1, { taskId: "task_OLD_OWNER" })],
+      nextCursor: null,
+    }),
+  );
+  await pending;
+  model = await h.drain();
+  assert.equal(model.owner, "owner_B:2");
+  assert.ok(model.items.every((row) => row.taskId !== "task_OLD_OWNER"));
+  assert.equal(model.listError, "");
+  h.unmount();
+});
+
+test("captured resource actions cannot select preserved stale catalogue entries", async () => {
+  let failed = false;
+  const h = harness({
+    transport: ({ route }) =>
+      failed && route.endsWith("/catalogue") ? response({}, 503) : undefined,
+  });
+  const original = await h.ready();
+  failed = true;
+  await original.reloadCatalogue();
+  assert.ok(h.render().catalogue.some((row) => row.selectable));
+  original.startNew(binding(), content());
+  assert.equal(h.render().form, null);
+  assert.equal(h.render().error, "source_unavailable");
+  original.startNew(undefined, content());
+  const model = await h.drain();
+  model.setBindings([binding()]);
+  assert.equal(h.render().bindings.length, 0);
+  assert.equal(h.render().error, "source_unavailable");
+  h.unmount();
+});
+
+test("non-actionable draft feedback expires without another network read", async () => {
+  const h = harness();
+  let model = await h.ready();
+  model.startNew(undefined, content());
+  model = await h.drain();
+  await model.discardDraft();
+  model = h.render();
+  assert.equal(model.notice, "draft_discarded");
+  const requests = h.calls.length;
+  h.deadline(4500);
+  model = h.render();
+  assert.equal(model.notice, "");
+  assert.equal(h.calls.length, requests);
   h.unmount();
 });

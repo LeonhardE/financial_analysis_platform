@@ -809,7 +809,9 @@
       "version_limit": "This task has reached its 50-version limit.",
       "stale_epoch": "Library keys changed. Discard this local retry record and review a fresh change.",
       "review_required": "The rules changed during review. Preview and confirm again.",
-      "nothing_to_save": "There are no changes to save."
+      "nothing_to_save": "There are no changes to save.",
+      "service_busy": "The service is busy. Check pending operations before retrying.",
+      "network_unavailable": "Could not connect. Check pending operations before retrying."
     },
     "notices": {
       "draft_saved": "Draft encrypted on this device.",
@@ -841,7 +843,21 @@
     "notChecked": "Agent input readiness has not been checked yet",
     "resourceLimit": "Choose up to 10 resources.",
     "archiveUnavailable": "A key archive removal needs attention, or the cloud key archive was removed. Open Settings to check the original request or use independent recovery. Your saved content has not been emptied.",
-    "archiveSettings": "Open key archive settings"
+    "archiveSettings": "Open key archive settings",
+    "loadingResources": "Loading resources…",
+    "retryTasks": "Retry tasks",
+    "retryResources": "Retry resources",
+    "readErrors": {
+      "request_timeout": "Loading took too long. Try again.",
+      "service_busy": "The service is busy. Try again shortly.",
+      "source_unavailable": "This service is temporarily unavailable. Try again.",
+      "network_unavailable": "Could not connect. Check your connection and try again.",
+      "session_expired": "Sign in again to continue.",
+      "insufficient_scope": "You do not have access to this content.",
+      "not_found": "This content is no longer available.",
+      "invalid_response": "This content could not be verified. Try again.",
+      "request_failed": "Could not load this section. Try again."
+    }
   },
   "vaultManagement": {
     "title": "Library keys and devices",
