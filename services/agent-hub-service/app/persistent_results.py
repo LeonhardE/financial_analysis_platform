@@ -45,9 +45,13 @@ def stored_result(unit, owner, vault, result):
     if row is None:
         raise ContractError("not_found")
     try:
-        if set(row) != {"metadata", "context", "fingerprint", "receipt"}:
+        if set(row) - {"taskCenter"} != {"metadata", "context", "fingerprint", "receipt"}:
             raise StoreUnavailable
         c = validate_content_context(row["context"])
+        if "taskCenter" in row:
+            from .task_center_results import validate_attribution
+
+            validate_attribution(row["taskCenter"], c)
         meta = row["metadata"]
         receipt = row["receipt"]
         validate_schema("Digest", row["fingerprint"])
@@ -302,12 +306,19 @@ class PersistentResultService(PersistentExecutionService):
                 "archived": False,
             }
             self._append(unit, owner, vault, ident)
+            if "taskCenter" in row:
+                from .task_center import observe_center_result
+                from .task_center_results import append_result
+
+                append_result(unit, row["taskCenter"], ident)
+                observe_center_result(unit, row["taskCenter"], ident)
             self.authenticate(unit, owner, vault, connection, proof, path, request)
             if self.now() >= m["expiresAt"] or _selection(registry, self.now())[1] != recipients:
                 raise ContractError("key_authorization_required")
             unit.put(
                 result_path(owner, vault, ident),
                 {
+                    **({"taskCenter": row["taskCenter"]} if "taskCenter" in row else {}),
                     "metadata": meta,
                     "context": verified.context,
                     "fingerprint": verified.fingerprint,

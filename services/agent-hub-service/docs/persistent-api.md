@@ -497,3 +497,71 @@ pinned native Agent client bundles and their physical actor/proof shapes are
 unchanged; the server resolves the current logical slot without client claims.
 No Web switch, production consent, schedule, live run or infrastructure provisioning
 is performed by deploying these compatible producer APIs.
+
+## Task assignments and task history (additive, default off)
+
+`HUB_TASK_CENTER_ENABLED=1` additionally requires provider slots, existing Agent
+runtime gates and Owner admission. Deployment leaves it off and performs no
+account migration. A task may have no executor, or one assignment per current
+provider slot; the same slot can serve different tasks with different resources.
+Root-approved ciphertext publications and resource consents remain separate from
+assignment metadata. No task title, report text or private key is stored here.
+
+Owner routes under `/api/v3/task-center` require the normal authenticated Owner,
+exact contract header and closed transport. Commands also require the original
+Idempotency-Key and the distinct signed `CenterOwnerControl` from the shared
+`folioview.task-center.v1` foundation:
+
+- `GET /capabilities` advertises the gate and only the implemented actions.
+- `GET /{vault}/tasks/{task}` returns signed rules, assignment versions, independent
+  publication heads and plan statements. It does not fetch report ciphertext.
+- `GET /{vault}/tasks/{task}/operations/{operation}` returns the original receipt.
+- `POST /{vault}/tasks/{task}/commands` accepts `{contractVersion, command}` for
+  `set_rules`, `set_assignment`, or `remove_assignment`. Rules bind the exact
+  current business task version/execution epoch; assignment controls additionally
+  bind the current provider slot, credential generation and chosen publication
+  fingerprint. Initial enrollment creates zero assignments and permanently marks
+  the task; it archives the old publication head for that physical actor, without
+  creating or restoring any grants. Rule changes require fresh assignment approval.
+- `POST /{vault}/tasks/{task}/results/query` accepts
+  `{contractVersion, request:{limit,cursor}}` (1..50). New assignment results are
+  followed by the captured legacy persistent history, then old foreground results
+  in a single pageable feed. Each query examines at most one persistent page,
+  batches metadata reads and never loads ciphertext or Run registry histories.
+  A sparse legacy page can be empty with a next cursor. Continue until it is null;
+  `total:null` means unknown, never zero. Historical physical actors and unknown
+  trigger provenance remain unchanged; current assignment removal does not hide them.
+- `POST /{vault}/tasks/{task}/progress/query` accepts the stable `requestId` (base
+  trigger) and selected `assignmentIds`. Its recoverable per-executor snapshot
+  distinguishes waiting/running/result receipt and unconfirmed executors, including
+  partial completion. Merely viewing/leaving progress never starts or cancels work.
+
+Agent routes under the existing owner/vault/physical-connection prefix add
+`task-center/context`, `task-center/prepare`, and `task-center/plans/report`.
+They use a separate closed PoP request profile (`folioview.task-center.v1`,
+`task_center_agent_request`) bound to exactly these paths, original body, audience,
+current certified signing key and a maximum 120-second window. OAuth alone is
+insufficient. The old request/manifest/receipt contracts remain unchanged.
+
+Context returns signed Owner controls and current assignment/rule references.
+Prepare accepts the exact `taskId`, `baseTriggerId`, `operationId`, `binding`, and
+`taskPublicationFingerprint`; it returns an assignment/version/rule/lifecycle
+namespaced trigger for the unchanged Begin request. The durable preparation key
+excludes credential generation: replacement or rule edits cannot turn retrying an
+old intent into another Run. Both providers may use the same base slot while
+receiving separate Runs/results. Begin freezes an attribution sidecar; content
+reads and final result writes recheck current task, assignment, provider slot,
+credential, rules, sources and consent. Original receipts remain observations,
+never commands that reinstall authority. Removing one assignment fences only its
+future reads/writes. These fences survive disabling the rollout gate; authenticated
+Owner history/receipts and signed assignment removal remain available when off.
+
+Plan reports bind the exact assignment/rule/lifecycle versions and use independent
+CAS/original-operation receipts. Nullable rules are manual-only and cannot report
+an enabled empty native plan. Each executor starts `unconfirmed`; saving rules is
+not scheduling. Publication-only legacy plan reports cannot confirm enrolled task
+rules. Agent statements always say `nativeScheduleAttested:false`; Hub Run/result
+receipts do not prove what invoked the host. This implementation accepts only
+`legacy_unknown` trigger attribution. Verified manual dispatch/source attribution,
+trash/restore/purge consumers, Web integration and actual host acceptance remain
+ordered follow-up work; no scheduler, worker, new database, VM or capacity is added.

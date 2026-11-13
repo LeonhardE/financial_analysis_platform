@@ -28,6 +28,11 @@ seven-day notice and explicit reauthorization after loss/expiry. Muse and ChatGP
 have separate logical connections. Owner approval uses the existing login and Passkey;
 private Agent keys stay on the host. Hub stores public authority and ciphertext only.
 
+The additive [task assignment API](docs/persistent-api.md#task-assignments-and-task-history-additive-default-off)
+adds zero/multiple executors and task history behind a default-off gate. The
+[private client](docs/agent-client.md#opt-in-task-center-client-110) retains prior
+pinned releases and uses explicit opt-in methods; it installs no native plans.
+
 New capability flags default off. The default path has no browser Agent runtime,
 Policy service, dedicated executor, VM, TCP proxy or new project. The service's actual
 MCP surface is bootstrap-only `/mcp/v3`; financial requests require a current Agent

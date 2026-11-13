@@ -141,3 +141,31 @@ applications. It accepts pre-signed, durably retained commands and never manages
 Agent private files, signs approvals or retries writes automatically. This is
 separate from the existing pinned native Agent bundles; those retain their exact
 version/integrity and are compatible with server-enforced provider slots.
+
+## Opt-in task-center client 1.1.0
+
+Version 1.1.0 retains the original 1.0.0 and 1.0.1 artifacts byte-for-byte at their
+pinned URLs. Existing commands keep their wire formats. Upgrade only via a reviewed
+version/hash; new task-center commands require an explicitly enrolled assignment
+and enabled server capability, and deployment does not enable them.
+
+- `taskCenterState({taskId})` verifies the signed Owner rule/assignment controls,
+  exact actor/current credential, task publication, and monotonic local versions.
+- `dueAssigned()` evaluates the approved nullable daily/multi-day weekly rule at
+  the user's local time/zone, including skipped DST gaps, first DST fold and grace
+  across midnight. Eligibility is not source attestation and creates no native plan.
+- `beginAssigned({taskId,baseTriggerId})` persists the original preparation privately,
+  obtains its assignment-namespaced trigger, and uses unchanged Begin/manifest
+  verification. Process restart/lost acknowledgement retries the same intent;
+  changed rules/credential generations stop rather than create a replacement Run.
+- `reportPlanAssigned({taskId,status,planReference})` persists the original
+  version-bound Agent statement privately until its acknowledgement. Each assignment
+  must separately confirm its real native plan; `taskCenterState` reports its state.
+  No plan reference, key or credential file needs to be managed by the user.
+
+These are explicit private-CLI/source methods, not OAuth-only MCP financial tools.
+They do not automatically change existing native jobs, migrate accounts or trigger
+runs. Report submission still uses the original verified manifest and sealed
+outbox. Removal of task permission asks for task access review; actual credential
+loss/expiry retains the existing reauthorization flow. Complete native-cycle
+acceptance remains a later step and cannot be inferred from a Hub result receipt.

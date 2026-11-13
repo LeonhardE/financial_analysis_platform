@@ -25,6 +25,15 @@ class AgentHubBoundaryTests(unittest.TestCase):
             self.assertEqual(
                 set(client.get("/openapi.json").json()["paths"]),
                 {
+                    "/api/v3/task-center/capabilities",
+                    "/api/v3/task-center/{vault}/tasks/{task}",
+                    "/api/v3/task-center/{vault}/tasks/{task}/operations/{operation}",
+                    "/api/v3/task-center/{vault}/tasks/{task}/commands",
+                    "/api/v3/task-center/{vault}/tasks/{task}/results/query",
+                    "/api/v3/task-center/{vault}/tasks/{task}/progress/query",
+                    "/agent/v3/persistent/owners/{owner}/vaults/{vault}/connections/{connection}/task-center/context",
+                    "/agent/v3/persistent/owners/{owner}/vaults/{vault}/connections/{connection}/task-center/prepare",
+                    "/agent/v3/persistent/owners/{owner}/vaults/{vault}/connections/{connection}/task-center/plans/report",
                     "/api/v3/provider-connections/capabilities",
                     "/api/v3/provider-connections/{vault}/{provider}",
                     "/api/v3/provider-connections/{vault}/{provider}/operations/{operation}",
