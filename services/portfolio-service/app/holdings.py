@@ -1,5 +1,7 @@
 """Owner-only encrypted snapshots; no plaintext collector or key authority API."""
 
+import hashlib
+import logging
 import re
 import time
 from dataclasses import dataclass
@@ -34,6 +36,8 @@ from .lifecycle import (
 from .store import StoreUnavailable, document_path
 
 _IDENTIFIER = re.compile(r"[A-Za-z0-9][A-Za-z0-9_-]{0,127}\Z")
+MAX_METADATA_SOURCES = 10
+_METADATA_LOGGER = logging.getLogger("uvicorn.error.portfolio_metadata")
 _AUTHORITY_FIELDS = frozenset(
     {
         "version",
@@ -100,7 +104,9 @@ class Authority:
         return self.document["version"]
 
 
-def _authority(document: dict, owner: str, source: str, now: int) -> Authority:
+def _authority(
+    document: dict, owner: str, source: str, now: int, *, registry_cache=None
+) -> Authority:
     """Verify a replica against its separately provisioned root pin and history.
 
     The document is read from the trusted store, never from a snapshot request.
@@ -129,28 +135,45 @@ def _authority(document: dict, owner: str, source: str, now: int) -> Authority:
     history = document["registryHistory"]
     if type(history) is not list or not 1 <= len(history) <= 32:
         raise StoreUnavailable
+    # Reuse only identical public signature history within one read attempt.
+    # Each source still validates its own current row, root, epoch and lifecycle.
+    key = None
     registry = None
-    for bundle in history:
-        registry = verify_registry(
-            bundle,
-            root_jwk=document["rootJwk"],
-            pinned_root_key_id=document["rootKeyId"],
-            owner_subject=owner,
-            vault_id=document["vaultId"],
-            now=now,
-            previous=registry,
+    if registry_cache is not None:
+        key = (
+            owner,
+            document["vaultId"],
+            document["rootKeyId"],
+            now,
+            hashlib.sha256(canonical_json(history)).digest(),
         )
+        registry = registry_cache.get(key)
+    if registry is None:
+        for bundle in history:
+            registry = verify_registry(
+                bundle,
+                root_jwk=document["rootJwk"],
+                pinned_root_key_id=document["rootKeyId"],
+                owner_subject=owner,
+                vault_id=document["vaultId"],
+                now=now,
+                previous=registry,
+            )
+        if registry_cache is not None:
+            registry_cache[key] = registry
     return Authority(document, registry)
 
 
-def _current_authority(unit, owner: str, source: str, now: int) -> Authority:
+def _current_authority(
+    unit, owner: str, source: str, now: int, *, registry_cache=None
+) -> Authority:
     row = unit.get(document_path("portfolio_authorities", owner, source))
     if row is None:
         raise PortfolioError(
             "authorization_unavailable", 503, "Trusted Portfolio authority is not available."
         )
     try:
-        authority = _authority(row, owner, source, now)
+        authority = _authority(row, owner, source, now, registry_cache=registry_cache)
     except (ContractError, ValueError, KeyError, TypeError):
         raise StoreUnavailable from None
     if not row["active"]:
@@ -397,29 +420,88 @@ class PortfolioService:
         return self.store.transact(install)
 
     def metadata(self, uid: str, source: str):
-        _identifier(source)
+        return self.metadata_many(uid, [source])[0]
+
+    def metadata_many(self, uid: str, sources: list[str]):
+        if type(sources) is not list or not 1 <= len(sources) <= MAX_METADATA_SOURCES:
+            raise ContractError("malformed_request")
+        for source in sources:
+            _identifier(source)
+        if len(set(sources)) != len(sources):
+            raise ContractError("malformed_request")
         owner = owner_key(uid)
+        started = time.perf_counter()
+        timing = dict.fromkeys(("storage", "authority", "head", "lifecycle"), 0.0)
+        attempts = 0
+        complete = False
 
         def read(unit):
-            authority = _current_authority(unit, owner, source, self.now())
-            head = _head(unit, owner, source)
-            lifecycle = source_state(unit, authority)
-            return {
-                "contractVersion": CONTRACT_VERSION,
-                "ownerSubject": owner,
-                "sourceId": source,
-                "vaultId": authority.document["vaultId"],
-                "resourceRef": authority.document["resourceRef"],
-                "sourceEpoch": authority.document["sourceEpoch"],
-                "revision": head["revision"],
-                "snapshotId": head["snapshotId"],
-                "snapshotSourceEpoch": head.get("sourceEpoch"),
-                "authorityVersion": authority.version,
-                "state": lifecycle["state"],
-                "pendingMutationId": lifecycle["pendingMutationId"],
-            }
+            nonlocal attempts
+            attempts += 1
+            paths = [
+                path
+                for source in sources
+                for path in (
+                    document_path("portfolio_authorities", owner, source),
+                    document_path("portfolio_heads", owner, source),
+                    state_path(owner, source),
+                )
+            ]
+            stage = time.perf_counter()
+            rows = unit.get_many(paths)
+            timing["storage"] += time.perf_counter() - stage
 
-        return self.store.transact(read)
+            class Snapshot:
+                def get(self, path):
+                    return rows[path]
+
+            snapshot = Snapshot()
+            registry_cache = {}  # Never reused across requests or transaction retries.
+            result = []
+            for source in sources:
+                stage = time.perf_counter()
+                authority = _current_authority(
+                    snapshot, owner, source, self.now(), registry_cache=registry_cache
+                )
+                timing["authority"] += time.perf_counter() - stage
+                stage = time.perf_counter()
+                head = _head(snapshot, owner, source)
+                timing["head"] += time.perf_counter() - stage
+                stage = time.perf_counter()
+                lifecycle = source_state(snapshot, authority)
+                timing["lifecycle"] += time.perf_counter() - stage
+                result.append(
+                    {
+                        "contractVersion": CONTRACT_VERSION,
+                        "ownerSubject": owner,
+                        "sourceId": source,
+                        "vaultId": authority.document["vaultId"],
+                        "resourceRef": authority.document["resourceRef"],
+                        "sourceEpoch": authority.document["sourceEpoch"],
+                        "revision": head["revision"],
+                        "snapshotId": head["snapshotId"],
+                        "snapshotSourceEpoch": head.get("sourceEpoch"),
+                        "authorityVersion": authority.version,
+                        "state": lifecycle["state"],
+                        "pendingMutationId": lifecycle["pendingMutationId"],
+                    }
+                )
+            return result
+
+        try:
+            result = self.store.transact(read)
+            complete = True
+            return result
+        finally:
+            _METADATA_LOGGER.info(
+                "portfolio_metadata sources=%d attempts=%d complete=%s "
+                "storage_ms=%.3f authority_ms=%.3f head_ms=%.3f lifecycle_ms=%.3f total_ms=%.3f",
+                len(sources),
+                attempts,
+                complete,
+                *(timing[key] * 1000 for key in ("storage", "authority", "head", "lifecycle")),
+                (time.perf_counter() - started) * 1000,
+            )
 
     def commit(
         self,

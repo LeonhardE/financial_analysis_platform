@@ -89,7 +89,7 @@ class SignedPortfolioMetadataTests(unittest.TestCase):
         with (
             patch.dict(os.environ, {}, clear=True),
             patch("socket.create_connection", side_effect=AssertionError("network")),
-            patch.object(self.service, "metadata", side_effect=AssertionError("storage")),
+            patch.object(self.service, "metadata_many", side_effect=AssertionError("storage")),
         ):
             response = self.client.post(self.url, headers=self.headers, json=self.body)
         self.assert_private(response, 503)
@@ -121,7 +121,9 @@ class SignedPortfolioMetadataTests(unittest.TestCase):
             with (
                 self.subTest(status=status),
                 patch.object(
-                    self.service, "metadata", side_effect=AssertionError("unauthorized storage")
+                    self.service,
+                    "metadata_many",
+                    side_effect=AssertionError("unauthorized storage"),
                 ),
             ):
                 self.assert_private(

@@ -2,7 +2,7 @@
 
 This is discovery/state metadata, not agent ciphertext delivery or a Run/grant
 validation fallback. No owner UID, key, recipient, ACK or broker session is taken
-from the request. Each source is re-read in its own bounded store transaction.
+from the request. Up to ten sources are re-read in one bounded store transaction.
 """
 
 import os
@@ -28,9 +28,9 @@ from folioview_shared.http import PrivateRoute
 from folioview_shared.service_identity import GoogleCallerVerifier
 
 from .api import _invoke, _read_json, _transport, get_service
-from .holdings import PortfolioService
+from .holdings import MAX_METADATA_SOURCES, PortfolioService
 
-MAX_METADATA_REFS = 10
+MAX_METADATA_REFS = MAX_METADATA_SOURCES
 MAX_METADATA_BODY_BYTES = 131_072
 router = APIRouter(prefix="/internal/v2/resources", route_class=PrivateRoute)
 
@@ -111,8 +111,8 @@ def _refs(value):
 
 def _read(service, owner_uid, refs, *, states):
     items = []
-    for ref in refs:
-        value = service.metadata(owner_uid, ref["resourceId"])
+    values = service.metadata_many(owner_uid, [ref["resourceId"] for ref in refs])
+    for ref, value in zip(refs, values, strict=True):
         if canonical_json(value["resourceRef"]) != canonical_json(ref):
             raise ContractError("not_found")
         if not states:
