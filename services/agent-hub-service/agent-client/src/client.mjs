@@ -29,7 +29,13 @@ import {
   requireCurrentCredential,
   approveCredential,
 } from "../../../../packages/encrypted-workspace/dist/core.mjs";
-import { verifyCenter, assignedTrigger, assignedDue, centerRequestProof } from "./task-center.mjs";
+import {
+  verifyCenter,
+  assignedTrigger,
+  assignedDue,
+  centerRequestProof,
+  verifyManualControl,
+} from "./task-center.mjs";
 import { dueSlot } from "./schedule.mjs";
 import { checkInputPolicy } from "./policy.mjs";
 const PLAN = "folioview.persistent-native-plan.v1",
@@ -173,6 +179,7 @@ export class AgentClient {
       "task-center/context",
       "task-center/prepare",
       "task-center/plans/report",
+      "task-center/manual/query",
     ];
     if (!allowed.includes(operation)) deny("invalid_operation");
     const path = this.#base() + "/" + operation;
@@ -791,6 +798,66 @@ export class AgentClient {
       deny("invalid_manifest");
     return this.begin({ taskId, triggerId: pending.triggerId });
   }
+  async pendingManual({ taskId }) {
+    identifier(taskId);
+    await this.taskCenterState({ taskId });
+    const value = await this.#call("task-center/manual/query", { taskId });
+    if (!Array.isArray(value.items) || value.items.length > 4 || value.dispatchSupported !== false)
+      deny("invalid_task_center");
+    for (const item of value.items) validate("OperationIdentifier", item.requestId);
+    return value;
+  }
+  async beginManual({ taskId, requestId }) {
+    identifier(taskId);
+    validate("OperationIdentifier", requestId);
+    const state = await this.taskCenterState({ taskId });
+    const triggerId = await assignedTrigger(state.assignment, requestId, "manual");
+    const operationId =
+      "begin_" + (await digest([this.#actor.ownerSubject, this.#actor.vaultId, taskId, triggerId]));
+    const request = {
+      taskId,
+      baseTriggerId: requestId,
+      manualIntentId: requestId,
+      operationId,
+      binding: state.binding,
+      taskPublicationFingerprint: state.authority.fingerprint,
+    };
+    const key = "manual-begin:" + taskId + ":" + requestId;
+    const saved = await this.#record(key, (v) => {
+      if (v && (!same(v.request, request) || v.triggerId !== triggerId)) deny("version_conflict");
+      return { write: v ?? { request, triggerId }, result: v ?? { request, triggerId } };
+    });
+    const prepared = await this.#call("task-center/prepare", saved.request);
+    if (
+      prepared.triggerId !== saved.triggerId ||
+      !same(prepared.request, saved.request) ||
+      prepared.triggerKind !== "manual"
+    )
+      deny("invalid_manifest");
+    let proofTime = this.now();
+    if (prepared.runId !== null) {
+      identifier(prepared.runId);
+      const original = await this.#run(prepared.runId);
+      if (
+        original.manifest.taskId !== taskId ||
+        original.manifest.triggerId !== saved.triggerId ||
+        original.manifest.stableOperationId !== operationId
+      )
+        deny("invalid_manifest");
+      proofTime = original.manifest.createdAt;
+    }
+    await verifyManualControl(prepared.manualControl, {
+      registry: this.#registry,
+      identity: this.#identity,
+      state,
+      requestId,
+      now: proofTime,
+    });
+    const result = await this.begin({ taskId, triggerId: saved.triggerId });
+    if (prepared.runId !== null && result.runId !== prepared.runId) deny("invalid_manifest");
+    return result;
+  }
+
   async reportPlanAssigned({ taskId, status, planReference }) {
     if (
       !PLAN_STATUS.includes(status) ||

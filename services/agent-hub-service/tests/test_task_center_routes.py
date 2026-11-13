@@ -42,6 +42,10 @@ class TaskCenterRouteTests(unittest.TestCase):
                     "progress",
                     "trash",
                     "maintenance",
+                    "manual",
+                    "manual_list",
+                    "manual_state",
+                    "cancel_manual",
                 ]
             }
         )
@@ -138,3 +142,35 @@ class TaskCenterRouteTests(unittest.TestCase):
             ).status_code,
             400,
         )
+
+    def test_manual_creation_is_gated_but_cancel_and_original_progress_remain_owner_only(self):
+        with patch("app.task_center_routes.task_center_enabled", return_value=False):
+            self.assertEqual(
+                self.client.post(
+                    self.path + "/manual", headers=self.write, json=self.packet("manual_intent")
+                ).status_code,
+                503,
+            )
+            self.assertEqual(
+                self.client.get(self.path + "/manual/" + self.op, headers=self.headers).status_code,
+                200,
+            )
+            self.assertEqual(
+                self.client.post(
+                    self.path + "/manual/" + self.op + "/cancel",
+                    headers=self.headers,
+                    json={"contractVersion": CONTRACT_VERSION},
+                ).status_code,
+                200,
+            )
+        with (
+            patch("app.task_center_routes.task_center_enabled", return_value=True),
+            patch("app.task_center_routes.uid_allowed", return_value=True),
+        ):
+            self.assertEqual(
+                self.client.post(
+                    self.path + "/manual", headers=self.write, json=self.packet("manual_intent")
+                ).status_code,
+                201,
+            )
+        self.assertEqual(self.calls[-1][0], "manual")

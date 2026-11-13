@@ -1,0 +1,32 @@
+{
+  "clientVersion": "1.1.0",
+  "nodeMinimum": "24.12.0",
+  "contractVersion": "folioview.agent-workspace.v2.0",
+  "profile": "folioview.agent-credential.v1",
+  "sharedLibrary": {
+    "integritySha256": "b288644578f35570030c94a3f0cc6f1f125b0865151ada1aa1c48b79f798e3bd",
+    "bundleSha256": "f875c586528a981c469e06557230210f2af5be288c8ed2551fd43224ea0d2548"
+  },
+  "files": {
+    "package.json": "1806022c1c525d39247951e23ad31d3053fbe027f72d58d9884217d60c62fc0c",
+    "package-lock.json": "84f88265136b1b9870e97fc60e0f6b4e357061592d0f5ffc45c2b66312b702ed",
+    "build.mjs": "d6b5ac0b2db0a5e95b34db71cb8ba1d6824aeaf1b0b02365e299e62ff73d0012",
+    "shared-contract.integrity.json": "b288644578f35570030c94a3f0cc6f1f125b0865151ada1aa1c48b79f798e3bd",
+    "THIRD_PARTY_NOTICES.md": "16b1768276d7eed2a7ce1142f5766c211da784615fa004a36853f2658e18dd4d",
+    "src/cli.mjs": "e3afa81fd1e0e4a0ad4bb0d3b23a35e262d79ff1563358c2c342acc5a3510c73",
+    "src/index.mjs": "c0462d668038863410f86b1da43fc19fbc17d7619ef0ae0da5c64c29809fc343",
+    "src/client.mjs": "f4a93cebdb2ea2ee7ed55234338154b7e289870ffa1a268424e7ae84477b68de",
+    "src/files.mjs": "d1c55e3316c5064a51cedbea73d8f47113e2f38afd227edb057169d0850bdbb7",
+    "src/pairing.mjs": "b5fed749e00a1db336eef1aabb11964dcdd37aa07588d304e48f002f5679fefd",
+    "src/crypto.mjs": "5a8c2378f3936ac4eb3f2547075cd6da7ffa348896f73e7099b69e33948f1268",
+    "src/registry.mjs": "d2a2cdd7337009dea736f72aa500bc1a619696f7e7b062e11de5830637b104ba",
+    "src/consents.mjs": "58dcc8cb9561fe3c15cbec16d497b9b8234db394bfdd900482827c87dd7a23ad",
+    "src/authority.mjs": "0d7768a62e087497c19aaa358788761cbb5f258f6b64078a207bd26aae074861",
+    "src/schedule.mjs": "c9fcc6c59026de54dcb846d071532316f52ba75bc4cb9e94ff0b6e334caae42e",
+    "src/policy.mjs": "9425478e061142accddbb32502eb4eb17817bf32843ec87693913a12d8e0ba2b",
+    "src/task-center.mjs": "2187e51e3a0f741fa0587354d936ee5c2849a1e6ab72a8cd3bbed55cbd0e3f98",
+    "src/task-center-validators.cjs": "98e8958004f1a6b5f8e5ef12d872d99fdcd8c9684944b669e404021616c75163",
+    "dist/index.mjs": "697b42ddf5c66da9cdd3c7ea852b71b0f95990b3196fd117628dbff78c43f2f7",
+    "dist/cli.mjs": "02bb852a72693ec2a3a1de04c6a2fe3752258d74c67853c521433d6ff49e2f30"
+  }
+}

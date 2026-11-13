@@ -91,6 +91,8 @@ export async function execute(
     "taskCenterState",
     "dueAssigned",
     "beginAssigned",
+    "pendingManual",
+    "beginManual",
     "reportPlanAssigned",
   ];
   if (!allowed.includes(value.operation)) deny("invalid_operation");
@@ -108,6 +110,8 @@ export async function execute(
     taskCenterState: ["taskId"],
     dueAssigned: [],
     beginAssigned: ["taskId", "baseTriggerId"],
+    pendingManual: ["taskId"],
+    beginManual: ["taskId", "requestId"],
     reportPlanAssigned: ["taskId", "status", "planReference"],
   };
   exact(value.arguments, fields[value.operation]);

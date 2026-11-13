@@ -28,7 +28,7 @@ Object.assign(center.$defs.CenterAgentRequestPayload.properties, {
   path: {
     type: "string",
     pattern:
-      "^/agent/v3/persistent/owners/[A-Za-z0-9_-]{1,128}/vaults/[A-Za-z0-9_-]{1,128}/connections/[A-Za-z0-9_-]{1,128}/task-center/(context|prepare|plans/report)$",
+      "^/agent/v3/persistent/owners/[A-Za-z0-9_-]{1,128}/vaults/[A-Za-z0-9_-]{1,128}/connections/[A-Za-z0-9_-]{1,128}/task-center/(context|prepare|plans/report|manual/query)$",
   },
 });
 const ajv = new Ajv({
@@ -116,7 +116,7 @@ await writeFile(
   root + "/integrity.json",
   await prettier.format(
     JSON.stringify({
-      clientVersion: "1.1.0",
+      clientVersion: "1.2.0",
       nodeMinimum: "24.12.0",
       contractVersion: "folioview.agent-workspace.v2.0",
       profile: "folioview.agent-credential.v1",

@@ -20,12 +20,12 @@ class PrivateClientAssetTests(unittest.TestCase):
         app.include_router(assets.router)
         with TestClient(app) as client:
             with patch.object(assets, "agent_owned_enabled", return_value=False):
-                for version in ("1.0.0", "1.0.1", "1.1.0"):
+                for version in ("1.0.0", "1.0.1", "1.1.0", "1.2.0"):
                     self.assertEqual(
                         client.get(f"/agent/v3/client/{version}/client.mjs").status_code, 503
                     )
             with patch.object(assets, "agent_owned_enabled", return_value=True):
-                response = client.get("/agent/v3/client/1.1.0/client.mjs")
+                response = client.get("/agent/v3/client/1.2.0/client.mjs")
                 self.assertEqual(response.status_code, 200)
                 self.assertEqual(response.headers["Cache-Control"], "no-store")
                 self.assertEqual(response.headers["Referrer-Policy"], "no-referrer")
@@ -33,7 +33,7 @@ class PrivateClientAssetTests(unittest.TestCase):
                     assets.client_metadata()["sha256"], hashlib.sha256(response.content).hexdigest()
                 )
                 self.assertIn(assets.client_metadata()["sha256"], response.headers["ETag"])
-                for version in ("1.0.0", "1.0.1", "1.1.0"):
+                for version in ("1.0.0", "1.0.1", "1.1.0", "1.2.0"):
                     for path in ("src/files.mjs", "index.mjs", "credentials.sqlite", "../../.env"):
                         self.assertEqual(
                             client.get(f"/agent/v3/client/{version}/" + path).status_code, 404
