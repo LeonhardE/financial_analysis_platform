@@ -42,6 +42,31 @@ Legacy `#inbox/result/...` links normalize to `/inbox` while retaining the fragm
 `agent_request`/`agent_nonce` handoffs normalize to `/agents` while retaining the query; this
 handoff keeps its prior precedence over an Inbox fragment. Login stays on the selected path.
 
+## Memory-only display reuse
+
+Internal navigation preserves the mounted workspace, task editor/selection, sealed draft queue,
+resource lists and Inbox filters/selection. It does not lock the Worker or cancel an Agent's native
+work. Hidden documents, explicit lock, logout and owner/vault/generation changes clear private
+display caches; reentry revalidates through the current Worker. Task names are reused only for the
+exact verified task version/fingerprint. A changed background head makes the old editor read-only.
+
+One owner workspace shares bounded LRUs:32 task names,100 legacy report heads,10 report payloads
+with a16MiB accounted budget,and2 holdings payloads with a32MiB budget. Accounting includes UTF-8,
+UTF-16 and conservative object/key overhead; it is not a browser heap measurement. No decrypted
+content or keys are persisted by these caches. Existing encrypted drafts/outboxes remain unchanged.
+Reports require fresh authority and exact authenticated record/evidence equality before skipping
+decryption. Holdings selection can immediately show a previously verified exact source while its
+current authority/head/lifecycle is checked; changed versions,epochs or revoked/deleted sources
+invalidate reuse. Explicit refresh rereads and verifies stored ciphertext. Network failure can keep
+previous display content with an update-failed state,while actionable authority metadata is cleared.
+
+Only opted-in display GETs share in-flight transport,with per-subscriber cancellation,16 keys and8
+subscribers per key. Responses are cloned for independent bounded body readers and are never kept
+as a fulfilled network cache. Operation/permission checks and writes retain fresh transports and
+existing signed-packet/CAS/acknowledgement rules. Route changes retain draft sealing in flight;
+lock/identity/hidden boundaries still cancel it. Manual Run persistence/dispatch remains gated by the
+later task/Run contracts and provider validation; this change creates no local Run or schedule.
+
 ## Resource library
 
 Resources presents holdings, the existing Market watchlist, and a manually maintained YouTube

@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import type { HoldingsWorkspace } from "./useHoldingsWorkspace";
 import type { PersistentWorkspaceModel } from "./usePersistentWorkspace";
+import { DisplayLru } from "@/lib/workspace-cache";
 import { SafeReportMarkdown, reportLink } from "./SafeReportMarkdown";
 import type { ResultContent, ResultStatePacket } from "@/lib/encrypted-types";
 import styles from "./InboxPanel.module.css";
@@ -30,7 +31,9 @@ export function PersistentInboxPanel({
 }) {
   const t = useTranslations("persistent"),
     locale = useLocale();
-  const scope = model.unlocked ? `${model.owner}:${workspace.vaultGeneration}` : null;
+  const scope = model.unlocked
+    ? `${model.owner}:${workspace.vault?.vaultId ?? "unavailable"}:${workspace.vaultGeneration}`
+    : null;
   const [state, setState] = useState<{
       scope: string | null;
       items: Meta[];
@@ -40,6 +43,10 @@ export function PersistentInboxPanel({
     [filter, setFilter] = useState<"all" | "unread" | "starred" | "archived">("all"),
     [query, setQuery] = useState(""),
     [error, setError] = useState(false);
+  const cache = useRef(
+    workspace.displayCache?.reports ?? new DisplayLru<unknown>(10, 16 * 1024 * 1024),
+  );
+  const needsLoad = useRef(true);
   const pending = useRef<{
       scope: string;
       metadata: Meta;
@@ -52,7 +59,8 @@ export function PersistentInboxPanel({
   const current = scope && state.scope === scope ? state : { scope: null, items: [], cursor: null },
     detail = scope && selected?.scope === scope ? selected : null;
   const load = async (more = false) => {
-    if (!scope || !active) return;
+    if (!scope || !active || model.busy) return;
+    needsLoad.current = false;
     const original = scope,
       id = ++serial.current;
     const data = await model.execute(async (_c, api, assert) => {
@@ -84,8 +92,16 @@ export function PersistentInboxPanel({
     setQuery("");
     setError(false);
     pending.current = null;
-    if (scope && active) void load();
-  }, [scope, active]);
+    cache.current.clear();
+    needsLoad.current = true;
+  }, [scope]);
+  useEffect(() => {
+    ++serial.current;
+    needsLoad.current = true;
+  }, [active]);
+  useEffect(() => {
+    if (scope && active && !model.busy && needsLoad.current) void load();
+  }, [scope, active, model.busy]);
   const open = async (meta: Meta) => {
     if (!scope) return;
     const original = scope,
@@ -94,8 +110,14 @@ export function PersistentInboxPanel({
       const record = await api(
         `/api/v2/persistent-results/${workspace.vault!.vaultId}/${meta.resultId}`,
       );
-      const content = await workspace.openPersistentResult({ record, resultId: meta.resultId });
+      const key = JSON.stringify(["persistent", original, meta.resultId, record]);
+      const prior = cache.current.get(key) as ResultContent | undefined;
+      const content =
+        prior ?? (await workspace.openPersistentResult({ record, resultId: meta.resultId }));
       assert();
+      if (live.current.scope !== original || !live.current.active || serial.current !== id)
+        return null;
+      cache.current.set(key, content);
       return { content, metadata: record.metadata };
     });
     if (live.current.scope !== original || !live.current.active || serial.current !== id) return;

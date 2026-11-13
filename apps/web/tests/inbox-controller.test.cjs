@@ -1,3 +1,6 @@
+const cacheContracts = require("./resource-library-helpers.cjs").compile(
+  "../lib/workspace-cache.ts",
+);
 const assert = require("node:assert/strict");
 const { readFileSync } = require("node:fs");
 const path = require("node:path");
@@ -82,6 +85,7 @@ function compile(file, imports, globals = {}) {
     module,
     exports: module.exports,
     require: (name) => {
+      if (name === "@/lib/workspace-cache") return cacheContracts;
       assert.ok(Object.hasOwn(imports, name), `Unexpected import ${name}`);
       return imports[name];
     },
@@ -801,7 +805,7 @@ test("history pagination preserves32 revisions and opening history never consume
   h.unmount();
 });
 
-test("decrypted search cache is bounded to20 exact authenticated deliveries", async () => {
+test("decrypted search cache is bounded to10 exact authenticated deliveries", async () => {
   const rows = Array.from({ length: 21 }, (_, i) => meta(`result_${i}`, 1, { read: true }));
   const h = harness({
     rows,
@@ -824,7 +828,7 @@ test("decrypted search cache is bounded to20 exact authenticated deliveries", as
     model = h.render();
   }
   assert.equal(model.loadedCount, 21);
-  assert.equal(model.decryptedCount, 20);
+  assert.equal(model.decryptedCount, 10);
   assert.equal(model.items[0].content, null);
   model.setQuery("Private result_0");
   model = h.render();

@@ -1,3 +1,6 @@
+const cacheContracts = require("./resource-library-helpers.cjs").compile(
+  "../lib/workspace-cache.ts",
+);
 const assert = require("node:assert/strict");
 const { readFileSync } = require("node:fs");
 const path = require("node:path");
@@ -29,6 +32,7 @@ function compile(file, imports = {}, globals = {}) {
     module,
     exports: module.exports,
     require(name) {
+      if (name === "@/lib/workspace-cache") return cacheContracts;
       assert.ok(Object.hasOwn(imports, name), name);
       return imports[name];
     },
@@ -1309,5 +1313,80 @@ test("non-actionable draft feedback expires without another network read", async
   model = h.render();
   assert.equal(model.notice, "");
   assert.equal(h.calls.length, requests);
+  h.unmount();
+});
+
+test("internal navigation preserves the editor, sealed draft, selection and verified task name", async () => {
+  const h = harness();
+  let model = await h.ready();
+  await model.openTask("task_A");
+  model = h.render();
+  assert.equal(model.taskNames.task_A, "PRIVATE_TASK");
+  model.setForm({ ...model.form, goal: "PRIVATE_UNSAVED_GOAL" });
+  model = await h.drain();
+  const opens = h.opens.length;
+  h.active(false);
+  model = h.render();
+  assert.equal(model.form, null);
+  h.active(true);
+  model = h.render();
+  assert.equal(model.form.goal, "PRIVATE_UNSAVED_GOAL");
+  assert.equal(model.selected.taskId, "task_A");
+  assert.equal(model.dirty, true);
+  assert.equal(h.opens.length, opens);
+  h.visibility(false);
+  model = h.render();
+  assert.equal(model.form, null);
+  assert.equal(Object.keys(model.taskNames).length, 0);
+  h.visibility(true);
+  model = await h.drain();
+  assert.equal(model.form, null);
+  h.unmount();
+});
+
+test("navigation during sealed draft save keeps its original CAS revision recoverable", async () => {
+  const g = deferred();
+  let held = true;
+  const h = harness({
+    saveDraft: async () => {
+      if (held) await g.promise;
+    },
+  });
+  let model = await h.ready();
+  model.startNew(undefined, content());
+  h.render();
+  await settle();
+  h.active(false);
+  h.render();
+  held = false;
+  g.resolve();
+  await settle();
+  h.render();
+  h.active(true);
+  model = await h.drain();
+  assert.equal(model.form.name, "PRIVATE_TASK");
+  assert.equal(model.error, "");
+  assert.ok(h.savedDrafts.length >= 1);
+  h.unmount();
+});
+
+test("new task metadata cannot relabel a cached old name or keep its editor writable", async () => {
+  let newer = false;
+  const h = harness({
+    transport: ({ route }) =>
+      newer && route.includes("tasks?limit")
+        ? response({ contractVersion: CONTRACT, items: [meta(2)], nextCursor: null })
+        : undefined,
+  });
+  let model = await h.ready();
+  await model.openTask("task_A");
+  model = h.render();
+  assert.equal(model.taskNames.task_A, "PRIVATE_TASK");
+  newer = true;
+  await model.reloadTasks();
+  model = h.render();
+  assert.equal(model.taskNames.task_A, undefined);
+  assert.equal(model.historical, true);
+  assert.equal(model.conflictCurrent.taskVersion, 2);
   h.unmount();
 });

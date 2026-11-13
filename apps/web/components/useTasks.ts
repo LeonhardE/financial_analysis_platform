@@ -10,6 +10,7 @@ import type {
   TaskContent,
   TaskMetadata,
 } from "@/lib/encrypted-types";
+import { DisplayLru } from "@/lib/workspace-cache";
 import { defaultTask, reviewTask, type TaskPreview } from "@/lib/task-forms";
 import {
   bindingsKey,
@@ -104,7 +105,9 @@ export function useTasks(workspace: HoldingsWorkspace, { active }: { active: boo
   const unlocked = Boolean(
     owner && configured && workspace.owner === owner && workspace.phase === "unlocked",
   );
-  const scope = unlocked ? `${owner}:${workspace.vaultGeneration}` : null;
+  const scope = unlocked
+    ? `${owner}:${workspace.vault?.vaultId ?? "unavailable"}:${workspace.vaultGeneration}`
+    : null;
   const [visible, setVisible] = useState(
     () => typeof document === "undefined" || document.visibilityState !== "hidden",
   );
@@ -113,11 +116,23 @@ export function useTasks(workspace: HoldingsWorkspace, { active }: { active: boo
   stateRef.current = state;
   const live = useRef({ owner, configured, scope, visible, active, workspace });
   live.current = { owner, configured, scope, visible, active, workspace };
+  const names = useRef(workspace.displayCache?.taskNames ?? new DisplayLru<string>(32, 128 * 1024));
+  const nameKey = (item: TaskMetadata) =>
+    JSON.stringify([
+      scope,
+      item.vaultId,
+      item.taskId,
+      item.taskVersion,
+      item.deliveryRevision,
+      item.envelopeFingerprint,
+      item.keyEpoch,
+    ]);
   const jobs = useRef(new Set<AbortController>()),
     generation = useRef(0),
     selection = useRef(0),
     readSerial = useRef({ tasks: 0, catalogue: 0 }),
     readJobs = useRef<Partial<Record<ReadRegion, AbortController>>>({});
+  const navigationDrafts = useRef(new Set<AbortController>());
   const editor = useRef<Editor | null>(null),
     writeJob = useRef<object | null>(null);
   const reviewed = useRef<{
@@ -136,6 +151,7 @@ export function useTasks(workspace: HoldingsWorkspace, { active }: { active: boo
       privateRead: boolean,
       action: (context: Context) => Promise<T>,
       region?: ReadRegion,
+      retainNavigation = false,
     ): Promise<T> => {
       const start = live.current,
         epoch = generation.current,
@@ -145,6 +161,7 @@ export function useTasks(workspace: HoldingsWorkspace, { active }: { active: boo
         readJobs.current[region] = controller;
       }
       jobs.current.add(controller);
+      if (retainNavigation) navigationDrafts.current.add(controller);
       let timedOut = false;
       const timeout = window.setTimeout(
         () => {
@@ -160,7 +177,7 @@ export function useTasks(workspace: HoldingsWorkspace, { active }: { active: boo
           !start.owner ||
           now.owner !== start.owner ||
           !now.configured ||
-          !now.active ||
+          (!now.active && !retainNavigation) ||
           !now.visible ||
           (privateRead &&
             (!start.scope || now.scope !== start.scope || generation.current !== epoch))
@@ -180,6 +197,7 @@ export function useTasks(workspace: HoldingsWorkspace, { active }: { active: boo
         controller.abort();
         window.clearTimeout(timeout);
         jobs.current.delete(controller);
+        navigationDrafts.current.delete(controller);
         if (region && readJobs.current[region] === controller) delete readJobs.current[region];
       }
     },
@@ -202,6 +220,7 @@ export function useTasks(workspace: HoldingsWorkspace, { active }: { active: boo
         try {
           const response = await auth.requestPrivate("agent-hub", path, owner!, {
             ...request,
+            coalesceDisplay: retryAdmission === true,
             signal: context.signal,
             headers: { "X-FolioView-Contract": TASK_CONTRACT, ...request.headers },
           });
@@ -377,6 +396,21 @@ export function useTasks(workspace: HoldingsWorkspace, { active }: { active: boo
               region === "tasks" ? { items: taskPage(body) } : { catalogue: taskCatalogue(body) };
             context.assert();
             if (serial !== readSerial.current[region]) return;
+            if (data.items) {
+              const selected = stateRef.current.selected;
+              const next = selected && data.items.find((item) => item.taskId === selected.taskId);
+              if (
+                selected &&
+                next &&
+                (selected.taskVersion !== next.taskVersion ||
+                  selected.envelopeFingerprint !== next.envelopeFingerprint)
+              )
+                updatePrivate((previous) => ({
+                  ...previous,
+                  historical: true,
+                  conflictCurrent: next,
+                }));
+            }
             setState((previous) =>
               previous.owner === owner ? { ...previous, ...data } : previous,
             );
@@ -395,7 +429,7 @@ export function useTasks(workspace: HoldingsWorkspace, { active }: { active: boo
           setState((previous) => ({ ...previous, [loading]: false }));
       }
     },
-    [api, configured, operation, owner],
+    [api, configured, operation, owner, updatePrivate],
   );
   const reloadTasks = useCallback(() => loadRead("tasks"), [loadRead]);
   const reloadCatalogue = useCallback(() => loadRead("catalogue"), [loadRead]);
@@ -435,23 +469,28 @@ export function useTasks(workspace: HoldingsWorkspace, { active }: { active: boo
           !snapshot.dirty
         )
           break;
-        await operation(true, async (context) => {
-          const saved = await live.current.workspace.saveTaskDraft({
-            slot: current.slot,
-            expectedRevision: current.revision,
-            baseVersion: current.baseVersion,
-            taskId: current.taskId,
-            draft: clone({ content: snapshot.form!, resourceBindings: snapshot.bindings }),
-          });
-          context.assert();
-          if (editor.current !== current) return;
-          current.revision = saved.revision;
-          updatePrivate((previous) => ({
-            ...previous,
-            drafts: [...previous.drafts.filter((row) => row.slot !== saved.slot), saved],
-            notice: "draft_saved",
-          }));
-        });
+        await operation(
+          true,
+          async (context) => {
+            const saved = await live.current.workspace.saveTaskDraft({
+              slot: current.slot,
+              expectedRevision: current.revision,
+              baseVersion: current.baseVersion,
+              taskId: current.taskId,
+              draft: clone({ content: snapshot.form!, resourceBindings: snapshot.bindings }),
+            });
+            context.assert();
+            if (editor.current !== current) return;
+            current.revision = saved.revision;
+            updatePrivate((previous) => ({
+              ...previous,
+              drafts: [...previous.drafts.filter((row) => row.slot !== saved.slot), saved],
+              notice: "draft_saved",
+            }));
+          },
+          undefined,
+          true,
+        );
       }
     } catch (error) {
       queue.queued = false;
@@ -1238,6 +1277,7 @@ export function useTasks(workspace: HoldingsWorkspace, { active }: { active: boo
     ++readSerial.current.catalogue;
     for (const job of jobs.current) job.abort();
     jobs.current.clear();
+    names.current.clear();
     editor.current = null;
     reviewed.current = null;
     writeJob.current = null;
@@ -1245,7 +1285,7 @@ export function useTasks(workspace: HoldingsWorkspace, { active }: { active: boo
     setState((previous) => ({
       ...(previous.owner === owner ? previous : initial),
       owner,
-      privateScope: active && visible ? scope : null,
+      privateScope: visible ? scope : null,
       selected: null,
       form: null,
       bindings: [],
@@ -1273,7 +1313,38 @@ export function useTasks(workspace: HoldingsWorkspace, { active }: { active: boo
       editor.current = null;
       reviewed.current = null;
     };
-  }, [owner, scope, active, visible, operation, summaries, fail]);
+  }, [owner, scope, visible, operation, summaries, fail]);
+  useEffect(() => {
+    if (!active) {
+      for (const job of jobs.current) if (!navigationDrafts.current.has(job)) job.abort();
+      ++selection.current;
+      ++readSerial.current.tasks;
+      ++readSerial.current.catalogue;
+      setState((previous) => ({
+        ...previous,
+        busy: false,
+        loading: false,
+        catalogueLoading: false,
+        confirmation: null,
+      }));
+    } else if (scope && visible) void operation(true, summaries).catch(fail);
+  }, [active, scope, visible, operation, summaries, fail]);
+  useEffect(() => {
+    if (
+      scope &&
+      visible &&
+      state.privateScope === scope &&
+      state.selected &&
+      state.form &&
+      !state.dirty
+    ) {
+      const key = nameKey(state.selected);
+      if (names.current.get(key) !== state.form.name) {
+        names.current.set(key, state.form.name);
+        setState((previous) => ({ ...previous }));
+      }
+    }
+  }, [scope, visible, state.privateScope, state.selected, state.form, state.dirty]);
   useEffect(() => {
     if (owner && configured && active && visible) void reload();
   }, [owner, configured, active, visible, scope, reload]);
@@ -1331,6 +1402,12 @@ export function useTasks(workspace: HoldingsWorkspace, { active }: { active: boo
       };
   return {
     ...output,
+    taskNames: Object.fromEntries(
+      output.items.flatMap((item) => {
+        const name = names.current.get(nameKey(item));
+        return name && scope && visible ? [[item.taskId, name]] : [];
+      }),
+    ),
     owner,
     configured,
     unlocked: privateVisible,

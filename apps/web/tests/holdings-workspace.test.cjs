@@ -1,3 +1,6 @@
+const cacheContracts = require("./resource-library-helpers.cjs").compile(
+  "../lib/workspace-cache.ts",
+);
 const assert = require("node:assert/strict");
 const { webcrypto } = require("node:crypto");
 const { readFileSync } = require("node:fs");
@@ -5,7 +8,7 @@ const path = require("node:path");
 const test = require("node:test");
 const vm = require("node:vm");
 const { transformSync } = require("next/dist/build/swc");
-const compile = (file, imports) => {
+const compile = (file, imports, globals = {}) => {
   const { code } = transformSync(readFileSync(path.join(__dirname, file), "utf8"), {
     filename: file,
     jsc: { parser: { syntax: "typescript" }, target: "es2022" },
@@ -20,10 +23,12 @@ const compile = (file, imports) => {
     Uint8Array,
     AbortController,
     require: (name) => {
+      if (name === "@/lib/workspace-cache") return cacheContracts;
       assert.ok(name in imports, `Unexpected import ${name}`);
       return imports[name];
     },
     window: { setTimeout: () => 1, clearTimeout: () => {} },
+    ...globals,
   });
   return module.exports;
 };
@@ -1076,44 +1081,58 @@ function harness({
         effects.push({ slot, effect, dependencies });
     },
   };
-  const { useHoldingsWorkspace } = compile("../components/useHoldingsWorkspace.ts", {
-    react: React,
-    "@/components/AuthProvider": {
-      useAuth: () => ({
-        ...auth,
-        portfolioConfigured,
-        agentHubConfigured,
-        requestPrivate,
-        signIn: async () => {},
-      }),
-    },
-    "@/lib/holdings-csv": {
-      HOLDINGS_CSV_MAX_BYTES: 4194304,
-      HoldingsCsvError: class HoldingsCsvError extends Error {},
-      parseHoldingsCsv: async () => importPreview,
-      selectHoldingsAccounts: (input) => input,
-    },
-    "@/lib/encrypted-vault": { EncryptedVaultSession: Session },
-    "@/lib/encrypted-passkey": {
-      createVaultPasskey: async (_uid, options) => {
-        passkeyCalls++;
-        passkeyOptions.push(options);
-        return passkey.promise;
+  const visibilityListeners = new Set();
+  const document = {
+    visibilityState: "visible",
+    addEventListener: (_event, callback) => visibilityListeners.add(callback),
+    removeEventListener: (_event, callback) => visibilityListeners.delete(callback),
+  };
+  const { useHoldingsWorkspace } = compile(
+    "../components/useHoldingsWorkspace.ts",
+    {
+      react: React,
+      "@/components/AuthProvider": {
+        useAuth: () => ({
+          ...auth,
+          portfolioConfigured,
+          agentHubConfigured,
+          requestPrivate,
+          signIn: async () => {},
+        }),
       },
-      unlockVaultPasskey: async (archive, options) => {
-        passkeyCalls++;
-        passkeyOptions.push(options);
-        passkeyArchives.push(archive);
-        return passkey.promise;
+      "@/lib/holdings-csv": {
+        HOLDINGS_CSV_MAX_BYTES: 4194304,
+        HoldingsCsvError: class HoldingsCsvError extends Error {},
+        parseHoldingsCsv: async () => importPreview,
+        selectHoldingsAccounts: (input) => input,
       },
-      replaceVaultPasskey: async (_uid, _archive, options) => {
-        replacementCalls++;
-        passkeyOptions.push(options);
-        if (replacementHold) return replacementHold.promise;
-        return { credentialId: "new_credential", prfSalt: "new_salt", secret: new ArrayBuffer(32) };
+      "@/lib/encrypted-vault": { EncryptedVaultSession: Session },
+      "@/lib/encrypted-passkey": {
+        createVaultPasskey: async (_uid, options) => {
+          passkeyCalls++;
+          passkeyOptions.push(options);
+          return passkey.promise;
+        },
+        unlockVaultPasskey: async (archive, options) => {
+          passkeyCalls++;
+          passkeyOptions.push(options);
+          passkeyArchives.push(archive);
+          return passkey.promise;
+        },
+        replaceVaultPasskey: async (_uid, _archive, options) => {
+          replacementCalls++;
+          passkeyOptions.push(options);
+          if (replacementHold) return replacementHold.promise;
+          return {
+            credentialId: "new_credential",
+            prfSalt: "new_salt",
+            secret: new ArrayBuffer(32),
+          };
+        },
       },
     },
-  });
+    { document },
+  );
   function render({ flush = true } = {}) {
     let model;
     do {
@@ -1157,6 +1176,10 @@ function harness({
     },
     waitForPasskey() {
       passkey = deferred();
+    },
+    visibility(value) {
+      document.visibilityState = value ? "visible" : "hidden";
+      for (const callback of visibilityListeners) callback();
     },
     commits,
     outboxes,
@@ -3112,5 +3135,64 @@ test("logout while the initial vault read is pending invalidates the owner's bro
   assert.equal(h.render().phase, "checking");
   assert.equal(h.instances.length, 0);
   assert.equal(h.counts().passkeyCalls, 0);
+  h.unmount();
+});
+
+test("same-version holdings selection shows the correct cached source before a delayed refresh", async () => {
+  const h = harness();
+  await unlocked(h);
+  await h.render().importFile(file);
+  await h.render().save();
+  const second = {
+    ...source,
+    resourceRef: { ...source.resourceRef, resourceId: "holdings_b", incarnation: "inc_b" },
+  };
+  h.sources().push(second);
+  await h.render().refreshVault(new AbortController().signal);
+  await h.render().selectHoldingsSource("holdings_b");
+  assert.equal(h.render().error, "", "second source must verify");
+  assert.equal(h.render().displayCache.holdings.size, 2, "both immutable sources retained");
+  await h.render().selectHoldingsSource("holdings_a");
+  let model = h.render();
+  assert.equal(model.displayCache.holdings.size, 2);
+  const opens = h.counts().opens;
+  const gate = deferred();
+  h.holdCurrent(gate);
+  const waiting = model.selectHoldingsSource("holdings_b");
+  model = h.render();
+  assert.equal(model.selectedSourceId, "holdings_b");
+  assert.equal(model.sourceMetadata.source.resourceRef.resourceId, "holdings_b");
+  assert.ok(model.content);
+  assert.equal(model.contentRefreshing, true);
+  h.holdCurrent(null);
+  gate.resolve(
+    new Response(JSON.stringify({ contractVersion: CONTRACT, vault, sources: h.sources() }), {
+      headers: { "content-type": "application/json" },
+    }),
+  );
+  await waiting;
+  model = h.render();
+  assert.equal(model.error, "");
+  assert.equal(h.counts().opens, opens);
+  h.visibility(false);
+  model = h.render();
+  assert.equal(model.content, null);
+  assert.equal(model.displayCache.holdings.size, 0);
+  h.unmount();
+});
+
+test("holdings version and revocation changes cannot reuse the old plaintext", async () => {
+  const h = harness();
+  await unlocked(h);
+  await h.render().importFile(file);
+  await h.render().save();
+  const count = h.counts().opens;
+  h.sourceState("holdings_a").authorityVersion++;
+  await h.render().selectHoldingsSource("holdings_a");
+  assert.equal(h.counts().opens, count + 1);
+  h.sourceState("holdings_a").state = "deleted";
+  await h.render().selectHoldingsSource("holdings_a");
+  assert.equal(h.render().content, null);
+  assert.equal(h.render().displayCache.holdings.size, 0);
   h.unmount();
 });

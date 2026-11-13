@@ -10,6 +10,7 @@ import {
   type HoldingsCsvPreview,
   type HoldingsResourceContent,
 } from "@/lib/holdings-csv";
+import { WorkspaceDisplayCache } from "@/lib/workspace-cache";
 import { EncryptedVaultSession } from "@/lib/encrypted-vault";
 import {
   createVaultPasskey,
@@ -401,6 +402,8 @@ export function useHoldingsWorkspace() {
   const current = useRef<{ serial: number; controller: AbortController } | null>(null);
   const session = useRef<{ owner: string; instance: EncryptedVaultSession } | null>(null);
   const pending = useRef<PendingSnapshot | null>(null);
+  const displayCache = useRef(new WorkspaceDisplayCache());
+  const selectionSerial = useRef(0);
   const verifiedSnapshot = useRef<{
     sourceId: string;
     snapshotId: string;
@@ -445,6 +448,7 @@ export function useHoldingsWorkspace() {
 
   const terminate = useCallback(() => {
     ++vaultGeneration.current;
+    displayCache.current.bind(null);
     session.current?.instance.lock();
     recoverySession.current?.lock();
     recoverySession.current = null;
@@ -590,7 +594,13 @@ export function useHoldingsWorkspace() {
                 keyRenewalCancellation: false,
               }
             : {}),
-          ...(["reading", "saving", "changing-source"].includes(busy) ? { content: null } : {}),
+          ...(["reading", "saving", "changing-source"].includes(busy) &&
+          !(
+            busy === "reading" &&
+            ["service_unavailable", "request_failed"].includes(errorCode(error))
+          )
+            ? { content: null }
+            : {}),
           sourceReview: null,
           ...(["reading", "saving", "changing-source"].includes(busy) &&
           [
@@ -754,11 +764,25 @@ export function useHoldingsWorkspace() {
     [api],
   );
 
+  const holdingKey = (source: Source, vault: Vault) =>
+    JSON.stringify([
+      displayCache.current.scope,
+      source.resourceRef,
+      source.sourceEpoch,
+      vault.version,
+      vault.rootKeyId,
+    ]);
+  type CachedHolding = {
+    content: HoldingsResourceContent;
+    metadata: SourceMetadata;
+    proof: NonNullable<typeof verifiedSnapshot.current>;
+  };
   const readSaved = useCallback(
     async (
       source: Source,
       signal: AbortSignal,
       assertActive: () => void,
+      reuseDisplay = false,
     ): Promise<HoldingsResourceContent | null> => {
       const instance = liveSession();
       const vault = stateRef.current.vault;
@@ -767,8 +791,9 @@ export function useHoldingsWorkspace() {
       verifiedSnapshot.current = null;
       setState((previous) => ({
         ...previous,
-        content: null,
-        sourceMetadata: null,
+        ...(previous.selectedSourceId === source.resourceRef.resourceId
+          ? {}
+          : { content: null, sourceMetadata: null }),
         sourceReview: null,
       }));
       // Portfolio advances its epoch before Hub receives the fence. Read that
@@ -862,8 +887,35 @@ export function useHoldingsWorkspace() {
         sourceMutation: mutation,
         hasPending: Boolean(recovered),
       }));
-      if (metadata.state === "deleted" || pendingDelete || metadata.snapshotId === null)
+      const key = holdingKey(source, vault);
+      const cached = displayCache.current.holdings.get(key) as CachedHolding | undefined;
+      if (metadata.state === "deleted" || pendingDelete || metadata.snapshotId === null) {
+        displayCache.current.holdings.delete(key);
+        setState((previous) => ({ ...previous, content: null }));
         return null;
+      }
+      if (
+        reuseDisplay &&
+        cached &&
+        metadata.state === "active" &&
+        !mutation &&
+        !recovered &&
+        cached.metadata.snapshotId === metadata.snapshotId &&
+        cached.metadata.revision === metadata.revision &&
+        cached.metadata.authorityVersion === metadata.authorityVersion &&
+        cached.metadata.state === metadata.state &&
+        cached.metadata.source.sourceEpoch === metadata.source.sourceEpoch
+      ) {
+        verifiedSnapshot.current = cached.proof;
+        setState((previous) => ({
+          ...previous,
+          content: cached.content,
+          sourceMetadata: metadata,
+        }));
+        return cached.content;
+      }
+      displayCache.current.holdings.delete(key);
+      setState((previous) => ({ ...previous, content: null }));
       const stored = await api(
         "portfolio",
         `/api/v2/holdings/sources/${source.resourceRef.resourceId}/snapshots/${metadata.snapshotId}`,
@@ -897,6 +949,11 @@ export function useHoldingsWorkspace() {
         authorityVersion: metadata.authorityVersion,
         state: metadata.state,
       };
+      displayCache.current.holdings.set(key, {
+        content,
+        metadata,
+        proof: verifiedSnapshot.current,
+      });
       setState((previous) => ({
         ...previous,
         content: content as HoldingsResourceContent,
@@ -1989,33 +2046,54 @@ export function useHoldingsWorkspace() {
   );
 
   const selectHoldingsSource = useCallback(
-    (sourceId: string) =>
-      perform("reading", async ({ signal, assertActive }) => {
+    async (sourceId: string) => {
+      const before = stateRef.current;
+      if (ownerRef.current !== owner || before.phase !== "unlocked") return;
+      if (current.current) {
+        if (before.busy !== "reading") return;
+        ++serial.current;
+        current.current.controller.abort();
+        current.current = null;
+      }
+      const selected = before.sources.find((row) => row.resourceRef.resourceId === sourceId);
+      if (!selected || !before.vault) return;
+      const id = ++selectionSerial.current;
+      const cached = displayCache.current.holdings.get(holdingKey(selected, before.vault)) as
+        CachedHolding | undefined;
+      pending.current = null;
+      verifiedSnapshot.current = null;
+      setState((previous) => ({
+        ...previous,
+        selectedSourceId: sourceId,
+        newSource: false,
+        preview: null,
+        content: cached?.content ?? null,
+        sourceMetadata: cached?.metadata ?? null,
+        hasPending: false,
+        sourceReview: null,
+        sourceMutation: null,
+        staleSourceMutation: false,
+      }));
+      await perform("reading", async ({ signal, assertActive: assertOperation }) => {
+        const assertActive = () => {
+          assertOperation();
+          if (selectionSerial.current !== id) throw new WorkspaceError("cancelled");
+        };
         const fresh = await readCurrent(signal);
         const instance = liveSession();
         assertActive();
         const source = fresh.sources.find((item) => item.resourceRef.resourceId === sourceId);
-        if (!source || !fresh.vault) throw new WorkspaceError("invalid_response");
+        if (!fresh.vault || !source) {
+          displayCache.current.holdings.clear();
+          throw new WorkspaceError("invalid_response");
+        }
         await instance.acceptVault(fresh.vault);
         assertActive();
-        pending.current = null;
-        setState((previous) => ({
-          ...previous,
-          vault: fresh.vault,
-          sources: fresh.sources,
-          selectedSourceId: sourceId,
-          newSource: false,
-          preview: null,
-          content: null,
-          hasPending: false,
-          sourceMetadata: null,
-          sourceReview: null,
-          sourceMutation: null,
-          staleSourceMutation: false,
-        }));
-        await readSaved(source, signal, assertActive);
-      }),
-    [liveSession, perform, readCurrent, readSaved],
+        setState((previous) => ({ ...previous, vault: fresh.vault, sources: fresh.sources }));
+        await readSaved(source, signal, assertActive, true);
+      });
+    },
+    [owner, liveSession, perform, readCurrent, readSaved],
   );
 
   const beginNewSource = useCallback(() => {
@@ -2188,6 +2266,28 @@ export function useHoldingsWorkspace() {
 
   sharedHandlers.current = { lock, reload };
   useEffect(() => {
+    if (typeof document === "undefined") return;
+    const change = () => {
+      if (document.visibilityState === "hidden") {
+        displayCache.current.clear();
+        ++selectionSerial.current;
+        ++serial.current;
+        current.current?.controller.abort();
+        current.current = null;
+        setState((previous) => ({
+          ...previous,
+          content: null,
+          preview: null,
+          sourceReview: null,
+          busy: null,
+        }));
+      } else if (stateRef.current.phase === "unlocked" && ownerRef.current === owner)
+        void sharedHandlers.current.reload();
+    };
+    document.addEventListener("visibilitychange", change);
+    return () => document.removeEventListener("visibilitychange", change);
+  }, [owner]);
+  useEffect(() => {
     if (!uid || !owner || !configured) return;
     return EncryptedVaultSession.watchUnlock?.(
       uid,
@@ -2239,16 +2339,40 @@ export function useHoldingsWorkspace() {
         : await readCurrent(signal);
       assertInboxSession(instance, generation);
       if (signal.aborted || !refreshed.vault) throw new WorkspaceError("invalid_response");
-      const access = forState
-        ? (await instance.acceptVault(refreshed.vault), { canWriteState: true })
-        : await instance.acceptResultVault(refreshed.vault);
+      let access: { canWriteState: boolean };
+      try {
+        access = forState
+          ? (await instance.acceptVault(refreshed.vault), { canWriteState: true })
+          : await instance.acceptResultVault(refreshed.vault);
+      } catch (error) {
+        if (
+          [
+            "key_revoked",
+            "untrusted_vault",
+            "registry_conflict",
+            "rollback_detected",
+            "wrong_account",
+            "insufficient_scope",
+          ].includes(errorCode(error))
+        )
+          sharedHandlers.current.lock();
+        throw error;
+      }
       assertInboxSession(instance, generation);
       if (signal.aborted) throw new WorkspaceError("cancelled");
+      const selected = stateRef.current.sourceMetadata?.source;
+      const currentSource =
+        selected &&
+        refreshed.sources.find((row) => sameSource(row.resourceRef, selected.resourceRef));
+      const changedSource =
+        selected && (!currentSource || currentSource.sourceEpoch !== selected.sourceEpoch);
+      if (changedSource) displayCache.current.holdings.clear();
       setState((previous) => ({
         ...previous,
         vault: refreshed.vault,
         sources: refreshed.sources,
         canWriteState: access.canWriteState,
+        ...(changedSource ? { content: null, sourceMetadata: null } : {}),
       }));
       return refreshed.vault;
     },
@@ -4426,8 +4550,16 @@ export function useHoldingsWorkspace() {
       lock();
   }, [auth.portfolioConfigured, lock]);
 
+  displayCache.current.bind(
+    owner && state.owner === owner && state.phase === "unlocked" && state.vault
+      ? JSON.stringify([owner, state.vault.vaultId, vaultGeneration.current, state.vault.version])
+      : null,
+  );
   const visible = owner && configured && state.owner === owner ? state : { ...empty, owner };
   return {
+    displayCache: displayCache.current,
+    contentRefreshing: state.busy === "reading" && Boolean(state.content),
+    contentStale: Boolean(state.error && state.content),
     ...visible,
     sourceMetadata: visible.phase === "unlocked" ? visible.sourceMetadata : null,
     sourceReview: visible.phase === "unlocked" ? visible.sourceReview : null,

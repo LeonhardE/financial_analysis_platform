@@ -1,5 +1,6 @@
 "use client";
 
+import { DisplayReadPool } from "@/lib/workspace-cache";
 import {
   createContext,
   useCallback,
@@ -37,6 +38,7 @@ const CONFIG_API_BASE_URL = process.env.NEXT_PUBLIC_CONFIG_API_BASE_URL || API_B
 export type PrivateService = "user" | "config" | "portfolio" | "agent-hub";
 type PrivateMethod = "GET" | "PUT" | "DELETE" | "POST" | "PATCH";
 type PrivateRequestOptions = {
+  coalesceDisplay?: boolean;
   method?: PrivateMethod;
   signal?: AbortSignal;
   json?: unknown;
@@ -572,6 +574,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signingOutRef = useRef(false);
   const generationRef = useRef(0);
   const requestRef = useRef<AbortController | null>(null);
+  const displayReads = useRef(new DisplayReadPool());
+  useEffect(() => () => displayReads.current.clear(), []);
   const verifiedSessionRef = useRef<{ key: string; user: User } | null>(null);
 
   useEffect(() => {
@@ -911,21 +915,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         throw sessionChanged();
       }
       if (!ownsSession()) throw sessionChanged();
-      const response = await fetch(`${origin}${path}`, {
-        method,
-        headers: {
-          ...contractHeaders,
-          Authorization: `Bearer ${token}`,
-          ...(body === undefined ? {} : { "Content-Type": "application/json" }),
-        },
-        ...(body === undefined ? {} : { body }),
-        cache: "no-store",
-        credentials: "omit",
-        redirect: "error",
-        referrerPolicy: "no-referrer",
-        signal: options.signal,
-      });
-      if (!ownsSession()) throw sessionChanged();
+      const send = (signal: AbortSignal | undefined) =>
+        fetch(`${origin}${path}`, {
+          method,
+          headers: {
+            ...contractHeaders,
+            Authorization: `Bearer ${token}`,
+            ...(body === undefined ? {} : { "Content-Type": "application/json" }),
+          },
+          ...(body === undefined ? {} : { body }),
+          cache: "no-store",
+          credentials: "omit",
+          redirect: "error",
+          referrerPolicy: "no-referrer",
+          signal,
+        });
+      const response =
+        options.coalesceDisplay && method === "GET"
+          ? await displayReads.current.run(
+              JSON.stringify([sessionKey, service, path, contractHeaders]),
+              send,
+              options.signal,
+            )
+          : await send(options.signal);
+      if (!ownsSession()) {
+        void response.body?.cancel().catch(() => {});
+        throw sessionChanged();
+      }
       if (response.status === 401) {
         invalidateSession();
         throw sessionChanged();

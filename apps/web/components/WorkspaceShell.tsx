@@ -112,7 +112,23 @@ export default function WorkspaceShell() {
       clearInboxResultLink();
     linkedOwner.current = encryptedWorkspace.owner;
   }, [encryptedWorkspace.owner]);
+  const scrollPositions = useRef<Partial<Record<WorkspaceView, number>>>({});
+  useEffect(() => {
+    scrollPositions.current = {};
+  }, [encryptedWorkspace.owner]);
+  const previousView = useRef(activeView);
+  useEffect(() => {
+    if (previousView.current === activeView) return;
+    previousView.current = activeView;
+    const frame = window.requestAnimationFrame?.(() =>
+      window.scrollTo?.({ top: scrollPositions.current[activeView] ?? 0, behavior: "instant" }),
+    );
+    return () => {
+      if (frame !== undefined) window.cancelAnimationFrame?.(frame);
+    };
+  }, [activeView]);
   const navigate = (view: WorkspaceView) => {
+    scrollPositions.current[activeView] = window.scrollY ?? 0;
     if (view !== "inbox") clearInboxResultLink();
     // All workspace views already live in this layout. A server transition can
     // reload an older client after deployment and destroy its in-memory keys.

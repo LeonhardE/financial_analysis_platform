@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { DisplayLru } from "@/lib/workspace-cache";
 import { useAuth } from "@/components/AuthProvider";
 import type { HoldingsWorkspace } from "@/components/useHoldingsWorkspace";
 import type {
@@ -34,7 +35,7 @@ import {
 
 const PAGE = 20,
   MAX_ITEMS = 100,
-  MAX_DECRYPTED = 20,
+  MAX_DECRYPTED = 10,
   OPERATION_MS = 60_000;
 type State = {
   owner: string | null;
@@ -89,7 +90,9 @@ export function useInbox(workspace: HoldingsWorkspace, { active }: { active: boo
   const unlocked = Boolean(
     owner && configured && workspace.owner === owner && workspace.phase === "unlocked",
   );
-  const scope = unlocked ? `${owner}:${workspace.vaultGeneration}` : null;
+  const scope = unlocked
+    ? `${owner}:${workspace.vault?.vaultId ?? "unavailable"}:${workspace.vaultGeneration}`
+    : null;
   const [visible, setVisible] = useState(
     () => typeof document === "undefined" || document.visibilityState !== "hidden",
   );
@@ -98,13 +101,18 @@ export function useInbox(workspace: HoldingsWorkspace, { active }: { active: boo
   stateRef.current = state;
   const live = useRef({ owner, configured, scope, active, visible, workspace });
   live.current = { owner, configured, scope, active, visible, workspace };
+  type CachedReport = {
+    content: ResultContent;
+    evidence: ResultEvidence;
+    metadata: ResultMetadata;
+    scope: string;
+    version: string;
+  };
   const cache = useRef(
-    new Map<
-      string,
-      { content: ResultContent; evidence: ResultEvidence; metadata: ResultMetadata; scope: string }
-    >(),
+    (workspace.displayCache?.reports ??
+      new DisplayLru<CachedReport>(10, 16 * 1024 * 1024)) as DisplayLru<CachedReport>,
   );
-  const heads = useRef(new Map<string, ResultMetadata>());
+  const heads = useRef(new DisplayLru<ResultMetadata>(100, 2 * 1024 * 1024));
   const pending = useRef<Pending | null>(null);
   const jobs = useRef(new Set<AbortController>());
   const selectionSerial = useRef(0),
@@ -354,11 +362,14 @@ export function useInbox(workspace: HoldingsWorkspace, { active }: { active: boo
       const next = document.visibilityState !== "hidden";
       live.current.visible = next;
       setVisible(next);
-      if (!next) for (const job of jobs.current) job.abort();
+      if (!next) {
+        clearPrivate();
+        for (const job of jobs.current) job.abort();
+      }
     };
     document.addEventListener("visibilitychange", changed);
     return () => document.removeEventListener("visibilitychange", changed);
-  }, []);
+  }, [clearPrivate]);
   useEffect(() => {
     for (const job of jobs.current) job.abort();
     ++listSerial.current;
@@ -636,17 +647,22 @@ export function useInbox(workspace: HoldingsWorkspace, { active }: { active: boo
             bundles.push(bundle);
             context.assert();
           }
-          const content = await start.workspace.openResult({
-            result: raw as EncryptedResult,
-            evidence: evidence as ResultEvidence,
-            registryBundles: bundles,
-          });
+          const version = JSON.stringify([raw, evidence, bundles]);
+          const known = cache.current.get(cacheKey(meta));
+          const content =
+            known?.scope === scope && known.version === version && sameBody(meta, known.metadata)
+              ? known.content
+              : await start.workspace.openResult({
+                  result: raw as EncryptedResult,
+                  evidence: evidence as ResultEvidence,
+                  registryBundles: bundles,
+                });
           context.assert();
           if (serial !== selectionSerial.current) return;
           const historical = revision !== undefined;
           const entry = { content, evidence: evidence as ResultEvidence };
           cache.current.delete(cacheKey(meta));
-          cache.current.set(cacheKey(meta), { ...entry, metadata: meta, scope: scope! });
+          cache.current.set(cacheKey(meta), { ...entry, metadata: meta, scope: scope!, version });
           if (revision === undefined) {
             const known = heads.current.get(meta.resultId);
             if (!known || known.stateVersion <= meta.stateVersion)

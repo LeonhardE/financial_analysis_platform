@@ -322,7 +322,12 @@ export function TasksView({
                     onClick={() => void model.openTask(item.taskId)}
                   >
                     <strong>
-                      {selected?.taskId === item.taskId && form ? form.name : t("encryptedTask")}
+                      {model.taskNames?.[item.taskId] ??
+                        (selected?.taskId === item.taskId &&
+                        selected.taskVersion === item.taskVersion &&
+                        form
+                          ? form.name
+                          : t("encryptedTask"))}
                     </strong>
                     <span>{short(item.taskId)}</span>
                     <div>
