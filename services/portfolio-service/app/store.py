@@ -23,11 +23,23 @@ COLLECTIONS = frozenset(
         "portfolio_upload_cancellations",
     }
 )
+MAX_BATCH_DOCUMENTS = 30
 
 
 class StoreUnavailable(RuntimeError):
     def __init__(self):
         super().__init__("Portfolio storage is temporarily unavailable.")
+
+
+def _batch_paths(paths):
+    if (
+        type(paths) is not list
+        or not 1 <= len(paths) <= MAX_BATCH_DOCUMENTS
+        or any(type(path) is not str for path in paths)
+        or len(set(paths)) != len(paths)
+    ):
+        raise StoreUnavailable
+    return paths
 
 
 def document_id(*parts: str) -> str:
@@ -117,6 +129,22 @@ class SQLiteTransaction:
             (path, canonical_json(data).decode()),
         )
 
+    def get_many(self, paths: list[str]) -> dict:
+        _batch_paths(paths)
+        result = dict.fromkeys(paths)
+        placeholders = ",".join("?" for _ in paths)
+        for path, body in self.connection.execute(
+            f"SELECT path, body FROM portfolio_documents WHERE path IN ({placeholders})", paths
+        ):
+            try:
+                value = strict_json_loads(body, max_bytes=MAX_STORED_DOCUMENT_BYTES)
+                if type(value) is not dict:
+                    raise StoreUnavailable
+                result[path] = value
+            except ContractError:
+                raise StoreUnavailable from None
+        return result
+
 
 class SQLitePortfolioStore:
     def __init__(self, path: str, *, project="local-portfolio", database="portfolio"):
@@ -170,6 +198,30 @@ class FirestoreTransaction:
             value, path=path, project=self.store.project, database=self.store.database
         )
         self.pending.append((path, _firestore_document(data, path=path)))
+
+    def get_many(self, paths: list[str]) -> dict:
+        _batch_paths(paths)
+        result = dict.fromkeys(paths)
+        seen = set()
+        rows = self.store.client.get_all(
+            [self.store.client.document(path) for path in paths],
+            transaction=self.transaction,
+            timeout=4,
+            retry=None,
+        )
+        for row in rows:
+            path = row.reference.path
+            if path not in result or path in seen:
+                raise StoreUnavailable
+            seen.add(path)
+            if row.exists:
+                value = row.to_dict()
+                if type(value) is not dict:
+                    raise StoreUnavailable
+                result[path] = _read_document(value, path=path)
+        if len(seen) != len(paths):
+            raise StoreUnavailable
+        return result
 
     def flush(self):
         for path, data in self.pending:

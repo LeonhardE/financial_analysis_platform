@@ -162,6 +162,18 @@ snapshot upload with revision CAS; real broker acquisition and refresh leases ar
 
 ## Internal source metadata producer
 
+The existing bounded reads prefetch authority, head and lifecycle for up to ten sources in one
+transaction (one SDK batch, at most thirty documents). Identical root-signed registry history is
+verified once per transaction attempt, keyed by exact history digest, owner, vault, root and time;
+current source rows, epochs, incarnations and lifecycle fences are still checked individually.
+The verification memo never survives a transaction retry or request. Response DTOs and failure
+semantics are unchanged, so existing consumers can deploy independently.
+
+The `uvicorn.error.portfolio_metadata` logger records closed counts and stage durations for
+storage, authority verification, head/lifecycle validation and total transaction time. It emits
+no owner, source, vault, credential or ciphertext. Local synthetic timing is not a production
+latency guarantee; deployed stage metrics can be reviewed in a separately authorized window.
+
 `POST /internal/v2/resources/projections/read` and `POST /internal/v2/resources/states/read` accept
 exactly `{contractVersion, refs}`, with one to ten distinct Portfolio holdings resource references.
 Requests require both the pinned Google workload token and short-lived Hub `browser_catalog`
@@ -176,8 +188,8 @@ These responses are **Portfolio metadata extensions**, not the frozen shared
 input manifest. Both return `{contractVersion,items}`. Each item contains exactly `ref`, `revision`
 (the retained latest revision), `sourceEpoch` and `state`. Active projections additionally return
 `snapshotId`; states additionally return `observedAt`. No carrier, author proofs, key packet,
-recipient list, credential or content is returned. Sources are independently read in separate
-transactions (at most three point reads each), not an atomic multi-source snapshot. A future Hub
+recipient list, credential or content is returned. Metadata uses one consistent bounded
+multi-source transaction; this does not authorize ciphertext delivery. A future Hub
 must still enforce current Run/grant/source fences and exact delivery bindings.
 
 Projection reads require an active source and a latest snapshot explicitly bound to its current
