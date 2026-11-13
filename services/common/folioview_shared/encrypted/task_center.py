@@ -179,6 +179,8 @@ def _control(
     if current_definition is not None:
         current_definition = validate_definition(current_definition)
         _match(current_definition, context)
+        if action != "set_rules":
+            _match(payload, {k: current_definition[k] for k in ("taskVersion", "executionEpoch")})
     if payload["expectedDefinitionVersion"] != (
         current_definition["definitionVersion"] if current_definition else 0
     ):
@@ -228,6 +230,7 @@ def plan_task_rules(
     )
     _integer(task_version, 1)
     _integer(execution_epoch, 1)
+    _match(p, {"taskVersion": task_version, "executionEpoch": execution_epoch})
     if old and (
         old["status"] != "active"
         or task_version < old["taskVersion"]

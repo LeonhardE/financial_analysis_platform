@@ -66,6 +66,8 @@ class TaskCenterContractTests(unittest.TestCase):
         payload = {
             **self.context,
             "artifactType": "task_center_control",
+            "taskVersion": definition["taskVersion"] if definition else 3,
+            "executionEpoch": definition["executionEpoch"] if definition else 2,
             "action": action,
             "rootKeyId": self.f.root_id,
             "deviceSigningKeyId": self.f.kid("device_sig"),
@@ -205,6 +207,8 @@ class TaskCenterContractTests(unittest.TestCase):
             {"checkpointDigest": "0" * 64},
             {"issuedAt": 699},
             {"expectedDefinitionVersion": 1},
+            {"taskVersion": 4},
+            {"executionEpoch": 3},
             {"assignmentId": "unexpected"},
         ):
             with self.subTest(change=change), self.assertRaises(ContractError):

@@ -180,7 +180,7 @@ at effectiveFrom. Saving a schedule does not create or attest any native plan.
 
 `plan_task_rules`, `plan_assignment` and `plan_task_lifecycle` require distinct
 current Owner-device controls, exact Root/checkpoint/freshness, closed fields and
-expected versions. Assignment creation and manual intent additionally require
+expected definition and explicit signed business task/execution versions. Assignment creation and manual intent additionally require
 `task_grant`; a control-only device cannot add an executor. The shared internal
 Owner-control verifier accepts a named schema validator while retaining its exact
 legacy default and byte limit. There is no general unauthenticated sign endpoint.

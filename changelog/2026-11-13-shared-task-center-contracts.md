@@ -10,7 +10,8 @@ consumers can reuse existing encrypted content without colliding on shared slots
 
 ## Changes
 
-- Add closed task/assignment/run/progress schemas and current Owner-signed CAS plans.
+- Add closed task/assignment/run/progress schemas and current Owner-signed CAS plans
+  bound to explicit business task/execution versions.
 - Define nullable schedules with user-selected days/time/IANA zone, explicit DST and
   effective boundaries; separate bounded signed manual intents from scheduled-source proof.
 - Namespace triggers per assignment, retain old manifest formats and distinguish
