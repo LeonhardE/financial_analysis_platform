@@ -48,6 +48,8 @@ COLLECTIONS = frozenset(
         "hub_agent_credential_setups",
         "hub_agent_credential_limits",
         "hub_center_tasks",
+        "hub_center_intents",
+        "hub_center_intent_queues",
         "hub_center_lifecycle",
         "hub_center_assignments",
         "hub_center_operations",

@@ -15,13 +15,13 @@ from folioview_shared.http import PrivateRoute
 from .agent_rollout import uid_allowed
 from .agent_transport import recovery_transport
 from .api import Owner, _invoke, body
+from .manual_intents import ManualAgentService, ManualOwnerService
 from .persistent_execution_routes import get_execution
 from .persistent_routes import control_transport
 from .provider_connection_routes import provider_slots_enabled
 from .store import get_store
 from .task_center import TaskCenterAgentService
 from .task_center_results import TaskCenterResultService
-from .task_lifecycle_service import TaskLifecycleService
 
 owner_router = APIRouter(prefix="/api/v3/task-center", route_class=PrivateRoute)
 agent_router = APIRouter(
@@ -35,12 +35,12 @@ def task_center_enabled():
 
 
 def get_owner_center():
-    return TaskLifecycleService(get_store())
+    return ManualOwnerService(get_store())
 
 
 def get_agent_center():
     current = get_execution()
-    return TaskCenterAgentService(
+    return ManualAgentService(
         current.store,
         current.catalogue,
         audience=current.audience,
@@ -160,6 +160,7 @@ for route, method in {
     "context": "context",
     "prepare": "prepare",
     "plans/report": "report_plan",
+    "manual/query": "pending_manual",
 }.items():
     agent_router.add_api_route("/" + route, endpoint(method), methods=["POST"])
 
@@ -184,3 +185,43 @@ async def maintenance(vault: str, task: str, request: Request, user: Owner, serv
     _invoke(lambda: control_transport(request))
     await body(request, {"contractVersion"}, max_bytes=1024)
     return await run_in_threadpool(_invoke, lambda: service.maintenance(user.uid, vault, task))
+
+
+@owner_router.post("/{vault}/tasks/{task}/manual", status_code=201)
+async def manual(vault: str, task: str, request: Request, user: Owner, service: OwnerService):
+    _invoke(lambda: control_transport(request, operation=True))
+    value = await body(request, {"contractVersion", "command"}, max_bytes=24576)
+
+    def apply():
+        if not task_center_enabled() or not uid_allowed(user.uid):
+            raise ContractError("authorization_unavailable")
+        return service.manual(
+            user.uid, vault, task, value["command"], request.headers["idempotency-key"]
+        )
+
+    return await run_in_threadpool(_invoke, apply)
+
+
+@owner_router.get("/{vault}/tasks/{task}/manual")
+def manual_list(vault: str, task: str, request: Request, user: Owner, service: OwnerService):
+    _invoke(lambda: control_transport(request))
+    return _invoke(lambda: service.manual_list(user.uid, vault, task))
+
+
+@owner_router.get("/{vault}/tasks/{task}/manual/{intent}")
+def manual_state(
+    vault: str, task: str, intent: str, request: Request, user: Owner, service: OwnerService
+):
+    _invoke(lambda: control_transport(request))
+    return _invoke(lambda: service.manual_state(user.uid, vault, task, intent))
+
+
+@owner_router.post("/{vault}/tasks/{task}/manual/{intent}/cancel")
+async def manual_cancel(
+    vault: str, task: str, intent: str, request: Request, user: Owner, service: OwnerService
+):
+    _invoke(lambda: control_transport(request))
+    await body(request, {"contractVersion"}, max_bytes=1024)
+    return await run_in_threadpool(
+        _invoke, lambda: service.cancel_manual(user.uid, vault, task, intent)
+    )

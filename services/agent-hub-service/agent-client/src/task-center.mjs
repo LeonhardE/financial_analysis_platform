@@ -9,7 +9,8 @@ export function reference(d, a) {
     ...["assignmentId", "assignmentVersion", "slotGeneration"].map((k) => [k, a[k]]),
   ]);
 }
-export async function assignedTrigger(a, baseTriggerId) {
+export async function assignedTrigger(a, baseTriggerId, kind = "legacy_unknown") {
+  if (!["manual", "scheduled", "legacy_unknown"].includes(kind)) deny("invalid_task_center");
   return (
     "tc_" +
     (await digest([
@@ -20,7 +21,7 @@ export async function assignedTrigger(a, baseTriggerId) {
       a.assignmentVersion,
       a.ruleVersion,
       a.lifecycleEpoch,
-      "legacy_unknown",
+      kind,
       baseTriggerId,
     ]))
   );
@@ -38,8 +39,7 @@ export async function verifyCenter(value, { registry, identity, lease, provider,
     value.contractVersion !== CONTRACT ||
     d.status !== "active" ||
     a.status !== "active" ||
-    d.ruleVersion !== d.definitionVersion ||
-    d.lifecycleEpoch !== 1
+    d.definitionVersion !== d.ruleVersion + d.lifecycleEpoch - 1
   )
     deny("insufficient_scope");
   for (const k of ["ownerSubject", "vaultId", "taskId", ...versions])
@@ -70,40 +70,7 @@ export async function verifyCenter(value, { registry, identity, lease, provider,
     [value.ruleControl, "set_rules"],
     [value.assignmentControl, "set_assignment"],
   ]) {
-    const p = parsed(bytes(signed.payload), true);
-    if (!validators.CenterOwnerControl(p) || p.action !== action) deny("invalid_task_center");
-    const snap = registry.snapshots.get(p.registrySequence);
-    if (
-      !snap ||
-      snap.digest !== p.checkpointDigest ||
-      snap.keyEpoch !== p.keyEpoch ||
-      p.rootKeyId !== identity.rootKeyId ||
-      p.issuedAt < snap.issuedAt
-    )
-      deny("registry_conflict");
-    const cert = registry.cert(
-      p.deviceSigningKeyId,
-      "device_sig",
-      null,
-      p.issuedAt,
-      p.registrySequence,
-    );
-    if (
-      !cert.capabilities.includes("control_write") ||
-      (action === "set_assignment" && !cert.capabilities.includes("task_grant"))
-    )
-      deny("key_authorization_required");
-    await verify(signed, cert.publicJwk, "fv-control+jws");
-    for (const k of [
-      "contractVersion",
-      "profile",
-      "ownerSubject",
-      "vaultId",
-      "taskId",
-      "taskVersion",
-      "executionEpoch",
-    ])
-      if (p[k] !== d[k]) deny("recipient_binding_mismatch");
+    const p = await verifyOwnerControl(signed, { registry, identity, definition: d, action });
     controls.push(p);
   }
   const [rules, assignment] = controls;
@@ -113,19 +80,139 @@ export async function verifyCenter(value, { registry, identity, lease, provider,
     ),
   );
   if (
-    rules.expectedDefinitionVersion + 1 !== d.definitionVersion ||
+    rules.expectedDefinitionVersion + 1 > d.definitionVersion ||
     !same(rules.schedule, d.schedule) ||
     assignment.expectedDefinitionVersion !== d.definitionVersion ||
     assignment.expectedAssignmentVersion + 1 !== a.assignmentVersion ||
     assignment.assignmentId !== a.assignmentId ||
     !same(assignment.assignment, target) ||
     rules.assignment !== null ||
+    rules.assignmentId !== null ||
+    rules.expectedAssignmentVersion !== null ||
     assignment.schedule !== null ||
     rules.intent !== null ||
     assignment.intent !== null
   )
     deny("recipient_binding_mismatch");
+  const history = value.lifecycleControls ?? [];
+  if (!Array.isArray(history) || history.length > 50 || history.length + 1 !== d.lifecycleEpoch)
+    deny("invalid_task_center");
+  let status = "active",
+    deletedAt = null,
+    previous = 0;
+  const operations = new Set();
+  for (const signed of history) {
+    const p = await verifyOwnerControl(signed, {
+      registry,
+      identity,
+      definition: d,
+      historical: true,
+    });
+    if (
+      p.expectedDefinitionVersion <= previous ||
+      p.expectedDefinitionVersion >= d.definitionVersion ||
+      operations.has(p.stableOperationId)
+    )
+      deny("version_conflict");
+    operations.add(p.stableOperationId);
+    previous = p.expectedDefinitionVersion;
+    if (p.action === "trash" && status === "active") {
+      status = "trashed";
+      deletedAt = p.issuedAt;
+    } else if (
+      p.action === "restore" &&
+      status === "trashed" &&
+      p.issuedAt >= deletedAt &&
+      p.issuedAt < deletedAt + 2592000
+    ) {
+      status = "active";
+      deletedAt = null;
+    } else deny("invalid_task_center");
+    if (
+      [p.schedule, p.assignment, p.assignmentId, p.expectedAssignmentVersion, p.intent].some(
+        (v) => v !== null,
+      )
+    )
+      deny("invalid_task_center");
+  }
+  if (
+    status !== d.status ||
+    Math.max(rules.expectedDefinitionVersion + 1, previous + 1) !== d.definitionVersion
+  )
+    deny("version_conflict");
   return value;
+}
+async function verifyOwnerControl(
+  signed,
+  { registry, identity, definition: d, action, historical = false },
+) {
+  const p = parsed(bytes(signed.payload), true);
+  if (!validators.CenterOwnerControl(p) || (action && p.action !== action))
+    deny("invalid_task_center");
+  const snap = registry.snapshots.get(p.registrySequence);
+  if (
+    !snap ||
+    snap.digest !== p.checkpointDigest ||
+    snap.keyEpoch !== p.keyEpoch ||
+    p.rootKeyId !== identity.rootKeyId ||
+    p.issuedAt < snap.issuedAt
+  )
+    deny("registry_conflict");
+  const cert = registry.cert(
+    p.deviceSigningKeyId,
+    "device_sig",
+    null,
+    p.issuedAt,
+    p.registrySequence,
+  );
+  if (
+    !cert.capabilities.includes("control_write") ||
+    (["set_assignment", "manual_intent"].includes(p.action) &&
+      !cert.capabilities.includes("task_grant"))
+  )
+    deny("key_authorization_required");
+  await verify(signed, cert.publicJwk, "fv-control+jws");
+  for (const k of ["contractVersion", "profile", "ownerSubject", "vaultId", "taskId"])
+    if (p[k] !== d[k]) deny("recipient_binding_mismatch");
+  for (const k of ["taskVersion", "executionEpoch"])
+    if (historical ? p[k] > d[k] : p[k] !== d[k]) deny("recipient_binding_mismatch");
+  return p;
+}
+export async function verifyManualControl(signed, { registry, identity, state, requestId, now }) {
+  const p = await verifyOwnerControl(signed, {
+    registry,
+    identity,
+    definition: state.definition,
+    action: "manual_intent",
+  });
+  const currentSigner = registry.cert(p.deviceSigningKeyId, "device_sig", null, now);
+  if (
+    !currentSigner.capabilities.includes("task_grant") ||
+    !currentSigner.capabilities.includes("control_write")
+  )
+    deny("key_authorization_required");
+  const refs = p.intent?.assignments;
+  if (
+    p.stableOperationId !== requestId ||
+    p.expectedDefinitionVersion !== state.definition.definitionVersion ||
+    !p.intent ||
+    !Array.isArray(refs) ||
+    !same(
+      refs.map((r) => r.assignmentId),
+      [...new Set(refs.map((r) => r.assignmentId))].sort(),
+    ) ||
+    !refs.some(
+      (r) =>
+        r.assignmentId === state.assignment.assignmentId &&
+        r.assignmentVersion === state.assignment.assignmentVersion,
+    ) ||
+    p.issuedAt > now ||
+    p.intent.expiresAt > p.issuedAt + 600 ||
+    p.intent.expiresAt <= now ||
+    [p.schedule, p.assignment, p.assignmentId, p.expectedAssignmentVersion].some((v) => v !== null)
+  )
+    deny("key_authorization_required");
+  return p;
 }
 export async function assignedDue(definition, now) {
   if (definition.schedule === null) return null;

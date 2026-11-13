@@ -48,8 +48,10 @@ def assignment_path(owner, vault, task, ident):
     return document_path("hub_center_assignments", owner, vault, task, ident)
 
 
-def preparation_path(owner, vault, task, ident, base):
+def preparation_path(owner, vault, task, ident, base, *, kind="legacy_unknown"):
     # Credential/rule changes cannot turn retrying one intent into a second Run.
+    if kind != "legacy_unknown":
+        return document_path("hub_center_preparations", owner, vault, task, ident, kind, base)
     return document_path("hub_center_preparations", owner, vault, task, ident, base)
 
 
@@ -138,19 +140,40 @@ def bind_prepared_run(unit, owner, vault, connection, manifest):
         unit, owner, vault, task, connection, manifest["taskPublicationFingerprint"]
     )
     lookup = unit.get(trigger_path(owner, vault, task, trigger))
-    if lookup is None or set(lookup) != {"assignmentId", "baseTriggerId"}:
+    if lookup is None or set(lookup) - {"kind"} != {"assignmentId", "baseTriggerId"}:
         raise ContractError("insufficient_scope")
     p = unit.get(
-        preparation_path(owner, vault, task, lookup["assignmentId"], lookup["baseTriggerId"])
+        preparation_path(
+            owner,
+            vault,
+            task,
+            lookup["assignmentId"],
+            lookup["baseTriggerId"],
+            kind=lookup.get("kind", "legacy_unknown"),
+        )
     )
     if p is None or p["request"]["operationId"] != manifest["stableOperationId"]:
         raise ContractError("idempotency_conflict")
     expected = center_reference(d, a)
     if p["request"]["binding"] != expected or p["triggerId"] != trigger:
         raise ContractError("version_conflict")
-    binding = bind_task_run(d, a, slot, manifest, base_trigger_id=lookup["baseTriggerId"])
+    kind = lookup.get("kind", "legacy_unknown")
+    manual = None
+    if kind == "manual":
+        from .manual_intents import manual_for_run
+
+        manual = manual_for_run(unit, d, a, p, manifest)
+    binding = bind_task_run(
+        d,
+        a,
+        slot,
+        manifest,
+        base_trigger_id=lookup["baseTriggerId"],
+        kind=kind,
+        manual_intent=manual,
+    )
     unit.put(
-        preparation_path(owner, vault, task, a["assignmentId"], lookup["baseTriggerId"]),
+        preparation_path(owner, vault, task, a["assignmentId"], lookup["baseTriggerId"], kind=kind),
         {**p, "runId": manifest["runId"], "stage": "running"},
     )
     return binding
@@ -177,11 +200,22 @@ def observe_center_result(unit, binding, result):
     owner, vault, task, ident = (
         binding[k] for k in ("ownerSubject", "vaultId", "taskId", "assignmentId")
     )
-    path = preparation_path(owner, vault, task, ident, binding["trigger"]["baseTriggerId"])
+    path = preparation_path(
+        owner,
+        vault,
+        task,
+        ident,
+        binding["trigger"]["baseTriggerId"],
+        kind=binding["trigger"]["kind"],
+    )
     row = unit.get(path)
     if row is None or row["runId"] != binding["runId"]:
         raise StoreUnavailable
     unit.put(path, {**row, "stage": "result_received", "resultId": result})
+    if binding["trigger"]["kind"] == "manual":
+        from .manual_intents import observe_manual_result
+
+        observe_manual_result(unit, binding, result)
 
 
 def center_reference(definition, assignment):
@@ -303,6 +337,10 @@ class TaskCenterOwnerService(PersistentPublicationService):
                 from .task_lifecycle import lifecycle_index, lifecycle_path
 
                 definition = plan_task_lifecycle(signed, **args, action=action)
+                if action in {"trash", "purge"}:
+                    from .manual_intents import fence_manuals
+
+                    fence_manuals(unit, owner, vault, task)
                 controls = [*row.get("lifecycleControls", []), signed]
                 # Same bounded lifetime as task revisions; never silently discard proof.
                 if len(controls) > 50:

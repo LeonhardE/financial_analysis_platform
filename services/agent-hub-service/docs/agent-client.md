@@ -169,3 +169,19 @@ runs. Report submission still uses the original verified manifest and sealed
 outbox. Removal of task permission asks for task access review; actual credential
 loss/expiry retains the existing reauthorization flow. Complete native-cycle
 acceptance remains a later step and cannot be inferred from a Hub result receipt.
+
+## Manual pickup and restored tasks in 1.2.0
+
+Version 1.2.0 retains the three prior pinned distributions byte-for-byte. It adds
+`pendingManual({taskId})` and `beginManual({taskId,requestId})` to the existing
+private runtime and CLI. The host, not the user, retains operation state. A lost
+prepare response or process restart recovers the same request and Run; do not
+replace it with a fresh request ID. The client verifies the original signed Owner
+intent before Begin. Its task-center verifier accepts reviewed restored tasks
+only after fresh assignment approval and verifies the retained lifecycle controls.
+
+The user explicitly opens their Agent to continue. No automatic dispatcher or
+native schedule is installed by these methods. Expired pickup returns a failure;
+ask the user to initiate a new explicit request rather than silently rerunning.
+The ordinary input/result methods use the returned Run exactly as before. Keep
+credentials private to the host; users do not save or manage a recovery file.

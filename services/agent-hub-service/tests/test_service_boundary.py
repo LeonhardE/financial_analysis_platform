@@ -26,6 +26,10 @@ class AgentHubBoundaryTests(unittest.TestCase):
                 set(client.get("/openapi.json").json()["paths"]),
                 {
                     "/api/v3/task-center/capabilities",
+                    "/api/v3/task-center/{vault}/tasks/{task}/manual",
+                    "/api/v3/task-center/{vault}/tasks/{task}/manual/{intent}",
+                    "/api/v3/task-center/{vault}/tasks/{task}/manual/{intent}/cancel",
+                    "/agent/v3/persistent/owners/{owner}/vaults/{vault}/connections/{connection}/task-center/manual/query",
                     "/api/v3/task-center/{vault}/trash",
                     "/api/v3/task-center/{vault}/trash/query",
                     "/api/v3/task-center/{vault}/tasks/{task}/maintenance",

@@ -18,7 +18,7 @@ from folioview_shared.encrypted.task_center import TASK_CENTER_PROFILE
 REQUEST_PATH = (
     r"^/agent/v3/persistent/owners/[A-Za-z0-9_-]{1,128}"
     r"/vaults/[A-Za-z0-9_-]{1,128}/connections/[A-Za-z0-9_-]{1,128}"
-    r"/task-center/(context|prepare|plans/report)$"
+    r"/task-center/(context|prepare|plans/report|manual/query)$"
 )
 
 

@@ -588,3 +588,36 @@ public certificates are retained. Legacy uncommitted copies without a provable
 task association produce `reviewRequired:true` rather than a false completion.
 Minimal task/receipt tombstones remain to prevent ID and request resurrection.
 All maintenance is local-test only until separately authorized for real data.
+
+### Manual request pickup (client 1.2.0)
+
+`POST /{vault}/tasks/{task}/manual` accepts `{contractVersion,command}` with the
+original Idempotency-Key and signed `CenterOwnerControl(action=manual_intent)`.
+Selected assignments must be current; pickup expires in at most 600 seconds. A
+queue contains at most sixteen active requests. The original operation returns
+its original receipt, including after cancellation; it never starts another Run.
+
+`GET /{vault}/tasks/{task}/manual` lists the retained bounded queue.
+`GET /{vault}/tasks/{task}/manual/{intent}` recovers the original receipt and current
+per-executor progress. `POST .../manual/{intent}/cancel` with `{contractVersion}`
+uses authenticated Owner narrowing authority and can cancel only before pickup.
+Cancellation survives a disabled issuance gate. Closing a page does not cancel.
+Request expiry, changed authorization and execution failure remain distinct from
+success; only a committed result sets `result_received`.
+
+The PoP-only Agent route `task-center/manual/query` accepts `{taskId}` and exposes
+up to four eligible request IDs for that current assignment. `task-center/prepare`
+adds a closed manual variant with `manualIntentId` equal to `baseTriggerId`; its
+original receipt includes the signed Owner control. Pickup is FIFO per executor,
+independent across Agents. The final Begin transaction rechecks the signed intent,
+expiry, cancellation, current assignment and deletion fence, then stores the
+manual provenance sidecar with the immutable Run. Calendar/legacy preparations
+retain their original wire shape and namespace. Manual work does not consume a
+calendar occurrence or alter the next plan.
+
+`dispatchSupported:false` and `continuation:open_agent` are deliberate: this is
+an explicit handoff to the connected Agent, not a promise of automatic wakeup or
+polling at the next native scheduled job. Native dispatch and schedule-source
+attestation require separate real-host acceptance. Unverified calendar invocations
+continue to be labeled `legacy_unknown`, regardless of report text. The shipped
+calendar contract skips missing DST times and chooses the first repeated time.

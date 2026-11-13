@@ -4573,7 +4573,7 @@ var schema37 = {
     path: {
       type: "string",
       pattern:
-        "^/agent/v3/persistent/owners/[A-Za-z0-9_-]{1,128}/vaults/[A-Za-z0-9_-]{1,128}/connections/[A-Za-z0-9_-]{1,128}/task-center/(context|prepare|plans/report)$",
+        "^/agent/v3/persistent/owners/[A-Za-z0-9_-]{1,128}/vaults/[A-Za-z0-9_-]{1,128}/connections/[A-Za-z0-9_-]{1,128}/task-center/(context|prepare|plans/report|manual/query)$",
     },
     bodyDigest: { $ref: "#/$defs/Digest" },
     requestId: { $ref: "#/$defs/OperationIdentifier" },
@@ -4609,7 +4609,7 @@ var schema37 = {
 };
 var formats0 = /^https:\/\/[^\s\\]+$/;
 var pattern9 = new RegExp(
-  "^/agent/v3/persistent/owners/[A-Za-z0-9_-]{1,128}/vaults/[A-Za-z0-9_-]{1,128}/connections/[A-Za-z0-9_-]{1,128}/task-center/(context|prepare|plans/report)$",
+  "^/agent/v3/persistent/owners/[A-Za-z0-9_-]{1,128}/vaults/[A-Za-z0-9_-]{1,128}/connections/[A-Za-z0-9_-]{1,128}/task-center/(context|prepare|plans/report|manual/query)$",
   "u",
 );
 function validate105(
@@ -5075,7 +5075,7 @@ function validate105(
                                                       keyword: "pattern",
                                                       params: {
                                                         pattern:
-                                                          "^/agent/v3/persistent/owners/[A-Za-z0-9_-]{1,128}/vaults/[A-Za-z0-9_-]{1,128}/connections/[A-Za-z0-9_-]{1,128}/task-center/(context|prepare|plans/report)$",
+                                                          "^/agent/v3/persistent/owners/[A-Za-z0-9_-]{1,128}/vaults/[A-Za-z0-9_-]{1,128}/connections/[A-Za-z0-9_-]{1,128}/task-center/(context|prepare|plans/report|manual/query)$",
                                                       },
                                                     },
                                                   ];
