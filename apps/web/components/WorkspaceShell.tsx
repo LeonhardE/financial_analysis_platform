@@ -442,6 +442,8 @@ export default function WorkspaceShell() {
         </div>
         <div className="workspace-page" hidden={activeView !== "tasks"}>
           <TasksPanel
+            persistent={persistent}
+            onNavigate={navigate}
             workspace={encryptedWorkspace}
             active={activeView === "tasks"}
             request={taskRequest?.owner === encryptedWorkspace.owner ? taskRequest : null}

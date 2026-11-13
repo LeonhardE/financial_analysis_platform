@@ -1458,6 +1458,77 @@ export class EncryptedVaultSession {
     this.assert(g);
     return result;
   }
+  private taskCenterKey(taskId: string) {
+    if (!this.vaultId || !/^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/.test(taskId))
+      throw new VaultError("invalid_data");
+    return `${this.owner}:task-center:${this.vaultId}:${taskId}`;
+  }
+  async verifyTaskCenterState(state: Json) {
+    const g = this.generation,
+      value = await this.rpc("verifyTaskCenterState", { state });
+    this.assert(g);
+    return value;
+  }
+  async loadTaskCenterPending(taskId: string) {
+    const g = this.generation,
+      row = await this.storage.get(this.taskCenterKey(taskId));
+    this.assert(g);
+    if (!row) return null;
+    if (
+      row.ownerSubject !== this.owner ||
+      row.vaultId !== this.vaultId ||
+      row.taskId !== taskId ||
+      !row.pending?.record
+    )
+      throw new VaultError("binding_mismatch");
+    const value = await this.rpc("openTaskCenterPending", {
+      record: row.pending.record,
+      taskId,
+      operationId: row.pending.operationId,
+    });
+    this.assert(g);
+    return value;
+  }
+  async prepareTaskCenterControl(args: Json) {
+    return this.serial(async () => {
+      const g = this.generation,
+        key = this.taskCenterKey(args.state.taskId);
+      if (await this.storage.get(key)) throw new VaultError("persistent_operation_pending");
+      const { localPending, ...packet } = await this.rpc("prepareTaskCenterControl", args);
+      this.assert(g);
+      if (
+        !localPending ||
+        packet.operationId !== localPending.operationId ||
+        packet.taskId !== args.state.taskId
+      )
+        throw new VaultError("binding_mismatch");
+      if (
+        !(await this.storage.insert(key, {
+          ownerSubject: this.owner,
+          vaultId: this.vaultId,
+          taskId: packet.taskId,
+          pending: { operationId: packet.operationId, record: localPending },
+        }))
+      )
+        throw new VaultError("persistent_operation_pending");
+      this.assert(g);
+      return packet;
+    });
+  }
+  async finishTaskCenterPending(taskId: string, receipt: Json) {
+    return this.serial(async () => {
+      const g = this.generation,
+        packet = await this.loadTaskCenterPending(taskId);
+      this.assert(g);
+      if (!packet) throw new VaultError("not_found");
+      const result = await this.rpc("verifyTaskCenterReceipt", { packet, receipt });
+      this.assert(g);
+      if (!(await this.storage.removeOperation(this.taskCenterKey(taskId), result.operationId)))
+        throw new VaultError("operation_conflict");
+      this.assert(g);
+      return result;
+    });
+  }
   private persistentKey(actor: { connectionId: string; clientId: string }) {
     if (
       !this.vaultId ||

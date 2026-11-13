@@ -1390,3 +1390,72 @@ test("new task metadata cannot relabel a cached old name or keep its editor writ
   assert.equal(model.conflictCurrent.taskVersion, 2);
   h.unmount();
 });
+
+test("background name verification never selects an editor or creates a draft; revisit reuses version cache", async () => {
+  const h = harness();
+  let m = await h.drain();
+  assert.equal(m.taskNames.task_A, "PRIVATE_TASK");
+  assert.equal(m.form, null);
+  assert.equal(m.selected, null);
+  assert.equal(h.savedDrafts.length, 0);
+  const reads = h.calls.length,
+    opens = h.opens.length;
+  h.active(false);
+  await h.drain();
+  h.active(true);
+  m = await h.drain();
+  assert.equal(m.taskNames.task_A, "PRIVATE_TASK");
+  assert.equal(h.opens.length, opens);
+  assert.equal(h.calls.length, reads);
+  h.lock();
+  m = await h.drain();
+  assert.deepEqual(Object.keys(m.taskNames), []);
+  h.unmount();
+});
+test("a failed name is isolated and can be retried without entering edit mode", async () => {
+  let failed = true;
+  const h = harness({
+    open: async () => {
+      if (failed) throw { code: "verification_failed" };
+      return content();
+    },
+  });
+  let m = await h.drain();
+  assert.ok(m.nameErrors.task_A);
+  assert.equal(m.form, null);
+  failed = false;
+  m.retryTaskName("task_A");
+  m = await h.drain();
+  assert.equal(m.taskNames.task_A, "PRIVATE_TASK");
+  assert.equal(m.nameErrors.task_A, undefined);
+  assert.equal(h.savedDrafts.length, 0);
+  h.unmount();
+});
+test("background name verification limits concurrent decryption to three", async () => {
+  const waiting = deferred();
+  let inflight = 0,
+    peak = 0;
+  const rows = Array.from({ length: 8 }, (_, i) => meta(1, { taskId: "task_" + i }));
+  const h = harness({
+    rows,
+    transport: async ({ route }) => {
+      const row = rows.find((m) => route === "/api/v2/tasks/" + m.taskId);
+      if (row) return response(task(row));
+    },
+    open: async () => {
+      inflight++;
+      peak = Math.max(peak, inflight);
+      await waiting.promise;
+      inflight--;
+      return content();
+    },
+  });
+  await h.drain();
+  assert.equal(peak, 3);
+  waiting.resolve();
+  const m = await h.drain();
+  assert.equal(m.form, null);
+  assert.equal(h.savedDrafts.length, 0);
+  assert.ok(peak <= 3);
+  h.unmount();
+});

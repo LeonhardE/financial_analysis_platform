@@ -302,7 +302,13 @@ export function usePersistentWorkspace(workspace: HoldingsWorkspace, hubOrigin: 
               view.identity = context?.identity ?? credential.state.identity;
               view.policy = context?.policy ?? null;
               for (const task of tasks.filter(
-                (t) => t.authority.authority?.context.connectionId === connection.connectionId,
+                (t) =>
+                  t.authority.authority?.context.connectionId === connection.connectionId ||
+                  t.authority.taskCenter?.assignments?.some(
+                    (r: Record<string, any>) =>
+                      r.assignment.credential.connectionId === connection.connectionId &&
+                      r.plan?.currentAssignment,
+                  ),
               )) {
                 let plan = null;
                 if (context)

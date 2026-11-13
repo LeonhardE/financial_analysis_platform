@@ -524,6 +524,37 @@ export class PersistentExperienceController {
     }
     return { restored };
   }
+  async taskAuthority(connection: PersistentConnection, task: PersistentTask, previous?: Json) {
+    try {
+      return await this.request(
+        `/api/v2/persistent-content/${connection.vaultId}/tasks/${task.taskId}/authority`,
+      );
+    } catch (error) {
+      if (!(error instanceof PersistentExperienceError) || error.code !== "version_conflict")
+        throw error;
+      const state = await this.workspace().verifyTaskCenterState(
+        await this.request(`/api/v3/task-center/${connection.vaultId}/tasks/${task.taskId}`),
+      );
+      const head =
+        state.assignments.find(
+          (r: Json) => r.assignment.credential.connectionId === connection.connectionId,
+        )?.authority ??
+        (previous?.authority?.context.connectionId === connection.connectionId
+          ? previous.authority
+          : null);
+      const receipt = head
+        ? await this.request(
+            `/api/v2/persistent-content/${connection.vaultId}/connections/${connection.connectionId}/operations/${head.publicationId}`,
+          )
+        : null;
+      return {
+        contractVersion: PERSISTENT_CONTRACT,
+        profile: "folioview.persistent-content.v1",
+        authority: head,
+        envelope: receipt?.envelope ?? (head ? previous?.envelope : null),
+      };
+    }
+  }
   async tasks() {
     const v = this.vault(),
       items: Json[] = [];
@@ -543,9 +574,19 @@ export class PersistentExperienceController {
       if (!same(packet.metadata, meta)) fail("version_conflict");
       const content = await this.workspace().openTask(packet as any);
       this.assert();
-      const authority = await this.request(
-        `/api/v2/persistent-content/${v.vaultId}/tasks/${meta.taskId}/authority`,
-      );
+      let authority: Json;
+      try {
+        authority = await this.request(
+          `/api/v2/persistent-content/${v.vaultId}/tasks/${meta.taskId}/authority`,
+        );
+      } catch (error) {
+        if (!(error instanceof PersistentExperienceError) || error.code !== "version_conflict")
+          throw error;
+        const center = await this.workspace().verifyTaskCenterState(
+          await this.request(`/api/v3/task-center/${v.vaultId}/tasks/${meta.taskId}`),
+        );
+        authority = { authority: null, envelope: null, taskCenter: center };
+      }
       result.push({
         taskId: meta.taskId,
         title: content.name,
@@ -569,6 +610,10 @@ export class PersistentExperienceController {
     tasks: PersistentTask[],
     expected: Json,
     allowReassign = false,
+    taskCenter?: {
+      previous?: Json;
+      beforePublish: (task: PersistentTask, packet: Json, context: Json) => Promise<void>;
+    },
   ) {
     if (!tasks.length) fail("select_task");
     const context = await this.context(connection),
@@ -607,9 +652,7 @@ export class PersistentExperienceController {
     await this.send(connection, packet);
     const current = await this.context(connection);
     for (const task of tasks) {
-      const authority = await this.request(
-        `/api/v2/persistent-content/${connection.vaultId}/tasks/${task.taskId}/authority`,
-      );
+      const authority = await this.taskAuthority(connection, task, taskCenter?.previous);
       const p = await this.workspace().preparePersistentTask({
         ...this.control(current),
         authority,
@@ -618,9 +661,11 @@ export class PersistentExperienceController {
         allowReassign,
       });
       this.assert();
+      if (taskCenter) await taskCenter.beforePublish(task, p, current);
+      this.assert();
       await this.send(connection, p);
     }
-    await this.synchronize(connection);
+    await this.synchronize(connection, !taskCenter);
   }
   private async publishResource(connection: PersistentConnection, context: Json, item: Json) {
     const before = await this.catalogue(),
@@ -690,7 +735,7 @@ export class PersistentExperienceController {
     this.assert();
     await this.send(connection, packet);
   }
-  async synchronize(connection: PersistentConnection) {
+  async synchronize(connection: PersistentConnection, includeTasks = true) {
     await this.resume(connection);
     const context = await this.context(connection),
       catalogue = await this.catalogue();
@@ -710,13 +755,22 @@ export class PersistentExperienceController {
         continue;
       await this.publishResource(connection, context, item);
     }
+    if (!includeTasks) return;
     const tasks = await this.tasks();
     for (const task of tasks) {
-      const authority = task.authority.authority;
+      const selected = task.authority.taskCenter?.assignments?.find(
+        (r: Json) =>
+          r.assignment.credential.connectionId === connection.connectionId &&
+          r.plan?.currentAssignment,
+      );
+      const authority = selected?.authority ?? task.authority.authority;
       if (!authority || authority.context.connectionId !== connection.connectionId) continue;
+      const currentAuthority = task.authority.taskCenter
+        ? await this.taskAuthority(connection, task)
+        : task.authority;
       const p = await this.workspace().preparePersistentTask({
         ...this.control(context),
-        authority: task.authority,
+        authority: currentAuthority,
         task: task.packet,
         resultPolicy: authority.context.resultPolicy,
         allowReassign: false,

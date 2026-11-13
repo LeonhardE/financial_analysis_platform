@@ -369,6 +369,10 @@ test.before(async () => {
     "server-only": {},
     "./owner-transport": common,
     "./hub-owner-contracts": contracts,
+    "./task-center-owner": compile("task-center-owner", {
+      "server-only": {},
+      "./owner-transport": common,
+    }),
   };
   api = compile("hub-owner", hubImports);
   const portfolio = compile("portfolio-owner", {

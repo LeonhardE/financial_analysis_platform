@@ -33,6 +33,18 @@ export function createVaultKernel(
           )
             throw new VaultError("archive_deletion_pending");
           switch (method) {
+            case "verifyTaskCenterState":
+              result = await core.verifyTaskCenterState(args);
+              break;
+            case "prepareTaskCenterControl":
+              result = await core.prepareTaskCenterControl(args);
+              break;
+            case "openTaskCenterPending":
+              result = await core.openTaskCenterPending(args);
+              break;
+            case "verifyTaskCenterReceipt":
+              result = await core.verifyTaskCenterReceipt(args);
+              break;
             case "verifyAgentRestoration":
               result = await core.verifyAgentRestoration(args);
               break;

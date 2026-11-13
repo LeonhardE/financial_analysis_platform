@@ -86,6 +86,449 @@ export class PersistentOwner {
     await registry.binding(binding, identity, identity, at);
     return identity;
   }
+  private async centerControlProof(signed: Json, taskId: string) {
+    const p = parsed(bytes(signed.payload), true),
+      registry = await this.registry();
+    exact(p, [
+      "contractVersion",
+      "profile",
+      "ownerSubject",
+      "vaultId",
+      "taskId",
+      "taskVersion",
+      "executionEpoch",
+      "artifactType",
+      "action",
+      "rootKeyId",
+      "deviceSigningKeyId",
+      "registrySequence",
+      "checkpointDigest",
+      "keyEpoch",
+      "issuedAt",
+      "stableOperationId",
+      "expectedDefinitionVersion",
+      "expectedAssignmentVersion",
+      "assignmentId",
+      "schedule",
+      "assignment",
+      "intent",
+    ]);
+    if (
+      p.contractVersion !== CONTRACT ||
+      p.profile !== "folioview.task-center.v1" ||
+      p.artifactType !== "task_center_control" ||
+      p.ownerSubject !== this.ctx.ownerSubject ||
+      p.vaultId !== this.ctx.vault.vaultId ||
+      p.taskId !== taskId ||
+      p.rootKeyId !== this.ctx.vault.rootKeyId
+    )
+      fail();
+    const snapshot = registry.snapshots.get(p.registrySequence);
+    if (
+      !snapshot ||
+      snapshot.digest !== p.checkpointDigest ||
+      snapshot.keyEpoch !== p.keyEpoch ||
+      p.issuedAt < snapshot.issuedAt
+    )
+      fail();
+    const cert = registry.cert(
+      p.deviceSigningKeyId,
+      "device_sig",
+      null,
+      p.issuedAt,
+      p.registrySequence,
+    );
+    if (
+      !cert.capabilities.includes("control_write") ||
+      (["set_assignment", "manual_intent"].includes(p.action) &&
+        !cert.capabilities.includes("task_grant"))
+    )
+      fail();
+    await verify(signed, cert.publicJwk, "fv-control+jws");
+    return p;
+  }
+  async taskCenterState(state: Json) {
+    exact(state, [
+      "contractVersion",
+      "profile",
+      "taskId",
+      "taskVersion",
+      "executionEpoch",
+      "rules",
+      "assignments",
+      "dispatchSupported",
+      "nativeScheduleAttested",
+    ]);
+    validate("Identifier", state.taskId);
+    integer(state.taskVersion, 1);
+    integer(state.executionEpoch, 1);
+    if (
+      state.contractVersion !== CONTRACT ||
+      state.profile !== "folioview.task-center.v1" ||
+      state.dispatchSupported !== false ||
+      state.nativeScheduleAttested !== false ||
+      !Array.isArray(state.assignments) ||
+      state.assignments.length > 32
+    )
+      fail();
+    if (state.rules === null) {
+      if (state.assignments.length) fail();
+      return copy(state);
+    }
+    const d = state.rules.definition;
+    if (
+      !d ||
+      d.ownerSubject !== this.ctx.ownerSubject ||
+      d.vaultId !== this.ctx.vault.vaultId ||
+      d.taskId !== state.taskId ||
+      !["active", "trashed", "purged"].includes(d.status) ||
+      d.definitionVersion !== d.ruleVersion + d.lifecycleEpoch - 1
+    )
+      fail();
+    for (const key of [
+      "taskVersion",
+      "executionEpoch",
+      "ruleVersion",
+      "lifecycleEpoch",
+      "definitionVersion",
+    ])
+      integer(d[key], 1);
+    const rule = await this.centerControlProof(state.rules.control, state.taskId);
+    if (
+      rule.action !== "set_rules" ||
+      rule.expectedDefinitionVersion + 1 > d.definitionVersion ||
+      rule.taskVersion !== d.taskVersion ||
+      rule.executionEpoch !== d.executionEpoch ||
+      (d.status !== "purged" && !same(rule.schedule, d.schedule))
+    )
+      fail();
+    const history = state.rules.lifecycleControls ?? [];
+    if (!Array.isArray(history) || history.length > 50 || history.length + 1 !== d.lifecycleEpoch)
+      fail();
+    let previous = 0,
+      status = "active",
+      deletedAt = 0;
+    for (const signed of history) {
+      const c = await this.centerControlProof(signed, state.taskId);
+      if (
+        c.expectedDefinitionVersion <= previous ||
+        c.expectedDefinitionVersion >= d.definitionVersion
+      )
+        fail();
+      previous = c.expectedDefinitionVersion;
+      if (c.action === "trash" && status === "active") {
+        status = "trashed";
+        deletedAt = c.issuedAt;
+      } else if (
+        c.action === "restore" &&
+        status === "trashed" &&
+        c.issuedAt >= deletedAt &&
+        c.issuedAt < deletedAt + 2592000
+      ) {
+        status = "active";
+      } else if (
+        c.action === "purge" &&
+        status === "trashed" &&
+        c.issuedAt >= deletedAt + 2592000
+      ) {
+        status = "purged";
+      } else fail();
+    }
+    if (
+      status !== d.status ||
+      Math.max(rule.expectedDefinitionVersion + 1, previous + 1) !== d.definitionVersion
+    )
+      fail();
+    const ids = new Set();
+    for (const row of state.assignments) {
+      const a = row.assignment,
+        p = await this.centerControlProof(row.control, state.taskId);
+      if (
+        ids.has(a.assignmentId) ||
+        a.ownerSubject !== this.ctx.ownerSubject ||
+        a.vaultId !== this.ctx.vault.vaultId ||
+        a.taskId !== state.taskId ||
+        !["muse", "chatgpt"].includes(a.provider)
+      )
+        fail();
+      ids.add(a.assignmentId);
+      const target = Object.fromEntries(
+        [
+          "slotId",
+          "provider",
+          "slotGeneration",
+          "credential",
+          "agentId",
+          "authorityFingerprint",
+        ].map((k) => [k, a[k]]),
+      );
+      if (
+        p.assignmentId !== a.assignmentId ||
+        p.expectedAssignmentVersion + 1 !== a.assignmentVersion ||
+        (a.status === "active"
+          ? p.action !== "set_assignment" || !same(p.assignment, target)
+          : p.action !== "remove_assignment")
+      )
+        fail();
+    }
+    return copy(state);
+  }
+  async taskCenterControl(args: Json) {
+    exact(args, ["state", "action", "value"]);
+    const state = await this.taskCenterState(args.state),
+      d = state.rules?.definition ?? null;
+    if (
+      ![
+        "set_rules",
+        "set_assignment",
+        "remove_assignment",
+        "trash",
+        "restore",
+        "purge",
+        "manual_intent",
+      ].includes(args.action)
+    )
+      fail();
+    const registry = await this.registry(),
+      now = this.ctx.now();
+    const cert = registry.cert(this.ctx.deviceSigningKeyId, "device_sig", null, now);
+    if (
+      !cert.capabilities.includes("control_write") ||
+      (["set_assignment", "manual_intent"].includes(args.action) &&
+        !cert.capabilities.includes("task_grant"))
+    )
+      fail();
+    const operationId = "center_" + crypto.randomUUID().replaceAll("-", "");
+    const payload: Json = {
+      contractVersion: CONTRACT,
+      profile: "folioview.task-center.v1",
+      ownerSubject: this.ctx.ownerSubject,
+      vaultId: this.ctx.vault.vaultId,
+      taskId: state.taskId,
+      taskVersion: state.taskVersion,
+      executionEpoch: state.executionEpoch,
+      artifactType: "task_center_control",
+      action: args.action,
+      rootKeyId: this.ctx.vault.rootKeyId,
+      deviceSigningKeyId: this.ctx.deviceSigningKeyId,
+      registrySequence: registry.sequence,
+      checkpointDigest: registry.current.digest,
+      keyEpoch: registry.current.keyEpoch,
+      issuedAt: now,
+      stableOperationId: operationId,
+      expectedDefinitionVersion: d?.definitionVersion ?? 0,
+      expectedAssignmentVersion: null,
+      assignmentId: null,
+      schedule: null,
+      assignment: null,
+      intent: null,
+    };
+    if (args.action === "set_rules") {
+      const v = args.value;
+      if (v !== null) {
+        exact(v, ["frequency", "days", "localTime", "timeZone"]);
+        if (
+          !["daily", "weekly"].includes(v.frequency) ||
+          !Array.isArray(v.days) ||
+          v.days.length > 7 ||
+          !same(
+            v.days,
+            [...new Set(v.days)].sort((a: any, b: any) => a - b),
+          ) ||
+          v.days.some((n: any) => !Number.isInteger(n) || n < 1 || n > 7) ||
+          (v.frequency === "daily" ? v.days.length !== 0 : v.days.length === 0) ||
+          !/^([01][0-9]|2[0-3]):[0-5][0-9]$/.test(v.localTime)
+        )
+          fail();
+        try {
+          new Intl.DateTimeFormat("en", { timeZone: v.timeZone });
+        } catch {
+          fail();
+        }
+        payload.schedule = {
+          ...copy(v),
+          effectiveFrom: now,
+          graceMinutes: 60,
+          dstGap: "skip",
+          dstFold: "first",
+        };
+      }
+    } else if (args.action === "set_assignment") {
+      exact(args.value, ["slot", "identityState", "authorityFingerprint"]);
+      const slot = args.value.slot,
+        identity = args.value.identityState.identity;
+      if (
+        !identity ||
+        slot.ownerSubject !== this.ctx.ownerSubject ||
+        slot.vaultId !== this.ctx.vault.vaultId ||
+        !["muse", "chatgpt"].includes(slot.provider) ||
+        slot.slotId !== "provider_" + (await digest([this.ctx.ownerSubject, slot.provider])) ||
+        !slot.currentCredential ||
+        slot.currentCredential.connectionId !== identity.connectionId ||
+        slot.currentCredential.clientId !== identity.clientId ||
+        identity.ownerSubject !== this.ctx.ownerSubject ||
+        identity.vaultId !== this.ctx.vault.vaultId ||
+        args.value.identityState.connectionRevoked
+      )
+        fail();
+      await registry.binding(args.value.identityState.binding, identity, identity, now);
+      validate("Digest", args.value.authorityFingerprint);
+      const context = {
+        contractVersion: CONTRACT,
+        profile: payload.profile,
+        ownerSubject: this.ctx.ownerSubject,
+        vaultId: this.ctx.vault.vaultId,
+        taskId: state.taskId,
+      };
+      payload.assignmentId = "assignment_" + (await digest([context, slot.slotId]));
+      payload.expectedAssignmentVersion =
+        state.assignments.find((r: Json) => r.assignment.assignmentId === payload.assignmentId)
+          ?.assignment.assignmentVersion ?? 0;
+      payload.assignment = {
+        slotId: slot.slotId,
+        provider: slot.provider,
+        slotGeneration: slot.slotGeneration,
+        credential: copy(slot.currentCredential),
+        agentId: identity.agentId,
+        authorityFingerprint: args.value.authorityFingerprint,
+      };
+    } else if (args.action === "remove_assignment") {
+      const a = state.assignments.find(
+        (r: Json) => r.assignment.assignmentId === args.value,
+      )?.assignment;
+      if (!a) fail();
+      payload.assignmentId = a.assignmentId;
+      payload.expectedAssignmentVersion = a.assignmentVersion;
+    } else if (args.action === "manual_intent") {
+      if (
+        !d ||
+        d.status !== "active" ||
+        !Array.isArray(args.value) ||
+        !args.value.length ||
+        args.value.length > 32 ||
+        new Set(args.value).size !== args.value.length
+      )
+        fail();
+      const refs = [...args.value].sort().map((id: string) => {
+        const a = state.assignments.find((r: Json) => r.assignment.assignmentId === id)?.assignment;
+        if (
+          !a ||
+          a.status !== "active" ||
+          ["taskVersion", "executionEpoch", "ruleVersion", "lifecycleEpoch"].some(
+            (k) => a[k] !== d[k],
+          )
+        )
+          fail();
+        return { assignmentId: id, assignmentVersion: a.assignmentVersion };
+      });
+      payload.intent = { expiresAt: now + 600, assignments: refs };
+    } else if (args.value !== null) fail();
+    const command = await sign(
+      payload,
+      this.ctx.deviceSigningKey,
+      this.ctx.deviceSigningKeyId,
+      "fv-control+jws",
+    );
+    return {
+      kind: "task_center",
+      taskId: state.taskId,
+      operationId,
+      action: args.action,
+      definition: d,
+      body: { contractVersion: CONTRACT, command },
+    };
+  }
+  async taskCenterReceipt(packet: Json, receipt: Json): Promise<Json> {
+    exact(packet, ["kind", "taskId", "operationId", "action", "definition", "body"]);
+    const p = await this.centerControlProof(packet.body.command, packet.taskId);
+    if (receipt.state !== undefined) {
+      exact(receipt, [
+        "contractVersion",
+        "taskId",
+        "operationId",
+        "fingerprint",
+        "state",
+        "receipt",
+      ]);
+      if (
+        receipt.contractVersion !== CONTRACT ||
+        receipt.taskId !== packet.taskId ||
+        receipt.operationId !== packet.operationId ||
+        receipt.fingerprint !== (await fingerprint(packet.body.command))
+      )
+        fail();
+      if (receipt.state === "committed") return this.taskCenterReceipt(packet, receipt.receipt);
+      if (receipt.state !== "cancelled" || receipt.receipt !== null) fail();
+      return { operationId: packet.operationId };
+    }
+    if (
+      packet.kind !== "task_center" ||
+      p.stableOperationId !== packet.operationId ||
+      p.action !== packet.action ||
+      receipt.contractVersion !== CONTRACT ||
+      receipt.taskId !== packet.taskId ||
+      receipt.fingerprint !== (await fingerprint(packet.body.command)) ||
+      receipt.nativeScheduleAttested !== false ||
+      (p.action === "manual_intent" ? receipt.requestId : receipt.operationId) !==
+        packet.operationId
+    )
+      fail();
+    if (p.action === "manual_intent") {
+      if (
+        receipt.expiresAt !== p.intent.expiresAt ||
+        receipt.dispatchSupported !== false ||
+        receipt.continuation !== "open_agent"
+      )
+        fail();
+    } else {
+      if (receipt.profile !== "folioview.task-center.v1") fail();
+      const d = receipt.definition,
+        old = packet.definition;
+      if (
+        !d ||
+        d.ownerSubject !== this.ctx.ownerSubject ||
+        d.vaultId !== this.ctx.vault.vaultId ||
+        d.taskId !== packet.taskId
+      )
+        fail();
+      if (["set_assignment", "remove_assignment"].includes(p.action)) {
+        if (!same(d, old)) fail();
+        const a = receipt.assignment;
+        if (
+          !a ||
+          a.assignmentId !== p.assignmentId ||
+          a.assignmentVersion !== p.expectedAssignmentVersion + 1 ||
+          a.status !== (p.action === "set_assignment" ? "active" : "removed")
+        )
+          fail();
+        if (
+          p.action === "set_assignment" &&
+          Object.keys(p.assignment).some((k) => !same(a[k], p.assignment[k]))
+        )
+          fail();
+      } else {
+        if (
+          d.definitionVersion !== p.expectedDefinitionVersion + 1 ||
+          d.taskVersion !== p.taskVersion ||
+          d.executionEpoch !== p.executionEpoch
+        )
+          fail();
+        if (
+          p.action === "set_rules" &&
+          (!same(d.schedule, p.schedule) || d.ruleVersion !== (old?.ruleVersion ?? 0) + 1)
+        )
+          fail();
+        if (
+          p.action !== "set_rules" &&
+          (d.lifecycleEpoch !== old.lifecycleEpoch + 1 ||
+            d.status !==
+              ({ trash: "trashed", restore: "active", purge: "purged" } as Json)[p.action])
+        )
+          fail();
+      }
+    }
+    return { operationId: packet.operationId };
+  }
   async identity(state: Json) {
     exact(state, [
       "contractVersion",

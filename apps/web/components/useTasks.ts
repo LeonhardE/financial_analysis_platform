@@ -127,6 +127,10 @@ export function useTasks(workspace: HoldingsWorkspace, { active }: { active: boo
       item.envelopeFingerprint,
       item.keyEpoch,
     ]);
+  const nameFailures = useRef(new Map<string, string>()),
+    namePending = useRef(new Set<string>());
+  const [nameRetry, setNameRetry] = useState(0);
+  const freshReads = useRef<Partial<Record<ReadRegion, { scope: string; at: number }>>>({});
   const jobs = useRef(new Set<AbortController>()),
     generation = useRef(0),
     selection = useRef(0),
@@ -364,7 +368,7 @@ export function useTasks(workspace: HoldingsWorkspace, { active }: { active: boo
     [updatePrivate],
   );
   const loadRead = useCallback(
-    async (region: ReadRegion) => {
+    async (region: ReadRegion, force = false) => {
       if (
         !owner ||
         live.current.owner !== owner ||
@@ -373,6 +377,9 @@ export function useTasks(workspace: HoldingsWorkspace, { active }: { active: boo
         !live.current.visible
       )
         return;
+      const readScope = `${owner}:${scope ?? "locked"}`;
+      const fresh = freshReads.current[region];
+      if (!force && fresh?.scope === readScope && Date.now() - fresh.at < 30000) return;
       const serial = ++readSerial.current[region];
       const loading = region === "tasks" ? "loading" : "catalogueLoading";
       const failure = region === "tasks" ? "listError" : "catalogueError";
@@ -396,6 +403,7 @@ export function useTasks(workspace: HoldingsWorkspace, { active }: { active: boo
               region === "tasks" ? { items: taskPage(body) } : { catalogue: taskCatalogue(body) };
             context.assert();
             if (serial !== readSerial.current[region]) return;
+            freshReads.current[region] = { scope: readScope, at: Date.now() };
             if (data.items) {
               const selected = stateRef.current.selected;
               const next = selected && data.items.find((item) => item.taskId === selected.taskId);
@@ -431,20 +439,23 @@ export function useTasks(workspace: HoldingsWorkspace, { active }: { active: boo
     },
     [api, configured, operation, owner, updatePrivate],
   );
-  const reloadTasks = useCallback(() => loadRead("tasks"), [loadRead]);
-  const reloadCatalogue = useCallback(() => loadRead("catalogue"), [loadRead]);
-  const reload = useCallback(async () => {
-    if (
-      !owner ||
-      live.current.owner !== owner ||
-      !configured ||
-      !live.current.active ||
-      !live.current.visible
-    )
-      return;
-    setState((previous) => ({ ...previous, error: "", notice: "" }));
-    await Promise.all([reloadTasks(), reloadCatalogue()]);
-  }, [configured, owner, reloadTasks, reloadCatalogue]);
+  const reloadTasks = useCallback(() => loadRead("tasks", true), [loadRead]);
+  const reloadCatalogue = useCallback(() => loadRead("catalogue", true), [loadRead]);
+  const reload = useCallback(
+    async (force = true) => {
+      if (
+        !owner ||
+        live.current.owner !== owner ||
+        !configured ||
+        !live.current.active ||
+        !live.current.visible
+      )
+        return;
+      setState((previous) => ({ ...previous, error: "", notice: "" }));
+      await Promise.all([loadRead("tasks", force), loadRead("catalogue", force)]);
+    },
+    [configured, owner, loadRead],
+  );
 
   const persistDraft = useCallback(async () => {
     const queue = draftQueue.current;
@@ -521,7 +532,10 @@ export function useTasks(workspace: HoldingsWorkspace, { active }: { active: boo
   const startNew = useCallback(
     (seed?: ResourceBindingMetadata, initialContent?: TaskContent) => {
       if (!editable()) return;
-      if (stateRef.current.form || stateRef.current.drafts.some((row) => row.slot === "new")) {
+      if (
+        (stateRef.current.form && (stateRef.current.dirty || !stateRef.current.selected)) ||
+        stateRef.current.drafts.some((row) => row.slot === "new")
+      ) {
         updatePrivate((previous) => ({ ...previous, error: "unsaved_draft" }));
         return;
       }
@@ -1278,6 +1292,9 @@ export function useTasks(workspace: HoldingsWorkspace, { active }: { active: boo
     for (const job of jobs.current) job.abort();
     jobs.current.clear();
     names.current.clear();
+    nameFailures.current.clear();
+    namePending.current.clear();
+    freshReads.current = {};
     editor.current = null;
     reviewed.current = null;
     writeJob.current = null;
@@ -1330,6 +1347,54 @@ export function useTasks(workspace: HoldingsWorkspace, { active }: { active: boo
     } else if (scope && visible) void operation(true, summaries).catch(fail);
   }, [active, scope, visible, operation, summaries, fail]);
   useEffect(() => {
+    if (!scope || !visible || !active || state.privateScope !== scope) return;
+    let cancelled = false,
+      index = 0;
+    const queue = state.items.filter(
+      (item) =>
+        !names.current.get(nameKey(item)) &&
+        !nameFailures.current.has(nameKey(item)) &&
+        !namePending.current.has(nameKey(item)),
+    );
+    const work = async () => {
+      while (!cancelled && index < queue.length) {
+        const item = queue[index++],
+          key = nameKey(item);
+        namePending.current.add(key);
+        setState((p) => ({ ...p }));
+        try {
+          await operation(true, async (context) => {
+            const packet = encryptedTask(
+              await api(`/api/v2/tasks/${item.taskId}`, context, { retryAdmission: true }),
+            );
+            if (
+              packet.metadata.envelopeFingerprint !== item.envelopeFingerprint ||
+              packet.metadata.taskVersion !== item.taskVersion
+            )
+              throw new TaskError("version_conflict");
+            const content = await live.current.workspace.openTask(packet);
+            context.assert();
+            if (
+              live.current.scope === scope &&
+              stateRef.current.items.some((row) => nameKey(row) === key)
+            )
+              names.current.set(key, content.name);
+          });
+        } catch (error) {
+          if (live.current.scope === scope && taskError(error) !== "cancelled")
+            nameFailures.current.set(key, taskError(error));
+        } finally {
+          namePending.current.delete(key);
+          if (live.current.scope === scope) setState((p) => ({ ...p }));
+        }
+      }
+    };
+    void Promise.all(Array.from({ length: Math.min(3, queue.length) }, work));
+    return () => {
+      cancelled = true;
+    };
+  }, [scope, visible, active, state.items, state.privateScope, nameRetry, operation, api]);
+  useEffect(() => {
     if (
       scope &&
       visible &&
@@ -1346,7 +1411,7 @@ export function useTasks(workspace: HoldingsWorkspace, { active }: { active: boo
     }
   }, [scope, visible, state.privateScope, state.selected, state.form, state.dirty]);
   useEffect(() => {
-    if (owner && configured && active && visible) void reload();
+    if (owner && configured && active && visible) void reload(false);
   }, [owner, configured, active, visible, scope, reload]);
   useEffect(() => {
     if (state.privateScope === scope && state.form && state.dirty && active && visible)
@@ -1402,6 +1467,19 @@ export function useTasks(workspace: HoldingsWorkspace, { active }: { active: boo
       };
   return {
     ...output,
+    nameErrors: Object.fromEntries(
+      output.items.flatMap((item) => {
+        const failure = nameFailures.current.get(nameKey(item));
+        return failure && privateVisible ? [[item.taskId, failure]] : [];
+      }),
+    ),
+    retryTaskName: (taskId: string) => {
+      const item = stateRef.current.items.find((i) => i.taskId === taskId);
+      if (item) {
+        nameFailures.current.delete(nameKey(item));
+        setNameRetry((v) => v + 1);
+      }
+    },
     taskNames: Object.fromEntries(
       output.items.flatMap((item) => {
         const name = names.current.get(nameKey(item));
