@@ -217,3 +217,7 @@ The additive [task-center lifecycle contract](docs/persistent-content.md#task-ce
 separates tasks, zero-to-many canonical assignments, immutable run attribution,
 verified trigger sources and coupled trash/restore/purge fences. It enables no
 consumer, native dispatch, migration or deletion on import.
+
+The [Owner-only display-name profile](docs/persistent-content.md#owner-only-display-names)
+adds small independently versioned encrypted source aliases. It does not modify
+financial resources, Agent inputs, grants or Root history, and enables no consumer.

@@ -1,0 +1,347 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://folioview.app/contracts/private-display-name/v1/schemas.json",
+  "$defs": {
+    "DisplayNameContext": {
+      "type": "object",
+      "properties": {
+        "contractVersion": {
+          "const": "folioview.agent-workspace.v2.0"
+        },
+        "profile": {
+          "const": "folioview.private-display-name.v1"
+        },
+        "ownerSubject": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "vaultId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "rootKeyId": {
+          "$ref": "#/$defs/KeyId"
+        },
+        "ref": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/ResourceRef"
+            },
+            {
+              "properties": {
+                "kind": {
+                  "const": "holdings"
+                },
+                "sourceService": {
+                  "const": "portfolio"
+                }
+              }
+            }
+          ]
+        },
+        "purpose": {
+          "const": "owner_display_name"
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "stableOperationId": {
+          "$ref": "#/$defs/OperationIdentifier"
+        },
+        "recipientKeyId": {
+          "$ref": "#/$defs/KeyId"
+        }
+      },
+      "required": [
+        "contractVersion",
+        "profile",
+        "ownerSubject",
+        "vaultId",
+        "rootKeyId",
+        "ref",
+        "purpose",
+        "revision",
+        "stableOperationId",
+        "recipientKeyId"
+      ],
+      "additionalProperties": false
+    },
+    "DisplayNameEnvelope": {
+      "type": "object",
+      "properties": {
+        "protected": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1024,
+          "pattern": "^[A-Za-z0-9_-]+$"
+        },
+        "aad": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096,
+          "pattern": "^[A-Za-z0-9_-]+$"
+        },
+        "iv": {
+          "type": "string",
+          "minLength": 16,
+          "maxLength": 16,
+          "pattern": "^[A-Za-z0-9_-]{16}$"
+        },
+        "ciphertext": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2048,
+          "pattern": "^[A-Za-z0-9_-]+$"
+        },
+        "tag": {
+          "type": "string",
+          "minLength": 22,
+          "maxLength": 22,
+          "pattern": "^[A-Za-z0-9_-]{22}$"
+        },
+        "recipients": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 1,
+          "items": {
+            "type": "object",
+            "properties": {
+              "header": {
+                "type": "object",
+                "properties": {
+                  "kid": {
+                    "$ref": "#/$defs/KeyId"
+                  },
+                  "epk": {
+                    "$ref": "#/$defs/PublicJWK"
+                  }
+                },
+                "required": ["kid"],
+                "additionalProperties": false
+              },
+              "encrypted_key": {
+                "type": "string",
+                "minLength": 54,
+                "maxLength": 54,
+                "pattern": "^[A-Za-z0-9_-]{54}$"
+              }
+            },
+            "required": ["header", "encrypted_key"],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": ["protected", "aad", "iv", "ciphertext", "tag", "recipients"],
+      "additionalProperties": false
+    },
+    "DisplayNameControl": {
+      "type": "object",
+      "properties": {
+        "contractVersion": {
+          "const": "folioview.agent-workspace.v2.0"
+        },
+        "profile": {
+          "const": "folioview.private-display-name.v1"
+        },
+        "ownerSubject": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "vaultId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "rootKeyId": {
+          "$ref": "#/$defs/KeyId"
+        },
+        "ref": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/ResourceRef"
+            },
+            {
+              "properties": {
+                "kind": {
+                  "const": "holdings"
+                },
+                "sourceService": {
+                  "const": "portfolio"
+                }
+              }
+            }
+          ]
+        },
+        "purpose": {
+          "const": "owner_display_name"
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "stableOperationId": {
+          "$ref": "#/$defs/OperationIdentifier"
+        },
+        "recipientKeyId": {
+          "$ref": "#/$defs/KeyId"
+        },
+        "artifactType": {
+          "const": "private_display_name_update"
+        },
+        "deviceSigningKeyId": {
+          "$ref": "#/$defs/KeyId"
+        },
+        "registrySequence": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "checkpointDigest": {
+          "$ref": "#/$defs/Digest"
+        },
+        "keyEpoch": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "issuedAt": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "expectedRevision": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "previousFingerprint": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/Digest"
+            }
+          ]
+        },
+        "envelope": {
+          "$ref": "#/$defs/DisplayNameEnvelope"
+        }
+      },
+      "required": [
+        "contractVersion",
+        "profile",
+        "ownerSubject",
+        "vaultId",
+        "rootKeyId",
+        "ref",
+        "purpose",
+        "revision",
+        "stableOperationId",
+        "recipientKeyId",
+        "artifactType",
+        "deviceSigningKeyId",
+        "registrySequence",
+        "checkpointDigest",
+        "keyEpoch",
+        "issuedAt",
+        "expectedRevision",
+        "previousFingerprint",
+        "envelope"
+      ],
+      "additionalProperties": false
+    },
+    "DisplayNameState": {
+      "type": "object",
+      "properties": {
+        "contractVersion": {
+          "const": "folioview.agent-workspace.v2.0"
+        },
+        "profile": {
+          "const": "folioview.private-display-name.v1"
+        },
+        "ownerSubject": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "vaultId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "rootKeyId": {
+          "$ref": "#/$defs/KeyId"
+        },
+        "ref": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/ResourceRef"
+            },
+            {
+              "properties": {
+                "kind": {
+                  "const": "holdings"
+                },
+                "sourceService": {
+                  "const": "portfolio"
+                }
+              }
+            }
+          ]
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "stableOperationId": {
+          "$ref": "#/$defs/OperationIdentifier"
+        },
+        "operationFingerprint": {
+          "$ref": "#/$defs/Digest"
+        },
+        "recipientKeyId": {
+          "$ref": "#/$defs/KeyId"
+        },
+        "acceptedAt": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": [
+        "contractVersion",
+        "profile",
+        "ownerSubject",
+        "vaultId",
+        "rootKeyId",
+        "ref",
+        "revision",
+        "stableOperationId",
+        "operationFingerprint",
+        "recipientKeyId",
+        "acceptedAt"
+      ],
+      "additionalProperties": false
+    },
+    "DisplayNamePrivate": {
+      "type": "object",
+      "properties": {
+        "contractVersion": {
+          "const": "folioview.agent-workspace.v2.0"
+        },
+        "profile": {
+          "const": "folioview.private-display-name.v1"
+        },
+        "purpose": {
+          "const": "owner_display_name"
+        },
+        "contextDigest": {
+          "$ref": "#/$defs/Digest"
+        },
+        "displayName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        }
+      },
+      "required": ["contractVersion", "profile", "purpose", "contextDigest", "displayName"],
+      "additionalProperties": false
+    }
+  }
+}
