@@ -1,10 +1,10 @@
 # FolioView Web
 
-Next.js frontend for Market, encrypted holdings/resources, tasks, Agent connections, Inbox and
+Next.js frontend for Market, encrypted holdings/resources, Task Center with results, Agent Management and
 Settings. `/` and `/market` are equivalent; `/resources`, `/tasks`, `/agents`, `/inbox` and
 `/settings` retain their route on direct load and refresh. Unknown routes return 404.
 
-Resources, Tasks, Agents, Inbox and Settings share one owner unlock within the supported signed-in
+Resources, Task Center, Agent Management and Settings share one owner unlock within the supported signed-in
 browser session. Sign-out, account changes and explicit lock clear private views. SharedWorker
 lifetime is browser-controlled; unsupported browsers or a lost/upgraded Worker require another
 unlock. Persistent Agent identity is separate from this temporary owner session.
@@ -13,7 +13,7 @@ unlock. Persistent Agent identity is separate from this temporary owner session.
 
 | Guide                                          | Contents                                                                                     |
 | ---------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| [Workspace](docs/workspace.md)                 | Navigation, source types, CSV import, task editing and Inbox                                 |
+| [Workspace](docs/workspace.md)                 | Navigation, source types, CSV import, Task Center and results                                |
 | [Keys and recovery](docs/key-management.md)    | Device review, Passkey replacement, renewal, original-operation recovery and archive removal |
 | [Private transport](docs/transport.md)         | Fixed BFF routes, verified identity, limits and request/session fencing                      |
 | [Agent integration](docs/agent-integration.md) | Hub connections, persistent consent/publication, reports and retained compatibility          |

@@ -2527,3 +2527,85 @@ test("opt-in display GETs coalesce transport without sharing cancellation or per
   assert.equal(await (await second).text(), "[]");
   assert.equal(h.state().profile.uid, "a");
 });
+
+test("task-center and provider controls cross the real browser boundary with closed paths, bodies and headers", async () => {
+  const h = mountProvider({ fetchOwnerConfig: async () => configResponse(false, true) });
+  h.emitUser(user("a"));
+  await settle();
+  const OPERATION = operationHeaders()["Idempotency-Key"];
+  const root = { protected: "YQ", payload: "Yg", signature: "Yw" };
+  const base = "/api/v3/task-center/vault_A/tasks/task_A";
+  const cases = [
+    ["/api/v3/task-center/capabilities"],
+    [base],
+    [base + "/manual"],
+    [base + "/manual/" + OPERATION],
+    [base + "/operations/" + OPERATION],
+    ["/api/v3/provider-connections/capabilities"],
+    ["/api/v3/provider-connections/vault_A/muse"],
+    ["/api/v3/provider-connections/vault_A/chatgpt/operations/" + OPERATION],
+    [base + "/commands", { command: root }, true],
+    [base + "/manual", { command: root }, true],
+    [base + "/results/query", { request: { limit: 20, cursor: null } }],
+    [
+      base + "/progress/query",
+      { request: { requestId: OPERATION, assignmentIds: ["assignment_A"] } },
+    ],
+    ["/api/v3/task-center/vault_A/trash/query", { cursor: null }],
+    [base + "/operations/" + OPERATION + "/cancel", { fingerprint: "a".repeat(64) }],
+    [base + "/manual/" + OPERATION + "/cancel", {}],
+    [base + "/maintenance", {}],
+    ["/api/v3/provider-connections/vault_A/muse/commands", { command: { approval: root } }, true],
+  ];
+  for (const [path, body, operation] of cases) {
+    await h.actions.requestPrivate(
+      "agent-hub",
+      path,
+      "a:1",
+      body === undefined
+        ? {}
+        : {
+            method: "POST",
+            json: { contractVersion: version, ...body },
+            headers: operation ? operationHeaders() : {},
+          },
+    );
+    const [url, options] = h.requests.at(-1);
+    assert.ok(url.endsWith(path));
+    assert.equal(options.headers.Authorization, "Bearer test-token-a");
+    assert.equal(options.cache, "no-store");
+    if (operation) assert.equal(options.headers["Idempotency-Key"], OPERATION);
+  }
+  const sent = h.requests.length;
+  for (const [path, options] of [
+    [base + "?limit=20", {}],
+    [
+      base + "/results/query?cursor=x",
+      { method: "POST", json: { contractVersion: version, request: {} } },
+    ],
+    [
+      base + "/commands",
+      {
+        method: "POST",
+        json: { contractVersion: version, command: root, ownerSubject: "forged" },
+        headers: operationHeaders(),
+      },
+    ],
+    [base + "/manual", { method: "POST", json: { contractVersion: version, command: root } }],
+    [
+      base + "/maintenance",
+      {
+        method: "POST",
+        json: { contractVersion: version },
+        headers: { Authorization: "Bearer forged" },
+      },
+    ],
+    ["/api/v3/provider-connections/vault_A/claude", {}],
+  ])
+    await assert.rejects(
+      h.actions.requestPrivate("agent-hub", path, "a:1", options),
+      /Invalid private API/,
+    );
+  assert.equal(h.requests.length, sent);
+  h.unmount();
+});

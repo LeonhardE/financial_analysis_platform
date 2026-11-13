@@ -1453,7 +1453,9 @@
       "running": "Running",
       "result_received": "Result received",
       "failed": "Failed",
-      "cancelled": "Cancelled"
+      "cancelled": "Cancelled",
+      "partial_failure": "Partly failed",
+      "idle": "Not started"
     },
     "continueInAgent": "Copy for {agent}",
     "copied": "Copied",
@@ -1484,6 +1486,55 @@
     "abandonSave": "Cancel unsubmitted save",
     "nextExpected": "Next expected: {date}",
     "dstHint": "DST: skip missing times; use the first repeated time",
-    "unsavedLink": "Save or discard the current edits to open the linked task."
+    "unsavedLink": "Save or discard the current edits to open the linked task.",
+    "lastRun": "Last request: {state}",
+    "unreadAtLeast": "At least {count} unread results"
+  },
+  "taskResults": {
+    "title": "Results",
+    "all": "All",
+    "unread": "Unread",
+    "starred": "Starred",
+    "archived": "Archived",
+    "refresh": "Refresh",
+    "agent": "Agent",
+    "allAgents": "All Agents",
+    "search": "Search reports",
+    "retry": "Retry",
+    "statePending": "The last change is not confirmed.",
+    "retryOriginal": "Retry original change",
+    "reloadState": "Reload state",
+    "loading": "Loading results",
+    "empty": "No matching results.",
+    "historyPending": "More history has not loaded yet.",
+    "loadMore": "Load more",
+    "close": "Close",
+    "historical": "Historical revision",
+    "star": "Star",
+    "unstar": "Unstar",
+    "archive": "Archive",
+    "unarchive": "Unarchive",
+    "limitations": "Notes",
+    "history": "Earlier revisions",
+    "version": "Revision {number}",
+    "unreadResult": "Unread result",
+    "titleFailed": "Title unavailable",
+    "loadingTitle": "Loading report title",
+    "trigger": {
+      "manual": "Manual",
+      "scheduled": "Scheduled",
+      "legacy_unknown": "Source unknown"
+    },
+    "errors": {
+      "request_failed": "Could not load. Please try again.",
+      "not_found": "This report is no longer available.",
+      "state_pending": "Check the original change before making another.",
+      "version_conflict": "The report changed. Refresh and try again.",
+      "session_expired": "Sign in again to continue.",
+      "unsaved_edits": "Save or discard the current edits to open this report.",
+      "request_timeout": "Loading took too long. Your loaded results are still here."
+    },
+    "section": "Section {number}",
+    "returnLatest": "Return to latest"
   }
 }

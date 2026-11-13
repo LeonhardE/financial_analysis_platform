@@ -33,6 +33,8 @@ export function TaskCenterView({
   onNavigate,
   results,
   unreadCounts = {},
+  unreadPartial = false,
+  resultsFocusKey,
 }: {
   workspace: HoldingsWorkspace;
   model: TaskModel;
@@ -43,6 +45,8 @@ export function TaskCenterView({
   onNavigate?: (view: "agents" | "inbox") => void;
   results?: ReactNode;
   unreadCounts?: Record<string, number>;
+  unreadPartial?: boolean;
+  resultsFocusKey?: string;
 }) {
   const t = useTranslations("taskCenter"),
     locale = useLocale();
@@ -79,6 +83,13 @@ export function TaskCenterView({
   const requests = task ? (center.manual[task] ?? []) : [],
     currentRequest = requests.find((r) => r.aggregate?.hasActiveExecutors) ?? requests.at(-1),
     running = Boolean(currentRequest?.aggregate?.hasActiveExecutors);
+  useEffect(() => {
+    if (resultsFocusKey) {
+      setTab("results");
+      setMode("browse");
+      setProgress(false);
+    }
+  }, [resultsFocusKey]);
   const busy = model.busy || center.busy || localBusy,
     writable = model.canWrite && !model.historical && selected?.status !== "archived";
   const available = ["muse", "chatgpt"].flatMap((provider) => {
@@ -327,7 +338,16 @@ export function TaskCenterView({
       await model.discardDraft();
       await model.reloadTasks();
       setMode("browse");
-      window.dispatchEvent(new Event("folioview-task-lifecycle"));
+      window.dispatchEvent(
+        new CustomEvent("folioview-task-lifecycle", {
+          detail: {
+            taskId: selected.taskId,
+            vaultId: workspace.vault!.vaultId,
+            rootKeyId: workspace.vault!.rootKeyId,
+            action: "trash",
+          },
+        }),
+      );
     } catch (e) {
       setLocalError(e instanceof Error ? e.message : "request_failed");
     } finally {
@@ -473,7 +493,20 @@ export function TaskCenterView({
                 onClick={() => {
                   void center
                     .command(r.taskId, "restore")
-                    .then(() => Promise.all([center.trashList(), model.reloadTasks()]))
+                    .then(() =>
+                      Promise.all([center.trashList(), model.reloadTasks()]).then(() =>
+                        window.dispatchEvent(
+                          new CustomEvent("folioview-task-lifecycle", {
+                            detail: {
+                              taskId: r.taskId,
+                              vaultId: workspace.vault!.vaultId,
+                              rootKeyId: workspace.vault!.rootKeyId,
+                              action: "restore",
+                            },
+                          }),
+                        ),
+                      ),
+                    )
                     .catch(() => {});
                 }}
               >
@@ -517,8 +550,11 @@ export function TaskCenterView({
                   data-selected={item.taskId === task}
                 >
                   {unread > 0 && (
-                    <span className={styles.badge} aria-label={t("unread", { count: unread })}>
-                      {unread > 99 ? "99+" : unread}
+                    <span
+                      className={styles.badge}
+                      aria-label={t(unreadPartial ? "unreadAtLeast" : "unread", { count: unread })}
+                    >
+                      {unread > 99 ? "99+" : unreadPartial ? `${unread}+` : unread}
                     </span>
                   )}
                   <button
@@ -865,7 +901,11 @@ export function TaskCenterView({
                   >
                     {t("results")}
                     {(unreadCounts[selected.taskId] ?? 0) > 0 && (
-                      <span className={styles.badge}>{unreadCounts[selected.taskId]}</span>
+                      <span className={styles.badge}>
+                        {unreadPartial
+                          ? `${unreadCounts[selected.taskId]}+`
+                          : unreadCounts[selected.taskId]}
+                      </span>
                     )}
                   </button>
                   <button
@@ -919,6 +959,18 @@ export function TaskCenterView({
                         )}
                       </dd>
                     </dl>
+                    {currentRequest && !running && (
+                      <p className={styles.hint}>
+                        {t("lastRun", {
+                          state: t.has(`stages.${currentRequest.aggregate.state}`)
+                            ? t(`stages.${currentRequest.aggregate.state}`)
+                            : t("stages.awaiting_confirmation"),
+                        })}{" "}
+                        <button className={styles.textButton} onClick={() => setProgress(true)}>
+                          {t("viewProgress")}
+                        </button>
+                      </p>
+                    )}
                     <footer className={styles.footer}>
                       <button
                         className={styles.textButton}
@@ -967,7 +1019,7 @@ export function TaskCenterView({
       <ReportDialog
         id="task-run-choice"
         identity={`${center.scope}:${task}:choose`}
-        open={choosingRun && Boolean(center.scope)}
+        open={choosingRun && Boolean(center.scope) && Boolean(task)}
         title={t("runNow")}
         closeLabel={t("close")}
         onClose={() => setChoosingRun(false)}
@@ -1045,7 +1097,7 @@ export function TaskCenterView({
       <ReportDialog
         id="delete-task"
         identity={`${center.scope}:${task}:trash`}
-        open={deleting && Boolean(center.scope)}
+        open={deleting && Boolean(center.scope) && Boolean(task)}
         title={t("delete")}
         closeLabel={t("close")}
         onClose={() => setDeleting(false)}

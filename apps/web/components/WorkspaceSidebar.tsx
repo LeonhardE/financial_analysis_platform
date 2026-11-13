@@ -202,34 +202,32 @@ export function WorkspaceSidebar({
         </div>
         <div className={styles.bottom}>
           <nav className={styles.navigation} aria-label={t("nav.primary")}>
-            {(["markets", "resources", "tasks", "agents", "inbox", "settings"] as const).map(
-              (view) => (
-                <a
-                  key={view}
-                  href={workspaceHref(view)}
-                  aria-label={t(`nav.${view}`)}
-                  title={compact ? t(`nav.${view}`) : undefined}
-                  aria-current={activeView === view ? "page" : undefined}
-                  className={styles.navItem}
-                  onClick={(event) => {
-                    if (
-                      event.button !== 0 ||
-                      event.metaKey ||
-                      event.ctrlKey ||
-                      event.shiftKey ||
-                      event.altKey
-                    )
-                      return;
-                    event.preventDefault();
-                    onNavigate(view);
-                    if (compactScreen) setMobileOpen(false);
-                  }}
-                >
-                  <NavigationIcon view={view} />
-                  <span className={styles.label}>{t(`nav.${view}`)}</span>
-                </a>
-              ),
-            )}
+            {(["markets", "resources", "tasks", "agents", "settings"] as const).map((view) => (
+              <a
+                key={view}
+                href={workspaceHref(view)}
+                aria-label={t(`nav.${view}`)}
+                title={compact ? t(`nav.${view}`) : undefined}
+                aria-current={activeView === view ? "page" : undefined}
+                className={styles.navItem}
+                onClick={(event) => {
+                  if (
+                    event.button !== 0 ||
+                    event.metaKey ||
+                    event.ctrlKey ||
+                    event.shiftKey ||
+                    event.altKey
+                  )
+                    return;
+                  event.preventDefault();
+                  onNavigate(view);
+                  if (compactScreen) setMobileOpen(false);
+                }}
+              >
+                <NavigationIcon view={view} />
+                <span className={styles.label}>{t(`nav.${view}`)}</span>
+              </a>
+            ))}
           </nav>
           <AccountControls
             collapsed={compact}

@@ -156,10 +156,14 @@ test("workspace navigation keeps one owner session without server transitions af
   sidebar = find(tree, (node) => node.type === Sidebar).tree;
   sidebar.props.onNavigate("inbox");
   tree = render();
-  const inbox = find(tree, (node) => node.type === InboxPanel);
-  assert.equal(inbox.tree.props.workspace, sharedWorkspace);
-  assert.equal(inbox.tree.props.active, true);
-  assert.equal(inbox.parent.props.hidden, false);
+  assert.equal(
+    find(tree, (node) => node.type === InboxPanel),
+    null,
+  );
+  const inboxTaskHost = find(tree, (node) => node.type === TasksPanel);
+  assert.equal(inboxTaskHost.tree.props.workspace, sharedWorkspace);
+  assert.equal(inboxTaskHost.tree.props.active, true);
+  assert.equal(inboxTaskHost.parent.props.hidden, false);
   assert.deepEqual(find(tree, (node) => node.type === ResourcePanel).trail, first.trail);
   sidebar = find(tree, (node) => node.type === Sidebar).tree;
   sidebar.props.onNavigate("tasks");
@@ -200,7 +204,7 @@ test("workspace navigation keeps one owner session without server transitions af
     ["/resources", "resources"],
     ["/tasks", "tasks"],
     ["/agents", "agents"],
-    ["/inbox", "inbox"],
+    ["/inbox", "tasks"],
     ["/settings", "settings"],
   ]) {
     pathname = url;

@@ -28,7 +28,7 @@ import {
   type NativeOwnerBridge,
   type NativeOperation,
 } from "@/lib/native-owner-bridge";
-import { persistentOwnerRoute } from "@/lib/persistent-owner-routes";
+import { persistentOwnerRoute, taskCenterRoute } from "@/lib/persistent-owner-routes";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
 // An unset service origin keeps the current deployment usable during migration.
@@ -163,8 +163,33 @@ function hubOwnerRule(path: string, method: PrivateMethod): EncryptedRule | null
   const matches = (pattern: string) => new RegExp(`^${pattern}$`).test(pathname);
   let queryKeys: string[] = [];
   let rule: EncryptedRule | null = null;
+  const center = taskCenterRoute(pathname, method);
   const persistent = persistentOwnerRoute(pathname, method);
-  if (persistent) {
+  if (center) {
+    rule = {
+      method: method as EncryptedRule["method"],
+      ...(center.kind === "read"
+        ? {}
+        : {
+            keys: /\/(commands|manual)$/.test(pathname)
+              ? ["contractVersion", "command"]
+              : pathname.endsWith("/trash/query")
+                ? ["contractVersion", "cursor"]
+                : /\/operations\/[^/]+\/cancel$/.test(pathname)
+                  ? ["contractVersion", "fingerprint"]
+                  : /\/(maintenance|cancel)$/.test(pathname)
+                    ? ["contractVersion"]
+                    : ["contractVersion", "request"],
+          }),
+      idempotent: center.operation,
+      maxBytes: center.max,
+      rootCommand:
+        center.kind === "center" &&
+        /\/(commands|manual)$/.test(pathname) &&
+        !pathname.startsWith("/api/v3/provider-connections/"),
+      rootCommandMaxBytes: center.max,
+    };
+  } else if (persistent) {
     queryKeys = Object.keys(persistent.query ?? {});
     rule = {
       method: method as EncryptedRule["method"],
@@ -915,8 +940,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         throw sessionChanged();
       }
       if (!ownsSession()) throw sessionChanged();
-      const send = (signal: AbortSignal | undefined) =>
-        fetch(`${origin}${path}`, {
+      const send = (signal: AbortSignal | undefined) => {
+        if (!ownsSession() || signal?.aborted) throw sessionChanged();
+        return fetch(`${origin}${path}`, {
           method,
           headers: {
             ...contractHeaders,
@@ -930,6 +956,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           referrerPolicy: "no-referrer",
           signal,
         });
+      };
+      // Leave room for mutations; duplicate only opted-in display GETs. Fresh
+      // authority reads and read-only POST queries get unique queue entries.
+      const readOnly =
+        method === "GET" ||
+        (method === "POST" &&
+          /^\/api\/v3\/task-center\/[^/]+\/(?:trash\/query|tasks\/[^/]+\/(?:results|progress)\/query)$/.test(
+            path,
+          ));
       const response =
         options.coalesceDisplay && method === "GET"
           ? await displayReads.current.run(
@@ -937,7 +972,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               send,
               options.signal,
             )
-          : await send(options.signal);
+          : readOnly
+            ? await displayReads.current.queue(send, options.signal)
+            : await send(options.signal);
       if (!ownsSession()) {
         void response.body?.cancel().catch(() => {});
         throw sessionChanged();

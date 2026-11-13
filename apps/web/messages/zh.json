@@ -1453,7 +1453,9 @@
       "running": "执行中",
       "result_received": "已收到结果",
       "failed": "失败",
-      "cancelled": "已取消"
+      "cancelled": "已取消",
+      "partial_failure": "部分失败",
+      "idle": "未开始"
     },
     "continueInAgent": "复制给 {agent}",
     "copied": "已复制",
@@ -1484,6 +1486,55 @@
     "abandonSave": "取消未提交的保存",
     "nextExpected": "下次预计：{date}",
     "dstHint": "夏令时：跳过不存在的时间，重复时取第一次",
-    "unsavedLink": "请先保存或放弃当前编辑，再打开所选任务。"
+    "unsavedLink": "请先保存或放弃当前编辑，再打开所选任务。",
+    "lastRun": "上次运行：{state}",
+    "unreadAtLeast": "至少 {count} 份未读结果"
+  },
+  "taskResults": {
+    "title": "结果",
+    "all": "全部",
+    "unread": "未读",
+    "starred": "收藏",
+    "archived": "归档",
+    "refresh": "刷新",
+    "agent": "执行者",
+    "allAgents": "全部执行者",
+    "search": "搜索报告",
+    "retry": "重试",
+    "statePending": "上次标记尚未确认。",
+    "retryOriginal": "重试原标记",
+    "reloadState": "重新载入状态",
+    "loading": "正在加载结果",
+    "empty": "没有匹配的结果。",
+    "historyPending": "还有历史结果尚未载入。",
+    "loadMore": "加载更多",
+    "close": "关闭",
+    "historical": "历史版本",
+    "star": "收藏",
+    "unstar": "取消收藏",
+    "archive": "归档",
+    "unarchive": "取消归档",
+    "limitations": "备注",
+    "history": "历史版本",
+    "version": "版本 {number}",
+    "unreadResult": "未读结果",
+    "titleFailed": "标题暂不可用",
+    "loadingTitle": "正在加载报告标题",
+    "trigger": {
+      "manual": "手动",
+      "scheduled": "定时",
+      "legacy_unknown": "来源未知"
+    },
+    "errors": {
+      "request_failed": "加载失败，请重试。",
+      "not_found": "此报告已不可用。",
+      "state_pending": "请先确认上次标记。",
+      "version_conflict": "报告已更新，请刷新后重试。",
+      "session_expired": "请重新登录后继续。",
+      "unsaved_edits": "请先保存或放弃当前编辑，再打开报告。",
+      "request_timeout": "加载较慢，已载入的结果仍可查看。"
+    },
+    "section": "第 {number} 节",
+    "returnLatest": "返回最新"
   }
 }

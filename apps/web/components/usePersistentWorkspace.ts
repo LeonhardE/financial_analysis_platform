@@ -434,6 +434,12 @@ export function usePersistentWorkspace(workspace: HoldingsWorkspace, hubOrigin: 
     unlocked: !!scope,
     owner,
     reload,
+    invalidateTask: (taskId: string) =>
+      setState((s) => ({
+        ...s,
+        tasks: s.tasks.filter((t) => t.taskId !== taskId),
+        views: s.views.map((v) => ({ ...v, tasks: v.tasks.filter((t) => t.taskId !== taskId) })),
+      })),
     execute,
     review: (connection: PersistentConnection) => execute((c) => c.review(connection)),
     approve: (

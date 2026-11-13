@@ -259,9 +259,9 @@ test("resources are reachable from bottom navigation while Markets remains the d
   tree = sidebar.render();
   assert.equal(button(tree, "Resources").props["aria-current"], "page");
   assert.equal(button(tree, "Markets").props["aria-current"], undefined);
-  button(tree, "Inbox").props.onClick({ button: 0, preventDefault() {} });
+  button(tree, "Tasks").props.onClick({ button: 0, preventDefault() {} });
   tree = sidebar.render();
-  assert.equal(button(tree, "Inbox").props["aria-current"], "page");
+  assert.equal(button(tree, "Tasks").props["aria-current"], "page");
   assert.equal(button(tree, "Resources").props["aria-current"], undefined);
   button(tree, "Markets").props.onClick({ button: 0, preventDefault() {} });
   tree = sidebar.render();
@@ -272,12 +272,12 @@ test("resources are reachable from bottom navigation while Markets remains the d
 test("workspace navigation exposes canonical links and retains native modified-click behavior", () => {
   const sidebar = mountSidebar();
   const tree = sidebar.render();
+  assert.equal(nodes(tree, (n) => n.type === "a" && n.props.href === "/inbox").length, 0);
   for (const [label, href] of [
     ["Markets", "/market"],
     ["Resources", "/resources"],
     ["Tasks", "/tasks"],
     ["Agent management", "/agents"],
-    ["Inbox", "/inbox"],
     ["Settings", "/settings"],
   ]) {
     const control = button(tree, label);

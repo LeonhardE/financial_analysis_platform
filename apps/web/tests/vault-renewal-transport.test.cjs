@@ -243,6 +243,7 @@ test.before(async () => {
     "./owner-transport": common,
     "./hub-owner-contracts": contracts,
     "./task-center-owner": compile("task-center-owner", {
+      "../persistent-owner-routes": routes,
       "server-only": {},
       "./owner-transport": common,
     }),
