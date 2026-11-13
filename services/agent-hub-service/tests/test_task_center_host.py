@@ -149,3 +149,29 @@ class TaskCenterHostTests(unittest.TestCase):
             timeout=25,
         )
         self.assertEqual(result.returncode, 0, result.stdout[-2500:] + result.stderr[-1000:])
+
+    def test_source_validator_runs_in_isolation_without_installed_node_modules(self):
+        import tempfile
+
+        root = Path(__file__).resolve().parents[1] / "agent-client"
+        node = os.getenv("FOLIOVIEW_NODE_BIN") or shutil.which("node")
+        self.assertIsNotNone(node)
+        with tempfile.TemporaryDirectory() as directory:
+            copied = Path(directory) / "validators.cjs"
+            shutil.copyfile(root / "src/task-center-validators.cjs", copied)
+            # Reproduce the clean CI/host dependency boundary rather than using
+            # this workspace's development node_modules by accident.
+            source = (
+                "const v=require(process.argv[1]); if(!v.CenterSchedule({frequency:'daily',"
+                "days:[],localTime:'13:47',timeZone:'America/Toronto',graceMinutes:5,"
+                "effectiveFrom:0,dstGap:'skip',dstFold:'first'})) process.exit(1)"
+            )
+            result = subprocess.run(
+                [node, "-e", source, str(copied)],
+                cwd=directory,
+                capture_output=True,
+                text=True,
+                timeout=25,
+                env={**os.environ, "NODE_PATH": "", "NODE_OPTIONS": ""},
+            )
+            self.assertEqual(result.returncode, 0, result.stderr[-1000:])

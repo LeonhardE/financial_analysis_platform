@@ -27,4 +27,6 @@ Historical results remain available after an executor is removed.
   isolation, concurrent retries, revocation, rule changes and retained history.
 - Private bundled-client tests cover signed controls and process-restart recovery;
   calendar tests cover arbitrary times, multiple weekdays and DST boundaries.
+- Isolated source-validator execution reproduces a clean host without development
+  dependencies; required validator helpers are bundled at build time.
 - Root `npm run check` and exact-head pull request CI are required before merge.

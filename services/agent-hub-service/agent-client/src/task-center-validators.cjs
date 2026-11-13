@@ -1,7 +1,90 @@
 "use strict";
+var __getOwnPropNames = Object.getOwnPropertyNames;
+var __commonJS = (cb, mod) =>
+  function __require() {
+    try {
+      return (
+        mod || (0, cb[__getOwnPropNames(cb)[0]])((mod = { exports: {} }).exports, mod),
+        mod.exports
+      );
+    } catch (e) {
+      throw ((mod = 0), e);
+    }
+  };
+
+// node_modules/ajv/dist/runtime/ucs2length.js
+var require_ucs2length = __commonJS({
+  "node_modules/ajv/dist/runtime/ucs2length.js"(exports2) {
+    "use strict";
+    Object.defineProperty(exports2, "__esModule", { value: true });
+    function ucs2length(str) {
+      const len = str.length;
+      let length = 0;
+      let pos = 0;
+      let value;
+      while (pos < len) {
+        length++;
+        value = str.charCodeAt(pos++);
+        if (value >= 55296 && value <= 56319 && pos < len) {
+          value = str.charCodeAt(pos);
+          if ((value & 64512) === 56320) pos++;
+        }
+      }
+      return length;
+    }
+    exports2.default = ucs2length;
+    ucs2length.code = 'require("ajv/dist/runtime/ucs2length").default';
+  },
+});
+
+// node_modules/fast-deep-equal/index.js
+var require_fast_deep_equal = __commonJS({
+  "node_modules/fast-deep-equal/index.js"(exports2, module2) {
+    "use strict";
+    module2.exports = function equal(a, b) {
+      if (a === b) return true;
+      if (a && b && typeof a == "object" && typeof b == "object") {
+        if (a.constructor !== b.constructor) return false;
+        var length, i, keys;
+        if (Array.isArray(a)) {
+          length = a.length;
+          if (length != b.length) return false;
+          for (i = length; i-- !== 0;) if (!equal(a[i], b[i])) return false;
+          return true;
+        }
+        if (a.constructor === RegExp) return a.source === b.source && a.flags === b.flags;
+        if (a.valueOf !== Object.prototype.valueOf) return a.valueOf() === b.valueOf();
+        if (a.toString !== Object.prototype.toString) return a.toString() === b.toString();
+        keys = Object.keys(a);
+        length = keys.length;
+        if (length !== Object.keys(b).length) return false;
+        for (i = length; i-- !== 0;)
+          if (!Object.prototype.hasOwnProperty.call(b, keys[i])) return false;
+        for (i = length; i-- !== 0;) {
+          var key = keys[i];
+          if (!equal(a[key], b[key])) return false;
+        }
+        return true;
+      }
+      return a !== a && b !== b;
+    };
+  },
+});
+
+// node_modules/ajv/dist/runtime/equal.js
+var require_equal = __commonJS({
+  "node_modules/ajv/dist/runtime/equal.js"(exports2) {
+    "use strict";
+    Object.defineProperty(exports2, "__esModule", { value: true });
+    var equal = require_fast_deep_equal();
+    equal.code = 'require("ajv/dist/runtime/equal").default';
+    exports2.default = equal;
+  },
+});
+
+// <stdin>
 exports.CenterSchedule = validate52;
-const schema19 = { $ref: "urn:folioview:task-center:v1#/$defs/CenterSchedule" };
-const schema21 = {
+var schema21 = {
   type: "object",
   properties: {
     frequency: { enum: ["daily", "weekly"] },
@@ -30,8 +113,8 @@ const schema21 = {
   ],
   additionalProperties: false,
 };
-const pattern3 = new RegExp("^([01][0-9]|2[0-3]):[0-5][0-9]$", "u");
-const func1 = require("ajv/dist/runtime/ucs2length").default;
+var pattern3 = new RegExp("^([01][0-9]|2[0-3]):[0-5][0-9]$", "u");
+var func1 = require_ucs2length().default;
 function validate54(
   data,
   { instancePath = "", parentData, parentDataProperty, rootData = data, dynamicAnchors = {} } = {},
@@ -40,23 +123,23 @@ function validate54(
   let errors = 0;
   const evaluated0 = validate54.evaluated;
   if (evaluated0.dynamicProps) {
-    evaluated0.props = undefined;
+    evaluated0.props = void 0;
   }
   if (evaluated0.dynamicItems) {
-    evaluated0.items = undefined;
+    evaluated0.items = void 0;
   }
   if (errors === 0) {
     if (data && typeof data == "object" && !Array.isArray(data)) {
       let missing0;
       if (
-        (data.frequency === undefined && (missing0 = "frequency")) ||
-        (data.days === undefined && (missing0 = "days")) ||
-        (data.localTime === undefined && (missing0 = "localTime")) ||
-        (data.timeZone === undefined && (missing0 = "timeZone")) ||
-        (data.graceMinutes === undefined && (missing0 = "graceMinutes")) ||
-        (data.effectiveFrom === undefined && (missing0 = "effectiveFrom")) ||
-        (data.dstGap === undefined && (missing0 = "dstGap")) ||
-        (data.dstFold === undefined && (missing0 = "dstFold"))
+        (data.frequency === void 0 && (missing0 = "frequency")) ||
+        (data.days === void 0 && (missing0 = "days")) ||
+        (data.localTime === void 0 && (missing0 = "localTime")) ||
+        (data.timeZone === void 0 && (missing0 = "timeZone")) ||
+        (data.graceMinutes === void 0 && (missing0 = "graceMinutes")) ||
+        (data.effectiveFrom === void 0 && (missing0 = "effectiveFrom")) ||
+        (data.dstGap === void 0 && (missing0 = "dstGap")) ||
+        (data.dstFold === void 0 && (missing0 = "dstFold"))
       ) {
         validate54.errors = [
           {
@@ -93,7 +176,7 @@ function validate54(
           }
         }
         if (_errs1 === errors) {
-          if (data.frequency !== undefined) {
+          if (data.frequency !== void 0) {
             let data0 = data.frequency;
             const _errs2 = errors;
             if (!(data0 === "daily" || data0 === "weekly")) {
@@ -112,7 +195,7 @@ function validate54(
             var valid0 = true;
           }
           if (valid0) {
-            if (data.days !== undefined) {
+            if (data.days !== void 0) {
               let data1 = data.days;
               const _errs3 = errors;
               if (errors === _errs3) {
@@ -221,7 +304,7 @@ function validate54(
               var valid0 = true;
             }
             if (valid0) {
-              if (data.localTime !== undefined) {
+              if (data.localTime !== void 0) {
                 let data3 = data.localTime;
                 const _errs7 = errors;
                 if (errors === _errs7) {
@@ -254,7 +337,7 @@ function validate54(
                 var valid0 = true;
               }
               if (valid0) {
-                if (data.timeZone !== undefined) {
+                if (data.timeZone !== void 0) {
                   let data4 = data.timeZone;
                   const _errs9 = errors;
                   if (errors === _errs9) {
@@ -299,7 +382,7 @@ function validate54(
                   var valid0 = true;
                 }
                 if (valid0) {
-                  if (data.graceMinutes !== undefined) {
+                  if (data.graceMinutes !== void 0) {
                     let data5 = data.graceMinutes;
                     const _errs11 = errors;
                     if (!(typeof data5 == "number" && !(data5 % 1) && !isNaN(data5))) {
@@ -345,7 +428,7 @@ function validate54(
                     var valid0 = true;
                   }
                   if (valid0) {
-                    if (data.effectiveFrom !== undefined) {
+                    if (data.effectiveFrom !== void 0) {
                       let data6 = data.effectiveFrom;
                       const _errs13 = errors;
                       if (!(typeof data6 == "number" && !(data6 % 1) && !isNaN(data6))) {
@@ -391,7 +474,7 @@ function validate54(
                       var valid0 = true;
                     }
                     if (valid0) {
-                      if (data.dstGap !== undefined) {
+                      if (data.dstGap !== void 0) {
                         const _errs15 = errors;
                         if ("skip" !== data.dstGap) {
                           validate54.errors = [
@@ -409,7 +492,7 @@ function validate54(
                         var valid0 = true;
                       }
                       if (valid0) {
-                        if (data.dstFold !== undefined) {
+                        if (data.dstFold !== void 0) {
                           const _errs16 = errors;
                           if ("first" !== data.dstFold) {
                             validate54.errors = [
@@ -454,10 +537,10 @@ function validate52(
   let errors = 0;
   const evaluated0 = validate52.evaluated;
   if (evaluated0.dynamicProps) {
-    evaluated0.props = undefined;
+    evaluated0.props = void 0;
   }
   if (evaluated0.dynamicItems) {
-    evaluated0.items = undefined;
+    evaluated0.items = void 0;
   }
   if (
     !validate54(data, { instancePath, parentData, parentDataProperty, rootData, dynamicAnchors })
@@ -470,8 +553,7 @@ function validate52(
 }
 validate52.evaluated = { props: true, dynamicProps: false, dynamicItems: false };
 exports.CenterTaskDefinition = validate56;
-const schema22 = { $ref: "urn:folioview:task-center:v1#/$defs/CenterTaskDefinition" };
-const schema23 = {
+var schema23 = {
   type: "object",
   properties: {
     contractVersion: { const: "folioview.agent-workspace.v2.0" },
@@ -511,14 +593,8 @@ const schema23 = {
   ],
   additionalProperties: false,
 };
-const func3 = Object.prototype.hasOwnProperty;
-const schema24 = {
-  type: "string",
-  minLength: 1,
-  maxLength: 128,
-  pattern: "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$",
-};
-const pattern4 = new RegExp("^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$", "u");
+var func3 = Object.prototype.hasOwnProperty;
+var pattern4 = new RegExp("^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$", "u");
 function validate58(
   data,
   { instancePath = "", parentData, parentDataProperty, rootData = data, dynamicAnchors = {} } = {},
@@ -527,10 +603,10 @@ function validate58(
   let errors = 0;
   const evaluated0 = validate58.evaluated;
   if (evaluated0.dynamicProps) {
-    evaluated0.props = undefined;
+    evaluated0.props = void 0;
   }
   if (evaluated0.dynamicItems) {
-    evaluated0.items = undefined;
+    evaluated0.items = void 0;
   }
   if (errors === 0) {
     if (typeof data === "string") {
@@ -578,23 +654,23 @@ function validate62(
   let errors = 0;
   const evaluated0 = validate62.evaluated;
   if (evaluated0.dynamicProps) {
-    evaluated0.props = undefined;
+    evaluated0.props = void 0;
   }
   if (evaluated0.dynamicItems) {
-    evaluated0.items = undefined;
+    evaluated0.items = void 0;
   }
   if (errors === 0) {
     if (data && typeof data == "object" && !Array.isArray(data)) {
       let missing0;
       if (
-        (data.frequency === undefined && (missing0 = "frequency")) ||
-        (data.days === undefined && (missing0 = "days")) ||
-        (data.localTime === undefined && (missing0 = "localTime")) ||
-        (data.timeZone === undefined && (missing0 = "timeZone")) ||
-        (data.graceMinutes === undefined && (missing0 = "graceMinutes")) ||
-        (data.effectiveFrom === undefined && (missing0 = "effectiveFrom")) ||
-        (data.dstGap === undefined && (missing0 = "dstGap")) ||
-        (data.dstFold === undefined && (missing0 = "dstFold"))
+        (data.frequency === void 0 && (missing0 = "frequency")) ||
+        (data.days === void 0 && (missing0 = "days")) ||
+        (data.localTime === void 0 && (missing0 = "localTime")) ||
+        (data.timeZone === void 0 && (missing0 = "timeZone")) ||
+        (data.graceMinutes === void 0 && (missing0 = "graceMinutes")) ||
+        (data.effectiveFrom === void 0 && (missing0 = "effectiveFrom")) ||
+        (data.dstGap === void 0 && (missing0 = "dstGap")) ||
+        (data.dstFold === void 0 && (missing0 = "dstFold"))
       ) {
         validate62.errors = [
           {
@@ -631,7 +707,7 @@ function validate62(
           }
         }
         if (_errs1 === errors) {
-          if (data.frequency !== undefined) {
+          if (data.frequency !== void 0) {
             let data0 = data.frequency;
             const _errs2 = errors;
             if (!(data0 === "daily" || data0 === "weekly")) {
@@ -650,7 +726,7 @@ function validate62(
             var valid0 = true;
           }
           if (valid0) {
-            if (data.days !== undefined) {
+            if (data.days !== void 0) {
               let data1 = data.days;
               const _errs3 = errors;
               if (errors === _errs3) {
@@ -759,7 +835,7 @@ function validate62(
               var valid0 = true;
             }
             if (valid0) {
-              if (data.localTime !== undefined) {
+              if (data.localTime !== void 0) {
                 let data3 = data.localTime;
                 const _errs7 = errors;
                 if (errors === _errs7) {
@@ -792,7 +868,7 @@ function validate62(
                 var valid0 = true;
               }
               if (valid0) {
-                if (data.timeZone !== undefined) {
+                if (data.timeZone !== void 0) {
                   let data4 = data.timeZone;
                   const _errs9 = errors;
                   if (errors === _errs9) {
@@ -837,7 +913,7 @@ function validate62(
                   var valid0 = true;
                 }
                 if (valid0) {
-                  if (data.graceMinutes !== undefined) {
+                  if (data.graceMinutes !== void 0) {
                     let data5 = data.graceMinutes;
                     const _errs11 = errors;
                     if (!(typeof data5 == "number" && !(data5 % 1) && !isNaN(data5))) {
@@ -883,7 +959,7 @@ function validate62(
                     var valid0 = true;
                   }
                   if (valid0) {
-                    if (data.effectiveFrom !== undefined) {
+                    if (data.effectiveFrom !== void 0) {
                       let data6 = data.effectiveFrom;
                       const _errs13 = errors;
                       if (!(typeof data6 == "number" && !(data6 % 1) && !isNaN(data6))) {
@@ -929,7 +1005,7 @@ function validate62(
                       var valid0 = true;
                     }
                     if (valid0) {
-                      if (data.dstGap !== undefined) {
+                      if (data.dstGap !== void 0) {
                         const _errs15 = errors;
                         if ("skip" !== data.dstGap) {
                           validate62.errors = [
@@ -947,7 +1023,7 @@ function validate62(
                         var valid0 = true;
                       }
                       if (valid0) {
-                        if (data.dstFold !== undefined) {
+                        if (data.dstFold !== void 0) {
                           const _errs16 = errors;
                           if ("first" !== data.dstFold) {
                             validate62.errors = [
@@ -992,29 +1068,29 @@ function validate57(
   let errors = 0;
   const evaluated0 = validate57.evaluated;
   if (evaluated0.dynamicProps) {
-    evaluated0.props = undefined;
+    evaluated0.props = void 0;
   }
   if (evaluated0.dynamicItems) {
-    evaluated0.items = undefined;
+    evaluated0.items = void 0;
   }
   if (errors === 0) {
     if (data && typeof data == "object" && !Array.isArray(data)) {
       let missing0;
       if (
-        (data.contractVersion === undefined && (missing0 = "contractVersion")) ||
-        (data.profile === undefined && (missing0 = "profile")) ||
-        (data.ownerSubject === undefined && (missing0 = "ownerSubject")) ||
-        (data.vaultId === undefined && (missing0 = "vaultId")) ||
-        (data.taskId === undefined && (missing0 = "taskId")) ||
-        (data.taskVersion === undefined && (missing0 = "taskVersion")) ||
-        (data.executionEpoch === undefined && (missing0 = "executionEpoch")) ||
-        (data.ruleVersion === undefined && (missing0 = "ruleVersion")) ||
-        (data.lifecycleEpoch === undefined && (missing0 = "lifecycleEpoch")) ||
-        (data.definitionVersion === undefined && (missing0 = "definitionVersion")) ||
-        (data.status === undefined && (missing0 = "status")) ||
-        (data.schedule === undefined && (missing0 = "schedule")) ||
-        (data.deletedAt === undefined && (missing0 = "deletedAt")) ||
-        (data.purgeAfter === undefined && (missing0 = "purgeAfter"))
+        (data.contractVersion === void 0 && (missing0 = "contractVersion")) ||
+        (data.profile === void 0 && (missing0 = "profile")) ||
+        (data.ownerSubject === void 0 && (missing0 = "ownerSubject")) ||
+        (data.vaultId === void 0 && (missing0 = "vaultId")) ||
+        (data.taskId === void 0 && (missing0 = "taskId")) ||
+        (data.taskVersion === void 0 && (missing0 = "taskVersion")) ||
+        (data.executionEpoch === void 0 && (missing0 = "executionEpoch")) ||
+        (data.ruleVersion === void 0 && (missing0 = "ruleVersion")) ||
+        (data.lifecycleEpoch === void 0 && (missing0 = "lifecycleEpoch")) ||
+        (data.definitionVersion === void 0 && (missing0 = "definitionVersion")) ||
+        (data.status === void 0 && (missing0 = "status")) ||
+        (data.schedule === void 0 && (missing0 = "schedule")) ||
+        (data.deletedAt === void 0 && (missing0 = "deletedAt")) ||
+        (data.purgeAfter === void 0 && (missing0 = "purgeAfter"))
       ) {
         validate57.errors = [
           {
@@ -1042,7 +1118,7 @@ function validate57(
           }
         }
         if (_errs1 === errors) {
-          if (data.contractVersion !== undefined) {
+          if (data.contractVersion !== void 0) {
             const _errs2 = errors;
             if ("folioview.agent-workspace.v2.0" !== data.contractVersion) {
               validate57.errors = [
@@ -1060,7 +1136,7 @@ function validate57(
             var valid0 = true;
           }
           if (valid0) {
-            if (data.profile !== undefined) {
+            if (data.profile !== void 0) {
               const _errs3 = errors;
               if ("folioview.task-center.v1" !== data.profile) {
                 validate57.errors = [
@@ -1078,7 +1154,7 @@ function validate57(
               var valid0 = true;
             }
             if (valid0) {
-              if (data.ownerSubject !== undefined) {
+              if (data.ownerSubject !== void 0) {
                 const _errs4 = errors;
                 if (
                   !validate58(data.ownerSubject, {
@@ -1098,7 +1174,7 @@ function validate57(
                 var valid0 = true;
               }
               if (valid0) {
-                if (data.vaultId !== undefined) {
+                if (data.vaultId !== void 0) {
                   const _errs5 = errors;
                   if (
                     !validate58(data.vaultId, {
@@ -1118,7 +1194,7 @@ function validate57(
                   var valid0 = true;
                 }
                 if (valid0) {
-                  if (data.taskId !== undefined) {
+                  if (data.taskId !== void 0) {
                     const _errs6 = errors;
                     if (
                       !validate58(data.taskId, {
@@ -1138,7 +1214,7 @@ function validate57(
                     var valid0 = true;
                   }
                   if (valid0) {
-                    if (data.taskVersion !== undefined) {
+                    if (data.taskVersion !== void 0) {
                       let data5 = data.taskVersion;
                       const _errs7 = errors;
                       if (!(typeof data5 == "number" && !(data5 % 1) && !isNaN(data5))) {
@@ -1184,7 +1260,7 @@ function validate57(
                       var valid0 = true;
                     }
                     if (valid0) {
-                      if (data.executionEpoch !== undefined) {
+                      if (data.executionEpoch !== void 0) {
                         let data6 = data.executionEpoch;
                         const _errs9 = errors;
                         if (!(typeof data6 == "number" && !(data6 % 1) && !isNaN(data6))) {
@@ -1230,7 +1306,7 @@ function validate57(
                         var valid0 = true;
                       }
                       if (valid0) {
-                        if (data.ruleVersion !== undefined) {
+                        if (data.ruleVersion !== void 0) {
                           let data7 = data.ruleVersion;
                           const _errs11 = errors;
                           if (!(typeof data7 == "number" && !(data7 % 1) && !isNaN(data7))) {
@@ -1276,7 +1352,7 @@ function validate57(
                           var valid0 = true;
                         }
                         if (valid0) {
-                          if (data.lifecycleEpoch !== undefined) {
+                          if (data.lifecycleEpoch !== void 0) {
                             let data8 = data.lifecycleEpoch;
                             const _errs13 = errors;
                             if (!(typeof data8 == "number" && !(data8 % 1) && !isNaN(data8))) {
@@ -1322,7 +1398,7 @@ function validate57(
                             var valid0 = true;
                           }
                           if (valid0) {
-                            if (data.definitionVersion !== undefined) {
+                            if (data.definitionVersion !== void 0) {
                               let data9 = data.definitionVersion;
                               const _errs15 = errors;
                               if (!(typeof data9 == "number" && !(data9 % 1) && !isNaN(data9))) {
@@ -1368,7 +1444,7 @@ function validate57(
                               var valid0 = true;
                             }
                             if (valid0) {
-                              if (data.status !== undefined) {
+                              if (data.status !== void 0) {
                                 let data10 = data.status;
                                 const _errs17 = errors;
                                 if (!(
@@ -1391,7 +1467,7 @@ function validate57(
                                 var valid0 = true;
                               }
                               if (valid0) {
-                                if (data.schedule !== undefined) {
+                                if (data.schedule !== void 0) {
                                   let data11 = data.schedule;
                                   const _errs18 = errors;
                                   const _errs19 = errors;
@@ -1461,7 +1537,7 @@ function validate57(
                                   var valid0 = true;
                                 }
                                 if (valid0) {
-                                  if (data.deletedAt !== undefined) {
+                                  if (data.deletedAt !== void 0) {
                                     let data12 = data.deletedAt;
                                     const _errs23 = errors;
                                     const _errs24 = errors;
@@ -1567,7 +1643,7 @@ function validate57(
                                     var valid0 = true;
                                   }
                                   if (valid0) {
-                                    if (data.purgeAfter !== undefined) {
+                                    if (data.purgeAfter !== void 0) {
                                       let data13 = data.purgeAfter;
                                       const _errs29 = errors;
                                       const _errs30 = errors;
@@ -1707,10 +1783,10 @@ function validate56(
   let errors = 0;
   const evaluated0 = validate56.evaluated;
   if (evaluated0.dynamicProps) {
-    evaluated0.props = undefined;
+    evaluated0.props = void 0;
   }
   if (evaluated0.dynamicItems) {
-    evaluated0.items = undefined;
+    evaluated0.items = void 0;
   }
   if (
     !validate57(data, { instancePath, parentData, parentDataProperty, rootData, dynamicAnchors })
@@ -1723,8 +1799,7 @@ function validate56(
 }
 validate56.evaluated = { props: true, dynamicProps: false, dynamicItems: false };
 exports.CenterAssignment = validate65;
-const schema26 = { $ref: "urn:folioview:task-center:v1#/$defs/CenterAssignment" };
-const schema27 = {
+var schema27 = {
   type: "object",
   properties: {
     contractVersion: { const: "folioview.agent-workspace.v2.0" },
@@ -1768,19 +1843,7 @@ const schema27 = {
   ],
   additionalProperties: false,
 };
-const schema28 = {
-  type: "object",
-  properties: {
-    connectionId: { $ref: "#/$defs/Identifier" },
-    clientId: { $ref: "#/$defs/Identifier" },
-    credentialGeneration: { type: "integer", minimum: 1, maximum: 9007199254740991 },
-    credentialFingerprint: { $ref: "#/$defs/Digest" },
-  },
-  required: ["connectionId", "clientId", "credentialGeneration", "credentialFingerprint"],
-  additionalProperties: false,
-};
-const schema29 = { type: "string", minLength: 64, maxLength: 64, pattern: "^[a-f0-9]{64}$" };
-const pattern6 = new RegExp("^[a-f0-9]{64}$", "u");
+var pattern6 = new RegExp("^[a-f0-9]{64}$", "u");
 function validate75(
   data,
   { instancePath = "", parentData, parentDataProperty, rootData = data, dynamicAnchors = {} } = {},
@@ -1789,10 +1852,10 @@ function validate75(
   let errors = 0;
   const evaluated0 = validate75.evaluated;
   if (evaluated0.dynamicProps) {
-    evaluated0.props = undefined;
+    evaluated0.props = void 0;
   }
   if (evaluated0.dynamicItems) {
-    evaluated0.items = undefined;
+    evaluated0.items = void 0;
   }
   if (errors === 0) {
     if (typeof data === "string") {
@@ -1845,19 +1908,19 @@ function validate72(
   let errors = 0;
   const evaluated0 = validate72.evaluated;
   if (evaluated0.dynamicProps) {
-    evaluated0.props = undefined;
+    evaluated0.props = void 0;
   }
   if (evaluated0.dynamicItems) {
-    evaluated0.items = undefined;
+    evaluated0.items = void 0;
   }
   if (errors === 0) {
     if (data && typeof data == "object" && !Array.isArray(data)) {
       let missing0;
       if (
-        (data.connectionId === undefined && (missing0 = "connectionId")) ||
-        (data.clientId === undefined && (missing0 = "clientId")) ||
-        (data.credentialGeneration === undefined && (missing0 = "credentialGeneration")) ||
-        (data.credentialFingerprint === undefined && (missing0 = "credentialFingerprint"))
+        (data.connectionId === void 0 && (missing0 = "connectionId")) ||
+        (data.clientId === void 0 && (missing0 = "clientId")) ||
+        (data.credentialGeneration === void 0 && (missing0 = "credentialGeneration")) ||
+        (data.credentialFingerprint === void 0 && (missing0 = "credentialFingerprint"))
       ) {
         validate72.errors = [
           {
@@ -1890,7 +1953,7 @@ function validate72(
           }
         }
         if (_errs1 === errors) {
-          if (data.connectionId !== undefined) {
+          if (data.connectionId !== void 0) {
             const _errs2 = errors;
             if (
               !validate58(data.connectionId, {
@@ -1909,7 +1972,7 @@ function validate72(
             var valid0 = true;
           }
           if (valid0) {
-            if (data.clientId !== undefined) {
+            if (data.clientId !== void 0) {
               const _errs3 = errors;
               if (
                 !validate58(data.clientId, {
@@ -1928,7 +1991,7 @@ function validate72(
               var valid0 = true;
             }
             if (valid0) {
-              if (data.credentialGeneration !== undefined) {
+              if (data.credentialGeneration !== void 0) {
                 let data2 = data.credentialGeneration;
                 const _errs4 = errors;
                 if (!(typeof data2 == "number" && !(data2 % 1) && !isNaN(data2))) {
@@ -1974,7 +2037,7 @@ function validate72(
                 var valid0 = true;
               }
               if (valid0) {
-                if (data.credentialFingerprint !== undefined) {
+                if (data.credentialFingerprint !== void 0) {
                   const _errs6 = errors;
                   if (
                     !validate75(data.credentialFingerprint, {
@@ -2017,33 +2080,33 @@ function validate66(
   let errors = 0;
   const evaluated0 = validate66.evaluated;
   if (evaluated0.dynamicProps) {
-    evaluated0.props = undefined;
+    evaluated0.props = void 0;
   }
   if (evaluated0.dynamicItems) {
-    evaluated0.items = undefined;
+    evaluated0.items = void 0;
   }
   if (errors === 0) {
     if (data && typeof data == "object" && !Array.isArray(data)) {
       let missing0;
       if (
-        (data.contractVersion === undefined && (missing0 = "contractVersion")) ||
-        (data.profile === undefined && (missing0 = "profile")) ||
-        (data.ownerSubject === undefined && (missing0 = "ownerSubject")) ||
-        (data.vaultId === undefined && (missing0 = "vaultId")) ||
-        (data.taskId === undefined && (missing0 = "taskId")) ||
-        (data.taskVersion === undefined && (missing0 = "taskVersion")) ||
-        (data.executionEpoch === undefined && (missing0 = "executionEpoch")) ||
-        (data.ruleVersion === undefined && (missing0 = "ruleVersion")) ||
-        (data.lifecycleEpoch === undefined && (missing0 = "lifecycleEpoch")) ||
-        (data.assignmentId === undefined && (missing0 = "assignmentId")) ||
-        (data.assignmentVersion === undefined && (missing0 = "assignmentVersion")) ||
-        (data.slotId === undefined && (missing0 = "slotId")) ||
-        (data.provider === undefined && (missing0 = "provider")) ||
-        (data.slotGeneration === undefined && (missing0 = "slotGeneration")) ||
-        (data.credential === undefined && (missing0 = "credential")) ||
-        (data.agentId === undefined && (missing0 = "agentId")) ||
-        (data.authorityFingerprint === undefined && (missing0 = "authorityFingerprint")) ||
-        (data.status === undefined && (missing0 = "status"))
+        (data.contractVersion === void 0 && (missing0 = "contractVersion")) ||
+        (data.profile === void 0 && (missing0 = "profile")) ||
+        (data.ownerSubject === void 0 && (missing0 = "ownerSubject")) ||
+        (data.vaultId === void 0 && (missing0 = "vaultId")) ||
+        (data.taskId === void 0 && (missing0 = "taskId")) ||
+        (data.taskVersion === void 0 && (missing0 = "taskVersion")) ||
+        (data.executionEpoch === void 0 && (missing0 = "executionEpoch")) ||
+        (data.ruleVersion === void 0 && (missing0 = "ruleVersion")) ||
+        (data.lifecycleEpoch === void 0 && (missing0 = "lifecycleEpoch")) ||
+        (data.assignmentId === void 0 && (missing0 = "assignmentId")) ||
+        (data.assignmentVersion === void 0 && (missing0 = "assignmentVersion")) ||
+        (data.slotId === void 0 && (missing0 = "slotId")) ||
+        (data.provider === void 0 && (missing0 = "provider")) ||
+        (data.slotGeneration === void 0 && (missing0 = "slotGeneration")) ||
+        (data.credential === void 0 && (missing0 = "credential")) ||
+        (data.agentId === void 0 && (missing0 = "agentId")) ||
+        (data.authorityFingerprint === void 0 && (missing0 = "authorityFingerprint")) ||
+        (data.status === void 0 && (missing0 = "status"))
       ) {
         validate66.errors = [
           {
@@ -2071,7 +2134,7 @@ function validate66(
           }
         }
         if (_errs1 === errors) {
-          if (data.contractVersion !== undefined) {
+          if (data.contractVersion !== void 0) {
             const _errs2 = errors;
             if ("folioview.agent-workspace.v2.0" !== data.contractVersion) {
               validate66.errors = [
@@ -2089,7 +2152,7 @@ function validate66(
             var valid0 = true;
           }
           if (valid0) {
-            if (data.profile !== undefined) {
+            if (data.profile !== void 0) {
               const _errs3 = errors;
               if ("folioview.task-center.v1" !== data.profile) {
                 validate66.errors = [
@@ -2107,7 +2170,7 @@ function validate66(
               var valid0 = true;
             }
             if (valid0) {
-              if (data.ownerSubject !== undefined) {
+              if (data.ownerSubject !== void 0) {
                 const _errs4 = errors;
                 if (
                   !validate58(data.ownerSubject, {
@@ -2127,7 +2190,7 @@ function validate66(
                 var valid0 = true;
               }
               if (valid0) {
-                if (data.vaultId !== undefined) {
+                if (data.vaultId !== void 0) {
                   const _errs5 = errors;
                   if (
                     !validate58(data.vaultId, {
@@ -2147,7 +2210,7 @@ function validate66(
                   var valid0 = true;
                 }
                 if (valid0) {
-                  if (data.taskId !== undefined) {
+                  if (data.taskId !== void 0) {
                     const _errs6 = errors;
                     if (
                       !validate58(data.taskId, {
@@ -2167,7 +2230,7 @@ function validate66(
                     var valid0 = true;
                   }
                   if (valid0) {
-                    if (data.taskVersion !== undefined) {
+                    if (data.taskVersion !== void 0) {
                       let data5 = data.taskVersion;
                       const _errs7 = errors;
                       if (!(typeof data5 == "number" && !(data5 % 1) && !isNaN(data5))) {
@@ -2213,7 +2276,7 @@ function validate66(
                       var valid0 = true;
                     }
                     if (valid0) {
-                      if (data.executionEpoch !== undefined) {
+                      if (data.executionEpoch !== void 0) {
                         let data6 = data.executionEpoch;
                         const _errs9 = errors;
                         if (!(typeof data6 == "number" && !(data6 % 1) && !isNaN(data6))) {
@@ -2259,7 +2322,7 @@ function validate66(
                         var valid0 = true;
                       }
                       if (valid0) {
-                        if (data.ruleVersion !== undefined) {
+                        if (data.ruleVersion !== void 0) {
                           let data7 = data.ruleVersion;
                           const _errs11 = errors;
                           if (!(typeof data7 == "number" && !(data7 % 1) && !isNaN(data7))) {
@@ -2305,7 +2368,7 @@ function validate66(
                           var valid0 = true;
                         }
                         if (valid0) {
-                          if (data.lifecycleEpoch !== undefined) {
+                          if (data.lifecycleEpoch !== void 0) {
                             let data8 = data.lifecycleEpoch;
                             const _errs13 = errors;
                             if (!(typeof data8 == "number" && !(data8 % 1) && !isNaN(data8))) {
@@ -2351,7 +2414,7 @@ function validate66(
                             var valid0 = true;
                           }
                           if (valid0) {
-                            if (data.assignmentId !== undefined) {
+                            if (data.assignmentId !== void 0) {
                               const _errs15 = errors;
                               if (
                                 !validate58(data.assignmentId, {
@@ -2373,7 +2436,7 @@ function validate66(
                               var valid0 = true;
                             }
                             if (valid0) {
-                              if (data.assignmentVersion !== undefined) {
+                              if (data.assignmentVersion !== void 0) {
                                 let data10 = data.assignmentVersion;
                                 const _errs16 = errors;
                                 if (!(
@@ -2423,7 +2486,7 @@ function validate66(
                                 var valid0 = true;
                               }
                               if (valid0) {
-                                if (data.slotId !== undefined) {
+                                if (data.slotId !== void 0) {
                                   const _errs18 = errors;
                                   if (
                                     !validate58(data.slotId, {
@@ -2445,7 +2508,7 @@ function validate66(
                                   var valid0 = true;
                                 }
                                 if (valid0) {
-                                  if (data.provider !== undefined) {
+                                  if (data.provider !== void 0) {
                                     let data12 = data.provider;
                                     const _errs19 = errors;
                                     if (!(data12 === "muse" || data12 === "chatgpt")) {
@@ -2466,7 +2529,7 @@ function validate66(
                                     var valid0 = true;
                                   }
                                   if (valid0) {
-                                    if (data.slotGeneration !== undefined) {
+                                    if (data.slotGeneration !== void 0) {
                                       let data13 = data.slotGeneration;
                                       const _errs20 = errors;
                                       if (!(
@@ -2519,7 +2582,7 @@ function validate66(
                                       var valid0 = true;
                                     }
                                     if (valid0) {
-                                      if (data.credential !== undefined) {
+                                      if (data.credential !== void 0) {
                                         const _errs22 = errors;
                                         if (
                                           !validate72(data.credential, {
@@ -2541,7 +2604,7 @@ function validate66(
                                         var valid0 = true;
                                       }
                                       if (valid0) {
-                                        if (data.agentId !== undefined) {
+                                        if (data.agentId !== void 0) {
                                           const _errs23 = errors;
                                           if (
                                             !validate58(data.agentId, {
@@ -2563,7 +2626,7 @@ function validate66(
                                           var valid0 = true;
                                         }
                                         if (valid0) {
-                                          if (data.authorityFingerprint !== undefined) {
+                                          if (data.authorityFingerprint !== void 0) {
                                             const _errs24 = errors;
                                             if (
                                               !validate75(data.authorityFingerprint, {
@@ -2586,7 +2649,7 @@ function validate66(
                                             var valid0 = true;
                                           }
                                           if (valid0) {
-                                            if (data.status !== undefined) {
+                                            if (data.status !== void 0) {
                                               let data17 = data.status;
                                               const _errs25 = errors;
                                               if (!(data17 === "active" || data17 === "removed")) {
@@ -2645,10 +2708,10 @@ function validate65(
   let errors = 0;
   const evaluated0 = validate65.evaluated;
   if (evaluated0.dynamicProps) {
-    evaluated0.props = undefined;
+    evaluated0.props = void 0;
   }
   if (evaluated0.dynamicItems) {
-    evaluated0.items = undefined;
+    evaluated0.items = void 0;
   }
   if (
     !validate66(data, { instancePath, parentData, parentDataProperty, rootData, dynamicAnchors })
@@ -2661,8 +2724,7 @@ function validate65(
 }
 validate65.evaluated = { props: true, dynamicProps: false, dynamicItems: false };
 exports.CenterOwnerControl = validate81;
-const schema30 = { $ref: "urn:folioview:task-center:v1#/$defs/CenterOwnerControl" };
-const schema31 = {
+var schema31 = {
   type: "object",
   properties: {
     contractVersion: { const: "folioview.agent-workspace.v2.0" },
@@ -2726,8 +2788,7 @@ const schema31 = {
   ],
   additionalProperties: false,
 };
-const schema32 = { type: "string", minLength: 43, maxLength: 43, pattern: "^[A-Za-z0-9_-]{43}$" };
-const pattern7 = new RegExp("^[A-Za-z0-9_-]{43}$", "u");
+var pattern7 = new RegExp("^[A-Za-z0-9_-]{43}$", "u");
 function validate86(
   data,
   { instancePath = "", parentData, parentDataProperty, rootData = data, dynamicAnchors = {} } = {},
@@ -2736,10 +2797,10 @@ function validate86(
   let errors = 0;
   const evaluated0 = validate86.evaluated;
   if (evaluated0.dynamicProps) {
-    evaluated0.props = undefined;
+    evaluated0.props = void 0;
   }
   if (evaluated0.dynamicItems) {
-    evaluated0.items = undefined;
+    evaluated0.items = void 0;
   }
   if (errors === 0) {
     if (typeof data === "string") {
@@ -2784,8 +2845,7 @@ function validate86(
   return errors === 0;
 }
 validate86.evaluated = { dynamicProps: false, dynamicItems: false };
-const schema33 = { type: "string", minLength: 22, maxLength: 128, pattern: "^[A-Za-z0-9_-]+$" };
-const pattern8 = new RegExp("^[A-Za-z0-9_-]+$", "u");
+var pattern8 = new RegExp("^[A-Za-z0-9_-]+$", "u");
 function validate90(
   data,
   { instancePath = "", parentData, parentDataProperty, rootData = data, dynamicAnchors = {} } = {},
@@ -2794,10 +2854,10 @@ function validate90(
   let errors = 0;
   const evaluated0 = validate90.evaluated;
   if (evaluated0.dynamicProps) {
-    evaluated0.props = undefined;
+    evaluated0.props = void 0;
   }
   if (evaluated0.dynamicItems) {
-    evaluated0.items = undefined;
+    evaluated0.items = void 0;
   }
   if (errors === 0) {
     if (typeof data === "string") {
@@ -2842,7 +2902,7 @@ function validate90(
   return errors === 0;
 }
 validate90.evaluated = { dynamicProps: false, dynamicItems: false };
-const schema34 = {
+var schema34 = {
   type: "object",
   properties: {
     slotId: { $ref: "#/$defs/Identifier" },
@@ -2870,21 +2930,21 @@ function validate94(
   let errors = 0;
   const evaluated0 = validate94.evaluated;
   if (evaluated0.dynamicProps) {
-    evaluated0.props = undefined;
+    evaluated0.props = void 0;
   }
   if (evaluated0.dynamicItems) {
-    evaluated0.items = undefined;
+    evaluated0.items = void 0;
   }
   if (errors === 0) {
     if (data && typeof data == "object" && !Array.isArray(data)) {
       let missing0;
       if (
-        (data.slotId === undefined && (missing0 = "slotId")) ||
-        (data.provider === undefined && (missing0 = "provider")) ||
-        (data.slotGeneration === undefined && (missing0 = "slotGeneration")) ||
-        (data.credential === undefined && (missing0 = "credential")) ||
-        (data.agentId === undefined && (missing0 = "agentId")) ||
-        (data.authorityFingerprint === undefined && (missing0 = "authorityFingerprint"))
+        (data.slotId === void 0 && (missing0 = "slotId")) ||
+        (data.provider === void 0 && (missing0 = "provider")) ||
+        (data.slotGeneration === void 0 && (missing0 = "slotGeneration")) ||
+        (data.credential === void 0 && (missing0 = "credential")) ||
+        (data.agentId === void 0 && (missing0 = "agentId")) ||
+        (data.authorityFingerprint === void 0 && (missing0 = "authorityFingerprint"))
       ) {
         validate94.errors = [
           {
@@ -2919,7 +2979,7 @@ function validate94(
           }
         }
         if (_errs1 === errors) {
-          if (data.slotId !== undefined) {
+          if (data.slotId !== void 0) {
             const _errs2 = errors;
             if (
               !validate58(data.slotId, {
@@ -2938,7 +2998,7 @@ function validate94(
             var valid0 = true;
           }
           if (valid0) {
-            if (data.provider !== undefined) {
+            if (data.provider !== void 0) {
               let data1 = data.provider;
               const _errs3 = errors;
               if (!(data1 === "muse" || data1 === "chatgpt")) {
@@ -2957,7 +3017,7 @@ function validate94(
               var valid0 = true;
             }
             if (valid0) {
-              if (data.slotGeneration !== undefined) {
+              if (data.slotGeneration !== void 0) {
                 let data2 = data.slotGeneration;
                 const _errs4 = errors;
                 if (!(typeof data2 == "number" && !(data2 % 1) && !isNaN(data2))) {
@@ -3003,7 +3063,7 @@ function validate94(
                 var valid0 = true;
               }
               if (valid0) {
-                if (data.credential !== undefined) {
+                if (data.credential !== void 0) {
                   const _errs6 = errors;
                   if (
                     !validate72(data.credential, {
@@ -3023,7 +3083,7 @@ function validate94(
                   var valid0 = true;
                 }
                 if (valid0) {
-                  if (data.agentId !== undefined) {
+                  if (data.agentId !== void 0) {
                     const _errs7 = errors;
                     if (
                       !validate58(data.agentId, {
@@ -3043,7 +3103,7 @@ function validate94(
                     var valid0 = true;
                   }
                   if (valid0) {
-                    if (data.authorityFingerprint !== undefined) {
+                    if (data.authorityFingerprint !== void 0) {
                       const _errs8 = errors;
                       if (
                         !validate75(data.authorityFingerprint, {
@@ -3080,30 +3140,7 @@ function validate94(
   return errors === 0;
 }
 validate94.evaluated = { props: true, dynamicProps: false, dynamicItems: false };
-const schema35 = {
-  type: "object",
-  properties: {
-    expiresAt: { type: "integer", minimum: 1, maximum: 9007199254740991 },
-    assignments: {
-      type: "array",
-      items: {
-        type: "object",
-        properties: {
-          assignmentId: { $ref: "#/$defs/Identifier" },
-          assignmentVersion: { type: "integer", minimum: 1, maximum: 9007199254740991 },
-        },
-        required: ["assignmentId", "assignmentVersion"],
-        additionalProperties: false,
-      },
-      maxItems: 32,
-      uniqueItems: true,
-      minItems: 1,
-    },
-  },
-  required: ["expiresAt", "assignments"],
-  additionalProperties: false,
-};
-const func0 = require("ajv/dist/runtime/equal").default;
+var func0 = require_equal().default;
 function validate100(
   data,
   { instancePath = "", parentData, parentDataProperty, rootData = data, dynamicAnchors = {} } = {},
@@ -3112,17 +3149,17 @@ function validate100(
   let errors = 0;
   const evaluated0 = validate100.evaluated;
   if (evaluated0.dynamicProps) {
-    evaluated0.props = undefined;
+    evaluated0.props = void 0;
   }
   if (evaluated0.dynamicItems) {
-    evaluated0.items = undefined;
+    evaluated0.items = void 0;
   }
   if (errors === 0) {
     if (data && typeof data == "object" && !Array.isArray(data)) {
       let missing0;
       if (
-        (data.expiresAt === undefined && (missing0 = "expiresAt")) ||
-        (data.assignments === undefined && (missing0 = "assignments"))
+        (data.expiresAt === void 0 && (missing0 = "expiresAt")) ||
+        (data.assignments === void 0 && (missing0 = "assignments"))
       ) {
         validate100.errors = [
           {
@@ -3150,7 +3187,7 @@ function validate100(
           }
         }
         if (_errs1 === errors) {
-          if (data.expiresAt !== undefined) {
+          if (data.expiresAt !== void 0) {
             let data0 = data.expiresAt;
             const _errs2 = errors;
             if (!(typeof data0 == "number" && !(data0 % 1) && !isNaN(data0))) {
@@ -3196,7 +3233,7 @@ function validate100(
             var valid0 = true;
           }
           if (valid0) {
-            if (data.assignments !== undefined) {
+            if (data.assignments !== void 0) {
               let data1 = data.assignments;
               const _errs4 = errors;
               if (errors === _errs4) {
@@ -3232,8 +3269,8 @@ function validate100(
                           if (data2 && typeof data2 == "object" && !Array.isArray(data2)) {
                             let missing1;
                             if (
-                              (data2.assignmentId === undefined && (missing1 = "assignmentId")) ||
-                              (data2.assignmentVersion === undefined &&
+                              (data2.assignmentId === void 0 && (missing1 = "assignmentId")) ||
+                              (data2.assignmentVersion === void 0 &&
                                 (missing1 = "assignmentVersion"))
                             ) {
                               validate100.errors = [
@@ -3263,7 +3300,7 @@ function validate100(
                                 }
                               }
                               if (_errs8 === errors) {
-                                if (data2.assignmentId !== undefined) {
+                                if (data2.assignmentId !== void 0) {
                                   const _errs9 = errors;
                                   if (
                                     !validate58(data2.assignmentId, {
@@ -3286,7 +3323,7 @@ function validate100(
                                   var valid2 = true;
                                 }
                                 if (valid2) {
-                                  if (data2.assignmentVersion !== undefined) {
+                                  if (data2.assignmentVersion !== void 0) {
                                     let data4 = data2.assignmentVersion;
                                     const _errs10 = errors;
                                     if (!(
@@ -3432,39 +3469,37 @@ function validate82(
   let errors = 0;
   const evaluated0 = validate82.evaluated;
   if (evaluated0.dynamicProps) {
-    evaluated0.props = undefined;
+    evaluated0.props = void 0;
   }
   if (evaluated0.dynamicItems) {
-    evaluated0.items = undefined;
+    evaluated0.items = void 0;
   }
   if (errors === 0) {
     if (data && typeof data == "object" && !Array.isArray(data)) {
       let missing0;
       if (
-        (data.contractVersion === undefined && (missing0 = "contractVersion")) ||
-        (data.profile === undefined && (missing0 = "profile")) ||
-        (data.ownerSubject === undefined && (missing0 = "ownerSubject")) ||
-        (data.vaultId === undefined && (missing0 = "vaultId")) ||
-        (data.taskId === undefined && (missing0 = "taskId")) ||
-        (data.artifactType === undefined && (missing0 = "artifactType")) ||
-        (data.action === undefined && (missing0 = "action")) ||
-        (data.rootKeyId === undefined && (missing0 = "rootKeyId")) ||
-        (data.deviceSigningKeyId === undefined && (missing0 = "deviceSigningKeyId")) ||
-        (data.registrySequence === undefined && (missing0 = "registrySequence")) ||
-        (data.checkpointDigest === undefined && (missing0 = "checkpointDigest")) ||
-        (data.keyEpoch === undefined && (missing0 = "keyEpoch")) ||
-        (data.issuedAt === undefined && (missing0 = "issuedAt")) ||
-        (data.stableOperationId === undefined && (missing0 = "stableOperationId")) ||
-        (data.expectedDefinitionVersion === undefined &&
-          (missing0 = "expectedDefinitionVersion")) ||
-        (data.expectedAssignmentVersion === undefined &&
-          (missing0 = "expectedAssignmentVersion")) ||
-        (data.assignmentId === undefined && (missing0 = "assignmentId")) ||
-        (data.schedule === undefined && (missing0 = "schedule")) ||
-        (data.assignment === undefined && (missing0 = "assignment")) ||
-        (data.intent === undefined && (missing0 = "intent")) ||
-        (data.taskVersion === undefined && (missing0 = "taskVersion")) ||
-        (data.executionEpoch === undefined && (missing0 = "executionEpoch"))
+        (data.contractVersion === void 0 && (missing0 = "contractVersion")) ||
+        (data.profile === void 0 && (missing0 = "profile")) ||
+        (data.ownerSubject === void 0 && (missing0 = "ownerSubject")) ||
+        (data.vaultId === void 0 && (missing0 = "vaultId")) ||
+        (data.taskId === void 0 && (missing0 = "taskId")) ||
+        (data.artifactType === void 0 && (missing0 = "artifactType")) ||
+        (data.action === void 0 && (missing0 = "action")) ||
+        (data.rootKeyId === void 0 && (missing0 = "rootKeyId")) ||
+        (data.deviceSigningKeyId === void 0 && (missing0 = "deviceSigningKeyId")) ||
+        (data.registrySequence === void 0 && (missing0 = "registrySequence")) ||
+        (data.checkpointDigest === void 0 && (missing0 = "checkpointDigest")) ||
+        (data.keyEpoch === void 0 && (missing0 = "keyEpoch")) ||
+        (data.issuedAt === void 0 && (missing0 = "issuedAt")) ||
+        (data.stableOperationId === void 0 && (missing0 = "stableOperationId")) ||
+        (data.expectedDefinitionVersion === void 0 && (missing0 = "expectedDefinitionVersion")) ||
+        (data.expectedAssignmentVersion === void 0 && (missing0 = "expectedAssignmentVersion")) ||
+        (data.assignmentId === void 0 && (missing0 = "assignmentId")) ||
+        (data.schedule === void 0 && (missing0 = "schedule")) ||
+        (data.assignment === void 0 && (missing0 = "assignment")) ||
+        (data.intent === void 0 && (missing0 = "intent")) ||
+        (data.taskVersion === void 0 && (missing0 = "taskVersion")) ||
+        (data.executionEpoch === void 0 && (missing0 = "executionEpoch"))
       ) {
         validate82.errors = [
           {
@@ -3492,7 +3527,7 @@ function validate82(
           }
         }
         if (_errs1 === errors) {
-          if (data.contractVersion !== undefined) {
+          if (data.contractVersion !== void 0) {
             const _errs2 = errors;
             if ("folioview.agent-workspace.v2.0" !== data.contractVersion) {
               validate82.errors = [
@@ -3510,7 +3545,7 @@ function validate82(
             var valid0 = true;
           }
           if (valid0) {
-            if (data.profile !== undefined) {
+            if (data.profile !== void 0) {
               const _errs3 = errors;
               if ("folioview.task-center.v1" !== data.profile) {
                 validate82.errors = [
@@ -3528,7 +3563,7 @@ function validate82(
               var valid0 = true;
             }
             if (valid0) {
-              if (data.ownerSubject !== undefined) {
+              if (data.ownerSubject !== void 0) {
                 const _errs4 = errors;
                 if (
                   !validate58(data.ownerSubject, {
@@ -3548,7 +3583,7 @@ function validate82(
                 var valid0 = true;
               }
               if (valid0) {
-                if (data.vaultId !== undefined) {
+                if (data.vaultId !== void 0) {
                   const _errs5 = errors;
                   if (
                     !validate58(data.vaultId, {
@@ -3568,7 +3603,7 @@ function validate82(
                   var valid0 = true;
                 }
                 if (valid0) {
-                  if (data.taskId !== undefined) {
+                  if (data.taskId !== void 0) {
                     const _errs6 = errors;
                     if (
                       !validate58(data.taskId, {
@@ -3588,7 +3623,7 @@ function validate82(
                     var valid0 = true;
                   }
                   if (valid0) {
-                    if (data.artifactType !== undefined) {
+                    if (data.artifactType !== void 0) {
                       const _errs7 = errors;
                       if ("task_center_control" !== data.artifactType) {
                         validate82.errors = [
@@ -3606,7 +3641,7 @@ function validate82(
                       var valid0 = true;
                     }
                     if (valid0) {
-                      if (data.action !== undefined) {
+                      if (data.action !== void 0) {
                         let data6 = data.action;
                         const _errs8 = errors;
                         if (!(
@@ -3633,7 +3668,7 @@ function validate82(
                         var valid0 = true;
                       }
                       if (valid0) {
-                        if (data.rootKeyId !== undefined) {
+                        if (data.rootKeyId !== void 0) {
                           const _errs9 = errors;
                           if (
                             !validate86(data.rootKeyId, {
@@ -3655,7 +3690,7 @@ function validate82(
                           var valid0 = true;
                         }
                         if (valid0) {
-                          if (data.deviceSigningKeyId !== undefined) {
+                          if (data.deviceSigningKeyId !== void 0) {
                             const _errs10 = errors;
                             if (
                               !validate86(data.deviceSigningKeyId, {
@@ -3677,7 +3712,7 @@ function validate82(
                             var valid0 = true;
                           }
                           if (valid0) {
-                            if (data.registrySequence !== undefined) {
+                            if (data.registrySequence !== void 0) {
                               let data9 = data.registrySequence;
                               const _errs11 = errors;
                               if (!(typeof data9 == "number" && !(data9 % 1) && !isNaN(data9))) {
@@ -3723,7 +3758,7 @@ function validate82(
                               var valid0 = true;
                             }
                             if (valid0) {
-                              if (data.checkpointDigest !== undefined) {
+                              if (data.checkpointDigest !== void 0) {
                                 const _errs13 = errors;
                                 if (
                                   !validate75(data.checkpointDigest, {
@@ -3745,7 +3780,7 @@ function validate82(
                                 var valid0 = true;
                               }
                               if (valid0) {
-                                if (data.keyEpoch !== undefined) {
+                                if (data.keyEpoch !== void 0) {
                                   let data11 = data.keyEpoch;
                                   const _errs14 = errors;
                                   if (!(
@@ -3795,7 +3830,7 @@ function validate82(
                                   var valid0 = true;
                                 }
                                 if (valid0) {
-                                  if (data.issuedAt !== undefined) {
+                                  if (data.issuedAt !== void 0) {
                                     let data12 = data.issuedAt;
                                     const _errs16 = errors;
                                     if (!(
@@ -3845,7 +3880,7 @@ function validate82(
                                     var valid0 = true;
                                   }
                                   if (valid0) {
-                                    if (data.stableOperationId !== undefined) {
+                                    if (data.stableOperationId !== void 0) {
                                       const _errs18 = errors;
                                       if (
                                         !validate90(data.stableOperationId, {
@@ -3867,7 +3902,7 @@ function validate82(
                                       var valid0 = true;
                                     }
                                     if (valid0) {
-                                      if (data.expectedDefinitionVersion !== undefined) {
+                                      if (data.expectedDefinitionVersion !== void 0) {
                                         let data14 = data.expectedDefinitionVersion;
                                         const _errs19 = errors;
                                         if (!(
@@ -3926,7 +3961,7 @@ function validate82(
                                         var valid0 = true;
                                       }
                                       if (valid0) {
-                                        if (data.expectedAssignmentVersion !== undefined) {
+                                        if (data.expectedAssignmentVersion !== void 0) {
                                           let data15 = data.expectedAssignmentVersion;
                                           const _errs21 = errors;
                                           const _errs22 = errors;
@@ -4045,7 +4080,7 @@ function validate82(
                                           var valid0 = true;
                                         }
                                         if (valid0) {
-                                          if (data.assignmentId !== undefined) {
+                                          if (data.assignmentId !== void 0) {
                                             let data16 = data.assignmentId;
                                             const _errs27 = errors;
                                             const _errs28 = errors;
@@ -4116,7 +4151,7 @@ function validate82(
                                             var valid0 = true;
                                           }
                                           if (valid0) {
-                                            if (data.schedule !== undefined) {
+                                            if (data.schedule !== void 0) {
                                               let data17 = data.schedule;
                                               const _errs32 = errors;
                                               const _errs33 = errors;
@@ -4186,7 +4221,7 @@ function validate82(
                                               var valid0 = true;
                                             }
                                             if (valid0) {
-                                              if (data.assignment !== undefined) {
+                                              if (data.assignment !== void 0) {
                                                 let data18 = data.assignment;
                                                 const _errs37 = errors;
                                                 const _errs38 = errors;
@@ -4257,7 +4292,7 @@ function validate82(
                                                 var valid0 = true;
                                               }
                                               if (valid0) {
-                                                if (data.intent !== undefined) {
+                                                if (data.intent !== void 0) {
                                                   let data19 = data.intent;
                                                   const _errs42 = errors;
                                                   const _errs43 = errors;
@@ -4328,7 +4363,7 @@ function validate82(
                                                   var valid0 = true;
                                                 }
                                                 if (valid0) {
-                                                  if (data.taskVersion !== undefined) {
+                                                  if (data.taskVersion !== void 0) {
                                                     let data20 = data.taskVersion;
                                                     const _errs47 = errors;
                                                     if (!(
@@ -4393,7 +4428,7 @@ function validate82(
                                                     var valid0 = true;
                                                   }
                                                   if (valid0) {
-                                                    if (data.executionEpoch !== undefined) {
+                                                    if (data.executionEpoch !== void 0) {
                                                       let data21 = data.executionEpoch;
                                                       const _errs49 = errors;
                                                       if (!(
@@ -4500,10 +4535,10 @@ function validate81(
   let errors = 0;
   const evaluated0 = validate81.evaluated;
   if (evaluated0.dynamicProps) {
-    evaluated0.props = undefined;
+    evaluated0.props = void 0;
   }
   if (evaluated0.dynamicItems) {
-    evaluated0.items = undefined;
+    evaluated0.items = void 0;
   }
   if (
     !validate82(data, { instancePath, parentData, parentDataProperty, rootData, dynamicAnchors })
@@ -4516,8 +4551,7 @@ function validate81(
 }
 validate81.evaluated = { props: true, dynamicProps: false, dynamicItems: false };
 exports.CenterAgentRequestPayload = validate104;
-const schema36 = { $ref: "urn:folioview:task-center:v1#/$defs/CenterAgentRequestPayload" };
-const schema37 = {
+var schema37 = {
   type: "object",
   properties: {
     contractVersion: { const: "folioview.agent-workspace.v2.0" },
@@ -4573,8 +4607,8 @@ const schema37 = {
   ],
   additionalProperties: false,
 };
-const formats0 = /^https:\/\/[^\s\\]+$/;
-const pattern9 = new RegExp(
+var formats0 = /^https:\/\/[^\s\\]+$/;
+var pattern9 = new RegExp(
   "^/agent/v3/persistent/owners/[A-Za-z0-9_-]{1,128}/vaults/[A-Za-z0-9_-]{1,128}/connections/[A-Za-z0-9_-]{1,128}/task-center/(context|prepare|plans/report)$",
   "u",
 );
@@ -4586,37 +4620,37 @@ function validate105(
   let errors = 0;
   const evaluated0 = validate105.evaluated;
   if (evaluated0.dynamicProps) {
-    evaluated0.props = undefined;
+    evaluated0.props = void 0;
   }
   if (evaluated0.dynamicItems) {
-    evaluated0.items = undefined;
+    evaluated0.items = void 0;
   }
   if (errors === 0) {
     if (data && typeof data == "object" && !Array.isArray(data)) {
       let missing0;
       if (
-        (data.contractVersion === undefined && (missing0 = "contractVersion")) ||
-        (data.profile === undefined && (missing0 = "profile")) ||
-        (data.artifactType === undefined && (missing0 = "artifactType")) ||
-        (data.purpose === undefined && (missing0 = "purpose")) ||
-        (data.ownerSubject === undefined && (missing0 = "ownerSubject")) ||
-        (data.vaultId === undefined && (missing0 = "vaultId")) ||
-        (data.connectionId === undefined && (missing0 = "connectionId")) ||
-        (data.agentId === undefined && (missing0 = "agentId")) ||
-        (data.clientId === undefined && (missing0 = "clientId")) ||
-        (data.rootKeyId === undefined && (missing0 = "rootKeyId")) ||
-        (data.agentSigningKeyId === undefined && (missing0 = "agentSigningKeyId")) ||
-        (data.agentEncryptionKeyId === undefined && (missing0 = "agentEncryptionKeyId")) ||
-        (data.identityEpoch === undefined && (missing0 = "identityEpoch")) ||
-        (data.bindingFingerprint === undefined && (missing0 = "bindingFingerprint")) ||
-        (data.audience === undefined && (missing0 = "audience")) ||
-        (data.method === undefined && (missing0 = "method")) ||
-        (data.path === undefined && (missing0 = "path")) ||
-        (data.bodyDigest === undefined && (missing0 = "bodyDigest")) ||
-        (data.requestId === undefined && (missing0 = "requestId")) ||
-        (data.nonce === undefined && (missing0 = "nonce")) ||
-        (data.issuedAt === undefined && (missing0 = "issuedAt")) ||
-        (data.expiresAt === undefined && (missing0 = "expiresAt"))
+        (data.contractVersion === void 0 && (missing0 = "contractVersion")) ||
+        (data.profile === void 0 && (missing0 = "profile")) ||
+        (data.artifactType === void 0 && (missing0 = "artifactType")) ||
+        (data.purpose === void 0 && (missing0 = "purpose")) ||
+        (data.ownerSubject === void 0 && (missing0 = "ownerSubject")) ||
+        (data.vaultId === void 0 && (missing0 = "vaultId")) ||
+        (data.connectionId === void 0 && (missing0 = "connectionId")) ||
+        (data.agentId === void 0 && (missing0 = "agentId")) ||
+        (data.clientId === void 0 && (missing0 = "clientId")) ||
+        (data.rootKeyId === void 0 && (missing0 = "rootKeyId")) ||
+        (data.agentSigningKeyId === void 0 && (missing0 = "agentSigningKeyId")) ||
+        (data.agentEncryptionKeyId === void 0 && (missing0 = "agentEncryptionKeyId")) ||
+        (data.identityEpoch === void 0 && (missing0 = "identityEpoch")) ||
+        (data.bindingFingerprint === void 0 && (missing0 = "bindingFingerprint")) ||
+        (data.audience === void 0 && (missing0 = "audience")) ||
+        (data.method === void 0 && (missing0 = "method")) ||
+        (data.path === void 0 && (missing0 = "path")) ||
+        (data.bodyDigest === void 0 && (missing0 = "bodyDigest")) ||
+        (data.requestId === void 0 && (missing0 = "requestId")) ||
+        (data.nonce === void 0 && (missing0 = "nonce")) ||
+        (data.issuedAt === void 0 && (missing0 = "issuedAt")) ||
+        (data.expiresAt === void 0 && (missing0 = "expiresAt"))
       ) {
         validate105.errors = [
           {
@@ -4644,7 +4678,7 @@ function validate105(
           }
         }
         if (_errs1 === errors) {
-          if (data.contractVersion !== undefined) {
+          if (data.contractVersion !== void 0) {
             const _errs2 = errors;
             if ("folioview.agent-workspace.v2.0" !== data.contractVersion) {
               validate105.errors = [
@@ -4662,7 +4696,7 @@ function validate105(
             var valid0 = true;
           }
           if (valid0) {
-            if (data.profile !== undefined) {
+            if (data.profile !== void 0) {
               const _errs3 = errors;
               if ("folioview.task-center.v1" !== data.profile) {
                 validate105.errors = [
@@ -4680,7 +4714,7 @@ function validate105(
               var valid0 = true;
             }
             if (valid0) {
-              if (data.artifactType !== undefined) {
+              if (data.artifactType !== void 0) {
                 const _errs4 = errors;
                 if ("task_center_agent_request" !== data.artifactType) {
                   validate105.errors = [
@@ -4698,7 +4732,7 @@ function validate105(
                 var valid0 = true;
               }
               if (valid0) {
-                if (data.purpose !== undefined) {
+                if (data.purpose !== void 0) {
                   const _errs5 = errors;
                   if ("authenticated_request" !== data.purpose) {
                     validate105.errors = [
@@ -4716,7 +4750,7 @@ function validate105(
                   var valid0 = true;
                 }
                 if (valid0) {
-                  if (data.ownerSubject !== undefined) {
+                  if (data.ownerSubject !== void 0) {
                     const _errs6 = errors;
                     if (
                       !validate58(data.ownerSubject, {
@@ -4736,7 +4770,7 @@ function validate105(
                     var valid0 = true;
                   }
                   if (valid0) {
-                    if (data.vaultId !== undefined) {
+                    if (data.vaultId !== void 0) {
                       const _errs7 = errors;
                       if (
                         !validate58(data.vaultId, {
@@ -4756,7 +4790,7 @@ function validate105(
                       var valid0 = true;
                     }
                     if (valid0) {
-                      if (data.connectionId !== undefined) {
+                      if (data.connectionId !== void 0) {
                         const _errs8 = errors;
                         if (
                           !validate58(data.connectionId, {
@@ -4778,7 +4812,7 @@ function validate105(
                         var valid0 = true;
                       }
                       if (valid0) {
-                        if (data.agentId !== undefined) {
+                        if (data.agentId !== void 0) {
                           const _errs9 = errors;
                           if (
                             !validate58(data.agentId, {
@@ -4800,7 +4834,7 @@ function validate105(
                           var valid0 = true;
                         }
                         if (valid0) {
-                          if (data.clientId !== undefined) {
+                          if (data.clientId !== void 0) {
                             const _errs10 = errors;
                             if (
                               !validate58(data.clientId, {
@@ -4822,7 +4856,7 @@ function validate105(
                             var valid0 = true;
                           }
                           if (valid0) {
-                            if (data.rootKeyId !== undefined) {
+                            if (data.rootKeyId !== void 0) {
                               const _errs11 = errors;
                               if (
                                 !validate86(data.rootKeyId, {
@@ -4844,7 +4878,7 @@ function validate105(
                               var valid0 = true;
                             }
                             if (valid0) {
-                              if (data.agentSigningKeyId !== undefined) {
+                              if (data.agentSigningKeyId !== void 0) {
                                 const _errs12 = errors;
                                 if (
                                   !validate86(data.agentSigningKeyId, {
@@ -4866,7 +4900,7 @@ function validate105(
                                 var valid0 = true;
                               }
                               if (valid0) {
-                                if (data.agentEncryptionKeyId !== undefined) {
+                                if (data.agentEncryptionKeyId !== void 0) {
                                   const _errs13 = errors;
                                   if (
                                     !validate86(data.agentEncryptionKeyId, {
@@ -4888,7 +4922,7 @@ function validate105(
                                   var valid0 = true;
                                 }
                                 if (valid0) {
-                                  if (data.identityEpoch !== undefined) {
+                                  if (data.identityEpoch !== void 0) {
                                     let data12 = data.identityEpoch;
                                     const _errs14 = errors;
                                     if (!(
@@ -4938,7 +4972,7 @@ function validate105(
                                     var valid0 = true;
                                   }
                                   if (valid0) {
-                                    if (data.bindingFingerprint !== undefined) {
+                                    if (data.bindingFingerprint !== void 0) {
                                       const _errs16 = errors;
                                       if (
                                         !validate75(data.bindingFingerprint, {
@@ -4960,7 +4994,7 @@ function validate105(
                                       var valid0 = true;
                                     }
                                     if (valid0) {
-                                      if (data.audience !== undefined) {
+                                      if (data.audience !== void 0) {
                                         let data14 = data.audience;
                                         const _errs17 = errors;
                                         if (errors === _errs17) {
@@ -5007,7 +5041,7 @@ function validate105(
                                         var valid0 = true;
                                       }
                                       if (valid0) {
-                                        if (data.method !== undefined) {
+                                        if (data.method !== void 0) {
                                           let data15 = data.method;
                                           const _errs19 = errors;
                                           if (!(data15 === "GET" || data15 === "POST")) {
@@ -5028,7 +5062,7 @@ function validate105(
                                           var valid0 = true;
                                         }
                                         if (valid0) {
-                                          if (data.path !== undefined) {
+                                          if (data.path !== void 0) {
                                             let data16 = data.path;
                                             const _errs20 = errors;
                                             if (errors === _errs20) {
@@ -5064,7 +5098,7 @@ function validate105(
                                             var valid0 = true;
                                           }
                                           if (valid0) {
-                                            if (data.bodyDigest !== undefined) {
+                                            if (data.bodyDigest !== void 0) {
                                               const _errs22 = errors;
                                               if (
                                                 !validate75(data.bodyDigest, {
@@ -5086,7 +5120,7 @@ function validate105(
                                               var valid0 = true;
                                             }
                                             if (valid0) {
-                                              if (data.requestId !== undefined) {
+                                              if (data.requestId !== void 0) {
                                                 const _errs23 = errors;
                                                 if (
                                                   !validate90(data.requestId, {
@@ -5108,7 +5142,7 @@ function validate105(
                                                 var valid0 = true;
                                               }
                                               if (valid0) {
-                                                if (data.nonce !== undefined) {
+                                                if (data.nonce !== void 0) {
                                                   let data19 = data.nonce;
                                                   const _errs24 = errors;
                                                   if (errors === _errs24) {
@@ -5157,7 +5191,7 @@ function validate105(
                                                   var valid0 = true;
                                                 }
                                                 if (valid0) {
-                                                  if (data.issuedAt !== undefined) {
+                                                  if (data.issuedAt !== void 0) {
                                                     let data20 = data.issuedAt;
                                                     const _errs26 = errors;
                                                     if (!(
@@ -5220,7 +5254,7 @@ function validate105(
                                                     var valid0 = true;
                                                   }
                                                   if (valid0) {
-                                                    if (data.expiresAt !== undefined) {
+                                                    if (data.expiresAt !== void 0) {
                                                       let data21 = data.expiresAt;
                                                       const _errs28 = errors;
                                                       if (!(
@@ -5326,10 +5360,10 @@ function validate104(
   let errors = 0;
   const evaluated0 = validate104.evaluated;
   if (evaluated0.dynamicProps) {
-    evaluated0.props = undefined;
+    evaluated0.props = void 0;
   }
   if (evaluated0.dynamicItems) {
-    evaluated0.items = undefined;
+    evaluated0.items = void 0;
   }
   if (
     !validate105(data, { instancePath, parentData, parentDataProperty, rootData, dynamicAnchors })

@@ -10,7 +10,7 @@
   "files": {
     "package.json": "1806022c1c525d39247951e23ad31d3053fbe027f72d58d9884217d60c62fc0c",
     "package-lock.json": "84f88265136b1b9870e97fc60e0f6b4e357061592d0f5ffc45c2b66312b702ed",
-    "build.mjs": "26a1ec2ed8f403a04256e561f4f67b12d53f4430a326d113cb133d45523e1d3d",
+    "build.mjs": "d6b5ac0b2db0a5e95b34db71cb8ba1d6824aeaf1b0b02365e299e62ff73d0012",
     "shared-contract.integrity.json": "b288644578f35570030c94a3f0cc6f1f125b0865151ada1aa1c48b79f798e3bd",
     "THIRD_PARTY_NOTICES.md": "16b1768276d7eed2a7ce1142f5766c211da784615fa004a36853f2658e18dd4d",
     "src/cli.mjs": "e3afa81fd1e0e4a0ad4bb0d3b23a35e262d79ff1563358c2c342acc5a3510c73",
@@ -25,8 +25,8 @@
     "src/schedule.mjs": "c9fcc6c59026de54dcb846d071532316f52ba75bc4cb9e94ff0b6e334caae42e",
     "src/policy.mjs": "9425478e061142accddbb32502eb4eb17817bf32843ec87693913a12d8e0ba2b",
     "src/task-center.mjs": "2187e51e3a0f741fa0587354d936ee5c2849a1e6ab72a8cd3bbed55cbd0e3f98",
-    "src/task-center-validators.cjs": "cff1317f8210712b088249f118edd3db2966990726b0018bb460cb07f82049ff",
-    "dist/index.mjs": "b4c5027de5efb63df600b20851e5ee483b1b60ab40487581e1838dd56e9f242f",
-    "dist/cli.mjs": "70089be7a77181f2f954d9afeddd9dd1b8561953005342916f9538bd3e8544ce"
+    "src/task-center-validators.cjs": "98e8958004f1a6b5f8e5ef12d872d99fdcd8c9684944b669e404021616c75163",
+    "dist/index.mjs": "697b42ddf5c66da9cdd3c7ea852b71b0f95990b3196fd117628dbff78c43f2f7",
+    "dist/cli.mjs": "02bb852a72693ec2a3a1de04c6a2fe3752258d74c67853c521433d6ff49e2f30"
   }
 }

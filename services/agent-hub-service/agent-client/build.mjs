@@ -53,12 +53,21 @@ for (const name of [
   ajv.addSchema({ $ref: center.$id + "#/$defs/" + name }, id);
   mapping[name] = id;
 }
+// Ajv standalone validators can still reference tiny Ajv runtime helpers.
+// Bundle those now so source consumers/tests also need no runtime npm install.
+const validators = await build({
+  absWorkingDir: root,
+  stdin: { contents: (standalone.default ?? standalone)(ajv, mapping), resolveDir: root },
+  bundle: true,
+  platform: "node",
+  format: "cjs",
+  target: "node24.12",
+  write: false,
+  legalComments: "none",
+});
 await writeFile(
   root + "/src/task-center-validators.cjs",
-  await prettier.format((standalone.default ?? standalone)(ajv, mapping), {
-    parser: "babel",
-    printWidth: 100,
-  }),
+  await prettier.format(validators.outputFiles[0].text, { parser: "babel", printWidth: 100 }),
 );
 await mkdir(root + "/dist", { recursive: true });
 await writeFile(root + "/shared-contract.integrity.json", lock);
