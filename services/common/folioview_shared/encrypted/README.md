@@ -212,3 +212,8 @@ implement atomic replacement and current-generation fences before enabling it.
 The additive [Owner/provider current slot contract](docs/agent-credentials.md#ownerprovider-current-connection-slot)
 provides pure reviewed replacement/disconnect plans and a live slot fence. It does not
 change existing consumers, migrate connections or merge legacy task/resource scopes.
+
+The additive [task-center lifecycle contract](docs/persistent-content.md#task-center-extension)
+separates tasks, zero-to-many canonical assignments, immutable run attribution,
+verified trigger sources and coupled trash/restore/purge fences. It enables no
+consumer, native dispatch, migration or deletion on import.
