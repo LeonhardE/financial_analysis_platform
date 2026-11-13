@@ -34,6 +34,8 @@ function load(code, imports) {
     module,
     exports: module.exports,
     require(name) {
+      if (["./WorkspaceFeedback", "./ReportDialog"].includes(name))
+        return require("./workspace-feedback-helpers.cjs").component(name, imports);
       assert.ok(Object.hasOwn(imports, name), "Unexpected UI import " + name);
       return imports[name];
     },
@@ -278,7 +280,7 @@ test("unlocked English and Chinese views display original revision evidence, lim
     assert.ok(html.includes(state.model.selected.content.title));
     assert.ok(html.includes(state.model.selected.metadata.connectionId));
     assert.ok(html.includes(state.model.selected.metadata.manifestId));
-    assert.match(html, /aria-labelledby="result-title"/);
+    assert.match(html, /aria-labelledby="legacy-report-title"/);
     assert.match(html, /<details[^>]*>/);
     assert.match(html, /target="_blank" rel="noopener noreferrer" referrerPolicy="no-referrer"/);
     assert.ok(html.includes(catalogs[locale].inbox.searchScope));

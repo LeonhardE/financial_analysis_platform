@@ -57,9 +57,11 @@ function NavigationIcon({ view }: { view: WorkspaceView }) {
 export function WorkspaceSidebar({
   activeView,
   onNavigate,
+  workspace,
 }: {
   activeView: WorkspaceView;
   onNavigate: (view: WorkspaceView) => void;
+  workspace?: { authenticated: boolean; phase: string; lock: () => void };
 }) {
   const t = useTranslations();
   const [collapsed, setCollapsed] = useState(true);
@@ -122,15 +124,14 @@ export function WorkspaceSidebar({
 
   return (
     <aside className={styles.slot} data-collapsed={compact} data-mobile-open={mobileOpen}>
-      {modal && (
-        <button
-          type="button"
-          className={styles.backdrop}
-          aria-label={t("nav.closeSidebar")}
-          tabIndex={-1}
-          onClick={closeMobile}
-        />
-      )}
+      <button
+        type="button"
+        className={styles.backdrop}
+        aria-label={t("nav.closeSidebar")}
+        tabIndex={-1}
+        aria-hidden={!modal}
+        onClick={closeMobile}
+      />
       <div
         ref={rail}
         id="workspace-sidebar"
@@ -230,7 +231,14 @@ export function WorkspaceSidebar({
               ),
             )}
           </nav>
-          <AccountControls collapsed={compact} />
+          <AccountControls
+            collapsed={compact}
+            canLock={Boolean(
+              workspace?.authenticated &&
+              ["unlocked", "needs-device", "renewal-only"].includes(workspace.phase),
+            )}
+            onLock={workspace?.lock}
+          />
         </div>
       </div>
     </aside>

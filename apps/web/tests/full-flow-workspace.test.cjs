@@ -43,6 +43,8 @@ function compile(file, imports = {}, globals = {}) {
     module,
     exports: module.exports,
     require(name) {
+      if (["./WorkspaceFeedback", "./ReportDialog"].includes(name))
+        return require("./workspace-feedback-helpers.cjs").component(name, imports);
       if (name === "@/lib/workspace-cache") return cacheContracts;
       assert.ok(Object.hasOwn(imports, name), "Unexpected flow import " + name);
       return imports[name];

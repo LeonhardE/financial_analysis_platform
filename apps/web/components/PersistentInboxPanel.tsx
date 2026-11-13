@@ -3,6 +3,14 @@ import { useEffect, useRef, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import type { HoldingsWorkspace } from "./useHoldingsWorkspace";
 import type { PersistentWorkspaceModel } from "./usePersistentWorkspace";
+import { ReportDialog } from "./ReportDialog";
+import {
+  LoadingIndicator,
+  InlineError,
+  UnreadBadge,
+  UnreadDot,
+  EmptyState,
+} from "./WorkspaceFeedback";
 import { DisplayLru } from "@/lib/workspace-cache";
 import { SafeReportMarkdown, reportLink } from "./SafeReportMarkdown";
 import type { ResultContent, ResultStatePacket } from "@/lib/encrypted-types";
@@ -18,7 +26,7 @@ type Meta = {
   starred: boolean;
   archived: boolean;
 };
-type Selected = { scope: string; metadata: Meta; content: ResultContent };
+type Selected = { scope: string; metadata: Meta; content: ResultContent; viewId: number };
 const CONTRACT = "folioview.agent-workspace.v2.0";
 export function PersistentInboxPanel({
   workspace,
@@ -42,11 +50,13 @@ export function PersistentInboxPanel({
     [selected, setSelected] = useState<Selected | null>(null),
     [filter, setFilter] = useState<"all" | "unread" | "starred" | "archived">("all"),
     [query, setQuery] = useState(""),
-    [error, setError] = useState(false);
+    [error, setError] = useState(false),
+    [listLoading, setListLoading] = useState(false);
   const cache = useRef(
     workspace.displayCache?.reports ?? new DisplayLru<unknown>(10, 16 * 1024 * 1024),
   );
   const needsLoad = useRef(true);
+  const autoRead = useRef<string | null>(null);
   const pending = useRef<{
       scope: string;
       metadata: Meta;
@@ -61,6 +71,8 @@ export function PersistentInboxPanel({
   const load = async (more = false) => {
     if (!scope || !active || model.busy) return;
     needsLoad.current = false;
+    setListLoading(true);
+    setError(false);
     const original = scope,
       id = ++serial.current;
     const data = await model.execute(async (_c, api, assert) => {
@@ -72,6 +84,16 @@ export function PersistentInboxPanel({
       assert();
       return response;
     });
+    if (live.current.scope !== original || !live.current.active || serial.current !== id) return;
+    setListLoading(false);
+    if (!data) {
+      if (model.isBusy?.()) {
+        needsLoad.current = true;
+        return;
+      }
+      setError(true);
+      return;
+    }
     if (data && live.current.scope === original && live.current.active && serial.current === id) {
       setError(false);
       setState((s) => ({
@@ -92,12 +114,14 @@ export function PersistentInboxPanel({
     setQuery("");
     setError(false);
     pending.current = null;
+    autoRead.current = null;
     cache.current.clear();
     needsLoad.current = true;
   }, [scope]);
   useEffect(() => {
     ++serial.current;
     needsLoad.current = true;
+    setListLoading(false);
   }, [active]);
   useEffect(() => {
     if (scope && active && !model.busy && needsLoad.current) void load();
@@ -122,24 +146,27 @@ export function PersistentInboxPanel({
     });
     if (live.current.scope !== original || !live.current.active || serial.current !== id) return;
     if (result) {
-      setSelected({ scope: original, ...result });
+      setSelected({ scope: original, ...result, viewId: id });
       setError(false);
     } else setError(true);
   };
   const update = async (changes: Record<string, boolean>) => {
-    if (!detail || !scope || !workspace.canWriteState) return;
+    if (!scope || !workspace.canWriteState) return;
+    const target =
+      detail?.metadata ?? (pending.current?.scope === scope ? pending.current.metadata : null);
+    if (!target) return;
     const original = scope;
     const result = await model.execute(async (_c, api, assert) => {
       let p = pending.current;
-      if (p && (p.scope !== original || p.metadata.resultId !== detail.metadata.resultId))
+      if (p && (p.scope !== original || p.metadata.resultId !== target.resultId))
         throw Error("pending");
       if (!p) {
         const packet = await workspace.signPersistentResultState({
-          metadata: detail.metadata,
+          metadata: target,
           changes,
         });
         assert();
-        p = { scope: original, metadata: detail.metadata, changes, packet };
+        p = { scope: original, metadata: target, changes, packet };
         pending.current = p;
       }
       const response = await api(
@@ -171,18 +198,43 @@ export function PersistentInboxPanel({
     });
     if (result && live.current.scope === original) {
       setSelected((s) =>
-        s?.scope === original && s.metadata.resultId === result.resultId
+        s?.scope === original &&
+        s.metadata.resultId === result.resultId &&
+        s.metadata.stateVersion <= result.stateVersion
           ? { ...s, metadata: result }
           : s,
       );
       setState((s) =>
         s.scope === original
-          ? { ...s, items: s.items.map((m) => (m.resultId === result.resultId ? result : m)) }
+          ? {
+              ...s,
+              items: s.items.map((m) =>
+                m.resultId === result.resultId && m.stateVersion <= result.stateVersion
+                  ? result
+                  : m,
+              ),
+            }
           : s,
       );
       setError(false);
     } else if (live.current.scope === original) setError(true);
   };
+  useEffect(() => {
+    if (
+      !detail ||
+      !active ||
+      !scope ||
+      !workspace.canWriteState ||
+      model.busy ||
+      pending.current ||
+      detail.metadata.read
+    )
+      return;
+    const key = `${scope}:${detail.metadata.resultId}:${detail.viewId}`;
+    if (autoRead.current === key) return;
+    autoRead.current = key;
+    void update({ read: true });
+  }, [scope, active, workspace.canWriteState, model.busy, detail]);
   const items = current.items
     .filter((m) =>
       filter === "archived"
@@ -200,7 +252,6 @@ export function PersistentInboxPanel({
       <header className={styles.heading}>
         <div>
           <h1 id="persistent-inbox-title">{t("inboxTitle")}</h1>
-          <p>{t("inboxHelp")}</p>
         </div>
         <button
           className={styles.secondary}
@@ -216,7 +267,7 @@ export function PersistentInboxPanel({
         </p>
       ) : (
         <>
-          <div className={styles.headerActions}>
+          <div className={styles.headerActions} aria-busy={model.busy}>
             {(["all", "unread", "starred", "archived"] as const).map((f) => (
               <button
                 className={styles.secondary}
@@ -225,22 +276,58 @@ export function PersistentInboxPanel({
                 onClick={() => setFilter(f)}
               >
                 {t("filter_" + f)}
+                {f === "unread" && (
+                  <UnreadBadge
+                    count={current.items.filter((item) => !item.read).length}
+                    label={t("loadedUnreadCount", {
+                      count: current.items.filter((item) => !item.read).length,
+                    })}
+                  />
+                )}
               </button>
             ))}
           </div>
-          <p className={styles.scope}>{t("loadedReports", { count: current.items.length })}</p>
-          {error && <p role="alert">{t("requestFailed")}</p>}
+          <LoadingIndicator
+            busy={model.busy || listLoading || (current.scope !== scope && !error)}
+            hasContent={current.items.length > 0}
+            label={t("loadingReports")}
+          />
+          {error && (
+            <InlineError
+              message={t("requestFailed")}
+              retryLabel={t("refresh")}
+              onRetry={() => void load()}
+            />
+          )}
+          {pending.current && !detail && (
+            <div role="status">
+              <p>{t("stateUnknown")}</p>
+              <button
+                className={styles.secondary}
+                disabled={model.busy}
+                onClick={() => void update(pending.current!.changes)}
+              >
+                {t("resume")}
+              </button>
+            </div>
+          )}
           <div className={styles.grid}>
             <div>
-              {items.length === 0 && <p>{t("noReports")}</p>}
+              {items.length === 0 &&
+                current.scope === scope &&
+                !model.busy &&
+                !listLoading &&
+                !error && <EmptyState title={t("noReports")} />}
               {items.map((m) => (
                 <button
                   key={m.resultId}
+                  data-result-row
                   className={styles.secondary}
                   style={{ display: "block", width: "100%", marginBottom: 8, textAlign: "left" }}
                   disabled={model.busy || !!pending.current}
                   onClick={() => void open(m)}
                 >
+                  <UnreadDot unread={!m.read} />
                   {date(m.receivedAt)} · {t(m.read ? "read" : "unread")}
                   {m.starred ? " ★" : ""}
                 </button>
@@ -255,88 +342,96 @@ export function PersistentInboxPanel({
                 </button>
               )}
             </div>
-            <article>
-              {!detail ? (
-                <p>{t("selectReport")}</p>
-              ) : (
-                <>
-                  <h2>{detail.content.title}</h2>
-                  <p>{date(detail.metadata.receivedAt)}</p>
-                  <div className={styles.headerActions}>
-                    <button
-                      className={styles.secondary}
-                      disabled={model.busy || !workspace.canWriteState || !!pending.current}
-                      onClick={() => void update({ read: !detail.metadata.read })}
-                    >
-                      {t(detail.metadata.read ? "markUnread" : "markRead")}
-                    </button>
-                    <button
-                      className={styles.secondary}
-                      disabled={model.busy || !workspace.canWriteState || !!pending.current}
-                      onClick={() => void update({ starred: !detail.metadata.starred })}
-                    >
-                      {t(detail.metadata.starred ? "unstar" : "star")}
-                    </button>
-                    <button
-                      className={styles.secondary}
-                      disabled={model.busy || !workspace.canWriteState || !!pending.current}
-                      onClick={() => void update({ archived: !detail.metadata.archived })}
-                    >
-                      {t(detail.metadata.archived ? "unarchive" : "archive")}
-                    </button>
-                  </div>
-                  {pending.current && (
-                    <p>
-                      {t("stateUnknown")}{" "}
+            <ReportDialog
+              id="persistent-report"
+              open={Boolean(detail && active)}
+              identity={detail?.metadata.resultId ?? ""}
+              title={detail?.content.title ?? t("inboxTitle")}
+              closeLabel={t("closeReport")}
+              onClose={() => setSelected(null)}
+            >
+              <article>
+                {!detail ? (
+                  <p>{t("selectReport")}</p>
+                ) : (
+                  <>
+                    <p>{date(detail.metadata.receivedAt)}</p>
+                    <div className={styles.headerActions}>
                       <button
                         className={styles.secondary}
-                        disabled={model.busy}
-                        onClick={() => void update(pending.current!.changes)}
+                        disabled={model.busy || !workspace.canWriteState || !!pending.current}
+                        onClick={() => void update({ read: !detail.metadata.read })}
                       >
-                        {t("resume")}
+                        {t(detail.metadata.read ? "markUnread" : "markRead")}
                       </button>
-                    </p>
-                  )}
-                  <p>{detail.content.summary}</p>
-                  <div className={styles.sections}>
-                    {detail.content.sections.map((section) => (
-                      <section key={section.sectionId}>
-                        <h3>{section.sectionId}</h3>
-                        <SafeReportMarkdown markdown={section.markdown} />
+                      <button
+                        className={styles.secondary}
+                        disabled={model.busy || !workspace.canWriteState || !!pending.current}
+                        onClick={() => void update({ starred: !detail.metadata.starred })}
+                      >
+                        {t(detail.metadata.starred ? "unstar" : "star")}
+                      </button>
+                      <button
+                        className={styles.secondary}
+                        disabled={model.busy || !workspace.canWriteState || !!pending.current}
+                        onClick={() => void update({ archived: !detail.metadata.archived })}
+                      >
+                        {t(detail.metadata.archived ? "unarchive" : "archive")}
+                      </button>
+                    </div>
+                    {pending.current && (
+                      <p>
+                        {t("stateUnknown")}{" "}
+                        <button
+                          className={styles.secondary}
+                          disabled={model.busy}
+                          onClick={() => void update(pending.current!.changes)}
+                        >
+                          {t("resume")}
+                        </button>
+                      </p>
+                    )}
+                    <p>{detail.content.summary}</p>
+                    <div className={styles.sections}>
+                      {detail.content.sections.map((section) => (
+                        <section key={section.sectionId}>
+                          <h3>{section.sectionId}</h3>
+                          <SafeReportMarkdown markdown={section.markdown} />
+                        </section>
+                      ))}
+                    </div>
+                    {detail.content.citations.length > 0 && (
+                      <section>
+                        <h3>{t("citations")}</h3>
+                        <ol>
+                          {detail.content.citations.map((c) => (
+                            <li key={c.citationId}>
+                              {reportLink(c.url) ? (
+                                <a href={c.url} target="_blank" rel="noreferrer noopener">
+                                  {c.title}
+                                </a>
+                              ) : (
+                                c.title
+                              )}
+                            </li>
+                          ))}
+                        </ol>
                       </section>
-                    ))}
-                  </div>
-                  {detail.content.citations.length > 0 && (
-                    <section>
-                      <h3>{t("citations")}</h3>
-                      <ol>
-                        {detail.content.citations.map((c) => (
-                          <li key={c.citationId}>
-                            {reportLink(c.url) ? (
-                              <a href={c.url} target="_blank" rel="noreferrer noopener">
-                                {c.title}
-                              </a>
-                            ) : (
-                              c.title
-                            )}
-                          </li>
-                        ))}
-                      </ol>
-                    </section>
-                  )}
-                  <details>
-                    <summary>{t("evidence")}</summary>
-                    <p>{t("verifiedHistory")}</p>
-                    <p>
-                      {t("connectionId")}: <code>{detail.metadata.connectionId}</code>
-                    </p>
-                    <p>
-                      Run: <code>{detail.metadata.runId}</code>
-                    </p>
-                  </details>
-                </>
-              )}
-            </article>
+                    )}
+                    <details>
+                      <summary>{t("evidence")}</summary>
+                      <p>{t("verifiedHistory")}</p>
+                      <p>
+                        {t("connectionId")}: <code>{detail.metadata.connectionId}</code>
+                      </p>
+                      <p>
+                        Run: <code>{detail.metadata.runId}</code>
+                      </p>
+                    </details>
+                  </>
+                )}
+              </article>
+            </ReportDialog>
           </div>
         </>
       )}

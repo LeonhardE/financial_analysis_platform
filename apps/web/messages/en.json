@@ -14,7 +14,7 @@
     "resources": "Resources",
     "inbox": "Inbox",
     "tasks": "Tasks",
-    "agents": "Agents"
+    "agents": "Agent management"
   },
   "market": {
     "indices": "US market indices",
@@ -100,7 +100,8 @@
     "retry": "Retry",
     "unavailable": "Sign-in will be available soon. Browse freely.",
     "guest": "Guest",
-    "notice": "Account status"
+    "notice": "Account status",
+    "lock": "Lock"
   },
   "watchlist": {
     "checking": "Checking account…",
@@ -190,7 +191,8 @@
       "save": "Your changes are applied here, but could not be saved. Try again.",
       "loadTimeout": "Restoring your preferences took too long. Try again.",
       "saveTimeout": "Saving took too long. Your changes still apply here; try again to save them."
-    }
+    },
+    "securityTitle": "Unlock & devices"
   },
   "metrics": {
     "title": "Instrument metrics",
@@ -440,7 +442,8 @@
         "fence": "Confirm access invalidation",
         "disconnect": "Confirm disconnect",
         "delete": "Confirm delete"
-      }
+      },
+      "settings": "Data settings"
     },
     "archiveUnavailable": "A key archive removal needs attention, or the cloud key archive was removed. Open Settings to check the original request or use independent recovery. Your saved content has not been emptied.",
     "archiveSettings": "Open key archive settings",
@@ -573,7 +576,9 @@
     "stateScope": "Read, star and archive apply to this result across all its revisions.",
     "countsHelp": "Counts reflect the last refresh.",
     "archiveUnavailable": "A key archive removal needs attention, or the cloud key archive was removed. Open Settings to check the original request or use independent recovery. Your saved content has not been emptied.",
-    "archiveSettings": "Open key archive settings"
+    "archiveSettings": "Open key archive settings",
+    "closeReport": "Close report",
+    "unreadCount": "{count} unread reports"
   },
   "resourceLibrary": {
     "filterLabel": "Filter resources",
@@ -1201,8 +1206,8 @@
     }
   },
   "persistent": {
-    "title": "Agent",
-    "description": "Connect once and keep using approved resources and tasks.",
+    "title": "Agent management",
+    "description": "Manage your agents’ access.",
     "refresh": "Refresh",
     "signInHelp": "Sign in to manage your Muse connections.",
     "signIn": "Sign in with Google",
@@ -1290,7 +1295,10 @@
     "limitations": "Limitations",
     "evidence": "Check report evidence",
     "verifiedHistory": "This report was verified against the library history, approved recipient and run receipt before decryption.",
-    "previousReports": "View reports from previous foreground connections"
+    "previousReports": "View reports from previous foreground connections",
+    "closeReport": "Close report",
+    "loadingReports": "Loading reports…",
+    "loadedUnreadCount": "{count} unread loaded reports"
   },
   "agentAccess": {
     "waitingForService": "The service is busy. Your connection will continue automatically.",

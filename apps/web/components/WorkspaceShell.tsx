@@ -411,21 +411,17 @@ export default function WorkspaceShell() {
           {t("nav.skip")}
         </a>
       )}
-      <WorkspaceSidebar activeView={activeView} onNavigate={navigate} />
+      <WorkspaceSidebar
+        activeView={activeView}
+        onNavigate={navigate}
+        workspace={encryptedWorkspace}
+      />
       {!pickerOpen && activeView === "markets" && <WatchlistNotification watchlist={watchlist} />}
       <main className="workspace-content" id="workspace-content">
-        {activeView !== "markets" &&
-          encryptedWorkspace.authenticated &&
-          encryptedWorkspace.phase === "unlocked" && (
-            <div className="workspace-unlock-status" role="status">
-              <span>{t("vaultManagement.sharedUnlockHelp")}</span>
-              <button type="button" className="text-button" onClick={encryptedWorkspace.lock}>
-                {t("vaultManagement.lockWorkspace")}
-              </button>
-            </div>
-          )}
-        {activeView === "settings" && <SettingsPanel workspace={encryptedWorkspace} />}
-        <div hidden={activeView !== "resources"}>
+        <div className="workspace-page" hidden={activeView !== "settings"}>
+          <SettingsPanel workspace={encryptedWorkspace} />
+        </div>
+        <div className="workspace-page" hidden={activeView !== "resources"}>
           <ResourcesPanel
             active={activeView === "resources"}
             onCreateTask={(binding) => {
@@ -444,7 +440,7 @@ export default function WorkspaceShell() {
             }}
           />
         </div>
-        <div hidden={activeView !== "tasks"}>
+        <div className="workspace-page" hidden={activeView !== "tasks"}>
           <TasksPanel
             workspace={encryptedWorkspace}
             active={activeView === "tasks"}
@@ -452,7 +448,7 @@ export default function WorkspaceShell() {
             onRequestConsumed={() => setTaskRequest(null)}
           />
         </div>
-        <div hidden={activeView !== "agents"}>
+        <div className="workspace-page" hidden={activeView !== "agents"}>
           <PersistentAgentsPanel
             workspace={encryptedWorkspace}
             model={persistent}
@@ -460,7 +456,7 @@ export default function WorkspaceShell() {
             active={activeView === "agents"}
           />
         </div>
-        <div hidden={activeView !== "inbox"}>
+        <div className="workspace-page" hidden={activeView !== "inbox"}>
           {persistentView ? (
             <>
               <PersistentInboxPanel

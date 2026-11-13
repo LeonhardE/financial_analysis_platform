@@ -18,6 +18,8 @@ function compile(file, imports = {}, globals = {}) {
     module,
     exports: module.exports,
     require: (name) => {
+      if (["./WorkspaceFeedback", "./ReportDialog"].includes(name))
+        return require("./workspace-feedback-helpers.cjs").component(name, imports);
       if (name === "@/lib/workspace-cache") return compile("../lib/workspace-cache.ts");
       assert.ok(Object.hasOwn(imports, name), name);
       return imports[name];

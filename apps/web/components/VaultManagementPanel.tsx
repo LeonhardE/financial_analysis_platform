@@ -150,9 +150,6 @@ export default function VaultManagementPanel({ workspace }: { workspace: Holding
             >
               {t("refresh")}
             </button>
-            <button type="button" className={styles.secondary} onClick={workspace.lock}>
-              {t("lock")}
-            </button>
           </div>
           {!summary ? (
             <p role="status">{t("loadDirectory")}</p>
