@@ -1485,46 +1485,57 @@ test("Agent credential Owner routes preserve opaque activation, fixed namespace 
   assert.equal((await wrong.proxy(request(base + "/setups/" + OP))).status, 503);
 });
 
-test("the unchanged 12-second proxy deadline wins over a non-cooperative late Hub success", async () => {
-  const timers = new Map();
-  let finish,
-    forwarded = 0;
-  const late = new Promise((resolve) => {
-    finish = resolve;
-  });
-  const clocked = compile("hub-owner", hubImports, {
-    setTimeout(callback, delay) {
-      const id = {};
-      timers.set(id, { callback, delay });
-      return id;
-    },
-    clearTimeout(id) {
-      timers.delete(id);
-    },
-  });
-  const proxy = clocked.createHubProxy({
-    env: ENV,
-    now: () => NOW,
-    fetch: async (url) => {
-      if (url === JWKS) return response({ keys: [jwk] });
-      forwarded++;
-      return late;
-    },
-  });
-  const pending = proxy(request());
-  for (let n = 0; n < 10 && forwarded === 0; n++)
+test(
+  "the unchanged 12-second proxy deadline wins over a non-cooperative late Hub success",
+  { timeout: 10000 },
+  async () => {
+    const timers = new Map();
+    let finish,
+      reached,
+      forwarded = 0;
+    const forwarding = new Promise((resolve) => {
+      reached = resolve;
+    });
+    const late = new Promise((resolve) => {
+      finish = resolve;
+    });
+    const clocked = compile("hub-owner", hubImports, {
+      setTimeout(callback, delay) {
+        const id = {};
+        timers.set(id, { callback, delay });
+        return id;
+      },
+      clearTimeout(id) {
+        timers.delete(id);
+      },
+    });
+    const proxy = clocked.createHubProxy({
+      env: ENV,
+      now: () => NOW,
+      fetch: async (url) => {
+        if (url === JWKS) return response({ keys: [jwk] });
+        forwarded++;
+        reached();
+        return late;
+      },
+    });
+    const pending = proxy(request());
+    await Promise.race([
+      forwarding,
+      pending.then(() => assert.fail("proxy completed before reaching Hub")),
+    ]);
+    assert.equal(forwarded, 1);
+    const deadline = [...timers.values()].find((entry) => entry.delay === 12000);
+    assert.ok(deadline, "production deadline remains 12 seconds");
+    deadline.callback();
+    const reply = await pending;
+    assert.equal(reply.headers.get("x-folioview-read-failure"), "deadline");
+    assert.equal(reply.headers.get("x-folioview-admission-retry"), null);
+    await error(reply, 503, "authorization_unavailable");
+    finish(response());
     await new Promise((resolve) => setImmediate(resolve));
-  assert.equal(forwarded, 1);
-  const deadline = [...timers.values()].find((entry) => entry.delay === 12000);
-  assert.ok(deadline, "production deadline remains 12 seconds");
-  deadline.callback();
-  const reply = await pending;
-  assert.equal(reply.headers.get("x-folioview-read-failure"), "deadline");
-  assert.equal(reply.headers.get("x-folioview-admission-retry"), null);
-  await error(reply, 503, "authorization_unavailable");
-  finish(response());
-  await new Promise((resolve) => setImmediate(resolve));
-  assert.equal(reply.status, 503);
-  assert.equal(forwarded, 1);
-  assert.equal(timers.size, 0);
-});
+    assert.equal(reply.status, 503);
+    assert.equal(forwarded, 1);
+    assert.equal(timers.size, 0);
+  },
+);
