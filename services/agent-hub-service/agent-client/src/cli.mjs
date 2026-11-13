@@ -23,6 +23,11 @@ export function clientFailure(error) {
       "input_policy_rejected",
       "Stop this task. Its inputs do not meet the approved data rules. Ask the user to review the task rules or update its shared data in FolioView; reauthorization is not required for this error.",
     );
+  if (code === "insufficient_scope")
+    return failure(
+      "task_access_required",
+      "Stop this task. Ask the user to review its assigned Agent and shared resources in FolioView.",
+    );
   if (code === "version_conflict")
     return failure(
       "operation_conflict",
@@ -83,6 +88,10 @@ export async function execute(
     "planStatus",
     "reportPlan",
     "retryPlanReport",
+    "taskCenterState",
+    "dueAssigned",
+    "beginAssigned",
+    "reportPlanAssigned",
   ];
   if (!allowed.includes(value.operation)) deny("invalid_operation");
   const fields = {
@@ -96,6 +105,10 @@ export async function execute(
     planStatus: ["taskId"],
     reportPlan: ["taskId", "status", "planReference"],
     retryPlanReport: ["taskId"],
+    taskCenterState: ["taskId"],
+    dueAssigned: [],
+    beginAssigned: ["taskId", "baseTriggerId"],
+    reportPlanAssigned: ["taskId", "status", "planReference"],
   };
   exact(value.arguments, fields[value.operation]);
   const client = new AgentClient({ origin: value.origin, storage, fetch });

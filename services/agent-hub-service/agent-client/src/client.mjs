@@ -29,6 +29,7 @@ import {
   requireCurrentCredential,
   approveCredential,
 } from "../../../../packages/encrypted-workspace/dist/core.mjs";
+import { verifyCenter, assignedTrigger, assignedDue, centerRequestProof } from "./task-center.mjs";
 import { dueSlot } from "./schedule.mjs";
 import { checkInputPolicy } from "./policy.mjs";
 const PLAN = "folioview.persistent-native-plan.v1",
@@ -99,6 +100,15 @@ export class AgentClient {
     }
     if (!response.ok) {
       if (response.status === 404) deny("not_found");
+      if (response.status === 403 && path.includes("/task-center/")) {
+        let reason;
+        try {
+          reason = await response.json();
+        } catch {
+          deny("runtime_authorization_required");
+        }
+        if (reason?.detail?.code === "insufficient_scope") deny("insufficient_scope");
+      }
       if (response.status === 401 || response.status === 403)
         deny("runtime_authorization_required");
       if (response.status === 409) deny("version_conflict");
@@ -160,13 +170,16 @@ export class AgentClient {
       "runs/result-receipt",
       "plans/state",
       "plans/report",
+      "task-center/context",
+      "task-center/prepare",
+      "task-center/plans/report",
     ];
     if (!allowed.includes(operation)) deny("invalid_operation");
     const path = this.#base() + "/" + operation;
     const send = async () =>
       this.#json(path, {
         contractVersion: CONTRACT,
-        proof: await requestProof({
+        proof: await (operation.startsWith("task-center/") ? centerRequestProof : requestProof)({
           identity: this.#identity,
           audience: this.#origin,
           path,
@@ -700,6 +713,145 @@ export class AgentClient {
       if (remaining > 0) await new Promise((resolve) => setTimeout(resolve, remaining * 1000));
       return check(this.now());
     }
+  }
+  async taskCenterState({ taskId }) {
+    identifier(taskId);
+    await this.synchronize();
+    const task = await this.#task(taskId);
+    const value = await this.#call("task-center/context", { taskId });
+    await verifyCenter(value, {
+      registry: this.#registry,
+      identity: this.#identity,
+      lease: this.#credential.lease,
+      provider: this.#provider,
+      task,
+    });
+    const pin = {
+      definitionVersion: value.definition.definitionVersion,
+      assignmentVersion: value.assignment.assignmentVersion,
+      digest: await digest([value.definition, value.assignment]),
+    };
+    await this.#record("task-center-pin:" + taskId, (v) => {
+      if (
+        v &&
+        (v.definitionVersion > pin.definitionVersion ||
+          v.assignmentVersion > pin.assignmentVersion ||
+          (v.definitionVersion === pin.definitionVersion &&
+            v.assignmentVersion === pin.assignmentVersion &&
+            v.digest !== pin.digest))
+      )
+        deny("version_conflict");
+      return { write: pin, result: pin };
+    });
+    return value;
+  }
+  async dueAssigned() {
+    const tasks = await this.tasks(),
+      result = [];
+    for (const task of tasks) {
+      let state;
+      try {
+        state = await this.taskCenterState({ taskId: task.taskId });
+      } catch (e) {
+        if (e.code === "not_found") continue;
+        throw e;
+      }
+      const due = await assignedDue(state.definition, this.now());
+      if (due) result.push({ taskId: task.taskId, binding: state.binding, ...due });
+    }
+    return result;
+  }
+  async beginAssigned({ taskId, baseTriggerId }) {
+    identifier(taskId);
+    validate("OperationIdentifier", baseTriggerId);
+    const name = "task-center-begin:" + taskId + ":" + baseTriggerId;
+    let pending = await this.#record(name, (v) => ({ result: v }));
+    const state = await this.taskCenterState({ taskId });
+    const triggerId = await assignedTrigger(state.assignment, baseTriggerId);
+    const operationId =
+      "begin_" + (await digest([this.#actor.ownerSubject, this.#actor.vaultId, taskId, triggerId]));
+    const request = {
+      taskId,
+      baseTriggerId,
+      operationId,
+      binding: state.binding,
+      taskPublicationFingerprint: state.authority.fingerprint,
+    };
+    pending = await this.#record(name, (v) => {
+      if (v && (!same(v.request, request) || v.triggerId !== triggerId)) deny("version_conflict");
+      const stored = v ?? { request, triggerId };
+      return { write: stored, result: stored };
+    });
+    const prepared = await this.#call("task-center/prepare", pending.request);
+    if (
+      prepared.triggerId !== pending.triggerId ||
+      !same(prepared.request, pending.request) ||
+      prepared.triggerKind !== "legacy_unknown"
+    )
+      deny("invalid_manifest");
+    return this.begin({ taskId, triggerId: pending.triggerId });
+  }
+  async reportPlanAssigned({ taskId, status, planReference }) {
+    if (
+      !PLAN_STATUS.includes(status) ||
+      (planReference !== null &&
+        (typeof planReference !== "string" || !planReference.length || planReference.length > 2048))
+    )
+      deny("invalid_plan");
+    const name = "task-center-plan:" + taskId;
+    const old = await this.#record(name, (v) => ({ result: v }));
+    const planReferenceHash = planReference === null ? null : await digest(planReference);
+    if (
+      old &&
+      (!same(old.request.reportedStatus, status) ||
+        old.request.planReferenceHash !== planReferenceHash)
+    )
+      deny("version_conflict");
+    const state = await this.taskCenterState({ taskId });
+    if (old && !same(old.request.binding, state.binding)) deny("version_conflict");
+    if (state.definition.schedule === null && ["enabled", "paused"].includes(status))
+      deny("invalid_plan");
+    const request = old?.request ?? {
+      taskId,
+      operationId:
+        "plan_" +
+        (await digest([
+          this.#actor,
+          taskId,
+          state.binding,
+          state.plan.version,
+          status,
+          planReferenceHash,
+        ])),
+      binding: state.binding,
+      expectedVersion: state.plan.version,
+      provider: this.#provider,
+      planReferenceHash,
+      reportedStatus: status,
+      reportedAt: this.now(),
+    };
+    const pending = await this.#record(name, (v) => ({
+      write: v ?? { request },
+      result: v ?? { request },
+    }));
+    const receipt = await this.#call("task-center/plans/report", pending.request);
+    if (
+      !same(receipt.request, pending.request) ||
+      !same(receipt.binding, state.binding) ||
+      receipt.version !== pending.request.expectedVersion + 1 ||
+      receipt.nativeScheduleAttested !== false
+    )
+      deny("invalid_plan");
+    await this.#record(name, (v) => {
+      if (!same(v, pending)) deny("version_conflict");
+      return { write: null, result: null };
+    });
+    return {
+      version: receipt.version,
+      status,
+      authority: "agent_statement",
+      nativeScheduleAttested: false,
+    };
   }
   async begin({ taskId, triggerId }) {
     identifier(taskId);

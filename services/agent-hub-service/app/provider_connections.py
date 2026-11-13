@@ -206,7 +206,7 @@ class ProviderConnectionService(AgentCredentialService):
         return self.store.transact(read)
 
     def _review_tasks(self, unit, owner, vault, review):
-        from .persistent_publications import stored_authority
+        from .persistent_publications import authority_head, stored_authority
         from .tasks import _head, _index
 
         if not review["tasks"]:
@@ -215,7 +215,22 @@ class ProviderConnectionService(AgentCredentialService):
         old_connections = {r["connectionId"] for r in review["retiredCredentials"]}
         for selection in review["tasks"]:
             head = _head(unit, owner, vault, selection["taskId"], index)
-            authority = stored_authority(unit, owner, vault, selection["taskId"])
+            if authority_head(unit, owner, vault, selection["taskId"]) == {"taskCenter": True}:
+                matches = []
+                for connection in sorted(old_connections):
+                    candidate = stored_authority(
+                        unit, owner, vault, selection["taskId"], connection
+                    )
+                    if (
+                        candidate is not None
+                        and candidate["fingerprint"] == selection["grantFingerprint"]
+                    ):
+                        matches.append(candidate)
+                if len(matches) != 1:
+                    raise ContractError("version_conflict")
+                authority = matches[0]
+            else:
+                authority = stored_authority(unit, owner, vault, selection["taskId"])
             if head is None or authority is None:
                 raise ContractError("version_conflict")
             meta, c = head["metadata"], authority["context"]

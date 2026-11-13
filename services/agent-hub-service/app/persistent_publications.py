@@ -32,9 +32,9 @@ def publication_path(owner, vault, operation):
     return document_path("hub_persistent_publications", owner, vault, operation)
 
 
-def authority_path(owner, vault, task):
-    # One authority across ALL Agents, so reassignment fences the previous one.
-    return document_path("hub_persistent_task_authorities", owner, vault, task)
+def authority_path(owner, vault, task, connection=None):
+    parts = (owner, vault, task) if connection is None else (owner, vault, task, connection)
+    return document_path("hub_persistent_task_authorities", *parts)
 
 
 def source_path(owner, vault, connection, ref):
@@ -73,8 +73,25 @@ def stored_publication(unit, owner, vault, operation):
     return row
 
 
-def stored_authority(unit, owner, vault, task):
-    row = unit.get(authority_path(owner, vault, task))
+def authority_head(unit, owner, vault, task):
+    # Transaction-local read snapshot only; never a cross-request authority cache.
+    cache = getattr(unit, "_persistent_authority_heads", None)
+    if cache is None:
+        cache = {}
+        unit._persistent_authority_heads = cache
+    key = (owner, vault, task)
+    if key not in cache:
+        cache[key] = unit.get(authority_path(owner, vault, task))
+    return cache[key]
+
+
+def stored_authority(unit, owner, vault, task, connection=None):
+    row = authority_head(unit, owner, vault, task)
+    scoped = row == {"taskCenter": True}
+    if scoped:
+        if connection is None:
+            raise ContractError("version_conflict")
+        row = unit.get(authority_path(owner, vault, task, connection))
     if row is None:
         return None
     try:
@@ -88,7 +105,11 @@ def stored_authority(unit, owner, vault, task):
         ):
             raise StoreUnavailable
         c = row["context"]
-        if c["objectType"] != "task" or c["taskId"] != task:
+        if (
+            c["objectType"] != "task"
+            or c["taskId"] != task
+            or (scoped and c["connectionId"] != connection)
+        ):
             raise StoreUnavailable
     except (KeyError, TypeError):
         raise StoreUnavailable from None
@@ -244,7 +265,7 @@ class PersistentPublicationService(ResourceConsentService):
             if kind == "task":
                 meta = self.task(unit, owner, vault, context["taskId"])
                 self._task_scope(unit, owner, vault, connection, meta)
-                old = stored_authority(unit, owner, vault, context["taskId"])
+                old = stored_authority(unit, owner, vault, context["taskId"], connection)
                 c = None if old is None else old["context"]
                 if context["expectedAuthorityVersion"] != (
                     0 if c is None else c["authorityVersion"]
@@ -350,7 +371,17 @@ class PersistentPublicationService(ResourceConsentService):
                 "publicationId": operation,
             }
             if kind == "task":
-                unit.put(authority_path(owner, vault, context["taskId"]), head)
+                from .task_center import current_assignment, enrolled
+
+                scoped = enrolled(unit, owner, vault, context["taskId"])
+                if scoped:
+                    current_assignment(
+                        unit, owner, vault, context["taskId"], connection, verified.fingerprint
+                    )
+                unit.put(
+                    authority_path(owner, vault, context["taskId"], connection if scoped else None),
+                    head,
+                )
             else:
                 unit.put(
                     source_path(owner, vault, connection, context["ref"]),

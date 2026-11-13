@@ -179,8 +179,13 @@ def observe_execution(unit, manifest, *, result_id=None, received_at=None):
 
 
 def view(unit, owner, vault, connection, task):
+    from .task_center import enrolled
+
+    if enrolled(unit, owner, vault, task):
+        # Publication-only legacy reports cannot confirm current assignment rules.
+        raise ContractError("version_conflict")
     head = stored_plan(unit, owner, vault, connection, task)
-    authority = stored_authority(unit, owner, vault, task)
+    authority = stored_authority(unit, owner, vault, task, connection)
     desired = None
     if authority is not None and authority["context"]["connectionId"] == connection:
         c = authority["context"]
@@ -263,7 +268,7 @@ class PersistentPlanService(PersistentExecutionService):
 
         def read(unit):
             *_, identity = self.authenticate(unit, owner, vault, connection, proof, path, request)
-            authority = stored_authority(unit, owner, vault, request["taskId"])
+            authority = stored_authority(unit, owner, vault, request["taskId"], connection)
             if authority is None or any(
                 authority["context"][k] != identity[k] for k in BINDING_FIELDS
             ):
@@ -324,10 +329,14 @@ class PersistentPlanService(PersistentExecutionService):
                 validate_report_receipt(previous["receipt"])
                 return snapshot(previous["receipt"])
             task = request["taskId"]
+            from .task_center import enrolled
+
+            if enrolled(unit, owner, vault, task):
+                raise ContractError("insufficient_scope")
             if request["reportedStatus"] == "enabled":
                 authority = self.task_authority(unit, owner, vault, connection, identity, task)
             else:
-                authority = stored_authority(unit, owner, vault, task)
+                authority = stored_authority(unit, owner, vault, task, connection)
                 if authority is None or any(
                     authority["context"][k] != identity[k] for k in BINDING_FIELDS
                 ):

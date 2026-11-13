@@ -48,7 +48,7 @@ def stored_run(unit, owner, vault, run):
     if row is None:
         raise ContractError("not_found")
     try:
-        if set(row) != {
+        if set(row) - {"taskCenter"} != {
             "manifestJson",
             "manifestFingerprint",
             "intentDigest",
@@ -72,6 +72,10 @@ def stored_run(unit, owner, vault, run):
             or owner_key(row["ownerUid"]) != owner
         ):
             raise StoreUnavailable
+        if "taskCenter" in row:
+            from folioview_shared.encrypted.task_center import validate_run_binding
+
+            validate_run_binding(row["taskCenter"], manifest)
         if any(row["identity"][k] != manifest[k] for k in BINDING_FIELDS):
             raise StoreUnavailable
     except (ContractError, KeyError, TypeError):
@@ -88,6 +92,8 @@ class PersistentExecutionService(PersistentPublicationService):
             raise ContractError("authorization_unavailable")
         self.audience = audience
         self.managed_only = managed_only
+
+    verify_request = staticmethod(verify_persistent_request)
 
     def authenticate(self, unit, owner, vault, connection, proof, path, request):
         if type(owner) is not str or re.fullmatch(r"[a-f0-9]{64}", owner) is None:
@@ -107,7 +113,7 @@ class PersistentExecutionService(PersistentPublicationService):
             or (self.managed_only and conn.get("credentialMode") != "agent_owned")
         ):
             raise ContractError("key_authorization_required")
-        verify_persistent_request(
+        self.verify_request(
             proof,
             registry=registry,
             current_identity=identity,
@@ -124,7 +130,7 @@ class PersistentExecutionService(PersistentPublicationService):
         return uid, v, registry, conn, identity
 
     def task_authority(self, unit, owner, vault, connection, identity, task):
-        row = stored_authority(unit, owner, vault, task)
+        row = stored_authority(unit, owner, vault, task, connection)
         if row is None:
             raise ContractError("not_found")
         c = row["context"]
@@ -144,6 +150,9 @@ class PersistentExecutionService(PersistentPublicationService):
             meta["resourceBindings"],
         ):
             raise ContractError("version_conflict")
+        from .task_center import current_assignment
+
+        current_assignment(unit, owner, vault, task, connection, row["fingerprint"])
         return row
 
     def publication(
@@ -278,7 +287,7 @@ class PersistentExecutionService(PersistentPublicationService):
             )
             result = []
             for task, meta in _index(unit, owner, vault)["tasks"].items():
-                authority = stored_authority(unit, owner, vault, task)
+                authority = stored_authority(unit, owner, vault, task, connection)
                 if authority is None or meta["status"] != "active":
                     continue
                 c = authority["context"]
@@ -292,8 +301,17 @@ class PersistentExecutionService(PersistentPublicationService):
                     continue
                 try:
                     self._task_scope(unit, owner, vault, connection, meta)
+                    from .task_center import current_assignment
+
+                    current_assignment(
+                        unit, owner, vault, task, connection, authority["fingerprint"]
+                    )
                 except ContractError as exc:
-                    if exc.code != "insufficient_scope":
+                    if exc.code not in {
+                        "insufficient_scope",
+                        "version_conflict",
+                        "key_authorization_required",
+                    }:
                         raise
                     continue
                 result.append(
@@ -497,6 +515,11 @@ class PersistentExecutionService(PersistentPublicationService):
                     canonical_json(v["registryHistory"]), max_bytes=MAX_STORED_DOCUMENT_BYTES
                 ),
             }
+            from .task_center import bind_prepared_run
+
+            binding = bind_prepared_run(unit, owner, vault, connection, manifest)
+            if binding is not None:
+                row["taskCenter"] = binding
             self.quota(unit, owner, connection)
             # The source/crypto work may outlive the short request proof. Its
             # acceptance window must still hold at the committing write.
@@ -565,6 +588,9 @@ class PersistentExecutionService(PersistentPublicationService):
             or not m["createdAt"] <= self.now() < m["expiresAt"]
         ):
             raise ContractError("version_conflict")
+        from .task_center import check_center_run
+
+        check_center_run(unit, owner, vault, connection, row, m)
         for item in m["inputs"]:
             self.permit(
                 unit,
