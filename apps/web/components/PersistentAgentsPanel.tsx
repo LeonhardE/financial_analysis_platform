@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type MouseEvent } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { useAuth } from "./AuthProvider";
 import type { HoldingsWorkspace } from "./useHoldingsWorkspace";
@@ -19,6 +19,11 @@ import {
   connectNativeOwnerBridge,
   type NativeOwnerBridge,
 } from "@/lib/native-owner-bridge";
+import { providerGroups } from "@/lib/provider-groups";
+import { useProviderConnections } from "./useProviderConnections";
+import { ProviderMark } from "./ProviderMark";
+import { ReportDialog } from "./ReportDialog";
+import { LoadingIndicator, InlineError } from "./WorkspaceFeedback";
 import styles from "./AgentsPanel.module.css";
 const CONTRACT = "folioview.agent-workspace.v2.0";
 type Json = Record<string, any>;
@@ -86,24 +91,17 @@ export function PersistentAgentsPanel({
   const live = useRef({ scope, owner: model.owner, active });
   live.current = { scope, owner: model.owner, active };
   const [authorization, setAuthorization] = useState<{
-      scope: string;
-      value: Json;
-      selected: string[];
-      lifetimeSeconds: number;
-    } | null>(null),
-    [manage, setManage] = useState<{
-      scope: string;
-      connection: PersistentConnection;
-      value: Json;
-      selected: string[];
-    } | null>(null);
+    scope: string;
+    value: Json;
+    selected: string[];
+    lifetimeSeconds: number;
+  } | null>(null);
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now() / 1000), 60000);
     return () => clearInterval(timer);
   }, []);
   useEffect(() => {
     setAuthorization(null);
-    setManage(null);
   }, [scope]);
   useEffect(() => {
     if (oldOwner.current && oldOwner.current !== model.owner) {
@@ -217,13 +215,8 @@ export function PersistentAgentsPanel({
       setHandoffReady(false);
       setAuthorization(null);
       await model.reload();
+      await slots.reload();
     }
-  };
-  const reviewConnection = async (connection: PersistentConnection) => {
-    const original = live.current.scope,
-      value = await model.review(connection);
-    if (value && original && live.current.scope === original)
-      setManage({ scope: original, connection, value, selected: [] });
   };
   const date = (value: number) =>
     new Intl.DateTimeFormat(
@@ -239,8 +232,21 @@ export function PersistentAgentsPanel({
       return "reauthorize";
     return value.expiresAt - now <= 604800 ? "expiring" : "connected";
   };
+  const slots = useProviderConnections(workspace, active);
+  const groups = providerGroups(model.views, slots.states, now);
+  const taskLink = (event: MouseEvent<HTMLAnchorElement>, taskId: string) => {
+    if (
+      event.button === 0 &&
+      !event.metaKey &&
+      !event.ctrlKey &&
+      !event.shiftKey &&
+      !event.altKey
+    ) {
+      event.preventDefault();
+      window.history.pushState(null, "", `/tasks#task/${taskId}`);
+    }
+  };
   const currentAuthorization = authorization?.scope === scope ? authorization : null,
-    currentManage = manage?.scope === scope ? manage : null,
     currentAccount = account?.owner === model.owner ? account.value : null;
   const cancel = () => {
     handoff.current = null;
@@ -257,7 +263,10 @@ export function PersistentAgentsPanel({
         <button
           className={styles.secondary}
           disabled={model.busy}
-          onClick={() => void model.reload()}
+          onClick={() => {
+            void model.reload();
+            void slots.reload();
+          }}
         >
           {t("refresh")}
         </button>
@@ -329,57 +338,72 @@ export function PersistentAgentsPanel({
           ) : (
             <>
               <p>
-                {t(currentAuthorization.value.renewing ? "restoreHelp" : "chooseTasks", {
-                  provider: providerName(currentAuthorization.value.connection.provider),
-                })}
+                {currentAuthorization.value.providerState
+                  ? t("replaceReview", {
+                      count: currentAuthorization.value.providerState.retirementCandidates.length,
+                    })
+                  : t(currentAuthorization.value.renewing ? "restoreHelp" : "chooseTasks", {
+                      provider: providerName(currentAuthorization.value.connection.provider),
+                    })}
               </p>
-              {currentAuthorization.value.tasks.length ? (
-                <ul className={styles.taskChoices}>
-                  {currentAuthorization.value.tasks.map((task: PersistentTask) => (
-                    <li key={task.taskId}>
-                      {currentAuthorization.value.renewing ? (
-                        <span>{task.title}</span>
-                      ) : (
-                        <label>
-                          <input
-                            type="checkbox"
-                            checked={currentAuthorization.selected.includes(task.taskId)}
-                            onChange={(e) =>
-                              setAuthorization((v) =>
-                                v
-                                  ? {
-                                      ...v,
-                                      selected: e.target.checked
-                                        ? [...v.selected, task.taskId]
-                                        : v.selected.filter((id) => id !== task.taskId),
-                                    }
-                                  : v,
-                              )
-                            }
-                          />
-                          {task.title}
-                        </label>
-                      )}
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p>{t("noAvailableTasks")}</p>
+              {currentAuthorization.value.providerState && (
+                <p className={styles.note}>{t("taskReview")}</p>
               )}
-              <AgentConnectionDuration
-                seconds={currentAuthorization.lifetimeSeconds}
-                pending={currentAuthorization.value.pendingLifetimeSeconds != null}
-                busy={model.busy}
-                onChange={(lifetimeSeconds) =>
-                  setAuthorization((v) => (v ? { ...v, lifetimeSeconds } : v))
-                }
-              />
+              {!currentAuthorization.value.providerState &&
+                (currentAuthorization.value.tasks.length ? (
+                  <ul className={styles.taskChoices}>
+                    {currentAuthorization.value.tasks.map((task: PersistentTask) => (
+                      <li key={task.taskId}>
+                        {currentAuthorization.value.renewing ? (
+                          <span>{task.title}</span>
+                        ) : (
+                          <label>
+                            <input
+                              type="checkbox"
+                              checked={currentAuthorization.selected.includes(task.taskId)}
+                              onChange={(e) =>
+                                setAuthorization((v) =>
+                                  v
+                                    ? {
+                                        ...v,
+                                        selected: e.target.checked
+                                          ? [...v.selected, task.taskId]
+                                          : v.selected.filter((id) => id !== task.taskId),
+                                      }
+                                    : v,
+                                )
+                              }
+                            />
+                            {task.title}
+                          </label>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p>{t("noAvailableTasks")}</p>
+                ))}
+              <details>
+                <summary>{t("moreOptions")}</summary>
+                <AgentConnectionDuration
+                  seconds={currentAuthorization.lifetimeSeconds}
+                  pending={currentAuthorization.value.pendingLifetimeSeconds != null}
+                  busy={model.busy}
+                  onChange={(lifetimeSeconds) =>
+                    setAuthorization((v) => (v ? { ...v, lifetimeSeconds } : v))
+                  }
+                />
+              </details>
               <button
                 className={styles.primary}
                 disabled={model.busy || !workspace.canWriteState}
                 onClick={() => void confirmAuthorization()}
               >
-                {t(currentAuthorization.value.renewing ? "confirmRestore" : "confirm")}
+                {t(
+                  currentAuthorization.value.renewing && !currentAuthorization.value.providerState
+                    ? "confirmRestore"
+                    : "confirm",
+                )}
               </button>
             </>
           )}
@@ -388,224 +412,161 @@ export function PersistentAgentsPanel({
           </button>
         </div>
       )}
-      <div className={styles.providers}>
-        {["muse", "chatgpt"].map((provider) => (
-          <button
-            key={provider}
-            className={styles.provider}
-            disabled={!origin}
-            onClick={() => {
-              setHelp(provider);
-              setCopied(false);
-            }}
-          >
-            <strong>{t("connect", { provider: providerName(provider) })}</strong>
-          </button>
-        ))}
-      </div>
-      {help && (
-        <div
-          className={styles.setup}
-          role="dialog"
-          aria-label={t("connect", { provider: providerName(help) })}
-        >
-          <p>{t("reconnectHelp", { provider: providerName(help) })}</p>
-          <button
-            className={styles.secondary}
-            disabled={!origin}
-            onClick={async () => {
-              try {
-                await navigator.clipboard.writeText(origin + "/mcp/v3");
-                setCopied(true);
-              } catch {
-                setCopied(false);
-              }
-            }}
-          >
-            {t(copied ? "copied" : "copyAddress")}
-          </button>
-          <button className={styles.textButton} onClick={() => setHelp(null)}>
-            {t("close")}
-          </button>
-        </div>
+      <LoadingIndicator
+        busy={model.busy || slots.loading}
+        hasContent={model.views.length > 0}
+        label={t("loading")}
+      />
+      {slots.error && (
+        <InlineError
+          message={t("requestFailed")}
+          retryLabel={t("refresh")}
+          onRetry={() => void slots.reload()}
+        />
       )}
-      {workspace.authenticated && !model.enabled && !model.busy && (
-        <p className={styles.note}>{t("notReady")}</p>
-      )}
-      {!model.views.length && <p className={styles.empty}>{t("noConnections")}</p>}
-      {model.views.map((view) => {
-        const value = status(view),
-          available = ["connected", "expiring"].includes(value);
-        return (
-          <article key={view.connection.connectionId} className={styles.setup}>
-            <div className={styles.heading}>
-              <h2>
-                {providerName(view.connection.provider)} <small>{t(value)}</small>
-              </h2>
+      <div className={styles.connectionGrid}>
+        {groups.map((group) => {
+          const view = group.current,
+            value = !model.unlocked
+              ? "unlockStatus"
+              : group.reviewRequired
+                ? "reviewRequired"
+                : view
+                  ? status(view)
+                  : "disconnected";
+          return (
+            <article key={group.provider} className={styles.setup}>
+              <div className={styles.heading}>
+                <div className={styles.providerHeader}>
+                  <ProviderMark provider={group.provider} />
+                  <h2>{providerName(group.provider)}</h2>
+                </div>
+                <span className={styles.stateBadge}>{t(value)}</span>
+              </div>
+              {view?.credential?.expiresAt && model.unlocked && (
+                <p className={styles.note}>
+                  {t("expires", { date: date(view.credential.expiresAt) })}
+                </p>
+              )}
+              {group.reviewRequired && <p className={styles.note}>{t("reviewConnections")}</p>}
+              {model.unlocked && view?.tasks.length ? (
+                <ul className={styles.taskLinks}>
+                  {view.tasks.map((task) => (
+                    <li key={task.taskId}>
+                      <a
+                        href={`/tasks#task/${task.taskId}`}
+                        onClick={(e) => taskLink(e, task.taskId)}
+                      >
+                        {task.title}
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
               <div className={styles.actions}>
                 <button
-                  className={styles.secondary}
-                  disabled={model.busy}
+                  className={styles.primary}
+                  disabled={!origin || !model.enabled || model.busy}
                   onClick={() => {
-                    setHelp(view.connection.provider);
+                    setHelp(group.provider);
                     setCopied(false);
                   }}
                 >
-                  {t("reauthorizeButton")}
+                  {t(view ? "reauthorizeButton" : "connect", {
+                    provider: providerName(group.provider),
+                  })}
                 </button>
-                {view.connection.status === "active" && (
+                {view?.pending && (
+                  <button
+                    className={styles.secondary}
+                    disabled={model.busy || !workspace.canWriteState}
+                    onClick={() => void model.continueOperation(view.connection)}
+                  >
+                    {t("continue")}
+                  </button>
+                )}
+                {view?.connection.status === "active" && (
                   <button
                     className={styles.textButton}
                     disabled={model.busy}
-                    onClick={() => void model.disconnect(view.connection)}
+                    onClick={() => {
+                      void model.disconnect(view.connection).then(() => slots.reload());
+                    }}
                   >
                     {t("disconnect")}
                   </button>
                 )}
               </div>
-            </div>
-            {view.credential?.expiresAt && (
-              <p>{t("expires", { date: date(view.credential.expiresAt) })}</p>
-            )}
-            {value === "expiring" && <p className={styles.warning}>{t("expiryHelp")}</p>}
-            {value === "reauthorize" && (
-              <p>{t("reauthorizeHelp", { provider: providerName(view.connection.provider) })}</p>
-            )}
-            {model.unlocked && view.tasks.length > 0 && (
-              <ul>
-                {view.tasks.map((task) => (
-                  <li key={task.taskId}>
-                    {task.title} ·{" "}
-                    {t(
-                      task.plan?.reported?.reportedStatus === "enabled" &&
-                        task.plan.reported.taskPublicationFingerprint ===
-                          task.plan.desired?.taskPublicationFingerprint
-                        ? "planReported"
-                        : "planWaiting",
-                    )}
-                    {task.content.deliveryExpectation && (
-                      <small>
-                        {" "}
-                        · {task.content.deliveryExpectation.localTime} (
-                        {task.content.deliveryExpectation.timeZone})
-                      </small>
-                    )}
-                    {task.plan?.observed?.receivedAt != null && (
-                      <small> · {t("reportReceived")}</small>
-                    )}
-                  </li>
-                ))}
-              </ul>
-            )}
-            {view.pending && !available && (
-              <button
-                className={styles.secondary}
-                disabled={model.busy || !workspace.canWriteState}
-                onClick={() => void model.continueOperation(view.connection)}
-              >
-                {t("continue")}
-              </button>
-            )}
-            {available && (
-              <div className={styles.actions}>
-                <button
-                  className={styles.secondary}
-                  disabled={model.busy || !workspace.canWriteState}
-                  onClick={() => void model.resume(view.connection)}
-                >
-                  {t(view.pending ? "continue" : "restoreTasks")}
-                </button>
-                <button
-                  className={styles.secondary}
-                  disabled={model.busy || !workspace.canWriteState}
-                  onClick={() => void reviewConnection(view.connection)}
-                >
-                  {t("manage")}
-                </button>
-                <button
-                  className={styles.textButton}
-                  disabled={model.busy || !workspace.canWriteState}
-                  onClick={() => void model.synchronize(view.connection)}
-                >
-                  {t("sync")}
-                </button>
-              </div>
-            )}
+              {group.history.length > 0 && (
+                <details className={styles.connectionHistory}>
+                  <summary>{t("history", { count: group.history.length })}</summary>
+                  {group.history.map((old) => (
+                    <div className={styles.historyRow} key={old.connection.connectionId}>
+                      <span>
+                        {t(status(old))}
+                        {old.credential?.expiresAt && model.unlocked
+                          ? ` · ${date(old.credential.expiresAt)}`
+                          : ""}
+                      </span>
+                      {old.pending && (
+                        <button
+                          disabled={model.busy || !workspace.canWriteState}
+                          onClick={() => void model.continueOperation(old.connection)}
+                        >
+                          {t("continue")}
+                        </button>
+                      )}
+                      {old.connection.status === "active" && (
+                        <button
+                          disabled={model.busy}
+                          onClick={() => {
+                            void model.disconnect(old.connection).then(() => slots.reload());
+                          }}
+                        >
+                          {t("disconnect")}
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </details>
+              )}
+            </article>
+          );
+        })}
+        {["claude", "gemini"].map((provider) => (
+          <article className={styles.unsupported} key={provider}>
+            <ProviderMark provider={provider} />
+            <strong>{provider === "claude" ? "Claude" : "Gemini"}</strong>
+            <span>{t("notSupported")}</span>
           </article>
-        );
-      })}
-      {currentManage && (
-        <div className={styles.setup} role="dialog" aria-label={t("manage")}>
-          <h2>{t("manage")}</h2>
-          <p>{t("chooseTasks", { provider: providerName(currentManage.connection.provider) })}</p>
-          <ul className={styles.taskChoices}>
-            {model.tasks
-              .filter(
-                (task) =>
-                  !task.authority.authority ||
-                  task.authority.authority.context.connectionId ===
-                    currentManage.connection.connectionId,
-              )
-              .map((task) => (
-                <li key={task.taskId}>
-                  <label>
-                    <input
-                      type="checkbox"
-                      checked={currentManage.selected.includes(task.taskId)}
-                      onChange={(e) =>
-                        setManage((v) =>
-                          v
-                            ? {
-                                ...v,
-                                selected: e.target.checked
-                                  ? [...v.selected, task.taskId]
-                                  : v.selected.filter((id) => id !== task.taskId),
-                              }
-                            : v,
-                        )
-                      }
-                    />
-                    {task.title}
-                  </label>
-                </li>
-              ))}
-          </ul>
-          <button
-            className={styles.primary}
-            disabled={model.busy || !currentManage.selected.length}
-            onClick={async () => {
-              const result = await model.approve(
-                currentManage.connection,
-                model.tasks.filter((task) => currentManage.selected.includes(task.taskId)),
-                currentManage.value,
-                false,
-              );
-              if (result) setManage(null);
-            }}
-          >
-            {t("approveTasks")}
-          </button>
-          {(currentManage.value.policy?.permissions ?? [])
-            .filter((p: Json) => p.status === "active")
-            .map((permission: Json) => (
-              <div key={permission.permissionId} className={styles.actions}>
-                <span>{t(permission.ref.kind)}</span>
-                <button
-                  className={styles.textButton}
-                  disabled={model.busy}
-                  onClick={async () => {
-                    if (await model.withdraw(currentManage.connection, [permission.permissionId]))
-                      setManage(null);
-                  }}
-                >
-                  {t("withdraw")}
-                </button>
-              </div>
-            ))}
-          <button className={styles.textButton} onClick={() => setManage(null)}>
-            {t("close")}
-          </button>
-        </div>
+        ))}
+      </div>
+      <ReportDialog
+        id="connect-agent"
+        open={Boolean(help)}
+        identity={`${model.owner}:${help}`}
+        title={t("connect", { provider: providerName(help ?? "muse") })}
+        closeLabel={t("close")}
+        onClose={() => setHelp(null)}
+      >
+        <p>{t("reconnectHelp", { provider: providerName(help ?? "muse") })}</p>
+        <button
+          className={styles.secondary}
+          disabled={!origin}
+          onClick={async () => {
+            try {
+              await navigator.clipboard.writeText(origin + "/mcp/v3");
+              setCopied(true);
+            } catch {
+              setCopied(false);
+            }
+          }}
+        >
+          {t(copied ? "copied" : "copyAddress")}
+        </button>
+      </ReportDialog>
+      {workspace.authenticated && !model.enabled && !model.busy && (
+        <p className={styles.note}>{t("notReady")}</p>
       )}
     </section>
   );

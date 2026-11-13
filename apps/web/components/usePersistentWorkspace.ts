@@ -294,7 +294,17 @@ export function usePersistentWorkspace(workspace: HoldingsWorkspace, hubOrigin: 
             try {
               const credential = await c.credential(connection);
               assert();
-              view.credential = credential.verified;
+              view.credential = {
+                ...credential.verified,
+                reference: credential.state.lease
+                  ? {
+                      connectionId: connection.connectionId,
+                      clientId: connection.clientId,
+                      credentialGeneration: credential.state.lease.generation,
+                      credentialFingerprint: credential.state.lease.credentialFingerprint,
+                    }
+                  : null,
+              };
               const context = ["active", "expiring"].includes(credential.verified.status)
                 ? await c.review(connection)
                 : null;

@@ -158,7 +158,7 @@ export function credentialApprovalRequest(v: unknown) {
     pairingPacket(v.command.activation)
   );
 }
-function credentialReceipt(v: unknown, operationId?: string) {
+export function credentialReceipt(v: unknown, operationId?: string) {
   return (
     fields(v, [
       "contractVersion",

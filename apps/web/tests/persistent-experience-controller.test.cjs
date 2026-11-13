@@ -531,3 +531,78 @@ test("authorization accepts reordered JSON fields but rejects changed nested val
     assert.equal(pendingReads, 1, "changed review stops before opening or sending a pending write");
   }
 });
+
+test("a wrapped provider approval never falls back to the per-connection writer after an unknown response", async () => {
+  const calls = [];
+  let committed = null;
+  const p = {
+    ...packet,
+    kind: "credential",
+    providerActivation: {
+      provider: "muse",
+      body: {
+        contractVersion: "folioview.agent-workspace.v2.0",
+        command: { synthetic: "EXACT_ORIGINAL_PROVIDER_CONTROL" },
+      },
+    },
+  };
+  const h = harness(async (_service, path, options = {}) => {
+    calls.push({ path, options });
+    if (options.method === "POST") {
+      committed = { slot: { version: 1 }, original: true };
+      throw Error("lost response");
+    }
+    if (committed) return committed;
+    return missing();
+  });
+  h.w.pending = p;
+  h.w.finishPersistentPending = async (_a, r) => {
+    assert.equal(r, committed);
+    h.w.pending = null;
+  };
+  await assert.rejects(h.c.send(connection, p), /lost response/);
+  assert.equal(h.w.pending, p);
+  await h.c.resume(connection);
+  assert.equal(h.w.pending, null);
+  assert.equal(calls.filter((c) => c.options.method === "POST").length, 1);
+  assert.ok(calls.every((c) => c.path.startsWith("/api/v3/provider-connections/vault_A/muse/")));
+  assert.equal(
+    calls.find((c) => c.options.method === "POST").options.json,
+    p.providerActivation.body,
+  );
+});
+test("a completed provider cutover leaves task restoration and assignment for explicit task review", async () => {
+  const p = {
+    ...packet,
+    kind: "credential",
+    expectedLease: { credentialFingerprint: "b".repeat(64) },
+    identity: { bindingFingerprint: "c".repeat(64) },
+    providerActivation: { provider: "muse" },
+  };
+  const h = harness(async () => ({ lease: p.expectedLease, identity: p.identity }));
+  h.w.pending = null;
+  h.w.prepareAgentCredential = async (args) => {
+    assert.ok(args.providerState);
+    return p;
+  };
+  const state = {
+    connection,
+    setup: { setupIntentId: "setup_A" },
+    current: {},
+    scope: { reviewDigest: "same" },
+    review: {},
+    providerState: { slot: null },
+    tasks: [],
+    renewing: true,
+  };
+  h.c.inspectAuthorization = async () => state;
+  h.c.send = async () => {};
+  h.c.restore = async () => {
+    throw Error("must not restore silently");
+  };
+  h.c.approve = async () => {
+    throw Error("must not assign silently");
+  };
+  const result = await h.c.authorize({}, state, []);
+  assert.equal(result.requiresTaskReview, true);
+});

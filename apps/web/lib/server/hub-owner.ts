@@ -5,6 +5,7 @@ import {
   persistentRequest,
   persistentResponse,
   credentialApprovalRequest,
+  credentialReceipt,
 } from "./persistent-owner-contracts";
 import { cancellationRequest, cancellationResponse } from "./upload-cancellation";
 
@@ -491,7 +492,15 @@ export function createHubProxy(options: Options = {}) {
       }
       return await forwardResponse(response, signal, (body) =>
         taskCenterRoute(path, request.method)
-          ? taskCenterResponse(path, body)
+          ? taskCenterResponse(path, body) &&
+            (!path.startsWith("/api/v3/provider-connections/") ||
+              !record(body) ||
+              !("credentialReceipt" in body) ||
+              body.credentialReceipt === null ||
+              credentialReceipt(
+                body.credentialReceipt,
+                headers.get("idempotency-key") ?? path.split("/operations/")[1],
+              ))
           : rule.cancel
             ? cancellationResponse(
                 "task",

@@ -5240,6 +5240,7 @@ export class VaultCore {
       "current",
       "hubOrigin",
       ...(Object.hasOwn(args ?? {}, "lifetimeSeconds") ? ["lifetimeSeconds"] : []),
+      ...(Object.hasOwn(args ?? {}, "providerState") ? ["providerState"] : []),
     ]);
     const { actor, ...value } = args;
     const packet = await (await this.persistentOwner(actor)).credentialEnrollment(value);

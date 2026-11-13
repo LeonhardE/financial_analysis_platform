@@ -990,7 +990,7 @@ export class PersistentOwner {
       ? args.lifetimeSeconds
       : DEFAULT_CREDENTIAL_SECONDS;
     if (![900, DEFAULT_CREDENTIAL_SECONDS].includes(lifetimeSeconds)) fail("invalid_data");
-    const { lifetimeSeconds: _selectedLifetime, ...offerArgs } = args;
+    const { lifetimeSeconds: _selectedLifetime, providerState, ...offerArgs } = args;
     const { offer, context, key, current } = await this.credentialOffer(offerArgs);
     const prepared = await this.certifyAgent({ ...offer, intentId: offer.setupIntentId });
     const binding = prepared.body.command;
@@ -1064,7 +1064,7 @@ export class PersistentOwner {
         .replace(/\+/g, "-")
         .replace(/\//g, "_")
         .replace(/=+$/, "");
-    return {
+    const packet: Json = {
       ...prepared,
       kind: "credential",
       credentialLifetimeSeconds: lifetimeSeconds,
@@ -1079,6 +1079,95 @@ export class PersistentOwner {
       },
       expectedLease: lease,
     };
+    if (providerState !== undefined) {
+      const state = providerState,
+        provider = offer.provider,
+        slot = state.slot;
+      exact(state, [
+        "contractVersion",
+        "profile",
+        "slot",
+        "retainedSelections",
+        "retirementCandidates",
+        "legacyBlockers",
+        "requiresFreshGrants",
+      ]);
+      if (
+        state.contractVersion !== CONTRACT ||
+        state.profile !== "folioview.provider-connection-slot.v1" ||
+        state.requiresFreshGrants !== true ||
+        !Array.isArray(state.legacyBlockers) ||
+        state.legacyBlockers.length ||
+        !Array.isArray(state.retirementCandidates) ||
+        state.retirementCandidates.length > 32 ||
+        !["muse", "chatgpt"].includes(provider)
+      )
+        fail("review_required");
+      const scope = {
+        contractVersion: CONTRACT,
+        profile: state.profile,
+        ownerSubject: this.ctx.ownerSubject,
+        vaultId: this.ctx.vault.vaultId,
+        provider,
+        slotId: "provider_" + (await digest([this.ctx.ownerSubject, provider])),
+      };
+      if (slot) {
+        exact(slot, [
+          ...Object.keys(scope),
+          "slotVersion",
+          "slotGeneration",
+          "currentCredential",
+          "lastCredential",
+        ]);
+        if (Object.keys(scope).some((k) => !same(slot[k], (scope as Json)[k]))) fail();
+        integer(slot.slotVersion, 1);
+        integer(slot.slotGeneration, 1);
+      }
+      for (const ref of state.retirementCandidates) {
+        exact(ref, ["connectionId", "clientId", "credentialGeneration", "credentialFingerprint"]);
+        validate("Identifier", ref.connectionId);
+        validate("Identifier", ref.clientId);
+        integer(ref.credentialGeneration, 1);
+        validate("Digest", ref.credentialFingerprint);
+      }
+      const ids = state.retirementCandidates.map((r: Json) => r.connectionId);
+      if (!same(ids, [...new Set(ids)].sort())) fail();
+      const review = { ...scope, retiredCredentials: copy(state.retirementCandidates), tasks: [] };
+      const control = {
+        ...scope,
+        artifactType: "provider_connection_update",
+        action: "activate",
+        rootKeyId: this.ctx.vault.rootKeyId,
+        expectedSlotVersion: slot?.slotVersion ?? 0,
+        expectedSlotGeneration: slot?.slotGeneration ?? 0,
+        previousCredentialFingerprint: slot?.lastCredential.credentialFingerprint ?? null,
+        candidateCredentialFingerprint: lease.credentialFingerprint,
+        reviewDigest: await digest(review),
+        setupIntentId: offer.setupIntentId,
+        deviceSigningKeyId: this.ctx.deviceSigningKeyId,
+        stableOperationId: packet.operationId,
+        registrySequence: accepted.sequence,
+        checkpointDigest: accepted.current.digest,
+        keyEpoch: accepted.current.keyEpoch,
+        issuedAt: this.ctx.now(),
+      };
+      const proof = await sign(
+        control,
+        this.ctx.deviceSigningKey,
+        this.ctx.deviceSigningKeyId,
+        "fv-control+jws",
+      );
+      packet.providerActivation = {
+        provider,
+        expectedVersion: control.expectedSlotVersion + 1,
+        expectedGeneration: control.expectedSlotGeneration + 1,
+        body: {
+          contractVersion: CONTRACT,
+          command: { approval: proof, review, credential: copy(packet.body.command) },
+        },
+      };
+    }
+    return packet;
   }
   async historicalPolicy(state: Json, resourceState: Json, receipts: Json[]) {
     const p = parsed(bytes(state.binding.payload), true);
@@ -1762,7 +1851,92 @@ export class PersistentOwner {
       fail();
     return { operationId: packet.operationId };
   }
-  async controlReceipt(packet: Json, receipt: Json) {
+  async controlReceipt(packet: Json, receipt: Json): Promise<Json> {
+    if (packet.kind === "credential" && packet.providerActivation) {
+      const a = packet.providerActivation,
+        c = a.body.command;
+      exact(receipt, [
+        "contractVersion",
+        "profile",
+        "slot",
+        "operation",
+        "credentialReceipt",
+        "retainedSelections",
+        "requiresFreshGrants",
+      ]);
+      const slot = receipt.slot,
+        o = receipt.operation,
+        ref = {
+          connectionId: packet.connectionId,
+          clientId: packet.identity.clientId,
+          credentialGeneration: packet.expectedLease.generation,
+          credentialFingerprint: packet.expectedLease.credentialFingerprint,
+        };
+      const scope = c.review;
+      if (slot)
+        exact(slot, [
+          "contractVersion",
+          "profile",
+          "ownerSubject",
+          "vaultId",
+          "provider",
+          "slotId",
+          "slotVersion",
+          "slotGeneration",
+          "currentCredential",
+          "lastCredential",
+        ]);
+      if (o)
+        exact(o, [
+          "contractVersion",
+          "profile",
+          "ownerSubject",
+          "vaultId",
+          "provider",
+          "slotId",
+          "stableOperationId",
+          "operationFingerprint",
+          "slotVersion",
+          "slotGeneration",
+          "currentCredentialFingerprint",
+          "acceptedAt",
+        ]);
+      if (o) integer(o.acceptedAt, 0);
+      if (
+        receipt.contractVersion !== CONTRACT ||
+        receipt.profile !== scope.profile ||
+        receipt.requiresFreshGrants !== true ||
+        !same(receipt.retainedSelections, []) ||
+        !slot ||
+        !o
+      )
+        fail();
+      for (const k of [
+        "contractVersion",
+        "profile",
+        "ownerSubject",
+        "vaultId",
+        "provider",
+        "slotId",
+      ])
+        if (slot[k] !== scope[k] || o[k] !== scope[k]) fail();
+      if (
+        slot.slotVersion !== a.expectedVersion ||
+        slot.slotGeneration !== a.expectedGeneration ||
+        !same(slot.currentCredential, ref) ||
+        !same(slot.lastCredential, ref) ||
+        o.stableOperationId !== packet.operationId ||
+        o.operationFingerprint !== (await fingerprint(c.approval)) ||
+        o.slotVersion !== slot.slotVersion ||
+        o.slotGeneration !== slot.slotGeneration ||
+        o.currentCredentialFingerprint !== ref.credentialFingerprint
+      )
+        fail();
+      return this.controlReceipt(
+        { ...packet, providerActivation: undefined },
+        receipt.credentialReceipt,
+      );
+    }
     if (packet.kind === "credential") {
       exact(receipt, [
         "contractVersion",

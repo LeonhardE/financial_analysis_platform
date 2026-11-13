@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef } from "react";
+import { useRef, useEffect, useState } from "react";
 import { useTaskCenter } from "./useTaskCenter";
 import { TaskCenterView } from "./TaskCenterPanel";
 import type { PersistentWorkspaceModel } from "./usePersistentWorkspace";
@@ -958,17 +958,51 @@ export default function TasksPanel({
 }) {
   const model = useTasks(workspace, { active });
   const center = useTaskCenter(workspace, active, model.selected);
+  const [linkedTask, setLinkedTask] = useState<string | null>(null);
+  const tc = useTranslations("taskCenter");
+  useEffect(() => {
+    const read = () => {
+      const match = /^#task\/([A-Za-z0-9][A-Za-z0-9_-]{0,127})$/.exec(window.location.hash);
+      setLinkedTask(match?.[1] ?? null);
+    };
+    read();
+    window.addEventListener("hashchange", read);
+    window.addEventListener("popstate", read);
+    return () => {
+      window.removeEventListener("hashchange", read);
+      window.removeEventListener("popstate", read);
+    };
+  }, [active]);
+  useEffect(() => {
+    if (active && linkedTask && model.unlocked && !model.dirty && !model.busy && !model.pending) {
+      if (model.selected?.taskId !== linkedTask) void model.openTask(linkedTask);
+      setLinkedTask(null);
+    }
+  }, [
+    active,
+    linkedTask,
+    model.unlocked,
+    model.dirty,
+    model.busy,
+    model.pending,
+    model.selected?.taskId,
+    model.openTask,
+  ]);
+
   if (model.unlocked && workspace.phase === "unlocked" && !workspace.needsDeviceApproval)
     return (
-      <TaskCenterView
-        workspace={workspace}
-        model={model}
-        center={center}
-        persistent={persistent}
-        request={request}
-        onRequestConsumed={onRequestConsumed}
-        onNavigate={onNavigate}
-      />
+      <>
+        {linkedTask && model.dirty && <InlineError message={tc("unsavedLink")} />}
+        <TaskCenterView
+          workspace={workspace}
+          model={model}
+          center={center}
+          persistent={persistent}
+          request={request}
+          onRequestConsumed={onRequestConsumed}
+          onNavigate={onNavigate}
+        />
+      </>
     );
   return (
     <TasksView

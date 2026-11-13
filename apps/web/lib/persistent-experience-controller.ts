@@ -142,13 +142,16 @@ export class PersistentExperienceController {
     if (packet.connectionId !== connection.connectionId) fail("verification_failed");
     const publication = packet.kind === "publication",
       credential = packet.kind === "credential";
-    const receiptPath = credential
-      ? `/api/v3/agent-credentials/${v.vaultId}/${connection.connectionId}/operations/${packet.operationId}`
-      : publication
-        ? `/api/v2/persistent-content/${v.vaultId}/connections/${connection.connectionId}/operations/${packet.operationId}`
-        : base +
-          (packet.kind === "identity" ? "/operations/" : "/resource-operations/") +
-          packet.operationId;
+    const receiptPath =
+      credential && packet.providerActivation
+        ? `/api/v3/provider-connections/${v.vaultId}/${packet.providerActivation.provider}/operations/${packet.operationId}`
+        : credential
+          ? `/api/v3/agent-credentials/${v.vaultId}/${connection.connectionId}/operations/${packet.operationId}`
+          : publication
+            ? `/api/v2/persistent-content/${v.vaultId}/connections/${connection.connectionId}/operations/${packet.operationId}`
+            : base +
+              (packet.kind === "identity" ? "/operations/" : "/resource-operations/") +
+              packet.operationId;
     let receipt: Json | null = null;
     try {
       receipt = await this.request(receiptPath);
@@ -172,22 +175,25 @@ export class PersistentExperienceController {
         } else if (!same(fresh.registryHistory.at(-1), update.registryBundle))
           fail("version_conflict");
       }
-      const path = credential
-        ? `/api/v3/agent-credentials/${v.vaultId}/${connection.connectionId}/approvals`
-        : publication
-          ? `/api/v2/persistent-content/${v.vaultId}/connections/${connection.connectionId}/publications`
-          : base +
-            (
-              {
-                identity: "/bindings",
-                consent: "/resource-approvals",
-                revocation: "/resource-revocations",
-              } as Record<string, string>
-            )[packet.kind];
+      const path =
+        credential && packet.providerActivation
+          ? `/api/v3/provider-connections/${v.vaultId}/${packet.providerActivation.provider}/commands`
+          : credential
+            ? `/api/v3/agent-credentials/${v.vaultId}/${connection.connectionId}/approvals`
+            : publication
+              ? `/api/v2/persistent-content/${v.vaultId}/connections/${connection.connectionId}/publications`
+              : base +
+                (
+                  {
+                    identity: "/bindings",
+                    consent: "/resource-approvals",
+                    revocation: "/resource-revocations",
+                  } as Record<string, string>
+                )[packet.kind];
       if (!path) fail("verification_failed");
       receipt = await this.request(path, {
         method: "POST",
-        json: packet.body,
+        json: packet.providerActivation?.body ?? packet.body,
         headers: { "Idempotency-Key": packet.operationId },
       });
     }
@@ -325,6 +331,30 @@ export class PersistentExperienceController {
       hubOrigin: this.hubOrigin,
     });
     this.assert();
+    if ((this.workspace() as any).providerSlotsSupported) {
+      const caps = await this.request("/api/v3/provider-connections/capabilities");
+      if (caps.enabled) {
+        const providerState = await this.request(
+            `/api/v3/provider-connections/${handoff.vaultId}/${connection.provider}`,
+          ),
+          pending = await this.workspace().loadPersistentPending(actor);
+        this.assert();
+        return {
+          connection,
+          setup,
+          current,
+          review,
+          scope: { reviewDigest: review.reviewDigest, identities: [], permissions: [] },
+          tasks: [],
+          renewing: Boolean(current.lease || providerState.slot),
+          providerState,
+          pendingLifetimeSeconds:
+            pending?.kind === "credential" && pending.setupIntentId === setup.setupIntentId
+              ? credentialLifetime(pending)
+              : null,
+        };
+      }
+    }
     const legacy = setup.predecessorConnectionId,
       sources = await this.restorationSources(connection, current.identity ? null : legacy);
     const scope = await this.restorationScope(connection, current, sources, legacy),
@@ -346,7 +376,17 @@ export class PersistentExperienceController {
       pending?.kind === "credential" && pending.setupIntentId === setup.setupIntentId
         ? credentialLifetime(pending)
         : null;
-    return { connection, setup, current, review, scope, tasks, renewing, pendingLifetimeSeconds };
+    return {
+      connection,
+      setup,
+      current,
+      review,
+      scope,
+      tasks,
+      renewing,
+      pendingLifetimeSeconds,
+      providerState: null,
+    };
   }
   async authorize(
     handoff: Json,
@@ -363,12 +403,14 @@ export class PersistentExperienceController {
           current.setup,
           current.current,
           current.scope.reviewDigest,
+          current.providerState,
           current.tasks.map((t) => t.packet.metadata),
         ],
         [
           expected.setup,
           expected.current,
           expected.scope.reviewDigest,
+          expected.providerState,
           expected.tasks.map((t: PersistentTask) => t.packet.metadata),
         ],
       )
@@ -383,7 +425,9 @@ export class PersistentExperienceController {
       let receipt: Json | null = null;
       try {
         receipt = await this.request(
-          `${this.credentialBase(connection)}/operations/${pending.operationId}`,
+          pending.providerActivation
+            ? `/api/v3/provider-connections/${connection.vaultId}/${pending.providerActivation.provider}/operations/${pending.operationId}`
+            : `${this.credentialBase(connection)}/operations/${pending.operationId}`,
         );
       } catch (e) {
         if (!(e instanceof PersistentExperienceError) || e.code !== "not_found") throw e;
@@ -423,6 +467,7 @@ export class PersistentExperienceController {
         current: current.current,
         hubOrigin: this.hubOrigin,
         lifetimeSeconds,
+        ...(current.providerState ? { providerState: current.providerState } : {}),
       }));
     this.assert();
     await this.send(connection, packet);
@@ -432,6 +477,8 @@ export class PersistentExperienceController {
       installed.identity?.bindingFingerprint !== packet.identity.bindingFingerprint
     )
       fail("version_conflict");
+    if (current.providerState || packet.providerActivation)
+      return { connected: true, requiresTaskReview: true };
     if (current.renewing) await this.restore(connection);
     else if (selected.length) {
       const review = await this.review(connection);

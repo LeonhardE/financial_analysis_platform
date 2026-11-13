@@ -8,6 +8,21 @@ const jsx = require("react/jsx-runtime");
 function render(locale, unlocked, plan, credential = null, duration = null) {
   const imports = {
     react: React,
+    "@/lib/provider-groups": compile("../lib/provider-groups.ts"),
+    "./useProviderConnections": {
+      useProviderConnections: () => ({
+        states: {},
+        loading: false,
+        error: false,
+        reload: async () => {},
+      }),
+    },
+    "./ProviderMark": {
+      ProviderMark: ({ provider }) =>
+        React.createElement("span", { "data-provider": provider }, provider),
+    },
+    "./ReportDialog": { ReportDialog: () => null },
+    "./WorkspaceFeedback": { LoadingIndicator: () => null, InlineError: () => null },
     "react/jsx-runtime": jsx,
     "next-intl": {
       useLocale: () => locale,
@@ -63,6 +78,7 @@ function render(locale, unlocked, plan, credential = null, duration = null) {
         connection: {
           connectionId: "connection_A",
           clientId: "muse_A",
+          provider: "muse",
           status: "active",
           accountState: "connected",
           linkedAt: 1000,
@@ -97,32 +113,17 @@ function render(locale, unlocked, plan, credential = null, duration = null) {
     }),
   );
 }
-test("both locales distinguish an unconfirmed native plan from an actual Hub report, and conceal private tasks while locked", () => {
+test("connection management links private tasks back to the task center and conceals them while locked", () => {
   for (const locale of ["zh", "en"]) {
-    const plan = {
-      reported: null,
-      desired: { taskPublicationFingerprint: "a".repeat(64) },
-      observed: { runCreatedAt: 1000, receivedAt: 1001, resultId: "result_A" },
-    };
-    const open = render(locale, true, plan);
+    const open = render(locale, true, { reported: null, observed: { receivedAt: 1001 } });
     assert.match(open, /PRIVATE_TASK_CANARY/);
-    assert.match(open, /09:00/);
-    assert.match(open, /America\/Toronto/);
-    assert.match(open, locale === "zh" ? /等待 Agent 确认/ : /Waiting for Agent confirmation/);
-    assert.match(open, locale === "zh" ? /已收到报告/ : /Report received/);
-    const awaitingResult = render(locale, true, {
-      ...plan,
-      observed: { ...plan.observed, receivedAt: null, resultId: null },
-    });
-    assert.doesNotMatch(awaitingResult, locale === "zh" ? /已收到报告/ : /Report received/);
-    const locked = render(locale, false, plan);
-    assert.doesNotMatch(locked, /PRIVATE_TASK_CANARY|09:00|America\/Toronto/);
+    assert.match(open, /href="\/tasks#task\/task_A"/);
+    assert.doesNotMatch(open, /09:00|America\/Toronto|Waiting for Agent confirmation|已收到报告/);
+    const locked = render(locale, false, null);
+    assert.doesNotMatch(locked, /PRIVATE_TASK_CANARY/);
     assert.match(locked, locale === "zh" ? /解锁/ : /Unlock/);
-    const out = render(locale, true, {
-      ...plan,
-      reported: { reportedStatus: "enabled", taskPublicationFingerprint: "b".repeat(64) },
-    });
-    assert.match(out, locale === "zh" ? /等待 Agent 确认/ : /Waiting for Agent confirmation/);
+    assert.match(open, /Claude/);
+    assert.match(open, /Gemini/);
   }
 });
 
