@@ -188,3 +188,10 @@ The workload-token boundary follows Google's
 [fixed OIDC metadata](https://accounts.google.com/.well-known/openid-configuration)
 and [Cloud Run header behavior](https://docs.cloud.google.com/run/docs/authenticating/service-to-service).
 The application still verifies the signed token; ingress IAM is a separate layer.
+
+## Provider connection slot contracts
+
+The [encrypted credential guide](folioview_shared/encrypted/docs/agent-credentials.md#ownerprovider-current-connection-slot)
+contains the optional Owner/provider unique current-slot contract, reviewed legacy migration,
+atomic consumer requirements and unknown-commit handling. The foundation is additive and does
+not enable consumers, change existing credential formats, migrate records or provision resources.
