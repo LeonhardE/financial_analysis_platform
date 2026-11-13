@@ -208,3 +208,7 @@ manifest contracts. It does not change P1 grants or enable any consumer.
 Owner-approved 90-day credential leases are documented in the
 [credential lifecycle contract](docs/agent-credentials.md). The profile is additive; consumers must
 implement atomic replacement and current-generation fences before enabling it.
+
+The additive [Owner/provider current slot contract](docs/agent-credentials.md#ownerprovider-current-connection-slot)
+provides pure reviewed replacement/disconnect plans and a live slot fence. It does not
+change existing consumers, migrate connections or merge legacy task/resource scopes.
