@@ -315,7 +315,12 @@ class TaskCenterOwnerService(PersistentPublicationService):
                 if old["fingerprint"] != fp or old["taskId"] != task:
                     raise ContractError("idempotency_conflict")
                 return old["receipt"]
-            if meta["status"] != "active" and action not in {"trash", "restore", "purge"}:
+            if meta["status"] != "active" and action not in {
+                "set_rules",
+                "trash",
+                "restore",
+                "purge",
+            }:
                 raise ContractError("key_authorization_required")
             row = definition_row(unit, owner, vault, task)
             definition = None if row is None else row["definition"]

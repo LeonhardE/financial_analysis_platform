@@ -9,6 +9,7 @@ The optional task center can retain a signed Owner request for selected current 
 ## Changes
 
 - Bound requests to current task, assignment, credential and lifecycle versions with a ten-minute pickup deadline and a sixteen-request queue. Cancel before pickup, retain original receipts, and keep manual and calendar namespaces independent.
+- Let paused/archived legacy tasks enter task-center lifecycle management without reactivating their execution or assignments.
 - Persist per-Agent waiting, running and result stages. Task deletion cancels waiting requests and fences in-flight results; restoring history never replays old requests.
 - Distribute private client 1.2.0 with authenticated pickup, signed intent verification, lifecycle control verification and durable retry recovery. Preserve the original 1.0.0, 1.0.1 and 1.1.0 pinned artifacts.
 - No automatic wakeup, native schedule attestation, rollout flag, online run or new cloud resource is introduced. Existing unverified schedule provenance stays unknown.
