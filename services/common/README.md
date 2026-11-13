@@ -200,3 +200,8 @@ The [task-center extension](folioview_shared/encrypted/docs/persistent-content.m
 defines independently authorized executors, collision-free Run namespaces,
 user-configurable schedule contracts and durable deletion/recovery boundaries.
 It is a separate opt-in contract; existing wire formats/consumers remain unchanged.
+
+The [Owner-only display-name contract](folioview_shared/encrypted/docs/persistent-content.md#owner-only-display-names)
+provides an additive encrypted alias, independent CAS and original-operation
+identity. Its pure foundation changes no source/Agent permission and enables no
+consumer or infrastructure.

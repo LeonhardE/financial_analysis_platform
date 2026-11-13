@@ -254,3 +254,45 @@ and lifecycle tombstone; it cannot restore/recreate generation one or delete
 another task's shared Root/certificate/history. The consuming service must prove
 its atomic tombstone, physical content/index cleanup and real purge trigger
 separately; these pure plans do no deletion or background scheduling.
+
+## Owner-only display names
+
+`folioview.private-display-name.v1` is an additive, detached schema and pure
+verification/crypto profile for an optional holdings-source alias. It does not
+change the legacy Context/PrivatePayload, financial snapshots, source revision or
+epoch, task inputs, Run manifests, Agent grants or Root registry history. Existing
+unnamed objects remain valid; a consuming UI supplies a numbered fallback.
+
+The immutable slot binds Owner, vault, pinned Root and the complete holdings
+ResourceRef including incarnation. Renaming uses its own positive revision,
+expected revision, previous signing-input fingerprint and stable operation ID.
+The current device signs the closed `private_display_name_update` control under
+its existing `control_write` authority and current checkpoint/key epoch. Admission
+requires a fresh control (five-minute maximum), an active Owner recovery recipient,
+and independent current source ownership/incarnation checks. An Agent signer or
+recipient cannot authorize an alias. The service never reads the private name.
+
+The single-recipient General JSON JWE uses ECDH-ES+A256KW/A256GCM and the distinct
+`fv-owner-display-name+jwe` protected type. External AAD binds the closed
+Owner-display context, revision, operation ID and recipient. The encrypted wrapper
+repeats the profile/purpose and context digest. One ephemeral public key may be in
+the protected or recipient header, never both; other headers/algorithms/recipients
+are rejected. The existing Owner recovery key and retained historical readers are
+reused; no new key custody or Agent credential is introduced. A name is 1–80
+Unicode code points and at most 320 UTF-8 bytes, with no surrounding whitespace or
+Unicode control/format characters. Render it as text.
+
+Maximum signed command, JWE and complete HTTP request are respectively 12 KiB,
+8 KiB and 16 KiB. Consumers must bound raw HTTP before parsing, validate stored
+records and persist CAS plus the original receipt atomically. Original operation
+lookup returns the immutable accepted state; an exact retry preserves the original
+ciphertext/signing input. Re-encrypting equivalent text produces a distinct
+operation and cannot replace an unknown original commit. Current authority must
+be checked independently of replay comparison. Historical read verification uses
+the original accepted control/issuance registry and independently pinned Owner
+Root before AEAD; it does not authorize a current write. Deleted/recreated sources
+must never inherit an alias or receipt from another incarnation.
+
+The foundation imports no storage, network, scheduler or consumer. Independent
+Python/native Node WebCrypto tests use synthetic in-memory keys over an anonymous
+pipe in both directions, without frontend packages or private key fixture files.
