@@ -80,7 +80,9 @@ export function PersistentAgentsPanel({
     [now, setNow] = useState(() => Date.now() / 1000);
   const handoff = useRef<AgentAuthorizationHandoff | null>(null),
     oldOwner = useRef(model.owner);
-  const scope = model.unlocked ? `${model.owner}:${workspace.vaultGeneration}` : null;
+  const scope = model.unlocked
+    ? `${model.owner}:${workspace.vault?.vaultId ?? "unavailable"}:${workspace.vaultGeneration}`
+    : null;
   const live = useRef({ scope, owner: model.owner, active });
   live.current = { scope, owner: model.owner, active };
   const [authorization, setAuthorization] = useState<{

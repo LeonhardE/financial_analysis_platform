@@ -1,3 +1,6 @@
+const cacheContracts = require("./resource-library-helpers.cjs").compile(
+  "../lib/workspace-cache.ts",
+);
 const assert = require("node:assert/strict");
 const { webcrypto } = require("node:crypto");
 const { readFileSync } = require("node:fs");
@@ -493,6 +496,7 @@ function harness() {
       AbortController,
       window: { setTimeout: () => 1, clearTimeout() {} },
       require(name) {
+        if (name === "@/lib/workspace-cache") return cacheContracts;
         assert.ok(Object.hasOwn(imports, name), name);
         return imports[name];
       },

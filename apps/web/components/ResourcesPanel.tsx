@@ -103,7 +103,7 @@ function SourceManagement({ model }: { model: HoldingsWorkspace }) {
           <span>{t("lifecycle.select")}</span>
           <select
             value={model.newSource ? "new" : selected}
-            disabled={busy || Boolean(model.preview)}
+            disabled={(busy && model.busy !== "reading") || Boolean(model.preview)}
             onChange={(event) => void model.selectHoldingsSource(event.target.value)}
           >
             {model.newSource && <option value="new">{t("lifecycle.new")}</option>}
@@ -563,6 +563,9 @@ function Workspace({ model }: { model: HoldingsWorkspace }) {
                 </button>
               </div>
             </section>
+          )}
+          {(model.contentRefreshing || model.contentStale) && (
+            <p role="status">{t(model.contentStale ? "cachedUpdateFailed" : "refreshingSaved")}</p>
           )}
           {model.content && !hiddenHistory && (
             <section className={styles.saved} aria-labelledby="saved-holdings-title">

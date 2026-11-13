@@ -133,6 +133,7 @@ export function useResourceLibrary({ active = true }: { active?: boolean } = {})
         {
           method: json === undefined ? "GET" : "PUT",
           signal,
+          coalesceDisplay: json === undefined,
           ...(json === undefined ? {} : { json }),
           ...(source === "catalogue"
             ? { headers: { "X-FolioView-Contract": RESOURCE_CONTRACT } }
@@ -300,7 +301,17 @@ export function useResourceLibrary({ active = true }: { active?: boolean } = {})
     writing.current = null;
     for (const source of ["catalogue", "watchlist", "follows"] as Source[])
       ++serials.current[source];
-    setState(initial(owner));
+    setState((previous) =>
+      previous.owner === owner
+        ? {
+            ...previous,
+            busy: false,
+            catalogue: { ...previous.catalogue, loading: false },
+            watchlist: { ...previous.watchlist, loading: false },
+            follows: { ...previous.follows, loading: false },
+          }
+        : initial(owner),
+    );
     if (owner && active && visible) {
       void reload("watchlist");
       void reload("follows");

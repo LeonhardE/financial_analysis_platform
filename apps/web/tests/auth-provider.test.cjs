@@ -1,3 +1,6 @@
+const cacheContracts = require("./resource-library-helpers.cjs").compile(
+  "../lib/workspace-cache.ts",
+);
 const assert = require("node:assert/strict");
 const { readFileSync } = require("node:fs");
 const path = require("node:path");
@@ -157,6 +160,7 @@ function mountProvider({
     module,
     exports: module.exports,
     require: (name) => {
+      if (name === "@/lib/workspace-cache") return cacheContracts;
       if (!(name in imports)) throw new Error(`Unexpected test import ${name}`);
       return imports[name];
     },
@@ -2496,3 +2500,30 @@ for (const service of ["agent-hub", "portfolio"])
     assert.equal(h.requests.length, requests);
     h.unmount();
   });
+
+test("opt-in display GETs coalesce transport without sharing cancellation or persisting responses", async () => {
+  const gate = deferred();
+  const h = mountProvider({
+    fetchProfile: async (url) => (url.endsWith("/api/v1/me") ? profileResponse("a") : gate.promise),
+  });
+  h.emitUser(user("a"));
+  await settle();
+  const a = new AbortController(),
+    b = new AbortController();
+  const first = h.actions.requestPrivate("user", "/api/v1/watchlist", "a:1", {
+    coalesceDisplay: true,
+    signal: a.signal,
+  });
+  const rejected = assert.rejects(first, /cancelled|session changed/);
+  const second = h.actions.requestPrivate("user", "/api/v1/watchlist", "a:1", {
+    coalesceDisplay: true,
+    signal: b.signal,
+  });
+  await settle();
+  assert.equal(h.requests.filter(([url]) => url.endsWith("/api/v1/watchlist")).length, 1);
+  a.abort();
+  await rejected;
+  gate.resolve(new Response("[]", { headers: { "content-type": "application/json" } }));
+  assert.equal(await (await second).text(), "[]");
+  assert.equal(h.state().profile.uid, "a");
+});

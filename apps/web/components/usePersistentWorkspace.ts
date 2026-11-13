@@ -69,7 +69,7 @@ export function usePersistentWorkspace(workspace: HoldingsWorkspace, hubOrigin: 
   );
   const scope =
     visible && owner && workspace.owner === owner && workspace.phase === "unlocked"
-      ? `${owner}:${workspace.vaultGeneration}`
+      ? `${owner}:${workspace.vault?.vaultId ?? "unavailable"}:${workspace.vaultGeneration}`
       : null;
   const [state, setState] = useState<State>(initial);
   const live = useRef({ auth, workspace, owner, scope, visible, hubOrigin });

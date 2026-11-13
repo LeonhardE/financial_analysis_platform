@@ -443,7 +443,9 @@
       }
     },
     "archiveUnavailable": "密钥包移除请求尚待处理，或云端密钥包已移除。请到设置核对原请求，或使用独立恢复包恢复；原内容并未因此清空。",
-    "archiveSettings": "前往设置处理密钥包"
+    "archiveSettings": "前往设置处理密钥包",
+    "refreshingSaved": "正在检查更新…",
+    "cachedUpdateFailed": "更新失败，显示上次载入的持仓。"
   },
   "inbox": {
     "eyebrow": "个人 AGENT 产出",

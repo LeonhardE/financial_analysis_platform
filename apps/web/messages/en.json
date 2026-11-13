@@ -443,7 +443,9 @@
       }
     },
     "archiveUnavailable": "A key archive removal needs attention, or the cloud key archive was removed. Open Settings to check the original request or use independent recovery. Your saved content has not been emptied.",
-    "archiveSettings": "Open key archive settings"
+    "archiveSettings": "Open key archive settings",
+    "refreshingSaved": "Checking for updates…",
+    "cachedUpdateFailed": "Update failed. Showing previously loaded holdings."
   },
   "inbox": {
     "eyebrow": "YOUR AGENT RESULTS",

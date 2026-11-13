@@ -18,6 +18,7 @@ function compile(file, imports = {}, globals = {}) {
     module,
     exports: module.exports,
     require: (name) => {
+      if (name === "@/lib/workspace-cache") return compile("../lib/workspace-cache.ts");
       assert.ok(Object.hasOwn(imports, name), name);
       return imports[name];
     },

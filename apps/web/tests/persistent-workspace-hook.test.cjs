@@ -223,7 +223,7 @@ test("hidden pages mask private connection and task state immediately, abort wor
     const state = h.cells.find((c) => c?.value && Array.isArray(c.value.views));
     state.value = {
       ...state.value,
-      scope: "owner_A:login1:1",
+      scope: "owner_A:login1:vault_A:1",
       tasks: [{ title: "PRIVATE_CANARY" }],
       views: [
         {
@@ -510,6 +510,25 @@ test("a second admission denial ends the action instead of looping", async () =>
     assert.equal(attempts, 2);
     await h.settle();
     assert.equal(h.render().waitingForService, false);
+  } finally {
+    h.close();
+  }
+});
+
+test("changing the vault without an owner change masks retained private tasks before effects", async () => {
+  const h = harness();
+  try {
+    h.render();
+    await h.settle();
+    const state = h.cells.find((c) => c?.value && Array.isArray(c.value.views));
+    state.value = {
+      ...state.value,
+      scope: "owner_A:login1:vault_A:1",
+      tasks: [{ title: "PRIVATE_CANARY" }],
+    };
+    assert.match(JSON.stringify(h.render(false).tasks), /PRIVATE_CANARY/);
+    h.workspace.vault = { vaultId: "vault_B" };
+    assert.doesNotMatch(JSON.stringify(h.render(false).tasks), /PRIVATE_CANARY/);
   } finally {
     h.close();
   }
