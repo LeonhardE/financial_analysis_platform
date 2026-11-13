@@ -159,3 +159,98 @@ issuance-only owner history, unsafe private content, profile separation and exac
 frozen manifests. A public Node-produced vector is always verified/decrypted in
 Python using a documented public test scalar; optional live reverse tests verify
 all content types with independent Node JOSE. No private JWK is stored in fixtures.
+
+## Task center extension
+
+The additive `folioview.task-center.v1` profile is packaged separately in
+`task_center.json` with pure `task_center` helpers. Old task/content/manifest/JWE
+profiles and browser distributions remain unchanged. No consumer, migration,
+scheduler, dispatcher, purge job or cloud resource is enabled by these contracts.
+
+A `CenterTaskDefinition` belongs to Owner/vault/task, independent of Agent identity.
+Its business task/execution versions match the authoritative encrypted task head;
+`definitionVersion` provides CAS, `ruleVersion` fences changed rules, and
+`lifecycleEpoch` fences deletion/recovery. Schedule is nullable: null means manual
+only, while scheduled tasks also accept separately approved manual intents.
+Schedules use user-selected daily/weekly ISO weekdays, HH:MM, IANA timezone,
+grace and effectiveFrom. Daily uses an empty weekday list; weekly is sorted and
+nonempty. DST gaps skip, repeated wall times select the first fold and one stable
+slot. Rule change fences the old rule on commit; new automatic occurrences start
+at effectiveFrom. Saving a schedule does not create or attest any native plan.
+
+`plan_task_rules`, `plan_assignment` and `plan_task_lifecycle` require distinct
+current Owner-device controls, exact Root/checkpoint/freshness, closed fields and
+expected versions. Assignment creation and manual intent additionally require
+`task_grant`; a control-only device cannot add an executor. The shared internal
+Owner-control verifier accepts a named schema validator while retaining its exact
+legacy default and byte limit. There is no general unauthenticated sign endpoint.
+
+Each canonical task/provider-slot pair has one stable assignment ID, its own
+monotonic assignmentVersion and independently approved exact authority fingerprint.
+Assignments bind current credential fingerprint/generation, physical actor,
+canonical provider slot/generation, task/execution/rule/lifecycle versions. At
+most 32 are represented per request; zero current assignments is normal. A
+removed assignment remains a tombstone, does not affect another task/Agent or
+delete prior history, and a later approval increments its existing version.
+Slot replacement requires fresh reviewed assignment approval and grants; it does
+not implicitly inherit task access. These metadata predicates issue no grants,
+create no ciphertext and do not replace current PoP, lease expiry, source epochs,
+input/delivery checks or atomic consumer CAS.
+
+### Runs, triggers and recoverable state
+
+The existing persistent Run hash uses Owner/vault/task/trigger. Thus consumers
+must namespace a task-center trigger with `assignment_trigger_id` using exact
+assignment/version/rule/lifecycle and the base trigger kind/ID before deriving
+the old Run ID. Two Agents executing the same slot then have separate Runs and
+receipts. Do not rewrite a trigger only on the server: pinned clients compare the
+manifest trigger with their request. A compatible client must agree on the
+namespaced trigger, or explicitly use the legacy path for unenrolled tasks.
+Never rename an old failed Run or fill its receipt with a new execution.
+
+`bind_task_run` freezes assignment, actual actor, original manifest fingerprint,
+input-version digest and trigger context as a separate `CenterRunBinding`; it
+leaves the old manifest format intact. `validate_run_binding` validates historical
+binding/manifest consistency without requiring the actor still be current.
+`require_run_current` is an additional current assignment/slot/rule/lifecycle
+write fence. Consumers still validate the original manifest and resources,
+recheck all authority at final commit and atomically store the immutable binding,
+result and original operation receipt. A removed/replaced assignment or restored
+task must never authorize a late old write.
+
+A manual trigger requires `verify_manual_intent`: a fresh Owner signature, exact
+current definition and selected nonempty assignment versions, stable request ID
+and at most 600-second admission window. The returned snapshot is deeply frozen.
+Consumers persist/consume each intent per assignment atomically; one intent can
+target multiple Agents without sharing their operation/receipt namespace. Its
+expiry gates admission, not cancellation of an already accepted valid Run.
+Manual dispatch/provenance adoption remains separately gated consumer work.
+
+A scheduled trigger needs both a policy-valid slot and `TrustedScheduleSource`
+created only by a trusted adapter after actual source verification. This type is
+not a wire DTO, a supplied verified flag, an Agent statement or proof that any
+provider supports the needed source. This package supplies no native-source
+adapter. Without such proof the consumer must use `legacy_unknown`, including
+when a native-looking trigger ID or a report is present. Real dispatch/provider
+acceptance must be established separately before enabling attribution.
+
+`CenterProgressSnapshot` uses the same stable request ID across navigation and
+refresh and contains independent executor stages: waiting, awaiting_confirmation,
+running, result_received, failed and cancelled. Aggregate output keeps partial
+failures and unresolved acknowledgements explicit. A report receipt is named
+`result_received`, not native-cycle success. Closing a view is not a cancellation
+command and cannot create a replacement intent or reset execution. Consumers
+build these snapshots from durable evidence, never an HTTP busy flag or model text.
+
+### Coupled deletion and history
+
+Trash advances the parent lifecycle epoch and gives the task and all associated
+Runs/results the same effective hidden state. Restore is allowed strictly before
+30 days, advances the epoch again, restores Owner history and reactivates no old
+assignment, plan or Run. Historical actor/assignment attribution is immutable and
+need not match a currently active executor. Parent visibility and current-write
+fences are separate checks. Purge at/after the deadline keeps the minimal version
+and lifecycle tombstone; it cannot restore/recreate generation one or delete
+another task's shared Root/certificate/history. The consuming service must prove
+its atomic tombstone, physical content/index cleanup and real purge trigger
+separately; these pure plans do no deletion or background scheduling.

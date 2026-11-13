@@ -122,7 +122,7 @@ def _match(value, expected):
         raise ContractError("recipient_binding_mismatch")
 
 
-def _device_control(signed, registry, schema, now):
+def _device_control(signed, registry, schema, now, *, validator=validate_persistent_schema):
     validate_schema("SignedObject", signed)
     if len(canonical_json(signed)) > MAX_IDENTITY_CONTROL_BYTES:
         raise ContractError("payload_too_large")
@@ -135,7 +135,7 @@ def _device_control(signed, registry, schema, now):
     payload = verify_jws(
         signed, cert["publicJwk"], typ="fv-control+jws", expected_kid=cert["keyId"]
     )
-    payload = validate_persistent_schema(schema, payload)
+    payload = validator(schema, payload)
     if payload["deviceSigningKeyId"] != cert["keyId"]:
         raise ContractError("recipient_binding_mismatch")
     if (

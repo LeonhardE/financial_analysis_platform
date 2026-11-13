@@ -195,3 +195,8 @@ The [encrypted credential guide](folioview_shared/encrypted/docs/agent-credentia
 contains the optional Owner/provider unique current-slot contract, reviewed legacy migration,
 atomic consumer requirements and unknown-commit handling. The foundation is additive and does
 not enable consumers, change existing credential formats, migrate records or provision resources.
+
+The [task-center extension](folioview_shared/encrypted/docs/persistent-content.md#task-center-extension)
+defines independently authorized executors, collision-free Run namespaces,
+user-configurable schedule contracts and durable deletion/recovery boundaries.
+It is a separate opt-in contract; existing wire formats/consumers remain unchanged.

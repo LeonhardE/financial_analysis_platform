@@ -1,0 +1,694 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:folioview:task-center:v1",
+  "$defs": {
+    "CenterSchedule": {
+      "type": "object",
+      "properties": {
+        "frequency": {
+          "enum": ["daily", "weekly"]
+        },
+        "days": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 7
+          },
+          "maxItems": 7,
+          "uniqueItems": true
+        },
+        "localTime": {
+          "type": "string",
+          "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9]$"
+        },
+        "timeZone": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "graceMinutes": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1440
+        },
+        "effectiveFrom": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "dstGap": {
+          "const": "skip"
+        },
+        "dstFold": {
+          "const": "first"
+        }
+      },
+      "required": [
+        "frequency",
+        "days",
+        "localTime",
+        "timeZone",
+        "graceMinutes",
+        "effectiveFrom",
+        "dstGap",
+        "dstFold"
+      ],
+      "additionalProperties": false
+    },
+    "CenterTaskDefinition": {
+      "type": "object",
+      "properties": {
+        "contractVersion": {
+          "const": "folioview.agent-workspace.v2.0"
+        },
+        "profile": {
+          "const": "folioview.task-center.v1"
+        },
+        "ownerSubject": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "vaultId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "taskId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "taskVersion": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "executionEpoch": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "ruleVersion": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "lifecycleEpoch": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "definitionVersion": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "status": {
+          "enum": ["active", "trashed", "purged"]
+        },
+        "schedule": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CenterSchedule"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "deletedAt": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "purgeAfter": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "contractVersion",
+        "profile",
+        "ownerSubject",
+        "vaultId",
+        "taskId",
+        "taskVersion",
+        "executionEpoch",
+        "ruleVersion",
+        "lifecycleEpoch",
+        "definitionVersion",
+        "status",
+        "schedule",
+        "deletedAt",
+        "purgeAfter"
+      ],
+      "additionalProperties": false
+    },
+    "CenterAssignmentTarget": {
+      "type": "object",
+      "properties": {
+        "slotId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "provider": {
+          "enum": ["muse", "chatgpt"]
+        },
+        "slotGeneration": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "credential": {
+          "$ref": "#/$defs/ProviderCredentialRef"
+        },
+        "agentId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "authorityFingerprint": {
+          "$ref": "#/$defs/Digest"
+        }
+      },
+      "required": [
+        "slotId",
+        "provider",
+        "slotGeneration",
+        "credential",
+        "agentId",
+        "authorityFingerprint"
+      ],
+      "additionalProperties": false
+    },
+    "CenterAssignment": {
+      "type": "object",
+      "properties": {
+        "contractVersion": {
+          "const": "folioview.agent-workspace.v2.0"
+        },
+        "profile": {
+          "const": "folioview.task-center.v1"
+        },
+        "ownerSubject": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "vaultId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "taskId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "taskVersion": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "executionEpoch": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "ruleVersion": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "lifecycleEpoch": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "assignmentId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "assignmentVersion": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "slotId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "provider": {
+          "enum": ["muse", "chatgpt"]
+        },
+        "slotGeneration": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "credential": {
+          "$ref": "#/$defs/ProviderCredentialRef"
+        },
+        "agentId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "authorityFingerprint": {
+          "$ref": "#/$defs/Digest"
+        },
+        "status": {
+          "enum": ["active", "removed"]
+        }
+      },
+      "required": [
+        "contractVersion",
+        "profile",
+        "ownerSubject",
+        "vaultId",
+        "taskId",
+        "taskVersion",
+        "executionEpoch",
+        "ruleVersion",
+        "lifecycleEpoch",
+        "assignmentId",
+        "assignmentVersion",
+        "slotId",
+        "provider",
+        "slotGeneration",
+        "credential",
+        "agentId",
+        "authorityFingerprint",
+        "status"
+      ],
+      "additionalProperties": false
+    },
+    "CenterIntentTarget": {
+      "type": "object",
+      "properties": {
+        "expiresAt": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "assignments": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "assignmentId": {
+                "$ref": "#/$defs/Identifier"
+              },
+              "assignmentVersion": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              }
+            },
+            "required": ["assignmentId", "assignmentVersion"],
+            "additionalProperties": false
+          },
+          "maxItems": 32,
+          "uniqueItems": true,
+          "minItems": 1
+        }
+      },
+      "required": ["expiresAt", "assignments"],
+      "additionalProperties": false
+    },
+    "CenterOwnerControl": {
+      "type": "object",
+      "properties": {
+        "contractVersion": {
+          "const": "folioview.agent-workspace.v2.0"
+        },
+        "profile": {
+          "const": "folioview.task-center.v1"
+        },
+        "ownerSubject": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "vaultId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "taskId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "artifactType": {
+          "const": "task_center_control"
+        },
+        "action": {
+          "enum": [
+            "set_rules",
+            "set_assignment",
+            "remove_assignment",
+            "trash",
+            "restore",
+            "purge",
+            "manual_intent"
+          ]
+        },
+        "rootKeyId": {
+          "$ref": "#/$defs/KeyId"
+        },
+        "deviceSigningKeyId": {
+          "$ref": "#/$defs/KeyId"
+        },
+        "registrySequence": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "checkpointDigest": {
+          "$ref": "#/$defs/Digest"
+        },
+        "keyEpoch": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "issuedAt": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "stableOperationId": {
+          "$ref": "#/$defs/OperationIdentifier"
+        },
+        "expectedDefinitionVersion": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "expectedAssignmentVersion": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "assignmentId": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Identifier"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "schedule": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CenterSchedule"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "assignment": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CenterAssignmentTarget"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "intent": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CenterIntentTarget"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "contractVersion",
+        "profile",
+        "ownerSubject",
+        "vaultId",
+        "taskId",
+        "artifactType",
+        "action",
+        "rootKeyId",
+        "deviceSigningKeyId",
+        "registrySequence",
+        "checkpointDigest",
+        "keyEpoch",
+        "issuedAt",
+        "stableOperationId",
+        "expectedDefinitionVersion",
+        "expectedAssignmentVersion",
+        "assignmentId",
+        "schedule",
+        "assignment",
+        "intent"
+      ],
+      "additionalProperties": false
+    },
+    "CenterTrigger": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "enum": ["manual", "scheduled", "legacy_unknown"]
+        },
+        "baseTriggerId": {
+          "$ref": "#/$defs/OperationIdentifier"
+        },
+        "sourceFingerprint": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Digest"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "scheduledAt": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": ["kind", "baseTriggerId", "sourceFingerprint", "scheduledAt"],
+      "additionalProperties": false
+    },
+    "CenterRunBinding": {
+      "type": "object",
+      "properties": {
+        "contractVersion": {
+          "const": "folioview.agent-workspace.v2.0"
+        },
+        "profile": {
+          "const": "folioview.task-center.v1"
+        },
+        "ownerSubject": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "vaultId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "taskId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "taskVersion": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "executionEpoch": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "ruleVersion": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "lifecycleEpoch": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "assignmentId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "assignmentVersion": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "slotId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "slotGeneration": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "provider": {
+          "enum": ["muse", "chatgpt"]
+        },
+        "credential": {
+          "$ref": "#/$defs/ProviderCredentialRef"
+        },
+        "agentId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "authorityFingerprint": {
+          "$ref": "#/$defs/Digest"
+        },
+        "runId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "manifestFingerprint": {
+          "$ref": "#/$defs/Digest"
+        },
+        "inputsDigest": {
+          "$ref": "#/$defs/Digest"
+        },
+        "triggerId": {
+          "$ref": "#/$defs/OperationIdentifier"
+        },
+        "trigger": {
+          "$ref": "#/$defs/CenterTrigger"
+        }
+      },
+      "required": [
+        "contractVersion",
+        "profile",
+        "ownerSubject",
+        "vaultId",
+        "taskId",
+        "taskVersion",
+        "executionEpoch",
+        "ruleVersion",
+        "lifecycleEpoch",
+        "assignmentId",
+        "assignmentVersion",
+        "slotId",
+        "slotGeneration",
+        "provider",
+        "credential",
+        "agentId",
+        "authorityFingerprint",
+        "runId",
+        "manifestFingerprint",
+        "inputsDigest",
+        "triggerId",
+        "trigger"
+      ],
+      "additionalProperties": false
+    },
+    "CenterExecutorProgress": {
+      "type": "object",
+      "properties": {
+        "assignmentId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "assignmentVersion": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "runId": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Identifier"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "resultId": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Identifier"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "stage": {
+          "enum": [
+            "waiting",
+            "awaiting_confirmation",
+            "running",
+            "result_received",
+            "failed",
+            "cancelled"
+          ]
+        }
+      },
+      "required": ["assignmentId", "assignmentVersion", "runId", "resultId", "stage"],
+      "additionalProperties": false
+    },
+    "CenterProgressSnapshot": {
+      "type": "object",
+      "properties": {
+        "contractVersion": {
+          "const": "folioview.agent-workspace.v2.0"
+        },
+        "profile": {
+          "const": "folioview.task-center.v1"
+        },
+        "ownerSubject": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "vaultId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "taskId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "requestId": {
+          "$ref": "#/$defs/OperationIdentifier"
+        },
+        "requestedAt": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "executors": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/CenterExecutorProgress"
+          },
+          "maxItems": 32,
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "contractVersion",
+        "profile",
+        "ownerSubject",
+        "vaultId",
+        "taskId",
+        "requestId",
+        "requestedAt",
+        "executors"
+      ],
+      "additionalProperties": false
+    }
+  }
+}
