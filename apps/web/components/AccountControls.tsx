@@ -96,7 +96,15 @@ function AccountAvatar({
   );
 }
 
-export function AccountControls({ collapsed = false }: { collapsed?: boolean }) {
+export function AccountControls({
+  collapsed = false,
+  canLock = false,
+  onLock,
+}: {
+  collapsed?: boolean;
+  canLock?: boolean;
+  onLock?: () => void;
+}) {
   const t = useTranslations();
   const locale = useLocale();
   const { status, profile, error, hasFirebaseUser, signIn, signOut, retry } = useAuth();
@@ -142,6 +150,29 @@ export function AccountControls({ collapsed = false }: { collapsed?: boolean }) 
         {hasFirebaseUser ? statusText : null}
       </span>
       <div className={styles.actions}>
+        {canLock && onLock && (
+          <button
+            type="button"
+            className={styles.button}
+            onClick={onLock}
+            aria-label={t("account.lock")}
+            title={t("account.lock")}
+          >
+            <svg
+              viewBox="0 0 24 24"
+              width="20"
+              height="20"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.7"
+              aria-hidden="true"
+            >
+              <rect x="5" y="10" width="14" height="11" rx="2" />
+              <path d="M8 10V7a4 4 0 0 1 8 0v3" />
+            </svg>
+            {!collapsed && <span>{t("account.lock")}</span>}
+          </button>
+        )}
         {hasFirebaseUser ? (
           <>
             {status === "error" && (

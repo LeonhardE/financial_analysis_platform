@@ -57,7 +57,8 @@ function mountAccount(changes = {}, locale = "en") {
   });
   return {
     calls,
-    render: (collapsed = false) => module.exports.AccountControls({ collapsed }),
+    render: (collapsed = false, controls = {}) =>
+      module.exports.AccountControls({ collapsed, ...controls }),
   };
 }
 
@@ -169,4 +170,24 @@ test("pending and unavailable sign-in stays disabled without extra unavailable c
     assert.match(html, /访客/);
     assert.doesNotMatch(html, /登录暂不可用|自由浏览|Sign-in will be available soon/);
   }
+});
+
+test("account area exposes one accessible lock action without signing out", () => {
+  const account = mountAccount({
+    status: "authenticated",
+    hasFirebaseUser: true,
+    profile: { displayName: "Synthetic", email: "synthetic@example.test", photoURL: null },
+  });
+  let locks = 0;
+  for (const collapsed of [true, false]) {
+    const tree = account.render(collapsed, { canLock: true, onLock: () => locks++ });
+    const lock = find(
+      tree,
+      (node) => node.type === "button" && node.props["aria-label"] === "Lock",
+    );
+    assert.ok(lock);
+    lock.props.onClick();
+  }
+  assert.equal(locks, 2);
+  assert.deepEqual(account.calls, []);
 });

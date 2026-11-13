@@ -407,6 +407,7 @@ export function usePersistentWorkspace(workspace: HoldingsWorkspace, hubOrigin: 
   );
   const visibleState = state.owner === owner ? state : initial;
   return {
+    isBusy: () => job.current !== null,
     ...visibleState,
     tasks: scope !== null && visibleState.scope === scope ? visibleState.tasks : [],
     views: visibleState.views.map((v) =>

@@ -1,0 +1,220 @@
+.loading {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 9px;
+  color: var(--muted);
+  font-size: 13px;
+  padding: 12px 0;
+}
+.spinner {
+  display: inline-block;
+  flex: 0 0 14px;
+  width: 14px;
+  height: 14px;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: workspaceSpin 800ms linear infinite;
+}
+.skeleton {
+  display: grid;
+  flex-basis: 100%;
+  gap: 10px;
+  margin-top: 8px;
+}
+.skeleton span {
+  height: 52px;
+  border-radius: 9px;
+  background: var(--raised);
+  animation: workspacePulse 1400ms ease-in-out infinite alternate;
+}
+.skeleton span:last-child {
+  width: 72%;
+}
+.error {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 12px 0;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  font-size: 13px;
+  color: var(--text);
+}
+.error > span {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  color: var(--negative);
+  border: 1px solid currentColor;
+}
+.error p {
+  flex: 1;
+  min-width: 120px;
+  margin: 0;
+}
+.error button {
+  color: var(--accent);
+  background: transparent;
+  border: 0;
+  min-height: 36px;
+}
+.empty {
+  padding: 32px 20px;
+  color: var(--muted);
+  text-align: center;
+}
+.empty h2 {
+  color: var(--text);
+  font-size: 18px;
+}
+.badge {
+  display: inline-grid;
+  place-items: center;
+  position: absolute;
+  top: -7px;
+  right: -7px;
+  min-width: 19px;
+  height: 19px;
+  padding: 0 5px;
+  border-radius: 12px;
+  background: #c82d47;
+  color: white;
+  font-size: 11px;
+  line-height: 1;
+  box-shadow: 0 0 0 2px var(--panel);
+}
+.dot {
+  position: absolute;
+  top: 9px;
+  right: 9px;
+  height: 7px;
+  width: 7px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--accent) 45%, var(--panel));
+}
+.run {
+  display: inline-flex;
+  align-items: center;
+  vertical-align: middle;
+  margin-inline-start: 8px;
+  color: var(--accent);
+}
+.waiting {
+  font-size: 16px;
+}
+.dialog {
+  position: fixed;
+  inset: 0;
+  width: min(900px, calc(100vw - 32px));
+  max-height: min(88dvh, 1000px);
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  color: var(--text);
+  background: var(--panel);
+  box-shadow: 0 24px 100px #0005;
+  overflow: auto;
+}
+.dialog[open] {
+  animation: reportEnter 200ms ease-out both;
+}
+.dialog::backdrop {
+  background: #0007;
+  animation: veilEnter 200ms ease-out both;
+}
+.dialog[data-closing="true"] {
+  animation: reportLeave 160ms ease-in both;
+}
+.dialog[data-closing="true"]::backdrop {
+  animation: veilLeave 160ms ease-in both;
+}
+.dialogHeading {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 18px 24px;
+  border-bottom: 1px solid var(--border);
+  background: var(--panel);
+}
+.dialogHeading h2 {
+  flex: 1;
+  margin: 0;
+  font-size: 20px;
+}
+.dialogHeading button {
+  width: 36px;
+  height: 36px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--raised);
+  color: var(--text);
+  font-size: 25px;
+}
+.dialogBody {
+  padding: 20px 24px 28px;
+}
+.dialogBody > article {
+  border: 0;
+  padding: 0;
+}
+@keyframes workspaceSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes workspacePulse {
+  to {
+    opacity: 0.45;
+  }
+}
+@keyframes reportEnter {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.99);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes reportLeave {
+  to {
+    opacity: 0;
+    transform: translateY(5px) scale(0.99);
+  }
+}
+@keyframes veilEnter {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes veilLeave {
+  to {
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .spinner,
+  .skeleton span,
+  .dialog[open],
+  .dialog::backdrop,
+  .dialog[data-closing="true"] {
+    animation: none;
+  }
+}
+
+.dialogBody {
+  overscroll-behavior: contain;
+}

@@ -301,7 +301,7 @@ function renderDashboard({
         resolvedTheme: "dark",
       }),
     },
-    "@/components/SettingsPanel": { default: () => null },
+    "@/components/SettingsPanel": { __esModule: true, default: () => null },
     "@/components/ResourcesPanel": { __esModule: true, default: () => null },
     "@/components/AgentsPanel": { __esModule: true, default: () => null },
     "@/lib/inbox-link": {

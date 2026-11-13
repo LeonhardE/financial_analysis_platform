@@ -2,6 +2,7 @@
 
 import { useRef } from "react";
 import { useTranslations } from "next-intl";
+import { LoadingIndicator } from "./WorkspaceFeedback";
 import { useHoldingsWorkspace, type HoldingsWorkspace } from "@/components/useHoldingsWorkspace";
 import type { HoldingsResourceContent } from "@/lib/holdings-csv";
 import styles from "./ResourcesPanel.module.css";
@@ -200,32 +201,35 @@ function SourceManagement({ model }: { model: HoldingsWorkspace }) {
       ) : (
         metadata &&
         !model.newSource && (
-          <div className={styles.sourceActions}>
-            <button
-              type="button"
-              className={styles.secondary}
-              disabled={blocked || metadata.state !== "active"}
-              onClick={() => void model.reviewSourceChange("fence")}
-            >
-              {t("lifecycle.actions.fence")}
-            </button>
-            <button
-              type="button"
-              className={styles.secondary}
-              disabled={blocked || metadata.state !== "active"}
-              onClick={() => void model.reviewSourceChange("disconnect")}
-            >
-              {t("lifecycle.actions.disconnect")}
-            </button>
-            <button
-              type="button"
-              className={`${styles.secondary} ${styles.danger}`}
-              disabled={blocked || !["active", "disconnected"].includes(metadata.state)}
-              onClick={() => void model.reviewSourceChange("delete")}
-            >
-              {t("lifecycle.actions.delete")}
-            </button>
-          </div>
+          <details>
+            <summary>{t("lifecycle.settings")}</summary>
+            <div className={styles.sourceActions}>
+              <button
+                type="button"
+                className={styles.secondary}
+                disabled={blocked || metadata.state !== "active"}
+                onClick={() => void model.reviewSourceChange("fence")}
+              >
+                {t("lifecycle.actions.fence")}
+              </button>
+              <button
+                type="button"
+                className={styles.secondary}
+                disabled={blocked || metadata.state !== "active"}
+                onClick={() => void model.reviewSourceChange("disconnect")}
+              >
+                {t("lifecycle.actions.disconnect")}
+              </button>
+              <button
+                type="button"
+                className={`${styles.secondary} ${styles.danger}`}
+                disabled={blocked || !["active", "disconnected"].includes(metadata.state)}
+                onClick={() => void model.reviewSourceChange("delete")}
+              >
+                {t("lifecycle.actions.delete")}
+              </button>
+            </div>
+          </details>
         )
       )}
       {!metadata &&
@@ -287,16 +291,9 @@ function Workspace({ model }: { model: HoldingsWorkspace }) {
     <>
       <div className={styles.vault}>
         <div>
-          <span className={styles.eyebrow}>{t("privateResources")}</span>
           <h2>{t("vaultTitle")}</h2>
-          <p>{t("vaultHelp")}</p>
+          {model.phase !== "unlocked" && <p>{t("vaultHelp")}</p>}
         </div>
-        <span
-          className={styles.status}
-          data-unlocked={model.authenticated && model.phase === "unlocked"}
-        >
-          {t(!model.authenticated || model.phase !== "unlocked" ? "locked" : "unlocked")}
-        </span>
       </div>
       {!model.configured ? (
         <p className={styles.warning} role="status">
@@ -339,9 +336,6 @@ function Workspace({ model }: { model: HoldingsWorkspace }) {
       ) : model.phase === "renewal-only" ? (
         <div className={styles.start} role="status">
           <p>{t("renewalOnly")}</p>
-          <button type="button" className={styles.secondary} onClick={model.lock}>
-            {t("lock")}
-          </button>
         </div>
       ) : model.phase === "locked" || model.needsDeviceApproval ? (
         <div className={styles.start}>
@@ -366,9 +360,6 @@ function Workspace({ model }: { model: HoldingsWorkspace }) {
               onClick={() => void model.readStored()}
             >
               {t("reloadHoldings")}
-            </button>
-            <button type="button" className={styles.secondary} onClick={model.lock}>
-              {t("lock")}
             </button>
           </div>
           <SourceManagement model={model} />
@@ -564,6 +555,11 @@ function Workspace({ model }: { model: HoldingsWorkspace }) {
               </div>
             </section>
           )}
+          <LoadingIndicator
+            busy={Boolean(model.busy === "reading")}
+            hasContent={Boolean(model.content)}
+            label={t("loading")}
+          />
           {(model.contentRefreshing || model.contentStale) && (
             <p role="status">{t(model.contentStale ? "cachedUpdateFailed" : "refreshingSaved")}</p>
           )}

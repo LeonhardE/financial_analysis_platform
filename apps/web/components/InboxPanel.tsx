@@ -12,6 +12,8 @@ import {
   readInboxResultLink,
   type InboxResultLink,
 } from "@/lib/inbox-link";
+import { ReportDialog } from "./ReportDialog";
+import { LoadingIndicator, UnreadBadge, UnreadDot, InlineError } from "./WorkspaceFeedback";
 import styles from "./InboxPanel.module.css";
 import { PasskeyHelp } from "./PasskeyHelp";
 
@@ -102,20 +104,10 @@ export function InboxView({
     <section className={styles.panel} aria-labelledby="inbox-title">
       <header className={styles.heading}>
         <div>
-          <span className={styles.eyebrow}>{t("eyebrow")}</span>
           <h1 id="inbox-title">{t("title")}</h1>
-          <p>{t("description")}</p>
         </div>
         {model.authenticated && model.configured && (
           <div className={styles.headerActions}>
-            <span className={styles.badge} data-unlocked={unlocked}>
-              {t(unlocked ? "unlocked" : "locked")}
-            </span>
-            {unlocked && (
-              <button className={styles.secondary} onClick={workspace.lock}>
-                {t("lock")}
-              </button>
-            )}
             <button
               className={styles.secondary}
               disabled={busy}
@@ -261,11 +253,18 @@ export function InboxView({
                   onClick={() => model.setFilter(filter)}
                 >
                   {t(`filters.${filter}`)}
-                  <span>{model.counts?.[filter] ?? "—"}</span>
+                  {filter === "unread" ? (
+                    <UnreadBadge
+                      count={model.counts?.unread ?? 0}
+                      label={t("unreadCount", { count: model.counts?.unread ?? 0 })}
+                    />
+                  ) : (
+                    <span>{model.counts?.[filter] ?? "—"}</span>
+                  )}
                 </button>
               ))}
             </div>
-            <label className={styles.search}>
+            <label className={styles.search} title={t("searchScope")}>
               <span className="sr-only">{t("search")}</span>
               <span aria-hidden="true">⌕</span>
               <input
@@ -278,7 +277,12 @@ export function InboxView({
               />
             </label>
           </div>
-          <p className={styles.scope}>{t(unlocked ? "searchScope" : "lockedScope")}</p>
+          {!unlocked && <p className={styles.scope}>{t("lockedScope")}</p>}
+          <LoadingIndicator
+            busy={model.loading || model.busy}
+            hasContent={model.items.length > 0}
+            label={t("loading")}
+          />
           <div className={styles.grid}>
             <div className={styles.listColumn} data-detail={Boolean(selected)}>
               <div className={styles.list} aria-label={t("results")} aria-busy={model.loading}>
@@ -287,6 +291,7 @@ export function InboxView({
                     <button
                       className={styles.result}
                       key={item.metadata.resultId}
+                      data-result-row
                       data-selected={selected?.metadata.resultId === item.metadata.resultId}
                       disabled={!unlocked || busy}
                       onClick={() => void model.openResult(item.metadata.resultId)}
@@ -294,9 +299,7 @@ export function InboxView({
                       <span className={styles.resultTop}>
                         <span className={styles.arrival}>{date(item.metadata.receivedAt)}</span>
                         <span>
-                          {!item.metadata.read && (
-                            <i className={styles.unread} aria-label={t("unread")} />
-                          )}
+                          <UnreadDot unread={!item.metadata.read} />
                           {item.metadata.starred && <span aria-label={t("starred")}>★</span>}
                         </span>
                       </span>
@@ -338,199 +341,204 @@ export function InboxView({
               )}
             </div>
             {selected ? (
-              <article className={styles.detail} aria-labelledby="result-title">
-                <button className={styles.back} onClick={model.closeDetail}>
-                  ← {t("back")}
-                </button>
-                <div className={styles.detailTop}>
-                  <span className={styles.eyebrow}>{t("resultLabel")}</span>
-                  <span className={styles.badge}>
-                    {t(selected.historical ? "historical" : "latest")}
-                  </span>
-                </div>
-                <h2 id="result-title">{selected.content.title}</h2>
-                <p className={styles.summary}>{selected.content.summary}</p>
-                <p className={styles.provenance}>
-                  {t("connection", { id: selected.metadata.connectionId })} ·{" "}
-                  {t("taskVersion", { version: selected.metadata.taskVersion })}
-                </p>
-                <div className={styles.actions} role="group" aria-label={t("resultActions")}>
-                  <button
-                    className={styles.secondary}
-                    disabled={busy || model.pendingState || !model.canWriteState}
-                    onClick={() => void model.updateState({ read: !selected.metadata.read })}
-                  >
-                    {t(selected.metadata.read ? "markUnread" : "markRead")}
-                  </button>
-                  <button
-                    className={styles.secondary}
-                    aria-pressed={selected.metadata.starred}
-                    disabled={busy || model.pendingState || !model.canWriteState}
-                    onClick={() => void model.updateState({ starred: !selected.metadata.starred })}
-                  >
-                    {t(selected.metadata.starred ? "unstar" : "star")}
-                  </button>
-                  <button
-                    className={styles.secondary}
-                    disabled={busy || model.pendingState || !model.canWriteState}
-                    onClick={() =>
-                      void model.updateState({ archived: !selected.metadata.archived })
-                    }
-                  >
-                    {t(selected.metadata.archived ? "unarchive" : "archive")}
-                  </button>
-                  <button className={styles.textButton} onClick={() => setCopyConfirm(true)}>
-                    {t("copy")}
-                  </button>
-                  <a
-                    className={styles.textButton}
-                    href={selectedLink ? `/${selectedLink}` : undefined}
-                  >
-                    {t("resultLink")}
-                  </a>
-                </div>
-                <p className={styles.scope}>{t("stateScope")}</p>
-                {copyConfirm && (
-                  <div className={styles.recovery}>
-                    <p>{t("copyWarning")}</p>
-                    <div className={styles.headerActions}>
-                      <button className={styles.secondary} onClick={() => void copy()}>
-                        {t("confirmCopy")}
-                      </button>
-                      <button className={styles.textButton} onClick={() => setCopyConfirm(false)}>
-                        {t("cancel")}
-                      </button>
-                    </div>
+              <ReportDialog
+                id="legacy-report"
+                open={Boolean(selected)}
+                identity={`${selected.metadata.resultId}:${selected.metadata.revision}`}
+                title={selected.content.title}
+                closeLabel={t("closeReport")}
+                onClose={model.closeDetail}
+              >
+                <article className={styles.detail} aria-labelledby="legacy-report-title">
+                  <div className={styles.detailTop}>
+                    <span className={styles.eyebrow}>{t("resultLabel")}</span>
+                    <span className={styles.badge}>
+                      {t(selected.historical ? "historical" : "latest")}
+                    </span>
                   </div>
-                )}
-                {copyNotice && (
-                  <p role="status" className={styles.feedback}>
-                    {t(copyNotice)}
+
+                  <p className={styles.summary}>{selected.content.summary}</p>
+                  <p className={styles.provenance}>
+                    {t("connection", { id: selected.metadata.connectionId })} ·{" "}
+                    {t("taskVersion", { version: selected.metadata.taskVersion })}
                   </p>
-                )}
-                {selected.historical && <p className={styles.historyNote}>{t("historicalHelp")}</p>}
-                <div className={styles.sections}>
-                  {selected.content.sections.map((section) => (
-                    <section key={section.sectionId}>
-                      <h2>{section.sectionId.replace(/[-_]/g, " ")}</h2>
-                      <SafeReportMarkdown markdown={section.markdown} />
-                    </section>
-                  ))}
-                </div>
-                {selected.content.citations.length > 0 && (
-                  <section className={styles.citations}>
-                    <h3>{t("citations")}</h3>
-                    <p>{t("citationHelp")}</p>
-                    <ol>
-                      {selected.content.citations.map((citation) => (
-                        <li key={citation.citationId}>
-                          {reportLink(citation.url) ? (
-                            <a
-                              href={citation.url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              referrerPolicy="no-referrer"
-                            >
-                              {citation.title} ↗
-                            </a>
-                          ) : (
-                            <span>{citation.title}</span>
-                          )}
-                          {citation.publishedAt && <small>{date(citation.publishedAt)}</small>}
-                        </li>
-                      ))}
-                    </ol>
-                  </section>
-                )}
-                {selected.content.limitations.length > 0 && (
-                  <section className={styles.limitations}>
-                    <h3>{t("limitations")}</h3>
-                    <ul>
-                      {selected.content.limitations.map((value, i) => (
-                        <li key={i}>{value}</li>
-                      ))}
-                    </ul>
-                  </section>
-                )}
-                <details className={styles.evidence}>
-                  <summary>{t("evidence")}</summary>
-                  <p>{t("evidenceHelp")}</p>
-                  <dl>
-                    <dt>{t("received")}</dt>
-                    <dd>{date(selected.metadata.receivedAt)}</dd>
-                    <dt>{t("revisionSaved")}</dt>
-                    <dd>{date(selected.evidence.receipt.receivedAt)}</dd>
-                    <dt>{t("run")}</dt>
-                    <dd>{selected.metadata.runId}</dd>
-                    <dt>{t("manifest")}</dt>
-                    <dd>{selected.metadata.manifestId}</dd>
-                  </dl>
-                  <h4>{t("frozenInputs")}</h4>
-                  <p>{t("frozenHelp")}</p>
-                  <ul>
-                    {selected.evidence.manifest.entries.map(
-                      (
-                        entry: {
-                          ref: { kind: "holdings" | "watchlist" | "channel_follows" };
-                          revision: number;
-                          sourceEpoch: number;
-                        },
-                        i: number,
-                      ) => (
-                        <li key={i}>
-                          {t(`sources.${entry.ref.kind}`)} ·{" "}
-                          {t("sourceVersion", {
-                            version: entry.revision,
-                            epoch: entry.sourceEpoch,
-                          })}
-                        </li>
-                      ),
-                    )}
-                  </ul>
-                  {selected.evidence.manifest.entries.length === 0 && <p>{t("noFrozenInputs")}</p>}
-                </details>
-                <section className={styles.history}>
-                  <h3>{t("history")}</h3>
-                  <p>{t("historyHelp")}</p>
-                  <div role="group" aria-label={t("history")}>
-                    {model.history.map((revision) => (
-                      <button
-                        className={styles.historyRow}
-                        key={revision.revision}
-                        disabled={busy}
-                        aria-pressed={revision.revision === selected.metadata.revision}
-                        onClick={() => void model.openResult(revision.resultId, revision.revision)}
-                      >
-                        <span>{t("revision", { revision: revision.revision })}</span>
-                        <span>
-                          {revision.revision === selected.metadata.revision
-                            ? t("viewing")
-                            : t("viewRevision")}
-                        </span>
-                      </button>
+                  <div className={styles.actions} role="group" aria-label={t("resultActions")}>
+                    <button
+                      className={styles.secondary}
+                      disabled={busy || model.pendingState || !model.canWriteState}
+                      onClick={() => void model.updateState({ read: !selected.metadata.read })}
+                    >
+                      {t(selected.metadata.read ? "markUnread" : "markRead")}
+                    </button>
+                    <button
+                      className={styles.secondary}
+                      aria-pressed={selected.metadata.starred}
+                      disabled={busy || model.pendingState || !model.canWriteState}
+                      onClick={() =>
+                        void model.updateState({ starred: !selected.metadata.starred })
+                      }
+                    >
+                      {t(selected.metadata.starred ? "unstar" : "star")}
+                    </button>
+                    <button
+                      className={styles.secondary}
+                      disabled={busy || model.pendingState || !model.canWriteState}
+                      onClick={() =>
+                        void model.updateState({ archived: !selected.metadata.archived })
+                      }
+                    >
+                      {t(selected.metadata.archived ? "unarchive" : "archive")}
+                    </button>
+                    <button className={styles.textButton} onClick={() => setCopyConfirm(true)}>
+                      {t("copy")}
+                    </button>
+                    <a
+                      className={styles.textButton}
+                      href={selectedLink ? `/${selectedLink}` : undefined}
+                    >
+                      {t("resultLink")}
+                    </a>
+                  </div>
+                  <p className={styles.scope}>{t("stateScope")}</p>
+                  {copyConfirm && (
+                    <div className={styles.recovery}>
+                      <p>{t("copyWarning")}</p>
+                      <div className={styles.headerActions}>
+                        <button className={styles.secondary} onClick={() => void copy()}>
+                          {t("confirmCopy")}
+                        </button>
+                        <button className={styles.textButton} onClick={() => setCopyConfirm(false)}>
+                          {t("cancel")}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                  {copyNotice && (
+                    <p role="status" className={styles.feedback}>
+                      {t(copyNotice)}
+                    </p>
+                  )}
+                  {selected.historical && (
+                    <p className={styles.historyNote}>{t("historicalHelp")}</p>
+                  )}
+                  <div className={styles.sections}>
+                    {selected.content.sections.map((section) => (
+                      <section key={section.sectionId}>
+                        <h2>{section.sectionId.replace(/[-_]/g, " ")}</h2>
+                        <SafeReportMarkdown markdown={section.markdown} />
+                      </section>
                     ))}
                   </div>
-                  {model.historyHasMore && (
-                    <button
-                      className={styles.textButton}
-                      disabled={busy}
-                      onClick={() => void model.loadMoreHistory()}
-                    >
-                      {t("moreHistory")}
-                    </button>
+                  {selected.content.citations.length > 0 && (
+                    <section className={styles.citations}>
+                      <h3>{t("citations")}</h3>
+                      <p>{t("citationHelp")}</p>
+                      <ol>
+                        {selected.content.citations.map((citation) => (
+                          <li key={citation.citationId}>
+                            {reportLink(citation.url) ? (
+                              <a
+                                href={citation.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                referrerPolicy="no-referrer"
+                              >
+                                {citation.title} ↗
+                              </a>
+                            ) : (
+                              <span>{citation.title}</span>
+                            )}
+                            {citation.publishedAt && <small>{date(citation.publishedAt)}</small>}
+                          </li>
+                        ))}
+                      </ol>
+                    </section>
                   )}
-                </section>
-              </article>
-            ) : (
-              <div className={styles.detailEmpty}>
-                <span className={styles.emptyIcon} aria-hidden="true">
-                  ▱
-                </span>
-                <h2>{t("selectTitle")}</h2>
-                <p>{t("selectHelp")}</p>
-                <span className={styles.privateNote}>{t("privacy")}</span>
-              </div>
-            )}
+                  {selected.content.limitations.length > 0 && (
+                    <section className={styles.limitations}>
+                      <h3>{t("limitations")}</h3>
+                      <ul>
+                        {selected.content.limitations.map((value, i) => (
+                          <li key={i}>{value}</li>
+                        ))}
+                      </ul>
+                    </section>
+                  )}
+                  <details className={styles.evidence}>
+                    <summary>{t("evidence")}</summary>
+                    <p>{t("evidenceHelp")}</p>
+                    <dl>
+                      <dt>{t("received")}</dt>
+                      <dd>{date(selected.metadata.receivedAt)}</dd>
+                      <dt>{t("revisionSaved")}</dt>
+                      <dd>{date(selected.evidence.receipt.receivedAt)}</dd>
+                      <dt>{t("run")}</dt>
+                      <dd>{selected.metadata.runId}</dd>
+                      <dt>{t("manifest")}</dt>
+                      <dd>{selected.metadata.manifestId}</dd>
+                    </dl>
+                    <h4>{t("frozenInputs")}</h4>
+                    <p>{t("frozenHelp")}</p>
+                    <ul>
+                      {selected.evidence.manifest.entries.map(
+                        (
+                          entry: {
+                            ref: { kind: "holdings" | "watchlist" | "channel_follows" };
+                            revision: number;
+                            sourceEpoch: number;
+                          },
+                          i: number,
+                        ) => (
+                          <li key={i}>
+                            {t(`sources.${entry.ref.kind}`)} ·{" "}
+                            {t("sourceVersion", {
+                              version: entry.revision,
+                              epoch: entry.sourceEpoch,
+                            })}
+                          </li>
+                        ),
+                      )}
+                    </ul>
+                    {selected.evidence.manifest.entries.length === 0 && (
+                      <p>{t("noFrozenInputs")}</p>
+                    )}
+                  </details>
+                  <section className={styles.history}>
+                    <h3>{t("history")}</h3>
+                    <p>{t("historyHelp")}</p>
+                    <div role="group" aria-label={t("history")}>
+                      {model.history.map((revision) => (
+                        <button
+                          className={styles.historyRow}
+                          key={revision.revision}
+                          disabled={busy}
+                          aria-pressed={revision.revision === selected.metadata.revision}
+                          onClick={() =>
+                            void model.openResult(revision.resultId, revision.revision)
+                          }
+                        >
+                          <span>{t("revision", { revision: revision.revision })}</span>
+                          <span>
+                            {revision.revision === selected.metadata.revision
+                              ? t("viewing")
+                              : t("viewRevision")}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                    {model.historyHasMore && (
+                      <button
+                        className={styles.textButton}
+                        disabled={busy}
+                        onClick={() => void model.loadMoreHistory()}
+                      >
+                        {t("moreHistory")}
+                      </button>
+                    )}
+                  </section>
+                </article>
+              </ReportDialog>
+            ) : null}
           </div>
         </>
       )}

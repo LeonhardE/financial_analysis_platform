@@ -5,6 +5,7 @@
   position: sticky;
   top: 0;
   z-index: 12;
+  transition: flex-basis 240ms ease;
 }
 .slot[data-collapsed="true"] {
   --rail-width: 72px;
@@ -19,6 +20,8 @@
   padding: 22px 12px 14px;
   position: relative;
   width: var(--rail-width);
+  overflow-x: hidden;
+  transition: width 240ms ease;
 }
 .brandArea {
   padding: 0 6px;
@@ -68,6 +71,10 @@
   top: 24px;
   width: 28px;
   z-index: 2;
+  transition:
+    left 240ms ease,
+    background-color 100ms ease,
+    color 100ms ease;
 }
 .toggle::before {
   content: "";
@@ -120,7 +127,9 @@
   color: var(--accent);
 }
 .slot[data-collapsed="true"] .label {
-  display: none;
+  opacity: 0;
+  max-width: 0;
+  visibility: hidden;
 }
 .slot[data-collapsed="true"] .brandArea {
   align-items: center;
@@ -133,23 +142,7 @@
   justify-content: center;
   width: 100%;
 }
-.slot[data-collapsed="true"] .toggle {
-  background: none;
-  border: 0;
-  border-radius: 6px;
-  box-shadow: none;
-  height: 36px;
-  margin: 0 auto;
-  position: static;
-  width: 36px;
-}
-.slot[data-collapsed="true"] .toggle::before {
-  display: none;
-}
-.slot[data-collapsed="true"] .toggle svg {
-  height: 20px;
-  width: 20px;
-}
+
 .slot[data-collapsed="true"] .navItem {
   justify-content: center;
   padding: 10px;
@@ -178,9 +171,7 @@
     margin-top: 10px;
     max-width: 130px;
   }
-  .slot:not([data-mobile-open="true"]) .label {
-    display: none;
-  }
+
   .slot:not([data-mobile-open="true"]) .brandArea {
     padding: 0;
   }
@@ -192,10 +183,7 @@
     justify-content: center;
     padding: 10px;
   }
-  .slot[data-collapsed="true"] .toggle {
-    height: 44px;
-    width: 44px;
-  }
+
   .slot[data-mobile-open="true"] {
     --rail-width: 232px;
   }
@@ -207,6 +195,12 @@
     z-index: 1;
   }
   .backdrop {
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transition:
+      opacity 160ms ease,
+      visibility 0s 160ms;
     background: #0006;
     border: 0;
     display: block;
@@ -214,5 +208,46 @@
     position: fixed;
     width: 100%;
     height: 100%;
+  }
+}
+
+.label {
+  display: inline-block;
+  max-width: 180px;
+  opacity: 1;
+  overflow: hidden;
+  white-space: nowrap;
+  transition:
+    opacity 160ms ease,
+    max-width 240ms ease,
+    visibility 0s 160ms;
+}
+.slot:not([data-collapsed="true"]) .label {
+  transition-delay: 0s;
+}
+.slot[data-collapsed="true"] .brand {
+  gap: 0;
+}
+.slot[data-collapsed="true"] .slogan {
+  margin: 0;
+  max-height: 0;
+}
+.brand {
+  transition: gap 240ms ease;
+}
+.slot[data-mobile-open="true"] .backdrop {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transition-delay: 0s;
+}
+@media (prefers-reduced-motion: reduce) {
+  .slot,
+  .rail,
+  .toggle,
+  .label,
+  .brand,
+  .backdrop {
+    transition: none;
   }
 }

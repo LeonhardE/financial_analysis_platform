@@ -14,7 +14,7 @@
     "resources": "资源库",
     "inbox": "收件箱",
     "tasks": "任务",
-    "agents": "个人 Agent"
+    "agents": "Agent 管理"
   },
   "market": {
     "indices": "美国三大股指",
@@ -100,7 +100,8 @@
     "retry": "重试",
     "unavailable": "登录暂不可用，你仍可自由浏览。",
     "guest": "访客",
-    "notice": "账户状态"
+    "notice": "账户状态",
+    "lock": "锁定"
   },
   "watchlist": {
     "checking": "正在检查账户…",
@@ -190,7 +191,8 @@
       "save": "修改已在此页面生效，但保存失败，请重试。",
       "loadTimeout": "恢复偏好超时，请重试。",
       "saveTimeout": "保存超时，修改仍在此页面生效，请重试保存。"
-    }
+    },
+    "securityTitle": "解锁与设备"
   },
   "metrics": {
     "title": "证券指标",
@@ -440,7 +442,8 @@
         "fence": "确认使旧授权失效",
         "disconnect": "确认断开",
         "delete": "确认删除"
-      }
+      },
+      "settings": "资料设置"
     },
     "archiveUnavailable": "密钥包移除请求尚待处理，或云端密钥包已移除。请到设置核对原请求，或使用独立恢复包恢复；原内容并未因此清空。",
     "archiveSettings": "前往设置处理密钥包",
@@ -573,7 +576,9 @@
     "stateScope": "已读、收藏和归档状态作用于这份结果的全部修订。",
     "countsHelp": "数量以最近一次刷新为准。",
     "archiveUnavailable": "密钥包移除请求尚待处理，或云端密钥包已移除。请到设置核对原请求，或使用独立恢复包恢复；原内容并未因此清空。",
-    "archiveSettings": "前往设置处理密钥包"
+    "archiveSettings": "前往设置处理密钥包",
+    "closeReport": "关闭报告",
+    "unreadCount": "{count} 份未读报告"
   },
   "resourceLibrary": {
     "filterLabel": "筛选资源",
@@ -1201,8 +1206,8 @@
     }
   },
   "persistent": {
-    "title": "Agent",
-    "description": "连接一次，持续使用已批准的资源和任务。",
+    "title": "Agent 管理",
+    "description": "管理 Agent 的访问权限。",
     "refresh": "刷新",
     "signInHelp": "登录后管理你的 Muse 连接。",
     "signIn": "Google 登录",
@@ -1290,7 +1295,10 @@
     "limitations": "局限与说明",
     "evidence": "核对报告来源",
     "verifiedHistory": "报告已根据资源库历史、获准接收者与运行回执核对并解密。",
-    "previousReports": "查看之前前台连接的报告"
+    "previousReports": "查看之前前台连接的报告",
+    "closeReport": "关闭报告",
+    "loadingReports": "正在加载报告…",
+    "loadedUnreadCount": "已载入报告中有 {count} 份未读"
   },
   "agentAccess": {
     "waitingForService": "服务暂时繁忙，稍后会自动继续连接。",

@@ -41,6 +41,8 @@ function render(model, locale = "en") {
     module,
     exports: module.exports,
     require: (name) => {
+      if (["./WorkspaceFeedback", "./ReportDialog"].includes(name))
+        return require("./workspace-feedback-helpers.cjs").component(name, imports);
       assert.ok(name in imports, name);
       return imports[name];
     },

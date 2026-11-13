@@ -276,7 +276,7 @@ test("workspace navigation exposes canonical links and retains native modified-c
     ["Markets", "/market"],
     ["Resources", "/resources"],
     ["Tasks", "/tasks"],
-    ["Agents", "/agents"],
+    ["Agent management", "/agents"],
     ["Inbox", "/inbox"],
     ["Settings", "/settings"],
   ]) {

@@ -8,6 +8,7 @@ import type { ResourceBindingMetadata, TaskContent } from "@/lib/encrypted-types
 import { defaultTask } from "@/lib/task-forms";
 import { bindingKey } from "@/lib/task-types";
 import styles from "./TasksPanel.module.css";
+import { LoadingIndicator, InlineError } from "./WorkspaceFeedback";
 import { PasskeyHelp } from "./PasskeyHelp";
 
 export type TaskSeed = ResourceBindingMetadata;
@@ -94,12 +95,11 @@ export function TasksView({
   const failure = model.error || (workspace.phase !== "unlocked" ? workspace.error : "");
   const errorKey = `errors.${failure}`;
   const readFailure = (code: string, retry: () => Promise<void>, label: string) => (
-    <div className={styles.readError} role="alert">
-      <p>{t(t.has(`readErrors.${code}`) ? `readErrors.${code}` : "readErrors.request_failed")}</p>
-      <button className={styles.secondary} onClick={() => void retry()}>
-        {t(label)}
-      </button>
-    </div>
+    <InlineError
+      message={t(t.has(`readErrors.${code}`) ? `readErrors.${code}` : "readErrors.request_failed")}
+      retryLabel={t(label)}
+      onRetry={() => void retry()}
+    />
   );
   const headVersion = Math.max(
     selected?.taskVersion ?? 1,
@@ -109,18 +109,10 @@ export function TasksView({
     <section className={styles.panel} aria-labelledby="tasks-title">
       <header className={styles.heading}>
         <div>
-          <span className={styles.eyebrow}>{t("eyebrow")}</span>
           <h1 id="tasks-title">{t("title")}</h1>
-          <p>{t("description")}</p>
         </div>
         {model.owner && model.configured && (
           <div className={styles.actions}>
-            <span className={styles.badge}>{t(unlocked ? "unlocked" : "locked")}</span>
-            {unlocked && (
-              <button className={styles.secondary} onClick={workspace.lock}>
-                {t("lock")}
-              </button>
-            )}
             <button
               className={styles.secondary}
               disabled={busy}
@@ -203,10 +195,7 @@ export function TasksView({
             </div>
           )}
           {failure && (
-            <div className={styles.error} role="alert">
-              <strong>{t("attention")}</strong>
-              <p>{t(t.has(errorKey) ? errorKey : "errors.request_failed")}</p>
-            </div>
+            <InlineError message={t(t.has(errorKey) ? errorKey : "errors.request_failed")} />
           )}
           {unlocked && model.notice && t.has(`notices.${model.notice}`) && (
             <p className={styles.hint} role="status">
@@ -306,11 +295,11 @@ export function TasksView({
               >
                 {t("new")}
               </button>
-              {model.loading && (
-                <p className={styles.readLoading} role="status">
-                  {t("loading")}
-                </p>
-              )}
+              <LoadingIndicator
+                busy={model.loading}
+                hasContent={model.items.length > 0}
+                label={t("loading")}
+              />
               {model.listError && readFailure(model.listError, model.reloadTasks, "retryTasks")}
               <div className={styles.list}>
                 {model.items.map((item) => (
@@ -343,10 +332,10 @@ export function TasksView({
               <div className={styles.empty}>
                 <h2>{t("emptyTitle")}</h2>
                 <p>{t("emptyHelp")}</p>
-                <p>{t("templateHelp")}</p>
+
                 <div className={styles.actions}>
                   <button
-                    className={styles.primary}
+                    className={styles.secondary}
                     disabled={!unlocked || !model.canWrite || busy}
                     onClick={() => start("brief")}
                   >
@@ -427,11 +416,11 @@ export function TasksView({
                     <h2>{t("resources")}</h2>
                     <p>{t("resourcesHelp")}</p>
                     <p>{t("resourceLimit")}</p>
-                    {model.catalogueLoading && (
-                      <p className={styles.readLoading} role="status">
-                        {t("loadingResources")}
-                      </p>
-                    )}
+                    <LoadingIndicator
+                      busy={model.catalogueLoading}
+                      hasContent={model.catalogue.length > 0}
+                      label={t("loadingResources")}
+                    />
                     {model.catalogueError &&
                       readFailure(model.catalogueError, model.reloadCatalogue, "retryResources")}
                     {!model.catalogueLoading &&

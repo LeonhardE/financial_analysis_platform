@@ -42,6 +42,29 @@ Legacy `#inbox/result/...` links normalize to `/inbox` while retaining the fragm
 `agent_request`/`agent_nonce` handoffs normalize to `/agents` while retaining the query; this
 handoff keeps its prior precedence over an Inbox fragment. Login stays on the selected path.
 
+## Shared layout and feedback
+
+The shell and sidebar keep their DOM during navigation, including Settings. A single account-area
+Lock action replaces the full-width unlock banner and repeated page controls. Agent navigation is
+labelled Agent management. Holdings lifecycle actions and device/key controls use native expandable
+sections; pending device/archive/renewal conditions remain visible or open automatically.
+
+Reads taking more than150ms show a localized spinner and an initial skeleton, without invented
+percentages. Existing content stays visible while refreshing; failed first loads offer retry rather
+than empty-state copy. Unread counts use red corner badges and unread rows use a soft dot. Persistent
+reports mark read only after verified opening and a signed state acknowledgement; lost replies keep
+the original retry command available even after the report dialog closes. No automatic write retry
+or replacement signing is added, and older acknowledgements cannot roll back newer loaded state.
+
+Both report readers use one native modal with a keyboard trap,Escape/backdrop dismissal and focus
+restoration without scrolling. User closure animates160ms; lock,hidden/route or identity changes
+remove private modal content immediately. New selections cancel an older exit. Sidebar transitions
+use240ms,views180ms,buttons100ms,loaded content140ms and report entry200ms. Animation never gates data
+publication;system reduced-motion disables movement/loops and closes without an animation timer.
+The RunIndicator primitive accepts only a real Agent waiting/running state; owner HTTP activity is
+never presented as an Agent Run. Task-center Run wiring remains with HUB-028/WEB-022 after their
+contract/provider gates. No new connection migration or manual dispatch is enabled here.
+
 ## Memory-only display reuse
 
 Internal navigation preserves the mounted workspace, task editor/selection, sealed draft queue,

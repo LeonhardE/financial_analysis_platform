@@ -152,7 +152,22 @@ export default function SettingsPanel({ workspace }: { workspace?: HoldingsWorks
           <span>{t("saved")}</span>
         </div>
       )}
-      {workspace && <VaultManagementPanel workspace={workspace} />}
+      {workspace && (
+        <details
+          className={styles.security}
+          open={
+            workspace.needsDeviceApproval ||
+            workspace.keyRenewalFailure ||
+            Boolean(workspace.archiveDeletionError) ||
+            ["archive-pending", "renewal-only"].includes(workspace.phase)
+              ? true
+              : undefined
+          }
+        >
+          <summary>{t("securityTitle")}</summary>
+          <VaultManagementPanel workspace={workspace} />
+        </details>
+      )}
     </section>
   );
 }
