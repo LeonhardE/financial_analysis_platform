@@ -4,6 +4,8 @@ No automatic account migration, permission union, content rewrite or scheduling.
 The write gate is independent of permanent fences on already installed slots.
 """
 
+import copy
+
 from folioview_shared.encrypted.constants import CONTRACT_VERSION
 from folioview_shared.encrypted.crypto import _signed_parts, signing_input_fingerprint
 from folioview_shared.encrypted.errors import ContractError
@@ -24,7 +26,7 @@ from folioview_shared.identity import owner_key
 
 from .agent_credentials import AgentCredentialService
 from .oauth import MAX_CONNECTIONS
-from .persistent_agents import linked_connection, snapshot, stored_identity
+from .persistent_agents import identity_path, linked_connection, snapshot, stored_identity
 from .store import StoreUnavailable, document_path
 from .vaults import _current, identifier
 
@@ -92,8 +94,22 @@ def require_provider_current(unit, owner, vault, connection, conn, row, now):
     )
 
 
+class _ReadSnapshot:
+    """Prefetch independent display reads in this same transaction only."""
+
+    def __init__(self, unit, paths):
+        self.unit = unit
+        self.rows = unit.get_many(paths)
+
+    def get(self, path):
+        return copy.deepcopy(self.rows[path]) if path in self.rows else self.unit.get(path)
+
+    def __getattr__(self, name):
+        return getattr(self.unit, name)
+
+
 class ProviderConnectionService(AgentCredentialService):
-    def inventory(self, unit, owner, vault, provider, current):
+    def inventory(self, unit, owner, vault, provider, current, *, batch=False):
         index = unit.get(document_path("hub_oauth_owners", owner))
         if index is None or index.get("ownerSubject") != owner:
             raise ContractError("not_found")
@@ -104,6 +120,13 @@ class ProviderConnectionService(AgentCredentialService):
         last = None if current is None else current["slot"]["currentCredential"]
         for connection in ids:
             identifier(connection)
+        if batch and ids:
+            unit = _ReadSnapshot(
+                unit,
+                [document_path("hub_oauth_connections", owner, connection) for connection in ids],
+            )
+        candidates = []
+        for connection in ids:
             conn = unit.get(document_path("hub_oauth_connections", owner, connection))
             if (
                 conn is None
@@ -119,6 +142,12 @@ class ProviderConnectionService(AgentCredentialService):
             if conn.get("vaultId") != vault:
                 blockers.append(connection)
                 continue
+            candidates.append(connection)
+        if batch and candidates:
+            unit = _ReadSnapshot(
+                unit, [identity_path(owner, vault, connection) for connection in candidates]
+            )
+        for connection in candidates:
             linked_connection(unit, owner, vault, connection)
             row = stored_identity(unit, owner, vault, connection)
             if row is None:
@@ -150,9 +179,17 @@ class ProviderConnectionService(AgentCredentialService):
         identifier(vault)
 
         def read(unit):
+            unit = _ReadSnapshot(
+                unit,
+                [
+                    document_path("hub_vaults", owner),
+                    slot_path(owner, provider),
+                    document_path("hub_oauth_owners", owner),
+                ],
+            )
             _current(unit, owner, self.now(), vault)
             row = stored_slot(unit, owner, vault, provider)
-            records, blockers = self.inventory(unit, owner, vault, provider, row)
+            records, blockers = self.inventory(unit, owner, vault, provider, row, batch=True)
             return {
                 "contractVersion": CONTRACT_VERSION,
                 "profile": PROVIDER_CONNECTION_PROFILE,

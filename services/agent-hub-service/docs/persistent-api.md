@@ -649,3 +649,11 @@ current ownership, credential, task and revocation state. No authorization resul
 is cached across requests. Identical immutable public registry signature history
 may be reused within the attempt (at most eight histories), while row, time,
 source and lifecycle checks continue to run.
+
+Provider management state prefetches the current vault, provider slot and owner
+index together, then indexed connection rows, then only this provider's eligible
+identity rows. An active vault with1/2/32 connections needs three BatchGet phases;
+other-provider, revoked noncurrent and foreign-vault identities are not expanded.
+The existing validators, blockers and retained selections still determine the
+response. Missing/duplicate responses and retry-time changes fail closed. This
+read-only snapshot view never enters cutover/disconnect command transactions.
