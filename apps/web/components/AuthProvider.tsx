@@ -1,4 +1,6 @@
 "use client";
+import { holdingsViewRequest } from "@/lib/holdings-view";
+import { taskOverviewRequest } from "@/lib/task-overview-request";
 import { CURRENCY_PREFERENCES_PATH, currencyUpdate } from "@/lib/currency-preferences";
 import { FX_FOLLOWS_PATH, fxPreferences } from "@/lib/fx-follows";
 import { LANGUAGE_PREFERENCES_PATH, languageUpdate } from "@/lib/language-preferences";
@@ -157,6 +159,8 @@ type EncryptedRule = {
   rootCommandMaxBytes?: number;
   rootCommands?: string[];
   taskPackets?: boolean;
+  taskOverview?: boolean;
+  holdingsView?: string;
 };
 function hubOwnerRule(path: string, method: PrivateMethod): EncryptedRule | null {
   if (path.length > 8192 || /[\\#]/.test(path)) return null;
@@ -215,6 +219,17 @@ function hubOwnerRule(path: string, method: PrivateMethod): EncryptedRule | null
       maxBytes: persistent.max,
       rootCommand: persistent.kind === "control" && !persistent.author,
       rootCommandMaxBytes: persistent.max,
+    };
+  } else if (
+    method === "POST" &&
+    new RegExp(`^/api/v3/tasks/${id}/overview/query$`).test(pathname) &&
+    parts.length === 1
+  ) {
+    rule = {
+      method: "POST",
+      keys: ["contractVersion", "knownPacketVersions", "packetLimit"],
+      maxBytes: 16384,
+      taskOverview: true,
     };
   } else if (method === "POST" && pathname === "/api/v2/tasks/packets/query") {
     rule = {
@@ -431,6 +446,13 @@ function encryptedRule(
 ): EncryptedRule | null {
   if (service === "agent-hub") return hubOwnerRule(path, method);
   const id = "[A-Za-z0-9][A-Za-z0-9_-]{0,127}";
+  if (method === "POST" && new RegExp(`^/api/v3/holdings/sources/${id}/view/query$`).test(path))
+    return {
+      method: "POST",
+      keys: ["contractVersion", "expected"],
+      maxBytes: 16384,
+      holdingsView: path.split("/")[5],
+    };
   if (
     method === "POST" &&
     new RegExp(`^/api/v2/holdings/sources/${id}/operation-cancellations$`).test(path)
@@ -471,6 +493,10 @@ function encryptedRequestHeaders(
     )
       throw new Error("Invalid private API request");
   } else if (options.json !== undefined) throw new Error("Invalid private API request");
+  if (rule.holdingsView && !holdingsViewRequest(options.json, rule.holdingsView))
+    throw new Error("Invalid private API request");
+  if (rule.taskOverview && !taskOverviewRequest(options.json))
+    throw new Error("Invalid private API request");
   if (rule.taskPackets) {
     const ids = (options.json as Record<string, unknown>).taskIds;
     if (
@@ -1008,6 +1034,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // authority reads and read-only POST queries get unique queue entries.
       const readOnly =
         method === "GET" ||
+        (method === "POST" &&
+          service === "portfolio" &&
+          /^\/api\/v3\/holdings\/sources\/[^/]+\/view\/query$/.test(path)) ||
+        (method === "POST" &&
+          service === "agent-hub" &&
+          /^\/api\/v3\/tasks\/[^/]+\/overview\/query$/.test(path)) ||
         (method === "POST" && service === "agent-hub" && path === "/api/v2/tasks/packets/query") ||
         (method === "POST" &&
           /^\/api\/v3\/task-center\/[^/]+\/(?:trash\/query|tasks\/[^/]+\/(?:results|progress)\/query)$/.test(

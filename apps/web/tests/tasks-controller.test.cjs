@@ -32,6 +32,7 @@ function compile(file, imports = {}, globals = {}) {
     module,
     exports: module.exports,
     require(name) {
+      if (name === "@/lib/task-overview") return require("./task-overview-helpers.cjs").overview;
       if (name === "@/lib/workspace-cache") return cacheContracts;
       assert.ok(Object.hasOwn(imports, name), name);
       return imports[name];

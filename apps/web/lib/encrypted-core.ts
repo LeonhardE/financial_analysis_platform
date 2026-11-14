@@ -1,4 +1,5 @@
 /** Trusted browser worker crypto. No network, logging, or plaintext persistence. */
+import { createRegistryCertificateVerifier } from "../../../packages/encrypted-workspace/dist/core.mjs";
 import {
   GeneralEncrypt,
   FlattenedSign,
@@ -388,6 +389,20 @@ const CAP: Record<string, string[]> = {
   agent_enc: [],
   recovery_enc: [],
 };
+type StaticCertificateRead = ReturnType<typeof createRegistryCertificateVerifier>;
+async function registryBundleVerifier(root: Json) {
+  validate("PublicJWK", root);
+  const privateRoot = structuredClone(root),
+    rootId = await thumb(privateRoot);
+  const read = createRegistryCertificateVerifier(privateRoot, rootId);
+  return (
+    bundle: RegistryBundle,
+    owner: string,
+    vault: string,
+    previous?: Registry,
+    now = Math.floor(Date.now() / 1000),
+  ) => verifyRegistryBundle(bundle, privateRoot, rootId, read, owner, vault, previous, now);
+}
 export async function verifyRegistry(
   bundle: RegistryBundle,
   root: Json,
@@ -399,7 +414,24 @@ export async function verifyRegistry(
   validate("RegistryBundle", bundle);
   bounded(bundle, 131072);
   validate("PublicJWK", root);
-  const rootId = await thumb(root);
+  const privateBundle = structuredClone(bundle),
+    privateRoot = structuredClone(root);
+  return (await registryBundleVerifier(privateRoot))(privateBundle, owner, vault, previous, now);
+}
+async function verifyRegistryBundle(
+  bundle: RegistryBundle,
+  root: Json,
+  rootId: string,
+  readCertificate: StaticCertificateRead,
+  owner: string,
+  vault: string,
+  previous: Registry | undefined,
+  now: number,
+): Promise<Registry> {
+  validate("RegistryBundle", bundle);
+  bounded(bundle, 131072);
+  bundle = structuredClone(bundle);
+  validate("PublicJWK", root);
   const cp = await verified(bundle.checkpoint, root);
   validate("RegistryCheckpointPayload", cp);
   if (
@@ -436,14 +468,40 @@ export async function verifyRegistry(
     generations = new Set<string>(),
     descriptions: Json[] = [];
   for (const entry of bundle.entries) {
-    const c = await verified(entry.certificate, root);
-    validate("KeyCertificatePayload", c);
+    let staticCertificate: Awaited<ReturnType<StaticCertificateRead>>;
+    try {
+      staticCertificate = await readCertificate(entry.certificate);
+    } catch (error) {
+      const code = (error as { code?: string })?.code;
+      throw new VaultError(
+        code === "root_pin_mismatch"
+          ? "untrusted_vault"
+          : code === "payload_too_large"
+            ? "too_large"
+            : code &&
+                [
+                  "invalid_schema",
+                  "invalid_fields",
+                  "invalid_json",
+                  "json_too_deep",
+                  "invalid_unicode",
+                  "invalid_number",
+                  "invalid_base64url",
+                  "malformed_json",
+                  "duplicate_member",
+                  "noncanonical_json",
+                ].includes(code)
+              ? "invalid_data"
+              : "invalid_signature",
+      );
+    }
+    const c = staticCertificate.payload;
     const local = [c.principalId, c.role, c.connectionId, c.keyEpoch].join("/");
     if (
       c.ownerSubject !== owner ||
       c.vaultId !== vault ||
       c.issuerKeyId !== rootId ||
-      c.keyId !== (await thumb(c.publicJwk)) ||
+      c.keyId !== staticCertificate.publicKeyId ||
       certificates.has(c.keyId) ||
       ids.has(c.certificateId) ||
       generations.has(local) ||
@@ -482,7 +540,7 @@ export async function verifyRegistry(
     if (entry.active) active.add(c.keyId);
     descriptions.push({
       certificateId: c.certificateId,
-      payloadDigest: await sha(canonical(c)),
+      payloadDigest: staticCertificate.payloadDigest,
       active: entry.active,
     });
   }
@@ -919,6 +977,7 @@ export class VaultCore {
   }
   /** Public metadata only; used after signed lifecycle verification for atomic durable pins. */
   async verifiedVaultPin(vault: Vault) {
+    vault = structuredClone(vault);
     if (
       this.vault &&
       (this.vault.vaultId !== vault.vaultId ||
@@ -1125,10 +1184,11 @@ export class VaultCore {
       throw new VaultError("binding_mismatch");
     let previous: Registry | undefined;
     const seen = new Set<string>();
-    for (const b of vault.registryHistory.slice(0, p.registrySequence)) {
-      previous = await verifyRegistry(
+    const privateHistory1 = structuredClone(vault.registryHistory.slice(0, p.registrySequence));
+    const verifyHistoryBundle1 = await registryBundleVerifier(vault.rootJwk);
+    for (const b of privateHistory1) {
+      previous = await verifyHistoryBundle1(
         b,
-        vault.rootJwk,
         await this.owner,
         vault.vaultId,
         previous,
@@ -3289,6 +3349,7 @@ export class VaultCore {
     };
   }
   private async checkVault(vault: Vault, pin?: Pin, allowDeleted = false) {
+    vault = structuredClone(vault);
     exact(vault, ["vaultId", "rootJwk", "rootKeyId", "registryHistory", "archive", "version"]);
     positive(vault.version);
     validate("PublicJWK", vault.rootJwk);
@@ -3318,15 +3379,10 @@ export class VaultCore {
     )
       throw new VaultError("untrusted_vault");
     let registry: Registry | undefined;
-    for (const bundle of vault.registryHistory)
-      registry = await verifyRegistry(
-        bundle,
-        vault.rootJwk,
-        owner,
-        vault.vaultId,
-        registry,
-        this.now(),
-      );
+    const privateHistory2 = structuredClone(vault.registryHistory);
+    const verifyHistoryBundle2 = await registryBundleVerifier(vault.rootJwk);
+    for (const bundle of privateHistory2)
+      registry = await verifyHistoryBundle2(bundle, owner, vault.vaultId, registry, this.now());
     if (
       pin &&
       (pin.ownerSubject !== owner ||
@@ -3369,6 +3425,7 @@ export class VaultCore {
     material: PasskeyMaterial,
     local?: { pin?: Pin; device?: DeviceSeal; pending?: Json; deviceChange?: Json },
   ) {
+    vault = structuredClone(vault);
     const owner = await this.owner;
     checkArchive(requireArchive(vault.archive), owner);
     if (
@@ -3582,6 +3639,7 @@ export class VaultCore {
   }
 
   async acceptVault(vault: Vault) {
+    vault = structuredClone(vault);
     this.requireOrdinarySession();
     const registry = await this.checkVault(vault, this.pin);
     if (!this.device || !this.deviceSeal) throw new VaultError("device_required");
@@ -3591,6 +3649,7 @@ export class VaultCore {
   }
   /** Owner history is authenticated at acceptance time, not a new key-authorized write. */
   async acceptResultVault(vault: Vault) {
+    vault = structuredClone(vault);
     this.requireOrdinarySession();
     if (!this.root || !this.recovery || !this.recoveryJwk) throw new VaultError("locked");
     const record = await this.adoptVault(vault, await this.checkVault(vault, this.pin));
@@ -3601,6 +3660,7 @@ export class VaultCore {
     material: PasskeyMaterial,
     local?: { pin?: Pin; device?: DeviceSeal; pending?: Json; deviceChange?: Json },
   ) {
+    vault = structuredClone(vault);
     const owner = await this.owner;
     checkArchive(requireArchive(vault.archive), owner);
     if (
@@ -3788,15 +3848,10 @@ export class VaultCore {
     packet.replacedKeyIds.forEach((id) => validate("KeyId", id));
     packet.newKeyIds.forEach((id) => validate("KeyId", id));
     let base: Registry | undefined;
-    for (const bundle of vault.registryHistory) {
-      base = await verifyRegistry(
-        bundle,
-        vault.rootJwk,
-        await this.owner,
-        vault.vaultId,
-        base,
-        this.now(),
-      );
+    const privateHistory3 = structuredClone(vault.registryHistory);
+    const verifyHistoryBundle3 = await registryBundleVerifier(vault.rootJwk);
+    for (const bundle of privateHistory3) {
+      base = await verifyHistoryBundle3(bundle, await this.owner, vault.vaultId, base, this.now());
       if (base.digest === value.baseDigest) break;
     }
     if (!base || base.digest !== value.baseDigest) throw new VaultError("registry_conflict");
@@ -5923,11 +5978,12 @@ export class VaultCore {
     if (command.ownerSubject !== (await this.owner) || command.vaultId !== vault.vaultId)
       throw new VaultError("binding_mismatch");
     let historical: Registry | undefined;
+    const privateHistory4 = structuredClone(vault.registryHistory);
+    const verifyHistoryBundle4 = await registryBundleVerifier(vault.rootJwk);
     for (let i = 0; i < command.registrySequence; i++) {
-      if (!vault.registryHistory[i]) throw new VaultError("untrusted_vault");
-      historical = await verifyRegistry(
-        vault.registryHistory[i],
-        vault.rootJwk,
+      if (!privateHistory4[i]) throw new VaultError("untrusted_vault");
+      historical = await verifyHistoryBundle4(
+        privateHistory4[i],
         await this.owner,
         vault.vaultId,
         historical,
@@ -6061,12 +6117,13 @@ export class VaultCore {
       throw new VaultError("binding_mismatch");
     cert(historical, author.keyId, "device_sig", requested);
     let acceptedRegistry = historical;
-    for (let i = command.registrySequence; i < vault.registryHistory.length; i++) {
-      const next = vault.registryHistory[i];
+    const privateHistory5 = structuredClone(vault.registryHistory);
+    const verifyHistoryBundle5 = await registryBundleVerifier(vault.rootJwk);
+    for (let i = command.registrySequence; i < privateHistory5.length; i++) {
+      const next = privateHistory5[i];
       if (parsed(unb64(next.checkpoint.payload)).issuedAt >= Math.floor(requested)) break;
-      acceptedRegistry = await verifyRegistry(
+      acceptedRegistry = await verifyHistoryBundle5(
         next,
-        vault.rootJwk,
         await this.owner,
         vault.vaultId,
         acceptedRegistry,
@@ -6166,10 +6223,11 @@ export class VaultCore {
     );
     const history = new Map<number, Registry>();
     let historical: Registry | undefined;
-    for (let i = 0; i < registryBundles.length; i++) {
-      historical = await verifyRegistry(
-        registryBundles[i],
-        vault.rootJwk,
+    const privateHistory6 = structuredClone(registryBundles);
+    const verifyHistoryBundle6 = await registryBundleVerifier(vault.rootJwk);
+    for (let i = 0; i < privateHistory6.length; i++) {
+      historical = await verifyHistoryBundle6(
+        privateHistory6[i],
         await this.owner,
         vault.vaultId,
         historical,
@@ -6184,7 +6242,7 @@ export class VaultCore {
           descriptor.path ===
             `/api/v2/results/${result.metadata.resultId}/revisions/${result.metadata.revision}/registries/${i + 1}` &&
           vault.registryHistory[i] &&
-          equal(vault.registryHistory[i].checkpoint, registryBundles[i].checkpoint),
+          equal(vault.registryHistory[i].checkpoint, privateHistory6[i].checkpoint),
       );
       history.set(i + 1, historical);
     }
@@ -6641,10 +6699,11 @@ export class VaultCore {
       );
     resultRequire(matching.length === 1);
     let registry: Registry | undefined;
+    const privateHistory7 = structuredClone(vault.registryHistory);
+    const verifyHistoryBundle7 = await registryBundleVerifier(vault.rootJwk);
     for (let i = 0; i <= matching[0].i; i++) {
-      registry = await verifyRegistry(
-        vault.registryHistory[i],
-        vault.rootJwk,
+      registry = await verifyHistoryBundle7(
+        privateHistory7[i],
         owner,
         vault.vaultId,
         registry,
@@ -6987,10 +7046,11 @@ export class VaultCore {
     if (pending.registrySequence > vault.registryHistory.length)
       throw new VaultError("untrusted_vault");
     let registry: Registry | undefined;
+    const privateHistory8 = structuredClone(vault.registryHistory);
+    const verifyHistoryBundle8 = await registryBundleVerifier(vault.rootJwk);
     for (let i = 0; i < pending.registrySequence; i++) {
-      registry = await verifyRegistry(
-        vault.registryHistory[i],
-        vault.rootJwk,
+      registry = await verifyHistoryBundle8(
+        privateHistory8[i],
         await this.owner,
         vault.vaultId,
         registry,
@@ -7432,11 +7492,12 @@ export class VaultCore {
     )
       throw new VaultError("binding_mismatch");
     let registry: Registry | undefined;
+    const privateHistory9 = structuredClone(vault.registryHistory);
+    const verifyHistoryBundle9 = await registryBundleVerifier(vault.rootJwk);
     for (let i = 0; i < c.registrySequence; i++) {
-      if (!vault.registryHistory[i]) throw new VaultError("untrusted_vault");
-      registry = await verifyRegistry(
-        vault.registryHistory[i],
-        vault.rootJwk,
+      if (!privateHistory9[i]) throw new VaultError("untrusted_vault");
+      registry = await verifyHistoryBundle9(
+        privateHistory9[i],
         await this.owner,
         vault.vaultId,
         registry,
@@ -7546,13 +7607,14 @@ export class VaultCore {
       throw new VaultError("binding_mismatch");
     for (const proof of certificates) cert(historical, proof.keyId, undefined, accepted);
     let atAcceptance = historical;
-    for (let i = c.registrySequence; i < vault.registryHistory.length; i++) {
-      const next = vault.registryHistory[i];
+    const privateHistory10 = structuredClone(vault.registryHistory);
+    const verifyHistoryBundle10 = await registryBundleVerifier(vault.rootJwk);
+    for (let i = c.registrySequence; i < privateHistory10.length; i++) {
+      const next = privateHistory10[i];
       // Checkpoints have second precision; same-second ordering is not inferred.
       if (parsed(unb64(next.checkpoint.payload)).issuedAt >= Math.floor(accepted)) break;
-      atAcceptance = await verifyRegistry(
+      atAcceptance = await verifyHistoryBundle10(
         next,
-        vault.rootJwk,
         await this.owner,
         vault.vaultId,
         atAcceptance,

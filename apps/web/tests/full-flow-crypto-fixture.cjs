@@ -11,7 +11,7 @@ const clone = (value) => structuredClone(value);
 const decoded = (value) => JSON.parse(Buffer.from(value.payload, "base64url"));
 const iso = (seconds) => new Date(seconds * 1000).toISOString();
 
-async function createHarness() {
+async function createHarness({ coreSource } = {}) {
   const directory = await fs.mkdtemp(path.join(os.tmpdir(), "folioview-full-flow-crypto-"));
   const helpers = [];
   try {
@@ -30,7 +30,10 @@ async function createHarness() {
       "task-types",
       "task-forms",
     ]) {
-      const file = path.resolve(__dirname, "../lib/" + name + ".ts");
+      const file =
+        name === "encrypted-core" && coreSource
+          ? coreSource
+          : path.resolve(__dirname, "../lib/" + name + ".ts");
       let { code } = transformSync(readFileSync(file, "utf8"), {
         filename: file,
         jsc: { parser: { syntax: "typescript" }, target: "es2022" },
@@ -70,6 +73,7 @@ async function createHarness() {
     const jose = await import("jose");
     return {
       core,
+      types: await load("encrypted-types"),
       csv,
       forms,
       jose,

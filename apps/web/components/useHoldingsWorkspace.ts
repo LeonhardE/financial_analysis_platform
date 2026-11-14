@@ -20,6 +20,12 @@ import {
   type PositionEdit,
   type SavedHoldings,
 } from "@/lib/holdings-facts";
+import {
+  holdingsViewPath,
+  holdingsViewExpectation,
+  parseHoldingsView,
+  type HoldingsView,
+} from "@/lib/holdings-view";
 import { WorkspaceDisplayCache, boundedJson, untilSignal } from "@/lib/workspace-cache";
 import { EncryptedVaultSession } from "@/lib/encrypted-vault";
 import {
@@ -859,9 +865,11 @@ export function useHoldingsWorkspace() {
       signal: AbortSignal,
       assertActive: () => void,
       reuseDisplay = false,
+      freshVault?: Vault,
+      skipView = false,
     ): Promise<SavedHoldings | null> => {
       const instance = liveSession();
-      const vault = stateRef.current.vault;
+      const vault = freshVault ?? stateRef.current.vault;
       if (!capabilitiesRef.current.portfolio || !vault)
         throw new WorkspaceError("service_unavailable");
       verifiedSnapshot.current = null;
@@ -872,15 +880,56 @@ export function useHoldingsWorkspace() {
           : { content: null, sourceMetadata: null }),
         sourceReview: null,
       }));
+      let prepared: HoldingsView | null = null;
+      if (
+        freshVault &&
+        !skipView &&
+        stateRef.current.phase === "unlocked" &&
+        stateRef.current.canWriteState &&
+        !stateRef.current.needsDeviceApproval &&
+        !stateRef.current.sourceMutation &&
+        !stateRef.current.staleSourceMutation &&
+        !stateRef.current.hasPending
+      ) {
+        const [mutation, outbox] = await Promise.all([
+          instance.loadSourceMutation(source.resourceRef.resourceId),
+          instance.loadOutbox(source.resourceRef.resourceId),
+        ]);
+        assertActive();
+        if (!mutation && !outbox) {
+          const authority = await instance.taskAuthority(null);
+          assertActive();
+          const expected = holdingsViewExpectation(freshVault, source, authority);
+          const value = await api(
+            "portfolio",
+            holdingsViewPath(source.resourceRef.resourceId),
+            signal,
+            { method: "POST", json: { contractVersion: CONTRACT, expected } },
+          );
+          assertActive();
+          let view: HoldingsView;
+          try {
+            view = parseHoldingsView(value, expected);
+          } catch {
+            throw new WorkspaceError("invalid_response");
+          }
+          if (view.mode === "complete") prepared = view;
+        }
+      }
       // Portfolio advances its epoch before Hub receives the fence. Read that
       // state first; authority-sync of Hub's old epoch would prevent recovery.
       let metadata = sourceMetadata(
-        await api("portfolio", `/api/v2/holdings/sources/${source.resourceRef.resourceId}`, signal),
+        prepared?.metadata ??
+          (await api(
+            "portfolio",
+            `/api/v2/holdings/sources/${source.resourceRef.resourceId}`,
+            signal,
+          )),
         source,
         vault,
       );
       assertActive();
-      if (metadata.state !== "revoking") {
+      if (!prepared && metadata.state !== "revoking") {
         await sync(source, signal);
         assertActive();
         metadata = sourceMetadata(
@@ -917,6 +966,8 @@ export function useHoldingsWorkspace() {
       } else {
         const packet = await instance.loadSourceMutation(source.resourceRef.resourceId);
         assertActive();
+        if (prepared && packet)
+          return readSaved(source, signal, assertActive, reuseDisplay, freshVault, true);
         if (packet) {
           const existing = await api(
             "portfolio",
@@ -954,20 +1005,35 @@ export function useHoldingsWorkspace() {
       }
       const recovered = await instance.loadOutbox(source.resourceRef.resourceId);
       assertActive();
+      if (prepared && recovered)
+        return readSaved(source, signal, assertActive, reuseDisplay, freshVault, true);
       pending.current = recovered;
-      setState((previous) => ({
-        ...previous,
-        selectedSourceId: source.resourceRef.resourceId,
-        newSource: false,
-        sourceMetadata: metadata,
-        sourceMutation: mutation,
-        hasPending: Boolean(recovered),
-      }));
+      if (!prepared)
+        setState((previous) => ({
+          ...previous,
+          selectedSourceId: source.resourceRef.resourceId,
+          newSource: false,
+          sourceMetadata: metadata,
+          sourceMutation: mutation,
+          hasPending: Boolean(recovered),
+        }));
       const key = holdingKey(source, vault);
       const cached = displayCache.current.holdings.get(key) as CachedHolding | undefined;
       if (metadata.state === "deleted" || pendingDelete || metadata.snapshotId === null) {
         displayCache.current.holdings.delete(key);
-        setState((previous) => ({ ...previous, content: null }));
+        setState((previous) => ({
+          ...previous,
+          content: null,
+          ...(prepared
+            ? {
+                selectedSourceId: source.resourceRef.resourceId,
+                newSource: false,
+                sourceMetadata: metadata,
+                sourceMutation: mutation,
+                hasPending: false,
+              }
+            : {}),
+        }));
         return null;
       }
       if (
@@ -992,11 +1058,13 @@ export function useHoldingsWorkspace() {
       }
       displayCache.current.holdings.delete(key);
       setState((previous) => ({ ...previous, content: null }));
-      const stored = await api(
-        "portfolio",
-        `/api/v2/holdings/sources/${source.resourceRef.resourceId}/snapshots/${metadata.snapshotId}`,
-        signal,
-      );
+      const stored = prepared
+        ? prepared.snapshot
+        : await api(
+            "portfolio",
+            `/api/v2/holdings/sources/${source.resourceRef.resourceId}/snapshots/${metadata.snapshotId}`,
+            signal,
+          );
       assertActive();
       const receipt = record(stored) && record(stored.receipt) ? stored.receipt : null;
       const expectedPath = `/api/v2/holdings/sources/${source.resourceRef.resourceId}/snapshots/${metadata.snapshotId}`;
@@ -1033,6 +1101,14 @@ export function useHoldingsWorkspace() {
       setState((previous) => ({
         ...previous,
         content: content as SavedHoldings,
+        ...(prepared
+          ? {
+              selectedSourceId: source.resourceRef.resourceId,
+              newSource: false,
+              sourceMutation: mutation,
+              hasPending: false,
+            }
+          : {}),
         sourceMetadata: { ...metadata, snapshotSourceEpoch: receipt.sourceEpoch as number },
       }));
       return content as SavedHoldings;
@@ -5044,7 +5120,7 @@ export function useHoldingsWorkspace() {
         await instance.acceptVault(fresh.vault);
         assertActive();
         setState((previous) => ({ ...previous, vault: fresh.vault, sources: fresh.sources }));
-        await readSaved(source, signal, assertActive);
+        await readSaved(source, signal, assertActive, false, fresh.vault);
       }),
   };
 }

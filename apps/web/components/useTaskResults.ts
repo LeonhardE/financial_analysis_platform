@@ -1,5 +1,6 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
+import type { TaskOverviewRead } from "@/lib/task-overview";
 import { useAuth } from "./AuthProvider";
 import type { HoldingsWorkspace } from "./useHoldingsWorkspace";
 import type { TaskCenterModel } from "./useTaskCenter";
@@ -41,6 +42,7 @@ export function useTaskResults(
   active: boolean,
   observedResults = "",
   center?: TaskCenterModel,
+  overview?: TaskOverviewRead,
 ) {
   const auth = useAuth(),
     [visible, setVisible] = useState(
@@ -283,11 +285,15 @@ export function useTaskResults(
       record.error = "";
       update({ revision: ++uiRevision.current }, start.scope);
       try {
-        const data = await api("/api/v2/persistent-connections", {}, start.scope);
+        if (force) overview?.invalidate(false);
+        const snapshot = !force && overview ? await overview.acquire() : null;
+        const data =
+          snapshot?.data.connections ??
+          (await api("/api/v2/persistent-connections", {}, start.scope));
         const providers = readReportProviders(data, start.workspace.vault!.vaultId);
         if (!current()) return;
         record.providers = providers;
-        record.at = Date.now();
+        record.at = snapshot?.at ?? Date.now();
         record.ready = true;
       } catch (error) {
         if (current())
@@ -305,7 +311,7 @@ export function useTaskResults(
         }
       }
     },
-    [api, update],
+    [api, update, overview],
   );
   const merge = useCallback(
     (incoming: ResultRow[], expected: string) => {
@@ -360,6 +366,8 @@ export function useTaskResults(
         evicted.current = false;
       }
       try {
+        if (force || more) overview?.invalidate(false);
+        const snapshot = !force && !more && overview ? await overview.acquire() : null;
         await Promise.all(
           feeds.current.map(async (feed) => {
             for (let page = 0; !feed.done && page < 1; page++) {
@@ -374,11 +382,19 @@ export function useTaskResults(
                 feed.kind === "persistent"
                   ? `/api/v2/persistent-results/${start.workspace.vault!.vaultId}?limit=20`
                   : `/api/v2/results?limit=20&filter=${feed.archived ? "archived" : "all"}`;
-              const data = await api(
-                  path + (feed.cursor ? "&cursor=" + encodeURIComponent(feed.cursor) : ""),
-                  {},
-                  start.scope,
-                ),
+              const data = snapshot
+                  ? snapshot.data.feeds[
+                      feed.kind === "persistent"
+                        ? "persistent"
+                        : feed.archived
+                          ? "archived"
+                          : "foreground"
+                    ]
+                  : await api(
+                      path + (feed.cursor ? "&cursor=" + encodeURIComponent(feed.cursor) : ""),
+                      {},
+                      start.scope,
+                    ),
                 p = resultPage(feed.kind, data);
               if (live.current.scope !== start.scope || generation.current !== epoch) return;
               feed.started = true;
@@ -389,7 +405,7 @@ export function useTaskResults(
           }),
         );
         if (live.current.scope === start.scope && generation.current === epoch) {
-          fresh.current = Date.now();
+          fresh.current = snapshot?.at ?? Date.now();
           update(
             {
               complete: feeds.current.every((f) => f.done) && !evicted.current,
@@ -415,11 +431,12 @@ export function useTaskResults(
         }
       }
     },
-    [api, merge, update],
+    [api, merge, update, overview],
   );
   loadAgain.current = load;
   const read = useCallback(
     async (row: ResultRow, freshRead = true, revision?: number) => {
+      if (freshRead) overview?.invalidate(false);
       const start = live.current,
         epoch = generation.current;
       if (!start.scope) throw Error("cancelled");

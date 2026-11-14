@@ -1,4 +1,9 @@
 import "server-only";
+import {
+  holdingsViewRequest,
+  parseHoldingsView,
+  type HoldingsViewExpected,
+} from "../holdings-view";
 import { cancellationRequest, cancellationResponse } from "./upload-cancellation";
 
 import { decodeJwt } from "jose";
@@ -33,7 +38,7 @@ const OPERATION = "[A-Za-z0-9_-]{22,128}";
 const SOURCE = `/api/v2/holdings/sources/${ID}`;
 type Config = { project: string; origin: string; audience: string };
 type Rule = {
-  kind: "read" | "snapshot" | "mutation" | "authority" | "synchronize" | "cancellation";
+  kind: "view" | "read" | "snapshot" | "mutation" | "authority" | "synchronize" | "cancellation";
   max: number;
   cancel?: { slot: string; id?: string };
 };
@@ -58,6 +63,17 @@ function ruleFor(request: Request): { path: string; rule: Rule } {
   requireSameOrigin(request, url);
   if (!url.pathname.startsWith(PREFIX + "/")) fail();
   const path = url.pathname.slice(PREFIX.length);
+  if (
+    request.method === "POST" &&
+    new RegExp(`^/api/v3/holdings/sources/${ID}/view/query$`).test(path)
+  ) {
+    if (
+      request.headers.has("x-folioview-delegation") ||
+      request.headers.has("x-serverless-authorization")
+    )
+      fail("insufficient_scope");
+    return { path, rule: { kind: "view", max: 16384 } };
+  }
   if (
     (request.method === "GET" &&
       new RegExp(`^${SOURCE}/operation-cancellations/${OPERATION}$`).test(path)) ||
@@ -120,6 +136,7 @@ async function transport(request: Request, rule: Rule, signal: AbortSignal) {
         : rule.kind === "authority"
           ? name === "x-folioview-authority-delegation"
           : rule.kind !== "read" &&
+            rule.kind !== "view" &&
             rule.kind !== "synchronize" &&
             name !== "x-folioview-authority-delegation";
     if (allowed) {
@@ -137,11 +154,17 @@ async function transport(request: Request, rule: Rule, signal: AbortSignal) {
   }
   if (request.headers.has("content-encoding")) fail("unsupported_media_type");
   const raw = await bytes(request.body, rule.max, signal);
-  if (rule.kind === "read") return { headers, raw: undefined, token: auth.slice(7) };
+  if (rule.kind === "read")
+    return { headers, raw: undefined, token: auth.slice(7), viewExpected: undefined };
   if (request.headers.get("content-type")?.split(";", 1)[0].toLowerCase() !== "application/json")
     fail("unsupported_media_type");
   const body = json(raw);
-  if (rule.kind === "cancellation") {
+  let viewExpected: HoldingsViewExpected | undefined;
+  if (rule.kind === "view") {
+    if (holdingsViewRequest(body, new URL(request.url).pathname.slice(PREFIX.length).split("/")[5]))
+      viewExpected = body.expected;
+    else return fail();
+  } else if (rule.kind === "cancellation") {
     if (!cancellationRequest("holdings", body, rule.cancel!.slot, headers.get("idempotency-key")!))
       fail();
   } else if (rule.kind === "authority" || rule.kind === "synchronize") {
@@ -163,7 +186,12 @@ async function transport(request: Request, rule: Rule, signal: AbortSignal) {
   )
     fail();
   headers.set("Content-Type", "application/json");
-  return { headers, raw, token: auth.slice(7) };
+  return {
+    headers,
+    raw,
+    token: auth.slice(7),
+    viewExpected,
+  };
 }
 
 function synchronizedReceipt(value: unknown, path: string) {
@@ -273,7 +301,7 @@ export function createPortfolioProxy(options: Options = {}) {
       const config = portfolioConfiguration(env);
       if (!config) fail("authorization_unavailable");
       const { path, rule } = ruleFor(request);
-      const { headers, raw, token } = await transport(request, rule, signal);
+      const { headers, raw, token, viewExpected } = await transport(request, rule, signal);
       const uid = await verifyOwner(token, config!.project, signal);
       releaseOwner = admission.owner(uid);
       headers.set("X-Serverless-Authorization", `Bearer ${await until(identity(config!), signal)}`);
@@ -290,7 +318,7 @@ export function createPortfolioProxy(options: Options = {}) {
         signal,
       );
       if (
-        (rule.kind === "synchronize" || rule.cancel) &&
+        (rule.kind === "view" || rule.kind === "synchronize" || rule.cancel) &&
         response.status < 400 &&
         response.status !== 200
       )
@@ -299,17 +327,27 @@ export function createPortfolioProxy(options: Options = {}) {
         await forwardResponse(
           response,
           signal,
-          rule.cancel
-            ? (value) =>
-                cancellationResponse(
-                  "holdings",
-                  value,
-                  rule.cancel!.slot,
-                  rule.cancel!.id ?? headers.get("idempotency-key") ?? undefined,
-                )
-            : rule.kind === "synchronize"
-              ? (value) => synchronizedReceipt(value, path)
-              : undefined,
+          rule.kind === "view"
+            ? (value) => {
+                try {
+                  if (!viewExpected) return false;
+                  parseHoldingsView(value, viewExpected);
+                  return true;
+                } catch {
+                  return false;
+                }
+              }
+            : rule.cancel
+              ? (value) =>
+                  cancellationResponse(
+                    "holdings",
+                    value,
+                    rule.cancel!.slot,
+                    rule.cancel!.id ?? headers.get("idempotency-key") ?? undefined,
+                  )
+              : rule.kind === "synchronize"
+                ? (value) => synchronizedReceipt(value, path)
+                : undefined,
         ),
         started,
       );

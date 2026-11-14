@@ -10,6 +10,7 @@ import type {
   TaskContent,
   TaskMetadata,
 } from "@/lib/encrypted-types";
+import { TaskOverviewRead } from "@/lib/task-overview";
 import { DisplayLru, untilSignal } from "@/lib/workspace-cache";
 import { defaultTask, reviewTask, type TaskPreview } from "@/lib/task-forms";
 import {
@@ -107,7 +108,13 @@ export function useTasks(
     active,
     catalogueOnDemand = false,
     catalogueRequested = false,
-  }: { active: boolean; catalogueOnDemand?: boolean; catalogueRequested?: boolean },
+    overview: overviewEnabled = false,
+  }: {
+    active: boolean;
+    catalogueOnDemand?: boolean;
+    catalogueRequested?: boolean;
+    overview?: boolean;
+  },
 ) {
   const auth = useAuth();
   const owner = auth.status === "authenticated" && auth.profile ? auth.sessionKey : null;
@@ -144,6 +151,42 @@ export function useTasks(
       item.envelopeFingerprint,
       item.keyEpoch,
     ]);
+  const inlinePackets = useRef(new Map<string, any>());
+  const overview = useRef<TaskOverviewRead | null>(null);
+  overview.current ??= new TaskOverviewRead(() => setState((s) => ({ ...s })));
+  overview.current.configure({
+    scope: overviewEnabled && scope ? `${scope}:${workspace.vault?.version}` : null,
+    vault: workspace.vault?.vaultId ?? null,
+    active,
+    visible,
+    known: () => {
+      const seen = new Set<string>();
+      const current = stateRef.current.items.flatMap((item) => {
+        if (!names.current.get(nameKey(item)) || seen.has(item.taskId)) return [];
+        seen.add(item.taskId);
+        return [
+          {
+            taskId: item.taskId,
+            taskVersion: item.taskVersion,
+            envelopeFingerprint: item.envelopeFingerprint,
+          },
+        ];
+      });
+      return [
+        ...current,
+        ...[...names.current.keys()].reverse().flatMap((key) => {
+          const [cachedScope, vaultId, taskId, taskVersion, , envelopeFingerprint] =
+            JSON.parse(key);
+          if (cachedScope !== scope || vaultId !== workspace.vault?.vaultId || seen.has(taskId))
+            return [];
+          seen.add(taskId);
+          return [{ taskId, taskVersion, envelopeFingerprint }];
+        }),
+      ].slice(0, 32);
+    },
+    send: (path, options) => auth.requestPrivate("agent-hub", path, owner!, options),
+  });
+  useEffect(() => () => overview.current?.invalidate(), []);
   const nameFailures = useRef(new Map<string, string>()),
     namePending = useRef(new Set<string>());
   const nameLoader = useRef<{
@@ -247,6 +290,10 @@ export function useTasks(
       } = {},
     ) => {
       context.assert();
+      if (options.method && options.method !== "GET" && path !== TASK_PACKET_QUERY) {
+        overview.current!.invalidate();
+        inlinePackets.current.clear();
+      }
       const { retryAdmission, ...request } = options;
       const send = async () => {
         try {
@@ -434,16 +481,32 @@ export function useTasks(
         await operation(
           false,
           async (context) => {
-            const body = await api(
-              region === "tasks" ? "/api/v2/tasks?limit=32" : "/api/v2/resources/catalogue",
-              context,
-              { retryAdmission: true },
-            );
+            if (region === "tasks" && force) {
+              overview.current!.invalidate(false);
+              inlinePackets.current.clear();
+            }
+            const snapshot =
+              region === "tasks" && !force && overviewEnabled
+                ? await overview.current!.acquire(context.signal)
+                : null;
+            const body =
+              snapshot?.data.tasks ??
+              (await api(
+                region === "tasks" ? "/api/v2/tasks?limit=32" : "/api/v2/resources/catalogue",
+                context,
+                { retryAdmission: true },
+              ));
+            if (snapshot) {
+              context.assert();
+              inlinePackets.current.clear();
+              for (const row of snapshot.data.packets?.items ?? [])
+                inlinePackets.current.set(row.taskId, row);
+            }
             const data =
               region === "tasks" ? { items: taskPage(body) } : { catalogue: taskCatalogue(body) };
             context.assert();
             if (serial !== readSerial.current[region]) return;
-            freshReads.current[region] = { scope: readScope, at: Date.now() };
+            freshReads.current[region] = { scope: readScope, at: snapshot?.at ?? Date.now() };
             if (data.items) {
               const selected = stateRef.current.selected;
               const next = selected && data.items.find((item) => item.taskId === selected.taskId);
@@ -477,7 +540,7 @@ export function useTasks(
           setState((previous) => ({ ...previous, [loading]: false }));
       }
     },
-    [api, configured, operation, owner, updatePrivate],
+    [api, configured, operation, owner, updatePrivate, overviewEnabled],
   );
   const reloadTasks = useCallback(() => loadRead("tasks", true), [loadRead]);
   const reloadCatalogue = useCallback(() => loadRead("catalogue", true), [loadRead]);
@@ -692,6 +755,8 @@ export function useTasks(
 
   const openTask = useCallback(
     async (taskId: string, version?: number) => {
+      overview.current!.invalidate(false);
+      inlinePackets.current.clear();
       if (
         !owner ||
         live.current.owner !== owner ||
@@ -1338,6 +1403,7 @@ export function useTasks(
     hiddenTaskIds.current.clear();
     nameFailures.current.clear();
     namePending.current.clear();
+    inlinePackets.current.clear();
     freshReads.current = {};
     editor.current = null;
     reviewed.current = null;
@@ -1422,14 +1488,24 @@ export function useTasks(
               // The exact suffix must shrink on every response; at most four
               // requests even when large encrypted packets need smaller pages.
               while (remaining.length) {
-                const page = taskPacketPage(
-                  await api(TASK_PACKET_QUERY, context, {
-                    method: "POST",
-                    json: { contractVersion: TASK_CONTRACT, taskIds: remaining },
-                    retryAdmission: true,
-                  }),
-                  remaining,
-                );
+                const included = remaining.filter((id) => inlinePackets.current.has(id));
+                const page = included.length
+                  ? {
+                      items: included.map((id) => {
+                        const row = inlinePackets.current.get(id);
+                        inlinePackets.current.delete(id);
+                        return row;
+                      }),
+                      remainingTaskIds: remaining.filter((id) => !included.includes(id)),
+                    }
+                  : taskPacketPage(
+                      await api(TASK_PACKET_QUERY, context, {
+                        method: "POST",
+                        json: { contractVersion: TASK_CONTRACT, taskIds: remaining },
+                        retryAdmission: true,
+                      }),
+                      remaining,
+                    );
                 context.assert();
                 for (const row of page.items) {
                   const item = batch.find((v) => v.taskId === row.taskId)!,
@@ -1551,6 +1627,8 @@ export function useTasks(
 
   const display = state.owner === owner ? state : { ...initial, owner };
   const invalidateTask = (taskId: string, restored = false) => {
+    overview.current!.invalidate();
+    inlinePackets.current.clear();
     if (restored) {
       hiddenTaskIds.current.delete(taskId);
       void reloadTasks();
@@ -1608,6 +1686,7 @@ export function useTasks(
   const catalogueReady = freshReads.current.catalogue?.scope === `${owner}:${scope ?? "locked"}`;
   return {
     ...output,
+    overview: overviewEnabled ? overview.current : undefined,
     listReady: Boolean(
       privateVisible &&
       freshReads.current.tasks?.scope === `${owner}:${scope ?? "locked"}` &&

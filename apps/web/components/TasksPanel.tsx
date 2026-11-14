@@ -963,6 +963,7 @@ export default function TasksPanel({
   const model = useTasks(workspace, {
     active,
     catalogueOnDemand: true,
+    overview: true,
     catalogueRequested: Boolean(request && request.owner === workspace.owner),
   });
   // A task list and its real unread counts do not need Agent discovery.
@@ -977,7 +978,7 @@ export default function TasksPanel({
     onAgentConnectionsNeeded?.(needsAgents);
   }, [needsAgents, onAgentConnectionsNeeded]);
   useEffect(() => () => onAgentConnectionsNeeded?.(false), [onAgentConnectionsNeeded]);
-  const center = useTaskCenter(workspace, active, model.selected);
+  const center = useTaskCenter(workspace, active, model.selected, model.overview);
   const observed = Object.values(center.manual)
     .flatMap((rows) =>
       rows.flatMap(
@@ -988,7 +989,15 @@ export default function TasksPanel({
     )
     .sort()
     .join("|");
-  const results = useTaskResults(workspace, persistent, model, active, observed, center);
+  const results = useTaskResults(
+    workspace,
+    persistent,
+    model,
+    active,
+    observed,
+    center,
+    model.overview,
+  );
 
   const [linkedTask, setLinkedTask] = useState<string | null>(null);
   const tc = useTranslations("taskCenter");

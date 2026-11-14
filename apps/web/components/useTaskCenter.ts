@@ -1,5 +1,6 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
+import type { TaskOverviewRead } from "@/lib/task-overview";
 import { useAuth } from "./AuthProvider";
 import type { HoldingsWorkspace } from "./useHoldingsWorkspace";
 import { boundedJson, untilSignal } from "@/lib/workspace-cache";
@@ -10,6 +11,7 @@ export function useTaskCenter(
   workspace: HoldingsWorkspace,
   active: boolean,
   selected: TaskMetadata | null,
+  overview?: TaskOverviewRead,
 ) {
   const auth = useAuth(),
     owner = auth.status === "authenticated" ? auth.sessionKey : null;
@@ -57,6 +59,7 @@ export function useTaskCenter(
       options: { method?: "POST"; json?: unknown; operation?: string } = {},
     ): Promise<J> => {
       const start = live.current;
+      if (options.method) overview?.invalidate();
       if (!start.owner) throw Error("session_expired");
       const control = new AbortController();
       controllers.current.add(control);
@@ -126,6 +129,7 @@ export function useTaskCenter(
       if (!force && Date.now() - (lastRead.current.get(key) ?? 0) < 15000) return null;
       const inFlight = reads.current.get(key);
       if (inFlight) return inFlight;
+      overview?.invalidate(false);
       const promise = (async () => {
         update({ loading: true, error: "" }, start.scope);
         try {
@@ -379,7 +383,11 @@ export function useTaskCenter(
     });
     if (!scope) return;
     let stopped = false;
-    void api("/api/v3/task-center/capabilities")
+    void (
+      overview
+        ? overview.acquire().then((r) => r.data.capabilities)
+        : api("/api/v3/task-center/capabilities")
+    )
       .then((v) => {
         if (!stopped) update({ enabled: v.enabled === true, capabilityState: "ready" }, scope);
       })
@@ -390,7 +398,15 @@ export function useTaskCenter(
       stopped = true;
       for (const c of controllers.current) c.abort();
     };
-  }, [scope, api, update]);
+  }, [scope, api, update, overview]);
+  const overviewReceipt = overview?.receipt;
+  useEffect(() => {
+    if (overviewReceipt && scope)
+      update(
+        { enabled: overviewReceipt.data.capabilities.enabled === true, capabilityState: "ready" },
+        scope,
+      );
+  }, [scope, overviewReceipt, update]);
   useEffect(() => {
     if (scope && active && selected) void load(selected.taskId);
   }, [scope, active, selected?.taskId, selected?.taskVersion, load]);

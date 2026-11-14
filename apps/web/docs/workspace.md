@@ -555,3 +555,53 @@ requires complete writable unlock, an existing source, and no content/metadata, 
 flow, unfinished mutation, busy state or error. Hidden pages, read-only/device-approval sessions,
 legitimate empty sources and already-restored content do not trigger this recovery. Failure stays
 on the existing explicit retry path; route reentry does not create an automatic retry loop.
+
+Task homepage automatic reads use one fixed Owner-only
+`POST /api/v3/tasks/{vault}/overview/query` shared by task metadata, task-center capabilities,
+the three first report pages and the historical provider map. The closed response retains the
+original 32-task list, 20-row report limits and independent cursors. Up to four original encrypted
+task packets may be included; successful cached name versions are only bandwidth hints. All
+composition and original nested DTO parsing finishes before any part publishes, and the original
+two-worker name queue still verifies each uncached task. A null packet section does not complete
+missing names: only those names use the original packet query. Partial feeds retain real partial
+unread counts and cannot mark the homepage ready.
+
+The single overview cache is local to the task-page hooks and keyed by Owner login, vault,
+unlock generation and vault version. Its 30-second freshness uses the original receipt time,
+including route/visibility return. Scope changes and hidden pending work fence late results;
+replaying a receipt never extends its lifetime. Explicit list and report refreshes, More, selected
+details and writes keep their original routes and invalidate display reuse without prewarming.
+A soft invalidation removes the reusable receipt and prevents the old attempt from refilling the
+cache; existing subscribers may finish subject to each consumer's original serial/scope fence.
+Write, scope and lock invalidations also abort the pending attempt. The fixed read-only POST uses the existing bounded read queue; there is no generic POST batching,
+write replay or fallback from malformed compositions to a collection of independent reads.
+
+The actual browser Worker has its own directory verifier and consumes the shared static
+certificate verifier explicitly. Each history attempt owns a fresh verifier over private Root/JWS
+snapshots, bounded to 128 successful entries and one MiB. It can reuse only the verified certificate
+payload, public-key thumbprint and payload digest within that attempt. Every checkpoint signature
+and original Owner/vault/issuer/role/active/revoked/time/epoch/chain check still runs; no Worker,
+session or cross-request authorization result is cached. Private snapshots also bind verification
+and adoption across awaits. This does not alter private keys or the Worker RPC protocol.
+
+Agent Management unlock uses the same result-mode unlock with writable-state verification as
+Task Center. It keeps the original current/archive/current, Passkey, Worker and device-approval
+sequence but does not start a Portfolio holdings read. Resources still read their selected source
+when opened; delayed unlock replies cannot restore a previous Owner.
+
+An ordinary explicit `readStored` may use the fixed Owner-only Portfolio
+`POST /api/v3/holdings/sources/{source}/view/query` immediately after its fresh current vault has
+passed the original Worker verifier. Its exact preconditions come from that same vault, selected
+source and Worker authority. The client checks actual local source-mutation journals and upload
+outboxes before this attempt and again before adopting its result. A newly discovered journal
+returns to the original metadata-first recovery with the same fresh vault context, even before
+React renders it; the fallback does not issue another combined view.
+
+A complete view carries the original source metadata and snapshot DTOs. Their vault, source,
+reference, revision and retained snapshot epoch must agree; the original Worker still verifies and
+opens the ciphertext before metadata/content publish together. A null snapshot represents only a
+verified empty source. The two-null `sync_required` and `separate` modes resume the original
+metadata-first authority-sync and recovery sequence; malformed, failed or cryptographically invalid
+replies do not trigger that fallback. Other `readSaved` callers, writes, unknown acknowledgements,
+read-only sessions and device approval retain their original paths. This display read neither
+installs client authority nor acknowledges or repeats a pending write.
