@@ -33,6 +33,21 @@ export function createVaultKernel(
           )
             throw new VaultError("archive_deletion_pending");
           switch (method) {
+            case "openDisplayNames":
+              result = await core.openDisplayNames(args);
+              break;
+            case "openDisplayName":
+              result = await core.openDisplayName(args);
+              break;
+            case "prepareDisplayName":
+              result = await core.prepareDisplayName(args);
+              break;
+            case "openDisplayNamePending":
+              result = await core.openDisplayNamePending(args);
+              break;
+            case "verifyDisplayNameReceipt":
+              result = await core.verifyDisplayNameReceipt(args);
+              break;
             case "verifyTaskCenterState":
               result = await core.verifyTaskCenterState(args);
               break;

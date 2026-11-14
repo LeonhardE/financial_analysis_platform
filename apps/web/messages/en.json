@@ -225,7 +225,7 @@
     "available": "Available",
     "planned": "Planned",
     "privateResources": "PRIVATE HOLDINGS",
-    "vaultTitle": "Your encrypted holdings library",
+    "vaultTitle": "Holdings",
     "vaultHelp": "Sign in to find your library. Use your device passkey to unlock its contents.",
     "locked": "Locked",
     "unlocked": "Unlocked",
@@ -448,7 +448,57 @@
     "archiveUnavailable": "A key archive removal needs attention, or the cloud key archive was removed. Open Settings to check the original request or use independent recovery. Your saved content has not been emptied.",
     "archiveSettings": "Open key archive settings",
     "refreshingSaved": "Checking for updates…",
-    "cachedUpdateFailed": "Update failed. Showing previously loaded holdings."
+    "cachedUpdateFailed": "Update failed. Showing previously loaded holdings.",
+    "manage": {
+      "refresh": "Refresh",
+      "add": "Add holdings",
+      "close": "Close settings",
+      "name": "Name",
+      "nameOptional": "Name (optional)",
+      "saveName": "Save name",
+      "savingName": "Saving…",
+      "loadingNames": "Loading names…",
+      "update": "Update CSV",
+      "useInTask": "Use in task",
+      "sharing": "Manage sharing",
+      "advanced": "Access and deletion",
+      "relatedTasks": "Related tasks",
+      "noTasks": "No related tasks.",
+      "tasksFailed": "Related tasks could not be loaded.",
+      "retryName": "Retry task name",
+      "loadingName": "Loading task name…",
+      "loading": "Loading…",
+      "retry": "Try again",
+      "finishPending": "Check pending changes",
+      "namePending": "The name change needs confirmation.",
+      "checkName": "Check result",
+      "retryNameSave": "Retry original save",
+      "namingUnavailable": "Naming is temporarily unavailable. Your holdings remain accessible.",
+      "importSteps": "Import progress",
+      "steps": {
+        "choose": "Choose",
+        "review": "Review",
+        "save": "Save"
+      },
+      "dropZone": "CSV file drop zone",
+      "dropHelp": "Drop a Wealthsimple holdings CSV here, or choose a file.",
+      "multipleFiles": "Choose one CSV at a time.",
+      "errors": {
+        "cancelled": "This action ended. Try again.",
+        "timeout": "The name could not be confirmed yet. Check its result.",
+        "not_found": "This data is no longer available.",
+        "conflict": "The name changed elsewhere. Reload before saving again.",
+        "unlock_required": "Unlock your library to continue.",
+        "operation_pending": "Confirm the pending name change first.",
+        "display_name_invalid": "Use a name of 1–80 characters without control characters.",
+        "invalid_response": "The name response could not be verified.",
+        "request_failed": "The name could not be loaded or saved. Try again."
+      },
+      "resumeEditing": "Resume editing",
+      "discardNameHelp": "Check the saved result first. If it is still unknown, stop retrying this change and reload the current name. A request already sent may still complete; this does not undo it.",
+      "keepWaiting": "Keep waiting",
+      "confirmResume": "Check and resume"
+    }
   },
   "inbox": {
     "eyebrow": "YOUR AGENT RESULTS",
@@ -664,7 +714,13 @@
       "cancelled": "This action ended. Reload the latest list before trying again.",
       "edited_removed": "This creator was removed elsewhere. Cancel this edit and add the draft as a new creator if needed."
     },
-    "refreshVersion": "Refresh version"
+    "refreshVersion": "Refresh version",
+    "taskUnavailable": "Task sources could not be loaded.",
+    "symbolLabel": "Stock ticker",
+    "symbolPlaceholder": "AAPL",
+    "addStock": "Add stock",
+    "removeStock": "Remove {symbol}",
+    "aboutFollows": "About this list"
   },
   "tasks": {
     "eyebrow": "Personal workspace",

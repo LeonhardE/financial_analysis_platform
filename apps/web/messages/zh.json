@@ -225,7 +225,7 @@
     "available": "可用",
     "planned": "后续支持",
     "privateResources": "私密持仓",
-    "vaultTitle": "你的加密持仓资源库",
+    "vaultTitle": "持仓",
     "vaultHelp": "登录后找到资源库，再用设备通行密钥解锁其中的内容。",
     "locked": "已锁定",
     "unlocked": "已解锁",
@@ -448,7 +448,57 @@
     "archiveUnavailable": "密钥包移除请求尚待处理，或云端密钥包已移除。请到设置核对原请求，或使用独立恢复包恢复；原内容并未因此清空。",
     "archiveSettings": "前往设置处理密钥包",
     "refreshingSaved": "正在检查更新…",
-    "cachedUpdateFailed": "更新失败，显示上次载入的持仓。"
+    "cachedUpdateFailed": "更新失败，显示上次载入的持仓。",
+    "manage": {
+      "refresh": "刷新",
+      "add": "新增持仓",
+      "close": "关闭资料设置",
+      "name": "名称",
+      "nameOptional": "名称（可选）",
+      "saveName": "保存名称",
+      "savingName": "正在保存…",
+      "loadingNames": "正在载入名称…",
+      "update": "更新 CSV",
+      "useInTask": "用于任务",
+      "sharing": "管理共享",
+      "advanced": "访问与删除",
+      "relatedTasks": "关联任务",
+      "noTasks": "暂无关联任务。",
+      "tasksFailed": "暂时无法载入关联任务。",
+      "retryName": "重试任务名称",
+      "loadingName": "正在载入任务名称…",
+      "loading": "正在载入…",
+      "retry": "重试",
+      "finishPending": "查看待确认修改",
+      "namePending": "名称修改尚待确认。",
+      "checkName": "检查结果",
+      "retryNameSave": "重试原保存",
+      "namingUnavailable": "暂时无法修改名称，持仓仍可正常查看。",
+      "importSteps": "导入进度",
+      "steps": {
+        "choose": "选择",
+        "review": "检查",
+        "save": "保存"
+      },
+      "dropZone": "CSV 文件拖拽区域",
+      "dropHelp": "将 Wealthsimple 持仓 CSV 拖到此处，或选择文件。",
+      "multipleFiles": "请一次选择一份 CSV。",
+      "errors": {
+        "cancelled": "操作已结束，请重试。",
+        "timeout": "名称修改暂未确认，请检查结果。",
+        "not_found": "这份资料已不可用。",
+        "conflict": "名称已在其他地方修改，请刷新后重试。",
+        "unlock_required": "请先解锁资源库。",
+        "operation_pending": "请先确认待处理的名称修改。",
+        "display_name_invalid": "请输入 1–80 个字符的名称，勿使用控制字符。",
+        "invalid_response": "无法核验名称响应。",
+        "request_failed": "暂时无法载入或保存名称，请重试。"
+      },
+      "resumeEditing": "恢复编辑",
+      "discardNameHelp": "先检查保存结果。若仍未确认，将停止本次重试并读取当前名称。已发送的修改仍可能完成，此操作不会撤销它。",
+      "keepWaiting": "继续等待",
+      "confirmResume": "检查并恢复编辑"
+    }
   },
   "inbox": {
     "eyebrow": "个人 AGENT 产出",
@@ -664,7 +714,13 @@
       "cancelled": "操作已结束，请加载最新名单后重试。",
       "edited_removed": "这位创作者已在其他地方移除。请取消本次编辑，如仍需要，可将草稿重新添加为创作者。"
     },
-    "refreshVersion": "刷新资源版本"
+    "refreshVersion": "刷新资源版本",
+    "taskUnavailable": "暂时无法载入任务资料。",
+    "symbolLabel": "股票代码",
+    "symbolPlaceholder": "AAPL",
+    "addStock": "添加股票",
+    "removeStock": "移除 {symbol}",
+    "aboutFollows": "关于这份名单"
   },
   "tasks": {
     "eyebrow": "个人工作区",

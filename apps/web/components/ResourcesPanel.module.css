@@ -140,9 +140,9 @@
   padding: 9px 13px;
 }
 .primary {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: #05190f;
+  background: #2856c9;
+  border-color: #2856c9;
+  color: #fff;
   font-weight: 600;
 }
 .secondary {
@@ -540,5 +540,113 @@
   .primary,
   .secondary {
     max-width: 100%;
+  }
+}
+.sourceBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.sourceBar .sourceActions {
+  margin: 0;
+}
+.sourceBar select {
+  max-width: min(100%, 340px);
+  font-weight: 600;
+}
+.nameForm {
+  display: flex;
+  align-items: end;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+.nameForm label,
+.importName {
+  display: grid;
+  gap: 8px;
+  flex: 1;
+  min-width: 180px;
+  font-size: 13px;
+}
+.nameForm input,
+.importName input {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  padding: 10px 12px;
+  width: 100%;
+  min-height: 40px;
+}
+.importSteps {
+  display: flex;
+  list-style: none;
+  gap: 18px;
+  padding: 0;
+  margin: 18px 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+.importSteps li {
+  border-bottom: 2px solid var(--border);
+  padding: 6px 0;
+  flex: 1;
+}
+.importSteps li[data-current="true"] {
+  border-color: var(--accent);
+  color: var(--text);
+  font-weight: 600;
+}
+.upload {
+  transition:
+    background 160ms ease,
+    border-color 160ms ease;
+}
+.upload[data-dragging="true"] {
+  background: color-mix(in srgb, var(--accent) 12%, var(--bg));
+  border-color: var(--accent);
+  border-style: solid;
+}
+.importFlow {
+  animation: source-enter 180ms ease-out;
+}
+.advanced {
+  border-top: 1px solid var(--border);
+  margin-top: 24px;
+  padding-top: 16px;
+}
+.advanced summary {
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 13px;
+}
+.relatedTasks {
+  padding-left: 18px;
+  font-size: 13px;
+  line-height: 1.8;
+  overflow-wrap: anywhere;
+}
+.relatedTasks a {
+  color: var(--accent);
+}
+@keyframes source-enter {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .upload {
+    transition: none;
+  }
+  .importFlow {
+    animation: none;
   }
 }

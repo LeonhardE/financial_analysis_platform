@@ -93,8 +93,8 @@ later task/Run contracts and provider validation; this change creates no local R
 ## Resource library
 
 Resources presents holdings, the existing Market watchlist, and a manually maintained YouTube
-creator list with type filters and current source versions. Watchlist rows come directly from
-User's existing `/api/v1/watchlist`; manage them in Market, then return to refresh. They carry no
+creator list in three tabs. The watchlist reuses the shell's Market controller and existing
+User `/api/v1/watchlist`; add/remove acts on that same list without a duplicate list read. Rows carry no
 holdings quantities, valuations or portfolio weights, and need no connected broker or passkey.
 
 Creator add/edit/remove uses only User's exact `/api/v1/channel-follows` GET/PUT. Whole-list writes
@@ -108,7 +108,8 @@ forwarder. Available/empty/uninitialized/partial/unavailable/pending/revoked sta
 source failure is never interpreted as an empty list. Discovery is not encrypted Run evidence or
 agent authorization. An optional `onCreateTask({ref, sourceEpoch})` integration appears only for
 current ready/active resources when a task consumer is present; it carries no content or keys and
-creates no task automatically. Current-source changes do not rewrite historical task/Run evidence.
+creates no task automatically. Current-source changes do not rewrite historical task/Run evidence. The holdings settings dialog
+uses the same Task Center handoff; it never grants access automatically.
 
 Reads enforce actual streamed response limits and deadlines, and never cache private rows in
 browser storage. Reentry from Market, tab visibility restoration, creator saves and holdings
@@ -117,14 +118,42 @@ render, abort old fetch/body reads, clear editor drafts and reject stale callbac
 malformed response or uncertain write requires explicit successful reload before another save;
 there is no automatic write retry and the local draft remains available for review.
 
+### Holdings names and settings
+
+The compact holdings selector displays an Owner-only encrypted alias or the existing numbered
+fallback, plus the import source and loaded timestamp. Data settings opens the shared animated,
+keyboard-accessible dialog: rename, update CSV, use in task, verified related task titles, sharing,
+and folded access/deletion controls with their existing impact confirmation. Unsupported broker
+adapters and the page-wide resource-version explanations are omitted.
+
+Aliases use `folioview.private-display-name.v1` through the fixed Owner-only v3 display-name routes.
+The Worker verifies the pinned Root, full source reference/incarnation, original registry checkpoint,
+Owner signature, original operation fingerprint and JWE context before displaying a name. Names
+are encrypted for the existing Owner recovery recipient; Agent grants, financial versions, source
+epochs, historical task bindings and registry history do not change. The browser cannot supply an
+unwrapped key or arbitrary upstream route.
+
+A rename seals its original packet into the existing local encrypted storage before submission.
+An uncertain result blocks a second candidate. Original-receipt lookup or replay clears it only
+after Worker verification. A separate, confirmed Resume editing action first checks that original
+result; if absent, it clears only the sealed local retry, explicitly warning that an already sent
+request may still complete. It does not cancel a server operation; the next rename uses fresh
+current-state CAS. A fresh current read follows recovery so
+an older original receipt cannot relabel a newer name. Display names live only in memory, scoped
+to Owner/vault/Root/unlock generation/visibility, bounded to ten sources; 30-second display reuse
+avoids reloading names on every navigation. Authority used for writes is freshly checked.
+
 ## Import and privacy behavior
 
 1. Sign in with the existing Google/Firebase flow.
 2. Create or unlock the system-managed Passkey that protects the encrypted owner archive. There
    is no manual key file or additional password fallback. Unsupported PRF capabilities fail closed.
-3. Select a holdings CSV. Parsing, decimal/currency checks, preview and account selection happen
+3. Choose or drop one holdings CSV (up to 4 MB). Both paths use the same importer. Parsing,
+   decimal/currency checks, preview and account selection happen
    in the browser. The original file is not uploaded.
-4. Confirm the selected holdings. A Worker produces the exact formal v2.0/P1 JWE/JWS carrier;
+4. Optionally name the first import and confirm the selected holdings. Source creation and its
+   original receipt precede naming; a failed name confirmation stops the financial upload without
+   creating a second source. Cancelling the preview does not upload it. A Worker produces the exact formal v2.0/P1 JWE/JWS carrier;
    only public authority/control material and ciphertext go to Hub/Portfolio.
 5. Saved holdings are verified and decrypted in the browser. Navigation within the app preserves
    the current unlocked session; lock, logout or account change terminates the shared crypto

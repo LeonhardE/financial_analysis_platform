@@ -23,6 +23,7 @@ async function createHarness() {
     for (const name of [
       "encrypted-types",
       "encrypted-core",
+      "encrypted-display-names",
       "encrypted-persistent",
       "holdings-csv",
       "task-types",

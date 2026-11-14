@@ -3196,3 +3196,60 @@ test("holdings version and revocation changes cannot reuse the old plaintext", a
   assert.equal(h.render().displayCache.holdings.size, 0);
   h.unmount();
 });
+
+test("first-import name callback follows verified source creation and precedes any financial upload", async () => {
+  const h = harness({ hasSource: false });
+  await unlocked(h);
+  await h.render().importFile(file);
+  let chosen;
+  await h.render().save(async (source) => {
+    chosen = source;
+    assert.equal(h.counts().creates, 1);
+    assert.equal(h.counts().seals, 0);
+    throw Error("name unconfirmed");
+  });
+  assert.ok(chosen?.resourceRef.resourceId);
+  assert.equal(h.counts().creates, 1);
+  assert.equal(h.counts().seals, 0);
+  assert.ok(h.render().preview);
+  await h
+    .render()
+    .save(async (source) =>
+      assert.equal(source.resourceRef.resourceId, chosen.resourceRef.resourceId),
+    );
+  assert.equal(h.counts().creates, 1);
+  assert.equal(h.counts().seals, 1);
+  h.unmount();
+});
+
+test("rapid A to B to A selection rejects a late B read and keeps cached A", async () => {
+  const h = harness();
+  await unlocked(h);
+  await h.render().importFile(file);
+  await h.render().save();
+  const second = {
+    ...source,
+    resourceRef: { ...source.resourceRef, resourceId: "holdings_b", incarnation: "inc_b" },
+  };
+  h.sources().push(second);
+  await h.render().refreshVault(new AbortController().signal);
+  const gate = deferred();
+  h.holdCurrent(gate);
+  const b = h.render().selectHoldingsSource("holdings_b");
+  assert.equal(h.render().selectedSourceId, "holdings_b");
+  assert.equal(h.render().content, null);
+  h.holdCurrent(null);
+  await h.render().selectHoldingsSource("holdings_a");
+  assert.equal(h.render().selectedSourceId, "holdings_a");
+  assert.ok(h.render().content);
+  gate.resolve(
+    new Response(JSON.stringify({ contractVersion: CONTRACT, vault, sources: h.sources() }), {
+      headers: { "content-type": "application/json" },
+    }),
+  );
+  await b;
+  assert.equal(h.render().selectedSourceId, "holdings_a");
+  assert.equal(h.render().sourceMetadata.source.resourceRef.resourceId, "holdings_a");
+  assert.ok(h.render().content);
+  h.unmount();
+});

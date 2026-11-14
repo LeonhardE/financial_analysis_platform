@@ -52,7 +52,10 @@ const selectionKey = (item: ResourceItem) => {
 };
 
 /** Source lists use their existing User owner API; discovery never grants agent access. */
-export function useResourceLibrary({ active = true }: { active?: boolean } = {}) {
+export function useResourceLibrary({
+  active = true,
+  externalWatchlist = false,
+}: { active?: boolean; externalWatchlist?: boolean } = {}) {
   const auth = useAuth();
   const owner = auth.status === "authenticated" && auth.profile ? auth.sessionKey : null;
   const configured = auth.agentHubConfigured;
@@ -313,14 +316,14 @@ export function useResourceLibrary({ active = true }: { active?: boolean } = {})
         : initial(owner),
     );
     if (owner && active && visible) {
-      void reload("watchlist");
+      if (!externalWatchlist) void reload("watchlist");
       void reload("follows");
       if (configured) void reload("catalogue");
     }
     return () => {
       for (const controller of jobs.current.values()) controller.abort();
     };
-  }, [owner, active, visible, configured, reload]);
+  }, [owner, active, visible, configured, reload, externalWatchlist]);
 
   const useForTask = useCallback(
     (item: ResourceItem, callback?: (selection: ResourceSelection) => void) => {

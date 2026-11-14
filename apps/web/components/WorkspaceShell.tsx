@@ -414,6 +414,7 @@ export default function WorkspaceShell() {
         </div>
         <div className="workspace-page" hidden={activeView !== "resources"}>
           <ResourcesPanel
+            watchlist={watchlist}
             active={activeView === "resources"}
             onCreateTask={(binding) => {
               if (!encryptedWorkspace.authenticated || !encryptedWorkspace.owner) return;

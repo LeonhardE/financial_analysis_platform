@@ -1459,7 +1459,7 @@ export function useHoldingsWorkspace() {
   );
 
   const save = useCallback(
-    () =>
+    (onSourceReady?: (source: Source) => Promise<void>) =>
       perform("saving", async ({ assertActive, signal }) => {
         if (!capabilitiesRef.current.portfolio) throw new WorkspaceError("service_unavailable");
         const instance = liveSession();
@@ -1546,6 +1546,10 @@ export function useHoldingsWorkspace() {
           await instance.finishSourceCreation(creationPacket, source, signal);
           assertActive();
           setState((previous) => ({ ...previous, sourceCreationId: null }));
+        }
+        if (onSourceReady) {
+          await onSourceReady(source);
+          assertActive();
         }
         let upload = pending.current ?? (await instance.loadOutbox(source.resourceRef.resourceId));
         assertActive();
@@ -2446,6 +2450,34 @@ export function useHoldingsWorkspace() {
   const prepareAgentCredential = useCallback(
     (args: Parameters<EncryptedVaultSession["prepareAgentCredential"]>[0]) =>
       taskCall((instance) => instance.prepareAgentCredential(args)),
+    [taskCall],
+  );
+  const openDisplayNames = useCallback(
+    (refs: Record<string, any>[], items: Record<string, any>[]) =>
+      taskCall((i) => i.openDisplayNames(refs, items)),
+    [taskCall],
+  );
+  const openDisplayName = useCallback(
+    (ref: Record<string, any>, item: Record<string, any> | null) =>
+      taskCall((i) => i.openDisplayName(ref, item)),
+    [taskCall],
+  );
+  const prepareDisplayName = useCallback(
+    (args: Record<string, any>) => taskCall((i) => i.prepareDisplayName(args)),
+    [taskCall],
+  );
+  const loadDisplayNamePending = useCallback(
+    (ref: Record<string, any>) => taskCall((i) => i.loadDisplayNamePending(ref)),
+    [taskCall],
+  );
+  const discardDisplayNamePending = useCallback(
+    (ref: Record<string, any>, operationId: string) =>
+      taskCall((i) => i.discardDisplayNamePending(ref, operationId)),
+    [taskCall],
+  );
+  const finishDisplayNamePending = useCallback(
+    (ref: Record<string, any>, receipt: Record<string, any>) =>
+      taskCall((i) => i.finishDisplayNamePending(ref, receipt)),
     [taskCall],
   );
   const verifyTaskCenterState = useCallback(
@@ -4672,6 +4704,12 @@ export function useHoldingsWorkspace() {
     prepareAgentCredential,
     archiveSupersededPersistentPublication,
     archiveExpiredCredentialPending,
+    openDisplayNames,
+    openDisplayName,
+    prepareDisplayName,
+    loadDisplayNamePending,
+    finishDisplayNamePending,
+    discardDisplayNamePending,
     verifyTaskCenterState,
     prepareTaskCenterControl,
     loadTaskCenterPending,

@@ -1458,6 +1458,104 @@ export class EncryptedVaultSession {
     this.assert(g);
     return result;
   }
+  private displayNameKey(ref: Json) {
+    if (
+      !this.vaultId ||
+      !ref ||
+      Object.keys(ref).sort().join("|") !== "incarnation|kind|resourceId|sourceService" ||
+      ref.kind !== "holdings" ||
+      ref.sourceService !== "portfolio" ||
+      ![ref.resourceId, ref.incarnation].every(
+        (v: unknown) => typeof v === "string" && /^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/.test(v),
+      )
+    )
+      throw new VaultError("invalid_data");
+    return `${this.owner}:display-name:${this.vaultId}:${ref.resourceId}:${ref.incarnation}`;
+  }
+  async openDisplayNames(refs: Json[], items: Json[]) {
+    const g = this.generation;
+    const value = await this.rpc("openDisplayNames", { refs, items });
+    this.assert(g);
+    return value;
+  }
+  async openDisplayName(ref: Json, item: Json | null) {
+    const g = this.generation;
+    const value = await this.rpc("openDisplayName", { ref, item });
+    this.assert(g);
+    return value;
+  }
+  async loadDisplayNamePending(ref: Json) {
+    const g = this.generation,
+      row = await this.storage.get(this.displayNameKey(ref));
+    this.assert(g);
+    if (!row) return null;
+    if (
+      row.ownerSubject !== this.owner ||
+      row.vaultId !== this.vaultId ||
+      !sameEncryptedRecord(row.ref, ref) ||
+      !row.pending?.record
+    )
+      throw new VaultError("binding_mismatch");
+    const packet = await this.rpc("openDisplayNamePending", {
+      record: row.pending.record,
+      ref,
+      operationId: row.pending.operationId,
+    });
+    this.assert(g);
+    return packet;
+  }
+  async prepareDisplayName(args: Json) {
+    return this.serial(async () => {
+      const g = this.generation,
+        key = this.displayNameKey(args.ref);
+      if (await this.storage.get(key)) throw new VaultError("persistent_operation_pending");
+      this.assert(g);
+      const { localPending, ...packet } = await this.rpc("prepareDisplayName", args);
+      this.assert(g);
+      if (
+        !localPending ||
+        packet.operationId !== localPending.operationId ||
+        !sameEncryptedRecord(packet.ref, args.ref)
+      )
+        throw new VaultError("binding_mismatch");
+      if (
+        !(await this.storage.insert(key, {
+          ownerSubject: this.owner,
+          vaultId: this.vaultId,
+          ref: packet.ref,
+          pending: { operationId: packet.operationId, record: localPending },
+        }))
+      )
+        throw new VaultError("persistent_operation_pending");
+      this.assert(g);
+      return packet;
+    });
+  }
+  async discardDisplayNamePending(ref: Json, operationId: string) {
+    return this.serial(async () => {
+      const g = this.generation,
+        packet = await this.loadDisplayNamePending(ref);
+      this.assert(g);
+      if (!packet || packet.operationId !== operationId) throw new VaultError("operation_conflict");
+      if (!(await this.storage.removeOperation(this.displayNameKey(ref), operationId)))
+        throw new VaultError("operation_conflict");
+      this.assert(g);
+    });
+  }
+  async finishDisplayNamePending(ref: Json, receipt: Json) {
+    return this.serial(async () => {
+      const g = this.generation,
+        packet = await this.loadDisplayNamePending(ref);
+      this.assert(g);
+      if (!packet) throw new VaultError("not_found");
+      const value = await this.rpc("verifyDisplayNameReceipt", { packet, receipt });
+      this.assert(g);
+      if (!(await this.storage.removeOperation(this.displayNameKey(ref), value.operationId)))
+        throw new VaultError("operation_conflict");
+      this.assert(g);
+      return value;
+    });
+  }
   private taskCenterKey(taskId: string) {
     if (!this.vaultId || !/^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/.test(taskId))
       throw new VaultError("invalid_data");

@@ -69,6 +69,19 @@ export function persistentOwnerRoute(path: string, method: string): PersistentOw
 
 /** Shared by the browser admission boundary and the server proxy. No query strings. */
 export function taskCenterRoute(path: string, method: string) {
+  if (
+    method === "GET" &&
+    (path === "/api/v3/private-display-names/capabilities" ||
+      new RegExp(
+        `^/api/v3/private-display-names/${ID}/holdings(?:/${ID}(?:/operations/${OP})?)?$`,
+      ).test(path))
+  )
+    return { kind: "read" as const, max: 0, responseStatus: 200 as const };
+  if (
+    method === "POST" &&
+    new RegExp(`^/api/v3/private-display-names/${ID}/holdings/${ID}/commands$`).test(path)
+  )
+    return { kind: "center" as const, max: 16384, operation: true, responseStatus: 201 as const };
   const providerPath = new RegExp(
     `^/api/v3/provider-connections/${ID}/(?:muse|chatgpt)(?:/operations/${OP})?$`,
   );
