@@ -1776,5 +1776,10 @@
     "remove": "Unfollow {pair}",
     "source": "Bank of Canada · daily reference",
     "loadingCurrency": "Loading default currency"
+  },
+  "workspaceFeedback": {
+    "loading": "Loading…",
+    "retry": "Try again",
+    "moduleUnavailable": "This page could not be loaded."
   }
 }

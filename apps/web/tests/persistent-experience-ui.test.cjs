@@ -237,3 +237,17 @@ test("refreshing keeps the last loaded connection visible and adds a busy indica
     assert.match(muse, /<button disabled="">Authorize again|<button disabled="">重新授权/);
   }
 });
+
+test("background summary refresh preserves actions on the last verified connection", () => {
+  const out = render(
+    "en",
+    true,
+    null,
+    { status: "active", expiresAt: Date.now() / 1000 + 7776000 },
+    null,
+    { model: { loading: true, busy: false } },
+  );
+  const muse = out.match(/<article[^>]*>[\s\S]*?<\/article>/)[0];
+  assert.match(muse, /aria-busy="true"/);
+  assert.match(muse, /<button>Authorize again/);
+});

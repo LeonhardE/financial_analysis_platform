@@ -43,6 +43,28 @@ const deferred = () => {
   });
   return { promise, resolve, reject };
 };
+const heldJson = (value, gate, onRead = () => {}) => {
+  let done = false;
+  return {
+    ok: true,
+    status: 200,
+    headers: new Headers(),
+    body: {
+      getReader: () => ({
+        async read() {
+          if (done) return { done: true };
+          done = true;
+          onRead();
+          await gate.promise;
+          return { done: false, value: new TextEncoder().encode(JSON.stringify(value)) };
+        },
+        async cancel() {},
+        releaseLock() {},
+      }),
+      async cancel() {},
+    },
+  };
+};
 const settle = () => new Promise((resolve) => setImmediate(resolve));
 const CONTRACT = "folioview.agent-workspace.v2.0";
 const source = {
@@ -1012,16 +1034,7 @@ function harness({
         carrier: { opaque: true },
         receipt,
       });
-      if (bodyHold)
-        return {
-          ok: true,
-          status: 200,
-          text: async () => {
-            bodyReads++;
-            await bodyHold.promise;
-            return text;
-          },
-        };
+      if (bodyHold) return heldJson(JSON.parse(text), bodyHold, () => bodyReads++);
       return new Response(text);
     }
     if (route.includes("/operations/")) {
@@ -2497,15 +2510,9 @@ test("late Hub vault response body cannot restore a switched or logged-out owner
     const body = deferred();
     let reads = 0;
     h.holdCurrent({
-      promise: Promise.resolve({
-        ok: true,
-        status: 200,
-        text: async () => {
-          reads++;
-          await body.promise;
-          return JSON.stringify({ contractVersion: CONTRACT, vault, sources: [source] });
-        },
-      }),
+      promise: Promise.resolve(
+        heldJson({ contractVersion: CONTRACT, vault, sources: [source] }, body, () => reads++),
+      ),
     });
     const loading = h.render().reload();
     await settle();

@@ -1,3 +1,72 @@
+/** Settle even when a transport/SDK ignores cancellation. No operation is replayed. */
+export function untilSignal<T>(
+  promise: Promise<T>,
+  signal?: AbortSignal,
+  failure: () => Error = () => Error("cancelled"),
+): Promise<T> {
+  if (!signal) return promise;
+  return new Promise((resolve, reject) => {
+    const abort = () => {
+      signal.removeEventListener("abort", abort);
+      reject(failure());
+    };
+    signal.addEventListener("abort", abort, { once: true });
+    promise.then(
+      (value) => {
+        signal.removeEventListener("abort", abort);
+        resolve(value);
+      },
+      (error) => {
+        signal.removeEventListener("abort", abort);
+        reject(error);
+      },
+    );
+    if (signal.aborted) abort();
+  });
+}
+
+/** Bound actual UTF-8 bytes before allocation, including a stalled response body. */
+export async function boundedJson(
+  response: Response,
+  limit: number,
+  signal: AbortSignal,
+  cancelled: () => Error = () => Error("cancelled"),
+): Promise<any> {
+  const length = response.headers.get("content-length");
+  if (length !== null && (!/^\d+$/.test(length) || Number(length) > limit)) {
+    void response.body?.cancel().catch(() => {});
+    throw Error("invalid_response");
+  }
+  const reader = response.body?.getReader();
+  if (!reader) throw Error("invalid_response");
+  const cancel = () => void reader.cancel().catch(() => {});
+  signal.addEventListener("abort", cancel, { once: true });
+  try {
+    const decoder = new TextDecoder("utf-8", { fatal: true });
+    let size = 0,
+      text = "";
+    for (;;) {
+      if (signal.aborted) throw cancelled();
+      const part = await untilSignal(reader.read(), signal, cancelled);
+      if (signal.aborted) throw cancelled();
+      if (part.done) break;
+      size += part.value.byteLength;
+      if (size > limit) throw Error("invalid_response");
+      text += decoder.decode(part.value, { stream: true });
+    }
+    return JSON.parse(text + decoder.decode());
+  } finally {
+    signal.removeEventListener("abort", cancel);
+    cancel();
+    // A non-cooperative reader can still have an outstanding read on cancellation.
+    try {
+      reader.releaseLock();
+    } catch {
+      /* The cancelled read owns its lock. */
+    }
+  }
+}
+
 /** Page-memory display data only. Never used as an authority or a write precondition. */
 export class DisplayLru<T> {
   private rows = new Map<string, { value: T; bytes: number }>();
@@ -74,7 +143,7 @@ export class WorkspaceDisplayCache {
   }
 }
 
-/** In-flight GETs only, opt-in for display reads. Each subscriber owns its cancellation. */
+/** Opt-in GET coalescing and queued reads. Each subscriber owns its cancellation. */
 export class DisplayReadPool {
   private rows = new Map<
     string,
@@ -100,13 +169,12 @@ export class DisplayReadPool {
       let started = false,
         finished = false;
       const abort = () => {
-        if (started || finished) return;
+        if (finished) return;
         finished = true;
-        this.waiting = this.waiting.filter((entry) => entry !== start);
+        if (!started) this.waiting = this.waiting.filter((entry) => entry !== start);
         reject(new Error("cancelled"));
       };
       const start = () => {
-        signal.removeEventListener("abort", abort);
         if (finished || signal.aborted) {
           abort();
           return;
@@ -115,8 +183,25 @@ export class DisplayReadPool {
         this.active++;
         void Promise.resolve()
           .then(send)
-          .then(resolve, reject)
+          .then(
+            (response) => {
+              if (finished || signal.aborted) {
+                void response.body?.cancel().catch(() => {});
+                return;
+              }
+              finished = true;
+              resolve(response);
+            },
+            (error) => {
+              if (!finished) {
+                finished = true;
+                reject(error);
+              }
+            },
+          )
           .finally(() => {
+            signal.removeEventListener("abort", abort);
+            // Keep the physical slot until the original transport settles.
             this.active--;
             this.waiting.shift()?.();
           });

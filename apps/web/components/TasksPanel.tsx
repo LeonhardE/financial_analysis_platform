@@ -970,7 +970,7 @@ export default function TasksPanel({
     )
     .sort()
     .join("|");
-  const results = useTaskResults(workspace, persistent, model, active, observed);
+  const results = useTaskResults(workspace, persistent, model, active, observed, center);
 
   const [linkedTask, setLinkedTask] = useState<string | null>(null);
   const tc = useTranslations("taskCenter");

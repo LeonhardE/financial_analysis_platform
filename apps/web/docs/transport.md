@@ -115,3 +115,18 @@ AuthProvider validates the request before token access and classifies this named
 queued read, without coalescing different bodies or consuming the mutation lane. No request,
 provider or infrastructure limit changes. UI name caches are display-only; all write authority
 continues through fresh verification.
+
+## Numeric request timing
+
+Owner proxy responses add `fv_proxy_total;dur=N.NNN` to `Server-Timing`. Accepted upstream JSON
+may preserve only the exact numeric `fv_app` and `fv_firebase` fields. Unknown metric names,
+descriptions, duplicates, malformed or oversized timing headers are dropped. Timings contain no
+identities, URLs, bodies or credentials and create no logs or cloud resources.
+
+`fv_proxy_total` covers the Web handler, including upstream transfer and body/contract validation.
+`fv_app` measures backend ASGI processing until response headers; `fv_firebase` measures the live
+Firebase verifier inside that interval. These spans overlap and must not be summed. They exclude
+browser/network stages and process startup before handler entry. Neither these headers nor offline
+mocks/build sizes establish production API or UI latency. Later authorized acceptance must measure
+cold/warm, full response, cache hit/miss/refresh and tails end to end. API500ms/UI2s are upper bounds;
+all paths should be as fast as safely possible without artificial waits or weakened authorization.

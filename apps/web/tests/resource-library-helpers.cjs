@@ -18,6 +18,8 @@ function compile(file, imports = {}, globals = {}) {
     module,
     exports: module.exports,
     require: (name) => {
+      if (name === "./WorkspacePanels")
+        return require("./workspace-panel-helpers.cjs").panelStandins(imports);
       if (["./WorkspaceFeedback", "./ReportDialog"].includes(name))
         return require("./workspace-feedback-helpers.cjs").component(name, imports);
       if (name === "./public-market-json") return compile("../lib/public-market-json.ts");

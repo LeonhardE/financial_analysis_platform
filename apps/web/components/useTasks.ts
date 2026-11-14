@@ -10,7 +10,7 @@ import type {
   TaskContent,
   TaskMetadata,
 } from "@/lib/encrypted-types";
-import { DisplayLru } from "@/lib/workspace-cache";
+import { DisplayLru, untilSignal } from "@/lib/workspace-cache";
 import { defaultTask, reviewTask, type TaskPreview } from "@/lib/task-forms";
 import {
   bindingsKey,
@@ -328,7 +328,11 @@ export function useTasks(workspace: HoldingsWorkspace, { active }: { active: boo
       context.signal.addEventListener("abort", cancel, { once: true });
       try {
         for (;;) {
-          const part = await reader.read();
+          const part = await untilSignal(
+            reader.read(),
+            context.signal,
+            () => new TaskError("cancelled"),
+          );
           context.assert();
           if (part.done) break;
           length += part.value.length;
@@ -349,7 +353,11 @@ export function useTasks(workspace: HoldingsWorkspace, { active }: { active: boo
       } finally {
         context.signal.removeEventListener("abort", cancel);
         void reader.cancel().catch(() => {});
-        reader.releaseLock();
+        try {
+          reader.releaseLock();
+        } catch {
+          /* Cancelled reader may still be pending. */
+        }
       }
     },
     [auth.requestPrivate, owner],

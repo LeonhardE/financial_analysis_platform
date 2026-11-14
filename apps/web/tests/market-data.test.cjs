@@ -28,6 +28,10 @@ function compile(file, imports, globals = {}) {
     module,
     exports: module.exports,
     require: (name) => {
+      if (name === "./WorkspacePanels")
+        return require("./workspace-panel-helpers.cjs").panelStandins(imports);
+      if (name === "@/lib/workspace-cache")
+        return require("./resource-library-helpers.cjs").compile("../lib/workspace-cache.ts");
       if (!(name in imports)) throw new Error(`Unexpected import: ${name}`);
       return imports[name];
     },
@@ -44,11 +48,8 @@ function deferred() {
   return { promise, resolve };
 }
 
-const response = (data, status = 200) => ({
-  ok: status >= 200 && status < 300,
-  status,
-  json: async () => data,
-});
+const response = (data, status = 200) => Response.json(data, { status });
+
 const settle = () => new Promise((resolve) => setImmediate(resolve));
 
 // Exercise the actual request effect and cleanup with controlled network/timers.
@@ -673,4 +674,25 @@ test("the workspace refresh control rechecks both overview and selected history"
     updates.map(({ next }) => next(0)),
     [1, 1],
   );
+});
+
+test("search settles ignored transport and body cancellation at its existing deadline", async () => {
+  for (const stuck of ["transport", "body"]) {
+    const resource = mountResource(),
+      path = "/api/stocks/search?q=synthetic";
+    resource.render(path);
+    resource.runTimer(0);
+    if (stuck === "body") {
+      resource.requests[0].result.resolve(
+        new Response(new ReadableStream({ pull: () => new Promise(() => {}) })),
+      );
+      await settle();
+    }
+    resource.runTimer(30000);
+    await settle();
+    const state = resource.render(path);
+    assert.equal(state.loading, false);
+    assert.match(state.error, /timed out/);
+    assert.equal(state.data, null);
+  }
 });

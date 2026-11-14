@@ -1776,5 +1776,10 @@
     "remove": "取消订阅 {pair}",
     "source": "加拿大央行 · 每日参考",
     "loadingCurrency": "正在读取默认币种"
+  },
+  "workspaceFeedback": {
+    "loading": "正在加载…",
+    "retry": "重试",
+    "moduleUnavailable": "页面暂时无法加载。"
   }
 }

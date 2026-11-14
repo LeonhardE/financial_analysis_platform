@@ -2,9 +2,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useAuth } from "./AuthProvider";
 import type { HoldingsWorkspace } from "./useHoldingsWorkspace";
+import type { TaskCenterModel } from "./useTaskCenter";
 import type { TaskModel } from "./useTasks";
 import type { PersistentWorkspaceModel } from "./usePersistentWorkspace";
-import { DisplayLru } from "@/lib/workspace-cache";
+import { DisplayLru, untilSignal } from "@/lib/workspace-cache";
 import { readInboxResultLink, clearInboxResultLink } from "@/lib/inbox-link";
 import { metadata as foregroundMetadata, metadataPage } from "@/lib/inbox-types";
 import {
@@ -38,6 +39,7 @@ export function useTaskResults(
   model: TaskModel,
   active: boolean,
   observedResults = "",
+  center?: TaskCenterModel,
 ) {
   const auth = useAuth(),
     [visible, setVisible] = useState(
@@ -89,12 +91,27 @@ export function useTaskResults(
   live.current = { scope, workspace, auth, model, active, visible, persistent };
   const uiRevision = useRef(0),
     attributions = useRef(new Map<string, J>());
+  const taskPages = useRef(
+    new Map<
+      string,
+      {
+        cursor: string | null;
+        done: boolean;
+        fresh: number;
+        busy: boolean;
+        observed: string;
+        rules: boolean | undefined;
+      }
+    >(),
+  );
   const rows = useRef(new Map<string, ResultRow>()),
     feeds = useRef(initialFeeds()),
     jobs = useRef(new Set<AbortController>()),
     generation = useRef(0),
     loadSerial = useRef(0),
     loading = useRef(false),
+    reloadAfter = useRef(false),
+    loadAgain = useRef<(force?: boolean) => Promise<void>>(async () => {}),
     fresh = useRef(0),
     evicted = useRef(false);
   const cache = useRef(
@@ -148,7 +165,9 @@ export function useTaskResults(
               coalesceDisplay: method === "GET" && !options.fresh,
               headers: { "X-FolioView-Contract": C, ...options.headers },
             });
-        let response = await send();
+        let response = await untilSignal(send(), abort.signal, () =>
+          Error(timedOut ? "request_timeout" : "cancelled"),
+        );
         check();
         if (
           method === "GET" &&
@@ -169,7 +188,9 @@ export function useTaskResults(
             abort.signal.addEventListener("abort", cancel, { once: true });
           });
           check();
-          response = await send();
+          response = await untilSignal(send(), abort.signal, () =>
+            Error(timedOut ? "request_timeout" : "cancelled"),
+          );
           check();
         }
         if (!response.ok) {
@@ -194,7 +215,9 @@ export function useTaskResults(
         abort.signal.addEventListener("abort", cancel, { once: true });
         try {
           for (;;) {
-            const part = await reader.read();
+            const part = await untilSignal(reader.read(), abort.signal, () =>
+              Error(timedOut ? "request_timeout" : "cancelled"),
+            );
             check();
             if (part.done) break;
             size += part.value.length;
@@ -215,7 +238,11 @@ export function useTaskResults(
         } finally {
           abort.signal.removeEventListener("abort", cancel);
           cancel();
-          reader.releaseLock();
+          try {
+            reader.releaseLock();
+          } catch {
+            /* Cancelled reader may still be pending. */
+          }
         }
       } finally {
         clearTimeout(timer);
@@ -261,26 +288,25 @@ export function useTaskResults(
   const load = useCallback(
     async (force = false, more = false) => {
       const start = live.current;
-      if (
-        !start.scope ||
-        !start.active ||
-        loading.current ||
-        (!force && !more && Date.now() - fresh.current < 30000)
-      )
+      if (loading.current) {
+        if (force) reloadAfter.current = true;
+        return;
+      }
+      if (!start.scope || !start.active || (!force && !more && Date.now() - fresh.current < 30000))
         return;
       loading.current = true;
       const serial = ++loadSerial.current,
         epoch = generation.current;
       update({ loading: true, error: "" }, start.scope);
+      if (force || (!more && fresh.current > 0)) feeds.current = initialFeeds();
       if (force) {
-        feeds.current = initialFeeds();
         rows.current.clear();
         evicted.current = false;
       }
       try {
         await Promise.all(
           feeds.current.map(async (feed) => {
-            for (let page = 0; !feed.done && page < (more ? 1 : 5); page++) {
+            for (let page = 0; !feed.done && page < 1; page++) {
               if (
                 live.current.scope !== start.scope ||
                 serial !== loadSerial.current ||
@@ -303,7 +329,6 @@ export function useTaskResults(
               feed.cursor = p.nextCursor;
               feed.done = p.nextCursor === null;
               merge(p.items, start.scope!);
-              await new Promise((resolve) => setTimeout(resolve, 0));
             }
           }),
         );
@@ -325,11 +350,18 @@ export function useTaskResults(
             start.scope,
           );
       } finally {
-        if (serial === loadSerial.current) loading.current = false;
+        if (serial === loadSerial.current) {
+          loading.current = false;
+          if (reloadAfter.current && live.current.scope === start.scope && live.current.active) {
+            reloadAfter.current = false;
+            void loadAgain.current(true);
+          }
+        }
       }
     },
     [api, merge, update],
   );
+  loadAgain.current = load;
   const read = useCallback(
     async (row: ResultRow, freshRead = true, revision?: number) => {
       const start = live.current,
@@ -362,7 +394,7 @@ export function useTaskResults(
   pump.current = () => {
     const start = live.current;
     if (!start.scope || !start.active) return;
-    while (titleActive.current < 3 && titleQueue.current.length) {
+    while (titleActive.current < 2 && titleQueue.current.length) {
       const row = titleQueue.current.shift()!,
         key = resultKey(row),
         version = JSON.stringify(immutableMetadata(row.metadata));
@@ -377,8 +409,13 @@ export function useTaskResults(
           )
             titles.current.set(key, { version, title: detail.content.title });
         })
-        .catch(() => {
-          if (live.current.scope === start.scope) failures.current.add(key);
+        .catch((error) => {
+          if (
+            live.current.scope === start.scope &&
+            live.current.active &&
+            error?.message !== "cancelled"
+          )
+            failures.current.add(key);
         })
         .finally(() => {
           if (live.current.scope === start.scope) {
@@ -614,7 +651,6 @@ export function useTaskResults(
       ...new Map(
         [...wanted.current.values()]
           .filter((r) => r.metadata.taskId === task)
-          .concat(visibleRows.slice(0, 6))
           .map((r) => [resultKey(r), r]),
       ).values(),
     ].filter(
@@ -651,6 +687,8 @@ export function useTaskResults(
     titleActive.current = 0;
     cache.current.clear();
     attributions.current.clear();
+    taskPages.current.clear();
+    reloadAfter.current = false;
     pending.current = null;
     attemptedRead.current.clear();
     fresh.current = 0;
@@ -678,49 +716,127 @@ export function useTaskResults(
   useEffect(() => {
     if (scope && active) void load();
   }, [scope, active, load]);
-  // Add only producer-verified trigger attribution; old calendar statements remain unknown.
   useEffect(() => {
-    if (!scope || !active || !task) return;
-    let stopped = false;
-    void (async () => {
-      try {
-        const base = `/api/v3/task-center/${workspace.vault!.vaultId}/tasks/${task}`,
-          s = await api(base);
-        if (!s.rules) return;
-        let cursor = null;
-        for (let n = 0; n < 32; n++) {
-          const page = await api(base + "/results/query", {
-            method: "POST",
-            json: { contractVersion: C, request: { limit: 50, cursor } },
-          });
-          if (stopped) return;
-          for (const r of page.items) {
-            const old = rows.current.get(`${r.kind}:${r.metadata.resultId}`);
-            if (
-              r.metadata.taskId === task &&
-              ["manual", "scheduled", "legacy_unknown"].includes(r.triggerKind)
-            ) {
-              const key = `${r.kind}:${r.metadata.resultId}`;
-              attributions.current.set(key, {
-                triggerKind: r.triggerKind,
-                provider: r.attribution?.provider,
-                taskId: task,
-              });
-              if (old) rows.current.set(key, { ...old, triggerKind: r.triggerKind });
-            }
-          }
-          merge([], scope);
-          cursor = page.nextCursor;
-          if (cursor === null) break;
-        }
-      } catch {
-        /* Optional attribution failure cannot turn unknown history into a scheduled Run. */
-      }
-    })();
+    if (!scope || !active) return;
     return () => {
-      stopped = true;
+      generation.current++;
+      selectedSerial.current++;
+      loadSerial.current++;
+      if (loading.current) fresh.current = 0;
+      loading.current = false;
+      reloadAfter.current = false;
+      titleQueue.current = [];
+      for (const job of jobs.current) job.abort();
+      update({ loading: false, busy: false }, scope);
     };
-  }, [scope, active, task, api, merge, observedResults]);
+  }, [scope, active, update]);
+  // Read one selected-task page, including sparse history, only on entry or explicit More.
+  const loadTaskPage = useCallback(
+    async (target: string, rules: boolean | undefined, force = false, more = false) => {
+      const start = live.current,
+        epoch = generation.current;
+      if (!start.scope || !start.active || !target) return;
+      const previous = taskPages.current.get(target);
+      if (
+        (previous?.busy && previous.observed === observedResults && previous.rules === rules) ||
+        (!force &&
+          !more &&
+          previous &&
+          Date.now() - previous.fresh < 30000 &&
+          previous.observed === observedResults &&
+          previous.rules === rules) ||
+        (!force && more && previous?.done)
+      )
+        return;
+      const pageState =
+        force || !previous || !more
+          ? { cursor: null, done: false, fresh: 0, busy: false, observed: observedResults, rules }
+          : previous;
+      taskPages.current.delete(target);
+      taskPages.current.set(target, pageState);
+      while (taskPages.current.size > 32)
+        taskPages.current.delete(taskPages.current.keys().next().value!);
+      pageState.busy = true;
+      update({ revision: ++uiRevision.current }, start.scope);
+      const current = () =>
+        live.current.scope === start.scope &&
+        generation.current === epoch &&
+        live.current.active &&
+        live.current.model.selected?.taskId === target &&
+        taskPages.current.get(target) === pageState;
+      try {
+        const base = `/api/v3/task-center/${start.workspace.vault!.vaultId}/tasks/${target}`;
+        // Callers without a shared verified center model retain the legacy read adapter.
+        const enrolled = rules ?? Boolean((await api(base, {}, start.scope)).rules);
+        if (!current()) return;
+        if (!enrolled) {
+          pageState.done = true;
+          pageState.fresh = Date.now();
+          return;
+        }
+        const page = await api(
+          base + "/results/query",
+          {
+            method: "POST",
+            json: { contractVersion: C, request: { limit: 50, cursor: pageState.cursor } },
+          },
+          start.scope,
+        );
+        if (!current()) return;
+        if (
+          page.contractVersion !== C ||
+          page.profile !== "folioview.task-center.v1" ||
+          !Array.isArray(page.items) ||
+          page.items.length > 50 ||
+          !(
+            page.nextCursor === null ||
+            (typeof page.nextCursor === "string" &&
+              page.nextCursor.length > 0 &&
+              page.nextCursor.length <= 4096 &&
+              page.nextCursor !== pageState.cursor)
+          )
+        )
+          throw Error("invalid_response");
+        const parsed: ResultRow[] = page.items.map((r: J) => {
+          if (
+            !["persistent", "foreground"].includes(r.kind) ||
+            !["manual", "scheduled", "legacy_unknown"].includes(r.triggerKind)
+          )
+            throw Error("invalid_response");
+          const metadata =
+            r.kind === "persistent"
+              ? persistentResultMetadata(r.metadata)
+              : foregroundMetadata(r.metadata);
+          if (metadata.taskId !== target) throw Error("invalid_response");
+          return { kind: r.kind, metadata, triggerKind: r.triggerKind };
+        });
+        if (new Set(parsed.map(resultKey)).size !== parsed.length) throw Error("invalid_response");
+        for (let n = 0; n < parsed.length; n++)
+          attributions.current.set(resultKey(parsed[n]), {
+            triggerKind: parsed[n].triggerKind,
+            provider: page.items[n].attribution?.provider,
+            taskId: target,
+          });
+        pageState.cursor = page.nextCursor;
+        pageState.done = page.nextCursor === null;
+        pageState.fresh = Date.now();
+        merge(parsed, start.scope);
+      } catch (e) {
+        if (current())
+          update({ error: e instanceof Error ? e.message : "request_failed" }, start.scope);
+      } finally {
+        pageState.busy = false;
+        if (current()) update({ revision: ++uiRevision.current }, start.scope);
+      }
+    },
+    [api, merge, update, observedResults],
+  );
+  const selectedRecord = center?.records[task];
+  const selectedRules = center ? Boolean(selectedRecord?.rules) : undefined;
+  useEffect(() => {
+    if (scope && active && task && (!center || selectedRecord))
+      void loadTaskPage(task, selectedRules);
+  }, [scope, active, task, selectedRecord, selectedRules, loadTaskPage]);
   useEffect(() => {
     if (scope && active && observedResults) void load(true);
   }, [scope, active, observedResults, load]);
@@ -794,6 +910,7 @@ export function useTaskResults(
       loadSerial.current++;
       loading.current = false;
       fresh.current = 0;
+      taskPages.current.delete(detail.taskId);
       cache.current.clear();
       titles.current.clear();
       wanted.current.clear();
@@ -855,9 +972,9 @@ export function useTaskResults(
     stopTitle: (row: ResultRow) => wanted.current.delete(resultKey(row)),
     rows: visibleRows,
     allTaskRows: taskRows,
-    loading: current.loading,
+    loading: current.loading || Boolean(taskPages.current.get(task)?.busy),
     ready: current.ready,
-    complete: current.complete,
+    complete: current.complete && (!task || taskPages.current.get(task)?.done === true),
     error: current.error,
     busy: current.busy,
     detail: current.detail
@@ -906,7 +1023,7 @@ export function useTaskResults(
     },
     pending: current.pending,
     unreadCounts,
-    partial: !current.complete,
+    partial: !current.complete || Boolean(task && taskPages.current.get(task)?.done !== true),
     filters: f,
     actors: [...new Set(taskRows.map(providerFor))],
     providerFor,
@@ -925,12 +1042,16 @@ export function useTaskResults(
     setFilter: (patch: Partial<typeof f>) =>
       setFilters((s) => ({ ...s, [task]: { ...f, ...patch, limit: 20 } })),
     windowed: evicted.current,
-    hasMore: filtered.length > f.limit || feeds.current.some((x) => !x.done),
+    hasMore:
+      filtered.length > f.limit ||
+      feeds.current.some((x) => !x.done) ||
+      Boolean(task && taskPages.current.get(task)?.done !== true),
     more: async () => {
       setFilters((s) => ({ ...s, [task]: { ...f, limit: f.limit + 20 } }));
-      if (filtered.length <= f.limit) await load(false, true);
+      if (filtered.length <= f.limit)
+        await Promise.all([load(false, true), loadTaskPage(task, selectedRules, false, true)]);
     },
-    reload: () => load(true),
+    reload: () => Promise.all([load(true), loadTaskPage(task, selectedRules, true)]),
     open,
     close: () => {
       selectedSerial.current++;

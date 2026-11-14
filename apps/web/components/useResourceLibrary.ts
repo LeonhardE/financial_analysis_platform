@@ -1,4 +1,5 @@
 "use client";
+import { untilSignal } from "@/lib/workspace-cache";
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useAuth } from "@/components/AuthProvider";
@@ -108,7 +109,11 @@ export function useResourceLibrary({
       };
       try {
         assert();
-        const result = await action(controller.signal, assert);
+        const result = await untilSignal(
+          action(controller.signal, assert),
+          controller.signal,
+          () => new ResourceError(timeout ? "timeout" : "cancelled"),
+        );
         assert();
         return result;
       } catch (error) {
@@ -170,7 +175,11 @@ export function useResourceLibrary({
         text = "";
       try {
         for (;;) {
-          const part = await reader.read();
+          const part = await untilSignal(
+            reader.read(),
+            signal,
+            () => new ResourceError("cancelled"),
+          );
           assert();
           if (part.done) break;
           size += part.value.byteLength;
@@ -192,7 +201,11 @@ export function useResourceLibrary({
       } finally {
         signal.removeEventListener("abort", cancel);
         cancel();
-        reader.releaseLock();
+        try {
+          reader.releaseLock();
+        } catch {
+          /* Cancelled reader may still be pending. */
+        }
       }
     },
     [auth.requestPrivate, owner],

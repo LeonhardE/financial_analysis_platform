@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useAuth } from "./AuthProvider";
 import type { HoldingsWorkspace } from "./useHoldingsWorkspace";
+import { boundedJson, untilSignal } from "@/lib/workspace-cache";
 import type { TaskMetadata } from "@/lib/encrypted-types";
 const CONTRACT = "folioview.agent-workspace.v2.0";
 type J = Record<string, any>;
@@ -57,17 +58,26 @@ export function useTaskCenter(
       if (!start.owner) throw Error("session_expired");
       const control = new AbortController();
       controllers.current.add(control);
-      const timer = setTimeout(() => control.abort(), 14000);
+      let timedOut = false;
+      const cancelled = () => Error(timedOut ? "request_timeout" : "cancelled");
+      const timer = setTimeout(() => {
+        timedOut = true;
+        control.abort();
+      }, 14000);
       try {
-        const response = await auth.requestPrivate("agent-hub", path, start.owner, {
-          method: options.method ?? "GET",
-          json: options.json,
-          signal: control.signal,
-          headers: {
-            "X-FolioView-Contract": CONTRACT,
-            ...(options.operation ? { "Idempotency-Key": options.operation } : {}),
-          },
-        });
+        const response = await untilSignal(
+          auth.requestPrivate("agent-hub", path, start.owner, {
+            method: options.method ?? "GET",
+            json: options.json,
+            signal: control.signal,
+            headers: {
+              "X-FolioView-Contract": CONTRACT,
+              ...(options.operation ? { "Idempotency-Key": options.operation } : {}),
+            },
+          }),
+          control.signal,
+          cancelled,
+        );
         if (live.current.owner !== start.owner || live.current.scope !== start.scope)
           throw Error("cancelled");
         if (!response.ok) {
@@ -84,9 +94,7 @@ export function useTaskCenter(
                     : "request_failed",
           );
         }
-        const text = await response.text();
-        if (text.length > 1048576) throw Error("invalid_response");
-        const data = JSON.parse(text);
+        const data = await boundedJson(response, 1048576, control.signal, cancelled);
         if (!data || typeof data !== "object" || Array.isArray(data))
           throw Error("invalid_response");
         if (live.current.scope !== start.scope || live.current.owner !== start.owner)
@@ -119,10 +127,12 @@ export function useTaskCenter(
       const promise = (async () => {
         update({ loading: true, error: "" }, start.scope);
         try {
-          const data = await api(base(task)),
-            checked = await start.workspace.verifyTaskCenterState(data);
-          const manual = await api(base(task) + "/manual");
-          const pending = await start.workspace.loadTaskCenterPending(task);
+          const [data, manual, pending] = await Promise.all([
+            api(base(task)),
+            api(base(task) + "/manual"),
+            start.workspace.loadTaskCenterPending(task),
+          ]);
+          const checked = await start.workspace.verifyTaskCenterState(data);
           if (live.current.scope !== start.scope) return {};
           lastRead.current.set(key, Date.now());
           setState((s) => ({
