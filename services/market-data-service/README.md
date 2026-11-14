@@ -139,3 +139,11 @@ actual route cannot bypass the storage limiter. Other cases cover concurrency,
 refill, batch requests, transaction retries/rollback, no partial cooldown writes,
 normal search-selected non-default symbols, CORS and independent health. No
 production traffic or live upstream is used.
+
+## Portfolio valuation producers
+
+[Valuation producer guide](docs/valuation.md) documents the closed public batch API for daily
+reference FX, cache-only first paint, bounded refresh, exact decimal routing and source attribution.
+It reuses this service's cache/admission and accepts no private portfolio facts. Existing stock
+and chart routes keep their original contracts; the new stock-quote producer remains a separate
+MKT-001 delivery.

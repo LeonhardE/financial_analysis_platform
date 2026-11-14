@@ -5,18 +5,22 @@ from typing import Annotated, Literal
 
 from fastapi import Depends, Query, Response
 
-from folioview_shared.http import create_app
+from folioview_shared.http import PrivateResponseHeaders, create_app
 
 from .cost_controls import MarketCostRoute
 from .market_data import MarketService, get_market_service
 from .stock_metrics import router as stock_metrics_router
+from .valuation_fx import router as valuation_fx_router
 
 app = create_app(
     "FolioView Market API",
     description="Anonymous cached US market snapshots, instruments, and chart data.",
+    methods=("GET", "POST"),
 )
 app.router.route_class = MarketCostRoute
+app.add_middleware(PrivateResponseHeaders, prefixes=("/api/valuation/",))
 app.include_router(stock_metrics_router)
+app.include_router(valuation_fx_router)
 
 
 @app.get("/health")
