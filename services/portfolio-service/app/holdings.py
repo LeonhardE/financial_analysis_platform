@@ -1,5 +1,6 @@
 """Owner-only encrypted snapshots; no plaintext collector or key authority API."""
 
+import copy
 import hashlib
 import logging
 import re
@@ -102,6 +103,21 @@ class Authority:
     @property
     def version(self):
         return self.document["version"]
+
+
+class _ReadSnapshot:
+    """Detached independent reads from the current read-only transaction."""
+
+    def __init__(self, unit, rows):
+        self.unit, self.rows = unit, rows
+
+    def get(self, path):
+        # Values came from the bounded store reader and belong to this attempt.
+        # Copying avoids accidental mutation of a prefetched row by a verifier.
+        return copy.deepcopy(self.rows[path]) if path in self.rows else self.unit.get(path)
+
+    def __getattr__(self, name):
+        return getattr(self.unit, name)
 
 
 def _authority(
@@ -451,11 +467,7 @@ class PortfolioService:
             rows = unit.get_many(paths)
             timing["storage"] += time.perf_counter() - stage
 
-            class Snapshot:
-                def get(self, path):
-                    return rows[path]
-
-            snapshot = Snapshot()
+            snapshot = _ReadSnapshot(unit, rows)
             registry_cache = {}  # Never reused across requests or transaction retries.
             result = []
             for source in sources:
@@ -650,6 +662,13 @@ class PortfolioService:
         def read(unit):
             # Retrieval authorizes the current owner/source, not an old writer's
             # current key. Clients verify retained historical author proofs.
+            paths = [
+                document_path("portfolio_authorities", owner, source),
+                state_path(owner, source),
+            ]
+            if snapshot is None:
+                paths.append(document_path("portfolio_heads", owner, source))
+            unit = _ReadSnapshot(unit, unit.get_many(paths))
             authority = _current_authority(unit, owner, source, self.now())
             selected = (
                 snapshot if snapshot is not None else _head(unit, owner, source)["snapshotId"]
@@ -712,10 +731,23 @@ class PortfolioService:
         owner = owner_key(uid)
 
         def read(unit):
+            unit = _ReadSnapshot(
+                unit,
+                unit.get_many(
+                    [
+                        document_path("portfolio_authorities", owner, source),
+                        state_path(owner, source),
+                    ]
+                ),
+            )
             authority = _current_authority(unit, owner, source, self.now())
             path = _operation_path(owner, authority.document["vaultId"], operation_id)
+            from .upload_cancellations import ledger_path, operation_cancelled
+
+            unit = _ReadSnapshot(
+                unit, unit.get_many([path, ledger_path(owner, authority.document["vaultId"])])
+            )
             row = unit.get(path)
-            from .upload_cancellations import operation_cancelled
 
             if operation_cancelled(unit, authority, operation_id, self.now()):
                 raise PortfolioError("not_found", 404, "Receipt not found.")
