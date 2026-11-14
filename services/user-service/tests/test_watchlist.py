@@ -157,6 +157,15 @@ class FirestoreWatchlistTests(unittest.TestCase):
         )
         self.document = self.collection.document.return_value
         self.metadata_document = self.metadata_collection.document.return_value
+        self.document._document_path = (
+            "projects/synthetic/databases/user/documents/user_watchlists/owner"
+        )
+        self.metadata_document._document_path = (
+            "projects/synthetic/databases/user/documents/user_resource_versions/owner"
+        )
+        from firestore_test_helpers import install_batch_reads
+
+        install_batch_reads(self.client)
         self.document.get.return_value.to_dict.return_value = None
         self.metadata_document.get.return_value.to_dict.return_value = None
         with patch("app.watchlist.firestore.Client", return_value=self.client) as constructor:
@@ -182,7 +191,12 @@ class FirestoreWatchlistTests(unittest.TestCase):
     def test_transaction_adds_once_and_does_not_write_duplicate_or_missing_delete(self):
         self.assertEqual(self.store.change(USER, "AAPL", item()), [item()])
         self.transaction_constructor.assert_called_once_with(self.client, max_attempts=2)
-        self.document.get.assert_called_with(transaction=self.transaction, timeout=4, retry=None)
+        self.client.get_all.assert_called_with(
+            [self.document, self.metadata_document],
+            transaction=self.transaction,
+            timeout=4,
+            retry=None,
+        )
         self.assertEqual(self.transaction.set.call_count, 2)
         self.transaction.set.assert_any_call(self.document, {"version": 1, "items": [item()]})
         metadata = self.transaction.set.call_args_list[1].args[1]

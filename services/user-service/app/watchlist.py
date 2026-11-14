@@ -34,6 +34,7 @@ from folioview_shared.valuation import (
     next_fx_preferences_snapshot,
 )
 
+from .firestore_reads import read_documents
 from .market_client import MarketResolver, get_market_resolver
 from .resource_versions import new_version, validate_version, version_key
 
@@ -292,13 +293,10 @@ class FirestoreWatchlistStore(WatchlistStore):
 
         @firestore.transactional
         def change_transaction(transaction):
-            current = reference.get(transaction=transaction, timeout=4, retry=None).to_dict()
+            current, stored_metadata = read_documents(
+                self.client, transaction, [reference, metadata_reference]
+            )
             current_items = checked_items(current)
-            stored_metadata = metadata_reference.get(
-                transaction=transaction,
-                timeout=4,
-                retry=None,
-            ).to_dict()
             if stored_metadata is not None and current is None:
                 raise WatchlistUnavailable
             metadata = validate_version("watchlist", current_items, stored_metadata)

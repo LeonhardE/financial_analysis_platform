@@ -116,6 +116,11 @@ For local development, list APIs and resource APIs must share one SQLite file.
 fail closed on split files instead of creating a second mutable copy. Cloud Run
 continues using the existing configured User database and runtime identity.
 
+## Consistent read performance
+
+[Source batching and retry boundaries](docs/read-batches.md) describe the one-batch
+content/version reads; existing response, ownership and write semantics are unchanged.
+
 ## Internal v2 metadata only
 
 The following interfaces are separate from frozen v1 plaintext projections:

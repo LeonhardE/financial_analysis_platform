@@ -32,6 +32,7 @@ from folioview_shared.http import PrivateRoute
 from folioview_shared.identity import owner_key
 from folioview_shared.instruments import iso_time
 
+from .firestore_reads import read_documents
 from .resource_versions import MAX_REVISION, content_digest, validate_version
 from .resource_versions import version_key as resource_version_key
 
@@ -309,8 +310,9 @@ class FirestoreChannelFollowsStore(ChannelFollowsStore):
 
         @firestore.transactional
         def operation(transaction):
-            content = content_ref.get(transaction=transaction, timeout=4, retry=None).to_dict()
-            metadata = metadata_ref.get(transaction=transaction, timeout=4, retry=None).to_dict()
+            content, metadata = read_documents(
+                self.client, transaction, [content_ref, metadata_ref]
+            )
             if change is None:
                 return checked_pair(content, metadata)
             expected_revision, items = change

@@ -297,6 +297,9 @@ class ResourceStoreTests(unittest.TestCase):
 class FirestoreResourceStoreTests(unittest.TestCase):
     def setUp(self):
         self.client, self.transaction = MagicMock(), MagicMock()
+        from firestore_test_helpers import install_batch_reads
+
+        install_batch_reads(self.client)
         self.documents = {}
 
         def collection(name):
@@ -305,6 +308,9 @@ class FirestoreResourceStoreTests(unittest.TestCase):
             def document(key):
                 if (name, key) not in self.documents:
                     value = MagicMock()
+                    value._document_path = (
+                        f"projects/synthetic/databases/user/documents/{name}/{key}"
+                    )
                     value.get.return_value.to_dict.return_value = None
                     self.documents[name, key] = value
                 return self.documents[name, key]
@@ -332,10 +338,14 @@ class FirestoreResourceStoreTests(unittest.TestCase):
         result = self.store.read(UID, ("watchlist", "channel_follows"))
         self.assertTrue(all(value["state"] == "uninitialized" for value in result.values()))
         self.assertEqual(len(self.documents), 4)
+        self.client.get_all.assert_called_once_with(
+            [self.documents[key] for key in self.documents],
+            transaction=self.transaction,
+            timeout=4,
+            retry=None,
+        )
         for reference in self.documents.values():
-            reference.get.assert_called_once_with(
-                transaction=self.transaction, timeout=4, retry=None
-            )
+            reference.get.assert_not_called()
         self.transaction.set.assert_not_called()
 
     def test_init_three_document_write_retry_noop_and_legacy_preservation(self):
