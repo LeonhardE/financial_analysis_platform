@@ -150,8 +150,8 @@ function panel(overrides = {}, locale = "en") {
   return mountPanel(overrides, locale).render();
 }
 
-test("settings retain named preference groups and native labeled controls in both languages", () => {
-  for (const locale of ["en", "zh"]) {
+test("settings retain named preference groups and native labeled controls in all three languages", () => {
+  for (const locale of ["en", "zh", "zh-Hant"]) {
     const view = panel({}, locale);
     const groups = view.nodes.filter((node) => node.type === "fieldset");
     assert.equal(groups.length, 4);
@@ -291,4 +291,19 @@ test("new edits, failures, logout and navigation clear confirmation and its time
   app.unmount();
   assert.equal(app.pendingTimers(), 0);
   assert.equal(toast(panel({ authenticated: false, status: "saved" })), undefined);
+});
+
+test("Traditional Chinese is a native labeled language option and dispatches the exact locale", () => {
+  const view = panel(
+    { preferences: { theme: "system", language: "zh-Hant", defaultChartRange: "1m" } },
+    "zh-Hant",
+  );
+  const select = view.nodes.find((n) => n.props?.id === "preference-language");
+  const option = view.nodes.find((n) => n.type === "option" && n.props.value === "zh-Hant");
+  assert.equal(select.props.value, "zh-Hant");
+  assert.equal(option.props.lang, "zh-Hant");
+  assert.equal(option.props.children, "繁體中文");
+  select.props.onChange({ target: { value: "zh-Hant" } });
+  assert.deepEqual(JSON.parse(JSON.stringify(view.changes)), [{ language: "zh-Hant" }]);
+  assert.ok(view.nodes.some((n) => n.type === "h1" && n.props.children === "設定"));
 });

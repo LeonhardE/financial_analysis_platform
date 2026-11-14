@@ -5,7 +5,11 @@ const path = require("node:path");
 const vm = require("node:vm");
 const { transformSync } = require("next/dist/build/swc");
 const { createTranslator } = require("next-intl");
-const catalogs = { en: require("../messages/en.json"), zh: require("../messages/zh.json") };
+const catalogs = {
+  en: require("../messages/en.json"),
+  zh: require("../messages/zh.json"),
+  "zh-Hant": require("../messages/zh-Hant.json"),
+};
 
 function leaves(object, prefix = "") {
   return Object.entries(object).flatMap(([key, value]) =>
@@ -28,6 +32,14 @@ test("English and Chinese catalogs cover identical keys and compile every ICU me
       .map(([key]) => key)
       .sort(),
     leaves(catalogs.zh)
+      .map(([key]) => key)
+      .sort(),
+  );
+  assert.deepEqual(
+    leaves(catalogs.en)
+      .map(([key]) => key)
+      .sort(),
+    leaves(catalogs["zh-Hant"])
       .map(([key]) => key)
       .sort(),
   );

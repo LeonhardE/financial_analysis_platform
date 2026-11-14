@@ -1,6 +1,7 @@
 "use client";
 import { CURRENCY_PREFERENCES_PATH, currencyUpdate } from "@/lib/currency-preferences";
 import { FX_FOLLOWS_PATH, fxPreferences } from "@/lib/fx-follows";
+import { LANGUAGE_PREFERENCES_PATH, languageUpdate } from "@/lib/language-preferences";
 
 import { DisplayReadPool, untilSignal } from "@/lib/workspace-cache";
 import {
@@ -892,7 +893,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         maxBodyBytes = rule.maxBytes ?? 589824;
       } else {
         const currencyPath = service === "config" && path === CURRENCY_PREFERENCES_PATH;
-        const preferencesPath = path === "/api/v1/preferences" || currencyPath;
+        const languagePath = service === "config" && path === LANGUAGE_PREFERENCES_PATH;
+        const preferencesPath = path === "/api/v1/preferences" || currencyPath || languagePath;
         const followsPath = service === "user" && path === "/api/v1/channel-follows";
         const fxPath = service === "user" && path === FX_FOLLOWS_PATH;
         const jsonPath = preferencesPath || followsPath || fxPath;
@@ -926,6 +928,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
         if (currencyPath && method === "PUT") {
           validatedJson = currencyUpdate(options.json);
+          maxBodyBytes = 1024;
+        }
+        if (languagePath && method === "PUT") {
+          validatedJson = languageUpdate(options.json);
           maxBodyBytes = 1024;
         }
         if (fxPath && method === "PUT") {

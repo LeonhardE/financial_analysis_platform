@@ -44,6 +44,22 @@ handoff keeps its prior precedence over an Inbox fragment. Login stays on the se
 
 ## Shared layout and feedback
 
+Settings offers English, 简体中文 and 繁體中文 (`en`, `zh`, `zh-Hant`). The Traditional Chinese
+catalog covers the same messages and interpolation values as the other languages. Document language,
+title and locale-aware formatting follow the selected language. Generated task defaults map both
+Chinese interface variants to the existing `zh` report-language contract; private report content is
+not rewritten by a display-language change.
+
+An account's optional Config v2 language choice overrides its legacy language. Without a v2 choice,
+the existing saved English/Simplified Chinese preference remains authoritative. Traditional Chinese
+and subsequent choices from that independent namespace use exact authenticated language GET/PUTs
+with a bounded body and version fence. Unknown saves are read back before another candidate write;
+owner changes discard the old language session and late responses. Complete legacy UI saves keep
+their original `en`/`zh` shape and cannot erase the independent language choice. Guests change language
+only in memory; a newly signed-in account adopts a guest Traditional choice only after confirmed
+absence, while an existing account choice wins. No browser language preference, credentials or
+private content are persisted by this language controller.
+
 Before body content paints, a small head script applies the last confirmed theme mode, or the
 current system appearance while account preferences are unknown. Authentication and Config loading
 retain that appearance. Config remains authoritative once loaded; guests keep the light default.

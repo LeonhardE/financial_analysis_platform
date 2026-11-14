@@ -10,6 +10,7 @@ const {
 } = require("./resource-library-helpers.cjs");
 const { contracts: connections } = require("./agent-connections-helpers.cjs");
 const currencyPreferences = compile("../lib/currency-preferences.ts");
+const languagePreferences = compile("../lib/language-preferences.ts");
 const fxFollows = compile("../lib/fx-follows.ts", {
   "./currency-preferences": currencyPreferences,
 });
@@ -303,6 +304,7 @@ async function stack(options = {}) {
         "@/lib/firebase-client": { getBrowserAuth: () => auth },
         "@/lib/resource-library": resources,
         "@/lib/currency-preferences": currencyPreferences,
+        "@/lib/language-preferences": languagePreferences,
         "@/lib/fx-follows": fxFollows,
         "@/lib/agent-link": {
           loadAgentLinkConfiguration: async () => ({
