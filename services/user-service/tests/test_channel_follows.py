@@ -200,6 +200,15 @@ class FirestoreChannelFollowsTests(unittest.TestCase):
         self.client = MagicMock()
         self.content = MagicMock()
         self.metadata = MagicMock()
+        self.content._document_path = (
+            "projects/synthetic/databases/user/documents/user_channel_follows/owner"
+        )
+        self.metadata._document_path = (
+            "projects/synthetic/databases/user/documents/user_resource_versions/owner"
+        )
+        from firestore_test_helpers import install_batch_reads
+
+        install_batch_reads(self.client)
         self.documents = {}
 
         def collection(name):
@@ -232,8 +241,11 @@ class FirestoreChannelFollowsTests(unittest.TestCase):
     def test_get_consistent_pair_uses_bounded_transaction_without_writes(self):
         self.assertEqual(self.store.get(UID)["revision"], 0)
         self.bounded.assert_called_once_with(self.client, max_attempts=2)
+        self.client.get_all.assert_called_once_with(
+            [self.content, self.metadata], transaction=self.transaction, timeout=4, retry=None
+        )
         for ref in (self.content, self.metadata):
-            ref.get.assert_called_once_with(transaction=self.transaction, timeout=4, retry=None)
+            ref.get.assert_not_called()
         self.transaction.set.assert_not_called()
         self.documents["user_channel_follows"].document.assert_called_once_with(owner_key(UID))
         self.documents["user_resource_versions"].document.assert_called_once_with(version_key(UID))

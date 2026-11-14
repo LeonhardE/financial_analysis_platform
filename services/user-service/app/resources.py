@@ -21,6 +21,7 @@ from folioview_shared.firestore import BoundedTransaction
 from folioview_shared.identity import owner_key
 
 from .channel_follows import ChannelFollowsUnavailable, checked_pair
+from .firestore_reads import read_documents
 from .resource_versions import (
     KINDS,
     MAX_REVISION,
@@ -249,15 +250,16 @@ class FirestoreUserResourceStore(UserResourceStore):
 
         @firestore.transactional
         def read_transaction(transaction):
-            result = {}
-            for kind in kinds:
-                content_ref, metadata_ref = self.references(uid, kind)
-                content = content_ref.get(transaction=transaction, timeout=4, retry=None).to_dict()
-                metadata = metadata_ref.get(
-                    transaction=transaction, timeout=4, retry=None
-                ).to_dict()
-                result[kind] = summary(kind, *read_pair(kind, content, metadata))
-            return result
+            selected = list(dict.fromkeys(kinds))
+            rows = read_documents(
+                self.client,
+                transaction,
+                [reference for kind in selected for reference in self.references(uid, kind)],
+            )
+            return {
+                kind: summary(kind, *read_pair(kind, rows[2 * i], rows[2 * i + 1]))
+                for i, kind in enumerate(selected)
+            }
 
         try:
             return read_transaction(BoundedTransaction(self.client, max_attempts=2))
@@ -274,9 +276,9 @@ class FirestoreUserResourceStore(UserResourceStore):
 
         @firestore.transactional
         def initialize_transaction(transaction):
-            content = content_ref.get(transaction=transaction, timeout=4, retry=None).to_dict()
-            metadata = metadata_ref.get(transaction=transaction, timeout=4, retry=None).to_dict()
-            prior = receipt_ref.get(transaction=transaction, timeout=4, retry=None).to_dict()
+            content, metadata, prior = read_documents(
+                self.client, transaction, [content_ref, metadata_ref, receipt_ref]
+            )
             result, content, metadata, receipt = initialization(
                 kind,
                 content,
