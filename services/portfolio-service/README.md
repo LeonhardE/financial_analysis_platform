@@ -169,8 +169,13 @@ explain the current read budgets and freshness boundaries.
 
 The existing bounded reads prefetch authority, head and lifecycle for up to ten sources in one
 transaction (one SDK batch, at most thirty documents). Identical root-signed registry history is
-verified once per transaction attempt, keyed by exact history digest, owner, vault, root and time;
-current source rows, epochs, incarnations and lifecycle fences are still checked individually.
+verified once per transaction attempt, keyed by exact history digest, owner, vault and root.
+Crossing a clock second does not repeat static history verification: each reuse still checks a
+strict current time and rejects a final checkpoint issued in the future. Every current root JWK,
+source row, epoch, incarnation, head and lifecycle fence is checked individually.
+Each history verification also uses a new bounded `RegistryCertificateMemo` to avoid repeating
+identical certificate signature checks across its consecutive bundles; checkpoint signatures and
+all schema, identity, authorization, revocation and epoch checks continue to run.
 The verification memo never survives a transaction retry or request. Response DTOs and failure
 semantics are unchanged, so existing consumers can deploy independently.
 

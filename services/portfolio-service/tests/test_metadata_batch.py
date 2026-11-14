@@ -9,8 +9,11 @@ from google.auth.credentials import AnonymousCredentials
 from google.cloud import firestore
 from test_firestore_store import MemoryRpc
 
-from app.holdings import PortfolioError, PortfolioService, verify_registry
+from app.holdings import PortfolioError, PortfolioService, _authority, verify_registry
+from app.lifecycle import state_path
 from app.store import FirestorePortfolioStore, StoreUnavailable, document_path
+from folioview_shared.encrypted.constants import MAX_SAFE_INTEGER
+from folioview_shared.encrypted.crypto import verify_jws
 from folioview_shared.encrypted.errors import ContractError
 from folioview_shared.encrypted.jsonutil import canonical_json, strict_json_loads
 from folioview_shared.identity import owner_key
@@ -43,6 +46,159 @@ class MetadataBatchTests(unittest.TestCase):
         return self.client.document(
             document_path("portfolio_authorities", owner_key(UID), source)
         )._document_path
+
+    def long_history(self, count=2):
+        sources = self.sources(count)
+        fixture = self.fixture
+        fixture.certificates = {
+            name: value for name, value in fixture.certificates.items() if not name.startswith("A")
+        }
+        fixture.bundle = fixture.make_bundle()
+        fixture.registry = fixture.verify(fixture.bundle)
+        history = [fixture.bundle]
+        registry = fixture.registry
+        for generation in range(1, 23):
+            principal, connection = f"synthetic_{generation}", f"connection_{generation}"
+            for role in ("agent_sig", "agent_enc"):
+                fixture.add_key(f"{principal}_{role}", role, principal, connection)
+            bundle = fixture.make_bundle(previous=registry)
+            known = {
+                entry["certificate"]["payload"]: entry["certificate"]
+                for entry in history[-1]["entries"]
+            }
+            for entry in bundle["entries"]:
+                entry["certificate"] = copy.deepcopy(
+                    known.get(entry["certificate"]["payload"], entry["certificate"])
+                )
+            registry = fixture.verify(bundle, previous=registry)
+            history.append(bundle)
+        for source in sources:
+            self.rpc.documents[self.authority_name(source)]["registryHistory"] = canonical_json(
+                history
+            )
+        return sources, history
+
+    def test_long_history_reuses_signatures_across_seconds_but_not_requests(self):
+        sources, _ = self.long_history()
+        self.service.clock = iter((1000, 1001, 1002, 1003)).__next__
+        self.rpc.calls.clear()
+        with (
+            patch("app.holdings.verify_registry", wraps=verify_registry) as histories,
+            patch(
+                "folioview_shared.encrypted.authority.verify_jws", wraps=verify_jws
+            ) as signatures,
+        ):
+            first = self.service.metadata_many(UID, sources)
+            self.assertEqual(histories.call_count, 23)
+            self.assertEqual(signatures.call_count, 70)  # 23 checkpoints plus 47 certificates.
+            self.assertEqual(self.service.metadata_many(UID, sources), first)
+            self.assertEqual(histories.call_count, 46)
+            self.assertEqual(signatures.call_count, 140)
+        self.assertEqual(sum(kind == "get" for kind, _ in self.rpc.calls), 2)
+        self.assertTrue(
+            all(not kw["request"]["writes"] for kind, kw in self.rpc.calls if kind == "commit")
+        )
+
+    def test_reused_history_still_rejects_future_checkpoint_after_clock_rollback(self):
+        sources, history = self.long_history()
+        self.service.clock = iter((1000, 521)).__next__  # Last checkpoint was issued at 522.
+        with (
+            patch("app.holdings.verify_registry", wraps=verify_registry) as verify,
+            self.assertRaises(StoreUnavailable),
+        ):
+            self.service.metadata_many(UID, sources)
+        self.assertEqual(verify.call_count, len(history))
+
+    def test_cache_hit_preserves_strict_time_and_complete_public_key_checks(self):
+        row = copy.deepcopy(self.rpc.documents[self.authority_name(SOURCE)])
+        row["registryHistory"] = strict_json_loads(row["registryHistory"])
+        owner, cache = owner_key(UID), {}
+        with patch("app.holdings.verify_registry", wraps=verify_registry) as verify:
+            _authority(row, owner, SOURCE, 1000, registry_cache=cache)
+            for now in (-1, True, 1000.0, "1000", MAX_SAFE_INTEGER + 1):
+                with self.subTest(now=now), self.assertRaises(ContractError):
+                    _authority(row, owner, SOURCE, now, registry_cache=cache)
+            original = row["rootJwk"]
+            for public in (original | {"extra": "rejected"}, original | {"crv": "P-384"}):
+                row["rootJwk"] = public
+                with self.subTest(public=public), self.assertRaises(ContractError):
+                    _authority(row, owner, SOURCE, 1001, registry_cache=cache)
+            self.assertEqual(verify.call_count, 1)
+
+    def test_distinct_complete_histories_are_verified_independently(self):
+        sources, history = self.long_history()
+        self.rpc.documents[self.authority_name(sources[1])]["registryHistory"] = canonical_json(
+            history[:-1]
+        )
+        self.service.clock = iter((1000, 1001)).__next__
+        with patch("app.holdings.verify_registry", wraps=verify_registry) as verify:
+            self.service.metadata_many(UID, sources)
+        self.assertEqual(verify.call_count, 45)
+
+    def test_distinct_root_pins_cannot_reuse_a_verified_history(self):
+        sources = self.sources(2)
+        other = HoldingsFixture(source=sources[1])
+        row = self.rpc.documents[self.authority_name(sources[1])]
+        row.update(
+            rootJwk=other.root_public,
+            rootKeyId=other.root_id,
+            registryHistory=canonical_json([other.bundle]),
+            writerKeyIds=[other.kid("device_sig")],
+            recipientKeyIds=sorted([other.kid("device_enc"), other.kid("recovery_enc")]),
+        )
+        with patch("app.holdings.verify_registry", wraps=verify_registry) as verify:
+            self.service.metadata_many(UID, sources)
+        self.assertEqual(verify.call_count, 2)
+        # Replacing only the public key while keeping the old pin also fails.
+        row["rootKeyId"] = self.fixture.root_id
+        with self.assertRaises(StoreUnavailable):
+            self.service.metadata_many(UID, sources)
+
+    def test_identical_history_reuse_never_masks_current_source_rows(self):
+        sources = self.sources(2)
+        owner = owner_key(UID)
+        original = copy.deepcopy(self.rpc.documents)
+        state_name = self.client.document(state_path(owner, sources[1]))._document_path
+        head_name = self.client.document(
+            document_path("portfolio_heads", owner, sources[1])
+        )._document_path
+
+        def bad_state(row):
+            self.rpc.documents[state_name] = {
+                "ownerSubject": "foreign_owner",
+                "sourceId": sources[1],
+                "resourceRef": row["resourceRef"],
+                "sourceEpoch": row["sourceEpoch"],
+                "state": "active",
+                "mutationCount": 1,
+                "pendingMutationId": None,
+                "lastMutationId": "synthetic_mutation_000001",
+            }
+
+        def bad_head(_row):
+            self.rpc.documents[head_name] = {
+                "ownerSubject": "foreign_owner",
+                "sourceId": sources[1],
+                "revision": 1,
+                "snapshotId": "snapshot_A",
+            }
+
+        for mutate in (
+            lambda row: row.update(active=False),
+            lambda row: row.update(sourceEpoch=True),
+            bad_state,
+            bad_head,
+        ):
+            self.rpc.documents = copy.deepcopy(original)
+            second = self.rpc.documents[self.authority_name(sources[1])]
+            self.service.clock = iter((1000, 1001)).__next__
+            mutate(second)
+            with (
+                patch("app.holdings.verify_registry", wraps=verify_registry) as verify,
+                self.assertRaises((StoreUnavailable, PortfolioError)),
+            ):
+                self.service.metadata_many(UID, sources)
+            self.assertEqual(verify.call_count, 1)
 
     def test_one_two_ten_sources_use_one_sdk_read_and_one_identical_history_verification(self):
         for count in (1, 2, 10):
