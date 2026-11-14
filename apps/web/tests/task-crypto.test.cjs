@@ -43,6 +43,7 @@ test.before(async () => {
         ).href,
       ),
     );
+    code = require("./shared-contract-imports.cjs").rewrite(code);
     await fs.writeFile(path.join(directory, name + ".mjs"), code);
   }
   await fs.copyFile(

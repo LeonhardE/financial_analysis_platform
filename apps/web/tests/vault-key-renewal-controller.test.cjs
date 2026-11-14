@@ -497,6 +497,8 @@ function harness() {
       window: { setTimeout: () => 1, clearTimeout() {} },
       require(name) {
         if (name === "@/lib/workspace-cache") return cacheContracts;
+        if (name === "@/lib/holdings-facts")
+          return require("./resource-library-helpers.cjs").compile("../lib/holdings-facts.ts");
         assert.ok(Object.hasOwn(imports, name), name);
         return imports[name];
       },

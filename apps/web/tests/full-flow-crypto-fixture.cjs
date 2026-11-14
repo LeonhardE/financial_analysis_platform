@@ -26,6 +26,7 @@ async function createHarness() {
       "encrypted-display-names",
       "encrypted-persistent",
       "holdings-csv",
+      "holdings-facts",
       "task-types",
       "task-forms",
     ]) {
@@ -47,6 +48,7 @@ async function createHarness() {
           ).href,
         ),
       );
+      code = require("./shared-contract-imports.cjs").rewrite(code);
       await fs.writeFile(path.join(directory, name + ".mjs"), code);
     }
     await fs.copyFile(

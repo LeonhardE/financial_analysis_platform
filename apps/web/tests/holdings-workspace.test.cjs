@@ -24,6 +24,8 @@ const compile = (file, imports, globals = {}) => {
     AbortController,
     require: (name) => {
       if (name === "@/lib/workspace-cache") return cacheContracts;
+      if (name === "@/lib/holdings-facts")
+        return require("./resource-library-helpers.cjs").compile("../lib/holdings-facts.ts");
       assert.ok(name in imports, `Unexpected import ${name}`);
       return imports[name];
     },
@@ -188,6 +190,8 @@ function harness({
   let getCurrentHold = null;
   let outboxHold = null;
   let seals = 0;
+  const sealedArguments = [];
+  let coherentSnapshot = false;
   let passkeyCalls = 0;
   let creates = 0;
   let receiptFailure = false;
@@ -694,7 +698,10 @@ function harness({
       );
       sourcePackets.delete(this.uid + ":" + packet.source.resourceRef.resourceId);
     }
-    async sealSnapshot({ source: selected, expectedRevision }) {
+    async sealSnapshot({ source: selected, expectedRevision, content: sealedContent }) {
+      sealedArguments.push(
+        structuredClone({ source: selected, expectedRevision, content: sealedContent }),
+      );
       seals++;
       const pending = {
         snapshotId: seals === 1 ? "snapshot_encrypted" : `snapshot_encrypted_${seals}`,
@@ -724,10 +731,15 @@ function harness({
       if (receiptFailure || receipt.stableOperationId !== pending.operationId)
         throw { code: "invalid_data" };
     }
-    async openSnapshot() {
+    async openSnapshot(snapshot) {
       opens++;
       if (snapshotOpenHold) await snapshotOpenHold.promise;
-      return content;
+      return coherentSnapshot
+        ? {
+            ...structuredClone(content),
+            data: { ...structuredClone(content.data), snapshotId: snapshot.receipt.snapshotId },
+          }
+        : content;
     }
   }
   const requestPrivate = async (service, route, owner, options = {}) => {
@@ -1182,6 +1194,10 @@ function harness({
       for (const callback of visibilityListeners) callback();
     },
     commits,
+    sealedArguments,
+    useCoherentSnapshot() {
+      coherentSnapshot = true;
+    },
     outboxes,
     sourcePackets,
     mutations,
@@ -3251,5 +3267,153 @@ test("rapid A to B to A selection rejects a late B read and keeps cached A", asy
   assert.equal(h.render().selectedSourceId, "holdings_a");
   assert.equal(h.render().sourceMetadata.source.resourceRef.resourceId, "holdings_a");
   assert.ok(h.render().content);
+  h.unmount();
+});
+
+test("manual position preparation is local and unknown saves replay the exact sealed original", async () => {
+  const h = harness();
+  const model = await unlocked(h),
+    before = h.requests.length;
+  const edit = {
+    accountId: "manual_account",
+    assetId: null,
+    instrument: {
+      symbol: "TEST",
+      market: "XNAS",
+      currency: "USD",
+      name: "Synthetic",
+      assetType: "stock",
+    },
+    quantity: "2.5",
+    unitCost: "10.25",
+  };
+  assert.equal(
+    model.stagePositionEdit(
+      edit,
+      null,
+      { accountId: "manual_account", displayName: "Manual" },
+      model.editScope,
+    ),
+    true,
+  );
+  assert.equal(h.requests.length, before);
+  assert.equal(h.counts().seals, 0);
+  assert.equal(h.render().preview.resourceContent.data.profile, "folioview.holdings-facts.v2");
+  h.failCommit(true);
+  await h.render().save();
+  assert.equal(h.render().hasPending, true);
+  assert.equal(h.render().stagePositionEdit(edit, null, undefined, h.render().editScope), false);
+  assert.equal(h.sealedArguments.length, 1);
+  assert.equal(
+    h.sealedArguments[0].content.data.accounts[0].positions[0].bookCost.amount,
+    "25.625",
+  );
+  h.failCommit(false);
+  await h.render().save();
+  assert.equal(h.counts().seals, 1);
+  assert.equal(h.commits.length, 2);
+  assert.equal(h.commits[0].body, h.commits[1].body);
+  h.unmount();
+});
+test("an intervening stored revision rejects a prepared position edit before creating another ciphertext", async () => {
+  const h = harness();
+  await unlocked(h);
+  h.useCoherentSnapshot();
+  await h.render().importFile(file);
+  await h.render().save();
+  const model = h.render(),
+    current = model.content;
+  assert.ok(current);
+  const p = current.data.accounts[0].positions[0];
+  assert.equal(
+    model.stagePositionEdit(
+      {
+        accountId: current.data.accounts[0].accountId,
+        assetId: p.assetId,
+        instrument: null,
+        quantity: "3",
+        unitCost: "",
+      },
+      current.data.snapshotId,
+      undefined,
+      model.editScope,
+    ),
+    true,
+  );
+  assert.equal(h.render().preview.base.sourceRevision, 1);
+  const seals = h.counts().seals,
+    writes = h.commits.length;
+  h.forceHead(2);
+  await h.render().save();
+  assert.equal(h.render().error, "version_conflict");
+  assert.equal(h.counts().seals, seals);
+  assert.equal(h.commits.length, writes);
+  assert.ok(h.render().preview, "draft is retained for explicit review/cancel");
+  h.render().lock();
+  assert.equal(h.render().preview, null);
+  assert.equal(h.render().importPreview, null);
+  h.unmount();
+});
+test("position drafts reject a changed snapshot/account and cannot be created while locked", async () => {
+  const h = harness();
+  await unlocked(h);
+  const oldScope = h.render().editScope;
+  const edit = {
+    accountId: "manual_account",
+    assetId: null,
+    instrument: {
+      symbol: "TEST",
+      market: "XNAS",
+      currency: "USD",
+      name: "Synthetic",
+      assetType: "stock",
+    },
+    quantity: "2",
+    unitCost: "0",
+  };
+  assert.equal(
+    h.render().stagePositionEdit(
+      edit,
+      "stale_snapshot",
+      {
+        accountId: "manual_account",
+        displayName: "Manual",
+      },
+      h.render().editScope,
+    ),
+    false,
+  );
+  assert.equal(h.render().error, "version_conflict");
+  assert.equal(h.counts().seals, 0);
+  h.render().lock();
+  assert.equal(
+    h
+      .render()
+      .stagePositionEdit(
+        edit,
+        null,
+        { accountId: "manual_account", displayName: "Manual" },
+        h.render().editScope,
+      ),
+    false,
+  );
+  assert.equal(h.render().preview, null);
+  const unlocking = h.render().unlock();
+  h.resolvePasskey();
+  await unlocking;
+  assert.notEqual(h.render().editScope, oldScope);
+  assert.equal(
+    h
+      .render()
+      .stagePositionEdit(
+        edit,
+        null,
+        { accountId: "manual_account", displayName: "Manual" },
+        oldScope,
+      ),
+    false,
+    "an old form cannot adopt a later unlock even with the same account and empty head",
+  );
+  assert.equal(h.render().preview, null);
   h.unmount();
 });

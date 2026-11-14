@@ -34,6 +34,7 @@ import {
   CREDENTIAL_NOTICE_SECONDS,
 } from "../../../packages/encrypted-workspace/dist/core.mjs";
 import { VaultError, type Json, type Vault, type RegistryBundle } from "./encrypted-types";
+import { sealHoldingsFacts } from "../../../packages/encrypted-workspace/valuation/dist/holdings.mjs";
 const AGENT = "folioview.persistent-agent-identity.v1";
 function fail(code = "binding_mismatch"): never {
   throw new VaultError(code);
@@ -1628,7 +1629,10 @@ export class PersistentOwner {
     const publicKeys = Object.fromEntries(
       recipients.map((r) => [r.keyId, registry.current.keys.get(r.keyId)!.publicJwk]),
     );
-    const envelope = await seal(payload, context, publicKeys, this.ctx.root);
+    const envelope =
+      objectType === "holdings_snapshot" && payload.data?.profile === "folioview.holdings-facts.v2"
+        ? await sealHoldingsFacts(payload as any, context, publicKeys, this.ctx.root)
+        : await seal(payload, context, publicKeys, this.ctx.root);
     await verifyEnvelope(envelope, {
       registry,
       identity,

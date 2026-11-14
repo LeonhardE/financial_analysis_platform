@@ -1,10 +1,16 @@
 "use client";
 
-import { useRef, useState } from "react";
-import { useTranslations } from "next-intl";
+import { useMemo, useRef, useState } from "react";
+import { useLocale, useTranslations } from "next-intl";
 import { LoadingIndicator, InlineError } from "./WorkspaceFeedback";
 import { useHoldingsWorkspace, type HoldingsWorkspace } from "@/components/useHoldingsWorkspace";
-import type { HoldingsResourceContent } from "@/lib/holdings-csv";
+import {
+  asFacts,
+  factsContent,
+  formatHoldingsTime,
+  type SavedHoldings,
+} from "@/lib/holdings-facts";
+import HoldingsEditor from "./HoldingsEditor";
 import styles from "./ResourcesPanel.module.css";
 import ResourceLibrary from "./ResourceLibrary";
 import type { ResourceSelection } from "@/lib/resource-library";
@@ -20,11 +26,21 @@ function amount(value: string) {
   const [whole, decimal] = value.split(".");
   return `${whole.replace(/\B(?=(\d{3})+(?!\d))/g, ",")}${decimal ? `.${decimal}` : ""}`;
 }
-function Holdings({ content }: { content: HoldingsResourceContent }) {
+function Holdings({
+  content,
+  onEdit,
+}: {
+  content: SavedHoldings;
+  onEdit?: (accountId: string, assetId: string) => void;
+}) {
   const t = useTranslations("resources");
+  const data = useMemo(() => asFacts(content), [content]);
+  const showReported =
+    (!factsContent(content) || content.data.editKind === "import") &&
+    data.data.accounts.some((a) => a.positions.some((p) => p.reportedValues?.marketValue));
   return (
     <div className={styles.holdings}>
-      {content.data.accounts.map((account) => (
+      {data.data.accounts.map((account) => (
         <section className={styles.account} key={account.accountId}>
           <h3>{account.displayName}</h3>
           <div className={styles.balances}>
@@ -44,32 +60,54 @@ function Holdings({ content }: { content: HoldingsResourceContent }) {
               role="region"
               aria-label={t("holdingsTable")}
             >
-              <table className={styles.table}>
+              <table className={styles.table} data-compact={!showReported}>
                 <thead>
                   <tr>
                     <th>{t("security")}</th>
                     <th>{t("quantity")}</th>
                     <th>{t("currency")}</th>
-                    <th>{t("marketValue")}</th>
+                    <th>{t("editing.unitCost")}</th>
+                    {showReported && <th>{t("marketValue")}</th>}
+                    {onEdit && (
+                      <th>
+                        <span className="sr-only">{t("editing.edit")}</span>
+                      </th>
+                    )}
                   </tr>
                 </thead>
                 <tbody>
                   {account.positions.map((position) => (
                     <tr key={position.assetId}>
                       <td>
-                        <strong>{position.symbol ?? t("unknownSymbol")}</strong>
-                        <small>
-                          {position.name}
-                          {position.exchange ? ` · ${position.exchange}` : ""}
-                        </small>
+                        <strong>{position.instrument.symbol ?? t("unknownSymbol")}</strong>
+                        <small>{position.name}</small>
                       </td>
                       <td className={styles.number}>{amount(position.quantity)}</td>
-                      <td>{position.currency}</td>
+                      <td>{position.instrument.currency}</td>
                       <td className={styles.number}>
-                        {position.marketValue
-                          ? `${position.marketValue.currency} ${amount(position.marketValue.amount)}`
-                          : t("unknown")}
+                        {position.unitCost ? amount(position.unitCost.amount) : t("unknown")}
                       </td>
+                      {showReported && (
+                        <td className={styles.number}>
+                          {position.reportedValues?.marketValue
+                            ? `${position.reportedValues.marketValue.currency} ${amount(position.reportedValues.marketValue.amount)}`
+                            : t("unknown")}
+                        </td>
+                      )}
+                      {onEdit && (
+                        <td>
+                          <button
+                            type="button"
+                            className={styles.rowEdit}
+                            onClick={() => onEdit(account.accountId, position.assetId)}
+                            aria-label={t("editing.editPosition", {
+                              symbol: position.instrument.symbol ?? position.name ?? "—",
+                            })}
+                          >
+                            {t("editing.edit")}
+                          </button>
+                        </td>
+                      )}
                     </tr>
                   ))}
                 </tbody>
@@ -85,7 +123,12 @@ function Holdings({ content }: { content: HoldingsResourceContent }) {
           {t("excludedSummary", { count: content.data.excludedAssets.length })}
         </p>
       )}
-      <p className={styles.note}>{t("cashHelp")}</p>
+      {data.data.accounts.some((a) => a.balances.length > 0) && (
+        <details className={styles.reviewNotes}>
+          <summary>{t("editing.cashInfo")}</summary>
+          <p className={styles.note}>{t("cashHelp")}</p>
+        </details>
+      )}
     </div>
   );
 }
@@ -255,11 +298,18 @@ function Workspace({
   onCreateTask?: (selection: ResourceSelection) => void;
 }) {
   const t = useTranslations("resources");
+  const locale = useLocale();
   const file = useRef<HTMLInputElement>(null);
   const [importOpen, setImportOpen] = useState(false),
     [dragging, setDragging] = useState(false),
     [dropError, setDropError] = useState(""),
     [importName, setImportName] = useState("");
+  const [editing, setEditing] = useState<{
+    accountId: string | null;
+    assetId: string | null;
+    snapshotId: string | null;
+    scope: string;
+  } | null>(null);
   const busy = Boolean(model.busy);
   const hiddenHistory =
     model.sourceMetadata?.state === "deleted" || model.sourceMutation?.action === "delete";
@@ -274,10 +324,13 @@ function Workspace({
     !model.hasPending &&
     !model.sourceMutation &&
     !model.sourceCreationId &&
+    (!model.preview || model.preview.intent === "import") &&
     (model.newSource ||
       (model.sources ?? []).length === 0 ||
       model.sourceMetadata?.state === "active");
-  const importVisible = importOpen || !model.content || Boolean(model.preview) || model.newSource;
+  const importVisible =
+    (importOpen || !model.content || Boolean(model.preview) || model.newSource) &&
+    !["edit", "manual"].includes(model.preview?.intent ?? "");
   const errorKey = `errors.${model.error}`;
   const choose = (files: FileList | null) => {
     setDragging(false);
@@ -377,6 +430,28 @@ function Workspace({
           >
             <SourceManagement model={model} />
           </HoldingsSourceBar>
+          {!preview && (
+            <div className={styles.sourceActions}>
+              <button
+                type="button"
+                className={styles.secondary}
+                disabled={!canImport}
+                onClick={() =>
+                  setEditing({
+                    accountId: null,
+                    assetId: null,
+                    snapshotId: model.content?.data.snapshotId ?? null,
+                    scope: model.editScope,
+                  })
+                }
+              >
+                {t("editing.addPosition")}
+              </button>
+            </div>
+          )}
+          {editing && (
+            <HoldingsEditor model={model} editing={editing} onClose={() => setEditing(null)} />
+          )}
           {importVisible && (
             <div className={styles.importFlow}>
               <ol className={styles.importSteps} aria-label={t("manage.importSteps")}>
@@ -497,8 +572,16 @@ function Workspace({
             <section className={styles.preview} aria-labelledby="import-preview-title">
               <div className={styles.sectionHeading}>
                 <div>
-                  <span className={styles.eyebrow}>{t("stepPreview")}</span>
-                  <h2 id="import-preview-title">{t("previewTitle")}</h2>
+                  {preview.brokerId === "wealthsimple" && (
+                    <span className={styles.eyebrow}>{t("stepPreview")}</span>
+                  )}
+                  <h2 id="import-preview-title">
+                    {t(
+                      preview.intent === "edit" || preview.intent === "manual"
+                        ? "editing.reviewTitle"
+                        : "previewTitle",
+                    )}
+                  </h2>
                 </div>
                 <button
                   className={styles.secondary}
@@ -516,10 +599,73 @@ function Workspace({
                   {t("cancelPreview")}
                 </button>
               </div>
-              <p className={styles.note}>
-                {t("reportDate", { date: preview.reportDate ?? t("unknown") })} ·{" "}
-                {t("timePrecision")}
-              </p>
+              {preview.brokerId === "wealthsimple" && (
+                <p className={styles.note}>
+                  {t("reportDate", { date: preview.reportDate ?? t("unknown") })} ·{" "}
+                  {t("timePrecision")}
+                </p>
+              )}
+              {preview.importPlan && model.content && (
+                <fieldset className={styles.importPlan} disabled={busy || model.hasPending}>
+                  <legend>{t("editing.importMode")}</legend>
+                  {(["replace", "merge"] as const).map((mode) => (
+                    <label key={mode}>
+                      <input
+                        type="radio"
+                        name="holdings-import-mode"
+                        checked={preview.importPlan!.mode === mode}
+                        onChange={() =>
+                          model.setImportPlan(mode, false, preview.resourceContent.data.snapshotId)
+                        }
+                      />
+                      {t(`editing.${mode}`)}
+                    </label>
+                  ))}
+                  {preview.importPlan.protectedManualCount > 0 && (
+                    <label className={styles.manualOverwrite}>
+                      <input
+                        type="checkbox"
+                        checked={preview.importPlan.overwriteManual}
+                        onChange={(e) =>
+                          model.setImportPlan(
+                            preview.importPlan!.mode,
+                            e.target.checked,
+                            preview.resourceContent.data.snapshotId,
+                          )
+                        }
+                      />
+                      {t("editing.overwriteManual", {
+                        count: preview.importPlan.protectedManualCount,
+                      })}
+                    </label>
+                  )}
+                </fieldset>
+              )}
+              {Boolean(preview.changes?.length) && (
+                <div className={styles.changeReview} aria-label={t("editing.changes")}>
+                  <ul>
+                    {preview.changes!.slice(0, 20).map((change, index) => (
+                      <li key={index}>
+                        <strong>{change.symbol}</strong>
+                        <span>{change.account}</span>
+                        <span>{t(`editing.${change.kind}`)}</span>
+                        <span>
+                          {change.before
+                            ? `${change.before.quantity} × ${change.before.unitCost ?? "—"} ${change.before.currency}`
+                            : "—"}{" "}
+                          →{" "}
+                          {change.after
+                            ? `${change.after.quantity} × ${change.after.unitCost ?? "—"} ${change.after.currency}`
+                            : "—"}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                  {preview.changes!.length > 20 && (
+                    <p>{t("editing.moreChanges", { count: preview.changes!.length - 20 })}</p>
+                  )}
+                </div>
+              )}
               {(model.newSource || !(model.sources ?? []).length) && (
                 <label className={styles.importName}>
                   {t("manage.nameOptional")}
@@ -531,79 +677,96 @@ function Workspace({
                   />
                 </label>
               )}
-              <fieldset className={styles.accountChoices} disabled={busy || model.hasPending}>
-                <legend>{t("selectAccounts")}</legend>
-                {preview.accounts.map((account) => {
-                  const selected = preview.selectedAccountIds.includes(account.accountId);
-                  return (
-                    <label key={account.accountId}>
-                      <input
-                        type="checkbox"
-                        checked={selected}
-                        disabled={selected && preview.selectedAccountIds.length === 1}
-                        onChange={() =>
-                          model.selectAccounts(
-                            selected
-                              ? preview.selectedAccountIds.filter((id) => id !== account.accountId)
-                              : [...preview.selectedAccountIds, account.accountId],
-                          )
-                        }
-                      />
-                      <span>
-                        <strong>{account.displayName}</strong>
-                        <small>
-                          {t("accountRows", {
-                            count: account.positionCount,
-                            excluded: account.excludedCount,
-                          })}
-                        </small>
-                      </span>
-                    </label>
-                  );
-                })}
-              </fieldset>
-              <div className={styles.summary}>
-                <div>
-                  <small>{t("selectedAccounts")}</small>
-                  <strong>{preview.stats.accounts}</strong>
-                </div>
-                <div>
-                  <small>{t("positions")}</small>
-                  <strong>{preview.stats.positions}</strong>
-                </div>
-                {Object.entries(preview.stats.totals).map(([currency, value]) => (
-                  <div key={currency}>
-                    <small>{t("reportedValue", { currency })}</small>
-                    <strong>{amount(value)}</strong>
+              {preview.brokerId === "wealthsimple" && (
+                <fieldset className={styles.accountChoices} disabled={busy || model.hasPending}>
+                  <legend>{t("selectAccounts")}</legend>
+                  {preview.accounts.map((account) => {
+                    const selected = preview.selectedAccountIds.includes(account.accountId);
+                    return (
+                      <label key={account.accountId}>
+                        <input
+                          type="checkbox"
+                          checked={selected}
+                          disabled={selected && preview.selectedAccountIds.length === 1}
+                          onChange={() =>
+                            model.selectAccounts(
+                              selected
+                                ? preview.selectedAccountIds.filter(
+                                    (id) => id !== account.accountId,
+                                  )
+                                : [...preview.selectedAccountIds, account.accountId],
+                            )
+                          }
+                        />
+                        <span>
+                          <strong>{account.displayName}</strong>
+                          <small>
+                            {t("accountRows", {
+                              count: account.positionCount,
+                              excluded: account.excludedCount,
+                            })}
+                          </small>
+                        </span>
+                      </label>
+                    );
+                  })}
+                </fieldset>
+              )}
+              {preview.brokerId === "wealthsimple" && (
+                <div className={styles.summary}>
+                  <div>
+                    <small>{t("selectedAccounts")}</small>
+                    <strong>{preview.stats.accounts}</strong>
                   </div>
-                ))}
-              </div>
-              <p className={styles.note}>{t("totalsHelp")}</p>
-              <p className={styles.note}>{t("importScope")}</p>
-              <details
-                className={styles.reviewNotes}
-                open={preview.stats.excluded > 0 || preview.stats.duplicates > 0}
-              >
-                <summary>{t("reviewNotes", { count: preview.warnings.length })}</summary>
-                <ul>
-                  {preview.warnings.map((warning) => (
-                    <li key={warning.code}>
-                      {t.has(`warnings.${warning.code}`)
-                        ? t(`warnings.${warning.code}`)
-                        : t("warnings.generic")}
-                      {warning.count > 1 ? ` (${warning.count})` : ""}
-                      {warning.row ? ` · ${t("row", { row: warning.row })}` : ""}
-                    </li>
+                  <div>
+                    <small>{t("positions")}</small>
+                    <strong>{preview.stats.positions}</strong>
+                  </div>
+                  {Object.entries(preview.stats.totals).map(([currency, value]) => (
+                    <div key={currency}>
+                      <small>{t("reportedValue", { currency })}</small>
+                      <strong>{amount(value)}</strong>
+                    </div>
                   ))}
-                </ul>
-              </details>
+                </div>
+              )}
+              {preview.brokerId === "wealthsimple" && (
+                <p className={styles.note}>{t("totalsHelp")}</p>
+              )}
+              {preview.warnings.length > 0 && (
+                <details
+                  className={styles.reviewNotes}
+                  open={preview.stats.excluded > 0 || preview.stats.duplicates > 0}
+                >
+                  <summary>{t("reviewNotes", { count: preview.warnings.length })}</summary>
+                  <ul>
+                    {preview.warnings.map((warning) => (
+                      <li key={warning.code}>
+                        {t.has(`warnings.${warning.code}`)
+                          ? t(`warnings.${warning.code}`)
+                          : t("warnings.generic")}
+                        {warning.count > 1 ? ` (${warning.count})` : ""}
+                        {warning.row ? ` · ${t("row", { row: warning.row })}` : ""}
+                      </li>
+                    ))}
+                  </ul>
+                </details>
+              )}
               <Holdings content={preview.resourceContent} />
               <div className={styles.confirm}>
-                <p>{t("confirmHelp")}</p>
+                <p>{t("editing.shareAfterSave")}</p>
                 <button
                   className={styles.primary}
                   type="button"
-                  disabled={busy || model.hasPending}
+                  disabled={
+                    busy ||
+                    model.hasPending ||
+                    Boolean(
+                      preview.importPlan?.mode === "replace" &&
+                      preview.importPlan.protectedManualCount &&
+                      !preview.importPlan.overwriteManual,
+                    )
+                  }
                   onClick={() => void savePreview()}
                 >
                   {t(model.busy === "saving" ? "saving" : "confirmSave")}
@@ -628,7 +791,7 @@ function Workspace({
               retryLabel={t("manage.retry")}
             />
           )}
-          {model.content && !hiddenHistory && (
+          {model.content && !hiddenHistory && !preview && (
             <section className={styles.saved} aria-labelledby="saved-holdings-title">
               <div className={styles.sectionHeading}>
                 <div>
@@ -638,26 +801,46 @@ function Workspace({
                 <span className={styles.status}>{t("manualSnapshot")}</span>
               </div>
               <p className={styles.note}>
-                {t("importedAt", { time: model.content.fetchedAt })} · {t("timePrecision")}
+                {t(
+                  factsContent(model.content) && model.content.data.editKind !== "import"
+                    ? "editing.updatedAt"
+                    : "importedAt",
+                  { time: formatHoldingsTime(model.content.fetchedAt, locale) },
+                )}
               </p>
-              <Holdings content={model.content} />
+              <Holdings
+                content={model.content}
+                onEdit={
+                  canImport && !preview
+                    ? (accountId, assetId) =>
+                        setEditing({
+                          accountId,
+                          assetId,
+                          snapshotId: model.content!.data.snapshotId,
+                          scope: model.editScope,
+                        })
+                    : undefined
+                }
+              />
             </section>
           )}
         </>
       )}
-      <details className={styles.reviewNotes}>
-        <summary>{t("guideTitle")}</summary>
-        <ol>
-          {["login", "documents", "generate", "holdings", "date", "accounts", "download"].map(
-            (step) => (
-              <li key={step}>{t(`guide.${step}`)}</li>
-            ),
-          )}
-        </ol>
-        <a href={GUIDE} target="_blank" rel="noreferrer noopener">
-          {t("officialInstructions")} ↗
-        </a>
-      </details>
+      {importVisible && (
+        <details className={styles.reviewNotes}>
+          <summary>{t("guideTitle")}</summary>
+          <ol>
+            {["login", "documents", "generate", "holdings", "date", "accounts", "download"].map(
+              (step) => (
+                <li key={step}>{t(`guide.${step}`)}</li>
+              ),
+            )}
+          </ol>
+          <a href={GUIDE} target="_blank" rel="noreferrer noopener">
+            {t("officialInstructions")} ↗
+          </a>
+        </details>
+      )}
       <div className={styles.feedback} aria-live="polite">
         <LoadingIndicator
           busy={model.busy === "saving"}

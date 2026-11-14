@@ -30,7 +30,7 @@ test("real category tabs reveal operative watchlist and follows, with shared-own
   const { ResourceLibraryView } = compile("../components/ResourceLibrary.tsx", {
     react: h.react,
     "react/jsx-runtime": runtime,
-    "next-intl": { useTranslations: translations },
+    "next-intl": { useTranslations: translations, useLocale: () => "en" },
     "./useResourceLibrary": {},
     "@/lib/resource-library": contracts,
     "./ResourceLibrary.module.css": css,
@@ -106,9 +106,11 @@ test("actual holdings chooser and drop zone share the importer; multiple files a
       module: { type: "commonjs" },
     });
   const imports = {
+    "@/lib/holdings-facts": compile("../lib/holdings-facts.ts"),
+    "./HoldingsEditor": { __esModule: true, default: () => null },
     react: h.react,
     "react/jsx-runtime": runtime,
-    "next-intl": { useTranslations: translations },
+    "next-intl": { useTranslations: translations, useLocale: () => "en" },
     "./WorkspaceFeedback": { LoadingIndicator: () => null, InlineError: () => null },
     "@/components/useHoldingsWorkspace": {},
     "./ResourceLibrary": {},
@@ -198,7 +200,7 @@ test("data settings open a smooth dialog, preserve original pending-name recover
   const { HoldingsSourceBar } = compile("../components/HoldingsSourceBar.tsx", {
     react: h.react,
     "react/jsx-runtime": runtime,
-    "next-intl": { useTranslations: translations },
+    "next-intl": { useTranslations: translations, useLocale: () => "en" },
     "./useTasks": {},
     "./ResourcesPanel.module.css": css,
   });

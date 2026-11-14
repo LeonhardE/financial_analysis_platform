@@ -26,6 +26,7 @@ test("provider activation atomically replaces the current credential and recover
             pathToFileURL(path.join(repo, "packages/encrypted-workspace/dist/core.mjs")).href,
           ),
         );
+      code = require("./shared-contract-imports.cjs").rewrite(code);
       writeFileSync(path.join(directory, name + ".mjs"), code);
     }
     const peer = path.join(directory, "peer.mjs");

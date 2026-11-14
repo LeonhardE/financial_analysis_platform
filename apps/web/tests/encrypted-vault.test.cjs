@@ -46,6 +46,7 @@ test.before(async () => {
         ).href,
       ),
     );
+    code = require("./shared-contract-imports.cjs").rewrite(code);
     await fs.writeFile(path.join(directory, name + ".mjs"), code);
   }
   await fs.copyFile(
@@ -124,6 +125,68 @@ async function stored(f, pending) {
     },
   };
 }
+test("typed holdings facts round-trip through the real Owner ciphertext guards while the legacy validator stays strict", async () => {
+  const f = await fixture();
+  const edits = require("./resource-library-helpers.cjs").compile("../lib/holdings-facts.ts");
+  // Match the MessagePort boundary: UI values enter the Worker through structured clone.
+  const value = structuredClone(
+    edits.editHoldings({
+      content: null,
+      base: null,
+      snapshotId: "facts_snapshot_A",
+      at: "1970-01-01T00:16:40Z",
+      newAccount: { accountId: "synthetic_account", displayName: "Synthetic" },
+      edit: {
+        accountId: "synthetic_account",
+        assetId: null,
+        instrument: {
+          symbol: "TEST",
+          market: "XNAS",
+          currency: "USD",
+          name: "Synthetic",
+          assetType: "stock",
+        },
+        quantity: "2.5",
+        unitCost: "10.25",
+      },
+    }),
+  );
+  assert.throws(
+    () => core.validate("ResourceContent", value),
+    (e) => e.code === "invalid_data",
+  );
+  const pending = await f.session.sealSnapshot({
+    content: value,
+    source,
+    expectedRevision: 0,
+    snapshotId: value.data.snapshotId,
+  });
+  const response = await stored(f, pending);
+  assert.deepEqual(await f.session.openSnapshot(response, source), structuredClone(value));
+  const wire = JSON.stringify(response);
+  for (const privateText of ["Synthetic", "10.25", "25.625"])
+    assert.ok(!wire.includes(privateText));
+  const invalid = structuredClone(value);
+  invalid.data.accounts[0].positions[0].provenance.unitCost.origin = "unknown";
+  await assert.rejects(
+    () =>
+      f.session.sealSnapshot({
+        content: invalid,
+        source,
+        expectedRevision: 0,
+        snapshotId: value.data.snapshotId,
+      }),
+    (e) => e.code === "invalid_data",
+  );
+  const foreign = {
+    ...source,
+    resourceRef: { ...source.resourceRef, resourceId: "foreign_source" },
+  };
+  await assert.rejects(
+    () => f.session.openSnapshot(response, foreign),
+    (e) => e.code === "binding_mismatch",
+  );
+});
 async function signedSyntheticControl(f, payload) {
   const { FlattenedSign } = await import("jose");
   return new FlattenedSign(new TextEncoder().encode(core.canonical(payload)))

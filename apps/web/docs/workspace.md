@@ -174,12 +174,38 @@ The official article describes field groups but publishes no exact CSV header sp
 The current adapter matches one supplied 21-column export shape, using entirely synthetic tests.
 Unknown/missing columns, malformed records and oversized input stop import rather than guessing.
 
-The importer retains selected account labels, stocks/ETFs, quantities, currencies, reported market
-values and conservatively verified reported cash. Unit-price, book-cost, return and date-only
-report-label columns are not retained in the current frozen private holdings schema. A date-only
-label is shown in preview, while saved `sourceAsOf` remains unknown; import time is separate.
+New imports retain selected account labels, stocks/ETFs, exact decimal quantities, native currencies,
+native book costs and their derived unit costs, reported prices/values/returns, and conservatively
+verified reported cash in the additive holdings-facts profile. An available MIC is retained;
+unresolved markets remain unknown. CAD book cost is separate and never treated as USD book cost.
+A date-only report label is retained separately from import time; saved `sourceAsOf` remains unknown.
 Cash that is not reported stays unknown, buying power is not inferred, and CAD/USD are never
 combined without an explicit FX source. Unsupported assets/directions remain visible as exclusions.
+
+### Manual holdings and edits
+
+The resource view can add a position or edit an existing imported position with ticker, quantity,
+unit cost and native currency. Ticker lookup uses the public Market instrument search with only
+the entered query. Multiple or incomplete matches require an explicit market selection. A retained
+legacy position with unknown market/cost may keep that identity; editing never invents its cost.
+Multiple accounts stay separate. Zero quantity requires explicit removal confirmation.
+
+Edits are local until the owner reviews and saves the resulting holdings. Reimports offer replacement
+or merge; replacement requires consent before overwriting manual values, while merge preserves
+manual values by default. New ciphertext snapshots retain per-field import/manual provenance and
+the previous snapshot reference. Existing historical snapshots and pinned task inputs are unchanged.
+Saving as independent data uses only the selected new import, without copying the prior manual edits.
+
+Saving checks the same owner/unlock generation, source incarnation, authority version and current
+snapshot revision before sealing. The existing exact sealed outbox is replayed unchanged after an
+uncertain write; edits never bypass source invalidation, signature, AAD or current-permission checks.
+No plaintext holdings draft is persisted. The shared profile enforces the existing 192,512-byte
+plaintext limit and at most 1,000 positions; number inputs use exact bounded decimal arithmetic.
+
+Legacy payload readers remain supported. The additive profile uses the typed P2 browser validator
+and the typed P1 owner publication path supported by SDK 1.3.0. Updating a saved position does not
+automatically reshare it with an Agent. Native Agent hosts must be reviewed and upgraded before
+acceptance with new-profile inputs; deployment alone does not upgrade those hosts.
 
 ## Private agent Inbox
 
