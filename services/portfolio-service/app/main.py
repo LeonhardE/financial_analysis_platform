@@ -6,6 +6,7 @@ from .api import router as holdings_router
 from .authority_sync import router as authority_router
 from .errors import PortfolioErrors
 from .fence_sync import router as fence_router
+from .owner_view import router as owner_view_router
 from .resource_api import router as resources_router
 
 app = create_app(
@@ -22,6 +23,7 @@ app.include_router(holdings_router)
 app.include_router(authority_router)
 app.include_router(fence_router)
 app.include_router(resources_router)
+app.include_router(owner_view_router)
 app.add_middleware(PortfolioErrors)
 
 

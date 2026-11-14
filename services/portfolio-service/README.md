@@ -163,6 +163,8 @@ snapshot upload with revision CAS; real broker acquisition and refresh leases ar
 ## Read performance
 
 [Snapshot/receipt batch reads and transaction-local reuse](docs/read-performance.md)
+also covers the bounded owner read view that combines matching metadata and snapshot
+reads while retaining the original recovery and synchronization fallback.
 explain the current read budgets and freshness boundaries.
 
 ## Internal source metadata producer
