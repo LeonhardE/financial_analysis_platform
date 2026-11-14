@@ -21,6 +21,8 @@ backend work from cold startup, proxy/network time and body transfer.
 
 - Eight controlled-clock/concurrency/actual-verifier-boundary tests and six existing
   HTTP/privacy regressions passed, including errors, cancellation and non-HTTP flow.
+- Public Market runs the six dependency-independent tests without installing Firebase;
+  private consumers also run both real-verifier boundary tests.
 - Normal root `npm run check` before commit; exact-head CI before merge.
 - Shared-only foundation change; five existing backend consumers release in the
   authorized order. No online timing pass, cloud resource or capacity/rollout change.

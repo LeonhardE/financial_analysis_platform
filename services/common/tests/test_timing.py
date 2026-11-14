@@ -4,6 +4,7 @@ import asyncio
 import re
 import unittest
 from contextvars import ContextVar
+from importlib.util import find_spec
 from unittest.mock import patch
 
 from fastapi import HTTPException
@@ -13,9 +14,15 @@ from fastapi.testclient import TestClient
 from starlette.concurrency import run_in_threadpool
 from starlette.requests import Request
 
-from folioview_shared import auth, timing
+from folioview_shared import timing
 from folioview_shared.http import create_app
 from folioview_shared.timing import ProcessingTimings, measure_firebase_verification
+
+# Public market consumers intentionally do not install the private identity SDK.
+if find_spec("firebase_admin") is not None:
+    from folioview_shared import auth
+else:
+    auth = None
 
 
 class Clock:
@@ -113,6 +120,7 @@ class ProcessingTimingTests(unittest.TestCase):
 
         return send
 
+    @unittest.skipIf(auth is None, "Private identity consumers supply the Firebase SDK")
     def test_actual_live_verifier_in_worker_contributes_without_waiving_revocation(self):
         clock, sent = Clock(), []
         app_instance = object()
@@ -142,6 +150,7 @@ class ProcessingTimingTests(unittest.TestCase):
         sdk.assert_called_once()
         self.assertEqual(header(sent), "fv_app;dur=25.000, fv_firebase;dur=10.000")
 
+    @unittest.skipIf(auth is None, "Private identity consumers supply the Firebase SDK")
     def test_failed_verification_is_measured_and_keeps_the_existing_private_error(self):
         clock, sent = Clock(), []
 
