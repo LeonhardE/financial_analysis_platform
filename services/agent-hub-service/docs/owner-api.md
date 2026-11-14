@@ -194,22 +194,44 @@ Example settings alone do not activate them.
 ## Encrypted owner tasks
 
 Task APIs use the existing verified Firebase Google owner, exact v2 contract header and `no-store`
-responses. Writes also require one `Idempotency-Key` and `X-FolioView-Author-Key`. A browser owner
+responses. Mutating writes also require one `Idempotency-Key` and `X-FolioView-Author-Key`. A browser owner
 cannot supply another owner partition, an agent/delegation header or a workload token as owner
 authority. Unknown fields, duplicate JSON members, duplicate resource refs and unsupported queries
 fail closed through the existing bounded body/error transport.
 
-| Endpoint                                                              | Behavior                                                |
-| --------------------------------------------------------------------- | ------------------------------------------------------- |
-| `GET /api/v2/tasks`                                                   | Bounded public metadata page; `limit` and `cursor` only |
-| `GET /api/v2/tasks/{taskId}`                                          | Current encrypted version                               |
-| `GET /api/v2/tasks/{taskId}/versions/{version}`                       | One immutable encrypted historical version              |
-| `GET /api/v2/tasks/{taskId}/operations/{operationId}`                 | Original encrypted version bound to a saved operation   |
-| `POST /api/v2/tasks/{taskId}/operation-cancellations`                 | Root-approved final decision for one original upload    |
-| `GET /api/v2/tasks/{taskId}/operation-cancellations/{cancellationId}` | Original validated cancellation decision                |
-| `POST /api/v2/tasks`                                                  | Create active version 1 with expected version 0         |
-| `PUT /api/v2/tasks/{taskId}`                                          | CAS rule/scope edit with a newly signed envelope        |
-| `POST /api/v2/tasks/{taskId}/transitions`                             | Signed pause, resume or terminal archive                |
+| Endpoint                                                              | Behavior                                                    |
+| --------------------------------------------------------------------- | ----------------------------------------------------------- |
+| `GET /api/v2/tasks`                                                   | Bounded public metadata page; `limit` and `cursor` only     |
+| `POST /api/v2/tasks/packets/query`                                    | Owner display batch of up to four current encrypted packets |
+| `GET /api/v2/tasks/{taskId}`                                          | Current encrypted version                                   |
+| `GET /api/v2/tasks/{taskId}/versions/{version}`                       | One immutable encrypted historical version                  |
+| `GET /api/v2/tasks/{taskId}/operations/{operationId}`                 | Original encrypted version bound to a saved operation       |
+| `POST /api/v2/tasks/{taskId}/operation-cancellations`                 | Root-approved final decision for one original upload        |
+| `GET /api/v2/tasks/{taskId}/operation-cancellations/{cancellationId}` | Original validated cancellation decision                    |
+| `POST /api/v2/tasks`                                                  | Create active version 1 with expected version 0             |
+| `PUT /api/v2/tasks/{taskId}`                                          | CAS rule/scope edit with a newly signed envelope            |
+| `POST /api/v2/tasks/{taskId}/transitions`                             | Signed pause, resume or terminal archive                    |
+
+`POST /api/v2/tasks/packets/query` is a read-only Owner query with exactly
+`{contractVersion, taskIds}`: one to four unique valid task IDs, a4KiB streamed request budget,
+no query parameters, no command operation/author headers required and no Agent/delegation/workload
+identity. Authentication and the current vault are freshly verified once per request.
+
+The response has exactly `contractVersion`, `profile: "folioview.owner-task-packets.v1"`, `items`
+and `remainingTaskIds`. Each ordered item is either `{taskId,status:"ready",packet:EncryptedTask}`
+or `{taskId,status:"not_found"}`. Unknown and trashed/purged tasks share the latter shape without
+reading their ciphertext. Corrupt index/head/history/carrier and failed/incomplete prefetches
+fail the whole query; they are never downgraded to missing or partial success.
+
+Index/lifecycle, visible heads and current immutable versions use three bounded prefetch phases
+inside the existing transaction. Every returned packet retains the single-GET version, signature,
+historical writer/recipient and current visibility checks. A fresh conflict retry rechecks them.
+There is no authority cache, plaintext title, task write, cursor or new collection. The response
+retains the existing1MiB read budget: a complete ordered prefix is returned with the exact unserved
+ID suffix when needed. At least one item must fit or the query fails413, so pagination cannot stall.
+The frontend still verifies/decrypts each packet and matches its exact listed metadata before
+reusing the name. Existing single/version GETs and APIs are unchanged. The producer must be Ready
+before its Web consumer; no admission, provider quota, capacity, resource or rollout change.
 
 Create has exactly `contractVersion`, `taskId`, `expectedVersion`, `resourceBindings`, `envelope`.
 Update omits the body `taskId`; transition adds `transitionIntent`. `envelope` is the existing shared
