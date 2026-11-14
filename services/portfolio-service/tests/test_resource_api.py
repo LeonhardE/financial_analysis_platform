@@ -22,7 +22,7 @@ from folioview_shared.encrypted.constants import CONTRACT_VERSION
 from folioview_shared.encrypted.schema import validate_schema
 
 
-class SignedPortfolioMetadataTests(unittest.TestCase):
+class SignedPortfolioMetadataFixture(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.google_key = jwk.JWK.generate(kty="RSA", size=2048)
@@ -52,6 +52,7 @@ class SignedPortfolioMetadataTests(unittest.TestCase):
         self.body = {"contractVersion": CONTRACT_VERSION, "refs": [self.fixture.resource]}
         self.url = "/internal/v2/resources/projections/read"
         self.states = "/internal/v2/resources/states/read"
+        self.discovery = "/internal/v2/resources/discovery/read"
 
     def token(self, **changes):
         return self.auth.sign(self.auth.catalog(sub=UID, resourceKinds=["holdings"], **changes))
@@ -62,6 +63,8 @@ class SignedPortfolioMetadataTests(unittest.TestCase):
         if status >= 400:
             validate_schema("Error", response.json())
 
+
+class SignedPortfolioMetadataTests(SignedPortfolioMetadataFixture):
     def test_real_signed_two_credentials_return_only_bounded_public_metadata(self):
         result = self.client.post(self.url, headers=self.headers, json=self.body)
         self.assert_private(result, 200)
