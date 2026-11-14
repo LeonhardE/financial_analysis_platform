@@ -41,6 +41,8 @@ from .vaults import VaultService, _current, _selection, identifier, positive
 MAX_TASKS = 32
 MAX_VERSIONS = 50
 MAX_OPERATIONS = 128
+MAX_PACKET_BATCH = 4
+PACKET_BATCH_PROFILE = "folioview.owner-task-packets.v1"
 CURSOR_SECONDS = 900
 _INDEX_FIELDS = {"ownerSubject", "vaultId", "version", "tasks", "cursors"}
 _HEAD_FIELDS = {"ownerSubject", "metadata", "operationCount"}
@@ -54,6 +56,19 @@ def _digest(value):
 
 def _snapshot(value):
     return strict_json_loads(canonical_json(value))
+
+
+class _TaskReadView:
+    """Detached prefetched rows within one owner transaction, never authority cache."""
+
+    def __init__(self, unit, rows):
+        self.unit, self.rows = unit, rows
+
+    def get(self, path):
+        return _snapshot(self.rows[path]) if path in self.rows else self.unit.get(path)
+
+    def __getattr__(self, name):
+        return getattr(self.unit, name)
 
 
 def _bindings(value):
@@ -658,6 +673,72 @@ class TaskService:
 
         return self.store.transact(read)
 
+    def packets(self, uid, task_ids):
+        """Bounded display read; every returned packet keeps the single-read checks."""
+        if type(task_ids) is not list or not 1 <= len(task_ids) <= MAX_PACKET_BATCH:
+            raise ContractError("malformed_request")
+        for task_id in task_ids:
+            identifier(task_id)
+        if len(set(task_ids)) != len(task_ids):
+            raise ContractError("malformed_request")
+        task_ids = list(task_ids)
+        owner = owner_key(uid)
+
+        def read(unit):
+            vault, _ = _current(unit, owner, self.now())
+            vault_id = vault["vaultId"]
+            paths = [
+                document_path("hub_task_indexes", owner, vault_id),
+                document_path("hub_center_lifecycle", owner, vault_id),
+            ]
+            view = _TaskReadView(unit, unit.get_many(paths))
+            index = _index(view, owner, vault_id)
+            lifecycle = lifecycle_index(view, owner, vault_id)
+            visible = [t for t in task_ids if lifecycle["tasks"].get(t, "active") == "active"]
+            heads = [_paths(owner, vault_id, t) for t in visible]
+            view = _TaskReadView(view, unit.get_many(heads) if heads else {})
+            selected = {t: _head(view, owner, vault_id, t, index) for t in visible}
+            versions = [
+                _paths(owner, vault_id, t, head["metadata"]["taskVersion"])
+                for t, head in selected.items()
+                if head is not None
+            ]
+            view = _TaskReadView(view, unit.get_many(versions) if versions else {})
+            result = {
+                "contractVersion": CONTRACT_VERSION,
+                "profile": PACKET_BATCH_PROFILE,
+                "items": [],
+                "remainingTaskIds": task_ids,
+            }
+            for position, task_id in enumerate(task_ids):
+                head = selected.get(task_id)
+                item = (
+                    {
+                        "taskId": task_id,
+                        "status": "ready",
+                        "packet": _response(
+                            view, owner, vault, task_id, head["metadata"]["taskVersion"]
+                        ),
+                    }
+                    if head is not None
+                    else {"taskId": task_id, "status": "not_found"}
+                )
+                candidate = {
+                    **result,
+                    "items": [*result["items"], item],
+                    "remainingTaskIds": task_ids[position + 1 :],
+                }
+                try:
+                    check_read_response(candidate)
+                except ContractError as error:
+                    if error.code != "payload_too_large" or not result["items"]:
+                        raise
+                    break
+                result = candidate
+            return result
+
+        return self.store.transact(read)
+
     def operation(self, uid, task_id, operation):
         """Recover the original saved task without renewing its writer authority."""
         identifier(task_id)
@@ -833,6 +914,15 @@ def list_tasks(request: Request, user: Owner, service: Tasks):
         return service.list(user.uid, limit=int(value), cursor=request.query_params.get("cursor"))
 
     return _invoke(read)
+
+
+@router.post("/packets/query")
+async def query_task_packets(request: Request, user: Owner, service: Tasks):
+    _invoke(lambda: _protocol(request))
+    value = await body(request, {"contractVersion", "taskIds"}, max_bytes=4096)
+    return await run_in_threadpool(
+        lambda: _invoke(lambda: service.packets(user.uid, value["taskIds"]))
+    )
 
 
 @router.get("/{task_id}")

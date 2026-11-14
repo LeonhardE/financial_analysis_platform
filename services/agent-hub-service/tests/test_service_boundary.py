@@ -52,6 +52,7 @@ class AgentHubBoundaryTests(unittest.TestCase):
                     "/api/v3/provider-connections/{vault}/{provider}/operations/{operation}",
                     "/api/v3/provider-connections/{vault}/{provider}/commands",
                     "/api/v2/persistent-connections",
+                    "/api/v2/tasks/packets/query",
                     "/api/v2/persistent-connections/{connection_id}/revocations",
                     "/.well-known/oauth-authorization-server/oauth/persistent",
                     "/.well-known/oauth-protected-resource/mcp/v3",
