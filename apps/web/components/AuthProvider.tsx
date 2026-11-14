@@ -1,5 +1,6 @@
 "use client";
 import { CURRENCY_PREFERENCES_PATH, currencyUpdate } from "@/lib/currency-preferences";
+import { FX_FOLLOWS_PATH, fxPreferences } from "@/lib/fx-follows";
 
 import { DisplayReadPool, untilSignal } from "@/lib/workspace-cache";
 import {
@@ -893,21 +894,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const currencyPath = service === "config" && path === CURRENCY_PREFERENCES_PATH;
         const preferencesPath = path === "/api/v1/preferences" || currencyPath;
         const followsPath = service === "user" && path === "/api/v1/channel-follows";
+        const fxPath = service === "user" && path === FX_FOLLOWS_PATH;
+        const jsonPath = preferencesPath || followsPath || fxPath;
         const watchlistPath =
           /^\/api\/v1\/watchlist(?:\/[A-Z][A-Z0-9]{0,9}(?:[.-][A-Z0-9]{1,3})?)?$/.test(path);
         if (
           (service !== "user" && service !== "config") ||
-          (service === "user" && !watchlistPath && !followsPath) ||
+          (service === "user" && !watchlistPath && !followsPath && !fxPath) ||
           (service === "config" && !preferencesPath)
         )
           throw new Error("Invalid private API path");
         if (
           !["GET", "PUT", "DELETE"].includes(method) ||
           Object.keys(options.headers ?? {}).length ||
-          (options.json !== undefined &&
-            ((!preferencesPath && !followsPath) || method !== "PUT")) ||
-          ((preferencesPath || followsPath) &&
-            (method === "DELETE" || (method === "PUT" && options.json === undefined)))
+          (options.json !== undefined && (!jsonPath || method !== "PUT")) ||
+          (jsonPath && (method === "DELETE" || (method === "PUT" && options.json === undefined)))
         )
           throw new Error("Invalid private API request");
         if (followsPath && method === "PUT") {
@@ -926,6 +927,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (currencyPath && method === "PUT") {
           validatedJson = currencyUpdate(options.json);
           maxBodyBytes = 1024;
+        }
+        if (fxPath && method === "PUT") {
+          if (
+            !exact(options.json, ["expectedVersion", "preferences"]) ||
+            !Number.isSafeInteger(options.json.expectedVersion) ||
+            options.json.expectedVersion < 0
+          )
+            throw new Error("Invalid private API request");
+          validatedJson = {
+            expectedVersion: options.json.expectedVersion,
+            preferences: fxPreferences(options.json.preferences),
+          };
+          maxBodyBytes = 4096;
         }
         origin = service === "user" ? USER_API_BASE_URL : CONFIG_API_BASE_URL;
       }

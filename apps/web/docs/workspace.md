@@ -44,6 +44,13 @@ handoff keeps its prior precedence over an Inbox fragment. Login stays on the se
 
 ## Shared layout and feedback
 
+Before body content paints, a small head script applies the last confirmed theme mode, or the
+current system appearance while account preferences are unknown. Authentication and Config loading
+retain that appearance. Config remains authoritative once loaded; guests keep the light default.
+Only `light`, `dark` or `system` is retained under `folioview.theme.v1` in localStorage, with no
+identity, language, account preferences or private content. Logout and account changes clear this
+display hint. Blocked storage does not prevent rendering or preference loading.
+
 The shell and sidebar keep their DOM during navigation. Private panels mount on first visit and
 then keep their DOM, including Settings. Their local code and chart code load in separate chunks;
 a stalled or failed chunk offers an in-place retry without reloading the unlocked workspace.

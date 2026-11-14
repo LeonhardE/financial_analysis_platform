@@ -5,6 +5,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -21,6 +22,7 @@ import {
 } from "@/lib/preferences";
 import englishMessages from "@/messages/en.json";
 import chineseMessages from "@/messages/zh.json";
+import { readThemeHint, writeThemeHint, type ThemePreference } from "@/lib/theme-bootstrap";
 
 type PreferenceStatus = "guest" | "loading" | "ready" | "saving" | "saved" | "error";
 type PreferenceError = "load" | "save" | "loadTimeout" | "saveTimeout" | null;
@@ -69,6 +71,8 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<PreferenceState>(initialState);
   const stateRef = useRef(state);
   const [systemTheme, setSystemTheme] = useState<"light" | "dark">("dark");
+  const [startupTheme, setStartupTheme] = useState<ThemePreference>("system");
+  const appearanceOwnerRef = useRef<string | null>(null);
   const generationRef = useRef(0);
   const requestRef = useRef<{ id: number; controller: AbortController } | null>(null);
 
@@ -271,7 +275,11 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
   const visible = owner && state.owner === owner ? state : null;
   const preferences = visible?.preferences ?? guest.preferences;
   const preferenceStatus = visible?.status ?? (owner ? "loading" : "guest");
-  const resolvedTheme = preferences.theme === "system" ? systemTheme : preferences.theme;
+  const preferencesPending = Boolean(
+    owner ? !visible?.loaded : ["loading", "verifying", "signing-in"].includes(authStatus),
+  );
+  const theme = preferencesPending ? startupTheme : preferences.theme;
+  const resolvedTheme = theme === "system" ? systemTheme : theme;
 
   useEffect(() => {
     const query = window.matchMedia("(prefers-color-scheme: dark)");
@@ -281,15 +289,29 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
     return () => query.removeEventListener("change", update);
   }, []);
 
-  useEffect(() => {
-    document.documentElement.dataset.theme = resolvedTheme;
-    document.documentElement.style.colorScheme = resolvedTheme;
+  useLayoutEffect(() => {
+    const switchedOwner =
+      appearanceOwnerRef.current !== null && appearanceOwnerRef.current !== owner;
+    appearanceOwnerRef.current = owner;
+    const guestSession = !owner && !preferencesPending;
+    if (switchedOwner || guestSession) writeThemeHint(null);
+    const hint = switchedOwner || guestSession ? "system" : (readThemeHint() ?? "system");
+    setStartupTheme(hint);
+    const system = window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+    setSystemTheme(system);
+    const selected = preferencesPending ? hint : preferences.theme;
+    const appearance = selected === "system" ? system : selected;
+    document.documentElement.dataset.theme = appearance;
+    document.documentElement.style.colorScheme = appearance;
+    // Cache only a confirmed theme; pending/failed saves cannot replace the startup hint.
+    if (owner && visible?.loaded && !visible.dirty && !visible.error)
+      writeThemeHint(preferences.theme);
     document.documentElement.lang = preferences.language === "zh" ? "zh-CN" : "en";
     document.title =
       preferences.language === "zh"
         ? "FolioView — 你的投资工作台"
         : "FolioView — Your investing workspace";
-  }, [resolvedTheme, preferences.language]);
+  }, [owner, preferencesPending, preferences.theme, preferences.language, visible, systemTheme]);
 
   const value = useMemo<PreferencesContextValue>(
     () => ({
