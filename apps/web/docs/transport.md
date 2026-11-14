@@ -100,3 +100,18 @@ forwarding. The old foreground consent bridge has no credential transport in the
 application. Only the branded native account-link window can receive a transient Google
 credential; it grants account association, and the Owner Worker separately approves
 resource access. Historical Inbox, immutable receipts and narrowing controls remain.
+
+## Owner task packet display queries
+
+The fixed Hub proxy accepts read-only `POST /api/v2/tasks/packets/query` after the producer
+release. Its closed4KiB body is `{contractVersion,taskIds}` with1..4 unique identifiers, no
+selectors, native/workload identity or mutation headers. A successful response must use the
+producer's exact packet-batch profile and match the posted ordered prefix/remaining-ID suffix;
+each ready packet passes the existing formal EncryptedTask validator. Unknown fields, stalled
+pagination, reordered/foreign items and bad packet metadata are refused. The response remains
+bounded to1MiB. Errors cannot forge a pre-forward admission-retry marker.
+
+AuthProvider validates the request before token access and classifies this named POST as a
+queued read, without coalescing different bodies or consuming the mutation lane. No request,
+provider or infrastructure limit changes. UI name caches are display-only; all write authority
+continues through fresh verification.

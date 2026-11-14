@@ -19,6 +19,9 @@ import {
   taskCatalogue,
   taskError,
   taskPage,
+  taskPacketPage,
+  sameTaskMetadata,
+  TASK_PACKET_QUERY,
   TaskError,
   TASK_CONTRACT,
   type TaskResourceOption,
@@ -130,6 +133,17 @@ export function useTasks(workspace: HoldingsWorkspace, { active }: { active: boo
     ]);
   const nameFailures = useRef(new Map<string, string>()),
     namePending = useRef(new Set<string>());
+  const nameLoader = useRef<{
+    scope: string | null;
+    queue: TaskMetadata[];
+    running: number;
+    active: boolean;
+  }>({
+    scope: null,
+    queue: [],
+    running: 0,
+    active: false,
+  });
   const [nameRetry, setNameRetry] = useState(0);
   const freshReads = useRef<Partial<Record<ReadRegion, { scope: string; at: number }>>>({});
   const jobs = useRef(new Set<AbortController>()),
@@ -1354,50 +1368,111 @@ export function useTasks(workspace: HoldingsWorkspace, { active }: { active: boo
   }, [active, scope, visible, operation, summaries, fail]);
   useEffect(() => {
     if (!scope || !visible || !active || state.privateScope !== scope) return;
-    let cancelled = false,
-      index = 0;
-    const queue = state.items.filter(
+    if (nameLoader.current.scope !== scope)
+      nameLoader.current = { scope, queue: [], running: 0, active: true };
+    const loader = nameLoader.current;
+    loader.active = true;
+    loader.queue = state.items.filter(
       (item) =>
         !names.current.get(nameKey(item)) &&
         !nameFailures.current.has(nameKey(item)) &&
         !namePending.current.has(nameKey(item)),
     );
     const work = async () => {
-      while (!cancelled && index < queue.length) {
-        const item = queue[index++],
-          key = nameKey(item);
-        namePending.current.add(key);
-        setState((p) => ({ ...p }));
-        try {
-          await operation(true, async (context) => {
-            const packet = encryptedTask(
-              await api(`/api/v2/tasks/${item.taskId}`, context, { retryAdmission: true }),
-            );
-            if (
-              packet.metadata.envelopeFingerprint !== item.envelopeFingerprint ||
-              packet.metadata.taskVersion !== item.taskVersion
-            )
-              throw new TaskError("version_conflict");
-            const content = await live.current.workspace.openTask(packet);
-            context.assert();
-            if (
-              live.current.scope === scope &&
-              stateRef.current.items.some((row) => nameKey(row) === key)
-            )
-              names.current.set(key, content.name);
-          });
-        } catch (error) {
-          if (live.current.scope === scope && taskError(error) !== "cancelled")
-            nameFailures.current.set(key, taskError(error));
-        } finally {
-          namePending.current.delete(key);
-          if (live.current.scope === scope) setState((p) => ({ ...p }));
+      loader.running++;
+      try {
+        while (
+          nameLoader.current === loader &&
+          loader.active &&
+          loader.queue.length &&
+          live.current.scope === scope &&
+          live.current.active &&
+          live.current.visible
+        ) {
+          const batch = loader.queue.splice(0, 4);
+          const pendingKeys = new Set(batch.map(nameKey));
+          for (const key of pendingKeys) namePending.current.add(key);
+          try {
+            await operation(true, async (context) => {
+              let remaining = batch.map((item) => item.taskId);
+              // The exact suffix must shrink on every response; at most four
+              // requests even when large encrypted packets need smaller pages.
+              while (remaining.length) {
+                const page = taskPacketPage(
+                  await api(TASK_PACKET_QUERY, context, {
+                    method: "POST",
+                    json: { contractVersion: TASK_CONTRACT, taskIds: remaining },
+                    retryAdmission: true,
+                  }),
+                  remaining,
+                );
+                context.assert();
+                for (const row of page.items) {
+                  const item = batch.find((v) => v.taskId === row.taskId)!,
+                    key = nameKey(item);
+                  try {
+                    if (row.status !== "ready") throw new TaskError("not_found");
+                    if (!sameTaskMetadata(row.packet.metadata, item))
+                      throw new TaskError("version_conflict");
+                    const content = await live.current.workspace.openTask(row.packet);
+                    context.assert();
+                    if (
+                      stateRef.current.items.some((current) => nameKey(current) === key) &&
+                      !hiddenTaskIds.current.has(item.taskId)
+                    ) {
+                      names.current.set(key, content.name);
+                      nameFailures.current.delete(key);
+                    }
+                  } catch (error) {
+                    context.assert();
+                    if (!names.current.get(key)) nameFailures.current.set(key, taskError(error));
+                  } finally {
+                    pendingKeys.delete(key);
+                    if (live.current.scope === scope) {
+                      namePending.current.delete(key);
+                      setState((previous) => ({ ...previous }));
+                    }
+                  }
+                }
+                remaining = page.remainingTaskIds;
+              }
+            });
+          } catch (error) {
+            if (live.current.scope === scope && taskError(error) !== "cancelled")
+              for (const item of batch)
+                if (!names.current.get(nameKey(item)))
+                  nameFailures.current.set(nameKey(item), taskError(error));
+          } finally {
+            if (live.current.scope === scope) {
+              for (const key of pendingKeys) namePending.current.delete(key);
+              if (
+                loader.active &&
+                nameLoader.current === loader &&
+                stateRef.current.privateScope === scope &&
+                live.current.active &&
+                live.current.visible
+              )
+                loader.queue = stateRef.current.items.filter(
+                  (item) =>
+                    !hiddenTaskIds.current.has(item.taskId) &&
+                    !names.current.get(nameKey(item)) &&
+                    !nameFailures.current.has(nameKey(item)) &&
+                    !namePending.current.has(nameKey(item)),
+                );
+              setState((previous) => ({ ...previous }));
+            }
+          }
         }
+      } finally {
+        loader.running--;
       }
     };
-    void Promise.all(Array.from({ length: Math.min(3, queue.length) }, work));
+    while (loader.running < 2 && loader.queue.length) void work();
+    // Refreshes replace the queue while existing workers finish their current
+    // batch, preserving the global two-worker bound across metadata rerenders.
     return () => {
-      cancelled = true;
+      loader.active = false;
+      loader.queue = [];
     };
   }, [scope, visible, active, state.items, state.privateScope, nameRetry, operation, api]);
   useEffect(() => {

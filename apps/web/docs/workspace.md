@@ -84,6 +84,15 @@ current authority/head/lifecycle is checked; changed versions,epochs or revoked/
 invalidate reuse. Explicit refresh rereads and verifies stored ciphertext. Network failure can keep
 previous display content with an update-failed state,while actionable authority metadata is cleared.
 
+Task list names use the Owner-only packet query in batches of at most four tasks and two workers.
+For32 ordinary packets this takes eight requests, while every packet still passes the existing
+Worker verification/decryption and exact full metadata match. A verified name can appear before
+another item finishes. Missing, stale or malformed entries stay unavailable; exact remaining-ID
+suffixes must shrink, and one item failure cannot relabel another task. Queue ownership survives
+metadata refresh without creating extra workers; owner/unlock/hidden/deletion guards remain.
+No task editor, draft, grant or command is created by this display work. The existing proxy
+request budget remains unchanged, and read-only batch POSTs share the same two-transport pool.
+
 Only opted-in display GETs share in-flight transport,with per-subscriber cancellation,16 keys and8
 subscribers per key. Responses are cloned for independent bounded body readers and are never kept
 as a fulfilled network cache. Operation/permission checks and writes retain fresh transports and

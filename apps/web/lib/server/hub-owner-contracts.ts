@@ -484,6 +484,7 @@ export function hubResponse(
   method: string,
   body: unknown,
   operationId?: string,
+  requestedTaskIds?: string[],
 ): boolean {
   path = path.split("?", 1)[0];
   // This named producer returns a descriptor, not a fabricated contract wrapper.
@@ -579,6 +580,33 @@ export function hubResponse(
               : "recovery_authorize",
       );
     return false;
+  }
+  if (path === "/api/v2/tasks/packets/query") {
+    if (
+      method !== "POST" ||
+      !requestedTaskIds?.length ||
+      !fields(body, ["contractVersion", "profile", "items", "remainingTaskIds"]) ||
+      body.profile !== "folioview.owner-task-packets.v1" ||
+      !Array.isArray(body.items) ||
+      !body.items.length ||
+      body.items.length > requestedTaskIds.length ||
+      JSON.stringify(body.remainingTaskIds) !==
+        JSON.stringify(requestedTaskIds.slice(body.items.length))
+    )
+      return false;
+    return body.items.every(
+      (item, index) =>
+        record(item) &&
+        item.taskId === requestedTaskIds[index] &&
+        (item.status === "not_found"
+          ? fields(item, ["taskId", "status"])
+          : item.status === "ready" &&
+            fields(item, ["taskId", "status", "packet"]) &&
+            formal("EncryptedTask", item.packet) &&
+            record(item.packet) &&
+            record(item.packet.metadata) &&
+            item.packet.metadata.taskId === item.taskId),
+    );
   }
   if (path === "/api/v2/tasks" && method === "GET") return formal("TaskMetadataPage", body);
   const taskOperation =

@@ -1636,3 +1636,87 @@ test("actual Owner proxy admits only closed display-name routes and binds origin
   );
   assert.equal(extra.calls.length, 0);
 });
+
+test("Owner task packet POST binds every encrypted result to the requested prefix and remaining suffix", async () => {
+  const path = "/api/v2/tasks/packets/query",
+    json = { contractVersion: CONTRACT, taskIds: ["task_A", "task_B"] };
+  const packet = {
+    contractVersion: CONTRACT,
+    metadata: TASK,
+    signedObject: SIGNED,
+    keyProofs: { checkpoint: SIGNED, certificates: [SIGNED] },
+  };
+  const body = {
+    contractVersion: CONTRACT,
+    profile: "folioview.owner-task-packets.v1",
+    items: [{ taskId: "task_A", status: "ready", packet }],
+    remainingTaskIds: ["task_B"],
+  };
+  const h = harness({ upstream: () => response(body) });
+  const result = await h.proxy(request(path, { method: "POST", json }));
+  assert.equal(result.status, 200, await result.clone().text());
+  assert.deepEqual(await result.json(), body);
+  assert.equal(h.hub().length, 1);
+  assert.equal(
+    h.hub()[0].init.body.toString(),
+    new TextEncoder().encode(JSON.stringify(json)).toString(),
+  );
+  assert.deepEqual([...h.hub()[0].init.headers.keys()].sort(), [
+    "authorization",
+    "content-type",
+    "x-folioview-contract",
+  ]);
+  for (const value of [
+    { ...body, items: [] },
+    { ...body, remainingTaskIds: json.taskIds },
+    { ...body, privateTitle: "synthetic-private-canary" },
+    { ...body, items: [{ ...body.items[0], taskId: "task_B" }] },
+    {
+      ...body,
+      items: [
+        { ...body.items[0], packet: { ...packet, metadata: { ...TASK, taskId: "foreign_task" } } },
+      ],
+    },
+  ]) {
+    const bad = harness({ upstream: () => response(value) });
+    await error(
+      await bad.proxy(request(path, { method: "POST", json })),
+      503,
+      "authorization_unavailable",
+    );
+  }
+});
+test("Owner batch query refuses oversized bodies, selectors, native identity and mutation headers before upstream", async () => {
+  const path = "/api/v2/tasks/packets/query",
+    valid = { contractVersion: CONTRACT, taskIds: ["task_A"] };
+  for (const [route, json, headers] of [
+    [path + "?owner=foreign", valid, {}],
+    [path, { ...valid, taskIds: [] }, {}],
+    [path, { ...valid, taskIds: ["task_A", "task_A"] }, {}],
+    [path, { ...valid, taskIds: ["../private"] }, {}],
+    [path, { ...valid, taskIds: Array.from({ length: 5 }, (_, n) => `task_${n}`) }, {}],
+    [path, { ...valid, name: "synthetic-private-canary" }, {}],
+    [path, valid, { "Idempotency-Key": OP }],
+    [path, valid, { "X-FolioView-Author-Key": AUTHOR }],
+    [path, valid, { "X-FolioView-Delegation": "native" }],
+    [path, valid, { "X-Serverless-Authorization": "native" }],
+  ]) {
+    const h = harness(),
+      result = await h.proxy(request(route, { method: "POST", json, headers }));
+    assert.ok([400, 403].includes(result.status));
+    assert.equal(h.calls.length, 0);
+  }
+  const h = harness();
+  await error(
+    await h.proxy(
+      request(path, {
+        method: "POST",
+        raw: " ".repeat(4097),
+        headers: { "Content-Type": "application/json" },
+      }),
+    ),
+    413,
+    "payload_too_large",
+  );
+  assert.equal(h.calls.length, 0);
+});

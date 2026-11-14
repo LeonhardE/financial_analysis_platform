@@ -128,6 +128,47 @@ export function encryptedTask(value: unknown): EncryptedTask {
   taskMetadata(value.metadata);
   return value as EncryptedTask;
 }
+export const TASK_PACKET_QUERY = "/api/v2/tasks/packets/query";
+export type TaskPacketItem =
+  | { taskId: string; status: "ready"; packet: EncryptedTask }
+  | { taskId: string; status: "not_found" };
+/** Validate the entire ordered response before any packet is opened or cached. */
+export function taskPacketPage(value: unknown, requested: string[]) {
+  if (
+    !requested.length ||
+    requested.length > 4 ||
+    !requested.every(identifier) ||
+    new Set(requested).size !== requested.length ||
+    !exact(value, ["contractVersion", "profile", "items", "remainingTaskIds"]) ||
+    value.contractVersion !== TASK_CONTRACT ||
+    value.profile !== "folioview.owner-task-packets.v1" ||
+    !Array.isArray(value.items) ||
+    !value.items.length ||
+    value.items.length > requested.length ||
+    !Array.isArray(value.remainingTaskIds) ||
+    JSON.stringify(value.remainingTaskIds) !== JSON.stringify(requested.slice(value.items.length))
+  )
+    throw new TaskError("invalid_response");
+  const items: TaskPacketItem[] = value.items.map((item: unknown, index: number) => {
+    if (!object(item) || item.taskId !== requested[index]) throw new TaskError("invalid_response");
+    if (item.status === "not_found" && exact(item, ["taskId", "status"]))
+      return { taskId: item.taskId, status: "not_found" };
+    if (item.status !== "ready" || !exact(item, ["taskId", "status", "packet"]))
+      throw new TaskError("invalid_response");
+    const packet = encryptedTask(item.packet);
+    if (packet.metadata.taskId !== item.taskId) throw new TaskError("invalid_response");
+    return { taskId: item.taskId, status: "ready", packet };
+  });
+  return { items, remainingTaskIds: [...value.remainingTaskIds] as string[] };
+}
+export function sameTaskMetadata(left: TaskMetadata, right: TaskMetadata) {
+  return Object.keys(left).every((key) =>
+    key === "resourceBindings"
+      ? JSON.stringify(left.resourceBindings.map((b) => [bindingKey(b), b.sourceEpoch])) ===
+        JSON.stringify(right.resourceBindings.map((b) => [bindingKey(b), b.sourceEpoch]))
+      : left[key as keyof TaskMetadata] === right[key as keyof TaskMetadata],
+  );
+}
 /** Discovery only: selecting a source does not prepare its encrypted evidence or grant an agent. */
 export function taskCatalogue(value: unknown): TaskResourceOption[] {
   if (
