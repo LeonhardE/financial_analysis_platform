@@ -438,51 +438,54 @@ class PersistentOwnerResultService:
 
         def read(unit):
             _current(unit, owner, self.now(), vault)
-            if selected is None:
-                head = unit.get(document_path("hub_persistent_result_indexes", owner, vault))
-                if head is None:
-                    return {
-                        "contractVersion": CONTRACT_VERSION,
-                        "profile": CONTENT_PROFILE,
-                        "items": [],
-                        "nextCursor": None,
-                    }
-                if set(head) != {"pageId"}:
-                    raise StoreUnavailable
-                page = self._page(unit, owner, vault, head["pageId"])
-                before = len(page["resultIds"])
-            else:
-                page = self._page(unit, owner, vault, selected[0])
-                before = selected[1]
-                if not 0 < before <= len(page["resultIds"]):
-                    raise ContractError("unsupported_query")
-            begin = max(0, before - limit)
-            ids = list(reversed(page["resultIds"][begin:before]))
-            from .task_lifecycle import lifecycle_path, visible_metadata
-
-            snapshot = _OwnerResultSnapshot(
-                unit,
-                [result_path(owner, vault, r) for r in ids] + [lifecycle_path(owner, vault)],
-            )
-
-            items = visible_metadata(
-                snapshot,
-                owner,
-                vault,
-                [stored_result(snapshot, owner, vault, r)["metadata"] for r in ids],
-            )
-            cursor = f"{page['pageId']}:{begin}" if begin else None
-            if not begin and page["previous"] is not None:
-                previous = self._page(unit, owner, vault, page["previous"])
-                cursor = f"{previous['pageId']}:{len(previous['resultIds'])}"
-            return {
-                "contractVersion": CONTRACT_VERSION,
-                "profile": CONTENT_PROFILE,
-                "items": items,
-                "nextCursor": cursor,
-            }
+            return self._list(unit, owner, vault, limit=limit, selected=selected)
 
         return self.store.transact(read)
+
+    def _list(self, unit, owner, vault, *, limit, selected):
+        if selected is None:
+            head = unit.get(document_path("hub_persistent_result_indexes", owner, vault))
+            if head is None:
+                return {
+                    "contractVersion": CONTRACT_VERSION,
+                    "profile": CONTENT_PROFILE,
+                    "items": [],
+                    "nextCursor": None,
+                }
+            if set(head) != {"pageId"}:
+                raise StoreUnavailable
+            page = self._page(unit, owner, vault, head["pageId"])
+            before = len(page["resultIds"])
+        else:
+            page = self._page(unit, owner, vault, selected[0])
+            before = selected[1]
+            if not 0 < before <= len(page["resultIds"]):
+                raise ContractError("unsupported_query")
+        begin = max(0, before - limit)
+        ids = list(reversed(page["resultIds"][begin:before]))
+        from .task_lifecycle import lifecycle_path, visible_metadata
+
+        snapshot = _OwnerResultSnapshot(
+            unit,
+            [result_path(owner, vault, r) for r in ids] + [lifecycle_path(owner, vault)],
+        )
+
+        items = visible_metadata(
+            snapshot,
+            owner,
+            vault,
+            [stored_result(snapshot, owner, vault, r)["metadata"] for r in ids],
+        )
+        cursor = f"{page['pageId']}:{begin}" if begin else None
+        if not begin and page["previous"] is not None:
+            previous = self._page(unit, owner, vault, page["previous"])
+            cursor = f"{previous['pageId']}:{len(previous['resultIds'])}"
+        return {
+            "contractVersion": CONTRACT_VERSION,
+            "profile": CONTENT_PROFILE,
+            "items": items,
+            "nextCursor": cursor,
+        }
 
     def owner_state(self, uid, vault, result, signed, operation, author):
         owner = owner_key(uid)

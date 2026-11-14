@@ -204,9 +204,39 @@ class InboxService:
                 raise ContractError("unsupported_query") from None
 
     def _page(self, unit, owner, vault, rows, *, limit, cursor, query, transform=None):
-        digest = _digest({"owner": owner, "vault": vault, "query": query, "rows": rows})
         path = document_path("hub_inbox_cursors", owner, vault)
         saved = unit.get(path)
+        result, updated = self._page_values(
+            owner,
+            vault,
+            rows,
+            saved=saved,
+            now=self.now(),
+            limit=limit,
+            cursor=cursor,
+            query=query,
+            transform=transform,
+        )
+        if saved != updated and (saved is not None or updated["cursors"]):
+            unit.put(path, updated)
+        return result
+
+    def _page_values(
+        self,
+        owner,
+        vault,
+        rows,
+        *,
+        saved,
+        now,
+        limit,
+        cursor,
+        query,
+        transform=None,
+        protected=frozenset(),
+    ):
+        """Pure page/cursor calculation, so multiple feeds can commit one map."""
+        digest = _digest({"owner": owner, "vault": vault, "query": query, "rows": rows})
         if saved is None:
             saved = {"ownerSubject": owner, "vaultId": vault, "cursors": {}}
         try:
@@ -229,7 +259,7 @@ class InboxService:
                     raise ValueError
         except (ValueError, TypeError, KeyError, ContractError):
             raise StoreUnavailable from None
-        now, start = self.now(), 0
+        start = 0
         if cursor is not None:
             old = saved["cursors"].get(cursor)
             if (
@@ -264,7 +294,13 @@ class InboxService:
                     # Query continuations are a bounded view cache, not immutable
                     # business receipts. Retaining every page would prevent a
                     # small page size from traversing the full result directory.
-                    candidates = [token for token in cursors if token != cursor] or list(cursors)
+                    candidates = [
+                        token for token in cursors if token != cursor and token not in protected
+                    ]
+                    if not candidates:
+                        candidates = [token for token in cursors if token not in protected]
+                    if not candidates:
+                        raise ContractError("version_conflict")
                     oldest = min(candidates, key=lambda token: (cursors[token]["expiresAt"], token))
                     del cursors[oldest]
                 next_cursor = secrets.token_urlsafe(24)
@@ -275,8 +311,6 @@ class InboxService:
                     "limit": limit,
                     "query": copy(query),
                 }
-        if cursors != saved["cursors"]:
-            unit.put(path, {"ownerSubject": owner, "vaultId": vault, "cursors": cursors})
         result = {
             "contractVersion": CONTRACT_VERSION,
             "items": transform(chosen) if transform is not None else copy(chosen),
@@ -284,7 +318,7 @@ class InboxService:
         }
         validate_schema("ResultMetadataPage", result)
         check_read_response(result)
-        return result
+        return result, {"ownerSubject": owner, "vaultId": vault, "cursors": cursors}
 
     def list(self, uid, *, limit=20, cursor=None, filter="all", task_id=None):
         self._query(limit, cursor, filter, task_id)

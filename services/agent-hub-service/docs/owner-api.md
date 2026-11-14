@@ -205,18 +205,19 @@ cannot supply another owner partition, an agent/delegation header or a workload 
 authority. Unknown fields, duplicate JSON members, duplicate resource refs and unsupported queries
 fail closed through the existing bounded body/error transport.
 
-| Endpoint                                                              | Behavior                                                    |
-| --------------------------------------------------------------------- | ----------------------------------------------------------- |
-| `GET /api/v2/tasks`                                                   | Bounded public metadata page; `limit` and `cursor` only     |
-| `POST /api/v2/tasks/packets/query`                                    | Owner display batch of up to four current encrypted packets |
-| `GET /api/v2/tasks/{taskId}`                                          | Current encrypted version                                   |
-| `GET /api/v2/tasks/{taskId}/versions/{version}`                       | One immutable encrypted historical version                  |
-| `GET /api/v2/tasks/{taskId}/operations/{operationId}`                 | Original encrypted version bound to a saved operation       |
-| `POST /api/v2/tasks/{taskId}/operation-cancellations`                 | Root-approved final decision for one original upload        |
-| `GET /api/v2/tasks/{taskId}/operation-cancellations/{cancellationId}` | Original validated cancellation decision                    |
-| `POST /api/v2/tasks`                                                  | Create active version 1 with expected version 0             |
-| `PUT /api/v2/tasks/{taskId}`                                          | CAS rule/scope edit with a newly signed envelope            |
-| `POST /api/v2/tasks/{taskId}/transitions`                             | Signed pause, resume or terminal archive                    |
+| Endpoint                                                              | Behavior                                                           |
+| --------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| `POST /api/v3/tasks/{vault}/overview/query`                           | Fixed task, report and attribution snapshot; optional four packets |
+| `GET /api/v2/tasks`                                                   | Bounded public metadata page; `limit` and `cursor` only            |
+| `POST /api/v2/tasks/packets/query`                                    | Owner display batch of up to four current encrypted packets        |
+| `GET /api/v2/tasks/{taskId}`                                          | Current encrypted version                                          |
+| `GET /api/v2/tasks/{taskId}/versions/{version}`                       | One immutable encrypted historical version                         |
+| `GET /api/v2/tasks/{taskId}/operations/{operationId}`                 | Original encrypted version bound to a saved operation              |
+| `POST /api/v2/tasks/{taskId}/operation-cancellations`                 | Root-approved final decision for one original upload               |
+| `GET /api/v2/tasks/{taskId}/operation-cancellations/{cancellationId}` | Original validated cancellation decision                           |
+| `POST /api/v2/tasks`                                                  | Create active version 1 with expected version 0                    |
+| `PUT /api/v2/tasks/{taskId}`                                          | CAS rule/scope edit with a newly signed envelope                   |
+| `POST /api/v2/tasks/{taskId}/transitions`                             | Signed pause, resume or terminal archive                           |
 
 `POST /api/v2/tasks/packets/query` is a read-only Owner query with exactly
 `{contractVersion, taskIds}`: one to four unique valid task IDs, a4KiB streamed request budget,
@@ -238,6 +239,56 @@ ID suffix when needed. At least one item must fit or the query fails413, so pagi
 The frontend still verifies/decrypts each packet and matches its exact listed metadata before
 reusing the name. Existing single/version GETs and APIs are unchanged. The producer must be Ready
 before its Web consumer; no admission, provider quota, capacity, resource or rollout change.
+
+Historical task reads may reuse the immutable registry prefixes already completely verified in
+that transaction attempt. Exact Owner/vault, full Root bytes and complete history bytes bind the
+bounded snapshot; failed history/current-row validation publishes nothing. Original stored
+KeyProofs/context matching, strict original-save time, writer/recipient selection and every
+carrier signature check still run. Conflict retries and later requests start fresh. A miss,
+full cache or legacy unit retains the original full historical verification path; current
+revocation never substitutes for the exact authority at a report/task's original save.
+
+### Combined task overview
+
+`POST /api/v3/tasks/{vault}/overview/query` is an additive Firebase Owner read with no query,
+operation/author/delegation/workload selectors. Its exact16KiB streamed body is
+`{contractVersion,knownPacketVersions,packetLimit}`. `packetLimit` is0or4; `knownPacketVersions`
+contains at most32 unique task IDs, each exactly `{taskId,taskVersion,envelopeFingerprint}`.
+All three fields must match this Owner's returned current metadata to omit packet delivery.
+Unknown/deleted cached IDs do not trigger extra lookups or grant any right.
+
+The response has exactly `{contractVersion,profile,vaultId,tasks,capabilities,feeds,connections,packets}`,
+with `profile:"folioview.owner-task-overview.v1"`. `tasks` is the original task metadata page
+with limit32, matching the existing Web request and32-task capacity, so its cursor is null.
+`capabilities` is the unchanged task-center policy DTO. `feeds` contains exactly `persistent`,
+`foreground` and `archived`: original pages of20 with their independent original cursors.
+More reads use the existing separate endpoints. `connections` retains the original Owner
+native inventory DTO, including historical revoked connections and other-vault metadata;
+consumers still filter by the selected vault and retain original Actor/provider attribution.
+
+`packets` is null for no uncached candidate or limit0. Otherwise it is the original nonempty
+packet batch for the first at most four uncached task IDs in page order, with the original
+ordered prefix and exact remaining suffix. Every selected packet passes original crypto/schema
+checks and the standalone packet response budget first. Only when adding that valid batch
+exceeds the combined1MiB response limit may packets become null. Clients then use the original
+packet endpoint and must not claim name readiness until original Worker verification completes.
+Corrupt metadata, Root/history, carrier or an invalid standalone packet is a real failure,
+never a budget-null hint. No private name/report plaintext is returned.
+
+The producer verifies one fresh current Root and uses bounded full-row prefetches in the same
+transaction: known indexes/lifecycle/cursors; dependent heads/page/connections; selected
+report rows/task versions. Small ordinary snapshots need three database read phases; indexed
+foreground heads retain the existing1024-item cap and batches of128, with an additional8MiB
+encoded read-admission bound. SQLite consumes the same prefetched snapshot. No producer HTTP
+requests occur. Existing row validators and current lifecycle checks remain in force.
+
+Foreground and archived cursors are calculated independently against one accumulated cursor
+map and committed once; new tokens returned in this response are protected while the second
+query is calculated. Original query/snapshot/limit/expiry/capacity rules remain; insufficient
+capacity fails instead of returning an unusable cursor. The read can issue/prune the existing
+bounded cursor metadata, but creates no task, identity, grant or execution. Default-off
+capabilities do not hide saved Owner history. The producer must reach Ready before a separate
+Web consumer adopts it; none of these counts alone establishes production navigation latency.
 
 Create has exactly `contractVersion`, `taskId`, `expectedVersion`, `resourceBindings`, `envelope`.
 Update omits the body `taskId`; transition adds `transitionIntent`. `envelope` is the existing shared

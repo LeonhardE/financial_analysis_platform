@@ -2,6 +2,7 @@
 
 import copy
 import unittest
+from collections import Counter
 from unittest.mock import patch
 
 from fixtures import VaultFixture
@@ -43,16 +44,33 @@ class VaultRegistryMemoTests(unittest.TestCase):
         ):
             baseline = _verify_row(self.row, self.f.owner, 1000)
             self.assertEqual(verify.call_count, 12)
-            baseline_schema_calls = schema.call_count
+            baseline_schema_calls = Counter(call.args[0] for call in schema.call_args_list)
+            self.assertEqual(
+                baseline_schema_calls,
+                {
+                    "RegistryBundle": 3,
+                    "RegistryCheckpointPayload": 3,
+                    "KeyCertificatePayload": 9,
+                },
+            )
         with (
             patch.object(authority, "verify_jws", wraps=authority.verify_jws) as verify,
             patch.object(authority, "validate_schema", wraps=authority.validate_schema) as schema,
         ):
             self.assertEqual(_verify_row(self.row, self.f.owner, 1000), baseline)
             self.assertEqual(verify.call_count, 6)
-            self.assertEqual(schema.call_count, baseline_schema_calls)
+            first_schema_calls = Counter(call.args[0] for call in schema.call_args_list)
+            self.assertEqual(first_schema_calls["RegistryBundle"], 3)
+            self.assertEqual(first_schema_calls["RegistryCheckpointPayload"], 3)
+            # Both shared versions are safe: signature-only memo validates all
+            # nine certificate visits; static memo validates three unique JWS.
+            self.assertIn(first_schema_calls["KeyCertificatePayload"], (3, 9))
             self.assertEqual(_verify_row(self.row, self.f.owner, 1000), baseline)
             self.assertEqual(verify.call_count, 12)
+            self.assertEqual(
+                Counter(call.args[0] for call in schema.call_args_list),
+                Counter({name: 2 * count for name, count in first_schema_calls.items()}),
+            )
 
     def test_changed_history_future_checkpoint_and_corrupt_signature_are_not_reused(self):
         cache = {}

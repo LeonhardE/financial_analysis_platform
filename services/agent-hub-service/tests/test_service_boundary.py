@@ -31,6 +31,7 @@ class AgentHubBoundaryTests(unittest.TestCase):
                     "/api/v3/private-display-names/{vault}/holdings/{source}/commands",
                     "/api/v3/private-display-names/{vault}/holdings/{source}/operations/{operation}",
                     "/api/v3/task-center/capabilities",
+                    "/api/v3/tasks/{vault}/overview/query",
                     "/api/v3/task-center/{vault}/tasks/{task}/manual",
                     "/api/v3/task-center/{vault}/tasks/{task}/manual/{intent}",
                     "/api/v3/task-center/{vault}/tasks/{task}/manual/{intent}/cancel",

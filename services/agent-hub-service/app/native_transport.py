@@ -639,20 +639,19 @@ class NativeConnectionOwnerService(OwnerConnectionService):
         }
 
     def native_connections(self, uid):
+        return self.store.transact(lambda unit: self._native_connections(unit, uid))
+
+    def _native_connections(self, unit, uid):
         owner = owner_key(uid)
-
-        def read(unit):
-            index = self._owner(unit, uid)
-            rows = []
-            for ident in index["connectionIds"]:
-                conn = _row(unit, "hub_oauth_connections", owner, ident)
-                if conn is None or conn["ownerSubject"] != owner:
-                    raise StoreUnavailable
-                if conn.get("transportKind") == "persistent_runtime":
-                    rows.append(self._view(conn))
-            return {"contractVersion": CONTRACT_VERSION, "profile": PROFILE, "connections": rows}
-
-        return self.store.transact(read)
+        index = self._owner(unit, uid)
+        rows = []
+        for ident in index["connectionIds"]:
+            conn = _row(unit, "hub_oauth_connections", owner, ident)
+            if conn is None or conn["ownerSubject"] != owner:
+                raise StoreUnavailable
+            if conn.get("transportKind") == "persistent_runtime":
+                rows.append(self._view(conn))
+        return {"contractVersion": CONTRACT_VERSION, "profile": PROFILE, "connections": rows}
 
     def native_disconnect(self, uid, connection):
         identifier(connection)

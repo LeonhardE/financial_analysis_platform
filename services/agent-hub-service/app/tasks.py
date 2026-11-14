@@ -33,6 +33,7 @@ from folioview_shared.identity import owner_key
 from .api import Owner, _invoke, body, transport
 from .catalogue import CatalogueService, get_sources
 from .fences import require_current_bindings
+from .registry_reads import RegistryPrefixCache
 from .store import StoreUnavailable, document_path, get_store
 from .task_lifecycle import lifecycle_index, require_visible
 from .task_upload_cancellations import TaskUploadCancellationService, operation_cancelled
@@ -248,7 +249,9 @@ def _response(unit, owner, vault_row, task_id, version):
             raise StoreUnavailable
         validate_schema("KeyProofs", row["keyProofs"])
         matching = [
-            bundle for bundle in vault_row["registryHistory"] if _proofs(bundle) == row["keyProofs"]
+            position
+            for position, bundle in enumerate(vault_row["registryHistory"])
+            if _proofs(bundle) == row["keyProofs"]
         ]
         if len(matching) != 1:
             raise StoreUnavailable
@@ -261,18 +264,24 @@ def _response(unit, owner, vault_row, task_id, version):
         if not 0 <= created_at <= written_at:
             raise StoreUnavailable
         historical = None
-        for bundle in vault_row["registryHistory"]:
-            historical = verify_registry(
-                bundle,
-                root_jwk=vault_row["rootJwk"],
-                pinned_root_key_id=vault_row["rootKeyId"],
-                owner_subject=owner,
-                vault_id=vault_row["vaultId"],
-                now=written_at,
-                previous=historical,
-            )
-            if bundle == matching[0]:
-                break
+        prefix_cache = getattr(unit, "registry_prefix_cache", None)
+        if type(prefix_cache) is RegistryPrefixCache:
+            historical = prefix_cache.get(owner, vault_row, matching[0], written_at)
+        if historical is None:
+            # Legacy/custom units and full caches retain the complete original
+            # history verification path; absence never means accepted authority.
+            for position, bundle in enumerate(vault_row["registryHistory"]):
+                historical = verify_registry(
+                    bundle,
+                    root_jwk=vault_row["rootJwk"],
+                    pinned_root_key_id=vault_row["rootKeyId"],
+                    owner_subject=owner,
+                    vault_id=vault_row["vaultId"],
+                    now=written_at,
+                    previous=historical,
+                )
+                if position == matching[0]:
+                    break
         if (
             historical is None
             or historical.registry_sequence != context["registrySequence"]
@@ -814,69 +823,72 @@ class TaskService:
         def read(unit):
             now = self.now()
             vault, _ = _current(unit, owner, now)
-            index = _index(unit, owner, vault["vaultId"])
-            lifecycle = lifecycle_index(unit, owner, vault["vaultId"])
-            ids = sorted(
-                t for t in index["tasks"] if lifecycle["tasks"].get(t, "active") == "active"
+            return self._list(
+                unit, owner, vault, now=now, limit=limit, cursor=cursor, issued_token=issued_token
             )
-            snapshot = _digest(
-                {
-                    "version": index["version"],
-                    "tasks": index["tasks"],
-                    "lifecycle": lifecycle["version"],
-                }
-            )
-            start = 0
-            if cursor is not None:
-                saved = index["cursors"].get(cursor)
-                if (
-                    saved is None
-                    or saved["limit"] != limit
-                    or now >= saved["expiresAt"]
-                    or saved["after"] not in ids
-                ):
-                    raise ContractError("unsupported_query")
-                if saved["snapshot"] != snapshot:
-                    raise ContractError("version_conflict")
-                start = ids.index(saved["after"]) + 1
-            chosen = ids[start : start + limit]
-            next_cursor = None
-            cursors = {
-                token: saved
-                for token, saved in index["cursors"].items()
-                if saved["expiresAt"] > now and saved["snapshot"] == snapshot
-            }
-            if start + len(chosen) < len(ids):
-                matches = [
-                    token
-                    for token, saved in cursors.items()
-                    if saved["after"] == chosen[-1] and saved["limit"] == limit
-                ]
-                if matches:
-                    next_cursor = sorted(matches)[0]
-                else:
-                    if len(cursors) >= 32:
-                        raise ContractError("version_conflict")
-                    next_cursor = issued_token
-                    cursors[next_cursor] = {
-                        "snapshot": snapshot,
-                        "after": chosen[-1],
-                        "expiresAt": now + CURSOR_SECONDS,
-                        "limit": limit,
-                    }
-            if cursors != index["cursors"]:
-                index["cursors"] = cursors
-                unit.put(document_path("hub_task_indexes", owner, vault["vaultId"]), index)
-            result = {
-                "contractVersion": CONTRACT_VERSION,
-                "items": [index["tasks"][key] for key in chosen],
-                "nextCursor": next_cursor,
-            }
-            validate_schema("TaskMetadataPage", result)
-            check_read_response(result)
-            return result
 
         return self.store.transact(read)
+
+    def _list(self, unit, owner, vault, *, now, limit, cursor, issued_token):
+        index = _index(unit, owner, vault["vaultId"])
+        lifecycle = lifecycle_index(unit, owner, vault["vaultId"])
+        ids = sorted(t for t in index["tasks"] if lifecycle["tasks"].get(t, "active") == "active")
+        snapshot = _digest(
+            {
+                "version": index["version"],
+                "tasks": index["tasks"],
+                "lifecycle": lifecycle["version"],
+            }
+        )
+        start = 0
+        if cursor is not None:
+            saved = index["cursors"].get(cursor)
+            if (
+                saved is None
+                or saved["limit"] != limit
+                or now >= saved["expiresAt"]
+                or saved["after"] not in ids
+            ):
+                raise ContractError("unsupported_query")
+            if saved["snapshot"] != snapshot:
+                raise ContractError("version_conflict")
+            start = ids.index(saved["after"]) + 1
+        chosen = ids[start : start + limit]
+        next_cursor = None
+        cursors = {
+            token: saved
+            for token, saved in index["cursors"].items()
+            if saved["expiresAt"] > now and saved["snapshot"] == snapshot
+        }
+        if start + len(chosen) < len(ids):
+            matches = [
+                token
+                for token, saved in cursors.items()
+                if saved["after"] == chosen[-1] and saved["limit"] == limit
+            ]
+            if matches:
+                next_cursor = sorted(matches)[0]
+            else:
+                if len(cursors) >= 32:
+                    raise ContractError("version_conflict")
+                next_cursor = issued_token
+                cursors[next_cursor] = {
+                    "snapshot": snapshot,
+                    "after": chosen[-1],
+                    "expiresAt": now + CURSOR_SECONDS,
+                    "limit": limit,
+                }
+        if cursors != index["cursors"]:
+            index["cursors"] = cursors
+            unit.put(document_path("hub_task_indexes", owner, vault["vaultId"]), index)
+        result = {
+            "contractVersion": CONTRACT_VERSION,
+            "items": [index["tasks"][key] for key in chosen],
+            "nextCursor": next_cursor,
+        }
+        validate_schema("TaskMetadataPage", result)
+        check_read_response(result)
+        return result
 
 
 def _protocol(request, *, write=False):
