@@ -236,7 +236,7 @@ function ResultCard({
     if (!el) return;
     if (typeof IntersectionObserver === "undefined") {
       model.wantTitle(row);
-      return;
+      return () => model.stopTitle(row);
     }
     const observer = new IntersectionObserver(
       (entries) => {

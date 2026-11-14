@@ -43,6 +43,8 @@ function compile(file, imports = {}, globals = {}) {
     module,
     exports: module.exports,
     require(name) {
+      if (name === "./WorkspacePanels")
+        return require("./workspace-panel-helpers.cjs").panelStandins(imports);
       if (["./WorkspaceFeedback", "./ReportDialog"].includes(name))
         return require("./workspace-feedback-helpers.cjs").component(name, imports);
       if (name === "@/lib/workspace-cache") return cacheContracts;
@@ -420,7 +422,10 @@ function flow({ hash = "", search = "", owner = "A:1", locked = false, hidden = 
   const render = (flush = true) => {
     page = pageHooks.run(() => Dashboard(), flush);
     active = find(page, (n) => n.type === Sidebar).props.activeView;
-    const props = find(page, (n) => n.type === TasksPanel).props;
+    const props = find(page, (n) => n.type === TasksPanel)?.props ?? {
+      workspace: shared,
+      active: false,
+    };
     inbox = inboxHooks.run(() => InboxPanel(props), flush).props.model;
     resources = libraryHooks.run(
       () => useResourceLibrary({ active: active === "resources" }),

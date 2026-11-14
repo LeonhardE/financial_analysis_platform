@@ -2,7 +2,7 @@ const test = require("node:test"),
   assert = require("node:assert/strict");
 const { compile, settle } = require("./resource-library-helpers.cjs");
 const CONTRACT = "folioview.agent-workspace.v2.0";
-function harness({ pending = new Map(), transport } = {}) {
+function harness({ pending = new Map(), transport, timers } = {}) {
   let owner = "owner_A",
     index = 0,
     dirty = false;
@@ -83,8 +83,14 @@ function harness({ pending = new Map(), transport } = {}) {
     {
       Response,
       AbortController,
-      setTimeout,
-      clearTimeout,
+      setTimeout: timers
+        ? (fn, ms) => {
+            const id = {};
+            timers.set(id, { fn, ms });
+            return id;
+          }
+        : setTimeout,
+      clearTimeout: timers ? (id) => timers.delete(id) : clearTimeout,
       setInterval,
       clearInterval,
       TextEncoder,
@@ -180,5 +186,52 @@ test("safe abandonment addresses the original operation with its signing-input f
   m = h.render();
   assert.deepEqual(Object.keys(m.records), []);
   assert.equal(m.pending, null);
+  h.close();
+});
+
+test("ignored command abort settles the UI and keeps its original pending packet without replay", async () => {
+  const timers = new Map();
+  const h = harness({
+    timers,
+    transport: async (_path, options) =>
+      options.method === "POST" ? new Promise(() => {}) : undefined,
+  });
+  const model = await h.ready();
+  const saving = model.command("task_A", "set_rules", null);
+  const rejected = assert.rejects(saving, /request_timeout/);
+  await settle();
+  assert.equal(h.pending.size, 1);
+  const timer = [...timers.values()].find((v) => v.ms === 14000);
+  assert.ok(timer);
+  timer.fn();
+  await rejected;
+  assert.equal(h.render().busy, false);
+  assert.equal(h.pending.size, 1);
+  await assert.rejects(h.render().command("task_A", "set_rules", null), /operation_pending/);
+  await h.ready();
+  assert.equal(h.calls.filter((c) => c.options.method === "POST").length, 1);
+  h.close();
+});
+
+test("task state and manual progress read together but publish only after state verification", async () => {
+  let release;
+  const blocked = new Promise((resolve) => {
+    release = resolve;
+  });
+  const h = harness({
+    transport: async (path) => (path.endsWith("/tasks/task_A") ? blocked : undefined),
+  });
+  h.render();
+  await settle();
+  assert.ok(
+    h.calls.some((call) => call.path.endsWith("/manual")),
+    "independent progress read must not wait for the state body",
+  );
+  assert.equal(h.render().records.task_A, undefined);
+  release(
+    Response.json({ contractVersion: CONTRACT, taskId: "task_A", rules: null, assignments: [] }),
+  );
+  const m = await h.ready();
+  assert.ok(m.records.task_A);
   h.close();
 });

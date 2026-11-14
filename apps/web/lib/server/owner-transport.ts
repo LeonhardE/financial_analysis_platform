@@ -375,12 +375,47 @@ export async function forwardResponse(
     (accept ? !accept(body) : !record(body) || body.contractVersion !== CONTRACT)
   )
     fail("authorization_unavailable");
+  const timing = backendTiming(response.headers.get("server-timing"));
   return new Response(responseRaw, {
     status: response.status,
     headers: {
       "Content-Type": "application/json",
       "Cache-Control": "no-store",
+      ...(timing ? { "Server-Timing": timing } : {}),
       ...(response.status === 401 ? { "WWW-Authenticate": "Bearer" } : {}),
     },
   });
+}
+
+/** Fixed numeric fields only. Never forward descriptions, arbitrary names or request data. */
+export function backendTiming(value: string | null): string | null {
+  if (!value || value.length > 128) return null;
+  const seen = new Set<string>();
+  for (const item of value.split(",")) {
+    const match = /^(fv_app|fv_firebase);dur=(\d{1,8}\.\d{3})$/.exec(item.trim());
+    if (
+      !match ||
+      seen.has(match[1]) ||
+      !Number.isFinite(Number(match[2])) ||
+      Number(match[2]) > 86400000
+    )
+      return null;
+    seen.add(match[1]);
+  }
+  return value
+    .split(",")
+    .map((item) => item.trim())
+    .join(", ");
+}
+
+export const proxyClock = () => globalThis.performance?.now() ?? Date.now();
+export function timeProxyResponse(response: Response, started: number) {
+  const duration = Math.max(0, Math.min(86400000, proxyClock() - started));
+  if (!Number.isFinite(duration)) return response;
+  const previous = response.headers.get("Server-Timing");
+  response.headers.set(
+    "Server-Timing",
+    `${previous ? previous + ", " : ""}fv_proxy_total;dur=${duration.toFixed(3)}`,
+  );
+  return response;
 }

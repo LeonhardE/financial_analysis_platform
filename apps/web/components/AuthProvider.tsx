@@ -1,7 +1,7 @@
 "use client";
 import { CURRENCY_PREFERENCES_PATH, currencyUpdate } from "@/lib/currency-preferences";
 
-import { DisplayReadPool } from "@/lib/workspace-cache";
+import { DisplayReadPool, untilSignal } from "@/lib/workspace-cache";
 import {
   createContext,
   useCallback,
@@ -961,7 +961,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Ask the SDK for a current token for each request; never persist a second copy.
       let token: string;
       try {
-        token = await session.user.getIdToken();
+        token = await untilSignal(session.user.getIdToken(), options.signal, sessionChanged);
       } catch {
         if (ownsSession()) invalidateSession();
         throw sessionChanged();
@@ -1002,7 +1002,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             )
           : readOnly
             ? await displayReads.current.queue(send, options.signal)
-            : await send(options.signal);
+            : await untilSignal(
+                send(options.signal).then((reply) => {
+                  if (!ownsSession()) {
+                    void reply.body?.cancel().catch(() => {});
+                    throw sessionChanged();
+                  }
+                  return reply;
+                }),
+                options.signal,
+                sessionChanged,
+              );
       if (!ownsSession()) {
         void response.body?.cancel().catch(() => {});
         throw sessionChanged();

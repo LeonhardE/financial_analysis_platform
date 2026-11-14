@@ -34,6 +34,8 @@ import {
   createFirebaseVerifier,
   createAdmission,
   forwardResponse,
+  proxyClock,
+  timeProxyResponse,
   type Options,
 } from "./owner-transport";
 
@@ -492,6 +494,7 @@ export function createHubProxy(options: Options = {}) {
   const verifyOwner = createFirebaseVerifier(send, now),
     admission = createAdmission(now);
   return async function hubProxy(request: Request): Promise<Response> {
+    const started = proxyClock();
     let releaseGlobal: (() => void) | undefined, releaseOwner: (() => void) | undefined;
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), options.deadlineMs ?? 12000);
@@ -524,38 +527,41 @@ export function createHubProxy(options: Options = {}) {
         void response.body?.cancel().catch(() => {});
         fail("authorization_unavailable");
       }
-      return await forwardResponse(response, signal, (body) =>
-        taskCenterRoute(path, request.method)
-          ? taskCenterResponse(path, body, headers.get("idempotency-key") ?? undefined) &&
-            (!path.startsWith("/api/v3/provider-connections/") ||
-              !record(body) ||
-              !("credentialReceipt" in body) ||
-              body.credentialReceipt === null ||
-              credentialReceipt(
-                body.credentialReceipt,
-                headers.get("idempotency-key") ?? path.split("/operations/")[1],
-              ))
-          : rule.cancel
-            ? cancellationResponse(
-                "task",
-                body,
-                rule.cancel.slot,
-                rule.cancel.id ?? headers.get("idempotency-key") ?? undefined,
-              )
-            : persistentOwnerRoute(path.split("?", 1)[0], request.method)
-              ? persistentResponse(
-                  path,
-                  request.method,
+      return timeProxyResponse(
+        await forwardResponse(response, signal, (body) =>
+          taskCenterRoute(path, request.method)
+            ? taskCenterResponse(path, body, headers.get("idempotency-key") ?? undefined) &&
+              (!path.startsWith("/api/v3/provider-connections/") ||
+                !record(body) ||
+                !("credentialReceipt" in body) ||
+                body.credentialReceipt === null ||
+                credentialReceipt(
+                  body.credentialReceipt,
+                  headers.get("idempotency-key") ?? path.split("/operations/")[1],
+                ))
+            : rule.cancel
+              ? cancellationResponse(
+                  "task",
                   body,
-                  headers.get("idempotency-key") ?? undefined,
+                  rule.cancel.slot,
+                  rule.cancel.id ?? headers.get("idempotency-key") ?? undefined,
                 )
-              : hubResponse(
-                  path,
-                  request.method,
-                  body,
-                  headers.get("idempotency-key") ?? undefined,
-                  taskIds,
-                ),
+              : persistentOwnerRoute(path.split("?", 1)[0], request.method)
+                ? persistentResponse(
+                    path,
+                    request.method,
+                    body,
+                    headers.get("idempotency-key") ?? undefined,
+                  )
+                : hubResponse(
+                    path,
+                    request.method,
+                    body,
+                    headers.get("idempotency-key") ?? undefined,
+                    taskIds,
+                  ),
+        ),
+        started,
       );
     } catch (error) {
       const response = errorResponse(
@@ -564,7 +570,7 @@ export function createHubProxy(options: Options = {}) {
       );
       if (request.method === "GET" && controller.signal.aborted && !request.signal.aborted)
         response.headers.set("X-FolioView-Read-Failure", "deadline");
-      return response;
+      return timeProxyResponse(response, started);
     } finally {
       releaseOwner?.();
       releaseGlobal?.();

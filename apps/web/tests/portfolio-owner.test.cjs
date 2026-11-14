@@ -208,7 +208,7 @@ test.before(async () => {
     "./portfolio-owner": portfolio,
     "./hub-owner": { hubConfiguration: () => null },
   });
-  moduleApi = { ...portfolio, ...caps };
+  moduleApi = { ...common, ...portfolio, ...caps };
   tokenA = await googleToken();
   serviceToken = await new jose.SignJWT({
     iss: "https://accounts.google.com",
@@ -1089,4 +1089,42 @@ test("Root upload cancellation POST/GET keeps the exact profile and rejects sele
     assert.equal(reply.status, 503);
     assert.ok(!(await reply.text()).includes("PRIVATE_CANARY"));
   }
+});
+
+test("Owner proxy forwards only closed numeric backend timing and measures its complete response path", async () => {
+  const good = "fv_app;dur=1.250, fv_firebase;dur=0.000";
+  assert.equal(moduleApi.backendTiming(good), good);
+  for (const bad of [
+    null,
+    "",
+    "fv_app;dur=NaN",
+    "fv_app;dur=99999999.999",
+    "fv_app;dur=-1.000",
+    "fv_app;dur=1.000;desc=PRIVATE",
+    "PRIVATE;dur=1.000",
+    "fv_app;dur=1.000, fv_app;dur=2.000",
+    "fv_app;dur=1.000, PRIVATE",
+    "x".repeat(129),
+  ])
+    assert.equal(moduleApi.backendTiming(bad), null);
+  const h = harness({
+    upstream: async () =>
+      jsonResponse(undefined, {
+        headers: { "Server-Timing": good, "X-Private-Sentinel": "PRIVATE" },
+      }),
+  });
+  const response = await h.proxy(request(SOURCE + "/latest"));
+  assert.equal(response.status, 200);
+  assert.match(
+    response.headers.get("server-timing"),
+    /^fv_app;dur=1\.250, fv_firebase;dur=0\.000, fv_proxy_total;dur=\d+\.\d{3}$/,
+  );
+  assert.equal(response.headers.get("X-Private-Sentinel"), null);
+  const failure = await harness({ env: {} }).proxy(request(SOURCE + "/latest"));
+  assert.equal(failure.status, 503);
+  assert.match(failure.headers.get("server-timing"), /^fv_proxy_total;dur=\d+\.\d{3}$/);
+  assert.equal(
+    moduleApi.timeProxyResponse(new Response("test"), Infinity).headers.get("server-timing"),
+    "fv_proxy_total;dur=0.000",
+  );
 });

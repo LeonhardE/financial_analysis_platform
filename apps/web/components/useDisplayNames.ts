@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useAuth } from "./AuthProvider";
 import type { HoldingsWorkspace } from "./useHoldingsWorkspace";
+import { untilSignal } from "@/lib/workspace-cache";
 type J = Record<string, any>;
 const C = "folioview.agent-workspace.v2.0",
   P = "folioview.private-display-name.v1";
@@ -85,11 +86,8 @@ export function useDisplayNames(workspace: HoldingsWorkspace, active: boolean) {
       };
       try {
         check();
-        const response = await start.auth.requestPrivate(
-          "agent-hub",
-          path,
-          start.auth.sessionKey!,
-          {
+        const response = await untilSignal(
+          start.auth.requestPrivate("agent-hub", path, start.auth.sessionKey!, {
             method: options.packet ? "POST" : "GET",
             signal: abort.signal,
             coalesceDisplay: !options.packet && !options.fresh,
@@ -98,7 +96,9 @@ export function useDisplayNames(workspace: HoldingsWorkspace, active: boolean) {
               "X-FolioView-Contract": C,
               ...(options.packet ? { "Idempotency-Key": options.packet.operationId } : {}),
             },
-          },
+          }),
+          abort.signal,
+          () => Error(timedOut ? "timeout" : "cancelled"),
         );
         check();
         if (response.status === 404 && options.missing) {
@@ -129,7 +129,9 @@ export function useDisplayNames(workspace: HoldingsWorkspace, active: boolean) {
         abort.signal.addEventListener("abort", cancel, { once: true });
         try {
           for (;;) {
-            const part = await reader.read();
+            const part = await untilSignal(reader.read(), abort.signal, () =>
+              Error(timedOut ? "timeout" : "cancelled"),
+            );
             check();
             if (part.done) break;
             size += part.value.length;
@@ -163,7 +165,11 @@ export function useDisplayNames(workspace: HoldingsWorkspace, active: boolean) {
         } finally {
           abort.signal.removeEventListener("abort", cancel);
           cancel();
-          reader.releaseLock();
+          try {
+            reader.releaseLock();
+          } catch {
+            /* Cancelled reader may still be pending. */
+          }
         }
       } catch (error) {
         check();

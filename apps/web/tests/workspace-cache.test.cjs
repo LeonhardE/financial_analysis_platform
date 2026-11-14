@@ -141,3 +141,104 @@ test("private reads queue at two transports, cancel before dispatch and release 
   const fresh = await p.run("fresh", async () => new Response("fresh"));
   assert.equal(await fresh.text(), "fresh");
 });
+
+test("cancelling a dispatched read settles its subscriber while retaining the physical slot", async () => {
+  const pool = new DisplayReadPool(),
+    a = new AbortController(),
+    first = gate(),
+    second = gate(),
+    third = gate();
+  let sent = 0,
+    cancelledBody = 0;
+  const run = (g, signal) =>
+    pool.queue(() => {
+      sent++;
+      return g.promise;
+    }, signal);
+  const p1 = run(first, a.signal),
+    p2 = run(second),
+    p3 = run(third);
+  const rejected = assert.rejects(p1, /cancelled/);
+  await Promise.resolve();
+  assert.equal(sent, 2);
+  a.abort();
+  await rejected;
+  assert.equal(sent, 2, "ignored abort must not admit a third physical transport");
+  first.resolve(
+    new Response(
+      new ReadableStream({
+        cancel() {
+          cancelledBody++;
+        },
+      }),
+    ),
+  );
+  await new Promise(setImmediate);
+  assert.equal(cancelledBody, 1);
+  assert.equal(sent, 3);
+  second.resolve(new Response("two"));
+  third.resolve(new Response("three"));
+  await Promise.all([p2, p3]);
+});
+
+test("bounded JSON cancels excess UTF-8 bytes, bad lengths, malformed text and stuck readers", async () => {
+  const { boundedJson } = compile("../lib/workspace-cache.ts");
+  for (const response of [
+    new Response(JSON.stringify({ x: "密".repeat(8) })),
+    new Response("{}", { headers: { "Content-Length": "9000" } }),
+    new Response(new Uint8Array([0xff])),
+    new Response("{"),
+  ])
+    await assert.rejects(boundedJson(response, 20, new AbortController().signal));
+  assert.deepEqual(
+    JSON.parse(
+      JSON.stringify(
+        await boundedJson(Response.json({ x: "密" }), 16, new AbortController().signal),
+      ),
+    ),
+    { x: "密" },
+  );
+  const control = new AbortController();
+  let cancelled = 0;
+  const pending = boundedJson(
+    {
+      headers: new Headers(),
+      body: {
+        getReader: () => ({
+          read: () => new Promise(() => {}),
+          cancel: async () => {
+            cancelled++;
+          },
+          releaseLock() {
+            throw Error("still pending");
+          },
+        }),
+      },
+    },
+    100,
+    control.signal,
+  );
+  const rejected = assert.rejects(pending, /cancelled/);
+  control.abort();
+  await rejected;
+  assert.ok(cancelled > 0);
+});
+
+test("abort-aware waits settle ignored SDK calls and consume their late rejection", async () => {
+  const { untilSignal } = compile("../lib/workspace-cache.ts");
+  const a = new AbortController();
+  let reject;
+  const wait = untilSignal(
+    new Promise((_, no) => {
+      reject = no;
+    }),
+    a.signal,
+    () => Error("deadline"),
+  );
+  const rejected = assert.rejects(wait, /deadline/);
+  a.abort();
+  await rejected;
+  reject(Error("late SDK failure"));
+  await new Promise(setImmediate);
+  await assert.rejects(untilSignal(Promise.resolve("ignored"), a.signal), /cancelled/);
+});

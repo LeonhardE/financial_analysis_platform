@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { untilSignal } from "@/lib/workspace-cache";
 import { readAgentLinkConfiguration, type AgentLinkConfiguration } from "@/lib/agent-link";
 
 /** This public metadata response contains a configured destination, never a user or credential. */
@@ -13,6 +14,7 @@ export function useAgentLinkConfiguration(active: boolean) {
   const [visible, setVisible] = useState(
     () => typeof document === "undefined" || document.visibilityState !== "hidden",
   );
+  const fresh = useRef(0);
   const live = useRef({ active, visible });
   live.current = { active, visible };
   useEffect(() => {
@@ -21,26 +23,34 @@ export function useAgentLinkConfiguration(active: boolean) {
     return () => document.removeEventListener("visibilitychange", change);
   }, []);
   useEffect(() => {
-    if (!active || !visible) return;
+    if (
+      !active ||
+      !visible ||
+      (fresh.current > 0 && Date.now() - fresh.current >= 0 && Date.now() - fresh.current < 60000)
+    )
+      return;
     const controller = new AbortController();
     let disposed = false;
     const timer = window.setTimeout(() => {
       controller.abort();
       if (!disposed && live.current.active && live.current.visible)
-        setState({ data: null, loading: false, error: true });
+        setState((previous) => ({ ...previous, loading: false, error: true }));
     }, 15_000);
     const current = () =>
       !disposed && !controller.signal.aborted && live.current.active && live.current.visible;
     setState((previous) => ({ ...previous, loading: true, error: false }));
     void (async () => {
       try {
-        const response = await fetch("/api/private/agent-link/config", {
-          method: "GET",
-          cache: "no-store",
-          credentials: "omit",
-          signal: controller.signal,
-          headers: { Accept: "application/json" },
-        });
+        const response = await untilSignal(
+          fetch("/api/private/agent-link/config", {
+            method: "GET",
+            cache: "no-store",
+            credentials: "omit",
+            signal: controller.signal,
+            headers: { Accept: "application/json" },
+          }),
+          controller.signal,
+        );
         if (!current()) return;
         if (
           response.status !== 200 ||
@@ -59,7 +69,7 @@ export function useAgentLinkConfiguration(active: boolean) {
         controller.signal.addEventListener("abort", cancel, { once: true });
         try {
           for (;;) {
-            const part = await reader.read();
+            const part = await untilSignal(reader.read(), controller.signal);
             if (!current()) return;
             if (part.done) break;
             size += part.value.byteLength;
@@ -68,15 +78,22 @@ export function useAgentLinkConfiguration(active: boolean) {
           }
           text += decoder.decode();
           const data = readAgentLinkConfiguration(JSON.parse(text));
-          if (current()) setState({ data, loading: false, error: false });
+          if (current()) {
+            fresh.current = Date.now();
+            setState({ data, loading: false, error: false });
+          }
         } finally {
           controller.signal.removeEventListener("abort", cancel);
           cancel();
-          reader.releaseLock();
+          try {
+            reader.releaseLock();
+          } catch {
+            /* Cancelled reader can still be pending. */
+          }
         }
       } catch {
         if (!disposed && live.current.active && live.current.visible)
-          setState({ data: null, loading: false, error: true });
+          setState((previous) => ({ ...previous, loading: false, error: true }));
       } finally {
         window.clearTimeout(timer);
       }

@@ -2763,3 +2763,22 @@ test("task packet query body and selector validation happen before token access"
   assert.equal(h.requests.length, requests);
   h.unmount();
 });
+
+test("cancelling a stalled token SDK read settles without invalidating the signed-in account", async () => {
+  const h = mountProvider({ fetchOwnerConfig: async () => configResponse(false, true) });
+  const current = user("a");
+  h.emitUser(current);
+  await settle();
+  current.getIdToken = () => new Promise(() => {});
+  const controller = new AbortController(),
+    before = h.requests.length;
+  const pending = h.actions.requestPrivate("agent-hub", "/api/v2/tasks", "a:1", {
+    signal: controller.signal,
+  });
+  const rejected = assert.rejects(pending, /session changed/);
+  controller.abort();
+  await rejected;
+  assert.equal(h.state().status, "authenticated");
+  assert.equal(h.requests.length, before);
+  h.unmount();
+});

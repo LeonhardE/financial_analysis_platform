@@ -20,6 +20,8 @@ function compile(file, imports, globals = {}) {
     module,
     exports: module.exports,
     require: (name) => {
+      if (name === "./WorkspacePanels")
+        return require("./workspace-panel-helpers.cjs").panelStandins(imports);
       assert.ok(name in imports, name);
       return imports[name];
     },
@@ -141,15 +143,21 @@ test("workspace navigation keeps one owner session without server transitions af
   let tree = render();
   let sidebar = find(tree, (node) => node.type === Sidebar).tree;
   assert.equal(sidebar.props.activeView, "markets");
-  const first = find(tree, (node) => node.type === ResourcePanel);
-  assert.ok(first);
+  assert.equal(
+    find(tree, (node) => node.type === ResourcePanel),
+    null,
+  );
+  assert.equal(
+    find(tree, (node) => node.type === TasksPanel),
+    null,
+  );
   assert.equal(workspaceCalls, 1);
-  assert.equal(first.tree.props.workspace, sharedWorkspace);
-  assert.equal(first.parent.props.hidden, true);
   sidebar.props.onNavigate("resources");
   assert.equal(pathname, "/resources");
   tree = render();
-  const active = find(tree, (node) => node.type === ResourcePanel);
+  const first = find(tree, (node) => node.type === ResourcePanel);
+  assert.equal(first.tree.props.workspace, sharedWorkspace);
+  const active = first;
   assert.equal(active.parent.props.hidden, false);
   assert.deepEqual(active.trail, first.trail);
   assert.equal(active.tree.type, first.tree.type);

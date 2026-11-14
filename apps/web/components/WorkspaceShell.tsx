@@ -5,15 +5,18 @@ import { usePathname } from "next/navigation";
 import { workspaceHref, workspaceView } from "@/lib/workspace-routes";
 import { useLocale, useTranslations } from "next-intl";
 import { usePreferences } from "@/components/PreferencesProvider";
-import SettingsPanel from "@/components/SettingsPanel";
-import ResourcesPanel from "@/components/ResourcesPanel";
-import { PersistentAgentsPanel } from "./PersistentAgentsPanel";
+import {
+  SettingsPanel,
+  ResourcesPanel,
+  TasksPanel,
+  PersistentAgentsPanel,
+  CandlestickChart,
+} from "./WorkspacePanels";
 import { usePersistentWorkspace } from "./usePersistentWorkspace";
 import { useAgentLinkConfiguration } from "./useAgentLinkConfiguration";
-import TasksPanel, { type TaskRequest } from "@/components/TasksPanel";
+import type { TaskRequest } from "@/components/TasksPanel";
 import { useHoldingsWorkspace } from "@/components/useHoldingsWorkspace";
 import { localizeMessage } from "@/lib/ui-messages";
-import { CandlestickChart } from "@/components/CandlestickChart";
 import { InstrumentMetrics } from "@/components/InstrumentMetrics";
 import FxRatesPanel from "@/components/FxRatesPanel";
 import { WorkspaceSidebar, type WorkspaceView } from "@/components/WorkspaceSidebar";
@@ -64,6 +67,9 @@ export default function WorkspaceShell() {
   const pathname = usePathname();
   const requestedView = workspaceView(pathname) ?? "markets";
   const activeView = requestedView === "inbox" ? "tasks" : requestedView;
+  const visited = useRef(new Set<string>());
+  visited.current.add(activeView);
+  const marketsVisited = visited.current.has("markets");
   const encryptedWorkspace = useHoldingsWorkspace();
   const agentViewsActive = activeView === "tasks" || activeView === "agents";
   const persistentConfiguration = useAgentLinkConfiguration(agentViewsActive);
@@ -141,20 +147,27 @@ export default function WorkspaceShell() {
   const pickerDialog = useRef<HTMLDialogElement>(null);
   const chartHeading = useRef<HTMLHeadingElement>(null);
   const watchlist = useWatchlist();
-  const overview = useCachedMarketResource<MarketOverview>("/api/stocks", overviewReload);
+  const overview = useCachedMarketResource<MarketOverview>(
+    marketsVisited ? "/api/stocks" : null,
+    overviewReload,
+  );
   const sharesOverviewRefresh =
     range === "1m" &&
     DEFAULT_INSTRUMENTS.some((instrument) => instrument.symbol === selected.symbol);
   // Probe both caches immediately. Only the overlapping upstream download waits.
   const chart = useCachedMarketResource<CandleResponse>(
-    `/api/stocks/${encodeURIComponent(selected.symbol)}/candles?range=${range}`,
+    marketsVisited
+      ? `/api/stocks/${encodeURIComponent(selected.symbol)}/candles?range=${range}`
+      : null,
     chartReload,
     !sharesOverviewRefresh || overview.hasSettled,
   );
   const chartLoading = chart.loading;
   const searchQuery = query.trim();
   const search = useMarketResource<SearchResponse>(
-    searchQuery.length >= 2 ? `/api/stocks/search?q=${encodeURIComponent(searchQuery)}` : null,
+    activeView === "markets" && searchQuery.length >= 2
+      ? `/api/stocks/search?q=${encodeURIComponent(searchQuery)}`
+      : null,
     0,
     400,
   );
@@ -411,45 +424,51 @@ export default function WorkspaceShell() {
       {!pickerOpen && activeView === "markets" && <WatchlistNotification watchlist={watchlist} />}
       <main className="workspace-content" id="workspace-content">
         <div className="workspace-page" hidden={activeView !== "settings"}>
-          <SettingsPanel workspace={encryptedWorkspace} />
+          {visited.current.has("settings") && <SettingsPanel workspace={encryptedWorkspace} />}
         </div>
         <div className="workspace-page" hidden={activeView !== "resources"}>
-          <ResourcesPanel
-            watchlist={watchlist}
-            active={activeView === "resources"}
-            onCreateTask={(binding) => {
-              if (!encryptedWorkspace.authenticated || !encryptedWorkspace.owner) return;
-              setTaskRequest({
-                owner: encryptedWorkspace.owner,
-                binding,
-                nonce: ++taskRequestSerial.current,
-              });
-              navigate("tasks");
-            }}
-            workspace={encryptedWorkspace}
-            onOpenWatchlist={() => {
-              setPickerTab("watchlist");
-              navigate("markets");
-            }}
-          />
+          {visited.current.has("resources") && (
+            <ResourcesPanel
+              watchlist={watchlist}
+              active={activeView === "resources"}
+              onCreateTask={(binding) => {
+                if (!encryptedWorkspace.authenticated || !encryptedWorkspace.owner) return;
+                setTaskRequest({
+                  owner: encryptedWorkspace.owner,
+                  binding,
+                  nonce: ++taskRequestSerial.current,
+                });
+                navigate("tasks");
+              }}
+              workspace={encryptedWorkspace}
+              onOpenWatchlist={() => {
+                setPickerTab("watchlist");
+                navigate("markets");
+              }}
+            />
+          )}
         </div>
         <div className="workspace-page" hidden={activeView !== "tasks"}>
-          <TasksPanel
-            persistent={persistent}
-            onNavigate={navigate}
-            workspace={encryptedWorkspace}
-            active={activeView === "tasks"}
-            request={taskRequest?.owner === encryptedWorkspace.owner ? taskRequest : null}
-            onRequestConsumed={() => setTaskRequest(null)}
-          />
+          {visited.current.has("tasks") && (
+            <TasksPanel
+              persistent={persistent}
+              onNavigate={navigate}
+              workspace={encryptedWorkspace}
+              active={activeView === "tasks"}
+              request={taskRequest?.owner === encryptedWorkspace.owner ? taskRequest : null}
+              onRequestConsumed={() => setTaskRequest(null)}
+            />
+          )}
         </div>
         <div className="workspace-page" hidden={activeView !== "agents"}>
-          <PersistentAgentsPanel
-            workspace={encryptedWorkspace}
-            model={persistent}
-            origin={persistentConfiguration.data?.hubOrigin ?? null}
-            active={activeView === "agents"}
-          />
+          {visited.current.has("agents") && (
+            <PersistentAgentsPanel
+              workspace={encryptedWorkspace}
+              model={persistent}
+              origin={persistentConfiguration.data?.hubOrigin ?? null}
+              active={activeView === "agents"}
+            />
+          )}
         </div>
         <div className="market-view" hidden={activeView !== "markets"}>
           <section className="index-strip" aria-label={t("market.indices")}>

@@ -18,7 +18,8 @@ const meta = () => ({
   starred: false,
   archived: false,
 });
-function harness({ transport } = {}) {
+function harness({ transport, center, timers, clock = Date } = {}) {
+  let observed = "";
   let owner = "owner_A",
     index = 0,
     dirty = false,
@@ -178,9 +179,15 @@ function harness({ transport } = {}) {
       TextEncoder,
       Uint8Array,
       AbortController,
-      setTimeout,
-      clearTimeout,
-      Date,
+      setTimeout: timers
+        ? (fn, ms) => {
+            const id = {};
+            timers.set(id, { fn, ms });
+            return id;
+          }
+        : setTimeout,
+      clearTimeout: timers ? (id) => timers.delete(id) : clearTimeout,
+      Date: clock,
     },
   );
   function render() {
@@ -199,6 +206,8 @@ function harness({ transport } = {}) {
         },
         model,
         active,
+        observed,
+        center,
       );
       for (const e of effects.splice(0)) {
         cells[e.n]?.cleanup?.();
@@ -212,6 +221,9 @@ function harness({ transport } = {}) {
     workspace,
     model,
     calls,
+    observe(v) {
+      observed = v;
+    },
     events,
     async ready() {
       for (let i = 0; i < 10; i++) {
@@ -245,6 +257,9 @@ function harness({ transport } = {}) {
 test("title preload never marks read; presentation performs exactly one signed update, and history retains the original Agent", async () => {
   const h = harness();
   let m = await h.ready();
+  assert.equal(h.stats().decrypts, 0, "overview does not preload private report bodies");
+  m.wantTitle(m.rows[0]);
+  m = await h.ready();
   assert.equal(m.title(m.rows[0]), "PRIVATE_REPORT");
   assert.equal(h.stats().signs, 0);
   assert.equal(m.unreadCounts.task_A, 1);
@@ -347,5 +362,244 @@ test("read-only presentation does not consume the later ability to acknowledge a
   m.presented(m.detail);
   await h.ready();
   assert.equal(h.stats().signs, 1);
+  h.close();
+});
+
+test("initial result metadata reads only one page per source and no private report bodies", async () => {
+  const h = harness({
+    transport: async (path) =>
+      path.includes("?limit=")
+        ? Response.json({
+            contractVersion: C,
+            ...(path.includes("persistent-results")
+              ? { profile: "folioview.persistent-content.v1" }
+              : {}),
+            items: [],
+            nextCursor: path.includes("persistent-results")
+              ? "pidx_" + "a".repeat(64) + ":1"
+              : "next",
+          })
+        : undefined,
+  });
+  let m = await h.ready();
+  assert.equal(h.calls.filter((c) => c.path.includes("?limit=")).length, 3);
+  assert.equal(m.hasMore, true);
+  assert.equal(m.partial, true);
+  assert.equal(h.stats().decrypts, 0);
+  await m.more();
+  m = h.render();
+  assert.equal(h.calls.filter((c) => c.path.includes("?limit=")).length, 6);
+  h.close();
+});
+
+test("selected task history shares verified center state and pages only after explicit More", async () => {
+  const h = harness({
+    center: { records: { task_A: { rules: {} } } },
+    transport: async (path, options) => {
+      if (path.endsWith("/results/query"))
+        return Response.json({
+          contractVersion: C,
+          profile: "folioview.task-center.v1",
+          items: [
+            {
+              kind: "persistent",
+              metadata: {
+                ...meta(),
+                resultId: options.json.request.cursor ? "presult_older" : "presult_first",
+              },
+              triggerKind: "manual",
+              attribution: { provider: "chatgpt" },
+            },
+          ],
+          nextCursor: options.json.request.cursor ? null : "older",
+        });
+    },
+  });
+  let m = await h.ready();
+  assert.equal(h.calls.filter((c) => c.path.endsWith("/results/query")).length, 1);
+  assert.equal(
+    h.calls.some((c) => c.path === "/api/v3/task-center/vault_A/tasks/task_A"),
+    false,
+  );
+  assert.ok(m.allTaskRows.some((r) => r.metadata.resultId === "presult_first"));
+  const first = m.allTaskRows.find((r) => r.metadata.resultId === "presult_first");
+  assert.equal(m.providerFor(first), "chatgpt");
+  assert.equal(first.triggerKind, "manual");
+  assert.equal(m.hasMore, true);
+  assert.equal(m.complete, false);
+  await m.more();
+  m = h.render();
+  assert.equal(h.calls.filter((c) => c.path.endsWith("/results/query")).length, 2);
+  assert.ok(m.allTaskRows.some((r) => r.metadata.resultId === "presult_older"));
+  assert.equal(m.complete, true);
+  h.active(false);
+  h.render();
+  h.active(true);
+  await h.ready();
+  assert.equal(h.calls.filter((c) => c.path.endsWith("/results/query")).length, 2);
+  h.close();
+});
+
+test("a malformed selected page publishes neither foreign rows nor invented trigger attribution", async () => {
+  const h = harness({
+    center: { records: { task_A: { rules: {} } } },
+    transport: async (path) =>
+      path.endsWith("/results/query")
+        ? Response.json({
+            contractVersion: C,
+            profile: "folioview.task-center.v1",
+            items: [
+              {
+                kind: "persistent",
+                metadata: { ...meta(), taskId: "task_FOREIGN" },
+                triggerKind: "manual",
+              },
+            ],
+            nextCursor: null,
+          })
+        : undefined,
+  });
+  const m = await h.ready();
+  assert.equal(m.error, "invalid_response");
+  assert.equal(m.allTaskRows.length, 1);
+  assert.equal(m.allTaskRows[0].triggerKind, "legacy_unknown");
+  assert.equal(m.complete, false);
+  h.close();
+});
+
+test("ignored result transport and body cancellation settle after the request deadline", async () => {
+  for (const stuck of ["transport", "body"]) {
+    const timers = new Map();
+    const h = harness({
+      timers,
+      transport: async (path) =>
+        path.includes("?limit=")
+          ? stuck === "transport"
+            ? new Promise(() => {})
+            : {
+                ok: true,
+                headers: new Headers(),
+                body: {
+                  getReader: () => ({
+                    read: () => new Promise(() => {}),
+                    cancel: async () => {},
+                    releaseLock() {},
+                  }),
+                },
+              }
+          : undefined,
+    });
+    h.render();
+    await tick();
+    for (const t of [...timers.values()].filter((t) => t.ms === 14000)) t.fn();
+    await tick();
+    const m = h.render();
+    assert.equal(m.loading, false);
+    assert.equal(m.error, "request_timeout");
+    assert.equal(m.complete, false);
+    h.close();
+  }
+});
+
+test("expired result metadata refreshes the head instead of continuing an old cursor", async () => {
+  let now = 100000;
+  const h = harness({
+    clock: class extends Date {
+      static now() {
+        return now;
+      }
+    },
+    center: { records: { task_A: { rules: {} } } },
+    transport: async (path, options) => {
+      if (path.endsWith("/results/query"))
+        return Response.json({
+          contractVersion: C,
+          profile: "folioview.task-center.v1",
+          items: [],
+          nextCursor: "older-selected",
+        });
+      if (path.includes("?limit="))
+        return Response.json({
+          contractVersion: C,
+          ...(path.includes("persistent-results")
+            ? { profile: "folioview.persistent-content.v1" }
+            : {}),
+          items: [],
+          nextCursor: path.includes("persistent-results")
+            ? "pidx_" + "b".repeat(64) + ":1"
+            : "older-global",
+        });
+    },
+  });
+  await h.ready();
+  h.active(false);
+  h.render();
+  now += 30001;
+  h.active(true);
+  await h.ready();
+  const globals = h.calls.filter((c) => c.path.includes("?limit="));
+  assert.equal(globals.length, 6);
+  assert.ok(
+    globals.every((c) => !c.path.includes("cursor=")),
+    JSON.stringify(globals.map((c) => c.path)),
+  );
+  const selected = h.calls.filter((c) => c.path.endsWith("/results/query"));
+  assert.equal(selected.length, 2);
+  assert.ok(selected.every((c) => c.options.json.request.cursor === null));
+  h.close();
+});
+
+test("new results arriving during initial loading queue one fresh head read without losing the notification", async () => {
+  let release;
+  const blocked = new Promise((resolve) => {
+    release = resolve;
+  });
+  let first = true;
+  const h = harness({
+    transport: async (path) => {
+      if (path.includes("persistent-results/") && path.includes("?limit=") && first) {
+        first = false;
+        return blocked;
+      }
+    },
+  });
+  h.render();
+  await tick();
+  h.observe("presult_new");
+  h.render();
+  await tick();
+  release(
+    Response.json({
+      contractVersion: C,
+      profile: "folioview.persistent-content.v1",
+      items: [],
+      nextCursor: null,
+    }),
+  );
+  await h.ready();
+  assert.equal(h.calls.filter((c) => c.path.includes("?limit=")).length, 6);
+  assert.equal(h.render().loading, false);
+  h.close();
+});
+
+test("a task entering the new result route refreshes despite a fresh legacy display cache", async () => {
+  const center = { records: { task_A: { rules: null } } };
+  const h = harness({
+    center,
+    transport: async (path) =>
+      path.endsWith("/results/query")
+        ? Response.json({
+            contractVersion: C,
+            profile: "folioview.task-center.v1",
+            items: [],
+            nextCursor: null,
+          })
+        : undefined,
+  });
+  await h.ready();
+  assert.equal(h.calls.filter((c) => c.path.endsWith("/results/query")).length, 0);
+  center.records.task_A = { rules: {} };
+  await h.ready();
+  assert.equal(h.calls.filter((c) => c.path.endsWith("/results/query")).length, 1);
   h.close();
 });

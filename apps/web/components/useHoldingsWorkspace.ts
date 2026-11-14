@@ -20,7 +20,7 @@ import {
   type PositionEdit,
   type SavedHoldings,
 } from "@/lib/holdings-facts";
-import { WorkspaceDisplayCache } from "@/lib/workspace-cache";
+import { WorkspaceDisplayCache, boundedJson, untilSignal } from "@/lib/workspace-cache";
 import { EncryptedVaultSession } from "@/lib/encrypted-vault";
 import {
   createVaultPasskey,
@@ -723,26 +723,31 @@ export function useHoldingsWorkspace() {
       if (!owner || ownerRef.current !== owner || signal.aborted)
         throw new WorkspaceError("cancelled");
       const { allowMissing, ...transport } = options;
-      const response = readResponse
-        ? await readResponse()
-        : await auth.requestPrivate(service, path, owner, {
-            ...transport,
-            signal,
-            headers: { ...contractHeaders, ...(options.headers ?? {}) },
-          });
+      const cancelled = () => new WorkspaceError("cancelled");
+      const response = await untilSignal(
+        readResponse
+          ? readResponse()
+          : auth.requestPrivate(service, path, owner, {
+              ...transport,
+              signal,
+              headers: { ...contractHeaders, ...(options.headers ?? {}) },
+            }),
+        signal,
+        cancelled,
+      );
+      const read = async (limit: number) => {
+        try {
+          return await boundedJson(response, limit, signal, cancelled);
+        } catch (error) {
+          if (signal.aborted || ownerRef.current !== owner) throw cancelled();
+          throw new WorkspaceError("invalid_response");
+        }
+      };
       if (ownerRef.current !== owner || signal.aborted) throw new WorkspaceError("cancelled");
       if (!response.ok) {
         if (allowMissing && response.status === 404) {
-          const text = await response.text();
-          if (ownerRef.current !== owner || signal.aborted) throw new WorkspaceError("cancelled");
-          if (new TextEncoder().encode(text).length > 16_384)
-            throw new WorkspaceError("invalid_response");
-          let value: unknown;
-          try {
-            value = JSON.parse(text);
-          } catch {
-            throw new WorkspaceError("invalid_response");
-          }
+          const value: unknown = await read(16384);
+          if (ownerRef.current !== owner || signal.aborted) throw cancelled();
           if (
             !record(value) ||
             value.contractVersion !== CONTRACT ||
@@ -762,15 +767,9 @@ export function useHoldingsWorkspace() {
                 : "service_unavailable",
         );
       }
-      const text = await response.text();
-      if (ownerRef.current !== owner || signal.aborted) throw new WorkspaceError("cancelled");
-      if (new TextEncoder().encode(text).length > 1_048_576)
-        throw new WorkspaceError("invalid_response");
-      try {
-        return JSON.parse(text);
-      } catch {
-        throw new WorkspaceError("invalid_response");
-      }
+      const value = await read(1048576);
+      if (ownerRef.current !== owner || signal.aborted) throw cancelled();
+      return value;
     },
     [auth.requestPrivate, owner],
   );

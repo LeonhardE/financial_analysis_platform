@@ -20,6 +20,8 @@ import {
   createFirebaseVerifier,
   createAdmission,
   forwardResponse,
+  proxyClock,
+  timeProxyResponse,
   type Options,
 } from "./owner-transport";
 
@@ -260,6 +262,7 @@ export function createPortfolioProxy(options: Options = {}) {
   }
 
   return async function portfolioProxy(request: Request): Promise<Response> {
+    const started = proxyClock();
     let releaseGlobal: (() => void) | undefined;
     let releaseOwner: (() => void) | undefined;
     const controller = new AbortController();
@@ -292,25 +295,31 @@ export function createPortfolioProxy(options: Options = {}) {
         response.status !== 200
       )
         fail("authorization_unavailable");
-      return await forwardResponse(
-        response,
-        signal,
-        rule.cancel
-          ? (value) =>
-              cancellationResponse(
-                "holdings",
-                value,
-                rule.cancel!.slot,
-                rule.cancel!.id ?? headers.get("idempotency-key") ?? undefined,
-              )
-          : rule.kind === "synchronize"
-            ? (value) => synchronizedReceipt(value, path)
-            : undefined,
+      return timeProxyResponse(
+        await forwardResponse(
+          response,
+          signal,
+          rule.cancel
+            ? (value) =>
+                cancellationResponse(
+                  "holdings",
+                  value,
+                  rule.cancel!.slot,
+                  rule.cancel!.id ?? headers.get("idempotency-key") ?? undefined,
+                )
+            : rule.kind === "synchronize"
+              ? (value) => synchronizedReceipt(value, path)
+              : undefined,
+        ),
+        started,
       );
     } catch (error) {
-      return errorResponse(
-        error instanceof Failure ? error.code : "authorization_unavailable",
-        error instanceof Failure ? error.admissionRetrySeconds : undefined,
+      return timeProxyResponse(
+        errorResponse(
+          error instanceof Failure ? error.code : "authorization_unavailable",
+          error instanceof Failure ? error.admissionRetrySeconds : undefined,
+        ),
+        started,
       );
     } finally {
       releaseOwner?.();

@@ -44,7 +44,10 @@ handoff keeps its prior precedence over an Inbox fragment. Login stays on the se
 
 ## Shared layout and feedback
 
-The shell and sidebar keep their DOM during navigation, including Settings. A single account-area
+The shell and sidebar keep their DOM during navigation. Private panels mount on first visit and
+then keep their DOM, including Settings. Their local code and chart code load in separate chunks;
+a stalled or failed chunk offers an in-place retry without reloading the unlocked workspace.
+An initial private route does not start the Market overview/chart requests. A single account-area
 Lock action replaces the full-width unlock banner and repeated page controls. Agent navigation is
 labelled Agent management. Holdings lifecycle actions and device/key controls use native expandable
 sections; pending device/archive/renewal conditions remain visible or open automatically.
@@ -96,7 +99,14 @@ request budget remains unchanged, and read-only batch POSTs share the same two-t
 Only opted-in display GETs share in-flight transport,with per-subscriber cancellation,16 keys and8
 subscribers per key. Responses are cloned for independent bounded body readers and are never kept
 as a fulfilled network cache. Operation/permission checks and writes retain fresh transports and
-existing signed-packet/CAS/acknowledgement rules. Route changes retain draft sealing in flight;
+existing signed-packet/CAS/acknowledgement rules. Cancellation settles even when a transport or SDK ignores abort;
+an abandoned read retains its physical transport slot until that send settles. Actual streamed byte
+budgets apply to holdings and task-state JSON. Departing Task Center cancels display reads while
+retaining scoped caches; unknown writes retain their original pending packet. Task state and manual
+progress reads run together and publish only after state verification. Public Agent destination
+metadata reuses a60-second route-reentry window and retains its valid origin on refresh failure.
+A verified connection remains actionable during display refresh; explicit operations preempt that
+refresh and still check fresh authority. Route changes retain draft sealing in flight;
 lock/identity/hidden boundaries still cancel it. Manual Run persistence/dispatch remains gated by the
 later task/Run contracts and provider validation; this change creates no local Run or schedule.
 
@@ -304,9 +314,13 @@ producer supplies verified trigger provenance. Current assignment does not infer
 which Agent produced a historical report.
 
 Metadata loads independently with visible progress, bounded pagination and local
-retry. Loaded unread counts show a lower bound until all pages are loaded.
-Title verification preloads visible rows through a three-item pool without marking
-reports read. Bodies use the owner/vault/generation scoped memory-only LRU
+retry. Each global source loads one page initially; further pages require Load more.
+The selected task reads one task-history page and reuses its already verified Task Center state,
+without a second state GET or an automatic32-page attribution scan. Sparse legacy history remains
+explicitly incomplete until its cursor is exhausted. Selected-task pages are bounded to32 memory
+entries and metadata to2,048 rows. Loaded unread counts show a lower bound until all pages are loaded.
+Only observed result rows request title verification, through a two-item pool without marking
+reports read. The task overview does not prefetch report ciphertext. Bodies use the owner/vault/generation scoped memory-only LRU
 (10 reports, 16 MiB); metadata/title indexes are bounded to 2,048 resident rows.
 List filters, selected row and scroll survive internal navigation. All private
 content is hidden on lock/account/generation/visibility changes, and task deletion

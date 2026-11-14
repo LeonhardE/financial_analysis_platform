@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { untilSignal, boundedJson } from "@/lib/workspace-cache";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
 
@@ -38,22 +39,31 @@ export function useMarketResource<T>(path: string | null, reload = 0, delay = 0)
     const timeout = window.setTimeout(async () => {
       requestTimeout = window.setTimeout(() => controller.abort(), 30_000);
       try {
-        const response = await fetch(`${API_BASE_URL}${path}`, {
-          signal: controller.signal,
-          credentials: "omit",
-          cache: "no-store",
-        });
+        const response = await untilSignal(
+          fetch(`${API_BASE_URL}${path}`, {
+            signal: controller.signal,
+            credentials: "omit",
+            cache: "no-store",
+          }),
+          controller.signal,
+        );
         if (!response.ok) {
           let message = "Market data is unavailable. Please try again shortly.";
           if (response.status === 404) message = "No market data is available for this symbol.";
           if (response.status === 429) message = "Too many requests. Please wait before retrying.";
           if (response.status === 503) {
-            const body: { detail?: unknown } = await response.json().catch(() => ({}));
+            const body: { detail?: unknown } = await boundedJson(
+              response,
+              16384,
+              controller.signal,
+            ).catch(() => ({}));
             if (typeof body.detail === "string") message = body.detail;
           }
           throw new Error(message);
         }
-        const data = (await response.json()) as T;
+        const data = (await boundedJson(response, 2097152, controller.signal).catch(() => {
+          throw new Error("Market data is unavailable. Please try again shortly.");
+        })) as T;
         if (active) setState({ path, data, error: "", loading: false, hasSettled: true });
       } catch (error) {
         if (active) {

@@ -235,7 +235,7 @@ export function PersistentAgentsPanel({
     readError = model.loadError,
     refreshing = model.loading,
     checking = model.unlocked && !ready && !readError,
-    canChangeConnection = ready && !readError && !refreshing && !model.busy;
+    canChangeConnection = ready && !readError && !model.busy;
   const groups = providerGroups(ready ? model.views : [], ready ? model.providerStates : {}, now);
   const taskLink = (event: MouseEvent<HTMLAnchorElement>, taskId: string) => {
     if (
