@@ -31,6 +31,7 @@ type CurrencyContext = {
   selected: PortfolioCurrency;
   select: (currency: PortfolioCurrency) => void;
   retry: () => void;
+  refresh: (force?: boolean) => void;
 };
 const Context = createContext<CurrencyContext | null>(null);
 export function CurrencyPreferencesProvider({ children }: { children: ReactNode }) {
@@ -55,7 +56,14 @@ export function CurrencyPreferencesProvider({ children }: { children: ReactNode 
     storeRef.current = store;
     setState(store.state);
     store.start();
+    const visible = () => {
+      if (typeof document !== "undefined" && document.visibilityState === "visible")
+        store.refresh();
+    };
+    if (typeof document !== "undefined") document.addEventListener("visibilitychange", visible);
     return () => {
+      if (typeof document !== "undefined")
+        document.removeEventListener("visibilitychange", visible);
       store.dispose();
       if (storeRef.current === store) storeRef.current = null;
     };
@@ -71,6 +79,13 @@ export function CurrencyPreferencesProvider({ children }: { children: ReactNode 
     if (owner && ownerRef.current === owner && storeRef.current?.owner === owner)
       storeRef.current.retry();
   }, [owner]);
+  const refresh = useCallback(
+    (force = true) => {
+      if (owner && ownerRef.current === owner && storeRef.current?.owner === owner)
+        storeRef.current.refresh(force);
+    },
+    [owner],
+  );
   const current = owner && state?.owner === owner ? state : null;
   const value = useMemo<CurrencyContext>(
     () => ({
@@ -88,8 +103,9 @@ export function CurrencyPreferencesProvider({ children }: { children: ReactNode 
       selected: current?.selected ?? "USD",
       select,
       retry,
+      refresh,
     }),
-    [owner, current, select, retry],
+    [owner, current, select, retry, refresh],
   );
   return <Context.Provider value={value}>{children}</Context.Provider>;
 }

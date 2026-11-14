@@ -313,6 +313,7 @@ function renderDashboard({
     "@/components/InboxPanel": { __esModule: true, default: () => null },
     "@/components/useHoldingsWorkspace": { useHoldingsWorkspace: () => ({}) },
     "@/components/InstrumentMetrics": { InstrumentMetrics: () => null },
+    "@/components/FxRatesPanel": { __esModule: true, default: () => null },
     "@/components/useMarketResource": {
       useMarketResource: (resourcePath) => {
         requests.push(resourcePath);

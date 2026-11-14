@@ -20,6 +20,7 @@ function compile(file, imports = {}, globals = {}) {
     require: (name) => {
       if (["./WorkspaceFeedback", "./ReportDialog"].includes(name))
         return require("./workspace-feedback-helpers.cjs").component(name, imports);
+      if (name === "./public-market-json") return compile("../lib/public-market-json.ts");
       if (name === "@/lib/workspace-cache") return compile("../lib/workspace-cache.ts");
       if (["@/lib/holdings-facts", "./holdings-facts"].includes(name))
         return compile("../lib/holdings-facts.ts");

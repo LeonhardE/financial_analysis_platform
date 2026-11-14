@@ -119,6 +119,7 @@ test("workspace navigation keeps one owner session without server transitions af
       },
       "@/components/CandlestickChart": { CandlestickChart: () => null },
       "@/components/InstrumentMetrics": { InstrumentMetrics: () => null },
+      "@/components/FxRatesPanel": { __esModule: true, default: () => null },
       "@/components/WorkspaceSidebar": { WorkspaceSidebar: Sidebar },
       "@/components/useCachedMarketResource": { useCachedMarketResource: noData },
       "@/components/useMarketResource": { useMarketResource: noData },

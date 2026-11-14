@@ -208,6 +208,34 @@ test("a failed reconciliation or malformed save never becomes a blind follow-up 
     app.value.dispose();
   }
 });
+test("display refresh reuses a fresh preference, reads a peer update on request and never resumes an uncertain setting write", async () => {
+  const app = store();
+  try {
+    app.requests[0].pending.resolve(reply(snapshot("USD")));
+    await settle();
+    app.value.refresh();
+    assert.equal(app.requests.length, 1);
+    app.value.refresh(true);
+    assert.equal(app.requests.length, 2);
+    assert.equal(app.requests[1].options.method, "GET");
+    app.requests[1].pending.resolve(reply(snapshot("CNY", 2, 2)));
+    await settle();
+    assert.equal(app.value.state.selected, "CNY");
+    app.value.select("CAD");
+    assert.equal(app.requests[2].options.method, "PUT");
+    app.requests[2].pending.reject(Error("unknown write"));
+    await settle();
+    assert.equal(app.value.state.error, "save");
+    app.value.refresh(true);
+    assert.equal(
+      app.requests.length,
+      3,
+      "unrelated display refresh cannot retry a setting mutation",
+    );
+  } finally {
+    app.value.dispose();
+  }
+});
 test("timeouts, cancellation and late responses cannot replace a newer confirmed snapshot", async () => {
   const app = store("owner_A", 5);
   try {

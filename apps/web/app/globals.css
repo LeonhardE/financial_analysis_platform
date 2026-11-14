@@ -168,7 +168,7 @@ a {
   padding: 0 24px;
 }
 .chart-panel,
-.market-sidebar {
+.market-radar {
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -850,9 +850,6 @@ body:has(dialog[open]) {
     padding: 0 14px;
     margin-top: 14px;
   }
-  .market-sidebar {
-    display: none;
-  }
   .chart-stage {
     height: clamp(290px, 46vh, 520px);
   }
@@ -1241,6 +1238,51 @@ html[data-theme="light"] .dialog-close {
 .picker-footer {
   justify-content: flex-end;
 }
+/* Two bounded cards share the left panel height; only their lists scroll. */
+.market-sidebar {
+  display: grid;
+  gap: 12px;
+  min-height: 0;
+  min-width: 0;
+}
+.market-radar {
+  display: flex;
+  flex-direction: column;
+  height: clamp(360px, 60dvh, 520px);
+  min-height: 0;
+}
+.market-radar .picker-heading,
+.market-radar .discovery,
+.market-radar .picker-tabs,
+.market-radar .picker-footer,
+.market-radar .overview-notice {
+  flex-shrink: 0;
+}
+.market-radar .picker-list,
+.market-radar .search-results {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: thin;
+  overscroll-behavior: contain;
+}
+.market-radar .personal-watchlist > ul {
+  max-height: none;
+  overflow: visible;
+}
+.market-radar .personal-watchlist > .panel-heading {
+  display: none;
+}
+.fx-slot {
+  min-height: 0;
+  height: clamp(260px, 45dvh, 360px);
+}
+@media (max-width: 1199px) {
+  .market-sidebar {
+    margin-top: 12px;
+  }
+}
 /* Let the chart absorb spare desktop height without constraining smaller screens. */
 @media (min-width: 1200px) {
   .workspace-content {
@@ -1286,18 +1328,22 @@ html[data-theme="light"] .dialog-close {
     width: auto;
   }
   .market-sidebar {
-    align-self: start;
-    max-height: max(480px, calc(100dvh - 144px));
-    overflow-y: auto;
-    scrollbar-width: thin;
+    align-self: stretch;
+    contain: size;
+    grid-template-rows: minmax(0, 1.1fr) minmax(0, 0.9fr);
+    overflow: hidden;
+  }
+  .market-radar {
+    height: 100%;
+    max-height: none;
+  }
+  .fx-slot {
+    height: 100%;
   }
 }
 @media (max-width: 1199px) {
   .workspace {
     display: block;
-  }
-  .market-sidebar {
-    display: none;
   }
   .symbol-picker-button {
     align-items: center;

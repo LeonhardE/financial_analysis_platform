@@ -404,6 +404,7 @@ function flow({ hash = "", search = "", owner = "A:1", locked = false, hidden = 
       "@/lib/inbox-link": links,
       "@/components/CandlestickChart": { CandlestickChart: () => null },
       "@/components/InstrumentMetrics": { InstrumentMetrics: () => null },
+      "@/components/FxRatesPanel": { __esModule: true, default: () => null },
       "@/components/WorkspaceSidebar": { WorkspaceSidebar: Sidebar },
       "@/components/useCachedMarketResource": { useCachedMarketResource: noData },
       "@/components/useMarketResource": { useMarketResource: noData },

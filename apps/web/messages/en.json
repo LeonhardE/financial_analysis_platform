@@ -1749,5 +1749,31 @@
     "partialCash": "Partial",
     "cashHelp": "Reported cash is not a confirmed withdrawable balance or buying power.",
     "loadingPrices": "Loading prices"
+  },
+  "fx": {
+    "title": "Exchange rates",
+    "refresh": "Refresh exchange rates",
+    "signInHelp": "Sign in to follow currency pairs.",
+    "signIn": "Sign in",
+    "base": "Base currency",
+    "quote": "Quote currency",
+    "subscribe": "Follow",
+    "subscribed": "Following",
+    "loadingFollows": "Loading followed currencies",
+    "saving": "Saving",
+    "retry": "Retry",
+    "loadingRates": "Updating rates",
+    "checkSave": "Checking your saved changes needs a retry.",
+    "followsError": "Your currency follows could not be loaded or saved.",
+    "currencyError": "The default currency is unavailable.",
+    "ratesError": "Rates could not be updated. Existing dated values are retained.",
+    "empty": "Follow a currency pair to see it here.",
+    "list": "Followed exchange rates",
+    "stale": "Older rate",
+    "unavailable": "Unavailable",
+    "default": "Default",
+    "remove": "Unfollow {pair}",
+    "source": "Bank of Canada · daily reference",
+    "loadingCurrency": "Loading default currency"
   }
 }
