@@ -4,7 +4,11 @@ import hashlib
 import re
 import time
 
-from folioview_shared.encrypted.authority import verify_control_command, verify_registry
+from folioview_shared.encrypted.authority import (
+    RegistryCertificateMemo,
+    verify_control_command,
+    verify_registry,
+)
 from folioview_shared.encrypted.budgets import check_read_response
 from folioview_shared.encrypted.constants import CONTRACT_VERSION
 from folioview_shared.encrypted.crypto import jwk_thumbprint, signing_input_fingerprint, verify_jws
@@ -133,6 +137,7 @@ def _verify_row(row, owner, now, *, unit=None, registry_cache=None):
         cached = registry_cache.get(key)
     if cached is None:
         first = registry = None
+        signature_memo = RegistryCertificateMemo()
         for bundle in history:
             registry = verify_registry(
                 bundle,
@@ -142,6 +147,7 @@ def _verify_row(row, owner, now, *, unit=None, registry_cache=None):
                 vault_id=row["vaultId"],
                 now=now,
                 previous=registry,
+                signature_memo=signature_memo,
             )
             if first is None:
                 first = registry

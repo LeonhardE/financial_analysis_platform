@@ -16,6 +16,15 @@ commits. Deploy compatible readers to every serving revision before enabling com
 and retain such a revision as the rollback floor after the first compact write. No history is
 removed, compressed or trusted without its original verification.
 
+During one complete history verification, Hub uses a bounded
+`RegistryCertificateMemo` to reuse only successful checks of identical certificate
+JWS bytes under the same complete public root and verification profile. It creates
+a fresh memo for each history cache miss and discards it after that verification;
+checkpoints, schemas, identity, chain, active/revoked state and epoch checks still
+run for every bundle. The current vault row and time-dependent authority remain
+checked on each request and transaction retry. Reaching the memo bound falls back
+to ordinary verification. This does not remove history or persist authorization.
+
 ## Archive lifecycle
 
 This Hub-owned API profile is `folioview.vault-lifecycle.v1`. It reuses the existing flattened

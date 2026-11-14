@@ -6,6 +6,7 @@ The write gate is independent of permanent fences on already installed slots.
 
 import copy
 
+from folioview_shared.encrypted.budgets import check_read_response
 from folioview_shared.encrypted.constants import CONTRACT_VERSION
 from folioview_shared.encrypted.crypto import _signed_parts, signing_input_fingerprint
 from folioview_shared.encrypted.errors import ContractError
@@ -25,10 +26,25 @@ from folioview_shared.encrypted.schema import validate_schema
 from folioview_shared.identity import owner_key
 
 from .agent_credentials import AgentCredentialService
+from .native_transport import NativeConnectionOwnerService
 from .oauth import MAX_CONNECTIONS
 from .persistent_agents import identity_path, linked_connection, snapshot, stored_identity
 from .store import StoreUnavailable, document_path
 from .vaults import _current, identifier
+
+SUMMARY_PROFILE = "folioview.provider-connection-summary.v1"
+
+
+def _provider_projection(row, records, blockers):
+    return {
+        "contractVersion": CONTRACT_VERSION,
+        "profile": PROVIDER_CONNECTION_PROFILE,
+        "slot": None if row is None else row["slot"],
+        "retainedSelections": [] if row is None else row["retainedSelections"],
+        "retirementCandidates": [r["reference"] for r in records],
+        "legacyBlockers": blockers,
+        "requiresFreshGrants": True,
+    }
 
 
 def slot_path(owner, provider):
@@ -103,6 +119,16 @@ class _ReadSnapshot:
 
     def get(self, path):
         return copy.deepcopy(self.rows[path]) if path in self.rows else self.unit.get(path)
+
+    def get_many(self, paths, *, field_paths=None):
+        if field_paths is not None:
+            return self.unit.get_many(paths, field_paths=field_paths)
+        missing = [path for path in paths if path not in self.rows]
+        values = self.unit.get_many(missing) if missing else {}
+        return {
+            path: copy.deepcopy(self.rows[path] if path in self.rows else values[path])
+            for path in paths
+        }
 
     def __getattr__(self, name):
         return getattr(self.unit, name)
@@ -188,17 +214,119 @@ class ProviderConnectionService(AgentCredentialService):
                 ],
             )
             _current(unit, owner, self.now(), vault)
-            row = stored_slot(unit, owner, vault, provider)
-            records, blockers = self.inventory(unit, owner, vault, provider, row, batch=True)
-            return {
-                "contractVersion": CONTRACT_VERSION,
-                "profile": PROVIDER_CONNECTION_PROFILE,
-                "slot": None if row is None else row["slot"],
-                "retainedSelections": [] if row is None else row["retainedSelections"],
-                "retirementCandidates": [r["reference"] for r in records],
-                "legacyBlockers": blockers,
-                "requiresFreshGrants": True,
+            return self._provider_state(unit, owner, vault, provider)
+
+        return self.store.transact(read)
+
+    def _provider_state(self, unit, owner, vault, provider):
+        row = stored_slot(unit, owner, vault, provider)
+        records, blockers = self.inventory(unit, owner, vault, provider, row, batch=True)
+        return _provider_projection(row, records, blockers)
+
+    def summary(self, uid, vault):
+        """One read-only transaction; no task/content scan or cross-request cache."""
+        identifier(vault)
+        owner = owner_key(uid)
+        native = NativeConnectionOwnerService(self.store, clock=self.clock)
+
+        def read(unit):
+            unit = _ReadSnapshot(
+                unit,
+                [
+                    document_path("hub_vaults", owner),
+                    document_path("hub_oauth_owners", owner),
+                    slot_path(owner, "muse"),
+                    slot_path(owner, "chatgpt"),
+                ],
+            )
+            _current(unit, owner, self.now(), vault)
+            index = native._owner(unit, uid)
+            ids = index["connectionIds"]
+            for connection in ids:
+                identifier(connection)
+            if len(set(ids)) != len(ids):
+                raise StoreUnavailable
+            unit = _ReadSnapshot(
+                unit,
+                [document_path("hub_oauth_connections", owner, connection) for connection in ids],
+            )
+            slots = {
+                provider: stored_slot(unit, owner, vault, provider)
+                for provider in ("muse", "chatgpt")
             }
+            connections, candidates = [], []
+            for connection in ids:
+                conn = unit.get(document_path("hub_oauth_connections", owner, connection))
+                if (
+                    conn is None
+                    or conn.get("ownerSubject") != owner
+                    or conn.get("connectionId") != connection
+                    or conn.get("provider") not in slots
+                    or conn.get("status") not in {"active", "revoked"}
+                ):
+                    raise StoreUnavailable
+                if conn.get("transportKind") == "persistent_runtime":
+                    connections.append(native._view(conn))
+                slot = slots[conn["provider"]]
+                current = None if slot is None else slot["slot"]["currentCredential"]
+                if conn.get("vaultId") == vault and (
+                    conn["status"] == "active"
+                    or (current is not None and current["connectionId"] == connection)
+                ):
+                    candidates.append(connection)
+            unit = _ReadSnapshot(unit, [identity_path(owner, vault, c) for c in candidates])
+            providers = {
+                provider: (
+                    self._provider_state(unit, owner, vault, provider)
+                    if ids
+                    else _provider_projection(None, [], [])
+                )
+                for provider in ("muse", "chatgpt")
+            }
+            if not ids and any(slots.values()):
+                raise StoreUnavailable
+            credentials = []
+            for connection in connections:
+                if connection["status"] != "active" or connection["vaultId"] != vault:
+                    continue
+                slot = providers[connection["provider"]]["slot"]
+                ref = None if slot is None else slot["currentCredential"]
+                if slot is not None and (
+                    ref is None
+                    or ref["connectionId"] != connection["connectionId"]
+                    or ref["clientId"] != connection["clientId"]
+                ):
+                    continue
+                conn = linked_connection(unit, owner, vault, connection["connectionId"])
+                state = self._credential_state(unit, owner, vault, connection["connectionId"], conn)
+                if slot is not None:
+                    lease = state["lease"]
+                    if lease is None or any(
+                        ref[key] != lease[field]
+                        for key, field in (
+                            ("connectionId", "connectionId"),
+                            ("clientId", "clientId"),
+                            ("credentialGeneration", "generation"),
+                            ("credentialFingerprint", "credentialFingerprint"),
+                        )
+                    ):
+                        raise StoreUnavailable
+                credentials.append(
+                    {
+                        "connectionId": connection["connectionId"],
+                        "state": state,
+                    }
+                )
+            result = {
+                "contractVersion": CONTRACT_VERSION,
+                "profile": SUMMARY_PROFILE,
+                "vaultId": vault,
+                "connections": connections,
+                "providers": providers,
+                "credentials": credentials,
+            }
+            check_read_response(result)
+            return result
 
         return self.store.transact(read)
 

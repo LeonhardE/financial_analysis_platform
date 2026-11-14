@@ -449,6 +449,8 @@ delegation headers; writes additionally require the original Idempotency-Key.
 - `GET /capabilities`: exact profile/providers, enabled flag, automaticMigration=false.
 - `GET /{vault}/{provider}`: current slot, exact retirement snapshots, legacy
   blockers and retained restoration selections. Resource/task names remain encrypted.
+- `GET /{vault}/summary`: the closed read-only
+  `folioview.provider-connection-summary.v1` display snapshot described below.
 - `GET /{vault}/{provider}/operations/{operation}`: original immutable receipt.
 - `POST /{vault}/{provider}/commands`: `{contractVersion, command}`; activate uses
   `{approval, review, credential}` and disconnect uses `{approval}`. `approval` is
@@ -497,6 +499,34 @@ pinned native Agent client bundles and their physical actor/proof shapes are
 unchanged; the server resolves the current logical slot without client claims.
 No Web switch, production consent, schedule, live run or infrastructure provisioning
 is performed by deploying these compatible producer APIs.
+
+### Connection display snapshot
+
+`GET /api/v3/provider-connections/{vault}/summary` returns exactly
+`{contractVersion,profile,vaultId,connections,providers,credentials}`. `connections`
+uses the unchanged native Owner connection projection (at most 32 records).
+`providers` contains exactly `muse` and `chatgpt`, each with the unchanged provider
+state DTO. `credentials` contains `{connectionId,state}` records, where `state`
+is the unchanged Agent credential state DTO. It includes active connections in
+this vault: every legacy candidate when there is no provider slot, or only the
+slot's exact current connection/client when a slot exists. A disconnected slot
+does not select another historical credential. Empty accounts receive empty
+connections/credentials and absent slots; no synthetic identity is created.
+
+The same authenticated Owner, contract header, closed GET transport and `no-store`
+rules apply. It remains readable with write gates disabled. One transaction
+checks the current vault and complete registry history once, batches the Owner
+index/two slots, connections and relevant identities in at most three read phases,
+and reuses the existing provider/credential validation. Legacy ambiguity,
+cross-vault blockers, current status/expiry and retained selections are preserved.
+Any missing, malformed or incomplete read fails the entire response. Conflict
+retries read and verify a new snapshot. The existing response byte limit applies.
+No task/content/policy scan, write or cross-request authority cache is introduced.
+Consumers must still verify each selected signed credential against their pinned
+vault; the display projection does not grant authority. Existing per-record reads
+remain available for older clients and explicit credential operations.
+Deploy this producer before switching a consumer to the summary route, and keep
+a summary-capable Hub revision as that consumer's rollback floor.
 
 ## Task assignments and task history (additive, default off)
 

@@ -14,6 +14,7 @@ from app.api import require_owner
 from app.errors import HubErrors
 from app.provider_connection_routes import get_provider_service, router
 from folioview_shared.encrypted.constants import CONTRACT_VERSION
+from folioview_shared.http import PrivateResponseHeaders
 
 
 class ProviderConnectionRouteTests(unittest.TestCase):
@@ -21,6 +22,7 @@ class ProviderConnectionRouteTests(unittest.TestCase):
         app = FastAPI()
         app.include_router(router)
         app.add_middleware(HubErrors)
+        app.add_middleware(PrivateResponseHeaders)
         app.dependency_overrides[require_owner] = lambda: SimpleNamespace(uid="synthetic_owner")
         self.calls = []
 
@@ -29,6 +31,7 @@ class ProviderConnectionRouteTests(unittest.TestCase):
             return {"kind": kind}
 
         app.dependency_overrides[get_provider_service] = lambda: SimpleNamespace(
+            summary=lambda *args: call("summary", *args),
             state=lambda *args: call("state", *args),
             receipt=lambda *args: call("receipt", *args),
             command=lambda *args: call("command", *args),
@@ -39,6 +42,31 @@ class ProviderConnectionRouteTests(unittest.TestCase):
         self.write_headers = {**self.headers, "Idempotency-Key": self.operation}
         self.path = "/api/v3/provider-connections/vault_A/muse"
         self.body = {"contractVersion": CONTRACT_VERSION, "command": {"approval": {}}}
+
+    def test_summary_is_owner_only_read_transport_and_survives_disabled_write_gate(self):
+        path = "/api/v3/provider-connections/vault_A/summary"
+        with patch.dict(os.environ, {"HUB_PROVIDER_CONNECTION_SLOTS_ENABLED": "0"}):
+            response = self.client.get(path, headers=self.headers)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.headers["cache-control"], "no-store")
+        self.assertEqual(self.calls, [("summary", ("synthetic_owner", "vault_A"))])
+        self.calls.clear()
+        for suffix, headers in (
+            ("?owner=other", self.headers),
+            ("", {}),
+            ("", {**self.headers, "X-FolioView-Delegation": "x"}),
+            ("", {**self.headers, "X-FolioView-Author-Key": "x"}),
+            ("", {**self.headers, "Idempotency-Key": self.operation}),
+        ):
+            self.assertEqual(self.client.get(path + suffix, headers=headers).status_code, 400)
+        self.assertEqual(
+            self.client.request(
+                "GET", path, headers=self.headers, json={"owner": "other"}
+            ).status_code,
+            400,
+        )
+        self.assertEqual(self.client.post(path, headers=self.headers).status_code, 405)
+        self.assertEqual(self.calls, [])
 
     def test_off_gate_keeps_read_and_original_receipt_available_and_does_not_write(self):
         with patch.dict(os.environ, {"HUB_PROVIDER_CONNECTION_SLOTS_ENABLED": "0"}):
