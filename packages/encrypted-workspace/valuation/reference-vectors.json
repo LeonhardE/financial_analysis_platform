@@ -1,0 +1,1523 @@
+{
+  "cases": [
+    {
+      "name": "reference",
+      "holdings": {
+        "state": "ready",
+        "coverage": {
+          "state": "unknown",
+          "issues": []
+        },
+        "sourceAsOf": null,
+        "fetchedAt": "2026-11-13T22:00:00Z",
+        "freshness": "unknown",
+        "data": {
+          "kind": "holdings",
+          "profile": "folioview.holdings-facts.v2",
+          "snapshotId": "snapshot_1",
+          "editKind": "import",
+          "reportDate": "2026-11-13",
+          "importSnapshot": {
+            "snapshotId": "snapshot_1",
+            "sourceRevision": 1
+          },
+          "previousSnapshot": null,
+          "accounts": [
+            {
+              "accountId": "account_1",
+              "displayName": "Synthetic account",
+              "balances": [
+                {
+                  "currency": "CAD",
+                  "cashBalance": "123.45",
+                  "buyingPower": null
+                }
+              ],
+              "positions": [
+                {
+                  "assetId": "asset_1",
+                  "brokerAssetId": "synthetic_asset",
+                  "instrument": {
+                    "symbol": "SYNTH",
+                    "market": "XNAS",
+                    "currency": "USD"
+                  },
+                  "name": "Synthetic",
+                  "assetType": "stock",
+                  "quantity": "2",
+                  "unitCost": {
+                    "currency": "USD",
+                    "amount": "10"
+                  },
+                  "bookCost": null,
+                  "bookCostCad": null,
+                  "reportedValues": {
+                    "unitPrice": {
+                      "currency": "USD",
+                      "amount": "12"
+                    },
+                    "marketValue": {
+                      "currency": "CAD",
+                      "amount": "9999"
+                    },
+                    "unrealizedReturn": {
+                      "currency": "CAD",
+                      "amount": "-5"
+                    }
+                  },
+                  "provenance": {
+                    "instrument": {
+                      "origin": "import",
+                      "recordedAt": "2026-11-13T22:00:00Z",
+                      "sourceDate": "2026-11-13",
+                      "lastEditedAt": null
+                    },
+                    "quantity": {
+                      "origin": "import",
+                      "recordedAt": "2026-11-13T22:00:00Z",
+                      "sourceDate": "2026-11-13",
+                      "lastEditedAt": null
+                    },
+                    "unitCost": {
+                      "origin": "import",
+                      "recordedAt": "2026-11-13T22:00:00Z",
+                      "sourceDate": "2026-11-13",
+                      "lastEditedAt": null
+                    },
+                    "bookCost": {
+                      "origin": "unknown",
+                      "recordedAt": null,
+                      "sourceDate": null,
+                      "lastEditedAt": null
+                    },
+                    "bookCostCad": {
+                      "origin": "unknown",
+                      "recordedAt": null,
+                      "sourceDate": null,
+                      "lastEditedAt": null
+                    }
+                  }
+                }
+              ]
+            }
+          ],
+          "excludedAssets": []
+        }
+      },
+      "quotes": {
+        "contractVersion": "folioview.valuation.v1",
+        "profile": "folioview.quote-batch.v1",
+        "snapshotId": "synthetic_quote_snapshot",
+        "fetchedAt": "2026-11-13T22:00:00Z",
+        "items": [
+          {
+            "instrument": {
+              "symbol": "SYNTH",
+              "market": "XNAS",
+              "currency": "USD"
+            },
+            "price": "20",
+            "source": "yahoo_finance",
+            "status": "available",
+            "sourceAsOf": "2026-11-13T22:00:00Z",
+            "sourceDate": "2026-11-13",
+            "fetchedAt": "2026-11-13T22:00:00Z",
+            "reason": null
+          }
+        ]
+      },
+      "fx": {
+        "contractVersion": "folioview.valuation.v1",
+        "profile": "folioview.fx-batch.v1",
+        "snapshotId": "synthetic_fx_snapshot",
+        "fetchedAt": "2026-11-13T22:00:00Z",
+        "items": [
+          {
+            "base": "USD",
+            "quote": "CNY",
+            "rate": "7",
+            "source": "bank_of_canada",
+            "route": {
+              "kind": "cross",
+              "via": "CAD",
+              "legs": [
+                {
+                  "base": "USD",
+                  "quote": "CAD",
+                  "rate": "1.4",
+                  "sourceDate": "2026-11-13"
+                },
+                {
+                  "base": "CNY",
+                  "quote": "CAD",
+                  "rate": "0.2",
+                  "sourceDate": "2026-11-13"
+                }
+              ]
+            },
+            "status": "available",
+            "sourceAsOf": null,
+            "sourceDate": "2026-11-13",
+            "fetchedAt": "2026-11-13T22:00:00Z",
+            "reason": null
+          }
+        ]
+      },
+      "currency": "CNY",
+      "expected": {
+        "currency": "CNY",
+        "subtotal": "280",
+        "complete": true,
+        "valuedCount": 1,
+        "positionCount": 1,
+        "stale": false,
+        "quoteSnapshotId": "synthetic_quote_snapshot",
+        "fxSnapshotId": "synthetic_fx_snapshot",
+        "rows": [
+          {
+            "accountId": "account_1",
+            "assetId": "asset_1",
+            "status": "valued",
+            "value": "280",
+            "weightPercent": "100",
+            "stale": false
+          }
+        ]
+      }
+    },
+    {
+      "name": "missing_quote",
+      "holdings": {
+        "state": "ready",
+        "coverage": {
+          "state": "unknown",
+          "issues": []
+        },
+        "sourceAsOf": null,
+        "fetchedAt": "2026-11-13T22:00:00Z",
+        "freshness": "unknown",
+        "data": {
+          "kind": "holdings",
+          "profile": "folioview.holdings-facts.v2",
+          "snapshotId": "snapshot_1",
+          "editKind": "import",
+          "reportDate": "2026-11-13",
+          "importSnapshot": {
+            "snapshotId": "snapshot_1",
+            "sourceRevision": 1
+          },
+          "previousSnapshot": null,
+          "accounts": [
+            {
+              "accountId": "account_1",
+              "displayName": "Synthetic account",
+              "balances": [
+                {
+                  "currency": "CAD",
+                  "cashBalance": "123.45",
+                  "buyingPower": null
+                }
+              ],
+              "positions": [
+                {
+                  "assetId": "asset_1",
+                  "brokerAssetId": "synthetic_asset",
+                  "instrument": {
+                    "symbol": "SYNTH",
+                    "market": "XNAS",
+                    "currency": "USD"
+                  },
+                  "name": "Synthetic",
+                  "assetType": "stock",
+                  "quantity": "2",
+                  "unitCost": {
+                    "currency": "USD",
+                    "amount": "10"
+                  },
+                  "bookCost": null,
+                  "bookCostCad": null,
+                  "reportedValues": {
+                    "unitPrice": {
+                      "currency": "USD",
+                      "amount": "12"
+                    },
+                    "marketValue": {
+                      "currency": "CAD",
+                      "amount": "9999"
+                    },
+                    "unrealizedReturn": {
+                      "currency": "CAD",
+                      "amount": "-5"
+                    }
+                  },
+                  "provenance": {
+                    "instrument": {
+                      "origin": "import",
+                      "recordedAt": "2026-11-13T22:00:00Z",
+                      "sourceDate": "2026-11-13",
+                      "lastEditedAt": null
+                    },
+                    "quantity": {
+                      "origin": "import",
+                      "recordedAt": "2026-11-13T22:00:00Z",
+                      "sourceDate": "2026-11-13",
+                      "lastEditedAt": null
+                    },
+                    "unitCost": {
+                      "origin": "import",
+                      "recordedAt": "2026-11-13T22:00:00Z",
+                      "sourceDate": "2026-11-13",
+                      "lastEditedAt": null
+                    },
+                    "bookCost": {
+                      "origin": "unknown",
+                      "recordedAt": null,
+                      "sourceDate": null,
+                      "lastEditedAt": null
+                    },
+                    "bookCostCad": {
+                      "origin": "unknown",
+                      "recordedAt": null,
+                      "sourceDate": null,
+                      "lastEditedAt": null
+                    }
+                  }
+                }
+              ]
+            }
+          ],
+          "excludedAssets": []
+        }
+      },
+      "quotes": {
+        "contractVersion": "folioview.valuation.v1",
+        "profile": "folioview.quote-batch.v1",
+        "snapshotId": "synthetic_quote_snapshot",
+        "fetchedAt": "2026-11-13T22:00:00Z",
+        "items": []
+      },
+      "fx": {
+        "contractVersion": "folioview.valuation.v1",
+        "profile": "folioview.fx-batch.v1",
+        "snapshotId": "synthetic_fx_snapshot",
+        "fetchedAt": "2026-11-13T22:00:00Z",
+        "items": [
+          {
+            "base": "USD",
+            "quote": "CNY",
+            "rate": "7",
+            "source": "bank_of_canada",
+            "route": {
+              "kind": "cross",
+              "via": "CAD",
+              "legs": [
+                {
+                  "base": "USD",
+                  "quote": "CAD",
+                  "rate": "1.4",
+                  "sourceDate": "2026-11-13"
+                },
+                {
+                  "base": "CNY",
+                  "quote": "CAD",
+                  "rate": "0.2",
+                  "sourceDate": "2026-11-13"
+                }
+              ]
+            },
+            "status": "available",
+            "sourceAsOf": null,
+            "sourceDate": "2026-11-13",
+            "fetchedAt": "2026-11-13T22:00:00Z",
+            "reason": null
+          }
+        ]
+      },
+      "currency": "CNY",
+      "expected": {
+        "currency": "CNY",
+        "subtotal": null,
+        "complete": false,
+        "valuedCount": 0,
+        "positionCount": 1,
+        "stale": false,
+        "quoteSnapshotId": "synthetic_quote_snapshot",
+        "fxSnapshotId": "synthetic_fx_snapshot",
+        "rows": [
+          {
+            "accountId": "account_1",
+            "assetId": "asset_1",
+            "status": "missing_quote",
+            "value": null,
+            "weightPercent": null,
+            "stale": false
+          }
+        ]
+      }
+    },
+    {
+      "name": "missing_fx",
+      "holdings": {
+        "state": "ready",
+        "coverage": {
+          "state": "unknown",
+          "issues": []
+        },
+        "sourceAsOf": null,
+        "fetchedAt": "2026-11-13T22:00:00Z",
+        "freshness": "unknown",
+        "data": {
+          "kind": "holdings",
+          "profile": "folioview.holdings-facts.v2",
+          "snapshotId": "snapshot_1",
+          "editKind": "import",
+          "reportDate": "2026-11-13",
+          "importSnapshot": {
+            "snapshotId": "snapshot_1",
+            "sourceRevision": 1
+          },
+          "previousSnapshot": null,
+          "accounts": [
+            {
+              "accountId": "account_1",
+              "displayName": "Synthetic account",
+              "balances": [
+                {
+                  "currency": "CAD",
+                  "cashBalance": "123.45",
+                  "buyingPower": null
+                }
+              ],
+              "positions": [
+                {
+                  "assetId": "asset_1",
+                  "brokerAssetId": "synthetic_asset",
+                  "instrument": {
+                    "symbol": "SYNTH",
+                    "market": "XNAS",
+                    "currency": "USD"
+                  },
+                  "name": "Synthetic",
+                  "assetType": "stock",
+                  "quantity": "2",
+                  "unitCost": {
+                    "currency": "USD",
+                    "amount": "10"
+                  },
+                  "bookCost": null,
+                  "bookCostCad": null,
+                  "reportedValues": {
+                    "unitPrice": {
+                      "currency": "USD",
+                      "amount": "12"
+                    },
+                    "marketValue": {
+                      "currency": "CAD",
+                      "amount": "9999"
+                    },
+                    "unrealizedReturn": {
+                      "currency": "CAD",
+                      "amount": "-5"
+                    }
+                  },
+                  "provenance": {
+                    "instrument": {
+                      "origin": "import",
+                      "recordedAt": "2026-11-13T22:00:00Z",
+                      "sourceDate": "2026-11-13",
+                      "lastEditedAt": null
+                    },
+                    "quantity": {
+                      "origin": "import",
+                      "recordedAt": "2026-11-13T22:00:00Z",
+                      "sourceDate": "2026-11-13",
+                      "lastEditedAt": null
+                    },
+                    "unitCost": {
+                      "origin": "import",
+                      "recordedAt": "2026-11-13T22:00:00Z",
+                      "sourceDate": "2026-11-13",
+                      "lastEditedAt": null
+                    },
+                    "bookCost": {
+                      "origin": "unknown",
+                      "recordedAt": null,
+                      "sourceDate": null,
+                      "lastEditedAt": null
+                    },
+                    "bookCostCad": {
+                      "origin": "unknown",
+                      "recordedAt": null,
+                      "sourceDate": null,
+                      "lastEditedAt": null
+                    }
+                  }
+                }
+              ]
+            }
+          ],
+          "excludedAssets": []
+        }
+      },
+      "quotes": {
+        "contractVersion": "folioview.valuation.v1",
+        "profile": "folioview.quote-batch.v1",
+        "snapshotId": "synthetic_quote_snapshot",
+        "fetchedAt": "2026-11-13T22:00:00Z",
+        "items": [
+          {
+            "instrument": {
+              "symbol": "SYNTH",
+              "market": "XNAS",
+              "currency": "USD"
+            },
+            "price": "20",
+            "source": "yahoo_finance",
+            "status": "available",
+            "sourceAsOf": "2026-11-13T22:00:00Z",
+            "sourceDate": "2026-11-13",
+            "fetchedAt": "2026-11-13T22:00:00Z",
+            "reason": null
+          }
+        ]
+      },
+      "fx": {
+        "contractVersion": "folioview.valuation.v1",
+        "profile": "folioview.fx-batch.v1",
+        "snapshotId": "synthetic_fx_snapshot",
+        "fetchedAt": "2026-11-13T22:00:00Z",
+        "items": []
+      },
+      "currency": "CNY",
+      "expected": {
+        "currency": "CNY",
+        "subtotal": null,
+        "complete": false,
+        "valuedCount": 0,
+        "positionCount": 1,
+        "stale": false,
+        "quoteSnapshotId": "synthetic_quote_snapshot",
+        "fxSnapshotId": "synthetic_fx_snapshot",
+        "rows": [
+          {
+            "accountId": "account_1",
+            "assetId": "asset_1",
+            "status": "missing_fx",
+            "value": null,
+            "weightPercent": null,
+            "stale": false
+          }
+        ]
+      }
+    },
+    {
+      "name": "native_currency",
+      "holdings": {
+        "state": "ready",
+        "coverage": {
+          "state": "unknown",
+          "issues": []
+        },
+        "sourceAsOf": null,
+        "fetchedAt": "2026-11-13T22:00:00Z",
+        "freshness": "unknown",
+        "data": {
+          "kind": "holdings",
+          "profile": "folioview.holdings-facts.v2",
+          "snapshotId": "snapshot_1",
+          "editKind": "import",
+          "reportDate": "2026-11-13",
+          "importSnapshot": {
+            "snapshotId": "snapshot_1",
+            "sourceRevision": 1
+          },
+          "previousSnapshot": null,
+          "accounts": [
+            {
+              "accountId": "account_1",
+              "displayName": "Synthetic account",
+              "balances": [
+                {
+                  "currency": "CAD",
+                  "cashBalance": "123.45",
+                  "buyingPower": null
+                }
+              ],
+              "positions": [
+                {
+                  "assetId": "asset_1",
+                  "brokerAssetId": "synthetic_asset",
+                  "instrument": {
+                    "symbol": "SYNTH",
+                    "market": "XNAS",
+                    "currency": "USD"
+                  },
+                  "name": "Synthetic",
+                  "assetType": "stock",
+                  "quantity": "2",
+                  "unitCost": {
+                    "currency": "USD",
+                    "amount": "10"
+                  },
+                  "bookCost": null,
+                  "bookCostCad": null,
+                  "reportedValues": {
+                    "unitPrice": {
+                      "currency": "USD",
+                      "amount": "12"
+                    },
+                    "marketValue": {
+                      "currency": "CAD",
+                      "amount": "9999"
+                    },
+                    "unrealizedReturn": {
+                      "currency": "CAD",
+                      "amount": "-5"
+                    }
+                  },
+                  "provenance": {
+                    "instrument": {
+                      "origin": "import",
+                      "recordedAt": "2026-11-13T22:00:00Z",
+                      "sourceDate": "2026-11-13",
+                      "lastEditedAt": null
+                    },
+                    "quantity": {
+                      "origin": "import",
+                      "recordedAt": "2026-11-13T22:00:00Z",
+                      "sourceDate": "2026-11-13",
+                      "lastEditedAt": null
+                    },
+                    "unitCost": {
+                      "origin": "import",
+                      "recordedAt": "2026-11-13T22:00:00Z",
+                      "sourceDate": "2026-11-13",
+                      "lastEditedAt": null
+                    },
+                    "bookCost": {
+                      "origin": "unknown",
+                      "recordedAt": null,
+                      "sourceDate": null,
+                      "lastEditedAt": null
+                    },
+                    "bookCostCad": {
+                      "origin": "unknown",
+                      "recordedAt": null,
+                      "sourceDate": null,
+                      "lastEditedAt": null
+                    }
+                  }
+                }
+              ]
+            }
+          ],
+          "excludedAssets": []
+        }
+      },
+      "quotes": {
+        "contractVersion": "folioview.valuation.v1",
+        "profile": "folioview.quote-batch.v1",
+        "snapshotId": "synthetic_quote_snapshot",
+        "fetchedAt": "2026-11-13T22:00:00Z",
+        "items": [
+          {
+            "instrument": {
+              "symbol": "SYNTH",
+              "market": "XNAS",
+              "currency": "USD"
+            },
+            "price": "20",
+            "source": "yahoo_finance",
+            "status": "available",
+            "sourceAsOf": "2026-11-13T22:00:00Z",
+            "sourceDate": "2026-11-13",
+            "fetchedAt": "2026-11-13T22:00:00Z",
+            "reason": null
+          }
+        ]
+      },
+      "fx": {
+        "contractVersion": "folioview.valuation.v1",
+        "profile": "folioview.fx-batch.v1",
+        "snapshotId": "synthetic_fx_snapshot",
+        "fetchedAt": "2026-11-13T22:00:00Z",
+        "items": [
+          {
+            "base": "USD",
+            "quote": "CNY",
+            "rate": "7",
+            "source": "bank_of_canada",
+            "route": {
+              "kind": "cross",
+              "via": "CAD",
+              "legs": [
+                {
+                  "base": "USD",
+                  "quote": "CAD",
+                  "rate": "1.4",
+                  "sourceDate": "2026-11-13"
+                },
+                {
+                  "base": "CNY",
+                  "quote": "CAD",
+                  "rate": "0.2",
+                  "sourceDate": "2026-11-13"
+                }
+              ]
+            },
+            "status": "available",
+            "sourceAsOf": null,
+            "sourceDate": "2026-11-13",
+            "fetchedAt": "2026-11-13T22:00:00Z",
+            "reason": null
+          }
+        ]
+      },
+      "currency": "USD",
+      "expected": {
+        "currency": "USD",
+        "subtotal": "40",
+        "complete": true,
+        "valuedCount": 1,
+        "positionCount": 1,
+        "stale": false,
+        "quoteSnapshotId": "synthetic_quote_snapshot",
+        "fxSnapshotId": "synthetic_fx_snapshot",
+        "rows": [
+          {
+            "accountId": "account_1",
+            "assetId": "asset_1",
+            "status": "valued",
+            "value": "40",
+            "weightPercent": "100",
+            "stale": false
+          }
+        ]
+      }
+    },
+    {
+      "name": "precision_stale_zero",
+      "holdings": {
+        "state": "ready",
+        "coverage": {
+          "state": "unknown",
+          "issues": []
+        },
+        "sourceAsOf": null,
+        "fetchedAt": "2026-11-13T22:00:00Z",
+        "freshness": "unknown",
+        "data": {
+          "kind": "holdings",
+          "profile": "folioview.holdings-facts.v2",
+          "snapshotId": "snapshot_1",
+          "editKind": "import",
+          "reportDate": "2026-11-13",
+          "importSnapshot": {
+            "snapshotId": "snapshot_1",
+            "sourceRevision": 1
+          },
+          "previousSnapshot": null,
+          "accounts": [
+            {
+              "accountId": "account_1",
+              "displayName": "Synthetic account",
+              "balances": [
+                {
+                  "currency": "CAD",
+                  "cashBalance": "123.45",
+                  "buyingPower": null
+                }
+              ],
+              "positions": [
+                {
+                  "assetId": "asset_1",
+                  "brokerAssetId": "synthetic_asset",
+                  "instrument": {
+                    "symbol": "SYNTH",
+                    "market": "XNAS",
+                    "currency": "USD"
+                  },
+                  "name": "Synthetic",
+                  "assetType": "stock",
+                  "quantity": "2",
+                  "unitCost": {
+                    "currency": "USD",
+                    "amount": "10"
+                  },
+                  "bookCost": null,
+                  "bookCostCad": null,
+                  "reportedValues": {
+                    "unitPrice": {
+                      "currency": "USD",
+                      "amount": "12"
+                    },
+                    "marketValue": {
+                      "currency": "CAD",
+                      "amount": "9999"
+                    },
+                    "unrealizedReturn": {
+                      "currency": "CAD",
+                      "amount": "-5"
+                    }
+                  },
+                  "provenance": {
+                    "instrument": {
+                      "origin": "import",
+                      "recordedAt": "2026-11-13T22:00:00Z",
+                      "sourceDate": "2026-11-13",
+                      "lastEditedAt": null
+                    },
+                    "quantity": {
+                      "origin": "import",
+                      "recordedAt": "2026-11-13T22:00:00Z",
+                      "sourceDate": "2026-11-13",
+                      "lastEditedAt": null
+                    },
+                    "unitCost": {
+                      "origin": "import",
+                      "recordedAt": "2026-11-13T22:00:00Z",
+                      "sourceDate": "2026-11-13",
+                      "lastEditedAt": null
+                    },
+                    "bookCost": {
+                      "origin": "unknown",
+                      "recordedAt": null,
+                      "sourceDate": null,
+                      "lastEditedAt": null
+                    },
+                    "bookCostCad": {
+                      "origin": "unknown",
+                      "recordedAt": null,
+                      "sourceDate": null,
+                      "lastEditedAt": null
+                    }
+                  }
+                },
+                {
+                  "assetId": "asset_2",
+                  "brokerAssetId": "synthetic_asset",
+                  "instrument": {
+                    "symbol": "SYNTH",
+                    "market": "XNAS",
+                    "currency": "USD"
+                  },
+                  "name": "Synthetic",
+                  "assetType": "stock",
+                  "quantity": "0.000000000001",
+                  "unitCost": {
+                    "currency": "USD",
+                    "amount": "10"
+                  },
+                  "bookCost": null,
+                  "bookCostCad": null,
+                  "reportedValues": {
+                    "unitPrice": {
+                      "currency": "USD",
+                      "amount": "12"
+                    },
+                    "marketValue": {
+                      "currency": "CAD",
+                      "amount": "9999"
+                    },
+                    "unrealizedReturn": {
+                      "currency": "CAD",
+                      "amount": "-5"
+                    }
+                  },
+                  "provenance": {
+                    "instrument": {
+                      "origin": "import",
+                      "recordedAt": "2026-11-13T22:00:00Z",
+                      "sourceDate": "2026-11-13",
+                      "lastEditedAt": null
+                    },
+                    "quantity": {
+                      "origin": "import",
+                      "recordedAt": "2026-11-13T22:00:00Z",
+                      "sourceDate": "2026-11-13",
+                      "lastEditedAt": null
+                    },
+                    "unitCost": {
+                      "origin": "import",
+                      "recordedAt": "2026-11-13T22:00:00Z",
+                      "sourceDate": "2026-11-13",
+                      "lastEditedAt": null
+                    },
+                    "bookCost": {
+                      "origin": "unknown",
+                      "recordedAt": null,
+                      "sourceDate": null,
+                      "lastEditedAt": null
+                    },
+                    "bookCostCad": {
+                      "origin": "unknown",
+                      "recordedAt": null,
+                      "sourceDate": null,
+                      "lastEditedAt": null
+                    }
+                  }
+                },
+                {
+                  "assetId": "asset_3",
+                  "brokerAssetId": "synthetic_asset",
+                  "instrument": {
+                    "symbol": "SYNTH",
+                    "market": "XNAS",
+                    "currency": "CAD"
+                  },
+                  "name": "Synthetic",
+                  "assetType": "stock",
+                  "quantity": "0",
+                  "unitCost": {
+                    "currency": "CAD",
+                    "amount": "10"
+                  },
+                  "bookCost": null,
+                  "bookCostCad": null,
+                  "reportedValues": {
+                    "unitPrice": {
+                      "currency": "CAD",
+                      "amount": "12"
+                    },
+                    "marketValue": {
+                      "currency": "CAD",
+                      "amount": "9999"
+                    },
+                    "unrealizedReturn": {
+                      "currency": "CAD",
+                      "amount": "-5"
+                    }
+                  },
+                  "provenance": {
+                    "instrument": {
+                      "origin": "import",
+                      "recordedAt": "2026-11-13T22:00:00Z",
+                      "sourceDate": "2026-11-13",
+                      "lastEditedAt": null
+                    },
+                    "quantity": {
+                      "origin": "import",
+                      "recordedAt": "2026-11-13T22:00:00Z",
+                      "sourceDate": "2026-11-13",
+                      "lastEditedAt": null
+                    },
+                    "unitCost": {
+                      "origin": "import",
+                      "recordedAt": "2026-11-13T22:00:00Z",
+                      "sourceDate": "2026-11-13",
+                      "lastEditedAt": null
+                    },
+                    "bookCost": {
+                      "origin": "unknown",
+                      "recordedAt": null,
+                      "sourceDate": null,
+                      "lastEditedAt": null
+                    },
+                    "bookCostCad": {
+                      "origin": "unknown",
+                      "recordedAt": null,
+                      "sourceDate": null,
+                      "lastEditedAt": null
+                    }
+                  }
+                }
+              ]
+            }
+          ],
+          "excludedAssets": []
+        }
+      },
+      "quotes": {
+        "contractVersion": "folioview.valuation.v1",
+        "profile": "folioview.quote-batch.v1",
+        "snapshotId": "synthetic_quote_snapshot",
+        "fetchedAt": "2026-11-13T22:00:00Z",
+        "items": [
+          {
+            "instrument": {
+              "symbol": "SYNTH",
+              "market": "XNAS",
+              "currency": "USD"
+            },
+            "price": "0.123456789012345678",
+            "source": "yahoo_finance",
+            "status": "stale",
+            "sourceAsOf": "2026-11-13T22:00:00Z",
+            "sourceDate": "2026-11-13",
+            "fetchedAt": "2026-11-13T22:00:00Z",
+            "reason": null
+          }
+        ]
+      },
+      "fx": {
+        "contractVersion": "folioview.valuation.v1",
+        "profile": "folioview.fx-batch.v1",
+        "snapshotId": "synthetic_fx_snapshot",
+        "fetchedAt": "2026-11-13T22:00:00Z",
+        "items": [
+          {
+            "base": "USD",
+            "quote": "CNY",
+            "rate": "7",
+            "source": "bank_of_canada",
+            "route": {
+              "kind": "cross",
+              "via": "CAD",
+              "legs": [
+                {
+                  "base": "USD",
+                  "quote": "CAD",
+                  "rate": "1.4",
+                  "sourceDate": "2026-11-13"
+                },
+                {
+                  "base": "CNY",
+                  "quote": "CAD",
+                  "rate": "0.2",
+                  "sourceDate": "2026-11-13"
+                }
+              ]
+            },
+            "status": "available",
+            "sourceAsOf": null,
+            "sourceDate": "2026-11-13",
+            "fetchedAt": "2026-11-13T22:00:00Z",
+            "reason": null
+          }
+        ]
+      },
+      "currency": "CNY",
+      "expected": {
+        "currency": "CNY",
+        "subtotal": "1.728395046173703689523086419746",
+        "complete": true,
+        "valuedCount": 3,
+        "positionCount": 3,
+        "stale": true,
+        "quoteSnapshotId": "synthetic_quote_snapshot",
+        "fxSnapshotId": "synthetic_fx_snapshot",
+        "rows": [
+          {
+            "accountId": "account_1",
+            "assetId": "asset_1",
+            "status": "valued",
+            "value": "1.728395046172839492",
+            "weightPercent": "100",
+            "stale": true
+          },
+          {
+            "accountId": "account_1",
+            "assetId": "asset_2",
+            "status": "valued",
+            "value": "0.000000000000864197523086419746",
+            "weightPercent": "0",
+            "stale": true
+          },
+          {
+            "accountId": "account_1",
+            "assetId": "asset_3",
+            "status": "valued",
+            "value": "0",
+            "weightPercent": "0",
+            "stale": false
+          }
+        ]
+      }
+    },
+    {
+      "name": "unresolved",
+      "holdings": {
+        "state": "ready",
+        "coverage": {
+          "state": "unknown",
+          "issues": []
+        },
+        "sourceAsOf": null,
+        "fetchedAt": "2026-11-13T22:00:00Z",
+        "freshness": "unknown",
+        "data": {
+          "kind": "holdings",
+          "profile": "folioview.holdings-facts.v2",
+          "snapshotId": "snapshot_1",
+          "editKind": "import",
+          "reportDate": "2026-11-13",
+          "importSnapshot": {
+            "snapshotId": "snapshot_1",
+            "sourceRevision": 1
+          },
+          "previousSnapshot": null,
+          "accounts": [
+            {
+              "accountId": "account_1",
+              "displayName": "Synthetic account",
+              "balances": [
+                {
+                  "currency": "CAD",
+                  "cashBalance": "123.45",
+                  "buyingPower": null
+                }
+              ],
+              "positions": [
+                {
+                  "assetId": "asset_1",
+                  "brokerAssetId": "synthetic_asset",
+                  "instrument": {
+                    "symbol": "SYNTH",
+                    "market": "UNKNOWN",
+                    "currency": "USD"
+                  },
+                  "name": "Synthetic",
+                  "assetType": "stock",
+                  "quantity": "2",
+                  "unitCost": {
+                    "currency": "USD",
+                    "amount": "10"
+                  },
+                  "bookCost": null,
+                  "bookCostCad": null,
+                  "reportedValues": {
+                    "unitPrice": {
+                      "currency": "USD",
+                      "amount": "12"
+                    },
+                    "marketValue": {
+                      "currency": "CAD",
+                      "amount": "9999"
+                    },
+                    "unrealizedReturn": {
+                      "currency": "CAD",
+                      "amount": "-5"
+                    }
+                  },
+                  "provenance": {
+                    "instrument": {
+                      "origin": "import",
+                      "recordedAt": "2026-11-13T22:00:00Z",
+                      "sourceDate": "2026-11-13",
+                      "lastEditedAt": null
+                    },
+                    "quantity": {
+                      "origin": "import",
+                      "recordedAt": "2026-11-13T22:00:00Z",
+                      "sourceDate": "2026-11-13",
+                      "lastEditedAt": null
+                    },
+                    "unitCost": {
+                      "origin": "import",
+                      "recordedAt": "2026-11-13T22:00:00Z",
+                      "sourceDate": "2026-11-13",
+                      "lastEditedAt": null
+                    },
+                    "bookCost": {
+                      "origin": "unknown",
+                      "recordedAt": null,
+                      "sourceDate": null,
+                      "lastEditedAt": null
+                    },
+                    "bookCostCad": {
+                      "origin": "unknown",
+                      "recordedAt": null,
+                      "sourceDate": null,
+                      "lastEditedAt": null
+                    }
+                  }
+                }
+              ]
+            }
+          ],
+          "excludedAssets": []
+        }
+      },
+      "quotes": {
+        "contractVersion": "folioview.valuation.v1",
+        "profile": "folioview.quote-batch.v1",
+        "snapshotId": "synthetic_quote_snapshot",
+        "fetchedAt": "2026-11-13T22:00:00Z",
+        "items": [
+          {
+            "instrument": {
+              "symbol": "SYNTH",
+              "market": "XNAS",
+              "currency": "USD"
+            },
+            "price": "20",
+            "source": "yahoo_finance",
+            "status": "available",
+            "sourceAsOf": "2026-11-13T22:00:00Z",
+            "sourceDate": "2026-11-13",
+            "fetchedAt": "2026-11-13T22:00:00Z",
+            "reason": null
+          }
+        ]
+      },
+      "fx": {
+        "contractVersion": "folioview.valuation.v1",
+        "profile": "folioview.fx-batch.v1",
+        "snapshotId": "synthetic_fx_snapshot",
+        "fetchedAt": "2026-11-13T22:00:00Z",
+        "items": [
+          {
+            "base": "USD",
+            "quote": "CNY",
+            "rate": "7",
+            "source": "bank_of_canada",
+            "route": {
+              "kind": "cross",
+              "via": "CAD",
+              "legs": [
+                {
+                  "base": "USD",
+                  "quote": "CAD",
+                  "rate": "1.4",
+                  "sourceDate": "2026-11-13"
+                },
+                {
+                  "base": "CNY",
+                  "quote": "CAD",
+                  "rate": "0.2",
+                  "sourceDate": "2026-11-13"
+                }
+              ]
+            },
+            "status": "available",
+            "sourceAsOf": null,
+            "sourceDate": "2026-11-13",
+            "fetchedAt": "2026-11-13T22:00:00Z",
+            "reason": null
+          }
+        ]
+      },
+      "currency": "CNY",
+      "expected": {
+        "currency": "CNY",
+        "subtotal": null,
+        "complete": false,
+        "valuedCount": 0,
+        "positionCount": 1,
+        "stale": false,
+        "quoteSnapshotId": "synthetic_quote_snapshot",
+        "fxSnapshotId": "synthetic_fx_snapshot",
+        "rows": [
+          {
+            "accountId": "account_1",
+            "assetId": "asset_1",
+            "status": "unresolved",
+            "value": null,
+            "weightPercent": null,
+            "stale": false
+          }
+        ]
+      }
+    },
+    {
+      "name": "empty",
+      "holdings": {
+        "state": "ready",
+        "coverage": {
+          "state": "unknown",
+          "issues": []
+        },
+        "sourceAsOf": null,
+        "fetchedAt": "2026-11-13T22:00:00Z",
+        "freshness": "unknown",
+        "data": {
+          "kind": "holdings",
+          "profile": "folioview.holdings-facts.v2",
+          "snapshotId": "snapshot_1",
+          "editKind": "import",
+          "reportDate": "2026-11-13",
+          "importSnapshot": {
+            "snapshotId": "snapshot_1",
+            "sourceRevision": 1
+          },
+          "previousSnapshot": null,
+          "accounts": [
+            {
+              "accountId": "account_1",
+              "displayName": "Synthetic account",
+              "balances": [
+                {
+                  "currency": "CAD",
+                  "cashBalance": "123.45",
+                  "buyingPower": null
+                }
+              ],
+              "positions": []
+            }
+          ],
+          "excludedAssets": []
+        }
+      },
+      "quotes": {
+        "contractVersion": "folioview.valuation.v1",
+        "profile": "folioview.quote-batch.v1",
+        "snapshotId": "synthetic_quote_snapshot",
+        "fetchedAt": "2026-11-13T22:00:00Z",
+        "items": [
+          {
+            "instrument": {
+              "symbol": "SYNTH",
+              "market": "XNAS",
+              "currency": "USD"
+            },
+            "price": "20",
+            "source": "yahoo_finance",
+            "status": "available",
+            "sourceAsOf": "2026-11-13T22:00:00Z",
+            "sourceDate": "2026-11-13",
+            "fetchedAt": "2026-11-13T22:00:00Z",
+            "reason": null
+          }
+        ]
+      },
+      "fx": {
+        "contractVersion": "folioview.valuation.v1",
+        "profile": "folioview.fx-batch.v1",
+        "snapshotId": "synthetic_fx_snapshot",
+        "fetchedAt": "2026-11-13T22:00:00Z",
+        "items": [
+          {
+            "base": "USD",
+            "quote": "CNY",
+            "rate": "7",
+            "source": "bank_of_canada",
+            "route": {
+              "kind": "cross",
+              "via": "CAD",
+              "legs": [
+                {
+                  "base": "USD",
+                  "quote": "CAD",
+                  "rate": "1.4",
+                  "sourceDate": "2026-11-13"
+                },
+                {
+                  "base": "CNY",
+                  "quote": "CAD",
+                  "rate": "0.2",
+                  "sourceDate": "2026-11-13"
+                }
+              ]
+            },
+            "status": "available",
+            "sourceAsOf": null,
+            "sourceDate": "2026-11-13",
+            "fetchedAt": "2026-11-13T22:00:00Z",
+            "reason": null
+          }
+        ]
+      },
+      "currency": "CNY",
+      "expected": {
+        "currency": "CNY",
+        "subtotal": "0",
+        "complete": true,
+        "valuedCount": 0,
+        "positionCount": 0,
+        "stale": false,
+        "quoteSnapshotId": "synthetic_quote_snapshot",
+        "fxSnapshotId": "synthetic_fx_snapshot",
+        "rows": []
+      }
+    },
+    {
+      "name": "large_exact",
+      "holdings": {
+        "state": "ready",
+        "coverage": {
+          "state": "unknown",
+          "issues": []
+        },
+        "sourceAsOf": null,
+        "fetchedAt": "2026-11-13T22:00:00Z",
+        "freshness": "unknown",
+        "data": {
+          "kind": "holdings",
+          "profile": "folioview.holdings-facts.v2",
+          "snapshotId": "snapshot_1",
+          "editKind": "import",
+          "reportDate": "2026-11-13",
+          "importSnapshot": {
+            "snapshotId": "snapshot_1",
+            "sourceRevision": 1
+          },
+          "previousSnapshot": null,
+          "accounts": [
+            {
+              "accountId": "account_1",
+              "displayName": "Synthetic account",
+              "balances": [
+                {
+                  "currency": "CAD",
+                  "cashBalance": "123.45",
+                  "buyingPower": null
+                }
+              ],
+              "positions": [
+                {
+                  "assetId": "asset_1",
+                  "brokerAssetId": "synthetic_asset",
+                  "instrument": {
+                    "symbol": "SYNTH",
+                    "market": "XNAS",
+                    "currency": "USD"
+                  },
+                  "name": "Synthetic",
+                  "assetType": "stock",
+                  "quantity": "99999999999999999999.999999999999",
+                  "unitCost": {
+                    "currency": "USD",
+                    "amount": "10"
+                  },
+                  "bookCost": null,
+                  "bookCostCad": null,
+                  "reportedValues": {
+                    "unitPrice": {
+                      "currency": "USD",
+                      "amount": "12"
+                    },
+                    "marketValue": {
+                      "currency": "CAD",
+                      "amount": "9999"
+                    },
+                    "unrealizedReturn": {
+                      "currency": "CAD",
+                      "amount": "-5"
+                    }
+                  },
+                  "provenance": {
+                    "instrument": {
+                      "origin": "import",
+                      "recordedAt": "2026-11-13T22:00:00Z",
+                      "sourceDate": "2026-11-13",
+                      "lastEditedAt": null
+                    },
+                    "quantity": {
+                      "origin": "import",
+                      "recordedAt": "2026-11-13T22:00:00Z",
+                      "sourceDate": "2026-11-13",
+                      "lastEditedAt": null
+                    },
+                    "unitCost": {
+                      "origin": "import",
+                      "recordedAt": "2026-11-13T22:00:00Z",
+                      "sourceDate": "2026-11-13",
+                      "lastEditedAt": null
+                    },
+                    "bookCost": {
+                      "origin": "unknown",
+                      "recordedAt": null,
+                      "sourceDate": null,
+                      "lastEditedAt": null
+                    },
+                    "bookCostCad": {
+                      "origin": "unknown",
+                      "recordedAt": null,
+                      "sourceDate": null,
+                      "lastEditedAt": null
+                    }
+                  }
+                }
+              ]
+            }
+          ],
+          "excludedAssets": []
+        }
+      },
+      "quotes": {
+        "contractVersion": "folioview.valuation.v1",
+        "profile": "folioview.quote-batch.v1",
+        "snapshotId": "synthetic_quote_snapshot",
+        "fetchedAt": "2026-11-13T22:00:00Z",
+        "items": [
+          {
+            "instrument": {
+              "symbol": "SYNTH",
+              "market": "XNAS",
+              "currency": "USD"
+            },
+            "price": "99999999999999999999.999999999999999999",
+            "source": "yahoo_finance",
+            "status": "available",
+            "sourceAsOf": "2026-11-13T22:00:00Z",
+            "sourceDate": "2026-11-13",
+            "fetchedAt": "2026-11-13T22:00:00Z",
+            "reason": null
+          }
+        ]
+      },
+      "fx": {
+        "contractVersion": "folioview.valuation.v1",
+        "profile": "folioview.fx-batch.v1",
+        "snapshotId": "synthetic_fx_snapshot",
+        "fetchedAt": "2026-11-13T22:00:00Z",
+        "items": [
+          {
+            "base": "USD",
+            "quote": "CNY",
+            "rate": "7",
+            "source": "bank_of_canada",
+            "route": {
+              "kind": "cross",
+              "via": "CAD",
+              "legs": [
+                {
+                  "base": "USD",
+                  "quote": "CAD",
+                  "rate": "1.4",
+                  "sourceDate": "2026-11-13"
+                },
+                {
+                  "base": "CNY",
+                  "quote": "CAD",
+                  "rate": "0.2",
+                  "sourceDate": "2026-11-13"
+                }
+              ]
+            },
+            "status": "available",
+            "sourceAsOf": null,
+            "sourceDate": "2026-11-13",
+            "fetchedAt": "2026-11-13T22:00:00Z",
+            "reason": null
+          }
+        ]
+      },
+      "currency": "CNY",
+      "expected": {
+        "currency": "CNY",
+        "subtotal": "69999999999999999999999999999999299999300.000000000000000000000000000007",
+        "complete": true,
+        "valuedCount": 1,
+        "positionCount": 1,
+        "stale": false,
+        "quoteSnapshotId": "synthetic_quote_snapshot",
+        "fxSnapshotId": "synthetic_fx_snapshot",
+        "rows": [
+          {
+            "accountId": "account_1",
+            "assetId": "asset_1",
+            "status": "valued",
+            "value": "69999999999999999999999999999999299999300.000000000000000000000000000007",
+            "weightPercent": "100",
+            "stale": false
+          }
+        ]
+      }
+    }
+  ],
+  "crosses": [
+    ["1.4", "0.2", "7"],
+    ["1", "3", "0.333333333333333333"],
+    ["1", "6", "0.166666666666666667"],
+    ["0.000000000000000003", "2", "0.000000000000000002"]
+  ],
+  "rounds": [
+    ["1.005", "USD", "1.00"],
+    ["1.015", "USD", "1.02"],
+    ["-0.005", "CAD", "0.00"],
+    ["2.5", "JPY", "2"],
+    ["3.5", "JPY", "4"],
+    ["999999999999999999999999.999", "CNY", "1000000000000000000000000.00"]
+  ]
+}

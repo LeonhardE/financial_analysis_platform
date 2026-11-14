@@ -1,0 +1,24 @@
+{
+  "contractVersion": "folioview.valuation.v1",
+  "factsProfile": "folioview.holdings-facts.v2",
+  "frozenCoreSha256": "f875c586528a981c469e06557230210f2af5be288c8ed2551fd43224ea0d2548",
+  "schemaSha256": "d7844500991a4ad3362b160bc21d83424531034b202aa5f09a5a97aba4804163",
+  "files": {
+    "build.mjs": "8b112b504fec4da0dbb05201a47c5456cdcb5687f8c3e7d7fd5b9b85876c1410",
+    "README.md": "8af8b53788467aa39e524e2b7a9b6d22b31cae21899ca833af98c078703209ef",
+    "schemas.json": "d7844500991a4ad3362b160bc21d83424531034b202aa5f09a5a97aba4804163",
+    "src/index.mjs": "bb96febb73b691538117529b9da9a6661686785de070ce679b409b638f8c2f75",
+    "src/decimal.mjs": "bd361886e8573926cb3a315e592e0d2c002dae4c515ca2a73d737b43b6456b40",
+    "src/holdings.mjs": "4f413ae6fe2565699606f5b6c879027e59b3ae63de398bb8758ae714d7ba0dbb",
+    "src/validation.mjs": "65b3ddddeabbcbd9e1b540bae1d5c7f775e4d06591993f5cd6f076f8972193b4",
+    "src/holdings-validators.cjs": "2949f4d57e128bd5c1371c6e21687df88c81eb3cfb53026c6babe0c3dd759c3f",
+    "src/validators.cjs": "594e4b2601c7eb52b47190cdbbffdd1bfea87b7fecb5c32ab270f1df22ef6e25",
+    "dist/index.mjs": "eea895c8960550b37b2c099378706b9e032ca6791ec15383274e029bda9d5915",
+    "dist/index.d.mts": "ca0f13579bb9c6fa12b4908390ad49a514332c0e60fbcd5ffdc3258d37b15ad2",
+    "dist/holdings.mjs": "17a725508b9698e3ac2d6016054520c9d4be6208c99fa4a479fc5cf1329fdc8e",
+    "dist/holdings.d.mts": "56bd596ea9f26453eae4e3f8fed7c456f3814d61fe0e77c0b93bf07b647ef359",
+    "reference-vectors.json": "5c2cc442954617a444e33e9292462e1b772f8b3ba181cc7c4330fc012883ad3f",
+    "reference-vectors.py": "29292b3b1053930cb252be2674c63ee404913ae481e5093333b330c482095439",
+    "../tests/valuation.test.mjs": "5ef8bb45dd3df3f6ce4b1479abcf8a696c4cbb10cface953c5f4305c14bef125"
+  }
+}
