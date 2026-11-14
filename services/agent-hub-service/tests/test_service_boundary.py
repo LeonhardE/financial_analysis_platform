@@ -49,6 +49,7 @@ class AgentHubBoundaryTests(unittest.TestCase):
                     "/agent/v3/persistent/owners/{owner}/vaults/{vault}/connections/{connection}/task-center/plans/report",
                     "/api/v3/provider-connections/capabilities",
                     "/api/v3/provider-connections/{vault}/{provider}",
+                    "/api/v3/provider-connections/{vault}/summary",
                     "/api/v3/provider-connections/{vault}/{provider}/operations/{operation}",
                     "/api/v3/provider-connections/{vault}/{provider}/commands",
                     "/api/v2/persistent-connections",

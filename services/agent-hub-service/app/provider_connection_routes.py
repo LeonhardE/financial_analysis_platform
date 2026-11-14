@@ -1,9 +1,10 @@
 """Owner-only, explicitly gated provider migration; reads survive a disabled gate."""
 
+import asyncio
 import os
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from starlette.concurrency import run_in_threadpool
 
 from folioview_shared.encrypted.constants import CONTRACT_VERSION
@@ -49,6 +50,16 @@ def capabilities(request: Request, user: Owner):
         "providers": ["muse", "chatgpt"],
         "automaticMigration": False,
     }
+
+
+@router.get("/{vault}/summary")
+async def summary(vault: str, request: Request, user: Owner, service: Service):
+    _invoke(lambda: control_transport(request))
+    async with asyncio.timeout(5):
+        async for chunk in request.stream():
+            if chunk:
+                raise HTTPException(400, {"code": "malformed_request"})
+    return await run_in_threadpool(_invoke, lambda: service.summary(user.uid, vault))
 
 
 @router.get("/{vault}/{provider}")

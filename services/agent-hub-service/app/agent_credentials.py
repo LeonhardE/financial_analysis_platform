@@ -231,31 +231,35 @@ class AgentCredentialService(PersistentAgentService):
 
         def read(unit):
             owner, _, _, conn = self._context(unit, uid, vault, connection)
-            row = stored_identity(unit, owner, vault, connection)
-            lease = None if row is None else row.get("credentialLease")
-            if conn.get("credentialMode") == "agent_owned" and lease is None:
-                raise StoreUnavailable
-            if lease is not None and conn.get("credentialMode") != "agent_owned":
-                raise StoreUnavailable
-            return {
-                "contractVersion": CONTRACT_VERSION,
-                "profile": AGENT_CREDENTIAL_PROFILE,
-                "identity": None if row is None else row["identity"],
-                "binding": None if row is None else row["binding"],
-                "lease": lease,
-                "approval": None if lease is None else row["credentialApproval"],
-                "status": "reauthorization_required"
-                if lease is None
-                else (
-                    "revoked"
-                    if conn["status"] != "active"
-                    else credential_status(lease, now=self.now())
-                ),
-                "defaultValiditySeconds": DEFAULT_CREDENTIAL_SECONDS,
-                "noticeSeconds": CREDENTIAL_NOTICE_SECONDS,
-            }
+            return self._credential_state(unit, owner, vault, connection, conn)
 
         return self.store.transact(read)
+
+    def _credential_state(self, unit, owner, vault, connection, conn):
+        """Unchanged projection after the caller has checked current vault/connection."""
+        row = stored_identity(unit, owner, vault, connection)
+        lease = None if row is None else row.get("credentialLease")
+        if conn.get("credentialMode") == "agent_owned" and lease is None:
+            raise StoreUnavailable
+        if lease is not None and conn.get("credentialMode") != "agent_owned":
+            raise StoreUnavailable
+        return {
+            "contractVersion": CONTRACT_VERSION,
+            "profile": AGENT_CREDENTIAL_PROFILE,
+            "identity": None if row is None else row["identity"],
+            "binding": None if row is None else row["binding"],
+            "lease": lease,
+            "approval": None if lease is None else row["credentialApproval"],
+            "status": "reauthorization_required"
+            if lease is None
+            else (
+                "revoked"
+                if conn["status"] != "active"
+                else credential_status(lease, now=self.now())
+            ),
+            "defaultValiditySeconds": DEFAULT_CREDENTIAL_SECONDS,
+            "noticeSeconds": CREDENTIAL_NOTICE_SECONDS,
+        }
 
     def _receipt(self, saved, owner, vault, connection, operation):
         try:
