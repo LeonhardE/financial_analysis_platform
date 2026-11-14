@@ -43,6 +43,22 @@ consume it without importing Python. Validation includes UTC timestamps, IANA
 timezones and the contract's HTTPS URL restrictions; consumers must implement
 the same format checks, beyond a JSON Schema engine's optional defaults.
 
+The Python loader checks the exact packaged `schemas.json` bytes against the
+fixed SHA256 in `schema.py` before parsing or creating a validator. Complete
+Draft 2020-12 meta-schema validation runs independently in the mandatory common
+suite, including an isolated installed-package resource check. Runtime input
+size, strict JSON, schema/format validation and detached-copy checks remain
+unchanged. This pin is separate from the browser distribution's integrity manifest.
+
+For an approved schema change, first validate the candidate definition directly
+with `Draft202012Validator.check_schema`. Compute SHA256 over its raw bytes and
+update `_PACKAGED_SCHEMA_SHA256` explicitly in the same reviewed change; even
+whitespace changes affect the pin. Rebuild/reinstall the package used by the
+development test environment, then run the complete common and contract suites.
+The integrity tests must retain their independent full meta-schema check rather
+than substituting the runtime loader for it. No schema bytes change as part of
+the loader optimization itself.
+
 The frozen v1 and v2-candidate documents are historical inputs, not accepted
 versions or aliases. Versioned consumers must require the exact header and body
 version, use distinct v2 routes/storage, and reject downgrade or plaintext

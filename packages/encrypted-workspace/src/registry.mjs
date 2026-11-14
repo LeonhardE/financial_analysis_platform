@@ -18,6 +18,31 @@ import {
   validate,
 } from "./crypto.mjs";
 const ROLES = ["root_sig", "device_sig", "device_enc", "agent_sig", "agent_enc", "recovery_enc"];
+// Private to one load. Only complete successful JWS checks are reusable;
+// schemas, registry state and all time/authorization decisions stay outside.
+function certificateVerifier(root, expectedRootKeyId) {
+  const rootJwk = structuredClone(root),
+    rootKeyId = expectedRootKeyId,
+    typ = "fv-control+jws",
+    certificates = new Map(),
+    decoder = new TextDecoder();
+  let certificateBytes = 0;
+  return async (input) => {
+    // Key and verification use these same private inputs across every await.
+    const signed = structuredClone(input),
+      keyBytes = canonical([rootJwk, rootKeyId, typ, signed]),
+      key = decoder.decode(keyBytes),
+      cached = certificates.get(key);
+    if (cached !== undefined) return structuredClone(cached);
+    const payload = await verify(signed, rootJwk, typ),
+      size = keyBytes.length + canonical(payload).length;
+    if (!certificates.has(key) && certificates.size < 128 && certificateBytes + size <= 1_048_576) {
+      certificates.set(key, structuredClone(payload));
+      certificateBytes += size;
+    }
+    return payload;
+  };
+}
 export class Registry {
   constructor(anchor) {
     this.anchor = structuredClone(anchor);
@@ -32,16 +57,21 @@ export class Registry {
       deny("recipient_binding_mismatch");
   }
   async load(bundles, now) {
-    if ((await keyId(this.anchor.rootJwk)) !== this.anchor.rootKeyId) deny("root_pin_mismatch");
+    // Keep the key and verification inputs on the same private snapshot across
+    // awaits. Neither callers nor mutable Registry snapshots can seed the memo.
+    const rootJwk = structuredClone(this.anchor.rootJwk),
+      rootKeyId = this.anchor.rootKeyId,
+      verifyCertificate = certificateVerifier(rootJwk, rootKeyId);
+    if ((await keyId(rootJwk)) !== rootKeyId) deny("root_pin_mismatch");
     array(bundles, 32, 1);
     for (const b of bundles) {
       validate("RegistryBundle", b);
       if (canonical(b).length > 131072) deny("payload_too_large");
-      const cp = await verify(b.checkpoint, this.anchor.rootJwk, "fv-control+jws");
+      const cp = await verify(b.checkpoint, rootJwk, "fv-control+jws");
       validate("RegistryCheckpointPayload", cp);
       this.checkIdentity(cp);
       if (
-        cp.rootKeyId !== this.anchor.rootKeyId ||
+        cp.rootKeyId !== rootKeyId ||
         cp.rootEpoch !== this.anchor.rootEpoch ||
         cp.issuedAt > now ||
         (this.sequence === 0 && (cp.rootEpoch !== 1 || cp.keyEpoch !== 1))
@@ -70,18 +100,18 @@ export class Registry {
         descriptions = [],
         generations = new Set();
       for (const row of b.entries) {
-        const c = await verify(row.certificate, this.anchor.rootJwk, "fv-control+jws");
+        const c = await verifyCertificate(row.certificate);
         validate("KeyCertificatePayload", c);
         this.checkIdentity(c);
         if (
-          c.issuerKeyId !== this.anchor.rootKeyId ||
+          c.issuerKeyId !== rootKeyId ||
           c.keyId !== (await keyId(c.publicJwk)) ||
           keys.has(c.keyId) ||
           c.expiresAt <= c.notBefore ||
           !ROLES.includes(c.role) ||
           c.role.startsWith("agent_") !== (c.connectionId !== null) ||
           row.active === cp.revokedKeyIds.includes(c.keyId) ||
-          (c.role === "root_sig") !== (c.keyId === this.anchor.rootKeyId)
+          (c.role === "root_sig") !== (c.keyId === rootKeyId)
         )
           deny("invalid_certificate");
         const permitted =
