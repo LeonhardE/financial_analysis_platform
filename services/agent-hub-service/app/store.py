@@ -1,5 +1,6 @@
 """Bounded, atomic storage for ciphertext and trusted public authority replicas."""
 
+import copy
 import hashlib
 import os
 import sqlite3
@@ -207,6 +208,7 @@ class SQLiteTransaction:
     def __init__(self, connection, store):
         self.connection = connection
         self.store = store
+        self.registry_history_cache = {}
 
     def get(self, path: str) -> dict | None:
         row = self.connection.execute(
@@ -301,24 +303,45 @@ class FirestoreTransaction:
         self.transaction = transaction
         self.store = store
         self.pending = []
+        self.registry_history_cache = {}
+        # A transaction attempt has one snapshot. Reusing it does not cache an
+        # authorization decision across requests or Firestore conflict retries.
+        self._reads = {}
+        self._read_bytes = 0
+
+    def _remember(self, values, fields=None):
+        for path, value in values.items():
+            key = (path, fields)
+            if key in self._reads or len(self._reads) >= 128:
+                continue
+            size = len(canonical_json(value))
+            if self._read_bytes + size <= 8 * 1024 * 1024:
+                self._reads[key] = copy.deepcopy(value)
+                self._read_bytes += size
 
     def get(self, path: str) -> dict | None:
+        if (path, None) in self._reads:
+            return copy.deepcopy(self._reads[(path, None)])
         row = self.store.client.document(path).get(
             transaction=self.transaction, timeout=4, retry=None
         )
-        if not row.exists:
-            return None
-        value = row.to_dict()
-        if type(value) is not dict:
-            raise StoreUnavailable
-        return _read_document(value, path=path)
+        value = None
+        if row.exists:
+            value = row.to_dict()
+            if type(value) is not dict:
+                raise StoreUnavailable
+            value = _read_document(value, path=path)
+        self._remember({path: value})
+        return value
 
     def get_many(self, paths, *, field_paths=None) -> dict[str, dict | None]:
         paths = _batch_paths(paths)
         field_paths = _batch_fields(field_paths)
-        result = dict.fromkeys(paths)
-        for start in range(0, len(paths), 128):
-            refs = [self.store.client.document(path) for path in paths[start : start + 128]]
+        fields = tuple(sorted(field_paths)) if field_paths is not None else None
+        result = {path: copy.deepcopy(self._reads.get((path, fields))) for path in paths}
+        missing = [path for path in paths if (path, fields) not in self._reads]
+        for start in range(0, len(missing), 128):
+            refs = [self.store.client.document(path) for path in missing[start : start + 128]]
             expected = {ref._document_path: ref.path for ref in refs}
             seen = set()
             for row in self.store.client.get_all(
@@ -342,6 +365,10 @@ class FirestoreTransaction:
                 )
             if seen != set(expected):
                 raise StoreUnavailable
+        # Never retain a partial or malformed BatchGet response. Full documents
+        # and projected rows occupy distinct entries; neither can impersonate
+        # the other on a later read in this attempt.
+        self._remember({path: result[path] for path in missing}, fields)
         return result
 
     def scan_owner(self, collection, field, owner, *, after=None, limit=4):

@@ -636,3 +636,16 @@ narrowing endpoint stays available when widening feature gates are off. Clients
 may clear their encrypted outbox only after validating this exact operation,
 fingerprint and outcome, and must never manufacture a replacement request to
 resolve an unknown result.
+
+### Transaction-local read reuse
+
+Firestore reads of the same full document or identical field projection reuse the
+current transaction attempt's snapshot, including confirmed absence. Returned JSON
+is detached from the bounded128-entry/8MiB read cache; incomplete, duplicate or
+malformed batches are never partially admitted. Full and projected rows cannot
+substitute for each other. Pending writes retain the original snapshot semantics.
+Each conflict retry and subsequent request constructs a fresh adapter and rereads
+current ownership, credential, task and revocation state. No authorization result
+is cached across requests. Identical immutable public registry signature history
+may be reused within the attempt (at most eight histories), while row, time,
+source and lifecycle checks continue to run.

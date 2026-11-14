@@ -145,7 +145,7 @@ def _verify_row(row, owner, now, *, unit=None, registry_cache=None):
             )
             if first is None:
                 first = registry
-        if registry_cache is not None:
+        if registry_cache is not None and len(registry_cache) < 8:
             registry_cache[key] = (registry, first)
     else:
         registry, first = cached
@@ -197,7 +197,9 @@ def _current(unit, owner, now, vault=None):
     row = unit.get(document_path("hub_vaults", owner))
     if row is None:
         raise ContractError("not_found")
-    registry = _verify_row(row, owner, now, unit=unit)
+    registry = _verify_row(
+        row, owner, now, unit=unit, registry_cache=getattr(unit, "registry_history_cache", None)
+    )
     if vault is not None and row["vaultId"] != vault:
         raise ContractError("not_found")
     return row, registry
