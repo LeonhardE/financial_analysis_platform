@@ -52,7 +52,10 @@ backend, Firebase identity SDK, dependency, resource, capacity setting or paid s
 Rates derive from the [Bank of Canada daily reference rates](https://www.bankofcanada.ca/rates/exchange/daily-exchange-rates/)
 through its [Valet API](https://www.bankofcanada.ca/valet-api-how-to/) and
 [documented observation format](https://www.bankofcanada.ca/valet/static/swagger/api-en.yml).
-The service reads one `FX_RATES_DAILY` observation row, not independently selected dates per currency.
+The service requests the eleven supported non-CAD Valet series together and reads one common
+observation date. It excludes the broad `FX_RATES_DAILY` group, whose latest-per-series response
+also contains historical dates for retired currencies. It never combines independently selected
+dates per currency.
 These indicative daily averages are **not real-time or executable prices**. Consumers must label
 Bank of Canada, show the observation date, link to the original source, and identify inversions/cross
 rates as calculated. Follow the [source terms](https://www.bankofcanada.ca/terms/), including the

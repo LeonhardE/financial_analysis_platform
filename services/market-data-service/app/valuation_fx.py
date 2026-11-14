@@ -33,6 +33,8 @@ PROVIDER = "bank_of_canada"
 PROVIDER_TIMEOUT = 5
 BODY_BYTES = 4096
 CURRENCIES = ("USD", "CAD", "CNY", "EUR", "GBP", "JPY", "HKD", "AUD", "CHF", "NZD", "SGD", "TWD")
+FX_SERIES = ",".join("FX" + currency + "CAD" for currency in CURRENCIES if currency != "CAD")
+FX_URL = "https://www.bankofcanada.ca/valet/observations/" + FX_SERIES + "/json?recent=1"
 POSITIVE = re.compile(r"^(?:0|[1-9][0-9]{0,19})(?:\.[0-9]{1,18})?$")
 TORONTO = ZoneInfo("America/Toronto")
 # A socket timeout alone cannot bound a slow-drip response. The standard-library
@@ -42,7 +44,7 @@ FX_WORKER = """
 import json
 import urllib.request
 request = urllib.request.Request(
-    "https://www.bankofcanada.ca/valet/observations/group/FX_RATES_DAILY/json?recent=1",
+    __FX_URL__,
     headers={"Accept": "application/json", "User-Agent": "FolioView-reference-FX/1.0"},
 )
 try:
@@ -55,7 +57,7 @@ try:
     print(raw.decode("utf-8"))
 except Exception:
     print('{"error":true}')
-"""
+""".replace("__FX_URL__", repr(FX_URL))
 
 
 def stamp(now):
