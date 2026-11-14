@@ -1,6 +1,5 @@
 """Demand-only daily reference FX; public pairs never contain portfolio facts."""
 
-import asyncio
 import hashlib
 import json
 import re
@@ -11,7 +10,7 @@ from threading import Lock
 from typing import Annotated
 from zoneinfo import ZoneInfo
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
+from fastapi import APIRouter, Depends, Query, Request, Response
 from starlette.concurrency import run_in_threadpool
 
 from folioview_shared.valuation import (
@@ -25,6 +24,7 @@ from folioview_shared.valuation import (
 from .cost_controls import MarketCostRoute
 from .market_cache import CacheUnavailable
 from .market_data import MarketService, get_market_service
+from .valuation_http import public_request, unique_object
 
 router = APIRouter(route_class=MarketCostRoute)
 FX_LOCK = Lock()
@@ -296,31 +296,8 @@ def get_fx_service(market: Annotated[MarketService, Depends(get_market_service)]
     return FxService(market)
 
 
-def unique_object(pairs):
-    result = {}
-    for key, value in pairs:
-        if key in result:
-            raise ValueError
-        result[key] = value
-    return result
-
-
 async def read_fx_request(request: Request):
-    if (
-        request.headers.get("content-type", "").split(";", 1)[0].strip().lower()
-        != "application/json"
-    ):
-        raise HTTPException(415, "Send a public FX pair request as JSON.")
-    try:
-        async with asyncio.timeout(5):
-            body = bytearray()
-            async for chunk in request.stream():
-                if len(body) + len(chunk) > BODY_BYTES:
-                    raise HTTPException(413, "FX request is too large.")
-                body.extend(chunk)
-        return fx_request(json.loads(body, object_pairs_hook=unique_object))
-    except (ValueError, UnicodeError, ValuationError, TimeoutError, RecursionError):
-        raise HTTPException(400, "Invalid FX pair request.") from None
+    return await public_request(request, fx_request, BODY_BYTES, "FX pair")
 
 
 @router.post("/api/valuation/fx")

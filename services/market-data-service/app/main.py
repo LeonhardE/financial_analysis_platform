@@ -11,6 +11,7 @@ from .cost_controls import MarketCostRoute
 from .market_data import MarketService, get_market_service
 from .stock_metrics import router as stock_metrics_router
 from .valuation_fx import router as valuation_fx_router
+from .valuation_quotes import router as valuation_quotes_router
 
 app = create_app(
     "FolioView Market API",
@@ -21,6 +22,7 @@ app.router.route_class = MarketCostRoute
 app.add_middleware(PrivateResponseHeaders, prefixes=("/api/valuation/",))
 app.include_router(stock_metrics_router)
 app.include_router(valuation_fx_router)
+app.include_router(valuation_quotes_router)
 
 
 @app.get("/health")

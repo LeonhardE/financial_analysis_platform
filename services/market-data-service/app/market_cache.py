@@ -38,6 +38,9 @@ class MarketCache:
     def get(self, key: str) -> Entry | None:
         raise NotImplementedError
 
+    def get_many(self, keys: list[str]) -> dict[str, Entry | None]:
+        return {key: self.get(key) for key in batch_keys(keys)}
+
     def claim(self, key: str, now: float, cost: int = 1, *, provider: str = "yahoo") -> str | None:
         """Return None for an acquired lease, otherwise a public-safe reason."""
         raise NotImplementedError
@@ -59,6 +62,16 @@ def bounded_int(name: str, default: int, lower: int, upper: int) -> int:
         return max(lower, min(upper, int(os.getenv(name, str(default)))))
     except ValueError:
         return default
+
+
+def batch_keys(keys):
+    if (
+        type(keys) is not list
+        or len(keys) > 50
+        or any(type(key) is not str or not 1 <= len(key) <= 128 for key in keys)
+    ):
+        raise CacheUnavailable
+    return list(dict.fromkeys(keys))
 
 
 def cooldown_key(provider: str) -> str:
@@ -126,6 +139,23 @@ class SQLiteMarketCache(MarketCache):
                 "SELECT value, updated FROM market_entries WHERE key=?", (key,)
             ).fetchone()
         return Entry(json.loads(row["value"]), row["updated"]) if row and row["value"] else None
+
+    def get_many(self, keys):
+        keys = batch_keys(keys)
+        if not keys:
+            return {}
+        with self.connection() as db:
+            rows = db.execute(
+                "SELECT key,value,updated FROM market_entries WHERE key IN ("
+                + ",".join("?" for _ in keys)
+                + ")",
+                keys,
+            ).fetchall()
+        result = {key: None for key in keys}
+        for row in rows:
+            if row["value"]:
+                result[row["key"]] = Entry(json.loads(row["value"]), row["updated"])
+        return result
 
     def claim(self, key: str, now: float, cost: int = 1, *, provider: str = "yahoo") -> str | None:
         with self.connection() as db:
@@ -239,6 +269,45 @@ class FirestoreMarketCache(MarketCache):
     def invalidate(self, key: str):
         with self.read_cache_lock:
             self.read_cache.pop(key, None)
+
+    def get_many(self, keys):
+        keys = batch_keys(keys)
+        result = {}
+        missing = {}
+        with self.read_cache_lock:
+            for key in keys:
+                local = self.read_cache.get(key)
+                if local and local[0] > time.monotonic():
+                    result[key] = local[1]
+                else:
+                    missing[self.document(key).id] = key
+        if not missing:
+            return result
+        # One bounded SDK stream, still charged once per attempted document.
+        # Do not publish partial negative reads if the stream fails midway.
+        self.controls.storage.charge(len(missing))
+        try:
+            fetched = {}
+            references = [self.document(key) for key in missing.values()]
+            for snapshot in self.client.get_all(references, timeout=4, retry=None):
+                identity = snapshot.reference.id
+                if identity not in missing or identity in fetched:
+                    raise CacheUnavailable
+                row = snapshot.to_dict()
+                fetched[identity] = (
+                    Entry(row["value"], row["updated"]) if row and "value" in row else None
+                )
+            if set(fetched) != set(missing):
+                raise CacheUnavailable
+            for identity, entry in fetched.items():
+                key = missing[identity]
+                self.remember(key, entry)
+                result[key] = entry
+            return result
+        except MarketLimited:
+            raise
+        except Exception as error:
+            raise CacheUnavailable from error
 
     def claim(self, key: str, now: float, cost: int = 1, *, provider: str = "yahoo") -> str | None:
         entry_ref = self.document(key)
