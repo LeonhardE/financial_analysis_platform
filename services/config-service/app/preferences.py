@@ -55,6 +55,49 @@ class PreferencesUpdate(Preferences):
     expectedVersion: Annotated[int, Field(ge=0, le=MAX_VERSION)]
 
 
+class LanguagePreferences(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    language: Literal["en", "zh", "zh-Hant"]
+
+
+class LanguagePreferencesUpdate(LanguagePreferences):
+    expectedVersion: Annotated[int, Field(ge=0, le=MAX_VERSION)]
+
+
+class LanguagePreferencesResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    preferences: LanguagePreferences | None
+    version: Annotated[int, Field(ge=0, le=MAX_VERSION)]
+
+
+def empty_language() -> dict:
+    return {"preferences": None, "version": 0}
+
+
+def checked_language_record(value) -> dict:
+    try:
+        result = LanguagePreferencesResponse.model_validate(value).model_dump()
+        if result["preferences"] is None or result["version"] == 0:
+            raise ValueError
+        return result
+    except (TypeError, ValueError) as error:
+        raise PreferencesUnavailable from error
+
+
+def language_owner(uid: str) -> str:
+    return "language.v2:" + owner_key(uid)
+
+
+def next_language(current, update) -> dict:
+    try:
+        checked = LanguagePreferencesUpdate.model_validate(update)
+    except (TypeError, ValueError) as error:
+        raise PreferencesUnavailable from error
+    return next_snapshot(current, {"language": checked.language}, checked.expectedVersion)
+
+
 def checked_preferences(value: object) -> dict | None:
     """Absence is distinct from saved defaults; malformed documents fail closed."""
     if value is None:
@@ -133,6 +176,12 @@ def next_currency(current, update):
 
 
 class PreferencesStore:
+    def get_language(self, uid: str) -> dict:
+        raise NotImplementedError
+
+    def save_language(self, uid: str, update: dict) -> dict:
+        raise NotImplementedError
+
     def get_currency(self, uid: str) -> dict:
         raise NotImplementedError
 
@@ -214,6 +263,27 @@ class SQLitePreferencesStore(PreferencesStore):
             )
             return result
 
+    @staticmethod
+    def read_language(db, owner: str) -> dict:
+        row = db.execute("SELECT value FROM user_preferences WHERE owner=?", (owner,)).fetchone()
+        return checked_language_record(json.loads(row[0])) if row else empty_language()
+
+    def get_language(self, uid: str) -> dict:
+        with self.connection() as db:
+            return self.read_language(db, language_owner(uid))
+
+    def save_language(self, uid: str, update: dict) -> dict:
+        owner = language_owner(uid)
+        with self.connection() as db:
+            db.execute("BEGIN IMMEDIATE")
+            result = next_language(self.read_language(db, owner), update)
+            db.execute(
+                "INSERT INTO user_preferences(owner,value) VALUES(?,?) "
+                "ON CONFLICT(owner) DO UPDATE SET value=excluded.value",
+                (owner, json.dumps(result, allow_nan=False)),
+            )
+            return result
+
 
 class FirestorePreferencesStore(PreferencesStore):
     """One bounded document per user; atomic version checks reject stale saves."""
@@ -269,6 +339,33 @@ class FirestorePreferencesStore(PreferencesStore):
             value = reference.get(transaction=transaction, timeout=4, retry=None).to_dict()
             current = checked_currency_record(value) if value is not None else empty_currency()
             result = next_currency(current, update)
+            transaction.set(reference, result)
+            return result
+
+        try:
+            return save_transaction(BoundedTransaction(self.client, max_attempts=2))
+        except PreferencesConflict:
+            raise
+        except Exception as error:
+            raise PreferencesUnavailable from error
+
+    def get_language(self, uid: str) -> dict:
+        try:
+            value = (
+                self.collection.document(language_owner(uid)).get(timeout=4, retry=None).to_dict()
+            )
+            return checked_language_record(value) if value is not None else empty_language()
+        except Exception as error:
+            raise PreferencesUnavailable from error
+
+    def save_language(self, uid: str, update: dict) -> dict:
+        reference = self.collection.document(language_owner(uid))
+
+        @firestore.transactional
+        def save_transaction(transaction):
+            value = reference.get(transaction=transaction, timeout=4, retry=None).to_dict()
+            current = checked_language_record(value) if value is not None else empty_language()
+            result = next_language(current, update)
             transaction.set(reference, result)
             return result
 
@@ -420,6 +517,31 @@ def get_currency_preferences(user: User, store: Store) -> dict:
 def save_currency_preferences(update: CurrencyPreferencesUpdate, user: User, store: Store) -> dict:
     try:
         return store.save_currency(user.uid, update.model_dump())
+    except PreferencesConflict as error:
+        raise HTTPException(
+            409, "Your preferences changed. Reload them before saving again."
+        ) from error
+    except PreferencesUnavailable as error:
+        raise HTTPException(503, UNAVAILABLE) from error
+
+
+language_router = APIRouter(
+    prefix="/api/v2/preferences/language", tags=["preferences"], route_class=PrivatePreferencesRoute
+)
+
+
+@language_router.get("", response_model=LanguagePreferencesResponse)
+def get_language_preferences(user: User, store: Store) -> dict:
+    try:
+        return store.get_language(user.uid)
+    except PreferencesUnavailable as error:
+        raise HTTPException(503, UNAVAILABLE) from error
+
+
+@language_router.put("", response_model=LanguagePreferencesResponse)
+def save_language_preferences(update: LanguagePreferencesUpdate, user: User, store: Store) -> dict:
+    try:
+        return store.save_language(user.uid, update.model_dump())
     except PreferencesConflict as error:
         raise HTTPException(
             409, "Your preferences changed. Reload them before saving again."

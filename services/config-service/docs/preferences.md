@@ -45,6 +45,29 @@ valuation/allocation only, not native stock quotes, imported facts or historical
 does not create FX follows: consumers combine this snapshot and the Owner's User preference list
 at read time.
 
+## Independent language selection
+
+`GET/PUT /api/v2/preferences/language` adds account language selection for `en`, `zh`
+(Simplified Chinese) and `zh-Hant` (Traditional Chinese). Reads return exactly `preferences`
+and `version`; a missing document returns `preferences: null, version: 0` without writing.
+Consumers then inherit the existing v1 language, or English for a new account. A saved v2
+language is authoritative for clients that support this endpoint. The update shape is:
+
+```json
+{ "language": "zh-Hant", "expectedVersion": 0 }
+```
+
+The existing1KiB/five-second input bound, verified Google ownership, no-store responses,
+strict fields and optimistic version checks apply. Every accepted save advances the language
+version, including identical choices. An unknown result must be read back before another
+candidate save. Malformed stored state fails503 and is not replaced with defaults.
+
+Language uses `language.v2:<owner hash>` in the existing `user_preferences` table/collection.
+Its version fence is independent of UI v1 and currency v2. Complete writes from older clients
+cannot erase a Traditional Chinese choice or alter its fence. The frozen v1 language enum and
+shared `UiPreferencesV1` contract remain `en`/`zh`; no existing document is migrated, no database
+or collection is provisioned, and no identity or access configuration changes.
+
 ## Existing storage and isolation
 
 Currency uses `currency.v2:<owner hash>` inside the existing `user_preferences` collection/table.

@@ -2,7 +2,7 @@
 
 from folioview_shared.http import create_app
 
-from .preferences import currency_router, router
+from .preferences import currency_router, language_router, router
 
 app = create_app(
     "FolioView Config API",
@@ -12,6 +12,7 @@ app = create_app(
 )
 app.include_router(router)
 app.include_router(currency_router)
+app.include_router(language_router)
 
 
 @app.get("/health")
