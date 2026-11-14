@@ -1,5 +1,6 @@
 """Offline daily FX, shared cost isolation and the actual anonymous HTTP boundary."""
 
+import io
 import json
 import os
 import subprocess
@@ -19,8 +20,10 @@ from app.main import app
 from app.market_cache import CacheUnavailable, FirestoreMarketCache, SQLiteMarketCache
 from app.market_data import MarketService, get_market_service
 from app.valuation_fx import (
+    CURRENCIES,
     FX_KEY,
     FX_LOCK,
+    FX_URL,
     PROVIDER,
     BankOfCanadaProvider,
     FxService,
@@ -43,6 +46,49 @@ PAIRS = {
 
 
 class FxProviderTests(unittest.TestCase):
+    def test_real_worker_avoids_group_history_for_retired_currencies(self):
+        current = {
+            "d": ROW["sourceDate"],
+            **{"FX" + c + "CAD": {"v": v} for c, v in ROW["rates"].items()},
+        }
+        group = {
+            "observations": [
+                {"d": "2019-12-31", "FXVNDCAD": {"v": "0.000056"}},
+                current,
+                {"d": "2026-04-30", "FXRUBCAD": {"v": "0.01819"}},
+            ]
+        }
+        urls = []
+
+        def serve(request, **kwargs):
+            urls.append(request.full_url)
+            if "/observations/group/" in request.full_url:
+                payload = group
+            else:
+                series = request.full_url.split("/observations/", 1)[1].split("/json", 1)[0]
+                self.assertEqual(
+                    set(series.split(",")), {"FX" + c + "CAD" for c in CURRENCIES if c != "CAD"}
+                )
+                self.assertTrue(
+                    request.full_url.startswith("https://www.bankofcanada.ca/valet/observations/")
+                )
+                self.assertTrue(request.full_url.endswith("/json?recent=1"))
+                payload = {"observations": [current]}
+            response = MagicMock()
+            response.__enter__.return_value.status = 200
+            response.__enter__.return_value.read.return_value = json.dumps(payload).encode()
+            return response
+
+        def run_worker(command, **kwargs):
+            output = io.StringIO()
+            with patch("urllib.request.urlopen", side_effect=serve), patch("sys.stdout", output):
+                exec(command[2], {})
+            return SimpleNamespace(stdout=output.getvalue().encode())
+
+        with patch("app.valuation_fx.subprocess.run", side_effect=run_worker):
+            self.assertEqual(BankOfCanadaProvider().fetch(NOW), ROW)
+        self.assertEqual(len(urls), 1, "one bounded request still covers every supported pair")
+
     def test_group_parser_preserves_one_actual_date_and_decimal_strings(self):
         raw = {
             "observations": [
@@ -61,7 +107,7 @@ class FxProviderTests(unittest.TestCase):
         self.assertNotIn("shell", options)
         self.assertEqual(options["timeout"], 5)
         self.assertEqual(len(args[0]), 3, "no client-controlled URL or provider argument")
-        self.assertIn("FX_RATES_DAILY/json?recent=1", args[0][-1])
+        self.assertIn(FX_URL, args[0][-1])
 
     def test_mixed_observations_future_dates_and_invalid_rates_are_not_spliced(self):
         rows = [
