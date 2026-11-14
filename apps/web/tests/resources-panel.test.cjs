@@ -23,6 +23,10 @@ const { code } = transformSync(
 function render(model, locale = "en", managementOnly = false) {
   const messages = require(`../messages/${locale}.json`);
   const imports = {
+    "@/lib/holdings-facts": require("./resource-library-helpers.cjs").compile(
+      "../lib/holdings-facts.ts",
+    ),
+    "./HoldingsEditor": { __esModule: true, default: () => null },
     react: React,
     "./PasskeyHelp": { PasskeyHelp: () => null },
     "./ResourceLibrary": {
@@ -49,6 +53,7 @@ function render(model, locale = "en", managementOnly = false) {
         "react/jsx-runtime": jsxRuntime,
         "next-intl": {
           useTranslations: (namespace) => createTranslator({ locale, messages, namespace }),
+          useLocale: () => locale,
         },
         "./useTasks": { useTasks: () => ({ items: [], taskNames: {} }) },
         "./ResourcesPanel.module.css": {
@@ -59,7 +64,9 @@ function render(model, locale = "en", managementOnly = false) {
     ),
     "react/jsx-runtime": jsxRuntime,
     "next-intl": {
+      useLocale: () => locale,
       useTranslations: (namespace) => createTranslator({ locale, messages, namespace }),
+      useLocale: () => locale,
     },
     "@/components/useHoldingsWorkspace": { useHoldingsWorkspace: () => model },
     "./ResourcesPanel.module.css": {

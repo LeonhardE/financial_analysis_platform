@@ -21,6 +21,10 @@ vm.runInNewContext(code, {
   TextEncoder,
   crypto: webcrypto,
   structuredClone,
+  require: (name) => {
+    assert.equal(name, "./holdings-facts");
+    return require("./resource-library-helpers.cjs").compile("../lib/holdings-facts.ts");
+  },
 });
 const {
   WEALTHSIMPLE_HOLDINGS_HEADERS: headers,
@@ -86,6 +90,48 @@ const parse = (text, changes = {}) =>
     importedAt: "2026-10-28T19:15:00Z",
     ...changes,
   });
+test("opt-in import retains native/CAD book costs, reported values, MIC and derived unit cost without raw accounts", async () => {
+  const preview = await parse(csv([row({ MIC: "XTSE", Quantity: "12.5" })]), {
+    captureCosts: true,
+  });
+  const { holdingsFacts } = await import(
+    require("node:url").pathToFileURL(
+      path.resolve(__dirname, "../../../packages/encrypted-workspace/valuation/dist/holdings.mjs"),
+    ).href
+  );
+  holdingsFacts(clean(preview.facts), { snapshotId: "synthetic_snapshot_a", revision: 1 });
+  const p = preview.facts.data.accounts[0].positions[0];
+  assert.equal(p.instrument.market, "XTSE");
+  assert.equal(p.unitCost.amount, "8");
+  assert.equal(p.bookCost.amount, "100");
+  assert.equal(p.bookCostCad.amount, "100");
+  assert.equal(p.reportedValues.marketValue.amount, "125");
+  assert.equal(p.reportedValues.unrealizedReturn.amount, "25");
+  assert.equal(p.provenance.unitCost.origin, "derived");
+  assert.equal(p.provenance.bookCost.origin, "import");
+  assert.equal(p.provenance.bookCost.sourceDate, "2026-10-22");
+  assert.ok(!JSON.stringify(preview).includes("SYNTH_ACCOUNT_A_4821"));
+});
+test("new import never derives USD cost from CAD alone and rejects conflicting cost rows", async () => {
+  const value = row({
+    "Market Price Currency": "USD",
+    "Book Value (Market)": "",
+    "Book Value Currency (Market)": "USD",
+    "Market Value Currency": "USD",
+    "Market Unrealized Returns Currency": "USD",
+  });
+  const preview = await parse(csv([value]), { captureCosts: true });
+  const p = preview.facts.data.accounts[0].positions[0];
+  assert.equal(p.unitCost, null);
+  assert.equal(p.bookCost, null);
+  assert.equal(p.bookCostCad.amount, "100");
+  await rejects("conflicting_position_rows", () =>
+    parse(csv([row(), row({ "Book Value (Market)": "101" })]), { captureCosts: true }),
+  );
+  await rejects("invalid_number", () =>
+    parse(csv([row({ "Book Value (Market)": "-1" })]), { captureCosts: true }),
+  );
+});
 async function rejects(code, action) {
   await assert.rejects(action, (error) => {
     assert.equal(error.name, "HoldingsCsvError");

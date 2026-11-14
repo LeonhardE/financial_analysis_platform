@@ -8,8 +8,18 @@ import {
   parseHoldingsCsv,
   selectHoldingsAccounts,
   type HoldingsCsvPreview,
-  type HoldingsResourceContent,
 } from "@/lib/holdings-csv";
+import {
+  asFacts,
+  bindFacts,
+  editHoldings,
+  factsContent,
+  holdingsChanges,
+  importHoldings,
+  type HoldingsPreview,
+  type PositionEdit,
+  type SavedHoldings,
+} from "@/lib/holdings-facts";
 import { WorkspaceDisplayCache } from "@/lib/workspace-cache";
 import { EncryptedVaultSession } from "@/lib/encrypted-vault";
 import {
@@ -140,8 +150,9 @@ type State = {
   } | null;
   sourceCreationId: string | null;
   staleSourceMutation: boolean;
-  preview: HoldingsCsvPreview | null;
-  content: HoldingsResourceContent | null;
+  preview: HoldingsPreview | null;
+  importPreview: HoldingsCsvPreview | null;
+  content: SavedHoldings | null;
   hasPending: boolean;
   discardOperationId: string | null;
   error: string;
@@ -201,6 +212,7 @@ const empty: State = {
   sourceCreationId: null,
   staleSourceMutation: false,
   preview: null,
+  importPreview: null,
   content: null,
   hasPending: false,
   discardOperationId: null,
@@ -385,6 +397,69 @@ function errorCode(error: unknown): string {
   return "request_failed";
 }
 
+function editingBase(before: State): HoldingsPreview["base"] {
+  if (before.newSource || !before.sources.length) return undefined;
+  const metadata = before.sourceMetadata;
+  if (!metadata || metadata.state !== "active") throw new WorkspaceError("source_change_blocked");
+  if (!metadata.snapshotId) {
+    if (metadata.revision !== 0 || before.content) throw new WorkspaceError("version_conflict");
+    return undefined;
+  }
+  if (before.content?.data.snapshotId !== metadata.snapshotId)
+    throw new WorkspaceError("version_conflict");
+  return {
+    snapshotId: metadata.snapshotId,
+    sourceRevision: metadata.revision,
+    sourceId: metadata.source.resourceRef.resourceId,
+    incarnation: metadata.source.resourceRef.incarnation,
+    sourceEpoch: metadata.source.sourceEpoch,
+    authorityVersion: metadata.authorityVersion,
+  };
+}
+function editingScope(before: State, generation: number) {
+  return JSON.stringify([
+    before.owner,
+    generation,
+    before.vault?.vaultId,
+    before.selectedSourceId,
+    before.newSource,
+    before.sourceMetadata?.source.sourceEpoch,
+    before.sourceMetadata?.revision,
+    before.sourceMetadata?.authorityVersion,
+    before.content?.data.snapshotId,
+  ]);
+}
+function importDraft(
+  raw: HoldingsCsvPreview,
+  before: State,
+  plan?: { mode: "replace" | "merge"; overwriteManual: boolean },
+): HoldingsPreview {
+  // Keep compatibility for legacy previews; the current CSV caller explicitly requests facts.
+  if (!raw.facts) return raw;
+  const base = before.preview?.intent === "import" ? before.preview.base : editingBase(before);
+  const existing = before.content ? asFacts(before.content) : null;
+  const differences = existing ? holdingsChanges(existing, raw.facts) : [];
+  const protectedManualCount = differences.filter((row) => row.manualConflict).length;
+  const mode = plan?.mode ?? (protectedManualCount ? "merge" : "replace");
+  const overwriteManual = plan?.overwriteManual ?? false;
+  // This constructs a local review only. Replace cannot be saved without its explicit consent below.
+  const content = importHoldings({
+    incoming: raw.facts,
+    current: before.content,
+    base: base ?? null,
+    mode,
+    overwriteManual: mode === "replace" || overwriteManual,
+  });
+  return {
+    ...raw,
+    intent: "import",
+    base,
+    resourceContent: content,
+    importPlan: { mode, overwriteManual, protectedManualCount },
+    changes: existing ? holdingsChanges(existing, content) : [],
+  };
+}
+
 export function useHoldingsWorkspace() {
   const auth = useAuth();
   const owner = auth.status === "authenticated" && auth.profile ? auth.sessionKey : null;
@@ -512,6 +587,7 @@ export function useHoldingsWorkspace() {
             phase: lockedPhase(previous),
             archiveDeletionReview: null,
             preview: null,
+            importPreview: null,
             content: null,
             sourceMetadata: null,
             sourceReview: null,
@@ -579,6 +655,7 @@ export function useHoldingsWorkspace() {
                 archiveDeletionReview: null,
                 content: null,
                 preview: null,
+                importPreview: null,
                 keyManagement: null,
                 deviceReview: null,
                 deviceChange: null,
@@ -773,7 +850,7 @@ export function useHoldingsWorkspace() {
       vault.rootKeyId,
     ]);
   type CachedHolding = {
-    content: HoldingsResourceContent;
+    content: SavedHoldings;
     metadata: SourceMetadata;
     proof: NonNullable<typeof verifiedSnapshot.current>;
   };
@@ -783,7 +860,7 @@ export function useHoldingsWorkspace() {
       signal: AbortSignal,
       assertActive: () => void,
       reuseDisplay = false,
-    ): Promise<HoldingsResourceContent | null> => {
+    ): Promise<SavedHoldings | null> => {
       const instance = liveSession();
       const vault = stateRef.current.vault;
       if (!capabilitiesRef.current.portfolio || !vault)
@@ -956,10 +1033,10 @@ export function useHoldingsWorkspace() {
       });
       setState((previous) => ({
         ...previous,
-        content: content as HoldingsResourceContent,
+        content: content as SavedHoldings,
         sourceMetadata: { ...metadata, snapshotSourceEpoch: receipt.sourceEpoch as number },
       }));
-      return content as HoldingsResourceContent;
+      return content as SavedHoldings;
     },
     [api, liveSession, sync],
   );
@@ -1122,6 +1199,7 @@ export function useHoldingsWorkspace() {
               archiveDeletionReview: null,
               content: null,
               preview: null,
+              importPreview: null,
               keyManagement: null,
               deviceReview: null,
               deviceChange: null,
@@ -1414,6 +1492,7 @@ export function useHoldingsWorkspace() {
         if (
           stateRef.current.sourceMutation ||
           stateRef.current.sourceCreationId ||
+          (stateRef.current.preview && stateRef.current.preview.intent !== "import") ||
           (!stateRef.current.newSource &&
             ["revoking", "disconnected", "deleted"].includes(
               stateRef.current.sourceMetadata?.state ?? "",
@@ -1429,9 +1508,16 @@ export function useHoldingsWorkspace() {
           ownerUid: uid!,
           snapshotId: id("snapshot"),
           importedAt: new Date().toISOString(),
+          captureCosts: true,
         });
         assertActive();
-        setState((previous) => ({ ...previous, preview, notice: "" }));
+        const next = importDraft(preview, stateRef.current);
+        setState((previous) => ({
+          ...previous,
+          preview: next,
+          importPreview: preview,
+          notice: "",
+        }));
       }),
     [liveSession, perform, uid],
   );
@@ -1449,8 +1535,125 @@ export function useHoldingsWorkspace() {
       )
         return;
       try {
-        const preview = selectHoldingsAccounts(stateRef.current.preview, ids);
-        setState((previous) => ({ ...previous, preview, error: "", errorRow: null }));
+        const raw = stateRef.current.importPreview;
+        if (!raw) throw new WorkspaceError("invalid_preview");
+        const preview = selectHoldingsAccounts(raw, ids);
+        const next = importDraft(preview, stateRef.current, stateRef.current.preview.importPlan);
+        setState((previous) => ({
+          ...previous,
+          preview: next,
+          importPreview: preview,
+          error: "",
+          errorRow: null,
+        }));
+      } catch (error) {
+        setState((previous) => ({ ...previous, error: errorCode(error) }));
+      }
+    },
+    [owner],
+  );
+
+  const stagePositionEdit = useCallback(
+    (
+      edit: PositionEdit,
+      expectedSnapshotId: string | null,
+      newAccount: { accountId: string; displayName: string } | undefined,
+      expectedScope: string,
+    ) => {
+      const before = stateRef.current;
+      if (
+        !owner ||
+        ownerRef.current !== owner ||
+        before.owner !== owner ||
+        current.current ||
+        before.phase !== "unlocked" ||
+        !before.canWriteState ||
+        before.hasPending ||
+        before.preview ||
+        before.sourceMutation ||
+        before.sourceCreationId
+      )
+        return false;
+      try {
+        liveSession();
+        if (expectedScope !== editingScope(before, vaultGeneration.current))
+          throw new WorkspaceError("version_conflict");
+        if (!before.newSource && before.sources.length && before.sourceMetadata?.state !== "active")
+          throw new WorkspaceError("source_change_blocked");
+        if ((before.content?.data.snapshotId ?? null) !== expectedSnapshotId)
+          throw new WorkspaceError("version_conflict");
+        const base = editingBase(before);
+        const content = editHoldings({
+          content: before.content,
+          base: base ?? null,
+          edit,
+          snapshotId: id("snapshot"),
+          at: new Date().toISOString(),
+          newAccount,
+        });
+        const changes = before.content
+          ? holdingsChanges(asFacts(before.content), content)
+          : holdingsChanges({ ...content, data: { ...content.data, accounts: [] } }, content);
+        if (!changes.length) throw new WorkspaceError("no_changes");
+        const preview: HoldingsPreview = {
+          brokerId: "manual",
+          reportType: "holdings_snapshot",
+          adapterId: "manual-holdings-v2",
+          resourceContent: content,
+          reportDate: content.data.reportDate,
+          intent: before.content ? "edit" : "manual",
+          base,
+          changes,
+          selectedAccountIds: content.data.accounts.map((a) => a.accountId),
+          accounts: content.data.accounts.map((a) => ({
+            accountId: a.accountId,
+            displayName: a.displayName,
+            positionCount: a.positions.length,
+            excludedCount: 0,
+            totals: {},
+          })),
+          warnings: [],
+          stats: {
+            inputRows: 0,
+            positions: content.data.accounts.reduce((n, a) => n + a.positions.length, 0),
+            excluded: content.data.excludedAssets.length,
+            duplicates: 0,
+            accounts: content.data.accounts.length,
+            totals: {},
+          },
+        };
+        setState((previous) => ({
+          ...previous,
+          preview,
+          importPreview: null,
+          error: "",
+          notice: "",
+        }));
+        return true;
+      } catch (error) {
+        setState((previous) => ({ ...previous, error: errorCode(error) }));
+        return false;
+      }
+    },
+    [owner, liveSession],
+  );
+
+  const setImportPlan = useCallback(
+    (mode: "replace" | "merge", overwriteManual: boolean, snapshotId: string) => {
+      const before = stateRef.current;
+      if (
+        ownerRef.current !== owner ||
+        before.owner !== owner ||
+        current.current ||
+        before.hasPending ||
+        !before.importPreview ||
+        before.preview?.intent !== "import" ||
+        before.preview.resourceContent.data.snapshotId !== snapshotId
+      )
+        return;
+      try {
+        const preview = importDraft(before.importPreview, before, { mode, overwriteManual });
+        setState((previous) => ({ ...previous, preview, error: "" }));
       } catch (error) {
         setState((previous) => ({ ...previous, error: errorCode(error) }));
       }
@@ -1572,6 +1775,26 @@ export function useHoldingsWorkspace() {
             throw new WorkspaceError("invalid_response");
           const currentMetadata = sourceMetadata(metadata, source, refreshed.vault);
           if (currentMetadata.state !== "active") throw new WorkspaceError("source_change_blocked");
+          if (preview.intent) {
+            const base = preview.base;
+            if (
+              base
+                ? base.sourceId !== source.resourceRef.resourceId ||
+                  base.incarnation !== source.resourceRef.incarnation ||
+                  base.sourceEpoch !== source.sourceEpoch ||
+                  base.authorityVersion !== currentMetadata.authorityVersion ||
+                  base.snapshotId !== currentMetadata.snapshotId ||
+                  base.sourceRevision !== currentMetadata.revision
+                : currentMetadata.revision !== 0
+            )
+              throw new WorkspaceError("version_conflict");
+            if (
+              preview.importPlan?.mode === "replace" &&
+              preview.importPlan.protectedManualCount &&
+              !preview.importPlan.overwriteManual
+            )
+              throw new WorkspaceError("confirm_manual_overwrite");
+          }
           if (
             currentMetadata.snapshotId &&
             (currentMetadata.snapshotSourceEpoch === null ||
@@ -1579,7 +1802,7 @@ export function useHoldingsWorkspace() {
           ) {
             const stored = await readSaved(source, signal, assertActive);
             assertActive();
-            const accounts = (value: HoldingsResourceContent) =>
+            const accounts = (value: SavedHoldings) =>
               value.data.accounts
                 .map((account) => account.accountId)
                 .sort()
@@ -1603,7 +1826,13 @@ export function useHoldingsWorkspace() {
               throw new WorkspaceError("scope_change_requires_fence");
           }
           upload = await instance.sealSnapshot({
-            content: preview.resourceContent,
+            content: factsContent(preview.resourceContent)
+              ? bindFacts(
+                  preview.resourceContent,
+                  (metadata.revision as number) + 1,
+                  preview.base ?? null,
+                )
+              : preview.resourceContent,
             source,
             expectedRevision: metadata.revision as number,
             snapshotId: preview.resourceContent.data.snapshotId,
@@ -1643,6 +1872,7 @@ export function useHoldingsWorkspace() {
         setState((previous) => ({
           ...previous,
           preview: null,
+          importPreview: null,
           content: null,
           hasPending: false,
           discardOperationId: null,
@@ -1686,6 +1916,7 @@ export function useHoldingsWorkspace() {
             hasPending: false,
             discardOperationId: null,
             preview: null,
+            importPreview: null,
             content: null,
           }));
           await readSaved(source, signal, assertActive);
@@ -1711,6 +1942,7 @@ export function useHoldingsWorkspace() {
           hasPending: false,
           discardOperationId: null,
           preview: null,
+          importPreview: null,
           content: null,
           notice: "retry_discarded",
         }));
@@ -2053,6 +2285,7 @@ export function useHoldingsWorkspace() {
     async (sourceId: string) => {
       const before = stateRef.current;
       if (ownerRef.current !== owner || before.phase !== "unlocked") return;
+      if (before.preview) return;
       if (current.current) {
         if (before.busy !== "reading") return;
         ++serial.current;
@@ -2071,6 +2304,7 @@ export function useHoldingsWorkspace() {
         selectedSourceId: sourceId,
         newSource: false,
         preview: null,
+        importPreview: null,
         content: cached?.content ?? null,
         sourceMetadata: cached?.metadata ?? null,
         hasPending: false,
@@ -2107,6 +2341,8 @@ export function useHoldingsWorkspace() {
       before.phase !== "unlocked" ||
       !before.canWriteState ||
       before.hasPending ||
+      before.preview?.intent === "edit" ||
+      before.preview?.intent === "manual" ||
       before.sourceMutation ||
       before.sourceCreationId ||
       before.sources.length >= 10
@@ -2117,6 +2353,15 @@ export function useHoldingsWorkspace() {
       ...previous,
       newSource: true,
       selectedSourceId: null,
+      preview: previous.importPreview?.facts
+        ? {
+            ...previous.importPreview,
+            resourceContent: previous.importPreview.facts,
+            intent: "import",
+            base: undefined,
+            changes: [],
+          }
+        : previous.preview,
       sourceMetadata: null,
       sourceReview: null,
       sourceMutation: null,
@@ -2242,6 +2487,7 @@ export function useHoldingsWorkspace() {
     setState((previous) => ({
       ...previous,
       preview: null,
+      importPreview: null,
       content: null,
       sourceMetadata: null,
       sourceReview: null,
@@ -2282,6 +2528,7 @@ export function useHoldingsWorkspace() {
           ...previous,
           content: null,
           preview: null,
+          importPreview: null,
           sourceReview: null,
           busy: null,
         }));
@@ -2862,6 +3109,7 @@ export function useHoldingsWorkspace() {
           deviceReview: null,
           recoveryCheck: null,
           preview: null,
+          importPreview: null,
           content: null,
           canWriteState: keyManagement.canManage,
           keyNotice: "device_change_saved",
@@ -3460,6 +3708,7 @@ export function useHoldingsWorkspace() {
           setState((previous) => ({
             ...previous,
             preview: null,
+            importPreview: null,
             content: null,
             recoveryExport: null,
             phase: "locked",
@@ -3532,6 +3781,7 @@ export function useHoldingsWorkspace() {
               ...previous,
               recoveryExport: null,
               preview: null,
+              importPreview: null,
               content: null,
               phase: "locked",
               canWriteState: false,
@@ -4765,6 +5015,9 @@ export function useHoldingsWorkspace() {
     verifyRecovery,
     reload,
     importFile,
+    editScope: editingScope(visible, vaultGeneration.current),
+    stagePositionEdit,
+    setImportPlan,
     selectAccounts,
     save,
     recoverPending: () => checkPending(),
@@ -4779,7 +5032,7 @@ export function useHoldingsWorkspace() {
     },
     discardPreview: () => {
       if (!current.current && ownerRef.current === owner)
-        setState((previous) => ({ ...previous, preview: null, error: "" }));
+        setState((previous) => ({ ...previous, preview: null, importPreview: null, error: "" }));
     },
     readStored: () =>
       perform("reading", async ({ assertActive, signal }) => {

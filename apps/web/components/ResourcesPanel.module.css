@@ -382,13 +382,16 @@
 }
 .table {
   border-collapse: collapse;
-  font-size: 11px;
+  font-size: 13px;
   min-width: 480px;
   width: 100%;
 }
+.table[data-compact="true"] {
+  min-width: 0;
+}
 .table th {
   color: var(--muted);
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 500;
   padding: 10px 8px;
   text-align: left;
@@ -404,13 +407,13 @@
 }
 .table strong {
   display: block;
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 500;
 }
 .table small {
   color: var(--muted);
   display: block;
-  font-size: 10px;
+  font-size: 12px;
   line-height: 1.5;
   margin-top: 3px;
 }
@@ -631,6 +634,129 @@
 }
 .relatedTasks a {
   color: var(--accent);
+}
+.positionForm {
+  display: grid;
+  gap: 20px;
+}
+.positionForm label {
+  display: grid;
+  gap: 8px;
+  font-size: 14px;
+}
+.positionForm input:not([type="checkbox"]),
+.positionForm select {
+  min-width: 0;
+  width: 100%;
+  min-height: 42px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+}
+.tickerSearch {
+  display: flex;
+  gap: 10px;
+}
+.tickerSearch button {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+.positionNumbers {
+  display: grid;
+  grid-template-columns: 1fr 1fr 100px;
+  gap: 16px;
+}
+.positionForm .removeConfirmation {
+  display: flex;
+  align-items: center;
+  color: var(--danger, #c63249);
+}
+.instrumentChoices {
+  display: grid;
+  gap: 8px;
+}
+.instrumentChoices p,
+.selectedInstrument {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+.instrumentChoices button {
+  text-align: left;
+  white-space: normal;
+}
+.instrumentChoices small {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+}
+.rowEdit {
+  padding: 5px 8px;
+  color: var(--accent);
+  background: transparent;
+  border: 0;
+  font: inherit;
+  cursor: pointer;
+  border-radius: 5px;
+}
+.rowEdit:hover {
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+.importPlan {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 20px;
+  border: 1px solid var(--border);
+  padding: 16px;
+  border-radius: 10px;
+}
+.importPlan legend {
+  font-weight: 600;
+  padding: 0 6px;
+}
+.importPlan label {
+  display: inline-flex;
+  gap: 7px;
+  align-items: center;
+  font-size: 14px;
+}
+.importPlan .manualOverwrite {
+  width: 100%;
+}
+.changeReview {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px 16px;
+  max-height: 220px;
+  overflow: auto;
+}
+.changeReview ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 12px;
+}
+.changeReview li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  font-size: 13px;
+}
+.changeReview li span {
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+@media (max-width: 600px) {
+  .positionNumbers {
+    grid-template-columns: 1fr 1fr;
+  }
+  .positionNumbers label:last-child {
+    grid-column: 1 / -1;
+  }
 }
 @keyframes source-enter {
   from {

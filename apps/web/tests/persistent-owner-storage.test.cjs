@@ -34,6 +34,7 @@ test("one unlocked owner prepares persistent registration; sealed original retri
         module: { type: "es6" },
       });
       code = code.replace(/from "\.\/(encrypted-[^"]+)"/g, (_, n) => `from "./${n}.mjs"`);
+      code = require("./shared-contract-imports.cjs").rewrite(code);
       await fs.writeFile(path.join(directory, name + ".mjs"), code);
     }
     const load = (name) => import(pathToFileURL(path.join(directory, name + ".mjs")).href),

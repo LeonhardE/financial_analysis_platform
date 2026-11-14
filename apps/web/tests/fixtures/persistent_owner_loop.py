@@ -315,6 +315,52 @@ try:
     )
     content = resource_content("holdings", f.resource["resourceId"])
     content["fetchedAt"] = "1970-01-01T00:16:40Z"
+    if os.environ.get("FOLIOVIEW_TEST_HOLDINGS_FACTS") == "1":
+        at = content["fetchedAt"]
+        manual = {"origin": "manual", "recordedAt": at, "sourceDate": None, "lastEditedAt": at}
+        derived = {**manual, "origin": "derived", "lastEditedAt": None}
+        unknown = {
+            "origin": "unknown",
+            "recordedAt": None,
+            "sourceDate": None,
+            "lastEditedAt": None,
+        }
+        content["state"] = "ready"
+        content["data"].update(
+            profile="folioview.holdings-facts.v2",
+            editKind="manual",
+            reportDate=None,
+            importSnapshot=None,
+            previousSnapshot=None,
+            accounts=[
+                {
+                    "accountId": "synthetic_account",
+                    "displayName": "Synthetic",
+                    "balances": [],
+                    "positions": [
+                        {
+                            "assetId": "synthetic_asset",
+                            "brokerAssetId": None,
+                            "instrument": {"symbol": "TEST", "market": "XNAS", "currency": "USD"},
+                            "name": "Synthetic",
+                            "assetType": "stock",
+                            "quantity": "2.5",
+                            "unitCost": {"currency": "USD", "amount": "10.25"},
+                            "bookCost": {"currency": "USD", "amount": "25.625"},
+                            "bookCostCad": None,
+                            "reportedValues": None,
+                            "provenance": {
+                                "instrument": manual,
+                                "quantity": manual,
+                                "unitCost": manual,
+                                "bookCost": derived,
+                                "bookCostCad": unknown,
+                            },
+                        }
+                    ],
+                }
+            ],
+        )
     packet = owner(
         "resource",
         {
@@ -479,6 +525,12 @@ try:
         "input", {"runId": run["runId"], "publicationId": run["inputs"][0]["publicationId"]}
     )
     assert opened["resource"] == content
+    if os.environ.get("FOLIOVIEW_TEST_HOLDINGS_FACTS") == "1":
+        assert (
+            opened["resource"]["data"]["accounts"][0]["positions"][0]["bookCost"]["amount"]
+            == "25.625"
+        )
+        print("FACTS_V2_OWNER_CLIENT_LOOP")
     # Existing test dispatcher deliberately drops the first committed result response.
     saved = call("submit", {"runId": run["runId"], "report": report_content()}, ok=False)
     assert saved["error"] == "runtime_network_unavailable"

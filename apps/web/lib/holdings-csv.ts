@@ -1,4 +1,13 @@
 /** Browser-only holdings import. Returned objects omit the raw file/account-number column. */
+import {
+  legacyFacts,
+  boundedFacts,
+  divideCost,
+  importedMarket,
+  provenance,
+  type HoldingsFacts,
+  type Position,
+} from "./holdings-facts";
 
 export const HOLDINGS_CSV_MAX_BYTES = 4 * 1024 * 1024;
 export const HOLDINGS_CSV_MAX_ROWS = 10_000;
@@ -72,6 +81,7 @@ export type HoldingsResourceContent = {
 };
 export type HoldingsCsvWarning = { code: string; row: number | null; count: number };
 export type HoldingsCsvPreview = {
+  facts?: HoldingsFacts;
   brokerId: "wealthsimple";
   reportType: "holdings_snapshot";
   adapterId: "wealthsimple-holdings-21-v1";
@@ -110,6 +120,7 @@ export class HoldingsCsvError extends Error {
 type CsvRecord = { fields: string[]; row: number };
 type SourceAccount = {
   account: HoldingAccount;
+  facts: Map<string, Position>;
   exclusions: { brokerAssetId: string; reason: string }[];
   duplicates: number;
   cashCurrencies: Set<HoldingCurrency>;
@@ -117,6 +128,7 @@ type SourceAccount = {
   seenCash: Map<HoldingCurrency, string>;
 };
 type PreviewSource = {
+  captureCosts: boolean;
   accounts: SourceAccount[];
   warnings: HoldingsCsvWarning[];
   inputRows: number;
@@ -390,6 +402,17 @@ function makePreview(source: PreviewSource, ids: readonly string[]): HoldingsCsv
       ),
     },
   };
+  if (source.captureCosts) {
+    const facts = legacyFacts(resourceContent);
+    facts.data.reportDate = source.reportDate;
+    for (const account of facts.data.accounts) {
+      const original = entries.find((entry) => entry.account.accountId === account.accountId)!;
+      account.positions = account.positions.map((p) =>
+        structuredClone(original.facts.get(p.assetId)!),
+      );
+    }
+    preview.facts = boundedFacts(facts);
+  }
   previewSources.set(preview, source);
   return preview;
 }
@@ -401,6 +424,7 @@ export async function parseHoldingsCsv(input: {
   ownerUid: string;
   snapshotId: string;
   importedAt: string;
+  captureCosts?: boolean;
 }): Promise<HoldingsCsvPreview> {
   if (input.brokerId !== "wealthsimple") fail("unsupported_broker");
   if (
@@ -433,9 +457,12 @@ export async function parseHoldingsCsv(input: {
     reportDate = footerDate(records[records.length - 1]);
     if (reportDate) records.pop();
   }
+  if (input.captureCosts && reportDate && reportDate > input.importedAt.slice(0, 10))
+    fail("invalid_report_date");
   if (!records.length) fail("no_holdings_rows");
   if (records.length > HOLDINGS_CSV_MAX_ROWS) fail("too_many_rows");
   const source: PreviewSource = {
+    captureCosts: input.captureCosts === true,
     accounts: [],
     warnings: [],
     inputRows: records.length,
@@ -471,6 +498,7 @@ export async function parseHoldingsCsv(input: {
       const displayName = `${safeLabel.slice(0, 65)} · ••••${tail}`.slice(0, 80);
       entry = {
         account: { accountId, displayName, balances: [], positions: [] },
+        facts: new Map(),
         exclusions: [],
         duplicates: 0,
         cashCurrencies: new Set(),
@@ -578,15 +606,78 @@ export async function parseHoldingsCsv(input: {
           ? { currency: valueCurrency, amount: marketValue }
           : null,
     };
+    let fact: Position | null = null;
+    if (source.captureCosts) {
+      const money = (amount: string, code: string, expected: HoldingCurrency, signed = false) => {
+        const value = decimal(amount, record.row, false);
+        if (value === null) return null;
+        if (code !== expected) {
+          warning(source.warnings, "book_cost_currency_mismatch", record.row);
+          return null;
+        }
+        if (!signed && value.startsWith("-")) fail("invalid_number", record.row);
+        return { currency: expected, amount: value };
+      };
+      const cadCost = money(cell("Book Value (CAD)"), cell("Book Value Currency (CAD)"), "CAD");
+      const nativeCost = money(
+        cell("Book Value (Market)"),
+        cell("Book Value Currency (Market)"),
+        positionCurrency,
+      );
+      const bookCost = nativeCost ?? (positionCurrency === "CAD" ? cadCost : null);
+      const unit = bookCost ? divideCost(bookCost.amount, quantity) : null;
+      const at = source.importedAt,
+        date = source.reportDate;
+      const imported = provenance("import", at, date),
+        unknown = provenance("unknown", at);
+      fact = {
+        assetId: position.assetId,
+        brokerAssetId,
+        name,
+        assetType: position.assetType,
+        instrument: {
+          symbol,
+          market: importedMarket(cell("MIC") || exchange),
+          currency: positionCurrency,
+        },
+        quantity,
+        unitCost: unit === null ? null : { currency: positionCurrency, amount: unit },
+        bookCost,
+        bookCostCad: cadCost,
+        reportedValues: {
+          unitPrice: money(cell("Market Price"), cell("Market Price Currency"), positionCurrency),
+          marketValue: position.marketValue,
+          unrealizedReturn: money(
+            cell("Market Unrealized Returns"),
+            cell("Market Unrealized Returns Currency"),
+            positionCurrency,
+            true,
+          ),
+        },
+        provenance: {
+          instrument: imported,
+          quantity: imported,
+          unitCost: unit === null ? unknown : provenance("derived", at, date),
+          bookCost:
+            bookCost === null ? unknown : nativeCost ? imported : provenance("derived", at, date),
+          bookCostCad: cadCost ? imported : unknown,
+        },
+      };
+    }
     const previous = entry.seenPositions.get(hash);
     if (previous !== undefined) {
-      if (previous !== JSON.stringify(position)) fail("conflicting_position_rows", record.row);
+      if (
+        previous !== JSON.stringify(position) ||
+        (fact && JSON.stringify(entry.facts.get(position.assetId)) !== JSON.stringify(fact))
+      )
+        fail("conflicting_position_rows", record.row);
       entry.duplicates += 1;
       warning(source.warnings, "duplicate_position_row", record.row);
       continue;
     }
     entry.seenPositions.set(hash, JSON.stringify(position));
     account.positions.push(position);
+    if (fact) entry.facts.set(position.assetId, fact);
   }
   for (const entry of source.accounts) {
     const used = new Set(entry.account.positions.map((position) => position.currency));

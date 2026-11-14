@@ -7,7 +7,7 @@ const { spawnSync } = require("node:child_process");
 const test = require("node:test");
 const { transformSync } = require("next/dist/build/swc");
 
-test("persistent owner and independent Agent complete Root pairing, continuing consent, exact recovery and historical report decryption", () => {
+function checkOwnerLoop(useFacts) {
   const repo = path.resolve(__dirname, "../../.."),
     directory = mkdtempSync(path.join(os.tmpdir(), "folioview-persistent-owner-"));
   try {
@@ -26,6 +26,7 @@ test("persistent owner and independent Agent complete Root pairing, continuing c
             pathToFileURL(path.join(repo, "packages/encrypted-workspace/dist/core.mjs")).href,
           ),
         );
+      code = require("./shared-contract-imports.cjs").rewrite(code);
       writeFileSync(path.join(directory, name + ".mjs"), code);
     }
     const peer = path.join(directory, "peer.mjs");
@@ -56,12 +57,14 @@ test("persistent owner and independent Agent complete Root pairing, continuing c
         env: {
           ...process.env,
           FOLIOVIEW_TEST_DTO_FILE: path.join(directory, "dto.json"),
+          FOLIOVIEW_TEST_HOLDINGS_FACTS: useFacts ? "1" : "0",
           FOLIOVIEW_NODE_BIN: process.execPath,
           FOLIOVIEW_OWNER_PEER: peer,
         },
       });
     assert.equal(result.status, 0, result.stderr);
     assert.match(result.stdout, /OWNER AND AGENT FULL SYNTHETIC LOOP COMPLETE/);
+    if (useFacts) assert.match(result.stdout, /FACTS_V2_OWNER_CLIENT_LOOP/);
     const { compile } = require("./resource-library-helpers.cjs");
     const transport = compile("../lib/server/owner-transport.ts", {
       "server-only": {},
@@ -97,4 +100,9 @@ test("persistent owner and independent Agent complete Root pairing, continuing c
   } finally {
     rmSync(directory, { recursive: true, force: true });
   }
-});
+}
+
+test("persistent owner and independent Agent complete Root pairing, continuing consent, exact recovery and historical report decryption", () =>
+  checkOwnerLoop(false));
+test("browser Owner publishes typed holdings costs and the real isolated Agent client restores, reads frozen input and submits its report", () =>
+  checkOwnerLoop(true));

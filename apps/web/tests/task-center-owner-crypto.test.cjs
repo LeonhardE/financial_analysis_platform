@@ -26,6 +26,7 @@ test("task center Worker signs real Hub controls, rejects forged state and safel
             pathToFileURL(path.join(repo, "packages/encrypted-workspace/dist/core.mjs")).href,
           ),
         );
+      code = require("./shared-contract-imports.cjs").rewrite(code);
       writeFileSync(path.join(directory, name + ".mjs"), code);
     }
     const peer = path.join(directory, "peer.mjs");

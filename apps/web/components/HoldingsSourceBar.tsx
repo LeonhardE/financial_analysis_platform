@@ -1,6 +1,6 @@
 "use client";
 import { useState, type ReactNode } from "react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import type { HoldingsWorkspace } from "./useHoldingsWorkspace";
 import type { DisplayNamesModel } from "./useDisplayNames";
 import type { ResourceLibraryModel } from "./useResourceLibrary";
@@ -9,6 +9,7 @@ import { useTasks } from "./useTasks";
 import { ReportDialog } from "./ReportDialog";
 import { InlineError, LoadingIndicator } from "./WorkspaceFeedback";
 import styles from "./ResourcesPanel.module.css";
+import { factsContent, formatHoldingsTime } from "@/lib/holdings-facts";
 
 function RelatedTasks({
   model,
@@ -89,6 +90,7 @@ export function HoldingsSourceBar({
   onUpdate: () => void;
   children: ReactNode;
 }) {
+  const locale = useLocale();
   const t = useTranslations("resources"),
     [settings, setSettings] = useState(false),
     [draft, setDraft] = useState(""),
@@ -186,6 +188,7 @@ export function HoldingsSourceBar({
               className={styles.primary}
               disabled={
                 operationBlocked ||
+                Boolean(model.preview?.intent === "edit" || model.preview?.intent === "manual") ||
                 !model.canWriteState ||
                 Boolean(model.hasPending || model.sourceMutation || model.sourceCreationId)
               }
@@ -198,8 +201,18 @@ export function HoldingsSourceBar({
       </div>
       {selected && !model.newSource && (
         <p className={styles.note}>
-          Wealthsimple ·{" "}
-          {model.content ? t("importedAt", { time: model.content.fetchedAt }) : t("holdingsCsv")}
+          {model.content && factsContent(model.content) && !model.content.data.importSnapshot
+            ? t("editing.manualSource")
+            : "Wealthsimple"}{" "}
+          ·{" "}
+          {model.content
+            ? t(
+                factsContent(model.content) && model.content.data.editKind !== "import"
+                  ? "editing.updatedAt"
+                  : "importedAt",
+                { time: formatHoldingsTime(model.content.fetchedAt, locale) },
+              )
+            : t("holdingsCsv")}
         </p>
       )}
       {(pending || model.sourceMutation || model.sourceCreationId) && !settings && selected && (

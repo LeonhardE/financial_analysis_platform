@@ -12,6 +12,7 @@ import { PersistentOwner, type PersistentActor } from "./encrypted-persistent";
 import Ajv2020 from "ajv/dist/2020";
 import addFormats from "ajv-formats";
 import schemas from "./encrypted-schemas.json";
+import { holdingsFacts } from "../../../packages/encrypted-workspace/valuation/dist/holdings.mjs";
 import {
   CONTRACT,
   VaultError,
@@ -102,6 +103,31 @@ export function validate(name: string, value: unknown) {
     validators.set(name, v);
   }
   if (!v(value)) throw new VaultError("invalid_data");
+}
+/** Opt-in business payload; the frozen v2 wrapper and all ciphertext checks stay exact. */
+function validateHoldingsPayload(value: Json) {
+  if (value?.payload?.data?.profile !== "folioview.holdings-facts.v2") {
+    validate("PrivatePayload", value);
+    return;
+  }
+  exact(value, [
+    "privateSchemaVersion",
+    "objectId",
+    "objectType",
+    "revision",
+    "binding",
+    "payload",
+  ]);
+  if (value.privateSchemaVersion !== 2 || value.objectType !== "holdings_snapshot")
+    throw new VaultError("invalid_data");
+  validate("Identifier", value.objectId);
+  positive(value.revision);
+  validate("Binding", value.binding);
+  try {
+    holdingsFacts(value.payload, { snapshotId: value.objectId, revision: value.revision });
+  } catch {
+    throw new VaultError("invalid_data");
+  }
 }
 function jsonSafe(value: unknown, depth = 0): void {
   if (depth > 20) throw new VaultError("invalid_data");
@@ -7572,7 +7598,8 @@ export class VaultCore {
       operationId = args.operationId ?? randomId();
     validate("OperationIdentifier", operationId);
     args = { ...args, content: { ...args.content, data: { ...args.content.data, snapshotId } } };
-    validate("ResourceContent", args.content);
+    if (args.content.data?.profile !== "folioview.holdings-facts.v2")
+      validate("ResourceContent", args.content);
     if (args.content.data.kind !== "holdings" || args.content.data.snapshotId !== snapshotId)
       throw new VaultError("invalid_data");
     const { recipients } = this.ownerSelection(registry, this.now());
@@ -7616,7 +7643,7 @@ export class VaultCore {
       binding,
       payload: args.content,
     };
-    validate("PrivatePayload", payload);
+    validateHoldingsPayload(payload);
     bounded(payload, 196608);
     const encryptor = new GeneralEncrypt(utf8.encode(canonical(payload)))
       .setProtectedHeader(JWE_HEADER)
@@ -7803,7 +7830,7 @@ export class VaultCore {
       )
         throw new VaultError("binding_mismatch");
       const payload = parsed(opened.plaintext);
-      validate("PrivatePayload", payload);
+      validateHoldingsPayload(payload);
       bounded(payload, 196608);
       if (
         payload.objectId !== c.objectId ||
