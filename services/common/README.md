@@ -5,6 +5,12 @@
 the package does not register routes, initialize credentials or contact a cloud
 service. Each consumer adopts the helpers in its own service PR.
 
+## HTTP processing evidence
+
+[Numeric request timing](docs/request-timing.md) describes the default diagnostic
+headers on existing `create_app` consumers, their privacy boundaries and what they
+do not measure. Identity checks and response contracts remain unchanged.
+
 ## Internal delegated identity
 
 `folioview_shared.delegation` implements the bounded internal delegation claims
