@@ -205,3 +205,10 @@ The [Owner-only display-name contract](folioview_shared/encrypted/docs/persisten
 provides an additive encrypted alias, independent CAS and original-operation
 identity. Its pure foundation changes no source/Agent permission and enables no
 consumer or infrastructure.
+
+## Holdings facts, valuation and display preferences
+
+The [valuation contracts guide](docs/valuation.md) describes opt-in cost/provenance facts,
+public-only bounded quote/FX snapshots, exact client arithmetic and independent currency/follows
+preferences. Frozen private schemas and existing consumers remain unchanged. New readers precede
+new writers; importing these helpers performs no I/O, migration, provider call or provisioning.

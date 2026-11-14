@@ -1,0 +1,1017 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://folioview.invalid/contracts/valuation-v1",
+  "$defs": {
+    "Identifier": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$"
+    },
+    "Currency": {
+      "enum": ["USD", "CAD", "CNY", "EUR", "GBP", "JPY", "HKD", "AUD", "CHF", "NZD", "SGD", "TWD"]
+    },
+    "Revision": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 9007199254740991
+    },
+    "Timestamp": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 32,
+      "format": "date-time",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,6})?Z$"
+    },
+    "Date": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 10,
+      "format": "date",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+    },
+    "Decimal": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 39,
+      "pattern": "^(0|[1-9][0-9]{0,19})(\\.[0-9]{1,18})?$"
+    },
+    "Quantity": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 33,
+      "pattern": "^(0|[1-9][0-9]{0,19})(\\.[0-9]{1,12})?$"
+    },
+    "SignedDecimal": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 40,
+      "pattern": "^-?(0|[1-9][0-9]{0,19})(\\.[0-9]{1,18})?$"
+    },
+    "Money": {
+      "type": "object",
+      "properties": {
+        "currency": {
+          "$ref": "#/$defs/Currency"
+        },
+        "amount": {
+          "$ref": "#/$defs/Decimal"
+        }
+      },
+      "required": ["currency", "amount"],
+      "additionalProperties": false
+    },
+    "Market": {
+      "type": "string",
+      "minLength": 4,
+      "maxLength": 7,
+      "pattern": "^(?:[A-Z0-9]{4}|UNKNOWN)$"
+    },
+    "Symbol": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 32,
+      "pattern": "^[A-Z0-9][A-Z0-9.\\-^]{0,31}$"
+    },
+    "Instrument": {
+      "type": "object",
+      "properties": {
+        "symbol": {
+          "$ref": "#/$defs/Symbol"
+        },
+        "market": {
+          "$ref": "#/$defs/Market"
+        },
+        "currency": {
+          "$ref": "#/$defs/Currency"
+        }
+      },
+      "required": ["symbol", "market", "currency"],
+      "additionalProperties": false
+    },
+    "FactInstrument": {
+      "type": "object",
+      "properties": {
+        "symbol": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Symbol"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "market": {
+          "$ref": "#/$defs/Market"
+        },
+        "currency": {
+          "$ref": "#/$defs/Currency"
+        }
+      },
+      "required": ["symbol", "market", "currency"],
+      "additionalProperties": false
+    },
+    "Provenance": {
+      "type": "object",
+      "properties": {
+        "origin": {
+          "enum": ["import", "manual", "derived", "legacy", "unknown"]
+        },
+        "recordedAt": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Timestamp"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "sourceDate": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Date"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "lastEditedAt": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Timestamp"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": ["origin", "recordedAt", "sourceDate", "lastEditedAt"],
+      "additionalProperties": false
+    },
+    "Position": {
+      "type": "object",
+      "properties": {
+        "assetId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "brokerAssetId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 180
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "instrument": {
+          "$ref": "#/$defs/FactInstrument"
+        },
+        "name": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 180
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "assetType": {
+          "enum": ["stock", "etf", "unsupported"]
+        },
+        "quantity": {
+          "$ref": "#/$defs/Quantity"
+        },
+        "unitCost": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Money"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "bookCost": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Money"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "bookCostCad": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Money"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "provenance": {
+          "type": "object",
+          "properties": {
+            "instrument": {
+              "$ref": "#/$defs/Provenance"
+            },
+            "quantity": {
+              "$ref": "#/$defs/Provenance"
+            },
+            "unitCost": {
+              "$ref": "#/$defs/Provenance"
+            },
+            "bookCost": {
+              "$ref": "#/$defs/Provenance"
+            },
+            "bookCostCad": {
+              "$ref": "#/$defs/Provenance"
+            }
+          },
+          "required": ["instrument", "quantity", "unitCost", "bookCost", "bookCostCad"],
+          "additionalProperties": false
+        },
+        "reportedValues": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ReportedValues"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "assetId",
+        "brokerAssetId",
+        "instrument",
+        "name",
+        "assetType",
+        "quantity",
+        "unitCost",
+        "bookCost",
+        "bookCostCad",
+        "provenance",
+        "reportedValues"
+      ],
+      "additionalProperties": false
+    },
+    "Balance": {
+      "type": "object",
+      "properties": {
+        "currency": {
+          "$ref": "#/$defs/Currency"
+        },
+        "cashBalance": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SignedDecimal"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "buyingPower": {
+          "const": null
+        }
+      },
+      "required": ["currency", "cashBalance", "buyingPower"],
+      "additionalProperties": false
+    },
+    "Account": {
+      "type": "object",
+      "properties": {
+        "accountId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "displayName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 180
+        },
+        "balances": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Balance"
+          },
+          "minItems": 0,
+          "maxItems": 12
+        },
+        "positions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Position"
+          },
+          "minItems": 0,
+          "maxItems": 1000
+        }
+      },
+      "required": ["accountId", "displayName", "balances", "positions"],
+      "additionalProperties": false
+    },
+    "SnapshotReference": {
+      "type": "object",
+      "properties": {
+        "snapshotId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "sourceRevision": {
+          "$ref": "#/$defs/Revision",
+          "minimum": 1
+        }
+      },
+      "required": ["snapshotId", "sourceRevision"],
+      "additionalProperties": false
+    },
+    "HoldingsFactsData": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "const": "holdings"
+        },
+        "profile": {
+          "const": "folioview.holdings-facts.v2"
+        },
+        "snapshotId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "editKind": {
+          "enum": ["import", "manual", "edit"]
+        },
+        "reportDate": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Date"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "importSnapshot": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SnapshotReference"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "previousSnapshot": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SnapshotReference"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "accounts": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Account"
+          },
+          "minItems": 0,
+          "maxItems": 20
+        },
+        "excludedAssets": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "brokerAssetId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 180
+              },
+              "reason": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64
+              }
+            },
+            "required": ["brokerAssetId", "reason"],
+            "additionalProperties": false
+          },
+          "minItems": 0,
+          "maxItems": 1000
+        }
+      },
+      "required": [
+        "kind",
+        "profile",
+        "snapshotId",
+        "editKind",
+        "reportDate",
+        "importSnapshot",
+        "previousSnapshot",
+        "accounts",
+        "excludedAssets"
+      ],
+      "additionalProperties": false
+    },
+    "Coverage": {
+      "type": "object",
+      "properties": {
+        "state": {
+          "type": "string",
+          "enum": ["complete", "partial", "unknown"]
+        },
+        "issues": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          },
+          "minItems": 0,
+          "maxItems": 20,
+          "uniqueItems": true
+        }
+      },
+      "required": ["state", "issues"],
+      "additionalProperties": false
+    },
+    "HoldingsFactsContent": {
+      "type": "object",
+      "properties": {
+        "state": {
+          "enum": ["ready", "empty"]
+        },
+        "coverage": {
+          "$ref": "#/$defs/Coverage"
+        },
+        "sourceAsOf": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Timestamp"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "fetchedAt": {
+          "$ref": "#/$defs/Timestamp"
+        },
+        "freshness": {
+          "enum": ["fresh", "stale", "unknown"]
+        },
+        "data": {
+          "$ref": "#/$defs/HoldingsFactsData"
+        }
+      },
+      "required": ["state", "coverage", "sourceAsOf", "fetchedAt", "freshness", "data"],
+      "additionalProperties": false
+    },
+    "Pair": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/$defs/Currency"
+        },
+        "quote": {
+          "$ref": "#/$defs/Currency"
+        }
+      },
+      "required": ["base", "quote"],
+      "additionalProperties": false
+    },
+    "QuoteRequest": {
+      "type": "object",
+      "properties": {
+        "instruments": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Instrument"
+          },
+          "minItems": 1,
+          "maxItems": 50
+        }
+      },
+      "required": ["instruments"],
+      "additionalProperties": false
+    },
+    "FxRequest": {
+      "type": "object",
+      "properties": {
+        "pairs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Pair"
+          },
+          "minItems": 1,
+          "maxItems": 20
+        }
+      },
+      "required": ["pairs"],
+      "additionalProperties": false
+    },
+    "QuoteItem": {
+      "type": "object",
+      "properties": {
+        "instrument": {
+          "$ref": "#/$defs/Instrument"
+        },
+        "price": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Decimal"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "source": {
+          "enum": ["yahoo_finance", "none"]
+        },
+        "status": {
+          "enum": ["available", "stale", "missing", "unsupported"]
+        },
+        "sourceAsOf": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Timestamp"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "sourceDate": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Date"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "fetchedAt": {
+          "$ref": "#/$defs/Timestamp"
+        },
+        "reason": {
+          "anyOf": [
+            {
+              "enum": [
+                "not_found",
+                "unsupported_market",
+                "currency_mismatch",
+                "invalid_value",
+                "unknown_time",
+                "upstream_unavailable",
+                "rate_limited",
+                "budget_exhausted",
+                "missing_leg",
+                "mixed_dates"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "instrument",
+        "price",
+        "source",
+        "status",
+        "sourceAsOf",
+        "sourceDate",
+        "fetchedAt",
+        "reason"
+      ],
+      "additionalProperties": false
+    },
+    "FxLeg": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/$defs/Currency"
+        },
+        "quote": {
+          "$ref": "#/$defs/Currency"
+        },
+        "rate": {
+          "$ref": "#/$defs/Decimal"
+        },
+        "sourceDate": {
+          "$ref": "#/$defs/Date"
+        }
+      },
+      "required": ["base", "quote", "rate", "sourceDate"],
+      "additionalProperties": false
+    },
+    "FxRoute": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "enum": ["identity", "direct", "inverse", "cross"]
+        },
+        "via": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Currency"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "legs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/FxLeg"
+          },
+          "minItems": 0,
+          "maxItems": 2
+        }
+      },
+      "required": ["kind", "via", "legs"],
+      "additionalProperties": false
+    },
+    "FxItem": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/$defs/Currency"
+        },
+        "quote": {
+          "$ref": "#/$defs/Currency"
+        },
+        "rate": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Decimal"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "source": {
+          "enum": ["bank_of_canada", "identity", "none"]
+        },
+        "route": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/FxRoute"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "status": {
+          "enum": ["available", "stale", "missing", "unsupported"]
+        },
+        "sourceAsOf": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Timestamp"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "sourceDate": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Date"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "fetchedAt": {
+          "$ref": "#/$defs/Timestamp"
+        },
+        "reason": {
+          "anyOf": [
+            {
+              "enum": [
+                "not_found",
+                "unsupported_market",
+                "currency_mismatch",
+                "invalid_value",
+                "unknown_time",
+                "upstream_unavailable",
+                "rate_limited",
+                "budget_exhausted",
+                "missing_leg",
+                "mixed_dates"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "base",
+        "quote",
+        "rate",
+        "source",
+        "route",
+        "status",
+        "sourceAsOf",
+        "sourceDate",
+        "fetchedAt",
+        "reason"
+      ],
+      "additionalProperties": false
+    },
+    "QuoteBatch": {
+      "type": "object",
+      "properties": {
+        "contractVersion": {
+          "const": "folioview.valuation.v1"
+        },
+        "profile": {
+          "const": "folioview.quote-batch.v1"
+        },
+        "snapshotId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "fetchedAt": {
+          "$ref": "#/$defs/Timestamp"
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/QuoteItem"
+          },
+          "minItems": 0,
+          "maxItems": 50
+        }
+      },
+      "required": ["contractVersion", "profile", "snapshotId", "fetchedAt", "items"],
+      "additionalProperties": false
+    },
+    "FxBatch": {
+      "type": "object",
+      "properties": {
+        "contractVersion": {
+          "const": "folioview.valuation.v1"
+        },
+        "profile": {
+          "const": "folioview.fx-batch.v1"
+        },
+        "snapshotId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "fetchedAt": {
+          "$ref": "#/$defs/Timestamp"
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/FxItem"
+          },
+          "minItems": 0,
+          "maxItems": 20
+        }
+      },
+      "required": ["contractVersion", "profile", "snapshotId", "fetchedAt", "items"],
+      "additionalProperties": false
+    },
+    "UiPreferencesV1": {
+      "type": "object",
+      "properties": {
+        "theme": {
+          "enum": ["system", "light", "dark"]
+        },
+        "language": {
+          "enum": ["en", "zh"]
+        },
+        "defaultChartRange": {
+          "enum": ["1d", "1w", "1m", "3m", "1y"]
+        }
+      },
+      "required": ["theme", "language", "defaultChartRange"],
+      "additionalProperties": false
+    },
+    "UiPreferencesSnapshotV1": {
+      "type": "object",
+      "properties": {
+        "preferences": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/UiPreferencesV1"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "version": {
+          "$ref": "#/$defs/Revision"
+        }
+      },
+      "required": ["preferences", "version"],
+      "additionalProperties": false
+    },
+    "CurrencyPreferences": {
+      "type": "object",
+      "properties": {
+        "defaultPortfolioCurrency": {
+          "$ref": "#/$defs/Currency"
+        }
+      },
+      "required": ["defaultPortfolioCurrency"],
+      "additionalProperties": false
+    },
+    "CurrencyPreferencesSnapshot": {
+      "type": "object",
+      "properties": {
+        "contractVersion": {
+          "const": "folioview.valuation.v1"
+        },
+        "profile": {
+          "const": "folioview.currency-preferences.v2"
+        },
+        "preferences": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CurrencyPreferences"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "version": {
+          "$ref": "#/$defs/Revision"
+        },
+        "currencyGeneration": {
+          "$ref": "#/$defs/Revision"
+        }
+      },
+      "required": ["contractVersion", "profile", "preferences", "version", "currencyGeneration"],
+      "additionalProperties": false
+    },
+    "CurrencyPreferencesUpdate": {
+      "type": "object",
+      "properties": {
+        "defaultPortfolioCurrency": {
+          "$ref": "#/$defs/Currency"
+        },
+        "expectedVersion": {
+          "$ref": "#/$defs/Revision"
+        }
+      },
+      "required": ["defaultPortfolioCurrency", "expectedVersion"],
+      "additionalProperties": false
+    },
+    "DefaultSuppression": {
+      "type": "object",
+      "properties": {
+        "currency": {
+          "$ref": "#/$defs/Currency"
+        },
+        "currencyGeneration": {
+          "$ref": "#/$defs/Revision",
+          "minimum": 1
+        }
+      },
+      "required": ["currency", "currencyGeneration"],
+      "additionalProperties": false
+    },
+    "FxPreferences": {
+      "type": "object",
+      "properties": {
+        "pairs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Pair"
+          },
+          "minItems": 0,
+          "maxItems": 12
+        },
+        "suppressedDefault": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DefaultSuppression"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": ["pairs", "suppressedDefault"],
+      "additionalProperties": false
+    },
+    "FxPreferencesSnapshot": {
+      "type": "object",
+      "properties": {
+        "contractVersion": {
+          "const": "folioview.valuation.v1"
+        },
+        "profile": {
+          "const": "folioview.fx-preferences.v1"
+        },
+        "preferences": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/FxPreferences"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "version": {
+          "$ref": "#/$defs/Revision"
+        }
+      },
+      "required": ["contractVersion", "profile", "preferences", "version"],
+      "additionalProperties": false
+    },
+    "FxPreferencesUpdate": {
+      "type": "object",
+      "properties": {
+        "preferences": {
+          "$ref": "#/$defs/FxPreferences"
+        },
+        "expectedVersion": {
+          "$ref": "#/$defs/Revision"
+        }
+      },
+      "required": ["preferences", "expectedVersion"],
+      "additionalProperties": false
+    },
+    "ReportedMoney": {
+      "type": "object",
+      "properties": {
+        "currency": {
+          "$ref": "#/$defs/Currency"
+        },
+        "amount": {
+          "$ref": "#/$defs/SignedDecimal"
+        }
+      },
+      "required": ["currency", "amount"],
+      "additionalProperties": false
+    },
+    "ReportedValues": {
+      "type": "object",
+      "properties": {
+        "unitPrice": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Money"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "marketValue": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ReportedMoney"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "unrealizedReturn": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ReportedMoney"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": ["unitPrice", "marketValue", "unrealizedReturn"],
+      "additionalProperties": false
+    }
+  }
+}

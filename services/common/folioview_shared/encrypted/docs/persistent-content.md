@@ -296,3 +296,11 @@ must never inherit an alias or receipt from another incarnation.
 The foundation imports no storage, network, scheduler or consumer. Independent
 Python/native Node WebCrypto tests use synthetic in-memory keys over an anonymous
 pipe in both directions, without frontend packages or private key fixture files.
+
+## Versioned holdings facts
+
+The additive [valuation contracts](../../../docs/valuation.md#compatible-private-holdings-facts)
+define `folioview.holdings-facts.v2` as an explicit nested resource format. Original P1/persistent
+container versions and frozen validators remain unchanged. Trusted consumers must opt into the
+new reader after verifying their existing envelope/context; no writer, migration or permission
+is enabled by the shared definition alone.
