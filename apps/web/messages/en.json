@@ -1421,7 +1421,11 @@
     "taskReview": "After connecting, choose its tasks in the task center.",
     "history": "Connection history ({count})",
     "notSupported": "Not supported yet",
-    "moreOptions": "More options"
+    "moreOptions": "More options",
+    "refreshing": "Updating connections",
+    "statusUnavailable": "Status unavailable",
+    "loadFailed": "Could not load connections. Try again.",
+    "refreshFailed": "Could not refresh. The last loaded status is shown."
   },
   "taskCenter": {
     "title": "Task center",

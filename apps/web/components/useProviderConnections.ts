@@ -16,8 +16,9 @@ export function useProviderConnections(workspace: HoldingsWorkspace, active: boo
     scope: string | null;
     states: Record<string, J>;
     loading: boolean;
+    loaded: boolean;
     error: boolean;
-  }>({ scope: null, states: {}, loading: false, error: false });
+  }>({ scope: null, states: {}, loading: false, loaded: false, error: false });
   const live = useRef({ scope, workspace, auth, active });
   live.current = { scope, workspace, auth, active };
   const fresh = useRef(0),
@@ -51,17 +52,18 @@ export function useProviderConnections(workspace: HoldingsWorkspace, active: boo
           return [p, value];
         }),
       );
-      if (live.current.scope === start.scope && !abort.signal.aborted) {
+      if (live.current.scope === start.scope && job.current === abort && !abort.signal.aborted) {
         fresh.current = Date.now();
         setState({
           scope: start.scope,
           states: Object.fromEntries(values),
           loading: false,
+          loaded: true,
           error: false,
         });
       }
     } catch {
-      if (live.current.scope === start.scope)
+      if (live.current.scope === start.scope && job.current === abort)
         setState((s) => ({ ...s, loading: false, error: true }));
     } finally {
       clearTimeout(timer);
@@ -72,7 +74,7 @@ export function useProviderConnections(workspace: HoldingsWorkspace, active: boo
     job.current?.abort();
     job.current = null;
     fresh.current = 0;
-    setState({ scope, states: {}, loading: false, error: false });
+    setState({ scope, states: {}, loading: false, loaded: false, error: false });
     return () => job.current?.abort();
   }, [scope]);
   useEffect(() => {
@@ -81,6 +83,7 @@ export function useProviderConnections(workspace: HoldingsWorkspace, active: boo
   return {
     states: scope && state.scope === scope ? state.states : {},
     loading: state.scope === scope && state.loading,
+    loaded: Boolean(scope && state.scope === scope && state.loaded),
     error: state.scope === scope && state.error,
     reload: () => load(true),
   };

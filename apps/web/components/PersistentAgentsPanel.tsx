@@ -233,7 +233,12 @@ export function PersistentAgentsPanel({
     return value.expiresAt - now <= 604800 ? "expiring" : "connected";
   };
   const slots = useProviderConnections(workspace, active);
-  const groups = providerGroups(model.views, slots.states, now);
+  const ready = model.loaded && slots.loaded,
+    readError = model.loadError || slots.error,
+    refreshing = model.loading || slots.loading,
+    checking = model.unlocked && !ready && !readError,
+    canChangeConnection = ready && !readError && !refreshing && !model.busy;
+  const groups = providerGroups(ready ? model.views : [], ready ? slots.states : {}, now);
   const taskLink = (event: MouseEvent<HTMLAnchorElement>, taskId: string) => {
     if (
       event.button === 0 &&
@@ -262,7 +267,7 @@ export function PersistentAgentsPanel({
         </div>
         <button
           className={styles.secondary}
-          disabled={model.busy}
+          disabled={model.busy || slots.loading}
           onClick={() => {
             void model.reload();
             void slots.reload();
@@ -295,7 +300,7 @@ export function PersistentAgentsPanel({
         </div>
       ) : null}
       {model.waitingForService && <p role="status">{t("waitingForService")}</p>}
-      {(linkError || model.error) && (
+      {(linkError || (model.error && !model.loadError)) && (
         <p role="alert" className={styles.warning}>
           {t(
             model.error === "review_changed"
@@ -413,15 +418,18 @@ export function PersistentAgentsPanel({
         </div>
       )}
       <LoadingIndicator
-        busy={model.busy || slots.loading}
-        hasContent={model.views.length > 0}
-        label={t("loading")}
+        busy={checking || refreshing}
+        hasContent={ready}
+        label={t(ready ? "refreshing" : "loading")}
       />
-      {slots.error && (
+      {model.unlocked && readError && (
         <InlineError
-          message={t("requestFailed")}
+          message={t(ready ? "refreshFailed" : "loadFailed")}
           retryLabel={t("refresh")}
-          onRetry={() => void slots.reload()}
+          onRetry={() => {
+            void model.reload();
+            void slots.reload();
+          }}
         />
       )}
       <div className={styles.connectionGrid}>
@@ -429,19 +437,29 @@ export function PersistentAgentsPanel({
           const view = group.current,
             value = !model.unlocked
               ? "unlockStatus"
-              : group.reviewRequired
-                ? "reviewRequired"
-                : view
-                  ? status(view)
-                  : "disconnected";
+              : !ready
+                ? readError
+                  ? "statusUnavailable"
+                  : "loading"
+                : group.reviewRequired
+                  ? "reviewRequired"
+                  : view
+                    ? status(view)
+                    : "disconnected";
           return (
-            <article key={group.provider} className={styles.setup}>
+            <article
+              key={group.provider}
+              className={styles.setup}
+              aria-busy={checking || refreshing}
+            >
               <div className={styles.heading}>
                 <div className={styles.providerHeader}>
                   <ProviderMark provider={group.provider} />
                   <h2>{providerName(group.provider)}</h2>
                 </div>
-                <span className={styles.stateBadge}>{t(value)}</span>
+                <span className={styles.stateBadge} data-checking={checking || refreshing}>
+                  {t(value)}
+                </span>
               </div>
               {view?.credential?.expiresAt && model.unlocked && (
                 <p className={styles.note}>
@@ -466,7 +484,7 @@ export function PersistentAgentsPanel({
               <div className={styles.actions}>
                 <button
                   className={styles.primary}
-                  disabled={!origin || !model.enabled || model.busy}
+                  disabled={!origin || !model.enabled || !canChangeConnection}
                   onClick={() => {
                     setHelp(group.provider);
                     setCopied(false);
@@ -479,7 +497,7 @@ export function PersistentAgentsPanel({
                 {view?.pending && (
                   <button
                     className={styles.secondary}
-                    disabled={model.busy || !workspace.canWriteState}
+                    disabled={!canChangeConnection || !workspace.canWriteState}
                     onClick={() => void model.continueOperation(view.connection)}
                   >
                     {t("continue")}
@@ -488,7 +506,7 @@ export function PersistentAgentsPanel({
                 {view?.connection.status === "active" && (
                   <button
                     className={styles.textButton}
-                    disabled={model.busy}
+                    disabled={!canChangeConnection}
                     onClick={() => {
                       void model.disconnect(view.connection).then(() => slots.reload());
                     }}
@@ -510,7 +528,7 @@ export function PersistentAgentsPanel({
                       </span>
                       {old.pending && (
                         <button
-                          disabled={model.busy || !workspace.canWriteState}
+                          disabled={!canChangeConnection || !workspace.canWriteState}
                           onClick={() => void model.continueOperation(old.connection)}
                         >
                           {t("continue")}
@@ -518,7 +536,7 @@ export function PersistentAgentsPanel({
                       )}
                       {old.connection.status === "active" && (
                         <button
-                          disabled={model.busy}
+                          disabled={!canChangeConnection}
                           onClick={() => {
                             void model.disconnect(old.connection).then(() => slots.reload());
                           }}
@@ -565,7 +583,7 @@ export function PersistentAgentsPanel({
           {t(copied ? "copied" : "copyAddress")}
         </button>
       </ReportDialog>
-      {workspace.authenticated && !model.enabled && !model.busy && (
+      {workspace.authenticated && model.loaded && !model.enabled && !model.busy && (
         <p className={styles.note}>{t("notReady")}</p>
       )}
     </section>

@@ -237,11 +237,22 @@
   margin: 0;
 }
 .stateBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
   font-size: 12px;
   color: var(--muted);
   border: 1px solid var(--border);
   padding: 5px 9px;
   border-radius: 99px;
+}
+.stateBadge[data-checking="true"]::before {
+  content: "";
+  width: 11px;
+  height: 11px;
+  border: 2px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
 }
 .connectionHistory {
   margin-top: 20px;
@@ -297,6 +308,14 @@
   }
 }
 @media (prefers-reduced-motion: no-preference) {
+  .stateBadge[data-checking="true"]::before {
+    animation: connectionCheck 0.8s linear infinite;
+  }
+  @keyframes connectionCheck {
+    to {
+      transform: rotate(360deg);
+    }
+  }
   .connectionGrid > article {
     animation: agentEnter 0.18s ease-out;
   }

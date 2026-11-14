@@ -5,7 +5,7 @@ const { renderToStaticMarkup } = require("react-dom/server"),
   { createTranslator } = require("next-intl");
 const { compile } = require("./resource-library-helpers.cjs");
 const jsx = require("react/jsx-runtime");
-function render(locale, unlocked, plan, credential = null, duration = null) {
+function render(locale, unlocked, plan, credential = null, duration = null, state = {}) {
   const imports = {
     react: React,
     "@/lib/provider-groups": compile("../lib/provider-groups.ts"),
@@ -13,8 +13,10 @@ function render(locale, unlocked, plan, credential = null, duration = null) {
       useProviderConnections: () => ({
         states: {},
         loading: false,
+        loaded: true,
         error: false,
         reload: async () => {},
+        ...state.slots,
       }),
     },
     "./ProviderMark": {
@@ -71,6 +73,9 @@ function render(locale, unlocked, plan, credential = null, duration = null) {
     owner: "owner_A",
     unlocked,
     busy: false,
+    loading: false,
+    loaded: true,
+    loadError: false,
     error: "",
     enabled: true,
     views: [
@@ -103,6 +108,7 @@ function render(locale, unlocked, plan, credential = null, duration = null) {
         ],
       },
     ],
+    ...state.model,
   };
   return renderToStaticMarkup(
     React.createElement(Panel, {
@@ -165,5 +171,70 @@ test("connection duration keeps ninety days selected by default and freezes pend
       normal + pending,
       /fingerprint|certificate|恢复码|恢复文件|recovery code|JSON/,
     );
+  }
+});
+
+test("slow or failed connection reads never render an invented disconnection or enable reconnect", () => {
+  for (const locale of ["en", "zh"]) {
+    for (const state of [
+      { model: { loaded: false, loading: true, views: [] } },
+      { slots: { loaded: false, loading: true } },
+      {
+        model: {
+          loaded: false,
+          loading: false,
+          loadError: true,
+          error: "request_failed",
+          views: [],
+        },
+      },
+      { slots: { loaded: false, error: true } },
+    ]) {
+      const out = render(locale, true, null, null, null, state);
+      assert.doesNotMatch(
+        out,
+        /Disconnected|已断开|Authorization needed|需要重新授权|PRIVATE_TASK_CANARY/,
+      );
+      assert.match(
+        out,
+        state.model?.loadError || state.slots?.error
+          ? /Status unavailable|状态暂不可用/
+          : /Loading connections|正在加载连接/,
+      );
+      const cards = out.match(/<article[^>]*>[\s\S]*?<\/article>/g).slice(0, 2);
+      const buttons = cards.map((card) => [card.match(/<button[^>]*>/)[0]]);
+      assert.equal(buttons.length, 2);
+      assert.ok(buttons.every(([tag]) => tag.includes('disabled=""')));
+    }
+    const empty = render(locale, true, null, null, null, { model: { views: [] } });
+    assert.equal((empty.match(/Disconnected|已断开/g) ?? []).length, 2);
+    assert.ok(
+      empty
+        .match(/<article[^>]*>[\s\S]*?<\/article>/g)
+        .slice(0, 2)
+        .every((card) => !card.match(/<button[^>]*>/)[0].includes("disabled")),
+    );
+  }
+});
+
+test("refreshing keeps the last loaded connection visible and adds a busy indicator", () => {
+  for (const locale of ["en", "zh"]) {
+    const out = render(
+      locale,
+      true,
+      null,
+      {
+        status: "active",
+        expiresAt: Date.now() / 1000 + 7776000,
+      },
+      null,
+      { model: { loading: true, busy: true } },
+    );
+    const muse = out.match(/<article[^>]*>[\s\S]*?<\/article>/)[0];
+    assert.match(muse, /Connected|已连接/);
+    assert.doesNotMatch(muse, /Disconnected|已断开/);
+    assert.match(muse, /aria-busy="true"/);
+    assert.match(muse, /data-checking="true"/);
+    assert.match(muse, /<button disabled="">Authorize again|<button disabled="">重新授权/);
   }
 });

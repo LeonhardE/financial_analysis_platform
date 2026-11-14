@@ -46,6 +46,10 @@ type State = {
   views: PersistentConnectionView[];
   tasks: PersistentTask[];
   busy: boolean;
+  loading: boolean;
+  loaded: boolean;
+  loadError: boolean;
+  loadScope: string | null;
   waitingForService: boolean;
   error: string;
   scope: string | null;
@@ -57,6 +61,10 @@ const initial: State = {
   views: [],
   tasks: [],
   busy: false,
+  loading: false,
+  loaded: false,
+  loadError: false,
+  loadScope: null,
   waitingForService: false,
   error: "",
   scope: null,
@@ -75,6 +83,7 @@ export function usePersistentWorkspace(workspace: HoldingsWorkspace, hubOrigin: 
   const live = useRef({ auth, workspace, owner, scope, visible, hubOrigin });
   live.current = { auth, workspace, owner, scope, visible, hubOrigin };
   const job = useRef<AbortController | null>(null);
+  const read = useRef<symbol | null>(null);
   const execute = useCallback(
     async <T>(
       action: (
@@ -229,7 +238,7 @@ export function usePersistentWorkspace(workspace: HoldingsWorkspace, hubOrigin: 
         if (
           !abort.signal.aborted &&
           live.current.owner === start.owner &&
-          (!privateRead || live.current.scope === start.scope)
+          live.current.scope === start.scope
         ) {
           const code = (error as { code?: string })?.code;
           setState((s) => ({
@@ -264,122 +273,153 @@ export function usePersistentWorkspace(workspace: HoldingsWorkspace, hubOrigin: 
     },
     [],
   );
-  const reload = useCallback(
-    () =>
-      execute(async (c, api, assert) => {
-        const caps = await api("/api/v2/persistent-agents/capabilities"),
-          native = await api("/api/v2/persistent-account-authorizations/capabilities"),
-          credentials = await api("/api/v3/agent-credentials/capabilities"),
-          list = await api("/api/v2/persistent-connections");
-        const views: PersistentConnectionView[] = [],
-          tasks =
-            live.current.scope && (native.accountLinkEnabled || list.connections.length)
-              ? await c.tasks()
-              : [];
-        for (const connection of list.connections as PersistentConnection[]) {
-          const view: PersistentConnectionView = {
-            connection,
-            identity: null,
-            credential: null,
-            policy: null,
-            tasks: [],
-            pending: false,
-            error: "",
-          };
-          if (
-            live.current.scope &&
-            connection.status === "active" &&
-            connection.vaultId === live.current.workspace.vault?.vaultId
-          ) {
-            try {
-              const credential = await c.credential(connection);
-              assert();
-              view.credential = {
-                ...credential.verified,
-                reference: credential.state.lease
-                  ? {
+  const reload = useCallback(async () => {
+    const start = live.current;
+    if (job.current || !start.owner || !start.auth.agentHubConfigured || !start.visible)
+      return null;
+    const token = Symbol();
+    read.current = token;
+    setState((s) => ({
+      ...(s.owner === start.owner ? s : { ...initial, owner: start.owner }),
+      loading: true,
+      loadError: false,
+      loadScope: start.scope,
+    }));
+    const result = await execute(async (c, api, assert) => {
+      // Independent display reads share the existing two-transport pool.
+      // Authority reads and mutations keep their original fresh-read paths.
+      const [caps, native, credentials, list] = await Promise.all(
+        [
+          "/api/v2/persistent-agents/capabilities",
+          "/api/v2/persistent-account-authorizations/capabilities",
+          "/api/v3/agent-credentials/capabilities",
+          "/api/v2/persistent-connections",
+        ].map((path) => api(path, { coalesceDisplay: true })),
+      );
+      const views: PersistentConnectionView[] = [],
+        tasks =
+          live.current.scope && (native.accountLinkEnabled || list.connections.length)
+            ? await c.tasks()
+            : [];
+      for (const connection of list.connections as PersistentConnection[]) {
+        const view: PersistentConnectionView = {
+          connection,
+          identity: null,
+          credential: null,
+          policy: null,
+          tasks: [],
+          pending: false,
+          error: "",
+        };
+        if (
+          live.current.scope &&
+          connection.status === "active" &&
+          connection.vaultId === live.current.workspace.vault?.vaultId
+        ) {
+          try {
+            const credential = await c.credential(connection);
+            assert();
+            view.credential = {
+              ...credential.verified,
+              reference: credential.state.lease
+                ? {
+                    connectionId: connection.connectionId,
+                    clientId: connection.clientId,
+                    credentialGeneration: credential.state.lease.generation,
+                    credentialFingerprint: credential.state.lease.credentialFingerprint,
+                  }
+                : null,
+            };
+            const context = ["active", "expiring"].includes(credential.verified.status)
+              ? await c.review(connection)
+              : null;
+            assert();
+            view.identity = context?.identity ?? credential.state.identity;
+            view.policy = context?.policy ?? null;
+            for (const task of tasks.filter(
+              (t) =>
+                t.authority.authority?.context.connectionId === connection.connectionId ||
+                t.authority.taskCenter?.assignments?.some(
+                  (r: Record<string, any>) =>
+                    r.assignment.credential.connectionId === connection.connectionId &&
+                    r.plan?.currentAssignment,
+                ),
+            )) {
+              let plan = null;
+              if (context)
+                try {
+                  const raw = await c.plan(connection, task.taskId);
+                  if (raw.state.reported && raw.state.reported.provider !== connection.provider)
+                    throw Error("provider_mismatch");
+                  plan = await live.current.workspace.verifyPersistentPlan({
+                    actor: {
                       connectionId: connection.connectionId,
                       clientId: connection.clientId,
-                      credentialGeneration: credential.state.lease.generation,
-                      credentialFingerprint: credential.state.lease.credentialFingerprint,
-                    }
-                  : null,
-              };
-              const context = ["active", "expiring"].includes(credential.verified.status)
-                ? await c.review(connection)
-                : null;
+                    },
+                    ...raw,
+                    taskId: task.taskId,
+                    hubOrigin: live.current.hubOrigin,
+                  });
+                } catch {
+                  assert();
+                }
               assert();
-              view.identity = context?.identity ?? credential.state.identity;
-              view.policy = context?.policy ?? null;
-              for (const task of tasks.filter(
-                (t) =>
-                  t.authority.authority?.context.connectionId === connection.connectionId ||
-                  t.authority.taskCenter?.assignments?.some(
-                    (r: Record<string, any>) =>
-                      r.assignment.credential.connectionId === connection.connectionId &&
-                      r.plan?.currentAssignment,
-                  ),
-              )) {
-                let plan = null;
-                if (context)
-                  try {
-                    const raw = await c.plan(connection, task.taskId);
-                    if (raw.state.reported && raw.state.reported.provider !== connection.provider)
-                      throw Error("provider_mismatch");
-                    plan = await live.current.workspace.verifyPersistentPlan({
-                      actor: {
-                        connectionId: connection.connectionId,
-                        clientId: connection.clientId,
-                      },
-                      ...raw,
-                      taskId: task.taskId,
-                      hubOrigin: live.current.hubOrigin,
-                    });
-                  } catch {
-                    assert();
-                  }
-                assert();
-                view.tasks.push({ ...task, plan });
-              }
-              view.pending = !!(await live.current.workspace.loadPersistentPending({
-                connectionId: connection.connectionId,
-                clientId: connection.clientId,
-              }));
-              assert();
-            } catch {
-              view.error = "review_required";
+              view.tasks.push({ ...task, plan });
             }
-            try {
-              view.pending = !!(await live.current.workspace.loadPersistentPending({
-                connectionId: connection.connectionId,
-                clientId: connection.clientId,
-              }));
-              assert();
-            } catch {
-              assert();
-            }
+            view.pending = !!(await live.current.workspace.loadPersistentPending({
+              connectionId: connection.connectionId,
+              clientId: connection.clientId,
+            }));
+            assert();
+          } catch {
+            view.error = "review_required";
           }
-          views.push(view);
+          try {
+            view.pending = !!(await live.current.workspace.loadPersistentPending({
+              connectionId: connection.connectionId,
+              clientId: connection.clientId,
+            }));
+            assert();
+          } catch {
+            assert();
+          }
         }
-        assert();
-        setState({
-          owner: live.current.owner,
-          enabled:
-            !!native.accountLinkEnabled && !!credentials.enabled && !!caps.resourceConsentEnabled,
-          executionEnabled: !!caps.executionEnabled,
-          views,
-          tasks,
-          busy: true,
-          waitingForService: false,
-          error: "",
-          scope: live.current.scope,
-        });
-      }, false),
-    [execute],
-  );
+        views.push(view);
+      }
+      assert();
+      setState({
+        owner: live.current.owner,
+        enabled:
+          !!native.accountLinkEnabled && !!credentials.enabled && !!caps.resourceConsentEnabled,
+        executionEnabled: !!caps.executionEnabled,
+        views,
+        tasks,
+        busy: true,
+        loading: true,
+        loaded: true,
+        loadError: false,
+        loadScope: live.current.scope,
+        waitingForService: false,
+        error: "",
+        scope: live.current.scope,
+      });
+      return true;
+    }, false);
+    if (
+      read.current === token &&
+      live.current.owner === start.owner &&
+      live.current.scope === start.scope &&
+      live.current.visible
+    ) {
+      setState((s) => ({ ...s, loading: false, loadError: result !== true }));
+      read.current = null;
+    }
+    return result;
+  }, [execute]);
   useEffect(() => {
     job.current?.abort();
     job.current = null;
+    read.current = null;
     setState((s) =>
       s.owner === owner
         ? {
@@ -396,6 +436,10 @@ export function usePersistentWorkspace(workspace: HoldingsWorkspace, hubOrigin: 
             tasks: [],
             scope: null,
             busy: false,
+            loading: false,
+            loaded: false,
+            loadError: false,
+            loadScope: null,
             waitingForService: false,
             error: "",
           }
@@ -405,6 +449,7 @@ export function usePersistentWorkspace(workspace: HoldingsWorkspace, hubOrigin: 
     return () => {
       job.current?.abort();
       job.current = null;
+      read.current = null;
     };
   }, [owner, scope, visible, reload]);
   useEffect(() => {
@@ -425,6 +470,9 @@ export function usePersistentWorkspace(workspace: HoldingsWorkspace, hubOrigin: 
   return {
     isBusy: () => job.current !== null,
     ...visibleState,
+    loaded: Boolean(scope && visibleState.scope === scope && visibleState.loaded),
+    loading: Boolean(owner && visibleState.loadScope === scope && visibleState.loading),
+    loadError: Boolean(owner && visibleState.loadScope === scope && visibleState.loadError),
     tasks: scope !== null && visibleState.scope === scope ? visibleState.tasks : [],
     views: visibleState.views.map((v) =>
       scope !== null && visibleState.scope === scope
