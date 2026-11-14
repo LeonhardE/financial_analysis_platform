@@ -1,6 +1,9 @@
 const cacheContracts = require("./resource-library-helpers.cjs").compile(
   "../lib/workspace-cache.ts",
 );
+const currencyContracts = require("./resource-library-helpers.cjs").compile(
+  "../lib/currency-preferences.ts",
+);
 const assert = require("node:assert/strict");
 const { readFileSync } = require("node:fs");
 const path = require("node:path");
@@ -143,6 +146,7 @@ function mountProvider({
   };
   const module = { exports: {} };
   const imports = {
+    "@/lib/currency-preferences": currencyContracts,
     react,
     "react/jsx-runtime": { jsx: (type, props) => ({ type, props }) },
     "firebase/auth": firebase,
@@ -877,6 +881,40 @@ test("preferences JSON stays on its exact private endpoint with authenticated no
       /Invalid private API request/,
     );
   }
+  assert.equal(harness.requests.length, 2);
+});
+
+test("currency preferences use their separate exact Config endpoint and closed CAS body", async () => {
+  const harness = mountProvider();
+  harness.emitUser(user("a"));
+  await settle();
+  const body = { expectedVersion: 3, defaultPortfolioCurrency: "CNY" };
+  await harness.actions.requestPrivate("config", "/api/v2/preferences/currency", "a:1", {
+    method: "PUT",
+    json: body,
+  });
+  const [url, options] = harness.requests[1];
+  assert.match(url, /\/api\/v2\/preferences\/currency$/);
+  assert.deepEqual(JSON.parse(options.body), body);
+  assert.equal(options.headers.Authorization, "Bearer test-token-a");
+  assert.equal(options.cache, "no-store");
+  for (const options of [
+    { method: "PUT", json: { ...body, theme: "dark" } },
+    { method: "PUT", json: { ...body, owner: "b" } },
+    { method: "PUT", json: { ...body, expectedVersion: -1 } },
+    { method: "PUT", json: { ...body, defaultPortfolioCurrency: "bad" } },
+    { method: "DELETE" },
+    { method: "POST", json: body },
+  ])
+    await assert.rejects(
+      harness.actions.requestPrivate("config", "/api/v2/preferences/currency", "a:1", options),
+    );
+  await assert.rejects(
+    harness.actions.requestPrivate("user", "/api/v2/preferences/currency", "a:1"),
+  );
+  await assert.rejects(
+    harness.actions.requestPrivate("config", "/api/v2/preferences/currency?owner=b", "a:1"),
+  );
   assert.equal(harness.requests.length, 2);
 });
 

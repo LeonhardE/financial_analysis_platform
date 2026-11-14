@@ -9,6 +9,7 @@ const {
   deferred,
 } = require("./resource-library-helpers.cjs");
 const { contracts: connections } = require("./agent-connections-helpers.cjs");
+const currencyPreferences = compile("../lib/currency-preferences.ts");
 
 const SITE = "https://workspace.synthetic.test";
 const HUB = "https://agent-hub-api-123456789.northamerica-northeast2.run.app";
@@ -298,6 +299,7 @@ async function stack(options = {}) {
         },
         "@/lib/firebase-client": { getBrowserAuth: () => auth },
         "@/lib/resource-library": resources,
+        "@/lib/currency-preferences": currencyPreferences,
         "@/lib/agent-link": {
           loadAgentLinkConfiguration: async () => ({
             schemaVersion: 1,

@@ -7,7 +7,7 @@ export type Preferences = {
 };
 
 export const DEFAULT_PREFERENCES: Preferences = {
-  theme: "system",
+  theme: "light",
   language: "en",
   defaultChartRange: "1m",
 };

@@ -1,4 +1,5 @@
 "use client";
+import { CURRENCY_PREFERENCES_PATH, currencyUpdate } from "@/lib/currency-preferences";
 
 import { DisplayReadPool } from "@/lib/workspace-cache";
 import {
@@ -870,7 +871,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         contractHeaders = encryptedRequestHeaders(rule, options);
         maxBodyBytes = rule.maxBytes ?? 589824;
       } else {
-        const preferencesPath = path === "/api/v1/preferences";
+        const currencyPath = service === "config" && path === CURRENCY_PREFERENCES_PATH;
+        const preferencesPath = path === "/api/v1/preferences" || currencyPath;
         const followsPath = service === "user" && path === "/api/v1/channel-follows";
         const watchlistPath =
           /^\/api\/v1\/watchlist(?:\/[A-Z][A-Z0-9]{0,9}(?:[.-][A-Z0-9]{1,3})?)?$/.test(path);
@@ -901,6 +903,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             items: channelInputs(options.json.items),
           };
           maxBodyBytes = 131072;
+        }
+        if (currencyPath && method === "PUT") {
+          validatedJson = currencyUpdate(options.json);
+          maxBodyBytes = 1024;
         }
         origin = service === "user" ? USER_API_BASE_URL : CONFIG_API_BASE_URL;
       }
