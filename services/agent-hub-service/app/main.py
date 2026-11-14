@@ -25,6 +25,7 @@ from .private_display_name_routes import router as private_display_name_router
 from .provider_connection_routes import router as provider_connection_router
 from .task_center_routes import agent_router as task_center_agent_router
 from .task_center_routes import owner_router as task_center_owner_router
+from .task_overview import router as task_overview_router
 from .tasks import router as tasks_router
 
 app = create_app(
@@ -52,6 +53,7 @@ app.include_router(agent_credential_router)
 app.include_router(provider_connection_router)
 app.include_router(private_display_name_router)
 app.include_router(task_center_owner_router)
+app.include_router(task_overview_router)
 app.include_router(task_center_agent_router)
 app.include_router(agent_client_router)
 app.include_router(account_assets_router)

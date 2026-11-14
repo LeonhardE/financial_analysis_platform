@@ -13,6 +13,8 @@ from folioview_shared.encrypted.constants import MAX_STORED_DOCUMENT_BYTES
 from folioview_shared.encrypted.errors import ContractError
 from folioview_shared.encrypted.jsonutil import canonical_json, strict_json_loads
 
+from .registry_reads import RegistryPrefixCache
+
 COLLECTIONS = frozenset(
     {
         "hub_vaults",
@@ -209,6 +211,7 @@ class SQLiteTransaction:
         self.connection = connection
         self.store = store
         self.registry_history_cache = {}
+        self.registry_prefix_cache = RegistryPrefixCache()
 
     def get(self, path: str) -> dict | None:
         row = self.connection.execute(
@@ -304,6 +307,7 @@ class FirestoreTransaction:
         self.store = store
         self.pending = []
         self.registry_history_cache = {}
+        self.registry_prefix_cache = RegistryPrefixCache()
         # A transaction attempt has one snapshot. Reusing it does not cache an
         # authorization decision across requests or Firestore conflict retries.
         self._reads = {}

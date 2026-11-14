@@ -18,6 +18,7 @@ from folioview_shared.encrypted.schema import validate_schema
 from folioview_shared.identity import owner_key
 
 from .fences import _state
+from .registry_reads import RegistryPrefixCache
 from .store import StoreUnavailable, document_path
 
 MAX_SOURCES = 10
@@ -126,17 +127,20 @@ def _verify_row(row, owner, now, *, unit=None, registry_cache=None):
     history = row["registryHistory"]
     if type(history) is not list or not 1 <= len(history) <= MAX_HISTORY:
         raise StoreUnavailable
+    positive(now, zero=True)
     key, cached = None, None
     if registry_cache is not None:
         key = (
             owner,
             row["vaultId"],
             row["rootKeyId"],
+            canonical_json(row["rootJwk"]),
             hashlib.sha256(canonical_json(history)).digest(),
         )
         cached = registry_cache.get(key)
     if cached is None:
         first = registry = None
+        prefixes = []
         signature_memo = RegistryCertificateMemo()
         for bundle in history:
             registry = verify_registry(
@@ -151,8 +155,7 @@ def _verify_row(row, owner, now, *, unit=None, registry_cache=None):
             )
             if first is None:
                 first = registry
-        if registry_cache is not None and len(registry_cache) < 8:
-            registry_cache[key] = (registry, first)
+            prefixes.append(registry)
     else:
         registry, first = cached
         # Only static history signatures are memoized. Recheck the time bound;
@@ -196,6 +199,13 @@ def _verify_row(row, owner, now, *, unit=None, registry_cache=None):
         lifecycle = unit.get(document_path("hub_vault_lifecycle", owner, row["vaultId"]))
         if not _history_state(row, registry, lifecycle)["deleted"]:
             raise StoreUnavailable
+    if cached is None:
+        # Publish only after the entire history and current row have passed.
+        if registry_cache is not None and len(registry_cache) < 8:
+            registry_cache[key] = (registry, first)
+        prefix_cache = getattr(unit, "registry_prefix_cache", None)
+        if type(prefix_cache) is RegistryPrefixCache:
+            prefix_cache._remember(owner, row, tuple(prefixes))
     return registry
 
 

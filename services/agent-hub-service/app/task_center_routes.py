@@ -57,10 +57,14 @@ AgentService = Annotated[TaskCenterAgentService, Depends(get_agent_center)]
 @owner_router.get("/capabilities")
 def capabilities(request: Request, user: Owner):
     _invoke(lambda: control_transport(request))
+    return _invoke(lambda: owner_capabilities(user.uid))
+
+
+def owner_capabilities(uid):
     return {
         "contractVersion": CONTRACT_VERSION,
         "profile": TASK_CENTER_PROFILE,
-        "enabled": _invoke(task_center_enabled) and uid_allowed(user.uid),
+        "enabled": task_center_enabled() and uid_allowed(uid),
         "actions": [
             "set_rules",
             "set_assignment",
