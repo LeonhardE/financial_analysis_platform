@@ -20,7 +20,6 @@ import {
   type NativeOwnerBridge,
 } from "@/lib/native-owner-bridge";
 import { providerGroups } from "@/lib/provider-groups";
-import { useProviderConnections } from "./useProviderConnections";
 import { ProviderMark } from "./ProviderMark";
 import { ReportDialog } from "./ReportDialog";
 import { LoadingIndicator, InlineError } from "./WorkspaceFeedback";
@@ -215,7 +214,6 @@ export function PersistentAgentsPanel({
       setHandoffReady(false);
       setAuthorization(null);
       await model.reload();
-      await slots.reload();
     }
   };
   const date = (value: number) =>
@@ -228,17 +226,17 @@ export function PersistentAgentsPanel({
   const status = (view: (typeof model.views)[number]) => {
     if (view.connection.status === "revoked") return "disconnected";
     const value = view.credential;
-    if (!value || !["active", "expiring"].includes(value.status) || value.expiresAt <= now)
+    if (!value) return "statusUnavailable";
+    if (!["active", "expiring"].includes(value.status) || value.expiresAt <= now)
       return "reauthorize";
     return value.expiresAt - now <= 604800 ? "expiring" : "connected";
   };
-  const slots = useProviderConnections(workspace, active);
-  const ready = model.loaded && slots.loaded,
-    readError = model.loadError || slots.error,
-    refreshing = model.loading || slots.loading,
+  const ready = model.loaded,
+    readError = model.loadError,
+    refreshing = model.loading,
     checking = model.unlocked && !ready && !readError,
     canChangeConnection = ready && !readError && !refreshing && !model.busy;
-  const groups = providerGroups(ready ? model.views : [], ready ? slots.states : {}, now);
+  const groups = providerGroups(ready ? model.views : [], ready ? model.providerStates : {}, now);
   const taskLink = (event: MouseEvent<HTMLAnchorElement>, taskId: string) => {
     if (
       event.button === 0 &&
@@ -267,10 +265,9 @@ export function PersistentAgentsPanel({
         </div>
         <button
           className={styles.secondary}
-          disabled={model.busy || slots.loading}
+          disabled={model.busy || model.loading}
           onClick={() => {
             void model.reload();
-            void slots.reload();
           }}
         >
           {t("refresh")}
@@ -428,7 +425,6 @@ export function PersistentAgentsPanel({
           retryLabel={t("refresh")}
           onRetry={() => {
             void model.reload();
-            void slots.reload();
           }}
         />
       )}
@@ -508,7 +504,7 @@ export function PersistentAgentsPanel({
                     className={styles.textButton}
                     disabled={!canChangeConnection}
                     onClick={() => {
-                      void model.disconnect(view.connection).then(() => slots.reload());
+                      void model.disconnect(view.connection);
                     }}
                   >
                     {t("disconnect")}
@@ -521,7 +517,11 @@ export function PersistentAgentsPanel({
                   {group.history.map((old) => (
                     <div className={styles.historyRow} key={old.connection.connectionId}>
                       <span>
-                        {t(status(old))}
+                        {t(
+                          old.credential || old.connection.status === "revoked"
+                            ? status(old)
+                            : "previousConnection",
+                        )}
                         {old.credential?.expiresAt && model.unlocked
                           ? ` · ${date(old.credential.expiresAt)}`
                           : ""}
@@ -538,7 +538,7 @@ export function PersistentAgentsPanel({
                         <button
                           disabled={!canChangeConnection}
                           onClick={() => {
-                            void model.disconnect(old.connection).then(() => slots.reload());
+                            void model.disconnect(old.connection);
                           }}
                         >
                           {t("disconnect")}

@@ -4,7 +4,7 @@ import {
   readResourceWatchlist,
   readChannelFollows,
 } from "./resource-library";
-import { taskPage } from "./task-types";
+import { taskMetadata, taskPage } from "./task-types";
 import type { HoldingsWorkspace } from "../components/useHoldingsWorkspace";
 export const PERSISTENT_CONTRACT = "folioview.agent-workspace.v2.0";
 export const DEFAULT_CONNECTION_SECONDS = 7776000;
@@ -617,33 +617,39 @@ export class PersistentExperienceController {
     const result: PersistentTask[] = [];
     for (const meta of items) {
       if (meta.vaultId !== v.vaultId || meta.status !== "active") continue;
-      const packet = await this.request("/api/v2/tasks/" + meta.taskId);
-      if (!same(packet.metadata, meta)) fail("version_conflict");
-      const content = await this.workspace().openTask(packet as any);
-      this.assert();
-      let authority: Json;
-      try {
-        authority = await this.request(
-          `/api/v2/persistent-content/${v.vaultId}/tasks/${meta.taskId}/authority`,
-        );
-      } catch (error) {
-        if (!(error instanceof PersistentExperienceError) || error.code !== "version_conflict")
-          throw error;
-        const center = await this.workspace().verifyTaskCenterState(
-          await this.request(`/api/v3/task-center/${v.vaultId}/tasks/${meta.taskId}`),
-        );
-        authority = { authority: null, envelope: null, taskCenter: center };
-      }
-      result.push({
-        taskId: meta.taskId,
-        title: content.name,
-        packet,
-        content,
-        authority,
-        plan: null,
-      });
+      result.push(await this.task(meta));
     }
     return result;
+  }
+  async task(metadata: Json): Promise<PersistentTask> {
+    const meta = taskMetadata(metadata),
+      v = this.vault();
+    if (meta.vaultId !== v.vaultId || meta.status !== "active") fail("review_changed");
+    const packet = await this.request("/api/v2/tasks/" + meta.taskId);
+    if (!same(packet.metadata, meta)) fail("version_conflict");
+    const content = await this.workspace().openTask(packet as any);
+    this.assert();
+    let authority: Json;
+    try {
+      authority = await this.request(
+        `/api/v2/persistent-content/${v.vaultId}/tasks/${meta.taskId}/authority`,
+      );
+    } catch (error) {
+      if (!(error instanceof PersistentExperienceError) || error.code !== "version_conflict")
+        throw error;
+      const center = await this.workspace().verifyTaskCenterState(
+        await this.request(`/api/v3/task-center/${v.vaultId}/tasks/${meta.taskId}`),
+      );
+      authority = { authority: null, envelope: null, taskCenter: center };
+    }
+    return {
+      taskId: meta.taskId,
+      title: content.name,
+      packet,
+      content,
+      authority,
+      plan: null,
+    };
   }
   async catalogue() {
     return readResourceCatalogue(await this.request("/api/v2/resources/catalogue"));

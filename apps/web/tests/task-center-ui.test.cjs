@@ -85,3 +85,99 @@ test("an unresolved task name has a skeleton rather than an opaque ID", () => {
   assert.match(html, /Loading task name/);
   assert.doesNotMatch(html, /task_PRIVATE_ID/);
 });
+
+test("legacy task settings wait for the selected assignment and retain it when details arrive", async () => {
+  const { hooks, jsx, all } = require("./resource-ui-harness.cjs"),
+    h = hooks();
+  const messages = require("../messages/en.json");
+  const mod = compile(
+    "../components/TaskCenterPanel.tsx",
+    {
+      react: h.react,
+      "react/jsx-runtime": { jsx, jsxs: jsx },
+      "next-intl": {
+        useLocale: () => "en",
+        useTranslations: (ns) => createTranslator({ locale: "en", messages, namespace: ns }),
+      },
+      "@/lib/task-forms": { defaultTask: () => ({}) },
+      "@/lib/task-center-schedule": { nextCenterOccurrence: () => null },
+      "@/lib/task-types": { bindingKey: JSON.stringify },
+      "./ReportDialog": { ReportDialog: () => null },
+      "./WorkspaceFeedback": { InlineError: () => null, LoadingIndicator: () => null },
+      "./TaskCenterPanel.module.css": {
+        __esModule: true,
+        default: new Proxy({}, { get: (_, p) => p }),
+      },
+    },
+    { Intl, Date },
+  );
+  const meta = {
+    taskId: "selected_legacy",
+    status: "active",
+    taskVersion: 1,
+    envelopeFingerprint: "exact_version",
+  };
+  const model = {
+    selected: meta,
+    form: { name: "Legacy brief", goal: "Read selected resource" },
+    items: [meta],
+    taskNames: { selected_legacy: "Legacy brief" },
+    nameErrors: {},
+    canWrite: true,
+    bindings: [],
+    drafts: [],
+    pendingOperations: [],
+    catalogue: [],
+  };
+  const center = {
+    scope: "owner:vault:1",
+    enabled: true,
+    records: { selected_legacy: { rules: null, assignments: [] } },
+    manual: {},
+    pending: null,
+  };
+  let release,
+    reads = 0;
+  const view = {
+    connection: { provider: "muse", status: "active" },
+    credential: { status: "active" },
+    tasks: [],
+  };
+  const persistent = {
+    loaded: true,
+    loading: false,
+    tasks: [],
+    views: [view],
+    revision: 1,
+    loadTask: (selected) => {
+      assert.equal(selected, meta);
+      reads++;
+      return new Promise((r) => {
+        release = r;
+      });
+    },
+  };
+  const draw = (active = true) =>
+    h.render(() => mod.TaskCenterView({ workspace: {}, model, center, persistent, active }));
+  const settings = (tree) =>
+    all(tree, (n) => n.type === "button" && n.props.children === "Settings")[0];
+  try {
+    draw(false);
+    assert.equal(reads, 0, "a retained hidden Task Center must not start legacy detail reads");
+    let tree = draw();
+    assert.equal(reads, 1);
+    assert.equal(settings(tree).props.disabled, true);
+    const task = { taskId: meta.taskId, packet: { metadata: meta } };
+    persistent.tasks = [task];
+    persistent.views = [{ ...view, tasks: [task] }];
+    release(true);
+    await new Promise(setImmediate);
+    tree = draw();
+    assert.equal(settings(tree).props.disabled, false);
+    const executors = all(tree, (n) => n.type === "dd" && n.props.children === "Muse");
+    assert.equal(executors.length, 1);
+    assert.equal(reads, 1, "verified details do not trigger another scan on render");
+  } finally {
+    h.close();
+  }
+});

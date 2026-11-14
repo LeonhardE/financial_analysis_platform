@@ -9,16 +9,6 @@ function render(locale, unlocked, plan, credential = null, duration = null, stat
   const imports = {
     react: React,
     "@/lib/provider-groups": compile("../lib/provider-groups.ts"),
-    "./useProviderConnections": {
-      useProviderConnections: () => ({
-        states: {},
-        loading: false,
-        loaded: true,
-        error: false,
-        reload: async () => {},
-        ...state.slots,
-      }),
-    },
     "./ProviderMark": {
       ProviderMark: ({ provider }) =>
         React.createElement("span", { "data-provider": provider }, provider),
@@ -78,6 +68,7 @@ function render(locale, unlocked, plan, credential = null, duration = null, stat
     loadError: false,
     error: "",
     enabled: true,
+    providerStates: {},
     views: [
       {
         connection: {
@@ -109,6 +100,14 @@ function render(locale, unlocked, plan, credential = null, duration = null, stat
       },
     ],
     ...state.model,
+    ...(state.slots
+      ? {
+          loaded: state.slots.loaded ?? true,
+          loading: state.slots.loading ?? false,
+          loadError: state.slots.error ?? false,
+          providerStates: state.slots.states ?? {},
+        }
+      : {}),
   };
   return renderToStaticMarkup(
     React.createElement(Panel, {

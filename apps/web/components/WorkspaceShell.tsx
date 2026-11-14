@@ -65,10 +65,12 @@ export default function WorkspaceShell() {
   const requestedView = workspaceView(pathname) ?? "markets";
   const activeView = requestedView === "inbox" ? "tasks" : requestedView;
   const encryptedWorkspace = useHoldingsWorkspace();
-  const persistentConfiguration = useAgentLinkConfiguration(true);
+  const agentViewsActive = activeView === "tasks" || activeView === "agents";
+  const persistentConfiguration = useAgentLinkConfiguration(agentViewsActive);
   const persistent = usePersistentWorkspace(
     encryptedWorkspace,
     persistentConfiguration.data?.hubOrigin ?? null,
+    agentViewsActive,
   );
   useEffect(() => {
     let disposed = false;

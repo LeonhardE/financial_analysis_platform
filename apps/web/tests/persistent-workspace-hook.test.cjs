@@ -15,9 +15,10 @@ async function waitUntil(check, label) {
     await new Promise((resolve) => setTimeout(resolve, 5));
   }
 }
-function harness(authOverride, ownerRequest, readRequest) {
+function harness(authOverride, ownerRequest, readRequest, otherRequest) {
   let owner = authOverride?.sessionKey ?? "owner_A:login1",
     visible = true,
+    active = true,
     index = 0,
     dirty = false;
   const cells = [],
@@ -74,22 +75,32 @@ function harness(authOverride, ownerRequest, readRequest) {
   };
   const requestPrivate = async (_service, path, _key, options) => {
     calls.push({ path, options });
-    if (readRequest && (path.endsWith("/capabilities") || path.endsWith("/persistent-connections")))
+    const other = otherRequest?.(path, options);
+    if (other !== undefined) return other;
+    if (
+      readRequest &&
+      (path.endsWith("/capabilities") ||
+        path.endsWith("/persistent-connections") ||
+        path.startsWith("/api/v3/provider-connections/"))
+    )
       return readRequest(path, options);
     if (
       ownerRequest &&
       (path.includes("/operations/") ||
         path === "/api/v2/vaults/current" ||
         path.endsWith("/registry") ||
-        path.endsWith("/approvals"))
+        path.endsWith("/approvals") ||
+        (path.includes("/agent-credentials/") && !path.endsWith("/capabilities")))
     )
       return ownerRequest(path, options);
     return Response.json(
-      path.endsWith("/persistent-connections")
-        ? { connections: [] }
-        : path.includes("persistent-agents")
-          ? { enrollmentEnabled: false, resourceConsentEnabled: false, executionEnabled: false }
-          : { accountLinkEnabled: false },
+      path.startsWith("/api/v3/provider-connections/")
+        ? { profile: "folioview.provider-connection-slot.v1", slot: null }
+        : path.endsWith("/persistent-connections")
+          ? { connections: [] }
+          : path.includes("persistent-agents")
+            ? { enrollmentEnabled: false, resourceConsentEnabled: false, executionEnabled: false }
+            : { accountLinkEnabled: false },
     );
   };
   const document = {
@@ -149,6 +160,7 @@ function harness(authOverride, ownerRequest, readRequest) {
       model = hook.usePersistentWorkspace(
         workspace,
         "https://agent-hub-api-123456789.northamerica-northeast2.run.app",
+        active,
       );
       if (flush)
         for (const e of effects.splice(0)) {
@@ -177,6 +189,10 @@ function harness(authOverride, ownerRequest, readRequest) {
         render();
       }
       return model;
+    },
+    setActive(value) {
+      active = value;
+      return render();
     },
     setOwner(v, flush = false) {
       owner = v;
@@ -346,7 +362,10 @@ test("vault refreshes before and after a registry append use bounded admission r
       appended = true;
       return Response.json({});
     }
-    if (path.endsWith("/approvals")) {
+    if (
+      path.endsWith("/approvals") ||
+      (path.includes("/agent-credentials/") && !path.endsWith("/capabilities"))
+    ) {
       assert.equal(deniedAfterAppend, true);
       approvals++;
       return Response.json({ acknowledged: true });
@@ -553,12 +572,15 @@ test("initial connection discovery is pending until all independent display read
     assert.equal(model.loading, true);
     assert.equal(model.loaded, false);
     assert.equal(model.loadError, false);
-    assert.equal(pending.length, 4, "capabilities and listing start without a serial waterfall");
+    await tick();
+    assert.equal(pending.length, 6, "capabilities and listing start without a serial waterfall");
     assert.ok(pending.every((p) => p.options.coalesceDisplay === true));
     for (const p of pending.slice(0, 3)) p.resolve(Response.json({}));
     await h.settle();
     assert.equal(h.render().loaded, false);
     pending[3].resolve(Response.json({ connections: [] }));
+    for (const p of pending.slice(4))
+      p.resolve(Response.json({ profile: "folioview.provider-connection-slot.v1", slot: null }));
     model = await h.settle();
     assert.equal(model.loaded, true, "only a completed empty snapshot can mean no connections");
     assert.equal(model.loading, false);
@@ -574,7 +596,13 @@ test("failed discovery stays unknown and failed refresh retains the prior snapsh
     Promise.resolve(
       failed
         ? Response.json({}, { status: 503 })
-        : Response.json(path.endsWith("/persistent-connections") ? { connections: [] } : {}),
+        : Response.json(
+            path.endsWith("/persistent-connections")
+              ? { connections: [] }
+              : path.startsWith("/api/v3/provider-connections/")
+                ? { profile: "folioview.provider-connection-slot.v1", slot: null }
+                : {},
+          ),
     ),
   );
   try {
@@ -607,9 +635,18 @@ test("old connection discovery cannot mark a new Owner generation as loaded or f
   const h = harness(null, null, () => new Promise((resolve) => pending.push(resolve)));
   try {
     h.render();
+    await tick();
     h.setOwner("owner_A:login2", false);
     for (const [i, resolve] of pending.entries())
-      resolve(Response.json(i === 3 ? { connections: [] } : {}));
+      resolve(
+        Response.json(
+          i === 3
+            ? { connections: [] }
+            : i > 3
+              ? { profile: "folioview.provider-connection-slot.v1", slot: null }
+              : {},
+        ),
+      );
     await tick();
     let model = h.render(false);
     assert.equal(model.loaded, false);
@@ -618,11 +655,411 @@ test("old connection discovery cannot mark a new Owner generation as loaded or f
     model = h.render();
     assert.equal(model.loaded, false);
     assert.equal(model.loading, true);
-    for (const [i, resolve] of pending.slice(4).entries())
-      resolve(Response.json(i === 3 ? { connections: [] } : {}));
+    await tick();
+    for (const [i, resolve] of pending.slice(6).entries())
+      resolve(
+        Response.json(
+          i === 3
+            ? { connections: [] }
+            : i > 3
+              ? { profile: "folioview.provider-connection-slot.v1", slot: null }
+              : {},
+        ),
+      );
     model = await h.settle();
     assert.equal(model.loaded, true);
     assert.equal(model.loadError, false);
+  } finally {
+    h.close();
+  }
+});
+
+const connection = (n) => ({
+  connectionId: `connection_${n}`,
+  clientId: `client_${n}`,
+  vaultId: "vault_A",
+  provider: n % 2 ? "muse" : "chatgpt",
+  status: "active",
+  accountState: "connected",
+  linkedAt: 1000,
+});
+const discovery =
+  (connections, generation = 1, slotted = true) =>
+  (path) => {
+    const current = connections.find((v) => path.endsWith("/" + v.provider));
+    return Promise.resolve(
+      Response.json(
+        path.endsWith("/persistent-connections")
+          ? { connections }
+          : path.startsWith("/api/v3/provider-connections/")
+            ? {
+                profile: "folioview.provider-connection-slot.v1",
+                slot: slotted
+                  ? {
+                      currentCredential: current
+                        ? {
+                            connectionId: current.connectionId,
+                            clientId: current.clientId,
+                            credentialGeneration: generation,
+                            credentialFingerprint: `fingerprint_${generation}`,
+                          }
+                        : null,
+                    }
+                  : null,
+              }
+            : {
+                accountLinkEnabled: true,
+                enabled: true,
+                resourceConsentEnabled: true,
+                executionEnabled: true,
+              },
+      ),
+    );
+  };
+const credentialResponse = (generation = 1) =>
+  Response.json({
+    lease: { generation, credentialFingerprint: `fingerprint_${generation}` },
+    identity: { binding: "synthetic" },
+  });
+function installVerifier(h) {
+  h.workspace.inspectAgentCredential = async () => ({ status: "active", expiresAt: 2000000000 });
+  h.workspace.loadPersistentPending = async () => null;
+}
+
+test("summary verification is bounded to two and never opens task content, policies or plans", async () => {
+  const pending = [],
+    journals = [];
+  const h = harness(
+    null,
+    (_path, options) => new Promise((resolve) => pending.push({ resolve, options })),
+    discovery(
+      Array.from({ length: 6 }, (_, n) => connection(n + 1)),
+      1,
+      false,
+    ),
+    (path) => {
+      assert.doesNotMatch(path, /\/tasks|resource-consent|persistent-plans|resource-operations/);
+    },
+  );
+  installVerifier(h);
+  h.workspace.loadPersistentPending = async (actor) => {
+    journals.push(actor.connectionId);
+    return null;
+  };
+  try {
+    h.render();
+    await h.settle();
+    assert.equal(pending.length, 2);
+    assert.equal(h.render().busy, false, "display reads do not occupy the mutation lane");
+    for (let offset = 0; offset < 6; offset += 2) {
+      assert.equal(h.render().loaded, false);
+      pending.slice(offset, offset + 2).forEach((p) => p.resolve(credentialResponse()));
+      await h.settle();
+      assert.equal(pending.length, Math.min(offset + 4, 6));
+    }
+    const m = h.render();
+    assert.equal(m.loaded, true);
+    assert.equal(m.views.length, 6);
+    assert.equal(journals.length, 6);
+    assert.equal(new Set(journals).size, 6, "one pending-journal read per connection");
+    assert.equal(m.tasks.length, 0);
+    assert.equal(m.providerStates.muse.slot, null);
+  } finally {
+    h.close();
+  }
+});
+
+test("credential and provider slot refresh publish atomically and transport failure retains their pair", async () => {
+  let generation = 1,
+    fail = false;
+  const h = harness(
+    null,
+    () =>
+      Promise.resolve(fail ? Response.json({}, { status: 503 }) : credentialResponse(generation)),
+    (path) => discovery([connection(1)], generation)(path),
+  );
+  installVerifier(h);
+  try {
+    h.render();
+    await h.settle();
+    const previous = h.render();
+    assert.equal(previous.loaded, true);
+    generation = 2;
+    fail = true;
+    assert.equal(await previous.reload(), null);
+    let m = h.render();
+    assert.equal(m.loadError, true);
+    assert.equal(m.loaded, true);
+    assert.equal(m.views, previous.views);
+    assert.equal(m.providerStates, previous.providerStates);
+    assert.equal(m.views[0].credential.reference.credentialGeneration, 1);
+    fail = false;
+    assert.equal(await m.reload(), true);
+    m = h.render();
+    assert.equal(m.loadError, false);
+    assert.equal(m.views[0].credential.reference.credentialGeneration, 2);
+    assert.equal(m.providerStates.muse.slot.currentCredential.credentialGeneration, 2);
+  } finally {
+    h.close();
+  }
+});
+
+test("unrelated routes start no Agent reads and revisiting retains a fresh verified snapshot", async () => {
+  const h = harness(null, null, discovery([]));
+  try {
+    h.setActive(false);
+    await h.settle();
+    assert.equal(h.calls.length, 0);
+    h.setActive(true);
+    await h.settle();
+    const m = h.render(),
+      count = h.calls.length;
+    assert.equal(m.loaded, true);
+    h.setActive(false);
+    h.setActive(true);
+    await h.settle();
+    assert.equal(h.render().loaded, true);
+    assert.equal(h.calls.length, count);
+    assert.equal(h.render().providerStates, m.providerStates);
+  } finally {
+    h.close();
+  }
+});
+
+test("leaving a pending display read cancels it without a failure or late publication", async () => {
+  const pending = [];
+  const h = harness(
+    null,
+    null,
+    (_p, options) => new Promise((resolve) => pending.push({ resolve, options })),
+  );
+  try {
+    h.render();
+    await tick();
+    h.setActive(false);
+    await h.settle();
+    assert.ok(pending.every((p) => p.options.signal.aborted));
+    assert.equal(h.render().loading, false);
+    assert.equal(h.render().loadError, false);
+    pending.forEach((p) => p.resolve(Response.json({ connections: [] })));
+    await h.settle();
+    assert.equal(h.render().loaded, false);
+  } finally {
+    h.close();
+  }
+});
+
+test("a write preempts display reads and late display responses cannot overwrite its state", async () => {
+  const pending = [];
+  const h = harness(
+    null,
+    async () => Response.json({ accepted: true }),
+    (_p, options) => new Promise((resolve) => pending.push({ resolve, options })),
+  );
+  try {
+    h.render();
+    await tick();
+    const result = await h
+      .render()
+      .execute((_c, api) => api(retryProbe, { method: "POST", json: { sealed: "original" } }));
+    assert.equal(result.accepted, true);
+    assert.ok(pending.every((p) => p.options.signal.aborted));
+    pending.forEach((p) => p.resolve(Response.json({ connections: [] })));
+    await h.settle();
+    assert.equal(h.render().loaded, false);
+    assert.equal(h.render().loadError, false);
+    assert.equal(h.calls.filter((c) => c.path === retryProbe).length, 1);
+  } finally {
+    h.close();
+  }
+});
+
+test("display deadlines settle ignored cancellation instead of leaving the UI pending forever", async () => {
+  const pending = [];
+  const h = harness(
+    null,
+    null,
+    (_p, options) => new Promise((resolve) => pending.push({ resolve, options })),
+  );
+  try {
+    h.render();
+    await tick();
+    h.releaseTimer(14000);
+    await h.settle();
+    assert.equal(h.render().loading, false);
+    assert.equal(h.render().loadError, true);
+    assert.equal(h.render().busy, false);
+    pending.forEach((p) => p.resolve(Response.json({ connections: [] })));
+    await h.settle();
+    assert.equal(h.render().loaded, false);
+    assert.equal(h.render().loadError, true);
+  } finally {
+    h.close();
+  }
+});
+
+test("an unknown write deadline releases its UI lane without retrying or clearing the sealed original", async () => {
+  let release,
+    calls = 0;
+  const h = harness(
+    null,
+    () => {
+      calls++;
+      return new Promise((r) => {
+        release = r;
+      });
+    },
+    discovery([]),
+  );
+  const sealed = {
+    operationId: "synthetic_original_operation_0001",
+    ciphertext: "SEALED_ORIGINAL",
+  };
+  h.workspace.pending = sealed;
+  try {
+    h.render();
+    await h.settle();
+    let committed = false;
+    const pending = h.render().execute(async (_c, api) => {
+      await api(retryProbe, {
+        method: "POST",
+        json: sealed,
+        headers: { "Idempotency-Key": sealed.operationId },
+      });
+      committed = true;
+      return true;
+    });
+    await tick();
+    h.releaseTimer(120000);
+    assert.equal(await pending, null);
+    await h.settle();
+    assert.equal(h.render().busy, false);
+    assert.equal(h.render().error, "request_failed");
+    assert.equal(h.workspace.pending, sealed);
+    release(Response.json({ accepted: true }));
+    await h.settle();
+    assert.equal(committed, false);
+    assert.equal(calls, 1);
+    assert.equal(h.workspace.pending, sealed);
+  } finally {
+    h.close();
+  }
+});
+
+const selectedMetadata = {
+  contractVersion: "folioview.agent-workspace.v2.0",
+  vaultId: "vault_A",
+  taskId: "task_selected",
+  taskVersion: 1,
+  executionEpoch: 1,
+  status: "active",
+  resourceBindings: [],
+  objectRevision: 1,
+  deliveryRevision: 1,
+  envelopeFingerprint: "a".repeat(64),
+  keyEpoch: 1,
+  createdAt: "2026-11-01T10:00:00Z",
+  updatedAt: "2026-11-01T10:00:00Z",
+};
+test("legacy details read only the selected exact task and never scan other tasks or plans", async () => {
+  const h = harness(
+    null,
+    () => Promise.resolve(credentialResponse()),
+    discovery([connection(1)]),
+    (path) =>
+      path === "/api/v2/tasks/task_selected"
+        ? Promise.resolve(Response.json({ metadata: selectedMetadata }))
+        : path.endsWith("/tasks/task_selected/authority")
+          ? Promise.resolve(
+              Response.json({ authority: { context: { connectionId: "connection_1" } } }),
+            )
+          : undefined,
+  );
+  installVerifier(h);
+  let opened = 0;
+  h.workspace.openTask = async () => {
+    opened++;
+    return { name: "Selected private task" };
+  };
+  try {
+    h.render();
+    await h.settle();
+    assert.equal(opened, 0);
+    assert.equal(await h.render().loadTask(selectedMetadata), true);
+    const m = h.render();
+    assert.equal(opened, 1);
+    assert.equal(m.tasks[0].title, "Selected private task");
+    assert.equal(m.views[0].tasks[0].taskId, "task_selected");
+    assert.equal(m.loaded, true);
+    assert.ok(!h.calls.some((c) => /\/tasks\?|persistent-plans|resource-consent/.test(c.path)));
+    assert.equal(await m.loadTask({ ...selectedMetadata, vaultId: "foreign_vault" }), false);
+    assert.equal(opened, 1);
+  } finally {
+    h.close();
+  }
+});
+test("deleting a task fences a non-cooperative selected-task read against resurrection", async () => {
+  let release;
+  const h = harness(null, null, discovery([]), (path) =>
+    path === "/api/v2/tasks/task_selected"
+      ? new Promise((r) => {
+          release = r;
+        })
+      : undefined,
+  );
+  h.workspace.openTask = async () => assert.fail("deleted task must not be decrypted");
+  try {
+    h.render();
+    await h.settle();
+    const pending = h.render().loadTask(selectedMetadata);
+    await tick();
+    h.render().invalidateTask("task_selected");
+    assert.equal(await pending, false);
+    release(Response.json({ metadata: selectedMetadata }));
+    await h.settle();
+    assert.equal(h.render().tasks.length, 0);
+  } finally {
+    h.close();
+  }
+});
+
+test("a current provider slot verifies only its two exact connections despite thirty historical rows", async () => {
+  const credentialReads = [];
+  const h = harness(
+    null,
+    (path) => {
+      credentialReads.push(path);
+      return Promise.resolve(credentialResponse());
+    },
+    discovery(Array.from({ length: 32 }, (_, n) => connection(n + 1))),
+  );
+  installVerifier(h);
+  try {
+    h.render();
+    await h.settle();
+    assert.equal(h.render().loaded, true);
+    assert.equal(credentialReads.length, 2);
+    assert.equal(h.render().views.filter((v) => v.credential).length, 2);
+    assert.equal(h.render().views.filter((v) => !v.credential).length, 30);
+    assert.ok(credentialReads.some((p) => p.endsWith("/connection_1")));
+    assert.ok(credentialReads.some((p) => p.endsWith("/connection_2")));
+  } finally {
+    h.close();
+  }
+});
+
+test("the display lane cannot forward a write", async () => {
+  const h = harness(null, null, discovery([]));
+  try {
+    h.render();
+    await h.settle();
+    assert.equal(
+      await h
+        .render()
+        .execute((_c, api) => api(retryProbe, { method: "POST", json: {} }), true, true),
+      null,
+    );
+    assert.equal(h.calls.filter((c) => c.path === retryProbe).length, 0);
   } finally {
     h.close();
   }
