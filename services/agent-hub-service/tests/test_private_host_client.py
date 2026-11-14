@@ -13,10 +13,11 @@ import test_persistent_identity_store as identities
 import test_persistent_publications as publications
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from fixtures import UID
-from jwcrypto import jwk
+from jwcrypto import jwe, jwk
 from test_oauth import CLIENT, TASK, OAuthFixture
 from test_persistent_content import PersistentContentFixture
 from test_persistent_identity_store import CONNECTION
+from test_valuation_contracts import facts
 
 from app.native_transport import SCOPE
 from app.persistent_agents import identity_path
@@ -29,7 +30,12 @@ from folioview_shared.encrypted.agent_credentials import (
 )
 from folioview_shared.encrypted.crypto import _signed_parts, verify_jws
 from folioview_shared.encrypted.jsonutil import b64url_decode, b64url_encode, canonical_json
-from folioview_shared.encrypted.persistent_content import open_persistent_content
+from folioview_shared.encrypted.persistent_content import (
+    CONTENT_JWE_HEADER,
+    digest,
+    open_persistent_content,
+)
+from folioview_shared.valuation import validate_holdings_private
 
 ORIGIN = sessions.ORIGIN
 
@@ -48,7 +54,7 @@ class PrivateHostClientTests(unittest.TestCase):
         self.drop_next_plan = self.drop_next_report = False
         self.plan_requests, self.ciphertexts = [], []
 
-    def execution(self, provider="muse"):
+    def execution(self, provider="muse", *, facts_variant=None):
         original = OAuthFixture()
         self.actor = {
             "ownerSubject": original.owner,
@@ -194,7 +200,8 @@ class PrivateHostClientTests(unittest.TestCase):
             )
 
         self.fx.store.transact(seed)
-        case.publish(case.context())
+        c = case.context()
+        case.publish(c, self.facts_carrier(c, facts_variant) if facts_variant else None)
         case.create_task()
         case.publish(case.context("task"))
         self.activation = {
@@ -218,6 +225,103 @@ class PrivateHostClientTests(unittest.TestCase):
             "previousLease": None,
         }
         return case
+
+    def facts_carrier(self, c, variant):
+        # Independent synthetic Owner construction. The server never receives plaintext.
+        content = json.loads(
+            json.dumps(facts(c["objectId"]))
+            .replace("2026-11-13T22:00:00Z", "1970-01-01T00:16:40Z")
+            .replace("2026-11-13", "1970-01-01")
+        )
+        wrapper = {
+            "privateSchemaVersion": 1,
+            "profile": c["profile"],
+            "objectId": c["objectId"],
+            "objectType": c["objectType"],
+            "revision": c["revision"],
+            "payload": content,
+        }
+        validate_holdings_private(wrapper, context=c, persistent=True)
+        if variant == "bad_provenance":
+            content["data"]["accounts"][0]["positions"][0]["provenance"]["unitCost"]["origin"] = (
+                "unknown"
+            )
+        if variant == "stale":
+            content["freshness"] = "stale"
+        message = jwe.JWE(
+            canonical_json(wrapper),
+            protected=canonical_json(CONTENT_JWE_HEADER).decode(),
+            aad=canonical_json(c),
+            algs=["ECDH-ES+A256KW", "A256GCM"],
+        )
+        keys = PersistentContentFixture.public_keys(self.f, c)
+        for recipient in c["recipients"]:
+            message.add_recipient(
+                jwk.JWK(**keys[recipient["keyId"]]), header={"kid": recipient["keyId"]}
+            )
+        encrypted = json.loads(message.serialize(compact=False))
+        proof = self.f.sign(
+            {
+                "contractVersion": c["contractVersion"],
+                "profile": c["profile"],
+                "artifactType": "persistent_content_publication",
+                "context": c,
+                "ciphertextDigest": digest(encrypted),
+            },
+            name="root",
+        )
+        return {
+            "contractVersion": c["contractVersion"],
+            "profile": c["profile"],
+            "proof": proof,
+            "jwe": encrypted,
+        }
+
+    def test_new_cost_facts_pass_real_authority_and_frozen_run_input_without_server_decryption(
+        self,
+    ):
+        self.execution(facts_variant="valid")
+        self.peer.call("activate", self.response())
+        self.peer.call("initialize")
+        run = self.peer.call("begin", {"taskId": TASK, "triggerId": "synthetic_facts_run_0001"})
+        args = {"runId": run["runId"], "publicationId": run["inputs"][0]["publicationId"]}
+        item = self.peer.call("input", args)
+        position = item["resource"]["data"]["accounts"][0]["positions"][0]
+        self.assertEqual(item["resource"]["data"]["profile"], "folioview.holdings-facts.v2")
+        self.assertEqual(position["unitCost"], {"currency": "USD", "amount": "10"})
+        self.assertEqual(position["reportedValues"]["marketValue"]["amount"], "9999")
+        self.assertEqual(self.peer.call("input", args), item)
+        report = PersistentContentFixture.private_content(
+            self.f, PersistentContentFixture.content_context(self.f, "result_revision")
+        )["payload"]
+        saved = self.peer.call("submit", {"runId": run["runId"], "report": report})
+        self.assertEqual(saved["state"], "saved")
+        self.assertNotIn("unitCost", self.ciphertexts[0])
+
+    def test_root_signed_but_invalid_private_facts_fail_only_in_the_trusted_client(self):
+        self.execution(facts_variant="bad_provenance")
+        self.peer.call("activate", self.response())
+        self.peer.call("initialize")
+        run = self.peer.call("begin", {"taskId": TASK, "triggerId": "synthetic_facts_bad_0001"})
+        denied = self.peer.call(
+            "input",
+            {"runId": run["runId"], "publicationId": run["inputs"][0]["publicationId"]},
+            ok=False,
+        )
+        self.assertEqual(denied["error"], "invalid_valuation")
+        self.assertEqual(self.ciphertexts, [])
+
+    def test_new_facts_cannot_bypass_input_policy_by_submitting_without_reading(self):
+        self.execution(facts_variant="stale")
+        self.peer.call("activate", self.response())
+        self.peer.call("initialize")
+        run = self.peer.call("begin", {"taskId": TASK, "triggerId": "synthetic_facts_stale_0001"})
+        report = PersistentContentFixture.private_content(
+            self.f, PersistentContentFixture.content_context(self.f, "result_revision")
+        )["payload"]
+        denied = self.peer.call("submit", {"runId": run["runId"], "report": report}, ok=False)
+        self.assertEqual(denied["error"], "input_policy_freshness")
+        self.assertEqual(self.ciphertexts, [])
 
     def response(self, activation=None, *, phase="activation"):
         value = self.activation if activation is None else activation

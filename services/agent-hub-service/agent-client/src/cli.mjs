@@ -11,6 +11,11 @@ export function clientFailure(error) {
     return failure("agent_busy", "Retry after the current Agent operation finishes.");
   if (code === "authorization_pending")
     return failure("authorization_pending", "Wait for the user to authorize in FolioView.");
+  if (code === "invalid_valuation")
+    return failure(
+      "input_format_rejected",
+      "Stop this task. Its shared holdings data could not be verified. Ask the user to review and update the shared data in FolioView; reauthorization is not required for this error.",
+    );
   if (
     [
       "input_policy_partial",

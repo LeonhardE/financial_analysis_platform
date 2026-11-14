@@ -18,6 +18,7 @@ import {
   validate,
   inspect,
   open,
+  openHoldings,
   seal,
   privatePayload,
   resultContent,
@@ -997,7 +998,11 @@ export class AgentClient {
       expected: { ...c, ...item },
       now: this.now(),
     });
-    const resource = await open(response.envelope, this.#profile.encryptionPrivateKey, c);
+    const resource = await (c.objectType === "holdings_snapshot" ? openHoldings : open)(
+      response.envelope,
+      this.#profile.encryptionPrivateKey,
+      c,
+    );
     checkInputPolicy(r.task.task.inputPolicy, resource, this.now());
     return {
       runId,

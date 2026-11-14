@@ -35,3 +35,4 @@ export {
   open,
   seal,
 } from "../../../../packages/encrypted-workspace/dist/core.mjs";
+export { openHoldings } from "../../../../packages/encrypted-workspace/valuation/dist/holdings.mjs";
