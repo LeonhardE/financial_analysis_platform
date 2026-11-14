@@ -8,9 +8,13 @@ import time
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
-from folioview_shared.encrypted.authority import verify_control_command, verify_registry
+from folioview_shared.encrypted.authority import (
+    RegistryCertificateMemo,
+    verify_control_command,
+    verify_registry,
+)
 from folioview_shared.encrypted.budgets import check_read_response
-from folioview_shared.encrypted.constants import CONTRACT_VERSION
+from folioview_shared.encrypted.constants import CONTRACT_VERSION, MAX_SAFE_INTEGER
 from folioview_shared.encrypted.crypto import jwk_thumbprint, signing_input_fingerprint, verify_jws
 from folioview_shared.encrypted.envelope import (
     EnvelopeExpectation,
@@ -160,11 +164,11 @@ def _authority(
             owner,
             document["vaultId"],
             document["rootKeyId"],
-            now,
             hashlib.sha256(canonical_json(history)).digest(),
         )
         registry = registry_cache.get(key)
     if registry is None:
+        signature_memo = RegistryCertificateMemo()
         for bundle in history:
             registry = verify_registry(
                 bundle,
@@ -174,9 +178,18 @@ def _authority(
                 vault_id=document["vaultId"],
                 now=now,
                 previous=registry,
+                signature_memo=signature_memo,
             )
         if registry_cache is not None:
             registry_cache[key] = registry
+    else:
+        # Time is a live check, not part of static signature-history identity.
+        # Verified history has nondecreasing issuedAt, so its final checkpoint
+        # bounds every earlier one even if the clock moves backward.
+        if type(now) is not int or not 0 <= now <= MAX_SAFE_INTEGER:
+            raise ContractError("malformed_request")
+        if registry.issued_at > now:
+            raise ContractError("registry_conflict")
     return Authority(document, registry)
 
 
