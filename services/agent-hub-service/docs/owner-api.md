@@ -151,11 +151,16 @@ source unavailable; they do not sign the owner out or expose upstream diagnostic
 The complete catalogue operation, including both local context checks, uses a cooperative ten-second
 budget. Discovery reserves one second for the final context/response work, leaving additional margin
 under the existing twelve-second Web proxy. Two request-scoped joined workers handle User and Portfolio;
-normal Portfolio discovery uses one state batch and one projection batch for its active subset,
-independent of whether one, two or ten sources are registered. Terminal fences skip producer calls.
+normal Portfolio discovery uses one combined state/projection batch for one, two or ten
+registered sources. Both views derive from one Portfolio metadata transaction. The exact
+`folioview.portfolio-discovery.v1` envelope and original inner DTOs are validated: every requested
+reference has one state, and projections must be a unique subset of active states. An active
+source without a current-epoch projection remains unavailable, distinct from an eligible
+empty source with `snapshotId:null`. Terminal Hub fences skip producer calls.
 The existing all-or-error producer contract is unchanged: bounded 403/404/503 batch refusals may be
-bisected under the same deadline to preserve other sources; malformed/auth/transport failures never
-create that fan-out. Target-lock waits check the same budget. HTTP uses fixed URLs, no ambient proxies, no
+bisected under the same deadline to preserve other sources; malformed payloads and transport failures
+never create that fan-out. No producer error body is consumed. Target-lock waits check the same budget.
+HTTP uses fixed URLs, no ambient proxies, no
 redirects, identity encoding and streaming byte limits. Producer response reads allow up to eight
 seconds, capped by the remaining admission budget, to tolerate a cold source; connection, pool,
 write and credential I/O retain their four-second caps. Optional KMS
@@ -186,7 +191,8 @@ later grant/Run/result consumers must recheck current source state, task/grant f
 and transaction-bound fence guards.
 
 Only source APIs are consumed: User `GET /internal/v2/resources/catalogue`, Portfolio
-`POST /internal/v2/resources/states/read` and `POST /internal/v2/resources/projections/read`. This
+`POST /internal/v2/resources/discovery/read`. Deploy the compatible Portfolio producer before
+this Hub consumer; it does not silently fall back to independently timed old reads. This
 discovery operation reads only Hub's own database and does not initialize lists, synchronize Portfolio authority,
 read encrypted snapshots or create copies of User's mutable masters. Producer trust and cloud configuration are managed separately by per-target infrastructure.
 Example settings alone do not activate them.

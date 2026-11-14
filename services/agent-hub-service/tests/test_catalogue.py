@@ -72,6 +72,7 @@ class CatalogueFixture:
         self.fail_source = None
         self.user_change = None
         self.portfolio_change = None
+        self.discovery_change = None
         self.on_request = None
         self.epoch = 1
         self.lifecycle = "active"
@@ -164,7 +165,8 @@ class CatalogueFixture:
         self.assertEqual(body["contractVersion"], CONTRACT_VERSION)
         if any(ref["resourceId"] == self.fail_source for ref in body["refs"]):
             return httpx.Response(404, text="synthetic-private-error-marker")
-        items = []
+        self.assertEqual(request.url.path, "/internal/v2/resources/discovery/read")
+        states, projections = [], []
         for ref in body["refs"]:
             row = {
                 "ref": ref,
@@ -172,15 +174,23 @@ class CatalogueFixture:
                 "sourceEpoch": self.epoch,
                 "state": self.lifecycle,
             }
-            if request.url.path.endswith("states/read"):
-                row["observedAt"] = STAMP
-            else:
-                self.assertEqual(request.url.path, "/internal/v2/resources/projections/read")
-                row["snapshotId"] = self.snapshot
+            state = {**row, "observedAt": STAMP}
+            projection = {**row, "snapshotId": self.snapshot}
             if self.portfolio_change:
-                self.portfolio_change(row)
-            items.append(row)
-        return httpx.Response(200, json={"contractVersion": CONTRACT_VERSION, "items": items})
+                self.portfolio_change(state)
+                self.portfolio_change(projection)
+            states.append(state)
+            if self.lifecycle == "active":
+                projections.append(projection)
+        value = {
+            "contractVersion": CONTRACT_VERSION,
+            "profile": "folioview.portfolio-discovery.v1",
+            "states": {"contractVersion": CONTRACT_VERSION, "items": states},
+            "projections": {"contractVersion": CONTRACT_VERSION, "items": projections},
+        }
+        if self.discovery_change:
+            self.discovery_change(value)
+        return httpx.Response(200, json=value)
 
     def read(self, uid=UID, sources=None):
         return CatalogueService(self.vaults, sources or self.sources).read(uid)
@@ -211,7 +221,7 @@ class CatalogueTests(CatalogueFixture, unittest.TestCase):
                     timeouts.append(timeout)
                     self.assertLessEqual(timeout["read"], 109.0 - clock[0])
                     self.assertLessEqual(timeout["connect"], 4.0)
-                    if request.url.path.endswith("states/read"):
+                    if request.url.path.endswith("discovery/read"):
                         if timeout["read"] < delay:
                             raise httpx.ReadTimeout("PRIVATE_COLD_START", request=request)
                         clock[0] += delay
@@ -224,8 +234,7 @@ class CatalogueTests(CatalogueFixture, unittest.TestCase):
             )
             self.assertEqual(result["groups"][0]["items"][0]["state"], expected)
             self.assertEqual(timeouts[0]["read"], 8.0)
-            if expected == "active":
-                self.assertAlmostEqual(timeouts[1]["read"], 2.7)
+            self.assertEqual(len(timeouts), 1)
 
     def test_closed_refusal_diagnostic_survives_mcp_root_logging_level(self):
         records = []
@@ -261,7 +270,7 @@ class CatalogueTests(CatalogueFixture, unittest.TestCase):
         self.assertEqual(follows["items"][0]["state"], "ready")
         self.assertEqual(follows["items"][0]["encryptedEvidence"], "not_prepared")
         self.assertCountEqual(self.token_calls, [USER, PORTFOLIO])
-        self.assertEqual(len(self.calls), 3)
+        self.assertEqual(len(self.calls), 2)
         encoded = canonical_json(result)
         for marker in (
             b"archive",
@@ -317,7 +326,7 @@ class CatalogueTests(CatalogueFixture, unittest.TestCase):
             result = self.read()
         self.assertEqual(result["groups"][0]["status"], "unavailable")
         message = "\n".join(captured.output)
-        self.assertIn("service=portfolio stage=projection_contract code=", message)
+        self.assertIn("service=portfolio stage=discovery_contract code=", message)
         for private in (marker, UID, EMAIL, self.source["resourceId"], self.fixture.owner):
             self.assertNotIn(private, message)
 
@@ -438,7 +447,7 @@ class CatalogueTests(CatalogueFixture, unittest.TestCase):
         self.assertEqual(result["groups"][0]["status"], "available")
         self.assertTrue(all(group["status"] == "unavailable" for group in result["groups"][1:]))
 
-    def test_ten_sources_use_two_portfolio_batches_two_joined_workers_and_one_credential(self):
+    def test_ten_sources_use_one_portfolio_batch_two_joined_workers_and_one_credential(self):
         for i in range(1, 10):
             operation = f"synthetic_source_parallel_{i:04}"
             source = f"holdings_parallel_{i}"
@@ -476,7 +485,7 @@ class CatalogueTests(CatalogueFixture, unittest.TestCase):
         self.assertEqual(active, 0)
         self.assertCountEqual(self.token_calls, [USER, PORTFOLIO])
         portfolio_calls = [row for row in self.calls if row[1].startswith(PORTFOLIO)]
-        self.assertEqual(len(portfolio_calls), 2)
+        self.assertEqual(len(portfolio_calls), 1)
         self.assertTrue(all(len(json.loads(row[2])["refs"]) == 10 for row in portfolio_calls))
 
     def test_missing_configuration_is_unavailable_without_credentials_or_network(self):
@@ -559,14 +568,15 @@ class CatalogueTests(CatalogueFixture, unittest.TestCase):
             response = self.handle(request)
             value = response.json()
             if request.url.host == "portfolio.synthetic.example":
-                value["items"].reverse()
+                value["states"]["items"].reverse()
+                value["projections"]["items"].reverse()
             return httpx.Response(200, json=value)
 
         result = self.read(sources=self.make_sources(transport=httpx.MockTransport(reordered)))
         rows = result["groups"][0]["items"]
         self.assertEqual([row["ref"]["resourceId"] for row in rows], [SOURCE, second])
         self.assertTrue(all(row["state"] == "active" for row in rows))
-        self.assertEqual(len(self.calls), 3)
+        self.assertEqual(len(self.calls), 2)
 
     def test_duplicate_batch_rows_fail_closed_without_unbounded_source_fallback(self):
         self.add_second_source()
@@ -575,13 +585,13 @@ class CatalogueTests(CatalogueFixture, unittest.TestCase):
             response = self.handle(request)
             value = response.json()
             if request.url.host == "portfolio.synthetic.example":
-                value["items"][1] = value["items"][0]
+                value["states"]["items"][1] = value["states"]["items"][0]
             return httpx.Response(200, json=value)
 
         result = self.read(sources=self.make_sources(transport=httpx.MockTransport(duplicate)))
         self.assertEqual(result["groups"][0]["status"], "unavailable")
         self.assertEqual(result["groups"][1]["status"], "available")
-        self.assertEqual(len(self.calls), 2)  # User plus one refused state batch.
+        self.assertEqual(len(self.calls), 2)  # User plus one refused discovery batch.
 
     def test_same_history_verified_once_but_current_context_read_twice(self):
         from app.vaults import verify_registry

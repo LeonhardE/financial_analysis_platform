@@ -35,6 +35,7 @@ from .store import document_path
 from .vaults import _verify_row
 
 PROFILE = "folioview.owner-resource-discovery.v1"
+PORTFOLIO_DISCOVERY_PROFILE = "folioview.portfolio-discovery.v1"
 MAX_SOURCE_BYTES = 16_384
 TOTAL_SECONDS = 10
 FINALIZE_SECONDS = 1
@@ -370,20 +371,18 @@ class CatalogueSources:
                     _refusal("user", stage, error)
                     return {kind: failure(evidence="not_prepared") for kind in _USER_KINDS}
 
-            def portfolio_read(refs, *, states):
+            def portfolio_read(refs):
                 if not refs:
-                    return {}
-                stage = "state_read" if states else "projection_read"
+                    return {}, {}
+                stage = "discovery_read"
                 try:
                     value = request(
                         "portfolio",
-                        "/internal/v2/resources/states/read"
-                        if states
-                        else "/internal/v2/resources/projections/read",
+                        "/internal/v2/resources/discovery/read",
                         {"contractVersion": CONTRACT_VERSION, "refs": refs},
                     )
-                    stage = "state_contract" if states else "projection_contract"
-                    return validate_portfolio_batch(value, refs, states=states)
+                    stage = "discovery_contract"
+                    return validate_portfolio_discovery(value, refs)
                 except Exception as error:
                     _refusal("portfolio", stage, error)
                     # The unchanged producer contract fails a whole batch for a
@@ -395,10 +394,10 @@ class CatalogueSources:
                         and len(refs) > 1
                     ):
                         middle = len(refs) // 2
-                        return portfolio_read(refs[:middle], states=states) | portfolio_read(
-                            refs[middle:], states=states
-                        )
-                    return {}
+                        left_states, left_projections = portfolio_read(refs[:middle])
+                        right_states, right_projections = portfolio_read(refs[middle:])
+                        return left_states | right_states, left_projections | right_projections
+                    return {}, {}
 
             def portfolio():
                 result, active = {}, []
@@ -410,7 +409,7 @@ class CatalogueSources:
                         result[key] = item(ref, state=fence["state"], epoch=fence["sourceEpoch"])
                     else:
                         live.append(ref)
-                states = portfolio_read(live, states=True)
+                states, projections = portfolio_read(live)
                 for source in sources:
                     ref, fence = source["ref"], source["fence"]
                     key = canonical_json(ref)
@@ -431,7 +430,6 @@ class CatalogueSources:
                         )
                     else:
                         active.append(ref)
-                projections = portfolio_read(active, states=False)
                 for ref in active:
                     key = canonical_json(ref)
                     state, projection = states[key], projections.get(key)
@@ -467,6 +465,38 @@ class CatalogueSources:
                 credentials.clear()
                 failures.clear()
         return result
+
+
+def validate_portfolio_discovery(value, refs):
+    if (
+        type(value) is not dict
+        or set(value) != {"contractVersion", "profile", "states", "projections"}
+        or value["contractVersion"] != CONTRACT_VERSION
+        or value["profile"] != PORTFOLIO_DISCOVERY_PROFILE
+    ):
+        raise ContractError("source_unavailable")
+    states = validate_portfolio_batch(value["states"], refs, states=True)
+    projections = value["projections"]
+    if (
+        type(projections) is not dict
+        or set(projections) != {"contractVersion", "items"}
+        or projections["contractVersion"] != CONTRACT_VERSION
+        or type(projections["items"]) is not list
+        or len(projections["items"]) > len(refs)
+    ):
+        raise ContractError("source_unavailable")
+    expected = {canonical_json(ref): ref for ref in refs}
+    selected = []
+    for row in projections["items"]:
+        if type(row) is not dict or type(row.get("ref")) is not dict:
+            raise ContractError("source_unavailable")
+        key = canonical_json(row["ref"])
+        if key not in expected or states[key]["state"] != "active":
+            raise ContractError("source_unavailable")
+        selected.append(expected[key])
+    # Missing active projections are not success: the original per-source
+    # comparison below still marks those refs unavailable, including stale heads.
+    return states, validate_portfolio_batch(projections, selected, states=False)
 
 
 def validate_portfolio_batch(value, refs, *, states):

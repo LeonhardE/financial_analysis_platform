@@ -288,6 +288,12 @@ authentication method and no OAuth configuration dependency:
   exact operation identity and metadata CAS for read/star/archive state.
 
 History does not require a current Agent connection, permission or unexpired Run.
+The metadata list batches the selected report rows (at most50) and task lifecycle
+in one read phase after the current vault and index page reads. Every row still
+passes the original stored context, receipt and attribution checks before lifecycle
+filtering. Firestore and SQLite consume detached rows from this transaction attempt;
+conflict retries and subsequent requests read fresh state. No report ciphertext or
+authorization decision is cached by this list optimization, and it performs no writes.
 Trusted owner clients must independently pin Root, verify the public authority
 chain and select the exact issuance checkpoint/Agent snapshot before historical
 signature/decryption checks. A historical receipt or issuance snapshot never
