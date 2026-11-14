@@ -312,7 +312,7 @@ export function PersistentAgentsPanel({
             <button
               className={styles.primary}
               disabled={!!workspace.busy}
-              onClick={() => void workspace.unlock()}
+              onClick={() => void workspace.unlock({ forResults: true, enableState: true })}
             >
               {t("unlock")}
             </button>

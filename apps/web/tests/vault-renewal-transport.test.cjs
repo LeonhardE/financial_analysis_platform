@@ -125,6 +125,9 @@ function compile(name, imports) {
     module,
     exports: module.exports,
     require: (name) => {
+      if (name === "../task-overview") return require("./task-overview-helpers.cjs").overview;
+      if (name === "../task-overview-request")
+        return require("./task-overview-helpers.cjs").request;
       assert.ok(Object.hasOwn(imports, name), "Unexpected import " + name);
       return imports[name];
     },

@@ -169,7 +169,11 @@ async function stack(options = {}) {
     assert.ok(
       url.startsWith(HUB + "/api/v2/") ||
         url.startsWith(HUB + "/api/v3/") ||
-        url.startsWith(PORTFOLIO + "/api/v2/"),
+        url.startsWith(PORTFOLIO + "/api/v2/") ||
+        (url.startsWith(PORTFOLIO + "/") &&
+          /^\/api\/v3\/holdings\/sources\/[A-Za-z0-9][A-Za-z0-9_-]{0,127}\/view\/query$/.test(
+            new URL(url).pathname,
+          )),
       url,
     );
     assert.ok(upstream, "Every producer reply must be explicitly selected by the test");

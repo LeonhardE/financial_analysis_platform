@@ -143,6 +143,7 @@ function compile(name, imports, globals = {}) {
     module,
     exports: module.exports,
     require: (name) => {
+      if (name === "../holdings-view") return require("./holdings-view-helpers.cjs");
       assert.ok(Object.hasOwn(imports, name), "Unexpected import " + name);
       return imports[name];
     },
@@ -369,6 +370,8 @@ test.before(async () => {
     "../connection-summary": require("./resource-library-helpers.cjs").compile(
       "../lib/connection-summary.ts",
     ),
+    "../task-overview": require("./task-overview-helpers.cjs").overview,
+    "../task-overview-request": require("./task-overview-helpers.cjs").request,
     "../persistent-owner-routes": persistentRoutes,
     "./persistent-owner-contracts": persistentContracts,
     "./upload-cancellation": cancellation,

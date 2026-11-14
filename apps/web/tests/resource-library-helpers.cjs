@@ -18,6 +18,21 @@ function compile(file, imports = {}, globals = {}) {
     module,
     exports: module.exports,
     require: (name) => {
+      if (
+        !Object.hasOwn(imports, name) &&
+        ["@/lib/holdings-view", "../holdings-view"].includes(name)
+      )
+        return require("./holdings-view-helpers.cjs");
+      if (
+        !Object.hasOwn(imports, name) &&
+        ["@/lib/task-overview", "../task-overview"].includes(name)
+      )
+        return require("./task-overview-helpers.cjs").overview;
+      if (
+        !Object.hasOwn(imports, name) &&
+        ["@/lib/task-overview-request", "../task-overview-request"].includes(name)
+      )
+        return require("./task-overview-helpers.cjs").request;
       if (name === "./WorkspacePanels")
         return require("./workspace-panel-helpers.cjs").panelStandins(imports);
       if (["./WorkspaceFeedback", "./ReportDialog"].includes(name))

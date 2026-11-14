@@ -167,6 +167,8 @@ function mountProvider({
     "@/lib/resource-library": resourceContracts,
     "@/lib/agent-link": { loadAgentLinkConfiguration: fetchLinkConfig },
     "@/lib/persistent-owner-routes": persistentRoutes,
+    "@/lib/holdings-view": require("./holdings-view-helpers.cjs"),
+    "@/lib/task-overview-request": require("./task-overview-helpers.cjs").request,
     "@/lib/native-owner-bridge": {
       validateNativeCommand: nativeBridgeCommands.validateNativeCommand,
       verifiedNativeBridge: (bridge) =>

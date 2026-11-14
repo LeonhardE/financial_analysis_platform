@@ -43,6 +43,7 @@ function compile(file, imports) {
     module,
     exports: module.exports,
     require: (name) => {
+      if (name === "../holdings-view") return require("./holdings-view-helpers.cjs");
       assert.ok(Object.hasOwn(imports, name), `Unexpected server import ${name}`);
       return imports[name];
     },

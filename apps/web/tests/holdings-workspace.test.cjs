@@ -23,6 +23,7 @@ const compile = (file, imports, globals = {}) => {
     Uint8Array,
     AbortController,
     require: (name) => {
+      if (name === "@/lib/holdings-view") return require("./holdings-view-helpers.cjs");
       if (name === "@/lib/workspace-cache") return cacheContracts;
       if (name === "@/lib/holdings-facts")
         return require("./resource-library-helpers.cjs").compile("../lib/holdings-facts.ts");
@@ -149,7 +150,9 @@ function harness({
   needsDeviceRegistration = false,
   sharedUnlock = false,
   sharedResume = false,
+  viewMode = "sync_required",
 } = {}) {
+  let viewReply = null;
   const requests = [];
   const instances = [];
   const sharedLocks = [];
@@ -408,6 +411,15 @@ function harness({
         operationId: "state_operation",
         authorKeyId: "author",
         command: { protected: "opaque", payload: "opaque", signature: "opaque" },
+      };
+    }
+    async taskAuthority() {
+      if (!resultCanWrite || !deviceRegistered) throw { code: "key_revoked" };
+      return {
+        registrySequence: 1,
+        checkpointDigest: "a".repeat(64),
+        keyEpoch: 1,
+        recipientKeyIds: ["r".repeat(43), "s".repeat(43)],
       };
     }
     async acceptVault() {
@@ -766,6 +778,57 @@ function harness({
   }
   const requestPrivate = async (service, route, owner, options = {}) => {
     requests.push({ service, route, owner, options });
+    if (route.startsWith("/api/v3/holdings/sources/") && route.endsWith("/view/query")) {
+      if (viewReply) return typeof viewReply === "function" ? viewReply(route, options) : viewReply;
+      const resourceId = route.split("/")[5];
+      const selected = sources.find((s) => s.resourceRef.resourceId === resourceId) ?? source;
+      const meta = sourceState(resourceId);
+      const metadata = {
+        contractVersion: CONTRACT,
+        ownerSubject: remoteVault.archive.ownerSubject,
+        sourceId: resourceId,
+        vaultId: remoteVault.vaultId,
+        resourceRef: selected.resourceRef,
+        sourceEpoch: meta.epoch,
+        revision: forcedHead ?? successfulHead,
+        snapshotId: forcedHead ? "snapshot_remote_newer" : latestSnapshot,
+        snapshotSourceEpoch: latestSnapshot ? 1 : null,
+        authorityVersion: meta.authorityVersion,
+        state: meta.state,
+        pendingMutationId: meta.pendingMutationId,
+      };
+      const signed = { protected: "opaque", payload: "opaque", signature: "A".repeat(86) };
+      const snapshot =
+        metadata.snapshotId === null
+          ? null
+          : {
+              contractVersion: CONTRACT,
+              carrier: { contractVersion: CONTRACT, signedObject: signed },
+              keyProofs: { checkpoint: signed, certificates: [signed] },
+              receipt: {
+                contractVersion: CONTRACT,
+                vaultId: remoteVault.vaultId,
+                resourceRef: selected.resourceRef,
+                snapshotId: metadata.snapshotId,
+                revision: metadata.revision,
+                sourceEpoch: 1,
+                stableOperationId: "synthetic_view_operation_0001",
+                envelopeFingerprint: "a".repeat(64),
+                snapshotPath: `/api/v2/holdings/sources/${resourceId}/snapshots/${metadata.snapshotId}`,
+                storedAt: "2026-10-28T19:00:00Z",
+              },
+            };
+      return Response.json({
+        contractVersion: CONTRACT,
+        profile: "folioview.owner-holdings-view.v1",
+        vaultId: remoteVault.vaultId,
+        sourceId: resourceId,
+        mode: viewMode,
+        metadata: viewMode === "complete" ? metadata : null,
+        snapshot: viewMode === "complete" ? snapshot : null,
+      });
+    }
+
     if (route === "/api/v2/vaults/current") {
       if (getCurrentHold) return getCurrentHold.promise;
       if (loseNextCurrent) {
@@ -1174,6 +1237,12 @@ function harness({
   }
   return {
     render,
+    setRemoteVault(value) {
+      remoteVault = structuredClone(value);
+    },
+    setViewReply(value) {
+      viewReply = value;
+    },
     requests,
     instances,
     peerUnlock() {
@@ -3600,4 +3669,566 @@ test("display-bound result-vault refresh rejects an Owner change before verifica
   assert.equal(h.render().vault, null);
   assert.equal(h.render().canWriteState, false);
   h.unmount();
+});
+
+function agentUnlockView(h) {
+  const { hooks, jsx, all } = require("./resource-ui-harness.cjs"),
+    ui = hooks();
+  const { compile: component } = require("./resource-library-helpers.cjs");
+  let action;
+  const { PersistentAgentsPanel } = component(
+    "../components/PersistentAgentsPanel.tsx",
+    {
+      react: ui.react,
+      "react/jsx-runtime": { jsx, jsxs: jsx },
+      "next-intl": { useTranslations: () => (key) => key, useLocale: () => "en" },
+      "@/lib/provider-groups": component("../lib/provider-groups.ts"),
+      "./ProviderMark": { ProviderMark: () => null },
+      "./ReportDialog": { ReportDialog: () => null },
+      "./WorkspaceFeedback": { LoadingIndicator: () => null, InlineError: () => null },
+      "./AuthProvider": { useAuth: () => ({}) },
+      "@/lib/native-owner-bridge": {},
+      "@/lib/agent-authorization": {},
+      "@/lib/persistent-experience-controller": {
+        DEFAULT_CONNECTION_SECONDS: 7776000,
+        TEMPORARY_CONNECTION_SECONDS: 900,
+      },
+      "./AgentsPanel.module.css": { __esModule: true, default: {} },
+    },
+    { Intl, setInterval: () => 0, clearInterval() {} },
+  );
+  return {
+    click() {
+      const workspace = h.render();
+      const tree = ui.render(() =>
+        PersistentAgentsPanel({
+          workspace: {
+            ...workspace,
+            unlock(options) {
+              action = workspace.unlock(options);
+              return action;
+            },
+          },
+          model: {
+            owner: workspace.owner,
+            unlocked: false,
+            loading: false,
+            loaded: false,
+            loadError: false,
+            displayState: "locked",
+            error: "",
+            busy: false,
+            enabled: false,
+            providerStates: {},
+            views: [],
+          },
+          origin: "https://agent-hub-api-123456789.northamerica-northeast2.run.app",
+          active: false,
+        }),
+      );
+      const button = all(
+        tree,
+        (node) => node.type === "button" && node.props.children === "unlock",
+      )[0];
+      assert.ok(button, "real Agent panel exposes its unlock action");
+      assert.equal(Boolean(button.props.disabled), false);
+      button.props.onClick();
+      assert.ok(action, "button invokes the original workspace unlock");
+      return action;
+    },
+    close: () => ui.close(),
+  };
+}
+
+test("Agent unlock button keeps current vault/archive/Worker authority checks and writable access without reading holdings", async () => {
+  const h = harness();
+  let view;
+  try {
+    await ready(h);
+    view = agentUnlockView(h);
+    const start = h.requests.length;
+    const unlocking = view.click();
+    h.resolvePasskey();
+    await unlocking;
+    const model = h.render();
+    assert.equal(model.phase, "unlocked");
+    assert.equal(model.canWriteState, true);
+    assert.equal(model.needsDeviceApproval, false);
+    assert.equal(model.content, null);
+    assert.equal(model.sourceMetadata, null);
+    assert.equal(h.counts().passkeyCalls, 1);
+    assert.equal(h.counts().readOnlyUnlocks, 1);
+    assert.equal(h.counts().strictUnlocks, 0);
+    assert.equal(h.instances.length, 1);
+    assert.deepEqual(
+      h.requests.slice(start).map((r) => [r.service, r.route]),
+      [
+        ["agent-hub", "/api/v2/vaults/current"],
+        ["agent-hub", "/api/v2/vaults/vault_a/archive"],
+        ["agent-hub", "/api/v2/vaults/current"],
+      ],
+    );
+    assert.equal(h.requests.filter((r) => r.service === "portfolio").length, 0);
+    // Entering Resources can still explicitly read the existing source through its full authority path.
+    await model.readStored();
+    assert.equal(h.render().sourceMetadata.state, "active");
+    assert.ok(
+      h.requests.some((r) => r.service === "portfolio" && r.route.endsWith("/authority-sync")),
+    );
+    assert.equal(h.counts().passkeyCalls, 1);
+  } finally {
+    view?.close();
+    h.unmount();
+  }
+});
+
+test("Agent unlock button cannot enable an unapproved device or invent writable access", async () => {
+  for (const options of [{ needsDeviceRegistration: true }, { resultCanWrite: false }]) {
+    const h = harness(options);
+    let view;
+    try {
+      await ready(h);
+      view = agentUnlockView(h);
+      const unlocking = view.click();
+      h.resolvePasskey();
+      await unlocking;
+      const model = h.render();
+      assert.equal(model.phase, "needs-device");
+      assert.equal(model.needsDeviceApproval, true);
+      assert.equal(model.canWriteState, false);
+      assert.equal(h.counts().readOnlyUnlocks, 1);
+      assert.equal(h.counts().strictUnlocks, 0);
+      assert.equal(h.requests.filter((r) => r.route.endsWith("/registry")).length, 0);
+      assert.equal(h.requests.filter((r) => r.service === "portfolio").length, 0);
+    } finally {
+      view?.close();
+      h.unmount();
+    }
+  }
+});
+
+test("Agent unlock late Passkey completion cannot restore the previous Owner", async () => {
+  const h = harness();
+  let view;
+  try {
+    await ready(h);
+    view = agentUnlockView(h);
+    const unlocking = view.click();
+    await settle();
+    h.auth({ status: "authenticated", sessionKey: "owner_b", profile: { uid: "uid_b" } });
+    h.render();
+    h.resolvePasskey();
+    await unlocking;
+    const model = h.render();
+    assert.notEqual(model.phase, "unlocked");
+    assert.equal(model.canWriteState, false);
+    assert.equal(model.content, null);
+    assert.equal(h.requests.filter((r) => r.service === "portfolio").length, 0);
+  } finally {
+    view?.close();
+    h.unmount();
+  }
+});
+
+test("fresh writable holdings view uses only current plus one view and publishes the original verified snapshot", async () => {
+  const h = harness({ viewMode: "complete" });
+  try {
+    await unlocked(h);
+    await h.render().importFile(file);
+    await h.render().save();
+    const start = h.requests.length,
+      passkeys = h.counts().passkeyCalls;
+    await h.render().readStored();
+    const reads = h.requests.slice(start);
+    assert.deepEqual(
+      reads.map((r) => [r.service, r.route]),
+      [
+        ["agent-hub", "/api/v2/vaults/current"],
+        ["portfolio", "/api/v3/holdings/sources/holdings_a/view/query"],
+      ],
+    );
+    assert.equal(h.render().error, "");
+    assert.equal(h.render().sourceMetadata.revision, 1);
+    assert.ok(h.render().content);
+    assert.equal(h.counts().passkeyCalls, passkeys);
+    const expected = reads[1].options.json.expected;
+    assert.equal(expected.registrySequence, 1);
+    assert.equal(expected.sourceEpoch, 1);
+    assert.deepEqual([...expected.recipientKeyIds], ["r".repeat(43), "s".repeat(43)]);
+  } finally {
+    h.unmount();
+  }
+});
+test("combined holdings hints are only transport hints and preserve the original metadata-first five-step chain", async () => {
+  for (const viewMode of ["sync_required", "separate"]) {
+    const h = harness({ viewMode });
+    try {
+      await unlocked(h);
+      await h.render().importFile(file);
+      await h.render().save();
+      const start = h.requests.length;
+      await h.render().readStored();
+      assert.deepEqual(
+        h.requests.slice(start).map((r) => r.route),
+        [
+          "/api/v2/vaults/current",
+          "/api/v3/holdings/sources/holdings_a/view/query",
+          "/api/v2/holdings/sources/holdings_a",
+          "/api/v2/vaults/current/authority-token",
+          "/api/v2/holdings/sources/holdings_a/authority-sync",
+          "/api/v2/holdings/sources/holdings_a",
+          "/api/v2/holdings/sources/holdings_a/snapshots/snapshot_encrypted",
+        ],
+      );
+      assert.equal(h.render().error, "");
+    } finally {
+      h.unmount();
+    }
+  }
+});
+test("genuine empty combined source remains empty without opening ciphertext or inventing source data", async () => {
+  const h = harness({ viewMode: "complete" });
+  try {
+    await unlocked(h);
+    const start = h.requests.length,
+      opens = h.counts().opens;
+    await h.render().readStored();
+    assert.equal(h.requests.length - start, 2);
+    assert.equal(h.counts().opens, opens);
+    assert.equal(h.render().sourceMetadata.snapshotId, null);
+    assert.equal(h.render().sourceMetadata.revision, 0);
+    assert.equal(h.render().content, null);
+    assert.equal(h.render().error, "");
+  } finally {
+    h.unmount();
+  }
+});
+test("404 and malformed combined holdings replies never trigger implicit legacy reads or a partial success", async () => {
+  for (const response of [
+    new Response("{}", { status: 404 }),
+    Response.json({
+      contractVersion: CONTRACT,
+      profile: "folioview.owner-holdings-view.v1",
+      vaultId: "vault_a",
+      sourceId: "holdings_a",
+      mode: "separate",
+      metadata: { state: "active" },
+      snapshot: null,
+    }),
+  ]) {
+    const h = harness({ viewMode: "complete" });
+    try {
+      await unlocked(h);
+      h.setViewReply(response);
+      const start = h.requests.length;
+      await h.render().readStored();
+      assert.equal(h.requests.length - start, 2);
+      assert.notEqual(h.render().error, "");
+      assert.equal(h.render().sourceMetadata, null);
+    } finally {
+      h.unmount();
+    }
+  }
+});
+test("an actual hidden local outbox prevents the fast read even when the UI hasPending flag is false", async () => {
+  const h = harness({ viewMode: "complete" });
+  try {
+    await unlocked(h);
+    assert.equal(h.render().hasPending, false);
+    const original = {
+      operationId: "original_unknown_upload_0001",
+      snapshotId: "snapshot_unknown",
+    };
+    h.outboxes.set("owner_a", original);
+    const start = h.requests.length;
+    await h.render().readStored();
+    assert.equal(
+      h.requests.slice(start).some((r) => r.route.endsWith("/view/query")),
+      false,
+    );
+    assert.equal(h.requests[start + 1].route, "/api/v2/holdings/sources/holdings_a");
+    assert.equal(h.render().hasPending, true);
+    assert.equal(h.outboxes.get("owner_a"), original);
+    assert.equal(h.requests.slice(start).filter((r) => r.options.method === "PUT").length, 0);
+  } finally {
+    h.unmount();
+  }
+});
+test("a local journal appearing while the view is in flight discards the prepared DTO and resumes legacy recovery", async () => {
+  const h = harness({ viewMode: "complete" }),
+    gate = deferred();
+  try {
+    await unlocked(h);
+    h.setViewReply(() => gate.promise);
+    const start = h.requests.length,
+      reading = h.render().readStored();
+    await settle();
+    assert.equal(h.requests.at(-1).route.endsWith("/view/query"), true);
+    h.outboxes.set("owner_a", { operationId: "late_unknown_upload_0001" });
+    gate.resolve(
+      Response.json({
+        contractVersion: CONTRACT,
+        profile: "folioview.owner-holdings-view.v1",
+        vaultId: "vault_a",
+        sourceId: "holdings_a",
+        mode: "complete",
+        metadata: {
+          contractVersion: CONTRACT,
+          ownerSubject: "a".repeat(64),
+          sourceId: "holdings_a",
+          vaultId: "vault_a",
+          resourceRef: source.resourceRef,
+          sourceEpoch: 1,
+          revision: 0,
+          snapshotId: null,
+          snapshotSourceEpoch: null,
+          authorityVersion: 1,
+          state: "active",
+          pendingMutationId: null,
+        },
+        snapshot: null,
+      }),
+    );
+    await reading;
+    assert.ok(
+      h.requests.slice(start).some((r) => r.route === "/api/v2/holdings/sources/holdings_a"),
+    );
+    assert.ok(h.requests.slice(start).some((r) => r.route.endsWith("/authority-sync")));
+    assert.equal(h.render().hasPending, true);
+  } finally {
+    gate.resolve(Response.json({}));
+    h.unmount();
+  }
+});
+test("combined snapshot metadata is not published before the original Worker finishes and late Owner changes cannot publish it", async () => {
+  const h = harness({ viewMode: "complete" }),
+    gate = deferred();
+  try {
+    await unlocked(h);
+    await h.render().importFile(file);
+    await h.render().save();
+    h.holdSnapshotOpen(gate);
+    const reading = h.render().readStored();
+    await settle();
+    assert.equal(h.render().content, null);
+    h.auth({ status: "authenticated", sessionKey: "other_owner", profile: { uid: "other_owner" } });
+    h.render();
+    gate.resolve();
+    await reading;
+    assert.equal(h.render().content, null);
+    assert.equal(h.render().sourceMetadata, null);
+  } finally {
+    gate.resolve();
+    h.unmount();
+  }
+});
+
+test("fresh view expectation and decryption delegate to the actual production Worker with retained epoch-one owner snapshots", async () => {
+  const real = await require("./full-flow-crypto-fixture.cjs").createHarness(),
+    h = harness({ hasSource: false, viewMode: "complete" });
+  let worker;
+  try {
+    const f = await require("./full-flow-crypto-fixture.cjs").createOwner(real, "owner_a"),
+      saved = await require("./full-flow-crypto-fixture.cjs").importHoldings(real, f);
+    await unlocked(h);
+    h.setRemoteVault(f.vault);
+    const selected = { ...saved.source, sourceEpoch: 2 };
+    h.sources().push(selected);
+    const { compile: component } = require("./resource-library-helpers.cjs"),
+      kernel = component("../lib/encrypted-vault-engine.ts", {
+        "./encrypted-core": real.core,
+        "./encrypted-types": real.types,
+      });
+    const waiters = new Map(),
+      methods = [];
+    let id = 0;
+    worker = kernel.createVaultKernel(
+      (r) => {
+        waiters.get(r.id)?.(r);
+        waiters.delete(r.id);
+      },
+      () => f.session,
+    );
+    const call = (method, args) =>
+      new Promise((resolve, reject) => {
+        const n = ++id;
+        methods.push(method);
+        waiters.set(n, (r) => (r.ok ? resolve(r.result) : reject({ code: r.error })));
+        worker.postMessage({ id: n, method, args });
+      });
+    await call("init", { uid: f.uid });
+    h.instances[0].acceptVault = (value) => call("acceptVault", { vault: value });
+    h.instances[0].taskAuthority = (current) => call("taskAuthority", { current });
+    h.instances[0].openSnapshot = (value, source) => call("openSnapshot", { value, source });
+    h.setViewReply((_route, options) => {
+      assert.equal(
+        require("./holdings-view-helpers.cjs").holdingsViewRequest(
+          options.json,
+          selected.resourceRef.resourceId,
+        ),
+        true,
+      );
+      return Response.json({
+        contractVersion: CONTRACT,
+        profile: "folioview.owner-holdings-view.v1",
+        vaultId: f.vault.vaultId,
+        sourceId: selected.resourceRef.resourceId,
+        mode: "complete",
+        metadata: {
+          contractVersion: CONTRACT,
+          ownerSubject: f.owner,
+          sourceId: selected.resourceRef.resourceId,
+          vaultId: f.vault.vaultId,
+          resourceRef: selected.resourceRef,
+          sourceEpoch: 2,
+          revision: 1,
+          snapshotId: saved.response.receipt.snapshotId,
+          snapshotSourceEpoch: 1,
+          authorityVersion: 2,
+          state: "active",
+          pendingMutationId: null,
+        },
+        snapshot: saved.response,
+      });
+    });
+    const start = h.requests.length;
+    await h.render().readStored();
+    assert.equal(h.render().error, "");
+    assert.equal(h.requests.length - start, 2);
+    assert.equal(h.render().sourceMetadata.source.sourceEpoch, 2);
+    assert.equal(h.render().sourceMetadata.snapshotSourceEpoch, 1);
+    assert.equal(h.render().content.data.snapshotId, saved.response.receipt.snapshotId);
+    assert.deepEqual(methods, ["init", "acceptVault", "taskAuthority", "openSnapshot"]);
+    const acceptedMetadata = h.render().sourceMetadata;
+    h.setViewReply(() => {
+      const bad = structuredClone(saved.response);
+      const signature = bad.carrier.signedObject.signature;
+      bad.carrier.signedObject.signature = (signature[0] === "A" ? "B" : "A") + signature.slice(1);
+      return Response.json({
+        contractVersion: CONTRACT,
+        profile: "folioview.owner-holdings-view.v1",
+        vaultId: f.vault.vaultId,
+        sourceId: selected.resourceRef.resourceId,
+        mode: "complete",
+        metadata: {
+          contractVersion: CONTRACT,
+          ownerSubject: f.owner,
+          sourceId: selected.resourceRef.resourceId,
+          vaultId: f.vault.vaultId,
+          resourceRef: selected.resourceRef,
+          sourceEpoch: 2,
+          revision: 1,
+          snapshotId: saved.response.receipt.snapshotId,
+          snapshotSourceEpoch: 1,
+          authorityVersion: 3,
+          state: "active",
+          pendingMutationId: null,
+        },
+        snapshot: bad,
+      });
+    });
+    const badStart = h.requests.length;
+    await h.render().readStored();
+    assert.notEqual(h.render().error, "");
+    assert.equal(h.render().content, null);
+    assert.deepEqual(h.render().sourceMetadata, acceptedMetadata);
+    assert.equal(h.render().sourceMetadata.authorityVersion, 2);
+    assert.equal(h.requests.length - badStart, 2); // Crypto failure is never a transport hint.
+  } finally {
+    worker?.terminate();
+    h.unmount();
+    await real.close();
+  }
+});
+
+test("view journal fallback retains the same fresh vault version even when React has not rendered it", async () => {
+  const h = harness({ viewMode: "complete" });
+  try {
+    await unlocked(h);
+    await h.render().importFile(file);
+    await h.render().save();
+    const before = h.render();
+    before.displayCache.holdings.clear();
+    assert.equal(before.vault.version, 1);
+    h.setRemoteVault({ ...vault, version: 2 });
+    const value = require("./holdings-view-fixtures.cjs").view();
+    value.vaultId = "vault_a";
+    value.sourceId = "holdings_a";
+    Object.assign(value.metadata, {
+      vaultId: "vault_a",
+      sourceId: "holdings_a",
+      resourceRef: source.resourceRef,
+      sourceEpoch: 1,
+      snapshotId: "snapshot_encrypted",
+      snapshotSourceEpoch: 1,
+    });
+    Object.assign(value.snapshot.receipt, {
+      vaultId: "vault_a",
+      resourceRef: source.resourceRef,
+      snapshotId: "snapshot_encrypted",
+      snapshotPath: "/api/v2/holdings/sources/holdings_a/snapshots/snapshot_encrypted",
+    });
+    h.setViewReply(() => {
+      h.outboxes.set("owner_a", { operationId: "late_journal_operation_0001" });
+      return Response.json(value);
+    });
+    const start = h.requests.length;
+    await before.readStored(); // Deliberately no render while the fresh read and fallback run.
+    const cacheKeys = [...before.displayCache.holdings.keys()].map(JSON.parse);
+    assert.equal(cacheKeys.length, 1);
+    assert.equal(cacheKeys[0][3], 2);
+    const model = h.render();
+    assert.equal(model.vault.version, 2);
+    assert.equal(model.hasPending, true);
+    assert.equal(model.error, "");
+    assert.equal(h.requests.slice(start).filter((r) => r.route.endsWith("/view/query")).length, 1);
+    assert.ok(h.requests.slice(start).some((r) => r.route.endsWith("/authority-sync")));
+  } finally {
+    h.unmount();
+  }
+});
+
+test("actual source-mutation journals before or during a view preserve the original recovery read without replaying writes", async () => {
+  for (const late of [false, true]) {
+    const h = harness({ viewMode: "complete" });
+    try {
+      await unlocked(h);
+      const prepare = () =>
+        h.instances[0].prepareSourceMutation({ source, expectedVersion: 1, action: "fence" });
+      let packet;
+      if (!late) packet = await prepare();
+      else
+        h.setViewReply(async () => {
+          packet = await prepare();
+          const value = require("./holdings-view-fixtures.cjs").view("complete", true);
+          value.vaultId = "vault_a";
+          value.sourceId = "holdings_a";
+          Object.assign(value.metadata, {
+            vaultId: "vault_a",
+            sourceId: "holdings_a",
+            resourceRef: source.resourceRef,
+            sourceEpoch: 1,
+          });
+          return Response.json(value);
+        });
+      assert.equal(h.render().sourceMutation, null);
+      const start = h.requests.length;
+      await h.render().readStored();
+      const reads = h.requests.slice(start);
+      assert.equal(reads.filter((r) => r.route.endsWith("/view/query")).length, late ? 1 : 0);
+      assert.equal(h.render().error, "");
+      assert.equal(h.render().sourceMutation.operationId, packet.operationId);
+      assert.equal(h.render().sourceMutation.state, "prepared");
+      assert.equal(h.sourcePackets.get("owner_a:holdings_a"), packet);
+      assert.ok(
+        reads.some(
+          (r) => r.route === `/api/v2/holdings/sources/holdings_a/mutations/${packet.operationId}`,
+        ),
+      );
+      assert.ok(reads.some((r) => r.route.endsWith("/authority-sync")));
+      assert.equal(reads.filter((r) => ["PUT", "DELETE"].includes(r.options.method)).length, 0);
+    } finally {
+      h.unmount();
+    }
+  }
 });

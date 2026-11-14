@@ -1,4 +1,6 @@
 import "server-only";
+import { taskOverviewRequest } from "../task-overview-request";
+import { parseTaskOverview, overviewPacketIds } from "../task-overview";
 import { taskCenterRoute, taskCenterRequest, taskCenterResponse } from "./task-center-owner";
 import { persistentOwnerRoute } from "../persistent-owner-routes";
 import { connectionSummary, connectionDisplay } from "../connection-summary";
@@ -80,6 +82,33 @@ function displayResponse(path: string, body: unknown) {
         summaryResponse(`/api/v3/provider-connections/${body.vaultId}/summary`, body.summary)))
   );
 }
+function overviewResponse(path: string, body: unknown, request: any) {
+  try {
+    if (!taskOverviewRequest(request)) return false;
+    const v = parseTaskOverview(
+      body,
+      path.split("/")[4],
+      request.knownPacketVersions,
+      request.packetLimit,
+    );
+    const ids =
+      request.packetLimit === 4
+        ? overviewPacketIds(v.tasks.items, request.knownPacketVersions)
+        : [];
+    return (
+      hubResponse("/api/v2/tasks", "GET", v.tasks) &&
+      taskCenterResponse("/api/v3/task-center/capabilities", v.capabilities) &&
+      persistentResponse(`/api/v2/persistent-results/${v.vaultId}`, "GET", v.feeds.persistent) &&
+      hubResponse("/api/v2/results", "GET", v.feeds.foreground) &&
+      hubResponse("/api/v2/results", "GET", v.feeds.archived) &&
+      persistentResponse("/api/v2/persistent-connections", "GET", v.connections) &&
+      (v.packets === null ||
+        hubResponse("/api/v2/tasks/packets/query", "POST", v.packets, undefined, ids))
+    );
+  } catch {
+    return false;
+  }
+}
 const ID = "[A-Za-z0-9][A-Za-z0-9_-]{0,127}";
 const identifier = (value: unknown) =>
   typeof value === "string" && new RegExp(`^${ID}$`).test(value);
@@ -102,6 +131,7 @@ type Rule = {
     | "task-create"
     | "task-update"
     | "task-transition"
+    | "task-overview"
     | "task-packets"
     | "stage"
     | "commit";
@@ -167,7 +197,17 @@ function route(request: Request): { path: string; rule: Rule } {
     };
   else if (get && path === "/api/v2/tasks")
     rule = { kind: "read", max: 0, query: { limit: "limit", cursor: "cursor" } };
-  else if (request.method === "POST" && path === "/api/v2/tasks/packets/query") {
+  else if (
+    request.method === "POST" &&
+    new RegExp(`^/api/v3/tasks/${ID}/overview/query$`).test(path)
+  ) {
+    if (
+      request.headers.has("x-folioview-delegation") ||
+      request.headers.has("x-serverless-authorization")
+    )
+      fail("insufficient_scope");
+    rule = { kind: "task-overview", max: 16384, responseStatus: 200 };
+  } else if (request.method === "POST" && path === "/api/v2/tasks/packets/query") {
     if (
       request.headers.has("x-folioview-delegation") ||
       request.headers.has("x-serverless-authorization")
@@ -352,6 +392,8 @@ function binding(value: unknown) {
 function validBody(body: unknown, kind: Rule["kind"], vaultId?: string) {
   if (!record(body) || body.contractVersion !== CONTRACT) return false;
   switch (kind) {
+    case "task-overview":
+      return taskOverviewRequest(body);
     case "task-packets":
       return (
         fields(body, ["contractVersion", "taskIds"]) &&
@@ -484,6 +526,7 @@ async function transport(
   raw: Awaited<ReturnType<typeof bytes>> | undefined;
   token: string;
   taskIds?: string[];
+  overviewRequest?: unknown;
 }> {
   if (request.headers.get("x-folioview-contract") !== CONTRACT) fail("unsupported_contract");
   const auth = request.headers.get("authorization") ?? "";
@@ -521,6 +564,7 @@ async function transport(
     headers,
     raw,
     token: auth.slice(7),
+    ...(rule.kind === "task-overview" ? { overviewRequest: payload } : {}),
     ...(rule.kind === "task-packets"
       ? { taskIds: (payload as Record<string, unknown>).taskIds as string[] }
       : {}),
@@ -544,7 +588,11 @@ export function createHubProxy(options: Options = {}) {
       const config = hubConfiguration(env);
       if (!config) fail("authorization_unavailable");
       const { path, rule } = route(request);
-      const { headers, raw, token, taskIds } = await transport(request, rule, signal);
+      const { headers, raw, token, taskIds, overviewRequest } = await transport(
+        request,
+        rule,
+        signal,
+      );
       const uid = await verifyOwner(token, config!.project, signal);
       releaseOwner = admission.owner(uid);
       const response = await until(
@@ -569,41 +617,43 @@ export function createHubProxy(options: Options = {}) {
       }
       return timeProxyResponse(
         await forwardResponse(response, signal, (body) =>
-          /^\/api\/v3\/provider-connections\/[^/]+\/display$/.test(path)
-            ? displayResponse(path, body)
-            : /^\/api\/v3\/provider-connections\/[^/]+\/summary$/.test(path)
-              ? summaryResponse(path, body)
-              : taskCenterRoute(path, request.method)
-                ? taskCenterResponse(path, body, headers.get("idempotency-key") ?? undefined) &&
-                  (!path.startsWith("/api/v3/provider-connections/") ||
-                    !record(body) ||
-                    !("credentialReceipt" in body) ||
-                    body.credentialReceipt === null ||
-                    credentialReceipt(
-                      body.credentialReceipt,
-                      headers.get("idempotency-key") ?? path.split("/operations/")[1],
-                    ))
-                : rule.cancel
-                  ? cancellationResponse(
-                      "task",
-                      body,
-                      rule.cancel.slot,
-                      rule.cancel.id ?? headers.get("idempotency-key") ?? undefined,
-                    )
-                  : persistentOwnerRoute(path.split("?", 1)[0], request.method)
-                    ? persistentResponse(
-                        path,
-                        request.method,
+          rule.kind === "task-overview"
+            ? overviewResponse(path, body, overviewRequest)
+            : /^\/api\/v3\/provider-connections\/[^/]+\/display$/.test(path)
+              ? displayResponse(path, body)
+              : /^\/api\/v3\/provider-connections\/[^/]+\/summary$/.test(path)
+                ? summaryResponse(path, body)
+                : taskCenterRoute(path, request.method)
+                  ? taskCenterResponse(path, body, headers.get("idempotency-key") ?? undefined) &&
+                    (!path.startsWith("/api/v3/provider-connections/") ||
+                      !record(body) ||
+                      !("credentialReceipt" in body) ||
+                      body.credentialReceipt === null ||
+                      credentialReceipt(
+                        body.credentialReceipt,
+                        headers.get("idempotency-key") ?? path.split("/operations/")[1],
+                      ))
+                  : rule.cancel
+                    ? cancellationResponse(
+                        "task",
                         body,
-                        headers.get("idempotency-key") ?? undefined,
+                        rule.cancel.slot,
+                        rule.cancel.id ?? headers.get("idempotency-key") ?? undefined,
                       )
-                    : hubResponse(
-                        path,
-                        request.method,
-                        body,
-                        headers.get("idempotency-key") ?? undefined,
-                        taskIds,
-                      ),
+                    : persistentOwnerRoute(path.split("?", 1)[0], request.method)
+                      ? persistentResponse(
+                          path,
+                          request.method,
+                          body,
+                          headers.get("idempotency-key") ?? undefined,
+                        )
+                      : hubResponse(
+                          path,
+                          request.method,
+                          body,
+                          headers.get("idempotency-key") ?? undefined,
+                          taskIds,
+                        ),
         ),
         started,
       );
