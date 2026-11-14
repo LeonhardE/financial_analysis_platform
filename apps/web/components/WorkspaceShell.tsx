@@ -15,6 +15,7 @@ import { useHoldingsWorkspace } from "@/components/useHoldingsWorkspace";
 import { localizeMessage } from "@/lib/ui-messages";
 import { CandlestickChart } from "@/components/CandlestickChart";
 import { InstrumentMetrics } from "@/components/InstrumentMetrics";
+import FxRatesPanel from "@/components/FxRatesPanel";
 import { WorkspaceSidebar, type WorkspaceView } from "@/components/WorkspaceSidebar";
 import { useCachedMarketResource } from "@/components/useCachedMarketResource";
 import { useMarketResource } from "@/components/useMarketResource";
@@ -130,14 +131,6 @@ export default function WorkspaceShell() {
   const taskRequestSerial = useRef(0);
   useEffect(() => setTaskRequest(null), [encryptedWorkspace.owner]);
   const [pickerOpen, setPickerOpen] = useState(false);
-  const [desktopPickerVisible, setDesktopPickerVisible] = useState(false);
-  useEffect(() => {
-    const media = window.matchMedia("(min-width: 1200px)");
-    const sync = () => setDesktopPickerVisible(media.matches);
-    sync();
-    media.addEventListener("change", sync);
-    return () => media.removeEventListener("change", sync);
-  }, []);
   const rangeTouched = useRef(false);
   useEffect(() => {
     if (!rangeTouched.current) setRange(preferences.defaultChartRange);
@@ -173,8 +166,7 @@ export default function WorkspaceShell() {
       activeView === "markets" &&
       pickerTab === "watchlist" &&
       !searchQuery &&
-      watchlist.authenticated &&
-      (desktopPickerVisible || pickerOpen),
+      watchlist.authenticated,
     owner: watchlist.authenticated ? watchlist.sessionKey : null,
     refreshKey: overviewReload,
     selectedInstrument: selected,
@@ -315,52 +307,59 @@ export default function WorkspaceShell() {
                 )}
               </button>
             </div>
-            {pickerTab === "markets" ? (
-              <section className="market-list" aria-label={t("market.overview")}>
-                <div className="list-caption">
-                  <span>{t("market.symbolName")}</span>
-                  <span>{t("market.lastDay")}</span>
-                </div>
-                <h3>{t("market.major")}</h3>
-                {stocks
-                  .filter((stock) => stock.instrumentType === "index")
-                  .map((stock) => (
-                    <button
-                      className={`stock-row ${stock.symbol === selected.symbol ? "active" : ""}`}
-                      key={stock.symbol}
-                      onClick={() => selectInstrument(stock)}
-                      type="button"
-                      aria-pressed={stock.symbol === selected.symbol}
-                    >
-                      {renderQuote(stock)}
-                    </button>
-                  ))}
-                <h3>{t("market.seven")}</h3>
-                {stocks
-                  .filter((stock) => stock.instrumentType === "stock")
-                  .map((stock) => (
-                    <button
-                      className={`stock-row ${stock.symbol === selected.symbol ? "active" : ""}`}
-                      key={stock.symbol}
-                      onClick={() => selectInstrument(stock)}
-                      type="button"
-                      aria-pressed={stock.symbol === selected.symbol}
-                    >
-                      {renderQuote(stock)}
-                    </button>
-                  ))}
-              </section>
-            ) : (
-              <PersonalWatchlist
-                watchlist={watchlist}
-                selectedSymbol={selected.symbol}
-                onSelect={selectInstrument}
-                headingId={`${id}-watchlist-title`}
-                quotes={watchlistQuotes.quotes}
-                quotesLoading={watchlistQuotes.loading}
-                onQuoteVisible={watchlistQuotes.requestQuote}
-              />
-            )}
+            <div
+              className="picker-list"
+              tabIndex={id === "desktop" ? 0 : undefined}
+              role="region"
+              aria-label={t(pickerTab === "markets" ? "market.overview" : "watchlist.saved")}
+            >
+              {pickerTab === "markets" ? (
+                <section className="market-list" aria-label={t("market.overview")}>
+                  <div className="list-caption">
+                    <span>{t("market.symbolName")}</span>
+                    <span>{t("market.lastDay")}</span>
+                  </div>
+                  <h3>{t("market.major")}</h3>
+                  {stocks
+                    .filter((stock) => stock.instrumentType === "index")
+                    .map((stock) => (
+                      <button
+                        className={`stock-row ${stock.symbol === selected.symbol ? "active" : ""}`}
+                        key={stock.symbol}
+                        onClick={() => selectInstrument(stock)}
+                        type="button"
+                        aria-pressed={stock.symbol === selected.symbol}
+                      >
+                        {renderQuote(stock)}
+                      </button>
+                    ))}
+                  <h3>{t("market.seven")}</h3>
+                  {stocks
+                    .filter((stock) => stock.instrumentType === "stock")
+                    .map((stock) => (
+                      <button
+                        className={`stock-row ${stock.symbol === selected.symbol ? "active" : ""}`}
+                        key={stock.symbol}
+                        onClick={() => selectInstrument(stock)}
+                        type="button"
+                        aria-pressed={stock.symbol === selected.symbol}
+                      >
+                        {renderQuote(stock)}
+                      </button>
+                    ))}
+                </section>
+              ) : (
+                <PersonalWatchlist
+                  watchlist={watchlist}
+                  selectedSymbol={selected.symbol}
+                  onSelect={selectInstrument}
+                  headingId={`${id}-watchlist-title`}
+                  quotes={watchlistQuotes.quotes}
+                  quotesLoading={watchlistQuotes.loading}
+                  onQuoteVisible={watchlistQuotes.requestQuote}
+                />
+              )}
+            </div>
           </>
         )}
         <div className="picker-footer">
@@ -691,8 +690,11 @@ export default function WorkspaceShell() {
                 </div>
               </details>
             </article>
-            <aside className="market-sidebar" aria-label={t("market.choose")}>
-              {renderPicker("desktop")}
+            <aside className="market-sidebar" aria-label={t("market.radar")}>
+              <section className="market-radar">{renderPicker("desktop")}</section>
+              <div className="fx-slot">
+                <FxRatesPanel active={activeView === "markets"} />
+              </div>
             </aside>
           </section>
         </div>

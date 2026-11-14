@@ -247,6 +247,38 @@ drop these display sets. They grant no write authority and never reshare Agent i
 code/cache policy, not proof of a production latency target; cold/warm/provider timing requires
 the separately authorized acceptance window.
 
+### Followed FX and the Market layout
+
+The Market page places followed exchange rates below the radar. A non-USD default currency derives
+one USD/default pair; USD derives none. Manual pairs remain when the default changes. Dismissing
+the automatic pair is remembered for that default/generation; a changed default starts a new
+context. A manually followed pair matching the default stays manual, and removing it also dismisses
+the current automatic equivalent. An older action cannot erase a newer context's dismissal.
+
+Manual follows use the existing authenticated User store with at most12 pairs. The automatic entry
+can make13 displayed pairs; one public batch remains within the existing20-pair producer bound.
+The browser derives the default without a Config-to-User RPC. Preferences and rates load separately
+from stocks, and neither changes an individual stock's native price currency.
+
+Confirmed preferences survive internal navigation in account-scoped memory. Reentry/foreground
+restoration revalidates metadata after60 seconds without clearing existing rows; there is no polling
+timer. Explicit refresh checks the saved follows/default and rates. Config display refreshes are
+read-only and cannot resume an uncertain settings mutation. Account changes mask old data before
+effects run; uncertain FX writes are read back before another CAS, and conflicting add/remove
+intents rebase on the latest pairs rather than overwriting another device's work.
+
+Public FX requests contain currency pairs only, without credentials or portfolio facts. A small
+reader validates closed fields, dates, requested identities and exact CAD reference-rate routes,
+without loading private crypto. One cache read may be followed by one bounded refresh; failed or
+older responses retain dated stale values. Checking authentication/preferences does not invent a
+guest, empty list or default. Source/date/staleness remain visible and daily reference rates are
+never described as real-time. Bank of Canada supplies these rates without a paid subscription.
+
+Desktop radar and FX cards share the entire left quote panel height, including expanded details.
+Only each list scrolls; search, actions and source footer stay outside those regions. The existing
+watchlist's inner scroll is removed only inside the radar. Narrow screens stack quote/radar/FX,
+with capped card heights and keyboard-focusable lists. Reduced-motion mode removes row animation.
+
 ## Private agent Inbox
 
 Results now live in each Task Center detail, grouped by their actual historical

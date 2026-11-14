@@ -32,6 +32,7 @@ export class CurrencyPreferenceStore {
   #conflicts = 0;
   #controller: AbortController | null = null;
   #timeout: number;
+  #readAt = 0;
   constructor(
     owner: string,
     request: Request,
@@ -68,6 +69,13 @@ export class CurrencyPreferenceStore {
     this.#needsRead = true;
     this.#conflicts = 0;
     this.#emit({ error: null });
+    this.#run();
+  }
+  refresh(force = false) {
+    if (!this.#active || this.#running || this.#intent || this.#state.error) return;
+    const age = Date.now() - this.#readAt;
+    if (!force && this.#state.snapshot && age >= 0 && age < 60_000) return;
+    this.#needsRead = true;
     this.#run();
   }
   dispose() {
@@ -117,6 +125,7 @@ export class CurrencyPreferenceStore {
       confirmed = effectivePortfolioCurrency(snapshot);
     if (this.#intent === confirmed) this.#intent = null;
     this.#needsRead = false;
+    this.#readAt = Date.now();
     this.#emit({
       snapshot,
       selected: this.#intent ?? confirmed,
@@ -127,7 +136,7 @@ export class CurrencyPreferenceStore {
     if (!this.#active || this.#running) return;
     this.#running = true;
     void (async () => {
-      let phase: "load" | "save" = this.#state.snapshot ? "save" : "load";
+      let phase: "load" | "save" = this.#intent ? "save" : "load";
       try {
         if (this.#needsRead) await this.#load();
         while (this.#active && this.#intent && this.#state.snapshot) {
@@ -161,6 +170,7 @@ export class CurrencyPreferenceStore {
           )
             throw new Error("Invalid saved currency");
           this.#needsRead = false;
+          this.#readAt = Date.now();
           this.#conflicts = 0;
           if (this.#intent === desired) this.#intent = null;
           this.#emit({

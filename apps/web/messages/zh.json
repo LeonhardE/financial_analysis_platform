@@ -1749,5 +1749,31 @@
     "partialCash": "部分已报告",
     "cashHelp": "已报告现金不代表可提现余额或购买力。",
     "loadingPrices": "正在读取报价"
+  },
+  "fx": {
+    "title": "汇率",
+    "refresh": "更新汇率",
+    "signInHelp": "登录后可订阅汇率。",
+    "signIn": "登录",
+    "base": "基础币种",
+    "quote": "目标币种",
+    "subscribe": "订阅",
+    "subscribed": "已订阅",
+    "loadingFollows": "正在读取汇率订阅",
+    "saving": "正在保存",
+    "retry": "重试",
+    "loadingRates": "正在更新汇率",
+    "checkSave": "暂时无法确认保存结果，请重试同步。",
+    "followsError": "暂时无法读取或保存汇率订阅。",
+    "currencyError": "暂时无法读取默认币种。",
+    "ratesError": "汇率未能更新，已保留原有数据及日期。",
+    "empty": "订阅一组汇率后即可在这里查看。",
+    "list": "已订阅汇率",
+    "stale": "较早汇率",
+    "unavailable": "暂无数据",
+    "default": "默认",
+    "remove": "取消订阅 {pair}",
+    "source": "加拿大央行 · 每日参考",
+    "loadingCurrency": "正在读取默认币种"
   }
 }
