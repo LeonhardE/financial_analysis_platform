@@ -154,6 +154,7 @@ type EncryptedRule = {
   rootCommand?: boolean;
   rootCommandMaxBytes?: number;
   rootCommands?: string[];
+  taskPackets?: boolean;
 };
 function hubOwnerRule(path: string, method: PrivateMethod): EncryptedRule | null {
   if (path.length > 8192 || /[\\#]/.test(path)) return null;
@@ -212,6 +213,13 @@ function hubOwnerRule(path: string, method: PrivateMethod): EncryptedRule | null
       maxBytes: persistent.max,
       rootCommand: persistent.kind === "control" && !persistent.author,
       rootCommandMaxBytes: persistent.max,
+    };
+  } else if (method === "POST" && pathname === "/api/v2/tasks/packets/query") {
+    rule = {
+      method: "POST",
+      keys: ["contractVersion", "taskIds"],
+      maxBytes: 4096,
+      taskPackets: true,
     };
   } else if (method === "GET") {
     if (
@@ -461,6 +469,17 @@ function encryptedRequestHeaders(
     )
       throw new Error("Invalid private API request");
   } else if (options.json !== undefined) throw new Error("Invalid private API request");
+  if (rule.taskPackets) {
+    const ids = (options.json as Record<string, unknown>).taskIds;
+    if (
+      !Array.isArray(ids) ||
+      ids.length < 1 ||
+      ids.length > 4 ||
+      !ids.every((id) => typeof id === "string" && /^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/.test(id)) ||
+      new Set(ids).size !== ids.length
+    )
+      throw new Error("Invalid private API request");
+  }
   for (const name of rule.rootCommands ?? (rule.rootCommand ? ["command"] : [])) {
     const command = (options.json as Record<string, unknown>)[name];
     if (
@@ -969,6 +988,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // authority reads and read-only POST queries get unique queue entries.
       const readOnly =
         method === "GET" ||
+        (method === "POST" && service === "agent-hub" && path === "/api/v2/tasks/packets/query") ||
         (method === "POST" &&
           /^\/api\/v3\/task-center\/[^/]+\/(?:trash\/query|tasks\/[^/]+\/(?:results|progress)\/query)$/.test(
             path,

@@ -129,6 +129,7 @@ const catalogue = (rows = [binding()]) => ({
 function harness({
   locked = false,
   transport,
+  packetBatch,
   open,
   saveDraft,
   seal,
@@ -301,6 +302,42 @@ function harness({
   };
   const requestPrivate = async (service, route, key, options) => {
     calls.push({ service, route, key, options });
+    if (route === types.TASK_PACKET_QUERY) {
+      if (packetBatch) return packetBatch({ taskIds: options.json.taskIds, options });
+      const items = [];
+      for (const taskId of options.json.taskIds) {
+        const { method: _method, json: _json, ...readOptions } = options;
+        const selected = currentRows.find((row) => row.taskId === taskId);
+        const reply = transport
+          ? await transport({
+              service,
+              route: "/api/v2/tasks/" + taskId,
+              key,
+              options: readOptions,
+              head: currentTask,
+              setHead(value) {
+                currentTask = value;
+                currentRows = [value.metadata];
+              },
+            })
+          : undefined;
+        if (reply && !reply.ok) return reply;
+        const packet = reply
+          ? await reply.json()
+          : taskId === currentTask.metadata.taskId
+            ? currentTask
+            : selected
+              ? task(selected)
+              : null;
+        items.push(packet ? { taskId, status: "ready", packet } : { taskId, status: "not_found" });
+      }
+      return response({
+        contractVersion: CONTRACT,
+        profile: "folioview.owner-task-packets.v1",
+        items,
+        remainingTaskIds: [],
+      });
+    }
     if (transport) {
       const result = await transport({
         service,
@@ -456,6 +493,9 @@ function harness({
     capability(next) {
       configured = next;
       workspace.vaultConfigured = next;
+    },
+    setRows(rows) {
+      currentRows = clone(rows);
     },
     setHead(packet) {
       currentTask = clone(packet);
@@ -1431,7 +1471,7 @@ test("a failed name is isolated and can be retried without entering edit mode", 
   assert.equal(h.savedDrafts.length, 0);
   h.unmount();
 });
-test("background name verification limits concurrent decryption to three", async () => {
+test("background name verification limits concurrent decryption to two across batches", async () => {
   const waiting = deferred();
   let inflight = 0,
     peak = 0;
@@ -1451,12 +1491,12 @@ test("background name verification limits concurrent decryption to three", async
     },
   });
   await h.drain();
-  assert.equal(peak, 3);
+  assert.equal(peak, 2);
   waiting.resolve();
   const m = await h.drain();
   assert.equal(m.form, null);
   assert.equal(h.savedDrafts.length, 0);
-  assert.ok(peak <= 3);
+  assert.ok(peak <= 2);
   h.unmount();
 });
 
@@ -1479,4 +1519,298 @@ test("task deletion immediately masks its editor and names while preserving seal
     false,
   );
   h.unmount();
+});
+
+const batchPage = (
+  ids,
+  packets = ids.map((id) => task(meta(1, { taskId: id }))),
+  remaining = [],
+) => ({
+  contractVersion: CONTRACT,
+  profile: "folioview.owner-task-packets.v1",
+  items: packets.map((packet, n) =>
+    packet ? { taskId: ids[n], status: "ready", packet } : { taskId: ids[n], status: "not_found" },
+  ),
+  remainingTaskIds: remaining,
+});
+test("task packet DTO binds the exact requested prefix and suffix before any decryption", () => {
+  const ids = ["task_A", "task_B", "task_C"],
+    valid = batchPage(ids.slice(0, 2), [task(), null], ["task_C"]);
+  const parsed = types.taskPacketPage(valid, ids);
+  assert.equal(parsed.items[0].packet.metadata.taskId, "task_A");
+  assert.equal(parsed.items[1].status, "not_found");
+  assert.deepEqual(Array.from(parsed.remainingTaskIds), ["task_C"]);
+  for (const value of [
+    { ...valid, privateTitle: "PRIVATE" },
+    { ...valid, profile: "other" },
+    { ...valid, items: [] },
+    { ...valid, remainingTaskIds: ids },
+    { ...valid, remainingTaskIds: ["foreign_task"] },
+    { ...valid, items: [...valid.items].reverse() },
+    {
+      ...valid,
+      items: [
+        { ...valid.items[0], packet: task(meta(1, { taskId: "foreign_task" })) },
+        valid.items[1],
+      ],
+    },
+    { ...valid, items: [valid.items[0], { ...valid.items[1], packet: null }] },
+  ])
+    assert.throws(() => types.taskPacketPage(value, ids), /invalid_response/);
+  assert.throws(() => types.taskPacketPage(valid, ["task_A", "task_A"]), /invalid_response/);
+});
+test("name metadata comparison covers the complete version even across JSON property ordering", () => {
+  const original = meta(1, { resourceBindings: [binding()] });
+  const reordered = Object.fromEntries(Object.entries(original).reverse());
+  reordered.resourceBindings = [
+    { sourceEpoch: 1, ref: Object.fromEntries(Object.entries(binding().ref).reverse()) },
+  ];
+  assert.equal(types.sameTaskMetadata(original, reordered), true);
+  for (const patch of [
+    { executionEpoch: 2 },
+    { createdAt: "2026-10-31T10:00:00Z" },
+    { resourceBindings: [binding("other")] },
+  ])
+    assert.equal(types.sameTaskMetadata(original, { ...original, ...patch }), false);
+});
+test("thirty-two task names use eight four-packet reads with unchanged per-task Worker verification", async () => {
+  const rows = Array.from({ length: 32 }, (_, n) => meta(1, { taskId: `task_batch_${n}` }));
+  const h = harness({ rows });
+  try {
+    const m = await h.drain(),
+      batches = h.calls.filter((c) => c.route === types.TASK_PACKET_QUERY);
+    assert.equal(batches.length, 8);
+    assert.ok(
+      batches.every((c) => c.options.method === "POST" && c.options.json.taskIds.length === 4),
+    );
+    assert.equal(h.opens.length, 32);
+    assert.equal(Object.keys(m.taskNames).length, 32);
+    assert.equal(h.calls.filter((c) => /^\/api\/v2\/tasks\/task_batch_/.test(c.route)).length, 0);
+    assert.equal(h.seals.length + h.savedDrafts.length, 0);
+  } finally {
+    h.unmount();
+  }
+});
+test("large-packet suffixes strictly shrink and finish without duplicates", async () => {
+  const rows = Array.from({ length: 4 }, (_, n) => meta(1, { taskId: `task_split_${n}` }));
+  const h = harness({
+    rows,
+    packetBatch: ({ taskIds }) =>
+      response(
+        batchPage(
+          taskIds.slice(0, 1),
+          [task(rows.find((r) => r.taskId === taskIds[0]))],
+          taskIds.slice(1),
+        ),
+      ),
+  });
+  try {
+    const m = await h.drain();
+    assert.deepEqual(
+      h.calls
+        .filter((c) => c.route === types.TASK_PACKET_QUERY)
+        .map((c) => c.options.json.taskIds.length),
+      [4, 3, 2, 1],
+    );
+    assert.equal(Object.keys(m.taskNames).length, 4);
+    assert.equal(new Set(h.opens.map((p) => p.metadata.taskId)).size, 4);
+  } finally {
+    h.unmount();
+  }
+});
+test("a malformed batch cannot open even its first packet or loop its remaining IDs", async () => {
+  const rows = Array.from({ length: 4 }, (_, n) => meta(1, { taskId: `task_bad_${n}` }));
+  const h = harness({
+    rows,
+    packetBatch: ({ taskIds }) =>
+      response(batchPage(taskIds.slice(0, 1), [task(rows[0])], taskIds)),
+  });
+  try {
+    const m = await h.drain();
+    assert.equal(h.opens.length, 0);
+    assert.equal(Object.keys(m.taskNames).length, 0);
+    assert.equal(Object.keys(m.nameErrors).length, 4);
+    assert.equal(h.calls.filter((c) => c.route === types.TASK_PACKET_QUERY).length, 1);
+  } finally {
+    h.unmount();
+  }
+});
+test("a missing or stale packet stays unavailable while other batch members verify normally", async () => {
+  const rows = Array.from({ length: 4 }, (_, n) => meta(1, { taskId: `task_partial_${n}` }));
+  const h = harness({
+    rows,
+    packetBatch: ({ taskIds }) =>
+      response(
+        batchPage(taskIds, [
+          null,
+          task({ ...rows[1], executionEpoch: 2 }),
+          task(rows[2]),
+          task(rows[3]),
+        ]),
+      ),
+  });
+  try {
+    const m = await h.drain();
+    assert.equal(Object.keys(m.taskNames).length, 2);
+    assert.equal(m.nameErrors.task_partial_0, "not_found");
+    assert.equal(m.nameErrors.task_partial_1, "version_conflict");
+    assert.equal(h.opens.length, 2);
+    assert.equal(m.selected, null);
+  } finally {
+    h.unmount();
+  }
+});
+test("verified names publish before a stalled sibling and can retry an earlier failure without losing pending ownership", async () => {
+  const gate = deferred(),
+    rows = Array.from({ length: 4 }, (_, n) => meta(1, { taskId: `task_progress_${n}` }));
+  let first = true;
+  const h = harness({
+    rows,
+    open: async (packet) => {
+      if (packet.metadata.taskId === rows[0].taskId && first) {
+        first = false;
+        throw { code: "verification_failed" };
+      }
+      if (packet.metadata.taskId === rows[1].taskId) await gate.promise;
+      return content({ name: "Verified name" });
+    },
+  });
+  try {
+    let m = await h.drain();
+    assert.ok(m.nameErrors.task_progress_0);
+    m.retryTaskName(rows[0].taskId);
+    m = await h.drain();
+    assert.equal(m.taskNames.task_progress_0, "Verified name");
+    assert.equal(m.nameErrors.task_progress_0, undefined);
+    assert.equal(m.taskNames.task_progress_1, undefined);
+    gate.resolve();
+    m = await h.drain();
+    assert.equal(Object.keys(m.taskNames).length, 4);
+    assert.equal(h.calls.filter((c) => c.route === types.TASK_PACKET_QUERY).length, 2);
+  } finally {
+    gate.resolve();
+    h.unmount();
+  }
+});
+
+test("metadata refresh cannot spawn extra name workers while two earlier batches are decrypting", async () => {
+  const gate = deferred(),
+    rows = Array.from({ length: 8 }, (_, n) => meta(1, { taskId: `task_refresh_${n}` }));
+  let active = 0,
+    peak = 0;
+  const h = harness({
+    rows,
+    open: async () => {
+      active++;
+      peak = Math.max(peak, active);
+      await gate.promise;
+      active--;
+      return content();
+    },
+  });
+  try {
+    let m = await h.drain();
+    assert.equal(peak, 2);
+    h.setRows([
+      ...rows,
+      ...Array.from({ length: 4 }, (_, n) => meta(1, { taskId: `task_new_${n}` })),
+    ]);
+    await m.reloadTasks();
+    await h.drain();
+    assert.equal(peak, 2);
+    gate.resolve();
+    m = await h.drain();
+    assert.equal(Object.keys(m.taskNames).length, 12);
+    assert.equal(peak, 2);
+    assert.equal(h.calls.filter((c) => c.route === types.TASK_PACKET_QUERY).length, 3);
+  } finally {
+    gate.resolve();
+    h.unmount();
+  }
+});
+test("a late batch cannot open private packets across an Owner change before effects run", async () => {
+  const gate = deferred(),
+    rows = [meta()];
+  const h = harness({
+    rows,
+    packetBatch: () => gate.promise,
+    open: async () => assert.fail("old Owner packet must not open"),
+  });
+  try {
+    await h.drain();
+    h.owner("owner_B:2");
+    assert.equal(Object.keys(h.render(false).taskNames).length, 0);
+    gate.resolve(response(batchPage(["task_A"], [task()])));
+    await settle();
+    assert.equal(h.opens.length, 0);
+    assert.equal(Object.keys(h.render(false).taskNames).length, 0);
+    h.active(false);
+    await h.drain();
+  } finally {
+    gate.resolve(response(batchPage(["task_A"], [task()])));
+    h.unmount();
+  }
+});
+
+test("cancelling a deleted task batch resumes only remaining visible names, without stale resurrection", async () => {
+  const gate = deferred(),
+    rows = Array.from({ length: 3 }, (_, n) => meta(1, { taskId: `task_delete_${n}` }));
+  let requests = 0;
+  const h = harness({
+    rows,
+    packetBatch: ({ taskIds }) =>
+      ++requests === 1
+        ? gate.promise
+        : response(
+            batchPage(
+              taskIds,
+              taskIds.map((id) => task(rows.find((r) => r.taskId === id))),
+            ),
+          ),
+  });
+  try {
+    let m = await h.drain();
+    m.invalidateTask(rows[0].taskId);
+    h.setRows(rows.slice(1));
+    m = await h.drain();
+    assert.equal(m.taskNames.task_delete_0, undefined);
+    assert.equal(m.taskNames.task_delete_1, "PRIVATE_TASK");
+    assert.equal(m.taskNames.task_delete_2, "PRIVATE_TASK");
+    gate.resolve(
+      response(
+        batchPage(
+          rows.map((r) => r.taskId),
+          rows.map((r) => task(r)),
+        ),
+      ),
+    );
+    m = await h.drain();
+    assert.equal(m.taskNames.task_delete_0, undefined);
+    assert.equal(
+      h.opens.some((p) => p.metadata.taskId === rows[0].taskId),
+      false,
+    );
+    assert.equal(requests, 2);
+  } finally {
+    gate.resolve(response(batchPage([], [])));
+    h.unmount();
+  }
+});
+test("unmounting a pending name batch cannot refill its display queue", async () => {
+  const gate = deferred();
+  let requests = 0;
+  const h = harness({
+    rows: [meta(), meta(1, { taskId: "task_B" })],
+    packetBatch: () => {
+      requests++;
+      return gate.promise;
+    },
+  });
+  await h.drain();
+  h.unmount();
+  gate.resolve(response(batchPage(["task_A", "task_B"])));
+  await settle();
+  await settle();
+  assert.equal(requests, 1);
+  assert.equal(h.opens.length, 0);
 });

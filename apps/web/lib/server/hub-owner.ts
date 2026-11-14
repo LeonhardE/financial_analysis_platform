@@ -60,6 +60,7 @@ type Rule = {
     | "task-create"
     | "task-update"
     | "task-transition"
+    | "task-packets"
     | "stage"
     | "commit";
   max: number;
@@ -124,7 +125,14 @@ function route(request: Request): { path: string; rule: Rule } {
     };
   else if (get && path === "/api/v2/tasks")
     rule = { kind: "read", max: 0, query: { limit: "limit", cursor: "cursor" } };
-  else if (
+  else if (request.method === "POST" && path === "/api/v2/tasks/packets/query") {
+    if (
+      request.headers.has("x-folioview-delegation") ||
+      request.headers.has("x-serverless-authorization")
+    )
+      fail("insufficient_scope");
+    rule = { kind: "task-packets", max: 4096, responseStatus: 200 };
+  } else if (
     (get &&
       new RegExp(`^/api/v2/tasks/${ID}/operation-cancellations/[A-Za-z0-9_-]{22,128}$`).test(
         path,
@@ -302,6 +310,15 @@ function binding(value: unknown) {
 function validBody(body: unknown, kind: Rule["kind"], vaultId?: string) {
   if (!record(body) || body.contractVersion !== CONTRACT) return false;
   switch (kind) {
+    case "task-packets":
+      return (
+        fields(body, ["contractVersion", "taskIds"]) &&
+        Array.isArray(body.taskIds) &&
+        body.taskIds.length >= 1 &&
+        body.taskIds.length <= 4 &&
+        body.taskIds.every(identifier) &&
+        new Set(body.taskIds).size === body.taskIds.length
+      );
     case "credential-approval":
       return credentialApprovalRequest(body);
     case "small":
@@ -416,7 +433,16 @@ function registryBundle(value: unknown) {
   );
 }
 
-async function transport(request: Request, rule: Rule, signal: AbortSignal) {
+async function transport(
+  request: Request,
+  rule: Rule,
+  signal: AbortSignal,
+): Promise<{
+  headers: Headers;
+  raw: Awaited<ReturnType<typeof bytes>> | undefined;
+  token: string;
+  taskIds?: string[];
+}> {
   if (request.headers.get("x-folioview-contract") !== CONTRACT) fail("unsupported_contract");
   const auth = request.headers.get("authorization") ?? "";
   if (auth.length > 8192 || !auth.startsWith("Bearer ") || !JWT.test(auth.slice(7)))
@@ -439,16 +465,24 @@ async function transport(request: Request, rule: Rule, signal: AbortSignal) {
   if (rule.kind === "read") return { headers, raw: undefined, token: auth.slice(7) };
   if (request.headers.get("content-type")?.split(";", 1)[0].toLowerCase() !== "application/json")
     fail("unsupported_media_type");
+  const payload = json(raw);
   if (
     rule.kind === "center"
-      ? !taskCenterRequest(new URL(request.url).pathname.slice(PREFIX.length), json(raw))
+      ? !taskCenterRequest(new URL(request.url).pathname.slice(PREFIX.length), payload)
       : rule.cancel
-        ? !cancellationRequest("task", json(raw), rule.cancel.slot, headers.get("idempotency-key")!)
-        : !validBody(json(raw), rule.kind, rule.vaultId)
+        ? !cancellationRequest("task", payload, rule.cancel.slot, headers.get("idempotency-key")!)
+        : !validBody(payload, rule.kind, rule.vaultId)
   )
     fail();
   headers.set("Content-Type", "application/json");
-  return { headers, raw, token: auth.slice(7) };
+  return {
+    headers,
+    raw,
+    token: auth.slice(7),
+    ...(rule.kind === "task-packets"
+      ? { taskIds: (payload as Record<string, unknown>).taskIds as string[] }
+      : {}),
+  };
 }
 
 export function createHubProxy(options: Options = {}) {
@@ -467,7 +501,7 @@ export function createHubProxy(options: Options = {}) {
       const config = hubConfiguration(env);
       if (!config) fail("authorization_unavailable");
       const { path, rule } = route(request);
-      const { headers, raw, token } = await transport(request, rule, signal);
+      const { headers, raw, token, taskIds } = await transport(request, rule, signal);
       const uid = await verifyOwner(token, config!.project, signal);
       releaseOwner = admission.owner(uid);
       const response = await until(
@@ -520,6 +554,7 @@ export function createHubProxy(options: Options = {}) {
                   request.method,
                   body,
                   headers.get("idempotency-key") ?? undefined,
+                  taskIds,
                 ),
       );
     } catch (error) {

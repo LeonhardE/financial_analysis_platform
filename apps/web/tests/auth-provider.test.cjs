@@ -2702,3 +2702,64 @@ test("display-name read/write/original lookup cross the real browser boundary wi
   assert.equal(h.requests.length, sent);
   h.unmount();
 });
+
+test("task packet queries use the two-read transport queue and never mutation headers", async () => {
+  const pending = [];
+  const h = mountProvider({
+    fetchOwnerConfig: async () => configResponse(false, true),
+    fetchProfile: (url, options) =>
+      String(url).includes("/tasks/packets/query")
+        ? new Promise((resolve) => pending.push({ resolve, options }))
+        : Promise.resolve(profileResponse("a")),
+  });
+  h.emitUser(user("a"));
+  await settle();
+  const controls = Array.from({ length: 3 }, () => new AbortController());
+  const calls = controls.map((c) =>
+    h.actions.requestPrivate("agent-hub", "/api/v2/tasks/packets/query", "a:1", {
+      method: "POST",
+      signal: c.signal,
+      json: { contractVersion: version, taskIds: ["task_A"] },
+    }),
+  );
+  const cancelled = assert.rejects(calls[2]);
+  await settle();
+  assert.equal(pending.length, 2);
+  controls[2].abort();
+  await cancelled;
+  for (const p of pending) {
+    assert.equal(p.options.headers["Idempotency-Key"], undefined);
+    assert.equal(p.options.headers["X-FolioView-Author-Key"], undefined);
+    p.resolve(Response.json({ readOnly: true }));
+  }
+  await Promise.all(calls.slice(0, 2));
+  h.unmount();
+});
+test("task packet query body and selector validation happen before token access", async () => {
+  let tokens = 0;
+  const h = mountProvider({ fetchOwnerConfig: async () => configResponse(false, true) });
+  h.emitUser({ uid: "a", getIdToken: async () => `test-token-${++tokens}` });
+  await settle();
+  const before = tokens,
+    requests = h.requests.length,
+    path = "/api/v2/tasks/packets/query";
+  for (const [route, body, headers] of [
+    [path + "?owner=foreign", { contractVersion: version, taskIds: ["task_A"] }, {}],
+    ...[
+      [],
+      ["task_A", "task_A"],
+      [true],
+      ["../private"],
+      Array.from({ length: 5 }, (_, n) => `task_${n}`),
+    ].map((taskIds) => [path, { contractVersion: version, taskIds }, {}]),
+    [path, { contractVersion: version, taskIds: ["task_A"], title: "PRIVATE" }, {}],
+    [path, { contractVersion: version, taskIds: ["task_A"] }, operationHeaders()],
+  ])
+    await assert.rejects(
+      h.actions.requestPrivate("agent-hub", route, "a:1", { method: "POST", json: body, headers }),
+      /Invalid private API/,
+    );
+  assert.equal(tokens, before);
+  assert.equal(h.requests.length, requests);
+  h.unmount();
+});
