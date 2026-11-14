@@ -1,4 +1,4 @@
-"""Formal v2 error framing, including auth, middleware and missing routes."""
+"""Formal contract error framing, including owner v3 reads and missing routes."""
 
 import json
 import uuid
@@ -22,11 +22,11 @@ _STATUS_CODES = {
 
 
 class PortfolioErrors:
-    """No raw auth/validation/SDK diagnostics cross the v2 HTTP boundary.
+    """No raw auth/validation/SDK diagnostics cross the contract HTTP boundary.
 
     This wraps CORS as well as route handling, so rejected preflight requests use
     the same closed DTO. Buffered error bodies are bounded and never forwarded.
-    Successful bodies and non-v2 endpoints remain unchanged.
+    Successful bodies and non-contract endpoints remain unchanged.
     """
 
     def __init__(self, app: ASGIApp):
@@ -34,7 +34,7 @@ class PortfolioErrors:
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send):
         if scope["type"] != "http" or not scope.get("path", "").startswith(
-            ("/api/v2/", "/internal/v2/")
+            ("/api/v2/", "/api/v3/", "/internal/v2/")
         ):
             await self.app(scope, receive, send)
             return

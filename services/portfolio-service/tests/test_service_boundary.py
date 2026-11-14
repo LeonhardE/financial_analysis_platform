@@ -28,6 +28,7 @@ class PortfolioBoundaryTests(unittest.TestCase):
                     "/internal/v2/resources/projections/read",
                     "/internal/v2/resources/states/read",
                     "/internal/v2/resources/discovery/read",
+                    "/api/v3/holdings/sources/{source_id}/view/query",
                     "/api/v2/holdings/sources/{source_id}",
                     "/api/v2/holdings/sources/{source_id}/latest",
                     "/api/v2/holdings/sources/{source_id}/authority-sync",

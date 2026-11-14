@@ -109,6 +109,23 @@ class Authority:
         return self.document["version"]
 
 
+def _metadata_response(authority, head, lifecycle):
+    return {
+        "contractVersion": CONTRACT_VERSION,
+        "ownerSubject": authority.document["ownerSubject"],
+        "sourceId": authority.document["sourceId"],
+        "vaultId": authority.document["vaultId"],
+        "resourceRef": authority.document["resourceRef"],
+        "sourceEpoch": authority.document["sourceEpoch"],
+        "revision": head["revision"],
+        "snapshotId": head["snapshotId"],
+        "snapshotSourceEpoch": head.get("sourceEpoch"),
+        "authorityVersion": authority.version,
+        "state": lifecycle["state"],
+        "pendingMutationId": lifecycle["pendingMutationId"],
+    }
+
+
 class _ReadSnapshot:
     """Detached independent reads from the current read-only transaction."""
 
@@ -495,22 +512,7 @@ class PortfolioService:
                 stage = time.perf_counter()
                 lifecycle = source_state(snapshot, authority)
                 timing["lifecycle"] += time.perf_counter() - stage
-                result.append(
-                    {
-                        "contractVersion": CONTRACT_VERSION,
-                        "ownerSubject": owner,
-                        "sourceId": source,
-                        "vaultId": authority.document["vaultId"],
-                        "resourceRef": authority.document["resourceRef"],
-                        "sourceEpoch": authority.document["sourceEpoch"],
-                        "revision": head["revision"],
-                        "snapshotId": head["snapshotId"],
-                        "snapshotSourceEpoch": head.get("sourceEpoch"),
-                        "authorityVersion": authority.version,
-                        "state": lifecycle["state"],
-                        "pendingMutationId": lifecycle["pendingMutationId"],
-                    }
-                )
+                result.append(_metadata_response(authority, head, lifecycle))
             return result
 
         try:
@@ -688,55 +690,58 @@ class PortfolioService:
             )
             if selected is None:
                 raise PortfolioError("not_found", 404, "Snapshot not found.")
-            row = unit.get(document_path("portfolio_snapshots", owner, source, selected))
-            if (
-                row is None
-                or row.get("ownerSubject") != owner
-                or row.get("sourceId") != source
-                or row.get("snapshotId") != selected
-            ):
-                raise PortfolioError("not_found", 404, "Snapshot not found.")
-            self._owner_history(unit, authority)
-            if (
-                type(row["sourceEpoch"]) is not int
-                or not 1 <= row["sourceEpoch"] <= authority.document["sourceEpoch"]
-            ):
-                raise StoreUnavailable
-            receipt = _receipt(row["receipt"], owner=owner, source=source, snapshot=selected)
-            carrier = parse_carrier(row["carrierJson"], contract_header=CONTRACT_VERSION)
-            if (
-                signing_input_fingerprint(carrier["signedObject"]) != row["fingerprint"]
-                or row["fingerprint"] != receipt["envelopeFingerprint"]
-            ):
-                raise StoreUnavailable
-            message = strict_json_loads(b64url_decode(carrier["signedObject"]["payload"]))
-            context = message["context"]
-            if (
-                context["ownerSubject"] != owner
-                or context["vaultId"] != authority.document["vaultId"]
-                or context["rootKeyId"] != authority.document["rootKeyId"]
-                or context["objectType"] != "holdings_snapshot"
-                or context["objectId"] != selected
-                or context["revision"] != row["revision"]
-                or context["binding"] != _binding_for_history(authority, row)
-                or receipt["resourceRef"] != authority.document["resourceRef"]
-                or receipt["sourceEpoch"] != row["sourceEpoch"]
-                or receipt["revision"] != row["revision"]
-                or receipt["vaultId"] != context["vaultId"]
-                or receipt["stableOperationId"] != context["stableOperationId"]
-            ):
-                raise StoreUnavailable
-            validate_schema("KeyProofs", row["keyProofs"])
-            result = {
-                "contractVersion": CONTRACT_VERSION,
-                "carrier": carrier,
-                "keyProofs": row["keyProofs"],
-                "receipt": receipt,
-            }
-            check_read_response(result)
-            return result
+            return self._snapshot_response(unit, authority, owner, source, selected)
 
         return self.store.transact(read)
+
+    def _snapshot_response(self, unit, authority, owner, source, selected):
+        row = unit.get(document_path("portfolio_snapshots", owner, source, selected))
+        if (
+            row is None
+            or row.get("ownerSubject") != owner
+            or row.get("sourceId") != source
+            or row.get("snapshotId") != selected
+        ):
+            raise PortfolioError("not_found", 404, "Snapshot not found.")
+        self._owner_history(unit, authority)
+        if (
+            type(row["sourceEpoch"]) is not int
+            or not 1 <= row["sourceEpoch"] <= authority.document["sourceEpoch"]
+        ):
+            raise StoreUnavailable
+        receipt = _receipt(row["receipt"], owner=owner, source=source, snapshot=selected)
+        carrier = parse_carrier(row["carrierJson"], contract_header=CONTRACT_VERSION)
+        if (
+            signing_input_fingerprint(carrier["signedObject"]) != row["fingerprint"]
+            or row["fingerprint"] != receipt["envelopeFingerprint"]
+        ):
+            raise StoreUnavailable
+        message = strict_json_loads(b64url_decode(carrier["signedObject"]["payload"]))
+        context = message["context"]
+        if (
+            context["ownerSubject"] != owner
+            or context["vaultId"] != authority.document["vaultId"]
+            or context["rootKeyId"] != authority.document["rootKeyId"]
+            or context["objectType"] != "holdings_snapshot"
+            or context["objectId"] != selected
+            or context["revision"] != row["revision"]
+            or context["binding"] != _binding_for_history(authority, row)
+            or receipt["resourceRef"] != authority.document["resourceRef"]
+            or receipt["sourceEpoch"] != row["sourceEpoch"]
+            or receipt["revision"] != row["revision"]
+            or receipt["vaultId"] != context["vaultId"]
+            or receipt["stableOperationId"] != context["stableOperationId"]
+        ):
+            raise StoreUnavailable
+        validate_schema("KeyProofs", row["keyProofs"])
+        result = {
+            "contractVersion": CONTRACT_VERSION,
+            "carrier": carrier,
+            "keyProofs": row["keyProofs"],
+            "receipt": receipt,
+        }
+        check_read_response(result)
+        return result
 
     def receipt(self, uid: str, source: str, operation_id: str):
         _identifier(source)
