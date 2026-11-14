@@ -52,6 +52,44 @@ def _thaw(value: Any) -> Any:
     return value
 
 
+class RegistryCertificateMemo:
+    """Bounded, operation-local reuse of successful certificate JWS checks.
+
+    Construct one for a single history verification and discard it afterward.
+    Only the exact public key, verification profile and complete signed bytes
+    can reuse a result. This stores no registry, time or authorization decision.
+    """
+
+    __slots__ = ("__entries", "__size")
+
+    def __init__(self) -> None:
+        self.__entries: dict[tuple[bytes, str, str | None, bytes], Mapping[str, Any]] = {}
+        self.__size = 0
+
+    def _verify(
+        self, signed: dict, public_jwk: dict, *, typ: str, expected_kid: str | None
+    ) -> dict:
+        root_bytes, signed_bytes = canonical_json(public_jwk), canonical_json(signed)
+        key = (root_bytes, typ, expected_kid, signed_bytes)
+        cached = self.__entries.get(key)
+        if cached is not None:
+            return _thaw(cached)
+        payload = verify_jws(signed, public_jwk, typ=typ, expected_kid=expected_kid)
+        # Account for every encoded key and payload byte. Reaching the bound
+        # changes only reuse, never which signatures or certificates are valid.
+        size = (
+            len(root_bytes)
+            + len(signed_bytes)
+            + len(typ.encode("utf-8"))
+            + len((expected_kid or "").encode("utf-8"))
+            + len(canonical_json(payload))
+        )
+        if len(self.__entries) < 128 and self.__size + size <= 1_048_576:
+            self.__entries[key] = _freeze(payload)
+            self.__size += size
+        return payload
+
+
 def _digest(value: Any) -> str:
     return hashlib.sha256(canonical_json(value)).hexdigest()
 
@@ -162,13 +200,18 @@ def verify_registry(
     now: int,
     previous: VerifiedRegistry | None = None,
     root_epoch: int | None = None,
+    signature_memo: RegistryCertificateMemo | None = None,
 ) -> VerifiedRegistry:
     """Verify a full root-signed directory, optionally advancing known state.
 
     A fresh caller must obtain its root/checkpoint anchor independently. This
     routine cannot detect an entirely old signed directory without prior state.
     Consecutive updates are required; services may load intermediate bundles.
+    An optional operation-local memo reuses only identical certificate signature
+    checks. Checkpoints and all certificate/authority checks still run each time.
     """
+    if signature_memo is not None and type(signature_memo) is not RegistryCertificateMemo:
+        raise ContractError("malformed_request")
     _integer(now)
     root_epoch = root_epoch if root_epoch is not None else (previous.root_epoch if previous else 1)
     _integer(root_epoch, 1)
@@ -220,8 +263,9 @@ def verify_registry(
     revoked = set(cp["revokedKeyIds"])
     local_epochs = dict(previous.local_key_epochs) if previous is not None else {}
     local_generations: dict[tuple[str, str, str | None, int], str] = {}
+    verify_certificate = signature_memo._verify if signature_memo is not None else verify_jws
     for entry in bundle["entries"]:
-        cert = verify_jws(
+        cert = verify_certificate(
             entry["certificate"], root_jwk, typ=_CONTROL_TYP, expected_kid=pinned_root_key_id
         )
         validate_schema("KeyCertificatePayload", cert)

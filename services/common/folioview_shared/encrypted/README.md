@@ -75,6 +75,17 @@ generations. First enrollment without a prior checkpoint cannot independently
 detect a server presenting an older, otherwise valid directory. Consumers must
 persist their last checkpoint/root pin; a server key URL is not a substitute.
 
+When verifying consecutive history bundles in one operation, callers may create
+one `authority.RegistryCertificateMemo` and pass it as
+`verify_registry(..., signature_memo=memo)`. It reuses only successful signature
+verification of the exact complete certificate JWS under the exact Root public
+key, type and expected key ID. It stores isolated immutable payloads, at most
+128 entries and 1 MiB of encoded keys/payloads; beyond either limit verification
+continues without adding entries. Every checkpoint signature and every schema,
+identity, time, active/revoked flag, epoch and history relationship is still
+checked. Discard the memo after that operation; do not retain it across requests
+or use it to cache a current registry, permission or revocation decision.
+
 Device signatures may authorize only the named task versions, execution epoch,
 resource versions, agent keys, capabilities, expiry and owner writeback recipients.
 A root-certified agent identity by itself does not authorize reading content.
