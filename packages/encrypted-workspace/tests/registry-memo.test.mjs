@@ -24,10 +24,13 @@ const moduleUrl = (text) => "data:text/javascript;base64," + Buffer.from(text).t
 const distributionUrl = JSON.stringify(new URL("../dist/core.mjs", import.meta.url).href);
 const bridgeUrl = moduleUrl(`
 export * from ${distributionUrl};
-import {validate as checkedValidate} from ${distributionUrl};
-let observer=()=>{};
+import {validate as checkedValidate,keyId as checkedKeyId,digest as checkedDigest} from ${distributionUrl};
+let observer=()=>{},cryptoObserver=()=>{};
 export function setSchemaObserver(value){observer=value}
-export function validate(name,value){observer(name);return checkedValidate(name,value)}
+export function validate(name,value){observer(name,value);return checkedValidate(name,value)}
+export function setCryptoObserver(value){cryptoObserver=value}
+export function keyId(value){cryptoObserver("keyIds");return checkedKeyId(value)}
+export function digest(value){cryptoObserver("digests");return checkedDigest(value)}
 `);
 const bridge = await import(bridgeUrl);
 const source = await import(
@@ -47,9 +50,11 @@ const defer = () => {
 };
 async function observed(action, hooks = {}) {
   const descriptor = Object.getOwnPropertyDescriptor(globalThis, "crypto");
-  const counts = { signatures: 0, schemas: {} };
-  bridge.setSchemaObserver((name) => {
+  const counts = { signatures: 0, schemas: {}, keyIds: 0, digests: 0 };
+  bridge.setCryptoObserver((name) => counts[name]++);
+  bridge.setSchemaObserver((name, value) => {
     counts.schemas[name] = (counts.schemas[name] ?? 0) + 1;
+    hooks.schema?.(name, value);
   });
   const subtle = new Proxy(webcrypto.subtle, {
     get(target, name) {
@@ -83,6 +88,7 @@ async function observed(action, hooks = {}) {
   } finally {
     Object.defineProperty(globalThis, "crypto", descriptor);
     bridge.setSchemaObserver(() => {});
+    bridge.setCryptoObserver(() => {});
   }
 }
 async function pair() {
@@ -195,7 +201,7 @@ function sameAuthority(a, b) {
 }
 const f = await fixture(23);
 
-test("23-generation source and distribution retain authority and every schema check with 598 to 70 signatures", async () => {
+test("23-generation source and distribution retain authority with 598 to 70 signatures and 575 to 47 static checks", async () => {
   const noReuse = clone(f.history);
   for (const b of noReuse)
     for (const row of b.entries)
@@ -211,11 +217,13 @@ test("23-generation source and distribution retain authority and every schema ch
   assert.equal(baseline.counts.signatures, 598);
   assert.equal(reused.counts.signatures, 70);
   assert.deepEqual(reused.counts.schemas, {
-    RegistryBundle: 23,
+    RegistryBundle: 46,
     RegistryCheckpointPayload: 23,
-    KeyCertificatePayload: 575,
+    KeyCertificatePayload: 47,
   });
-  assert.deepEqual(reused.counts.schemas, baseline.counts.schemas);
+  assert.equal(baseline.counts.schemas.KeyCertificatePayload, 575);
+  assert.equal(reused.counts.keyIds, 49, "47 cert public keys and two Root pin checks");
+  assert.equal(reused.counts.digests, 93, "47 payloads and all 46 checkpoint/list digests");
   sameAuthority(reused.result, baseline.result);
   const distributed = await observed(() => new DistributedRegistry(pin).load(f.history, 1000));
   assert.equal(distributed.counts.signatures, 70);
@@ -245,34 +253,35 @@ test("complete protected payload signature and Root inputs cannot borrow another
   const resigned = await sign(payload, f.root.privateKey, f.root.kid, "fv-control+jws");
   assert.notEqual(original.signature, resigned.signature);
   const other = await pair();
-  await observed(async (counts) => {
-    const check = certificateVerifier(f.root.publicJwk, f.root.kid);
-    await check(original);
-    await check(clone(original));
-    assert.equal(counts.signatures, 1);
-    await check(resigned);
-    assert.equal(counts.signatures, 2);
-    const changedPayload = {
-      ...original,
-      payload: Buffer.from(canonical({ ...payload, keyEpoch: 2 })).toString("base64url"),
-    };
-    const changedHeader = {
-      ...original,
-      protected: Buffer.from(
-        Buffer.from(original.protected, "base64url").toString() + " ",
-      ).toString("base64url"),
-    };
-    const bad = { ...original, signature: flip(original.signature) };
-    for (const signed of [changedPayload, changedHeader, bad, bad])
-      await assert.rejects(() => check(signed));
-    assert.equal(counts.signatures, 6, "bad signatures are attempted again, never cached");
-    for (const signed of [
-      await sign(payload, f.root.privateKey, f.root.kid, "wrong-profile"),
-      await sign(payload, f.root.privateKey, other.kid, "fv-control+jws"),
-    ])
-      await assert.rejects(() => check(signed));
-    await assert.rejects(() => certificateVerifier(other.publicJwk, other.kid)(original));
-  });
+  for (const factory of [certificateVerifier, source.createRegistryCertificateVerifier])
+    await observed(async (counts) => {
+      const check = factory(f.root.publicJwk, f.root.kid);
+      await check(original);
+      await check(clone(original));
+      assert.equal(counts.signatures, 1);
+      await check(resigned);
+      assert.equal(counts.signatures, 2);
+      const changedPayload = {
+        ...original,
+        payload: Buffer.from(canonical({ ...payload, keyEpoch: 2 })).toString("base64url"),
+      };
+      const changedHeader = {
+        ...original,
+        protected: Buffer.from(
+          Buffer.from(original.protected, "base64url").toString() + " ",
+        ).toString("base64url"),
+      };
+      const bad = { ...original, signature: flip(original.signature) };
+      for (const signed of [changedPayload, changedHeader, bad, bad])
+        await assert.rejects(() => check(signed));
+      assert.equal(counts.signatures, 6, "bad signatures are attempted again, never cached");
+      for (const signed of [
+        await sign(payload, f.root.privateKey, f.root.kid, "wrong-profile"),
+        await sign(payload, f.root.privateKey, other.kid, "fv-control+jws"),
+      ])
+        await assert.rejects(() => check(signed));
+      await assert.rejects(() => factory(other.publicJwk, other.kid)(original));
+    });
   await assert.rejects(async () =>
     new source.Registry({ ...(await anchor(f)), rootJwk: other.publicJwk }).load(f.history, 1000),
   );
@@ -494,4 +503,197 @@ test("memo hits cannot suppress schema identity active revocation chain or epoch
   );
   assert.throws(() => r.cert(key, "device_sig", null, 1000));
   assert.equal(r.cert(replacement.payload.keyId, "device_sig", null, 1000).keyEpoch, 2);
+});
+
+test("portable fixed-profile verifier returns isolated static evidence and never authority", async () => {
+  const check = source.createRegistryCertificateVerifier(f.root.publicJwk, f.root.kid);
+  const signed = f.certificates[0].signed,
+    expected = f.certificates[0].payload;
+  await observed(async (counts) => {
+    const first = await check(signed);
+    assert.deepEqual(first, {
+      payload: expected,
+      publicKeyId: expected.keyId,
+      payloadDigest: await digest(expected),
+    });
+    first.payload.publicJwk.x = "forged";
+    first.payload.capabilities.push("forged");
+    const second = await check(clone(signed));
+    assert.deepEqual(second.payload, expected);
+    assert.equal(counts.signatures, 1);
+    assert.equal(counts.schemas.KeyCertificatePayload, 1);
+    assert.equal(counts.keyIds, 2);
+    assert.equal(counts.digests, 1);
+    const otherAttempt = source.createRegistryCertificateVerifier(f.root.publicJwk, f.root.kid);
+    assert.deepEqual(await otherAttempt(signed), second);
+    assert.equal(counts.signatures, 2);
+    assert.equal(counts.schemas.KeyCertificatePayload, 2);
+  });
+  assert.equal(typeof distribution.createRegistryCertificateVerifier, "function");
+  assert.deepEqual(
+    await distribution.createRegistryCertificateVerifier(f.root.publicJwk, f.root.kid)(signed),
+    await check(signed),
+  );
+  await assert.rejects(() =>
+    source.createRegistryCertificateVerifier(f.root.publicJwk, "wrong")(signed),
+  );
+});
+
+test("fixed certificate schema and complete curve checks fail every time without memo success", async () => {
+  const p = f.certificates[0].payload;
+  const missing = clone(p);
+  delete missing.principalId;
+  const candidates = [
+    missing,
+    { ...p, extra: true },
+    { ...p, publicJwk: { ...p.publicJwk, extra: true } },
+    { ...p, publicJwk: { ...p.publicJwk, d: "private" } },
+    { ...p, publicJwk: { ...p.publicJwk, x: "A".repeat(43), y: "A".repeat(43) } },
+    { ...p, publicJwk: { ...p.publicJwk, x: "malformed" } },
+  ];
+  for (const payload of candidates) {
+    const signed = await sign(payload, f.root.privateKey, f.root.kid, "fv-control+jws");
+    await observed(async (counts) => {
+      const check = source.createRegistryCertificateVerifier(f.root.publicJwk, f.root.kid);
+      for (let n = 0; n < 2; n++) await assert.rejects(() => check(signed));
+      assert.equal(counts.signatures, 2);
+      assert.equal(counts.schemas.KeyCertificatePayload, 2);
+    });
+  }
+  for (const root of [
+    { ...f.root.publicJwk, extra: true },
+    { ...f.root.publicJwk, d: "private" },
+    { ...f.root.publicJwk, x: "A".repeat(43), y: "A".repeat(43) },
+  ])
+    await assert.rejects(() =>
+      source.createRegistryCertificateVerifier(root, f.root.kid)(f.certificates[0].signed),
+    );
+});
+
+test("portable fixed verifier snapshots Root and signed bytes before its first await", async () => {
+  const root = clone(f.root.publicJwk),
+    mutable = clone(f.certificates[0].signed);
+  const changed = await sign(
+    { ...f.certificates[0].payload, keyEpoch: 2 },
+    f.root.privateKey,
+    f.root.kid,
+    "fv-control+jws",
+  );
+  const entered = defer(),
+    release = defer();
+  let block = true;
+  await observed(
+    async (counts) => {
+      const check = source.createRegistryCertificateVerifier(root, f.root.kid);
+      const pending = check(mutable);
+      await entered.promise;
+      Object.assign(mutable, changed);
+      root.x = "forged";
+      release.resolve();
+      assert.deepEqual((await pending).payload, f.certificates[0].payload);
+      assert.deepEqual((await check(f.certificates[0].signed)).payload, f.certificates[0].payload);
+      assert.equal(counts.signatures, 1);
+      assert.equal((await check(mutable)).payload.keyEpoch, 2);
+      assert.equal(counts.signatures, 2);
+    },
+    {
+      importKey: async () => {
+        if (block) {
+          block = false;
+          entered.resolve();
+          await release.promise;
+        }
+      },
+    },
+  );
+});
+
+test("fixed verifier item capacity falls back with full static checks", async () => {
+  const signed = [];
+  for (let n = 0; n < 129; n++)
+    signed.push(
+      await sign(
+        { ...f.certificates[0].payload, certificateId: `bounded_${n}` },
+        f.root.privateKey,
+        f.root.kid,
+        "fv-control+jws",
+      ),
+    );
+  await observed(async (counts) => {
+    const check = source.createRegistryCertificateVerifier(f.root.publicJwk, f.root.kid);
+    for (const item of signed) await check(item);
+    await check(signed[0]);
+    assert.equal(counts.signatures, 129);
+    assert.equal(counts.schemas.KeyCertificatePayload, 129);
+    await check(signed.at(-1));
+    assert.equal(counts.signatures, 130);
+    assert.equal(counts.schemas.KeyCertificatePayload, 130);
+  });
+});
+
+test("Registry load isolates mutable rows across asynchronous static verification", async () => {
+  const history = clone(f.history),
+    pin = await anchor(f),
+    entered = defer(),
+    release = defer();
+  let block = true,
+    checkedPrivateBundle;
+  await observed(
+    async () => {
+      const pending = new source.Registry(pin).load(history, 1000);
+      await entered.promise;
+      assert.ok(checkedPrivateBundle, "the actual private bundle passed schema validation");
+      assert.notEqual(checkedPrivateBundle, history[0]);
+      assert.notEqual(checkedPrivateBundle.entries[0], history[0].entries[0]);
+      history[0].entries[0].active = false;
+      history[0].entries[0].certificate.payload = "forged";
+      assert.equal(checkedPrivateBundle.entries[0].active, true);
+      release.resolve();
+      const loaded = await pending;
+      assert.equal(
+        loaded.cert(f.certificates[0].payload.keyId, "device_sig", null, 1000).active,
+        true,
+      );
+    },
+    {
+      schema: (name, value) => {
+        if (
+          name === "RegistryBundle" &&
+          value !== history[0] &&
+          value.checkpoint.payload === history[0].checkpoint.payload
+        )
+          checkedPrivateBundle = value;
+      },
+      verify: async () => {
+        if (block) {
+          block = false;
+          entered.resolve();
+          await release.promise;
+        }
+      },
+    },
+  );
+});
+
+test("static evidence does not replace each certificate's dynamic identity and role decisions", async () => {
+  const small = await fixture(),
+    first = small.history[0];
+  const p = small.certificates[0].payload;
+  for (const change of [
+    { ownerSubject: "foreign_owner" },
+    { vaultId: "foreign_vault" },
+    { issuerKeyId: small.certificates[1].payload.keyId },
+    { keyId: small.certificates[1].payload.keyId },
+    { expiresAt: p.notBefore },
+    { connectionId: "foreign_connection" },
+    { capabilities: ["result_write"] },
+    { role: "root_sig", capabilities: [] },
+  ]) {
+    const payload = { ...p, ...change };
+    const signed = await sign(payload, small.root.privateKey, small.root.kid, "fv-control+jws");
+    const bad = await bundle(small, [{ payload, signed }, ...small.certificates.slice(1)], first);
+    await assert.rejects(async () =>
+      new source.Registry(await anchor(small, [first, bad])).load([first, bad], 1000),
+    );
+  }
 });

@@ -54,6 +54,15 @@ export function seal(
   recipients: Record<string, PublicJson>,
   key: CryptoKey,
 ): Promise<PublicJson>;
+/** Create once per history verification; discard after the attempt. No authority is cached. */
+export function createRegistryCertificateVerifier(
+  root: PublicJson,
+  expectedRootKeyId: string,
+): (signed: PublicJson) => Promise<{
+  payload: PublicJson;
+  publicKeyId: string;
+  payloadDigest: string;
+}>;
 export class Registry {
   constructor(anchor: PublicJson);
   readonly anchor: PublicJson;

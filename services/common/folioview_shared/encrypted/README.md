@@ -93,14 +93,21 @@ persist their last checkpoint/root pin; a server key URL is not a substitute.
 
 When verifying consecutive history bundles in one operation, callers may create
 one `authority.RegistryCertificateMemo` and pass it as
-`verify_registry(..., signature_memo=memo)`. It reuses only successful signature
-verification of the exact complete certificate JWS under the exact Root public
-key, type and expected key ID. It stores isolated immutable payloads, at most
-128 entries and 1 MiB of encoded keys/payloads; beyond either limit verification
-continues without adding entries. Every checkpoint signature and every schema,
-identity, time, active/revoked flag, epoch and history relationship is still
-checked. Discard the memo after that operation; do not retain it across requests
-or use it to cache a current registry, permission or revocation decision.
+`verify_registry(..., signature_memo=memo)`. Successful static certificate signature,
+closed schema and complete public P-256 key/thumbprint checks share one entry,
+keyed by the exact Root public key, type, expected key ID and complete signed bytes.
+Key derivation and verification use the same private deep-copied Root/JWS inputs,
+including when another thread changes the original dictionaries during crypto.
+Hits return independent copies of immutable private payloads. At most 128 entries
+and 1 MiB of encoded keys, payloads and static metadata are retained; beyond either
+limit full validation continues without adding evidence. Concurrent successes cannot
+exceed either bound. Pending work and failed static validation are not retained.
+Every checkpoint signature/schema and every entry's identity, role/capabilities,
+issuer/key ID, active/revoked flag, epochs and prior-history relationships still run.
+Certificate selection always checks current time and authorization. Discard the
+memo after the operation; do not retain it across requests or use it to cache a
+current registry, permission or revocation decision. No second payload-canonical
+key is constructed for a static hit.
 
 Device signatures may authorize only the named task versions, execution epoch,
 resource versions, agent keys, capabilities, expiry and owner writeback recipients.
