@@ -51,20 +51,52 @@ const response = (preferences, status = 200, version = preferences === null ? 0 
   json: async () => ({ preferences, version }),
 });
 const lib = compile("../lib/preferences.ts", {});
+const themeKey = "folioview.theme.v1";
 
-function mountPreferences(initialOwner = null) {
-  let auth = { status: initialOwner ? "authenticated" : "anonymous", sessionKey: initialOwner };
+function mountPreferences(
+  initialOwner = null,
+  { hint = null, dark = false, status, storageBlocked = false } = {},
+) {
+  let auth = {
+    status: status ?? (initialOwner ? "authenticated" : "anonymous"),
+    sessionKey: initialOwner,
+  };
   const cells = [];
   const pendingEffects = [];
   const requests = [];
   const timers = new Map();
   const mediaListeners = new Set();
   const mediaQuery = {
-    matches: false,
+    matches: dark,
     addEventListener: (_type, listener) => mediaListeners.add(listener),
     removeEventListener: (_type, listener) => mediaListeners.delete(listener),
   };
   const document = { title: "", documentElement: { dataset: {}, style: {}, lang: "en" } };
+  const storage = new Map(hint === null ? [] : [[themeKey, hint]]);
+  const localStorage = {
+    getItem(key) {
+      assert.equal(key, themeKey, "only the visual theme hint may be read");
+      if (storageBlocked) throw new Error("Storage disabled");
+      return storage.get(key) ?? null;
+    },
+    setItem(key, value) {
+      assert.equal(key, themeKey, "account preferences and private data must not be cached");
+      assert.ok(["light", "dark", "system"].includes(value));
+      if (storageBlocked) throw new Error("Storage disabled");
+      storage.set(key, value);
+    },
+    removeItem(key) {
+      assert.equal(key, themeKey);
+      if (storageBlocked) throw new Error("Storage disabled");
+      storage.delete(key);
+    },
+  };
+  const theme = compile("../lib/theme-bootstrap.ts", {}, { window: { localStorage } });
+  vm.runInNewContext(theme.THEME_BOOTSTRAP_SCRIPT, {
+    document,
+    localStorage,
+    matchMedia: () => mediaQuery,
+  });
   let index = 0;
   let nextTimer = 0;
   const changed = (before, after) =>
@@ -112,6 +144,7 @@ function mountPreferences(initialOwner = null) {
       }
     },
   };
+  react.useLayoutEffect = react.useEffect;
   const { PreferencesProvider } = compile(
     "../components/PreferencesProvider.tsx",
     {
@@ -120,6 +153,7 @@ function mountPreferences(initialOwner = null) {
       "next-intl": { NextIntlClientProvider: "intl-provider" },
       "@/components/AuthProvider": { useAuth: () => ({ ...auth, requestPrivate }) },
       "@/lib/preferences": lib,
+      "@/lib/theme-bootstrap": theme,
       "@/messages/en.json": { settings: { title: "Settings" } },
       "@/messages/zh.json": { settings: { title: "设置" } },
     },
@@ -128,9 +162,7 @@ function mountPreferences(initialOwner = null) {
       document,
       window: {
         matchMedia: () => mediaQuery,
-        get localStorage() {
-          throw new Error("Preferences must not use browser storage");
-        },
+        localStorage,
         get sessionStorage() {
           throw new Error("Preferences must not use browser storage");
         },
@@ -154,6 +186,7 @@ function mountPreferences(initialOwner = null) {
   return {
     requests,
     document,
+    storage,
     render: (flush = true) => {
       index = 0;
       const tree = PreferencesProvider({ children: "page" });
@@ -209,6 +242,119 @@ test("guest theme and language update in memory, follow the OS, and reset on a f
   assert.equal(fresh.render().preferences.language, "en");
   assert.equal(fresh.render().preferences.theme, "light");
   assert.equal(fresh.render().preferences.defaultChartRange, "1m");
+});
+
+test("system dark applies before hydration and survives delayed authentication and Config", async () => {
+  const app = mountPreferences(null, { dark: true, status: "loading" });
+  assert.equal(
+    app.document.documentElement.dataset.theme,
+    "dark",
+    "head bootstrap runs before React",
+  );
+  for (const status of ["loading", "verifying"]) {
+    app.account(null, status);
+    app.render();
+    assert.equal(app.document.documentElement.dataset.theme, "dark");
+    assert.equal(app.document.documentElement.style.colorScheme, "dark");
+  }
+  app.account("a:1");
+  app.render();
+  app.render();
+  assert.equal(
+    app.document.documentElement.dataset.theme,
+    "dark",
+    "no default-light overwrite while Config waits",
+  );
+  assert.equal(app.requests.length, 1);
+  assert.equal(app.storage.size, 0, "an unknown account preference is not saved");
+  app.requests[0].result.resolve(response(prefs()));
+  await settle();
+  app.render();
+  assert.equal(app.document.documentElement.dataset.theme, "dark");
+  assert.equal(app.storage.get(themeKey), "system");
+  app.systemTheme(false);
+  app.render();
+  assert.equal(app.document.documentElement.dataset.theme, "light");
+  assert.equal(
+    app.storage.get(themeKey),
+    "system",
+    "store the mode, not yesterday's resolved color",
+  );
+});
+
+test("confirmed explicit theme hints beat the OS until authoritative Config loads", async () => {
+  for (const hint of ["light", "dark"]) {
+    const app = mountPreferences("a:1", { hint, dark: hint === "light" });
+    assert.equal(app.document.documentElement.dataset.theme, hint);
+    app.render();
+    app.render();
+    assert.equal(app.document.documentElement.dataset.theme, hint);
+    const saved = hint === "light" ? "dark" : "light";
+    app.requests[0].result.resolve(response(prefs({ theme: saved })));
+    await settle();
+    app.render();
+    assert.equal(app.document.documentElement.dataset.theme, saved);
+    assert.equal(app.storage.get(themeKey), saved);
+    assert.equal(app.requests.length, 1, "display hints never trigger a Config write");
+  }
+});
+
+test("invalid or blocked theme storage cannot break first paint or preference loading", async () => {
+  for (const options of [{ hint: "invalid" }, { hint: "light", storageBlocked: true }]) {
+    const app = mountPreferences("a:1", { ...options, dark: true });
+    assert.equal(app.document.documentElement.dataset.theme, "dark");
+    app.render();
+    app.requests[0].result.resolve(response(prefs()));
+    await settle();
+    app.render();
+    assert.equal(app.document.documentElement.dataset.theme, "dark");
+    assert.equal(app.render().error, null);
+  }
+});
+
+test("unconfirmed edits do not replace the startup hint, and account changes and logout clear it", async () => {
+  const app = mountPreferences("a:1", { dark: true });
+  app.render();
+  app.requests[0].result.resolve(response(prefs()));
+  await settle();
+  app.render().updatePreferences({ theme: "light" });
+  app.render();
+  assert.equal(app.document.documentElement.dataset.theme, "light");
+  assert.equal(app.storage.get(themeKey), "system");
+  app.account("b:2");
+  app.render();
+  assert.equal(app.storage.size, 0);
+  app.requests[1].result.resolve(response(prefs({ theme: "dark" })));
+  await settle();
+  app.render();
+  assert.equal(app.storage.get(themeKey), "dark");
+  app.account(null, "signing-out");
+  app.render();
+  assert.equal(app.storage.size, 0);
+  assert.equal(app.document.documentElement.dataset.theme, "light");
+});
+
+test("the root layout places the dependency-free theme bootstrap in the head before body content", () => {
+  const theme = compile("../lib/theme-bootstrap.ts", {});
+  const jsx = (type, props) => ({ type, props });
+  const { default: RootLayout } = compile("../app/layout.tsx", {
+    "react/jsx-runtime": { jsx, jsxs: jsx },
+    "@/components/AuthProvider": {},
+    "@/components/PreferencesProvider": {},
+    "@/components/CurrencyPreferencesProvider": {},
+    "@/lib/theme-bootstrap": theme,
+    "./globals.css": {},
+  });
+  const tree = RootLayout({ children: "page" });
+  assert.equal(tree.props.suppressHydrationWarning, true);
+  const [head, body] = tree.props.children;
+  assert.equal(head.type, "head");
+  assert.equal(body.type, "body");
+  assert.equal(head.props.children.type, "script");
+  assert.equal(
+    head.props.children.props.dangerouslySetInnerHTML.__html,
+    theme.THEME_BOOTSTRAP_SCRIPT,
+  );
 });
 
 test("saved preferences restore before editing, then rapid edits produce one confirmed JSON save", async () => {

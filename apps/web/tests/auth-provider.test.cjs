@@ -4,6 +4,14 @@ const cacheContracts = require("./resource-library-helpers.cjs").compile(
 const currencyContracts = require("./resource-library-helpers.cjs").compile(
   "../lib/currency-preferences.ts",
 );
+const fxContracts = require("./resource-library-helpers.cjs").compile("../lib/fx-follows.ts", {
+  "./currency-preferences": currencyContracts,
+});
+const { FxFollowStore } = require("./resource-library-helpers.cjs").compile(
+  "../lib/fx-follows-store.ts",
+  { "./fx-follows": fxContracts },
+  { setTimeout, clearTimeout },
+);
 const assert = require("node:assert/strict");
 const { readFileSync } = require("node:fs");
 const path = require("node:path");
@@ -147,6 +155,7 @@ function mountProvider({
   const module = { exports: {} };
   const imports = {
     "@/lib/currency-preferences": currencyContracts,
+    "@/lib/fx-follows": fxContracts,
     react,
     "react/jsx-runtime": { jsx: (type, props) => ({ type, props }) },
     "firebase/auth": firebase,
@@ -916,6 +925,130 @@ test("currency preferences use their separate exact Config endpoint and closed C
     harness.actions.requestPrivate("config", "/api/v2/preferences/currency?owner=b", "a:1"),
   );
   assert.equal(harness.requests.length, 2);
+});
+
+test("FX follows load and save through the actual authenticated User request boundary", async () => {
+  let remote = {
+    contractVersion: "folioview.valuation.v1",
+    profile: "folioview.fx-preferences.v1",
+    preferences: null,
+    version: 0,
+  };
+  const harness = mountProvider({
+    env: { NEXT_PUBLIC_USER_API_BASE_URL: "https://user.example.test" },
+    fetchProfile: async (url, options) => {
+      if (url.endsWith("/api/v1/me")) return profileResponse("a");
+      assert.equal(url, "https://user.example.test/api/v1/fx-follows");
+      if (options.method === "PUT") {
+        const update = JSON.parse(options.body);
+        assert.equal(update.expectedVersion, remote.version);
+        remote = { ...remote, preferences: update.preferences, version: remote.version + 1 };
+      }
+      return new Response(JSON.stringify(remote), {
+        headers: { "Content-Type": "application/json" },
+      });
+    },
+  });
+  harness.emitUser(user("a"));
+  await settle();
+  const store = new FxFollowStore(
+    "a:1",
+    (path, options) => harness.actions.requestPrivate("user", path, "a:1", options),
+    () => {},
+  );
+  try {
+    store.load();
+    await settle();
+    assert.equal(
+      store.state.error,
+      false,
+      "initial FX read must reach User instead of local refusal",
+    );
+    assert.equal(store.state.snapshot.version, 0);
+    store.change({ kind: "add", pair: { base: "USD", quote: "CAD" }, context: null });
+    await settle();
+    assert.equal(store.state.error, false);
+    assert.equal(store.state.uncertain, false);
+    assert.equal(store.state.snapshot.version, 1);
+    assert.equal(store.state.snapshot.preferences.pairs[0].quote, "CAD");
+    assert.deepEqual(
+      harness.requests.slice(1).map(([, options]) => options.method),
+      ["GET", "PUT"],
+    );
+    for (const [, options] of harness.requests.slice(1)) {
+      assert.equal(options.headers.Authorization, "Bearer test-token-a");
+      assert.equal(options.cache, "no-store");
+      assert.equal(options.credentials, "omit");
+      assert.equal(options.redirect, "error");
+    }
+    harness.emitUser(user("b"));
+    await settle();
+    const count = harness.requests.length;
+    await assert.rejects(
+      harness.actions.requestPrivate("user", "/api/v1/fx-follows", "a:1"),
+      /account session changed/,
+    );
+    assert.equal(harness.requests.length, count);
+  } finally {
+    store.dispose();
+    harness.unmount();
+  }
+});
+
+test("FX follows reject alternate routes, methods and invalid CAS bodies before token lookup", async () => {
+  const harness = mountProvider();
+  let tokenReads = 0;
+  harness.emitUser({ uid: "a", getIdToken: async () => (++tokenReads, "test-token-a") });
+  await settle();
+  const body = {
+    expectedVersion: 0,
+    preferences: { pairs: [{ base: "USD", quote: "CAD" }], suppressedDefault: null },
+  };
+  const reads = tokenReads;
+  for (const [service, path] of [
+    ["config", "/api/v1/fx-follows"],
+    ["user", "/api/v1/fx-follows/"],
+    ["user", "/api/v1/fx-follows?owner=b"],
+    ["user", "https://other.example.test/api/v1/fx-follows"],
+  ])
+    await assert.rejects(harness.actions.requestPrivate(service, path, "a:1"));
+  for (const options of [
+    { method: "DELETE" },
+    { method: "POST", json: body },
+    { method: "PUT" },
+    { method: "GET", json: body },
+    { headers: { "X-User-Id": "b" } },
+    ...[
+      { ...body, owner: "b" },
+      { ...body, expectedVersion: -1 },
+      { ...body, expectedVersion: 0.5 },
+      { ...body, expectedVersion: Number.MAX_SAFE_INTEGER + 1 },
+      { ...body, preferences: null },
+      { ...body, preferences: { ...body.preferences, owner: "b" } },
+      { ...body, preferences: { ...body.preferences, pairs: [{ base: "USD", quote: "USD" }] } },
+      { ...body, preferences: { ...body.preferences, pairs: [{ base: "USD", quote: "BTC" }] } },
+      {
+        ...body,
+        preferences: {
+          ...body.preferences,
+          pairs: [body.preferences.pairs[0], body.preferences.pairs[0]],
+        },
+      },
+      {
+        ...body,
+        preferences: {
+          ...body.preferences,
+          suppressedDefault: { currency: "USD", currencyGeneration: 1 },
+        },
+      },
+    ].map((json) => ({ method: "PUT", json })),
+  ])
+    await assert.rejects(
+      harness.actions.requestPrivate("user", "/api/v1/fx-follows", "a:1", options),
+    );
+  assert.equal(tokenReads, reads);
+  assert.equal(harness.requests.length, 1);
+  harness.unmount();
 });
 
 test("aborting a pending settings token prevents its JSON write after the deadline", async () => {
