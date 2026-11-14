@@ -13,9 +13,12 @@ from folioview_shared.encrypted.provider_connections import PROVIDER_CONNECTION_
 from folioview_shared.http import PrivateRoute
 
 from .agent_credential_routes import agent_owned_enabled
+from .agent_credential_routes import capabilities as credential_capabilities
 from .agent_rollout import uid_allowed
 from .api import Owner, _invoke, body
+from .native_transport_routes import capabilities as account_capabilities
 from .oauth_config import OAuthConfig
+from .persistent_routes import capabilities as agent_capabilities
 from .persistent_routes import control_transport
 from .provider_connections import ProviderConnectionService
 from .store import get_store
@@ -52,13 +55,28 @@ def capabilities(request: Request, user: Owner):
     }
 
 
-@router.get("/{vault}/summary")
-async def summary(vault: str, request: Request, user: Owner, service: Service):
+async def _empty_read(request):
     _invoke(lambda: control_transport(request))
     async with asyncio.timeout(5):
         async for chunk in request.stream():
             if chunk:
                 raise HTTPException(400, {"code": "malformed_request"})
+
+
+@router.get("/{vault}/display")
+async def display(vault: str, request: Request, user: Owner, service: Service):
+    await _empty_read(request)
+    flags = {
+        "agents": agent_capabilities(request, user),
+        "account": account_capabilities(request, user),
+        "credentials": credential_capabilities(request, user),
+    }
+    return await run_in_threadpool(_invoke, lambda: service.display(user.uid, vault, flags))
+
+
+@router.get("/{vault}/summary")
+async def summary(vault: str, request: Request, user: Owner, service: Service):
+    await _empty_read(request)
     return await run_in_threadpool(_invoke, lambda: service.summary(user.uid, vault))
 
 

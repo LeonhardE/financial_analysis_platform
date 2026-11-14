@@ -10,8 +10,11 @@ from unittest.mock import patch
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from app.agent_credential_routes import router as credentials_router
 from app.api import require_owner
 from app.errors import HubErrors
+from app.native_transport_routes import owner_router as account_router
+from app.persistent_routes import router as agents_router
 from app.provider_connection_routes import get_provider_service, router
 from folioview_shared.encrypted.constants import CONTRACT_VERSION
 from folioview_shared.http import PrivateResponseHeaders
@@ -21,6 +24,9 @@ class ProviderConnectionRouteTests(unittest.TestCase):
     def setUp(self):
         app = FastAPI()
         app.include_router(router)
+        app.include_router(credentials_router)
+        app.include_router(account_router)
+        app.include_router(agents_router)
         app.add_middleware(HubErrors)
         app.add_middleware(PrivateResponseHeaders)
         app.dependency_overrides[require_owner] = lambda: SimpleNamespace(uid="synthetic_owner")
@@ -31,6 +37,7 @@ class ProviderConnectionRouteTests(unittest.TestCase):
             return {"kind": kind}
 
         app.dependency_overrides[get_provider_service] = lambda: SimpleNamespace(
+            display=lambda *args: call("display", *args),
             summary=lambda *args: call("summary", *args),
             state=lambda *args: call("state", *args),
             receipt=lambda *args: call("receipt", *args),
@@ -42,6 +49,41 @@ class ProviderConnectionRouteTests(unittest.TestCase):
         self.write_headers = {**self.headers, "Idempotency-Key": self.operation}
         self.path = "/api/v3/provider-connections/vault_A/muse"
         self.body = {"contractVersion": CONTRACT_VERSION, "command": {"approval": {}}}
+
+    def test_display_reuses_all_three_original_owner_capability_projections(self):
+        path = "/api/v3/provider-connections/vault_A/display"
+        with patch.dict(os.environ, {"HUB_PROVIDER_CONNECTION_SLOTS_ENABLED": "0"}):
+            expected = {
+                "agents": self.client.get(
+                    "/api/v2/persistent-agents/capabilities", headers=self.headers
+                ).json(),
+                "account": self.client.get(
+                    "/api/v2/persistent-account-authorizations/capabilities", headers=self.headers
+                ).json(),
+                "credentials": self.client.get(
+                    "/api/v3/agent-credentials/capabilities", headers=self.headers
+                ).json(),
+            }
+            response = self.client.get(path, headers=self.headers)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.headers["cache-control"], "no-store")
+        self.assertEqual(self.calls, [("display", ("synthetic_owner", "vault_A", expected))])
+
+    def test_display_rejects_queries_bodies_and_control_headers_before_service_read(self):
+        path = "/api/v3/provider-connections/vault_A/display"
+        for suffix, headers in (
+            ("?owner=other", self.headers),
+            ("", {}),
+            ("", {**self.headers, "X-FolioView-Delegation": "x"}),
+            ("", {**self.headers, "X-FolioView-Author-Key": "x"}),
+            ("", {**self.headers, "Idempotency-Key": self.operation}),
+        ):
+            self.assertEqual(self.client.get(path + suffix, headers=headers).status_code, 400)
+        self.assertEqual(
+            self.client.request("GET", path, headers=self.headers, json={}).status_code, 400
+        )
+        self.assertEqual(self.client.post(path, headers=self.headers).status_code, 405)
+        self.assertEqual(self.calls, [])
 
     def test_summary_is_owner_only_read_transport_and_survives_disabled_write_gate(self):
         path = "/api/v3/provider-connections/vault_A/summary"

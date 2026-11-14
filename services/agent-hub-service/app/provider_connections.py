@@ -26,13 +26,15 @@ from folioview_shared.encrypted.schema import validate_schema
 from folioview_shared.identity import owner_key
 
 from .agent_credentials import AgentCredentialService
+from .fences import fence_path
 from .native_transport import NativeConnectionOwnerService
 from .oauth import MAX_CONNECTIONS
 from .persistent_agents import identity_path, linked_connection, snapshot, stored_identity
 from .store import StoreUnavailable, document_path
-from .vaults import _current, identifier
+from .vaults import _current, _response, identifier
 
 SUMMARY_PROFILE = "folioview.provider-connection-summary.v1"
+DISPLAY_PROFILE = "folioview.provider-connection-display.v1"
 
 
 def _provider_projection(row, records, blockers):
@@ -224,6 +226,12 @@ class ProviderConnectionService(AgentCredentialService):
         return _provider_projection(row, records, blockers)
 
     def summary(self, uid, vault):
+        return self._snapshot(uid, vault)
+
+    def display(self, uid, vault, capabilities):
+        return self._snapshot(uid, vault, capabilities=capabilities)
+
+    def _snapshot(self, uid, vault, *, capabilities=None):
         """One read-only transaction; no task/content scan or cross-request cache."""
         identifier(vault)
         owner = owner_key(uid)
@@ -239,7 +247,7 @@ class ProviderConnectionService(AgentCredentialService):
                     slot_path(owner, "chatgpt"),
                 ],
             )
-            _current(unit, owner, self.now(), vault)
+            vault_row, _ = _current(unit, owner, self.now(), vault)
             index = native._owner(unit, uid)
             ids = index["connectionIds"]
             for connection in ids:
@@ -248,7 +256,12 @@ class ProviderConnectionService(AgentCredentialService):
                 raise StoreUnavailable
             unit = _ReadSnapshot(
                 unit,
-                [document_path("hub_oauth_connections", owner, connection) for connection in ids],
+                [document_path("hub_oauth_connections", owner, connection) for connection in ids]
+                + (
+                    [fence_path(owner, source["resourceRef"]) for source in vault_row["sources"]]
+                    if capabilities is not None
+                    else []
+                ),
             )
             slots = {
                 provider: stored_slot(unit, owner, vault, provider)
@@ -326,7 +339,27 @@ class ProviderConnectionService(AgentCredentialService):
                 "credentials": credentials,
             }
             check_read_response(result)
-            return result
+            if capabilities is None:
+                return result
+            combined = {
+                "contractVersion": CONTRACT_VERSION,
+                "profile": DISPLAY_PROFILE,
+                "vaultId": vault,
+                "mode": "complete",
+                "vaultResponse": _response(vault_row, unit),
+                "summary": result,
+                "capabilities": capabilities,
+            }
+            try:
+                check_read_response(combined)
+            except ContractError as error:
+                if error.code != "payload_too_large":
+                    raise
+                # Legal large histories/credentials keep their existing separate
+                # bounded reads. This is a transport hint, never partial success.
+                combined.update(mode="separate", vaultResponse=None, summary=None)
+                check_read_response(combined)
+            return combined
 
         return self.store.transact(read)
 
