@@ -22,18 +22,20 @@ test("display LRU enforces entry/byte bounds, touches on read and refuses oversi
   assert.equal(c.bytes, 0);
 });
 
-test("a display session owns all three bounded caches and scope transitions synchronously clear them", () => {
+test("a display session owns all bounded caches and scope transitions synchronously clear them", () => {
   const c = new WorkspaceDisplayCache();
   c.bind("owner_A:vault_A:1");
   for (let n = 0; n < 40; n++) c.taskNames.set(String(n), "PRIVATE_NAME");
   for (let n = 0; n < 12; n++) c.reports.set(String(n), { title: "PRIVATE_REPORT" });
   for (let n = 0; n < 3; n++) c.holdings.set(String(n), { symbol: "PRIVATE_TICKER" });
+  for (let n = 0; n < 3; n++) c.valuations.set(String(n), { amount: "PRIVATE_VALUE" });
+  assert.equal(c.valuations.size, 2);
   assert.deepEqual([c.taskNames.size, c.reports.size, c.holdings.size], [32, 10, 2]);
   c.bind("owner_A:vault_A:1");
   assert.equal(c.reports.size, 10);
   for (const scope of ["owner_A:vault_A:2", "owner_A:vault_B:2", "owner_B:vault_B:2", null]) {
     c.bind(scope);
-    assert.equal(c.taskNames.size + c.reports.size + c.holdings.size, 0);
+    assert.equal(c.taskNames.size + c.reports.size + c.holdings.size + c.valuations.size, 0);
     c.reports.set("a", "private");
   }
   c.clear();

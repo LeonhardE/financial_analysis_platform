@@ -27,6 +27,53 @@ function render(model, locale = "en", managementOnly = false) {
       "../lib/holdings-facts.ts",
     ),
     "./HoldingsEditor": { __esModule: true, default: () => null },
+    "./HoldingsValuation": require("./resource-library-helpers.cjs").compile(
+      "../components/HoldingsValuation.tsx",
+      {
+        react: React,
+        "react/jsx-runtime": jsxRuntime,
+        "next-intl": {
+          useTranslations: (namespace) => createTranslator({ locale, messages, namespace }),
+          useLocale: () => locale,
+        },
+        "./CurrencyPreferencesProvider": {
+          useCurrencyPreferences: () => ({
+            loaded: true,
+            error: null,
+            defaultPortfolioCurrency: "USD",
+          }),
+        },
+        "./useHoldingsValuation": {
+          useHoldingsValuation: (value) => ({
+            facts: value.content
+              ? require("./resource-library-helpers.cjs")
+                  .compile("../lib/holdings-facts.ts")
+                  .asFacts(value.content)
+              : null,
+            prices: null,
+            valuation: null,
+            options: ["USD"],
+            currency: "USD",
+            isDefault: true,
+            busy: false,
+            error: false,
+            progress: null,
+            select() {},
+            reset() {},
+            refresh() {},
+          }),
+        },
+        "@/lib/holdings-facts": require("./resource-library-helpers.cjs").compile(
+          "../lib/holdings-facts.ts",
+        ),
+        "@/lib/holdings-valuation": require("./resource-library-helpers.cjs").compile(
+          "../lib/holdings-valuation.ts",
+          { "../../../packages/encrypted-workspace/valuation/dist/index.mjs": {} },
+        ),
+        "./HoldingsValuation.module.css": { __esModule: true, default: {} },
+      },
+    ),
+    "next/dynamic": { __esModule: true, default: () => imports["./HoldingsValuation"].default },
     react: React,
     "./PasskeyHelp": { PasskeyHelp: () => null },
     "./ResourceLibrary": {

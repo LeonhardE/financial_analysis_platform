@@ -74,7 +74,8 @@ display caches; reentry revalidates through the current Worker. Task names are r
 exact verified task version/fingerprint. A changed background head makes the old editor read-only.
 
 One owner workspace shares bounded LRUs:32 task names,100 legacy report heads,10 report payloads
-with a16MiB accounted budget,and2 holdings payloads with a32MiB budget. Accounting includes UTF-8,
+with a16MiB accounted budget,and2 holdings payloads with a32MiB budget. Two source-scoped valuation
+sets share a4MiB accounted budget and are cleared by the same private-session boundary. Accounting includes UTF-8,
 UTF-16 and conservative object/key overhead; it is not a browser heap measurement. No decrypted
 content or keys are persisted by these caches. Existing encrypted drafts/outboxes remain unchanged.
 Reports require fresh authority and exact authenticated record/evidence equality before skipping
@@ -206,6 +207,45 @@ Legacy payload readers remain supported. The additive profile uses the typed P2 
 and the typed P1 owner publication path supported by SDK 1.3.0. Updating a saved position does not
 automatically reshare it with an Agent. Native Agent hosts must be reviewed and upgraded before
 acceptance with new-profile inputs; deployment alone does not upgrade those hosts.
+
+### Holdings valuation and allocation
+
+Saved holdings show securities value, item values and weights in the default portfolio currency.
+The selector offers exactly that default followed by native position currencies in the selected
+source. A temporary choice never changes the saved facts or account setting; changing the default
+or source resets an invalid choice. Stock-market quote pages keep their native currency.
+
+Public price requests contain only canonical instruments or currency pairs, without holdings
+quantities, account/source identifiers, unit costs or credentials. Quote cache reads use batches of
+50 and at most two concurrent transports. One refresh pass is bounded to four groups of four
+instruments, within the producer's existing quotas; large/cold sources may remain partially priced.
+Explicit refresh checks the server cache again and can update remaining missing rows. There is no
+unbounded refresh loop, new worker, background timer, higher quota or paid subscription.
+
+One Bank of Canada daily-reference observation supplies CAD legs for native/default currencies.
+All display crosses are derived locally from that observation. Changing display currency therefore
+does not reread ciphertext or fetch another FX date. Exact decimal arithmetic calculates quantity,
+price, conversion, portfolio totals and the common allocation denominator; rounding happens only
+for display. Native per-unit prices and recorded costs retain their original currency and precision.
+
+Missing quotes/FX remain unknown and show a priced subtotal with N/M coverage. Weights and both
+charts use that same securities subtotal; reported cash, including signed or unknown balances, is
+separate. Older quotes/reference rates are identified, and failed refreshes retain dated values
+with an error rather than replacing them with zero. Source dates and attribution live in a closed
+details section. Daily reference FX is not advertised as real-time or as an execution rate.
+
+The animated allocation dialog switches between accessible pie/bar views without network work.
+Dense legends group the tail after eleven positions while the table retains every position. Tiny,
+zero and unpriced rows have explicit displays. Narrow tables scroll internally with the security
+column retained. The valuation module loads only after the saved private view is visited; leaving
+the resource page aborts pending price requests while retaining the view and scoped memory.
+
+Revisits reuse bounded owner/unlock/source-version memory and valid temporary currency selections.
+Price reads are revalidated after60 seconds, with explicit refresh available immediately.
+Lock, hidden-document clearing, logout and owner/vault/generation changes
+drop these display sets. They grant no write authority and never reshare Agent inputs. This is a
+code/cache policy, not proof of a production latency target; cold/warm/provider timing requires
+the separately authorized acceptance window.
 
 ## Private agent Inbox
 
