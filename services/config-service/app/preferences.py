@@ -17,6 +17,13 @@ from folioview_shared.auth import CurrentUser, require_google_user
 from folioview_shared.firestore import BoundedTransaction
 from folioview_shared.http import PrivateRoute
 from folioview_shared.identity import owner_key
+from folioview_shared.valuation import (
+    CURRENCY_PROFILE,
+    VALUATION_CONTRACT,
+    ValuationError,
+    currency_snapshot,
+    next_currency_snapshot,
+)
 
 UNAVAILABLE = "Your preferences are temporarily unavailable. Please try again later."
 MAX_BODY_BYTES = 1024
@@ -91,7 +98,47 @@ def stored_document(snapshot: dict) -> dict:
     return {"version": 1, "revision": snapshot["version"], "preferences": snapshot["preferences"]}
 
 
+def empty_currency() -> dict:
+    return {
+        "contractVersion": VALUATION_CONTRACT,
+        "profile": CURRENCY_PROFILE,
+        "preferences": None,
+        "version": 0,
+        "currencyGeneration": 0,
+    }
+
+
+def checked_currency_record(value) -> dict:
+    try:
+        result = currency_snapshot(value)
+        if result["preferences"] is None:
+            raise ValuationError
+        return result
+    except ValuationError:
+        raise PreferencesUnavailable from None
+
+
+def currency_owner(uid: str) -> str:
+    # Same existing collection/table, distinct namespace from the frozen v1 key.
+    return "currency.v2:" + owner_key(uid)
+
+
+def next_currency(current, update):
+    try:
+        return next_currency_snapshot(current, update)
+    except ValuationError as error:
+        if error.code == "version_conflict":
+            raise PreferencesConflict from None
+        raise PreferencesUnavailable from None
+
+
 class PreferencesStore:
+    def get_currency(self, uid: str) -> dict:
+        raise NotImplementedError
+
+    def save_currency(self, uid: str, update: dict) -> dict:
+        raise NotImplementedError
+
     def get(self, uid: str) -> dict:
         raise NotImplementedError
 
@@ -146,6 +193,27 @@ class SQLitePreferencesStore(PreferencesStore):
             )
             return result
 
+    @staticmethod
+    def read_currency(db, owner: str) -> dict:
+        row = db.execute("SELECT value FROM user_preferences WHERE owner=?", (owner,)).fetchone()
+        return checked_currency_record(json.loads(row[0])) if row else empty_currency()
+
+    def get_currency(self, uid: str) -> dict:
+        with self.connection() as db:
+            return self.read_currency(db, currency_owner(uid))
+
+    def save_currency(self, uid: str, update: dict) -> dict:
+        owner = currency_owner(uid)
+        with self.connection() as db:
+            db.execute("BEGIN IMMEDIATE")
+            result = next_currency(self.read_currency(db, owner), update)
+            db.execute(
+                "INSERT INTO user_preferences(owner,value) VALUES (?,?) "
+                "ON CONFLICT(owner) DO UPDATE SET value=excluded.value",
+                (owner, json.dumps(result, allow_nan=False)),
+            )
+            return result
+
 
 class FirestorePreferencesStore(PreferencesStore):
     """One bounded document per user; atomic version checks reject stale saves."""
@@ -175,6 +243,33 @@ class FirestorePreferencesStore(PreferencesStore):
             current = reference.get(transaction=transaction, timeout=4, retry=None).to_dict()
             result = next_snapshot(checked_snapshot(current), checked, expected_version)
             transaction.set(reference, stored_document(result))
+            return result
+
+        try:
+            return save_transaction(BoundedTransaction(self.client, max_attempts=2))
+        except PreferencesConflict:
+            raise
+        except Exception as error:
+            raise PreferencesUnavailable from error
+
+    def get_currency(self, uid: str) -> dict:
+        try:
+            value = (
+                self.collection.document(currency_owner(uid)).get(timeout=4, retry=None).to_dict()
+            )
+            return checked_currency_record(value) if value is not None else empty_currency()
+        except Exception as error:
+            raise PreferencesUnavailable from error
+
+    def save_currency(self, uid: str, update: dict) -> dict:
+        reference = self.collection.document(currency_owner(uid))
+
+        @firestore.transactional
+        def save_transaction(transaction):
+            value = reference.get(transaction=transaction, timeout=4, retry=None).to_dict()
+            current = checked_currency_record(value) if value is not None else empty_currency()
+            result = next_currency(current, update)
+            transaction.set(reference, result)
             return result
 
         try:
@@ -292,6 +387,39 @@ def save_preferences(preferences: PreferencesUpdate, user: User, store: Store) -
             preferences.model_dump(exclude={"expectedVersion"}),
             preferences.expectedVersion,
         )
+    except PreferencesConflict as error:
+        raise HTTPException(
+            409, "Your preferences changed. Reload them before saving again."
+        ) from error
+    except PreferencesUnavailable as error:
+        raise HTTPException(503, UNAVAILABLE) from error
+
+
+class CurrencyPreferencesUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+    defaultPortfolioCurrency: Literal[
+        "USD", "CAD", "CNY", "EUR", "GBP", "JPY", "HKD", "AUD", "CHF", "NZD", "SGD", "TWD"
+    ]
+    expectedVersion: Annotated[int, Field(ge=0, le=MAX_VERSION)]
+
+
+currency_router = APIRouter(
+    prefix="/api/v2/preferences/currency", tags=["preferences"], route_class=PrivatePreferencesRoute
+)
+
+
+@currency_router.get("")
+def get_currency_preferences(user: User, store: Store) -> dict:
+    try:
+        return store.get_currency(user.uid)
+    except PreferencesUnavailable as error:
+        raise HTTPException(503, UNAVAILABLE) from error
+
+
+@currency_router.put("")
+def save_currency_preferences(update: CurrencyPreferencesUpdate, user: User, store: Store) -> dict:
+    try:
+        return store.save_currency(user.uid, update.model_dump())
     except PreferencesConflict as error:
         raise HTTPException(
             409, "Your preferences changed. Reload them before saving again."

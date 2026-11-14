@@ -1,4 +1,10 @@
-# Config service automatic deployment
+# Config service
+
+Private UI and portfolio display-currency preferences use independent version fences.
+[Preferences guide](docs/preferences.md) covers their frozen v1 and additive v2 contracts,
+read-time defaults, conflict recovery and existing-storage namespaces.
+
+## Automatic deployment
 
 `infra/gcp/cloudbuild.config.yaml` builds and publishes this service, then uses the existing
 repository release guard to update its adopted Cloud Run service.

@@ -19,7 +19,7 @@ class ConfigBoundaryTests(unittest.TestCase):
             self.assertEqual(client.get("/api/v1/preferences").status_code, 401)
             self.assertEqual(
                 set(client.get("/openapi.json").json()["paths"]),
-                {"/health", "/api/v1/preferences"},
+                {"/health", "/api/v1/preferences", "/api/v2/preferences/currency"},
             )
         for module in ("yfinance", "app.market_data", "app.watchlist"):
             self.assertNotIn(module, sys.modules)
