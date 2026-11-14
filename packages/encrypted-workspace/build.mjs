@@ -86,6 +86,7 @@ const files = [
   "src/authority.mjs",
   "src/leases.mjs",
   "tests/leases.test.mjs",
+  "tests/registry-memo.test.mjs",
   "dist/core.mjs",
   "dist/core.d.mts",
   "README.md",

@@ -37,6 +37,23 @@ nonexportable WebCrypto decryption, original identity/registry signatures, tampe
 and pin denial, strict JSON/schemas, hashes and isolated dependency-free import.
 Existing live Python/Node and service consumer tests remain separate checks.
 
+Each `Registry.load` reuses successful certificate JWS verification only within
+that single load. Its key binds the complete public Root, pinned Root key ID,
+verification profile and complete protected/payload/signature bytes. Private input
+snapshots and result copies prevent mutations across an asynchronous verification
+or a later hit. At 128 entries or 1 MiB of encoded key and payload bytes, new entries
+fall back to ordinary verification. Pending work and failures are never retained.
+Every checkpoint is still verified; all existing schema, identity, chain, digest,
+active/revoked, time and epoch checks remain. The memo retains no Registry instance,
+authorization result or cross-load/Worker/session state, and adds no public API.
+
+`tests/registry-memo.test.mjs` uses real WebCrypto to compare original authority and
+all schema checks, exercise exact signed-input isolation, both capacity bounds and
+mutation during an await. It also loads the source against the checked self-contained
+crypto distribution, so repository checks need no build dependencies or generated
+validator files. A test-only ESM export reaches the private verifier for the defensive
+byte bound; production source and distribution expose no memo interface.
+
 The schema snapshot preserves the four shared documents without definition-name
 collisions. Money/date/URL/private-content semantic checks accompany AJV structure
 checks. No real account data or private key fixture is stored in this package.

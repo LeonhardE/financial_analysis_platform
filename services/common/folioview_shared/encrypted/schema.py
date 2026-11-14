@@ -6,6 +6,7 @@ and authority APIs, rather than inferred from a schema pass.
 """
 
 import copy
+import hashlib
 import json
 import re
 from datetime import datetime
@@ -21,6 +22,7 @@ from .errors import ContractError
 from .jsonutil import canonical_json
 
 _FORMATS = FormatChecker()
+_PACKAGED_SCHEMA_SHA256 = "3ed3ba67eddcb077f5f138b9b0e2e47ce6d7ecb7b977071e68bc8d744f8ebf84"
 
 
 @_FORMATS.checks("date-time")
@@ -73,9 +75,15 @@ def _https_uri(value: object) -> bool:
 
 @lru_cache(maxsize=1)
 def _document() -> dict:
-    document = json.loads(files(__package__).joinpath("schemas.json").read_text(encoding="utf-8"))
-    Draft202012Validator.check_schema(document)
-    return document
+    try:
+        raw = files(__package__).joinpath("schemas.json").read_bytes()
+    except OSError:
+        raise ContractError("authorization_unavailable") from None
+    # CI checks the complete static definition against its meta-schema. Runtime
+    # accepts only those exact packaged bytes, before parsing or making validators.
+    if hashlib.sha256(raw).hexdigest() != _PACKAGED_SCHEMA_SHA256:
+        raise ContractError("authorization_unavailable")
+    return json.loads(raw.decode("utf-8"))
 
 
 def load_schema(name: str) -> dict:
