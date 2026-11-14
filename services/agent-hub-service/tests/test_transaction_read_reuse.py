@@ -159,7 +159,7 @@ class TransactionReadReuseTests(unittest.TestCase):
         self.store.transact(bytes_limit)
         self.assertEqual([len(batch) for batch in self.reads()], [13, 1])
 
-    def test_actual_provider_state_has_identical_checks_with_fewer_rpc_round_trips(self):
+    def test_actual_provider_state_is_identical_with_adapter_memoization_enabled_or_disabled(self):
         from test_provider_slot_store import ProviderConnectionTests
 
         from folioview_shared.encrypted.jsonutil import strict_json_loads
@@ -185,7 +185,10 @@ class TransactionReadReuseTests(unittest.TestCase):
         self.rpc.calls.clear()
         after = fixture.state()
         self.assertEqual(after, before)
-        self.assertLess(len(self.reads()), previous_reads)
+        self.assertEqual(len(self.reads()), previous_reads)
+        self.assertEqual(
+            len(self.reads()), 3
+        )  # Explicit provider-state batches now own this bound.
         documents = [name for batch in self.reads() for name in batch]
         self.assertEqual(len(documents), len(set(documents)))
 
