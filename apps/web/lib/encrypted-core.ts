@@ -7,6 +7,7 @@ import {
   calculateJwkThumbprint,
 } from "jose";
 import canonicalize from "canonicalize";
+import { DisplayNameOwner } from "./encrypted-display-names";
 import { PersistentOwner, type PersistentActor } from "./encrypted-persistent";
 import Ajv2020 from "ajv/dist/2020";
 import addFormats from "ajv-formats";
@@ -5152,6 +5153,74 @@ export class VaultCore {
       },
       packet,
     );
+  }
+  private async displayNameOwner(write = false) {
+    this.requireOrdinarySession();
+    if (!this.vault || !this.root || !this.wrapping) throw new VaultError("locked");
+    if (write && !this.device) throw new VaultError("device_registration_required");
+    return new DisplayNameOwner({
+      ownerSubject: await this.owner,
+      vault: this.vault,
+      deviceSigningKey: this.device?.sig,
+      deviceSigningKeyId: this.device?.sigId,
+      recoveryPublic: this.recoveryJwk,
+      now: this.now,
+      reader: (ids) => this.reader(ids),
+    });
+  }
+  async openDisplayNames(args: Json) {
+    return (await this.displayNameOwner()).readMany(args);
+  }
+  async openDisplayName(args: Json) {
+    return (await this.displayNameOwner()).read(args);
+  }
+  async prepareDisplayName(args: Json) {
+    const packet = await (await this.displayNameOwner(true)).prepare(args);
+    const localPending = await seal(
+      this.wrapping!,
+      {
+        profile: "folioview.display-name-outbox.v1",
+        ownerSubject: await this.owner,
+        vaultId: this.vault!.vaultId,
+        rootKeyId: this.vault!.rootKeyId,
+        ref: packet.ref,
+        operationId: packet.operationId,
+      },
+      packet,
+    );
+    return { ...packet, localPending };
+  }
+  async openDisplayNamePending(args: Json) {
+    exact(args, ["record", "ref", "operationId"]);
+    this.requireOrdinarySession();
+    if (!this.wrapping || !this.vault) throw new VaultError("locked");
+    const r = args.record;
+    exact(r, [
+      "profile",
+      "ownerSubject",
+      "vaultId",
+      "rootKeyId",
+      "ref",
+      "operationId",
+      "iv",
+      "ciphertext",
+    ]);
+    if (
+      r.profile !== "folioview.display-name-outbox.v1" ||
+      r.ownerSubject !== (await this.owner) ||
+      r.vaultId !== this.vault.vaultId ||
+      r.rootKeyId !== this.vault.rootKeyId ||
+      !equal(r.ref, args.ref) ||
+      r.operationId !== args.operationId
+    )
+      throw new VaultError("binding_mismatch");
+    const packet = await open(this.wrapping, r);
+    if (!equal(packet.ref, args.ref) || packet.operationId !== args.operationId)
+      throw new VaultError("binding_mismatch");
+    return packet;
+  }
+  async verifyDisplayNameReceipt(args: Json) {
+    return (await this.displayNameOwner()).receipt(args);
   }
   async verifyTaskCenterState(args: Json) {
     exact(args, ["state"]);

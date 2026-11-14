@@ -37,6 +37,12 @@ const slotResponse = (v: unknown) =>
 export { taskCenterRoute } from "../persistent-owner-routes";
 export function taskCenterRequest(path: string, body: unknown) {
   if (!record(body) || body.contractVersion !== CONTRACT) return false;
+  if (path.startsWith("/api/v3/private-display-names/"))
+    return (
+      fields(body, ["contractVersion", "command"]) &&
+      signedObject(body.command) &&
+      new TextEncoder().encode(JSON.stringify(body.command)).byteLength <= 12288
+    );
   if (path.startsWith("/api/v3/provider-connections/")) {
     if (!fields(body, ["contractVersion", "command"]) || !record(body.command)) return false;
     const c = body.command;
@@ -128,8 +134,79 @@ export function taskCenterRequest(path: string, body: unknown) {
     new Set(r.assignmentIds).size === r.assignmentIds.length
   );
 }
-export function taskCenterResponse(path: string, value: unknown) {
+export function taskCenterResponse(path: string, value: unknown, operation?: string) {
   if (!record(value)) return false;
+  if (path.startsWith("/api/v3/private-display-names/")) {
+    const profile = "folioview.private-display-name.v1";
+    if (value.contractVersion !== CONTRACT || value.profile !== profile) return false;
+    if (path.endsWith("/capabilities"))
+      return (
+        fields(value, ["contractVersion", "profile", "enabled", "maxSources", "maxNameLength"]) &&
+        value.enabled === true &&
+        value.maxSources === 10 &&
+        value.maxNameLength === 80
+      );
+    const parts = path.split("/");
+    const item = (v: unknown) => {
+      if (
+        !record(v) ||
+        !fields(v, ["state", "command"]) ||
+        !record(v.state) ||
+        !signedObject(v.command) ||
+        new TextEncoder().encode(JSON.stringify(v.command)).byteLength > 12288
+      )
+        return false;
+      const s = v.state;
+      return (
+        fields(s, [
+          "contractVersion",
+          "profile",
+          "ownerSubject",
+          "vaultId",
+          "rootKeyId",
+          "ref",
+          "revision",
+          "stableOperationId",
+          "operationFingerprint",
+          "recipientKeyId",
+          "acceptedAt",
+        ]) &&
+        s.contractVersion === CONTRACT &&
+        s.profile === profile &&
+        [s.ownerSubject, s.vaultId].every(id) &&
+        [s.rootKeyId, s.recipientKeyId].every(
+          (k) => typeof k === "string" && /^[A-Za-z0-9_-]{43}$/.test(k),
+        ) &&
+        s.vaultId === parts[4] &&
+        record(s.ref) &&
+        fields(s.ref, ["kind", "sourceService", "resourceId", "incarnation"]) &&
+        s.ref.kind === "holdings" &&
+        s.ref.sourceService === "portfolio" &&
+        [s.ref.resourceId, s.ref.incarnation].every(id) &&
+        (!parts[6] || s.ref.resourceId === parts[6]) &&
+        integer(s.revision, 1) &&
+        integer(s.acceptedAt, 0) &&
+        typeof s.operationFingerprint === "string" &&
+        /^[a-f0-9]{64}$/.test(s.operationFingerprint) &&
+        typeof s.stableOperationId === "string" &&
+        new RegExp(`^${OP}$`).test(s.stableOperationId) &&
+        (!parts[8] || s.stableOperationId === parts[8]) &&
+        (!operation || s.stableOperationId === operation)
+      );
+    };
+    if (path.endsWith("/holdings"))
+      return (
+        fields(value, ["contractVersion", "profile", "items"]) &&
+        Array.isArray(value.items) &&
+        value.items.length <= 10 &&
+        value.items.every(item) &&
+        new Set(value.items.map((v: any) => v.state.ref.resourceId)).size === value.items.length
+      );
+    return (
+      fields(value, ["contractVersion", "profile", "item"]) &&
+      (value.item === null ? !operation && !parts[8] : item(value.item))
+    );
+  }
   if (path.startsWith("/api/v3/provider-connections/")) {
     if (
       value.contractVersion !== CONTRACT ||

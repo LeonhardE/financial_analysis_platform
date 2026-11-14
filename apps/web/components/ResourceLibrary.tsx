@@ -11,6 +11,8 @@ import {
   type ResourceSelection,
 } from "@/lib/resource-library";
 import styles from "./ResourceLibrary.module.css";
+import type { WatchlistModel } from "./useWatchlist";
+import { LoadingIndicator, InlineError } from "./WorkspaceFeedback";
 
 const kinds: ResourceKind[] = ["holdings", "watchlist", "channel_follows"];
 const blank: ChannelInput = { name: "", handleOrUrl: "", note: "" };
@@ -55,9 +57,12 @@ function FollowsEditor({ model }: { model: ResourceLibraryModel }) {
   };
   return (
     <>
-      <p className={styles.note}>{t("followsPrivacy")}</p>
+      <details className={styles.note}>
+        <summary>{t("aboutFollows")}</summary>
+        <p>{t("followsPrivacy")}</p>
+      </details>
       {model.follows.loading ? (
-        <p role="status">{t("loading")}</p>
+        <LoadingIndicator busy label={t("loading")} />
       ) : model.follows.error ? (
         <Failure code={model.follows.error} retry={() => void model.reload("follows")} />
       ) : (
@@ -240,52 +245,32 @@ function CatalogueDetail({
   onCreateTask?: (selection: ResourceSelection) => void;
 }) {
   const t = useTranslations("resourceLibrary");
-  if (!model.authenticated) return null;
+  if (!onCreateTask || !model.authenticated) return null;
+  const items =
+    group?.items.filter(
+      (item) => resourceSelection(item) && ["ready", "active"].includes(item.state),
+    ) ?? [];
   return (
-    <div className={styles.discovery}>
-      <h3>{t("sourceStatus")}</h3>
-      {model.configured && (
+    <div className={styles.actions}>
+      {items.map((item) => (
         <button
           type="button"
+          key={item.ref!.resourceId}
           disabled={model.catalogue.loading}
-          onClick={() => void model.reload("catalogue")}
+          onClick={() => model.useForTask(item, onCreateTask)}
         >
-          {t("refreshVersion")}
+          {t("useInTask")}
         </button>
+      ))}
+      {model.catalogue.loading && (
+        <LoadingIndicator busy hasContent={items.length > 0} label={t("loading")} />
       )}
-      <p className={styles.note}>{t("discoveryHelp")}</p>
-      {!model.configured ? (
-        <p className={styles.note}>{t("discoveryDisabled")}</p>
-      ) : model.catalogue.loading ? (
-        <p role="status">{t("loading")}</p>
-      ) : model.catalogue.error ? (
-        <Failure code={model.catalogue.error} retry={() => void model.reload("catalogue")} />
-      ) : !group ? (
-        <p role="status">{t("loading")}</p>
-      ) : (
-        <>
-          <p className={styles.note}>{t(`statuses.${group.status}`)}</p>
-          {group.items.map((item, index) => (
-            <div
-              className={styles.pointer}
-              key={item.ref ? `${item.ref.resourceId}:${item.ref.incarnation}` : index}
-            >
-              <span>{t(`states.${item.state}`)}</span>
-              {item.revision !== null && (
-                <small>{t("revision", { revision: item.revision })}</small>
-              )}
-              {item.updatedAt && <time dateTime={item.updatedAt}>{item.updatedAt}</time>}
-              {onCreateTask &&
-                resourceSelection(item) &&
-                ["ready", "active"].includes(item.state) && (
-                  <button type="button" onClick={() => model.useForTask(item, onCreateTask)}>
-                    {t("useInTask")}
-                  </button>
-                )}
-            </div>
-          ))}
-          <p className={styles.note}>{t("historyHelp")}</p>
-        </>
+      {model.catalogue.error && (
+        <InlineError
+          message={t("taskUnavailable")}
+          onRetry={() => void model.reload("catalogue")}
+          retryLabel={t("retry")}
+        />
       )}
     </div>
   );
@@ -295,37 +280,47 @@ export function ResourceLibraryView({
   children,
   onOpenWatchlist,
   onCreateTask,
+  watchlist: sharedWatchlist,
 }: {
   model: ResourceLibraryModel;
-  children: ReactNode;
+  watchlist?: WatchlistModel;
+  children: ReactNode | ((model: ResourceLibraryModel) => ReactNode);
   onOpenWatchlist?: () => void;
   onCreateTask?: (selection: ResourceSelection) => void;
 }) {
   const t = useTranslations("resourceLibrary");
-  const [filter, setFilter] = useState<ResourceKind | "all">("all");
+  const [filter, setFilter] = useState<ResourceKind>("holdings");
+  const [symbol, setSymbol] = useState("");
+  const shared = sharedWatchlist?.sessionKey === model.owner ? sharedWatchlist : null;
+  const watchlist = sharedWatchlist
+    ? {
+        data: shared ? { items: shared.items, limit: shared.limit } : null,
+        loading: !shared || shared.loading,
+        error: shared?.error ?? "",
+        stale: false,
+      }
+    : model.watchlist;
+  const submitWatchlist = (event: React.FormEvent) => {
+    event.preventDefault();
+    if (shared && !shared.busy && symbol.trim()) {
+      void shared.add(symbol.trim().toUpperCase());
+      setSymbol("");
+    }
+  };
+  const listSignature = shared?.items.map((i) => i.symbol).join("|");
+  const prior = useRef(listSignature);
+  useEffect(() => {
+    if (prior.current !== listSignature) {
+      prior.current = listSignature;
+      if (model.authenticated && model.configured) void model.reload("catalogue");
+    }
+  }, [listSignature, model.authenticated, model.configured]);
   const group = (kind: ResourceKind) =>
     model.catalogue.data?.groups.find((item) => item.kind === kind);
-  const sourceStatus = (kind: ResourceKind) => {
-    if (!model.authenticated) return t("signIn");
-    const load =
-      kind === "holdings"
-        ? model.catalogue
-        : kind === "watchlist"
-          ? model.watchlist
-          : model.follows;
-    if (load.loading) return t("loading");
-    if (load.error) return t("unavailable");
-    if (kind === "holdings")
-      return group(kind)
-        ? t(`statuses.${group(kind)!.status}`)
-        : t(model.configured ? "loading" : "discoveryDisabledShort");
-    const list = kind === "watchlist" ? model.watchlist.data : model.follows.data;
-    return list ? t("itemCount", { count: list.items.length }) : t("loading");
-  };
   return (
     <div className={styles.library}>
       <div className={styles.filters} role="group" aria-label={t("filterLabel")}>
-        {(["all", ...kinds] as const).map((kind) => (
+        {kinds.map((kind) => (
           <button
             type="button"
             key={kind}
@@ -336,63 +331,70 @@ export function ResourceLibraryView({
           </button>
         ))}
       </div>
-      <div className={styles.cards}>
-        {kinds
-          .filter((kind) => filter === "all" || filter === kind)
-          .map((kind) => (
-            <button
-              className={styles.card}
-              type="button"
-              key={kind}
-              aria-pressed={filter === kind}
-              onClick={() => setFilter(kind)}
-            >
-              <span className={styles.icon} aria-hidden="true">
-                {kind === "holdings" ? "◈" : kind === "watchlist" ? "☆" : "▷"}
-              </span>
-              <strong>{t(`kinds.${kind}`)}</strong>
-              <small>{t(`descriptions.${kind}`)}</small>
-              <span className={styles.badge}>{sourceStatus(kind)}</span>
-            </button>
-          ))}
-      </div>
-      {(filter === "all" || filter === "holdings") && (
+      {filter === "holdings" && (
         <section className={styles.section} aria-label={t("kinds.holdings")}>
-          <CatalogueDetail group={group("holdings")} model={model} onCreateTask={onCreateTask} />
-          {children}
+          {typeof children === "function" ? children(model) : children}
         </section>
       )}
-      {(filter === "all" || filter === "watchlist") && (
+      {filter === "watchlist" && (
         <section className={styles.section} aria-labelledby="watchlist-library-title">
           <div className={styles.heading}>
             <div>
               <h2 id="watchlist-library-title">{t("kinds.watchlist")}</h2>
-              <p>{t("watchlistHelp")}</p>
             </div>
-            {onOpenWatchlist && (
+            {!sharedWatchlist && onOpenWatchlist && (
               <button type="button" onClick={onOpenWatchlist}>
                 {t("manageInMarket")} ↗
               </button>
             )}
           </div>
+          {shared && (
+            <form className={styles.addSymbol} onSubmit={submitWatchlist}>
+              <label>
+                <span className="sr-only">{t("symbolLabel")}</span>
+                <input
+                  aria-label={t("symbolLabel")}
+                  value={symbol}
+                  onChange={(e) => setSymbol(e.target.value)}
+                  maxLength={20}
+                  placeholder={t("symbolPlaceholder")}
+                  disabled={shared.busy}
+                />
+              </label>
+              <button type="submit" disabled={shared.busy || !symbol.trim()}>
+                {t("addStock")}
+              </button>
+            </form>
+          )}
           {!model.authenticated ? (
             <p className={styles.empty}>{t("signInLists")}</p>
-          ) : model.watchlist.loading ? (
-            <p role="status">{t("loading")}</p>
-          ) : model.watchlist.error ? (
-            <Failure code={model.watchlist.error} retry={() => void model.reload("watchlist")} />
+          ) : watchlist.loading ? (
+            <LoadingIndicator busy label={t("loading")} />
+          ) : watchlist.error ? (
+            <Failure
+              code={sharedWatchlist ? "unavailable" : watchlist.error}
+              retry={() => (shared ? void shared.reload() : void model.reload("watchlist"))}
+            />
           ) : (
-            model.watchlist.data && (
+            watchlist.data && (
               <>
-                {!model.watchlist.data.items.length && (
-                  <p className={styles.empty}>{t("noWatchlist")}</p>
-                )}
+                {!watchlist.data.items.length && <p className={styles.empty}>{t("noWatchlist")}</p>}
                 <ul className={styles.list}>
-                  {model.watchlist.data.items.map((item) => (
+                  {watchlist.data.items.map((item) => (
                     <li key={item.symbol}>
                       <strong>{item.symbol}</strong>
                       <span>{item.name}</span>
                       <small>{t(`instruments.${item.instrumentType}`)}</small>
+                      {shared && (
+                        <button
+                          type="button"
+                          disabled={shared.busy}
+                          aria-label={t("removeStock", { symbol: item.symbol })}
+                          onClick={() => void shared.remove(item.symbol)}
+                        >
+                          {t("remove")}
+                        </button>
+                      )}
                     </li>
                   ))}
                 </ul>
@@ -402,7 +404,7 @@ export function ResourceLibraryView({
           <CatalogueDetail group={group("watchlist")} model={model} onCreateTask={onCreateTask} />
         </section>
       )}
-      {(filter === "all" || filter === "channel_follows") && (
+      {filter === "channel_follows" && (
         <section className={styles.section} aria-labelledby="follows-library-title">
           <div className={styles.heading}>
             <div>
@@ -428,15 +430,17 @@ export function ResourceLibraryView({
 export default function ResourceLibrary({
   active = true,
   holdingsVersion = "",
+  watchlist,
   ...props
 }: {
   active?: boolean;
   holdingsVersion?: string;
-  children: ReactNode;
+  watchlist?: WatchlistModel;
+  children: ReactNode | ((model: ResourceLibraryModel) => ReactNode);
   onOpenWatchlist?: () => void;
   onCreateTask?: (selection: ResourceSelection) => void;
 }) {
-  const model = useResourceLibrary({ active });
+  const model = useResourceLibrary({ active, externalWatchlist: Boolean(watchlist) });
   const previousVersion = useRef(holdingsVersion);
   useEffect(() => {
     if (previousVersion.current !== holdingsVersion) {
@@ -444,5 +448,12 @@ export default function ResourceLibrary({
       if (active && model.authenticated && model.configured) void model.reload("catalogue");
     }
   }, [holdingsVersion, active, model.authenticated, model.configured, model.reload]);
-  return <ResourceLibraryView key={model.owner ?? "guest"} model={model} {...props} />;
+  return (
+    <ResourceLibraryView
+      key={model.owner ?? "guest"}
+      model={model}
+      watchlist={watchlist}
+      {...props}
+    />
+  );
 }

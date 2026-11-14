@@ -187,7 +187,9 @@ function hubOwnerRule(path: string, method: PrivateMethod): EncryptedRule | null
         center.kind === "center" &&
         /\/(commands|manual)$/.test(pathname) &&
         !pathname.startsWith("/api/v3/provider-connections/"),
-      rootCommandMaxBytes: center.max,
+      rootCommandMaxBytes: pathname.startsWith("/api/v3/private-display-names/")
+        ? 12288
+        : center.max,
     };
   } else if (persistent) {
     queryKeys = Object.keys(persistent.query ?? {});

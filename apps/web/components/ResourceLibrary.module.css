@@ -205,3 +205,17 @@
     padding: 18px;
   }
 }
+.addSymbol {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 14px 0;
+}
+.addSymbol input {
+  min-height: 40px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 12px;
+  background: var(--bg);
+  color: var(--text);
+}

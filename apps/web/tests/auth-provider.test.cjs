@@ -2609,3 +2609,58 @@ test("task-center and provider controls cross the real browser boundary with clo
   assert.equal(h.requests.length, sent);
   h.unmount();
 });
+
+test("display-name read/write/original lookup cross the real browser boundary without private selectors", async () => {
+  const h = mountProvider({ fetchOwnerConfig: async () => configResponse(false, true) });
+  h.emitUser(user("a"));
+  await settle();
+  const base = "/api/v3/private-display-names/vault_A/holdings/source_A",
+    command = { protected: "YQ", payload: "Yg", signature: "Yw" };
+  for (const path of [
+    "/api/v3/private-display-names/capabilities",
+    "/api/v3/private-display-names/vault_A/holdings",
+    base,
+    base + "/operations/" + operation,
+  ])
+    await h.actions.requestPrivate("agent-hub", path, "a:1");
+  await h.actions.requestPrivate("agent-hub", base + "/commands", "a:1", {
+    method: "POST",
+    json: { contractVersion: version, command },
+    headers: operationHeaders(),
+  });
+  assert.equal(JSON.parse(h.requests.at(-1)[1].body).command.payload, "Yg");
+  const sent = h.requests.length;
+  for (const [path, options] of [
+    [base + "?owner=other", {}],
+    [
+      base + "/commands",
+      {
+        method: "POST",
+        json: { contractVersion: version, command, displayName: "Plaintext" },
+        headers: operationHeaders(),
+      },
+    ],
+    [
+      base + "/commands",
+      {
+        method: "POST",
+        json: { contractVersion: version, command: { ...command, payload: "A".repeat(13000) } },
+        headers: operationHeaders(),
+      },
+    ],
+    [
+      base + "/commands",
+      {
+        method: "POST",
+        json: { contractVersion: version, command },
+        headers: { ...operationHeaders(), "X-FolioView-Delegation": "forged" },
+      },
+    ],
+  ])
+    await assert.rejects(
+      h.actions.requestPrivate("agent-hub", path, "a:1", options),
+      /Invalid private API/,
+    );
+  assert.equal(h.requests.length, sent);
+  h.unmount();
+});

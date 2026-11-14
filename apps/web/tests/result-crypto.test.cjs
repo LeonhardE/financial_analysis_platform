@@ -22,6 +22,7 @@ test.before(async () => {
   for (const name of [
     "encrypted-types",
     "encrypted-core",
+    "encrypted-display-names",
     "encrypted-persistent",
     "encrypted-storage",
     "encrypted-vault",

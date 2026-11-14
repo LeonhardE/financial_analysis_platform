@@ -205,7 +205,10 @@ function harness({ env = ENV, upstream, jwks, now = () => NOW, deadlineMs = 1000
     calls.push({ url, init });
     if (url === JWKS) return jwks ? jwks(init) : response({ keys: [jwk] });
     assert.ok(
-      url.startsWith(ORIGIN + "/api/v2/") || url.startsWith(ORIGIN + "/api/v3/agent-credentials/"),
+      url.startsWith(ORIGIN + "/api/v2/") ||
+        ["agent-credentials", "task-center", "provider-connections", "private-display-names"].some(
+          (kind) => url.startsWith(ORIGIN + "/api/v3/" + kind + "/"),
+        ),
       "Hub cannot acquire metadata identity or select a different upstream",
     );
     return upstream ? upstream(url, init) : response();
@@ -1544,3 +1547,92 @@ test(
     assert.equal(timers.size, 0);
   },
 );
+
+test("actual Owner proxy admits only closed display-name routes and binds original receipts to source/vault/operation", async () => {
+  const profile = "folioview.private-display-name.v1",
+    base = "/api/v3/private-display-names/vault_A/holdings/holdings_A";
+  const item = {
+    state: {
+      contractVersion: CONTRACT,
+      profile,
+      ownerSubject: "owner_A",
+      vaultId: "vault_A",
+      rootKeyId: AUTHOR,
+      ref: {
+        kind: "holdings",
+        sourceService: "portfolio",
+        resourceId: "holdings_A",
+        incarnation: "incarnation_A",
+      },
+      revision: 1,
+      stableOperationId: OP,
+      operationFingerprint: "a".repeat(64),
+      recipientKeyId: AUTHOR,
+      acceptedAt: 1000,
+    },
+    command: SIGNED,
+  };
+  for (const [path, body, method, status] of [
+    [
+      "/api/v3/private-display-names/capabilities",
+      { contractVersion: CONTRACT, profile, enabled: true, maxSources: 10, maxNameLength: 80 },
+      "GET",
+      200,
+    ],
+    [base, { contractVersion: CONTRACT, profile, item }, "GET", 200],
+    [base + "/operations/" + OP, { contractVersion: CONTRACT, profile, item }, "GET", 200],
+    [base + "/commands", { contractVersion: CONTRACT, profile, item }, "POST", 201],
+  ]) {
+    const h = harness({ upstream: () => response(body, status) }),
+      result = await h.proxy(
+        request(path, {
+          method,
+          ...(method === "POST"
+            ? {
+                json: { contractVersion: CONTRACT, command: SIGNED },
+                headers: { "Idempotency-Key": OP },
+              }
+            : {}),
+        }),
+      );
+    assert.equal(result.status, status);
+    assert.deepEqual(await result.json(), body);
+    assert.equal(h.hub()[0].url, ORIGIN + path);
+  }
+  for (const bad of [
+    { ...item, state: { ...item.state, vaultId: "other_vault" } },
+    { ...item, state: { ...item.state, ref: { ...item.state.ref, resourceId: "other_source" } } },
+    { ...item, state: { ...item.state, stableOperationId: OP + "_other" } },
+    { ...item, displayName: "PLAINTEXT_CANARY" },
+  ]) {
+    const h = harness({
+      upstream: () => response({ contractVersion: CONTRACT, profile, item: bad }, 201),
+    });
+    const result = await h.proxy(
+      request(base + "/commands", {
+        method: "POST",
+        json: { contractVersion: CONTRACT, command: SIGNED },
+        headers: { "Idempotency-Key": OP },
+      }),
+    );
+    assert.equal(result.status, 503);
+    assert.ok(!(await result.text()).includes("PLAINTEXT_CANARY"));
+  }
+  const deny = harness();
+  assert.equal((await deny.proxy(request(base + "?owner=other"))).status, 400);
+  assert.equal(deny.calls.length, 0);
+  const extra = harness();
+  assert.equal(
+    (
+      await extra.proxy(
+        request(base + "/commands", {
+          method: "POST",
+          json: { contractVersion: CONTRACT, command: SIGNED, name: "PLAINTEXT" },
+          headers: { "Idempotency-Key": OP },
+        }),
+      )
+    ).status,
+    400,
+  );
+  assert.equal(extra.calls.length, 0);
+});

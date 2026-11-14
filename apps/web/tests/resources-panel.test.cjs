@@ -20,12 +20,43 @@ const { code } = transformSync(
     module: { type: "commonjs" },
   },
 );
-function render(model, locale = "en") {
+function render(model, locale = "en", managementOnly = false) {
   const messages = require(`../messages/${locale}.json`);
   const imports = {
     react: React,
     "./PasskeyHelp": { PasskeyHelp: () => null },
-    "./ResourceLibrary": { __esModule: true, default: ({ children }) => children },
+    "./ResourceLibrary": {
+      __esModule: true,
+      default: ({ children }) =>
+        typeof children === "function"
+          ? children({ catalogue: { data: null, loading: false }, useForTask() {} })
+          : children,
+    },
+    "./useDisplayNames": {
+      useDisplayNames: () => ({
+        name: () => null,
+        pending: () => false,
+        scope: "test",
+        ready: true,
+        enabled: true,
+        clearError() {},
+      }),
+    },
+    "./HoldingsSourceBar": require("./resource-library-helpers.cjs").compile(
+      "../components/HoldingsSourceBar.tsx",
+      {
+        react: React,
+        "react/jsx-runtime": jsxRuntime,
+        "next-intl": {
+          useTranslations: (namespace) => createTranslator({ locale, messages, namespace }),
+        },
+        "./useTasks": { useTasks: () => ({ items: [], taskNames: {} }) },
+        "./ResourcesPanel.module.css": {
+          __esModule: true,
+          default: new Proxy({}, { get: (_, k) => k }),
+        },
+      },
+    ),
     "react/jsx-runtime": jsxRuntime,
     "next-intl": {
       useTranslations: (namespace) => createTranslator({ locale, messages, namespace }),
@@ -48,7 +79,9 @@ function render(model, locale = "en") {
     },
   });
   return renderToStaticMarkup(
-    React.createElement(module.exports.default, { onOpenWatchlist: () => {} }),
+    managementOnly
+      ? React.createElement(module.exports.SourceManagement, { model })
+      : React.createElement(module.exports.default, { onOpenWatchlist: () => {} }),
   );
 }
 const base = {
@@ -105,7 +138,7 @@ const content = {
   },
 };
 
-test("guest sees verified official export instructions and disabled future broker adapters", () => {
+test("guest sees collapsed export help without unsupported broker choices", () => {
   const html = render(base);
   assert.ok(
     html.includes(
@@ -121,8 +154,9 @@ test("guest sees verified official export instructions and disabled future broke
     "Download CSV",
   ])
     assert.ok(html.includes(step));
-  assert.match(html, /disabled=""[^>]*><span[^>]*>R<\/span>/);
-  assert.match(html, /disabled=""[^>]*><span[^>]*>IB<\/span>/);
+  assert.ok(!html.includes("Robinhood"));
+  assert.ok(!html.includes("Interactive Brokers"));
+  assert.ok(html.includes("<details"));
   assert.ok(html.includes("Sign in with Google"));
   assert.ok(!html.includes('type="file"'));
   assert.ok(!html.includes("PRIVATE_SENTINEL"));
@@ -205,7 +239,7 @@ const managed = {
 
 test("source controls explain actual access effects without exposing internal source IDs", () => {
   for (const locale of ["en", "zh"]) {
-    const html = render(managed, locale);
+    const html = render(managed, locale, true);
     assert.ok(html.includes(locale === "en" ? "Invalidate previous access" : "使旧授权失效"));
     assert.ok(html.includes(locale === "en" ? "previous scope" : "历史持仓"));
     assert.ok(!html.includes("inc_a"));
@@ -221,6 +255,7 @@ test("delete review states logical retention and copied-content limits in both l
         sourceReview: { action: "delete", source: managedSource, authorityVersion: 3 },
       },
       locale,
+      true,
     );
     assert.ok(html.includes("fieldset"));
     assert.ok(html.includes(locale === "en" ? "physical erasure" : "物理清除"));
@@ -257,10 +292,16 @@ test("disconnected data retains readable owner history while the upload control 
     content,
     sourceMetadata: { ...managed.sourceMetadata, state: "disconnected" },
   });
-  assert.ok(html.includes("Existing holdings remain readable"));
+  assert.ok(
+    render(
+      { ...managed, sourceMetadata: { ...managed.sourceMetadata, state: "disconnected" } },
+      "en",
+      true,
+    ).includes("Existing holdings remain readable"),
+  );
   assert.ok(html.includes("9,007,199,254,740,993"));
-  assert.match(html, /<input[^>]*type="file"[^>]*disabled/);
-  assert.ok(html.includes("Add independent holdings data"));
+  assert.ok(!html.includes('type="file"'));
+  assert.ok(html.includes("Add holdings"));
 });
 
 test("locked and renewal-only phases hide source management and all prior private facts", () => {
@@ -280,9 +321,10 @@ test("locked and renewal-only phases hide source management and all prior privat
 
 test("uncertain creation offers original-result recovery without declaring a completed upload", () => {
   const html = render({ ...managed, sourceCreationId: "source_synthetic_pending" });
-  assert.ok(html.includes("Check original creation"));
-  assert.ok(html.includes("without creating a duplicate"));
-  assert.ok(html.includes("Only a request that can no longer be submitted"));
+  const recovery = render({ ...managed, sourceCreationId: "source_synthetic_pending" }, "en", true);
+  assert.ok(recovery.includes("Check original creation"));
+  assert.ok(recovery.includes("without creating a duplicate"));
+  assert.ok(recovery.includes("Only a request that can no longer be submitted"));
   assert.ok(!html.includes("snapshot was saved"));
   assert.match(html, /<input[^>]*type="file"[^>]*disabled/);
 });

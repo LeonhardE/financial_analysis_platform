@@ -1,14 +1,18 @@
 "use client";
 
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { useTranslations } from "next-intl";
-import { LoadingIndicator } from "./WorkspaceFeedback";
+import { LoadingIndicator, InlineError } from "./WorkspaceFeedback";
 import { useHoldingsWorkspace, type HoldingsWorkspace } from "@/components/useHoldingsWorkspace";
 import type { HoldingsResourceContent } from "@/lib/holdings-csv";
 import styles from "./ResourcesPanel.module.css";
 import ResourceLibrary from "./ResourceLibrary";
 import type { ResourceSelection } from "@/lib/resource-library";
 import { PasskeyHelp } from "./PasskeyHelp";
+import { useDisplayNames, type DisplayNamesModel } from "./useDisplayNames";
+import { HoldingsSourceBar } from "./HoldingsSourceBar";
+import type { WatchlistModel } from "./useWatchlist";
+import type { ResourceLibraryModel } from "./useResourceLibrary";
 
 const GUIDE =
   "https://help.wealthsimple.com/hc/en-ca/articles/35654428540571-Request-a-custom-statement";
@@ -85,7 +89,7 @@ function Holdings({ content }: { content: HoldingsResourceContent }) {
     </div>
   );
 }
-function SourceManagement({ model }: { model: HoldingsWorkspace }) {
+export function SourceManagement({ model }: { model: HoldingsWorkspace }) {
   const t = useTranslations("resources");
   const sources = model.sources ?? [];
   const busy = Boolean(model.busy);
@@ -99,23 +103,6 @@ function SourceManagement({ model }: { model: HoldingsWorkspace }) {
   return (
     <section className={styles.sourceManagement} aria-labelledby="holdings-management-title">
       <h3 id="holdings-management-title">{t("lifecycle.title")}</h3>
-      {sources.length > 0 && (
-        <label className={styles.sourcePicker}>
-          <span>{t("lifecycle.select")}</span>
-          <select
-            value={model.newSource ? "new" : selected}
-            disabled={(busy && model.busy !== "reading") || Boolean(model.preview)}
-            onChange={(event) => void model.selectHoldingsSource(event.target.value)}
-          >
-            {model.newSource && <option value="new">{t("lifecycle.new")}</option>}
-            {sources.map((source, index) => (
-              <option key={source.resourceRef.resourceId} value={source.resourceRef.resourceId}>
-                {t("lifecycle.source", { number: index + 1 })}
-              </option>
-            ))}
-          </select>
-        </label>
-      )}
       {model.newSource ? (
         <p role="status">{t("lifecycle.newHelp")}</p>
       ) : (
@@ -252,23 +239,27 @@ function SourceManagement({ model }: { model: HoldingsWorkspace }) {
             )}
           </div>
         )}
-      {!model.newSource && sources.length < 10 && (
-        <button
-          type="button"
-          className={styles.secondary}
-          disabled={blocked}
-          onClick={model.beginNewSource}
-        >
-          {t(model.preview ? "lifecycle.newFromPreview" : "lifecycle.add")}
-        </button>
-      )}
       {sources.length >= 10 && <p className={styles.note}>{t("lifecycle.limit")}</p>}
     </section>
   );
 }
-function Workspace({ model }: { model: HoldingsWorkspace }) {
+function Workspace({
+  model,
+  names,
+  library,
+  onCreateTask,
+}: {
+  model: HoldingsWorkspace;
+  names: DisplayNamesModel;
+  library: ResourceLibraryModel;
+  onCreateTask?: (selection: ResourceSelection) => void;
+}) {
   const t = useTranslations("resources");
   const file = useRef<HTMLInputElement>(null);
+  const [importOpen, setImportOpen] = useState(false),
+    [dragging, setDragging] = useState(false),
+    [dropError, setDropError] = useState(""),
+    [importName, setImportName] = useState("");
   const busy = Boolean(model.busy);
   const hiddenHistory =
     model.sourceMetadata?.state === "deleted" || model.sourceMutation?.action === "delete";
@@ -286,15 +277,37 @@ function Workspace({ model }: { model: HoldingsWorkspace }) {
     (model.newSource ||
       (model.sources ?? []).length === 0 ||
       model.sourceMetadata?.state === "active");
+  const importVisible = importOpen || !model.content || Boolean(model.preview) || model.newSource;
   const errorKey = `errors.${model.error}`;
+  const choose = (files: FileList | null) => {
+    setDragging(false);
+    setDropError("");
+    if (!canImport || !files?.length) return;
+    if (files.length !== 1) {
+      setDropError("multipleFiles");
+      return;
+    }
+    void model.importFile(files[0]);
+  };
+  const savePreview = () =>
+    model.save(
+      importName.trim()
+        ? async (source) => {
+            if (!(await names.rename(source.resourceRef, importName.trim(), true)))
+              throw Error("display_name_pending");
+          }
+        : undefined,
+    );
   return (
     <>
-      <div className={styles.vault}>
-        <div>
-          <h2>{t("vaultTitle")}</h2>
-          {model.phase !== "unlocked" && <p>{t("vaultHelp")}</p>}
+      {model.phase !== "unlocked" && (
+        <div className={styles.vault}>
+          <div>
+            <h2>{t("vaultTitle")}</h2>
+            <p>{t("vaultHelp")}</p>
+          </div>
         </div>
-      </div>
+      )}
       {!model.configured ? (
         <p className={styles.warning} role="status">
           {t("notConfigured")}
@@ -312,7 +325,7 @@ function Workspace({ model }: { model: HoldingsWorkspace }) {
           </button>
         </div>
       ) : model.phase === "checking" || model.busy === "loading" ? (
-        <p role="status">{t("loading")}</p>
+        <LoadingIndicator busy label={t("loading")} />
       ) : ["archive-pending", "archive-deleted"].includes(model.phase) ||
         model.vault?.archive === null ? (
         <div className={styles.start} role="status">
@@ -352,53 +365,85 @@ function Workspace({ model }: { model: HoldingsWorkspace }) {
         </div>
       ) : (
         <>
-          <div className={styles.actions}>
-            <button
-              type="button"
-              className={styles.secondary}
-              disabled={busy}
-              onClick={() => void model.readStored()}
-            >
-              {t("reloadHoldings")}
-            </button>
-          </div>
-          <SourceManagement model={model} />
-          <div className={styles.upload}>
-            <svg
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.5"
-              aria-hidden="true"
-            >
-              <path d="M12 16V3m-5 5 5-5 5 5M4 15v5h16v-5" />
-            </svg>
-            <h3>{t("chooseTitle")}</h3>
-            <p>{t("chooseHelp")}</p>
-            <input
-              ref={file}
-              className="sr-only"
-              tabIndex={-1}
-              type="file"
-              accept=".csv,text/csv"
-              aria-label={t("chooseFile")}
-              disabled={!canImport}
-              onChange={(event) => {
-                const selected = event.target.files?.[0];
-                event.target.value = "";
-                if (selected) void model.importFile(selected);
-              }}
-            />
-            <button
-              type="button"
-              className={styles.primary}
-              disabled={!canImport}
-              onClick={() => file.current?.click()}
-            >
-              {t(model.busy === "parsing" ? "parsing" : "chooseFile")}
-            </button>
-            <small>{t("fileLimit")}</small>
-          </div>
+          <HoldingsSourceBar
+            model={model}
+            names={names}
+            library={library}
+            onCreateTask={onCreateTask}
+            onUpdate={() => {
+              setImportOpen(true);
+              requestAnimationFrame(() => file.current?.focus());
+            }}
+          >
+            <SourceManagement model={model} />
+          </HoldingsSourceBar>
+          {importVisible && (
+            <div className={styles.importFlow}>
+              <ol className={styles.importSteps} aria-label={t("manage.importSteps")}>
+                {["choose", "review", "save"].map((step, index) => (
+                  <li
+                    key={step}
+                    data-current={index === (model.busy === "saving" ? 2 : preview ? 1 : 0)}
+                  >
+                    {t(`manage.steps.${step}`)}
+                  </li>
+                ))}
+              </ol>
+              <div
+                className={styles.upload}
+                data-dragging={dragging}
+                aria-label={t("manage.dropZone")}
+                onDragOver={(event) => {
+                  event.preventDefault();
+                  event.dataTransfer.dropEffect = canImport ? "copy" : "none";
+                  setDragging(canImport);
+                }}
+                onDragLeave={(event) => {
+                  if (!event.currentTarget.contains(event.relatedTarget as Node | null))
+                    setDragging(false);
+                }}
+                onDrop={(event) => {
+                  event.preventDefault();
+                  choose(event.dataTransfer.files);
+                }}
+              >
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  aria-hidden="true"
+                >
+                  <path d="M12 16V3m-5 5 5-5 5 5M4 15v5h16v-5" />
+                </svg>
+                <h3>{t("chooseTitle")}</h3>
+                <p>{t("manage.dropHelp")}</p>
+                <input
+                  ref={file}
+                  className="sr-only"
+                  type="file"
+                  accept=".csv,text/csv"
+                  aria-label={t("chooseFile")}
+                  disabled={!canImport}
+                  onChange={(event) => {
+                    choose(event.target.files);
+                    event.target.value = "";
+                  }}
+                />
+                <button
+                  type="button"
+                  className={styles.primary}
+                  disabled={!canImport}
+                  onClick={() => file.current?.click()}
+                >
+                  {t(model.busy === "parsing" ? "parsing" : "chooseFile")}
+                </button>
+                <small>{t("fileLimit")}</small>
+              </div>
+            </div>
+          )}
+          {dropError && <InlineError message={t(`manage.${dropError}`)} />}
+          {model.busy === "parsing" && <LoadingIndicator busy label={t("parsing")} />}
           {model.hasPending && (
             <div className={styles.warning} role="status">
               <p>{t("pendingHelp")}</p>
@@ -475,6 +520,17 @@ function Workspace({ model }: { model: HoldingsWorkspace }) {
                 {t("reportDate", { date: preview.reportDate ?? t("unknown") })} ·{" "}
                 {t("timePrecision")}
               </p>
+              {(model.newSource || !(model.sources ?? []).length) && (
+                <label className={styles.importName}>
+                  {t("manage.nameOptional")}
+                  <input
+                    maxLength={80}
+                    value={importName}
+                    disabled={busy || !names.enabled}
+                    onChange={(e) => setImportName(e.target.value)}
+                  />
+                </label>
+              )}
               <fieldset className={styles.accountChoices} disabled={busy || model.hasPending}>
                 <legend>{t("selectAccounts")}</legend>
                 {preview.accounts.map((account) => {
@@ -548,7 +604,7 @@ function Workspace({ model }: { model: HoldingsWorkspace }) {
                   className={styles.primary}
                   type="button"
                   disabled={busy || model.hasPending}
-                  onClick={() => void model.save()}
+                  onClick={() => void savePreview()}
                 >
                   {t(model.busy === "saving" ? "saving" : "confirmSave")}
                 </button>
@@ -560,8 +616,17 @@ function Workspace({ model }: { model: HoldingsWorkspace }) {
             hasContent={Boolean(model.content)}
             label={t("loading")}
           />
-          {(model.contentRefreshing || model.contentStale) && (
-            <p role="status">{t(model.contentStale ? "cachedUpdateFailed" : "refreshingSaved")}</p>
+          <LoadingIndicator
+            busy={Boolean(model.contentRefreshing)}
+            hasContent={Boolean(model.content)}
+            label={t("refreshingSaved")}
+          />
+          {model.contentStale && (
+            <InlineError
+              message={t("cachedUpdateFailed")}
+              onRetry={() => void model.readStored()}
+              retryLabel={t("manage.retry")}
+            />
           )}
           {model.content && !hiddenHistory && (
             <section className={styles.saved} aria-labelledby="saved-holdings-title">
@@ -580,12 +645,25 @@ function Workspace({ model }: { model: HoldingsWorkspace }) {
           )}
         </>
       )}
+      <details className={styles.reviewNotes}>
+        <summary>{t("guideTitle")}</summary>
+        <ol>
+          {["login", "documents", "generate", "holdings", "date", "accounts", "download"].map(
+            (step) => (
+              <li key={step}>{t(`guide.${step}`)}</li>
+            ),
+          )}
+        </ol>
+        <a href={GUIDE} target="_blank" rel="noreferrer noopener">
+          {t("officialInstructions")} ↗
+        </a>
+      </details>
       <div className={styles.feedback} aria-live="polite">
-        {(model.busy === "saving" || model.busy === "reading") && (
-          <p role="status">
-            {t(model.busy === "reading" ? "reading" : model.hasPending ? "retrying" : "saving")}
-          </p>
-        )}
+        <LoadingIndicator
+          busy={model.busy === "saving"}
+          hasContent={Boolean(model.content || model.preview)}
+          label={t(model.hasPending ? "retrying" : "saving")}
+        />
         {model.error && (
           <div className={styles.error} role="alert">
             <p>
@@ -616,90 +694,42 @@ function Workspace({ model }: { model: HoldingsWorkspace }) {
 function ResourcesView({
   model,
   onOpenWatchlist,
-  active,
+  active = true,
   onCreateTask,
-}: {
-  model: HoldingsWorkspace;
-  onOpenWatchlist?: () => void;
-  active?: boolean;
-  onCreateTask?: (selection: ResourceSelection) => void;
-}) {
-  const t = useTranslations("resources");
+  watchlist,
+}: ResourcesProps & { model: HoldingsWorkspace }) {
+  const t = useTranslations("resources"),
+    names = useDisplayNames(model, active);
   return (
     <section className={styles.panel} aria-labelledby="resources-title">
       <header className={styles.heading}>
-        <div>
-          <span className={styles.eyebrow}>{t("eyebrow")}</span>
-          <h1 id="resources-title">{t("title")}</h1>
-          <p>{t("description")}</p>
-        </div>
-        {onOpenWatchlist && (
-          <button type="button" className={styles.secondary} onClick={onOpenWatchlist}>
-            {t("openWatchlist")} <span aria-hidden="true">↗</span>
-          </button>
-        )}
+        <h1 id="resources-title">{t("title")}</h1>
       </header>
       <ResourceLibrary
         holdingsVersion={model.content?.data.snapshotId}
         active={active}
+        watchlist={watchlist}
         onOpenWatchlist={onOpenWatchlist}
         onCreateTask={onCreateTask}
       >
-        <div className={styles.brokers} aria-label={t("providers")}>
-          <button type="button" className={styles.broker} aria-pressed="true">
-            <span className={styles.logo}>W</span>
-            <span>
-              <strong>Wealthsimple</strong>
-              <small>{t("holdingsCsv")}</small>
-            </span>
-            <span className={styles.badge}>{t("available")}</span>
-          </button>
-          {["Robinhood", "Interactive Brokers"].map((name) => (
-            <button className={styles.broker} type="button" disabled key={name}>
-              <span className={styles.logo}>{name === "Robinhood" ? "R" : "IB"}</span>
-              <span>
-                <strong>{name}</strong>
-                <small>{t("planned")}</small>
-              </span>
-            </button>
-          ))}
-        </div>
-        <div className={styles.columns}>
+        {(library) => (
           <div className={styles.workspace}>
-            <Workspace model={model} />
+            <Workspace
+              key={`${names.scope}:${model.selectedSourceId}:${model.newSource}`}
+              model={model}
+              names={names}
+              library={library}
+              onCreateTask={onCreateTask}
+            />
           </div>
-          <aside className={styles.guide} aria-labelledby="wealthsimple-guide">
-            <span className={styles.eyebrow}>{t("exportGuide")}</span>
-            <h2 id="wealthsimple-guide">{t("guideTitle")}</h2>
-            <p>{t("guideIntro")}</p>
-            <ol>
-              {["login", "documents", "generate", "holdings", "date", "accounts", "download"].map(
-                (step) => (
-                  <li key={step}>{t(`guide.${step}`)}</li>
-                ),
-              )}
-            </ol>
-            <a href={GUIDE} target="_blank" rel="noreferrer noopener">
-              {t("officialInstructions")} <span aria-hidden="true">↗</span>
-            </a>
-            <div className={styles.guideNote}>
-              <h3>{t("correctReport")}</h3>
-              <p>{t("reportHelp")}</p>
-              <p>{t("compatibility")}</p>
-            </div>
-            <div className={styles.guideNote}>
-              <h3>{t("privacyTitle")}</h3>
-              <p>{t("privacyHelp")}</p>
-              <p>{t("passkeyRecovery")}</p>
-            </div>
-          </aside>
-        </div>
+        )}
       </ResourceLibrary>
     </section>
   );
 }
 
 type ResourcesProps = {
+  watchlist?: WatchlistModel;
   active?: boolean;
   onOpenWatchlist?: () => void;
   onCreateTask?: (selection: ResourceSelection) => void;

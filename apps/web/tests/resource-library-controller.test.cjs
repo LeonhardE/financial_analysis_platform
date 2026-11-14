@@ -10,7 +10,7 @@ const {
   settle,
   deferred,
 } = require("./resource-library-helpers.cjs");
-function harness({ transport, active = true, configured = true } = {}) {
+function harness({ transport, active = true, configured = true, externalWatchlist = false } = {}) {
   let owner = "owner_A:1",
     visible = true,
     index = 0,
@@ -105,7 +105,7 @@ function harness({ transport, active = true, configured = true } = {}) {
     do {
       index = 0;
       dirty = false;
-      result = useResourceLibrary({ active });
+      result = useResourceLibrary({ active, externalWatchlist });
       if (flush)
         for (const entry of effects.splice(0)) {
           cells[entry.slot]?.cleanup?.();
@@ -364,5 +364,14 @@ test("creator GET permits server-added row metadata above the bounded write size
   const view = await h.ready();
   assert.equal(view.follows.error, "");
   assert.equal(view.follows.data.items.length, 50);
+  h.unmount();
+});
+
+test("shared Market watchlist suppresses a second User list read without disabling creators or discovery", async () => {
+  const h = harness({ externalWatchlist: true });
+  const model = await h.ready();
+  assert.equal(h.calls.filter((c) => c.route === "/api/v1/watchlist").length, 0);
+  assert.ok(model.follows.data);
+  assert.ok(model.catalogue.data);
   h.unmount();
 });
