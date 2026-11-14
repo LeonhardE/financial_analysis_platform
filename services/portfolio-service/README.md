@@ -210,6 +210,19 @@ their unknown snapshot epoch cannot be promoted into an eligible projection. Sta
 `revoking`, `disconnected` and `deleted` for future fencing coordination, without granting content
 access. New sources without a snapshot return a null pointer, not synthetic holdings.
 
+`POST /internal/v2/resources/discovery/read` accepts the same bounded request and credentials.
+It returns exactly `{contractVersion,profile,states,projections}`, with profile
+`folioview.portfolio-discovery.v1`. `states` and `projections` each use the corresponding original
+`{contractVersion,items}` metadata view above. Both views derive from one `metadata_many`
+transaction, preserving request order. States contains every requested reference; projections
+contains only active sources with either no snapshot or a current-epoch snapshot. An active source
+whose historical snapshot is ineligible has **no projection item**, distinct from an eligible
+empty source's projection with `snapshotId:null`. Consumers must treat that missing projection as
+unavailable and must retain their current Root/fence checks. Missing authority, corrupt storage or
+an incarnation mismatch fails the entire request; no successful partial envelope is returned.
+The route performs no writes or ciphertext reads. Original separate routes and their errors remain
+available, allowing producer deployment before a consumer adopts the combined read.
+
 Trust requires explicit `PORTFOLIO_SERVICE_AUDIENCE`, matching versioned
 `PORTFOLIO_DELEGATION_AUDIENCE`, `PORTFOLIO_DELEGATION_ISSUER` and
 `PORTFOLIO_TRUSTED_HUB_CALLERS` (a bounded JSON subject-to-service-email map). Empty/malformed

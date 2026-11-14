@@ -109,9 +109,14 @@ def _refs(value):
     return value["refs"]
 
 
-def _read(service, owner_uid, refs, *, states):
+def _projection_available(value):
+    return value["state"] == "active" and (
+        value["snapshotId"] is None or value["snapshotSourceEpoch"] == value["sourceEpoch"]
+    )
+
+
+def _items(service, refs, values, *, states):
     items = []
-    values = service.metadata_many(owner_uid, [ref["resourceId"] for ref in refs])
     for ref, value in zip(refs, values, strict=True):
         if canonical_json(value["resourceRef"]) != canonical_json(ref):
             raise ContractError("not_found")
@@ -143,11 +148,37 @@ def _read(service, owner_uid, refs, *, states):
     return result
 
 
-async def _read_request(request, principal, service, *, states):
+def _read(service, owner_uid, refs, *, states):
+    values = service.metadata_many(owner_uid, [ref["resourceId"] for ref in refs])
+    return _items(service, refs, values, states=states)
+
+
+def _discovery(service, owner_uid, refs):
+    # Both views come from the same owner transaction. Unavailable projections
+    # are omitted, never promoted from an old epoch or a non-active state.
+    values = service.metadata_many(owner_uid, [ref["resourceId"] for ref in refs])
+    eligible = [value for value in values if _projection_available(value)]
+    result = {
+        "contractVersion": CONTRACT_VERSION,
+        "profile": "folioview.portfolio-discovery.v1",
+        "states": _items(service, refs, values, states=True),
+        "projections": _items(
+            service, [value["resourceRef"] for value in eligible], eligible, states=False
+        ),
+    }
+    check_read_response(result)
+    return result
+
+
+async def _request_refs(request):
     if request.headers.getlist("content-type") != ["application/json"]:
         raise HTTPException(415, {"code": "unsupported_media_type"})
     value = await _read_json(request, max_bytes=MAX_METADATA_BODY_BYTES)
-    refs = _invoke(lambda: _refs(value))
+    return _invoke(lambda: _refs(value))
+
+
+async def _read_request(request, principal, service, *, states):
+    refs = await _request_refs(request)
     return await run_in_threadpool(
         _invoke, lambda: _read(service, principal.owner_uid, refs, states=states)
     )
@@ -161,3 +192,9 @@ async def projections(request: Request, principal: Principal, service: Service):
 @router.post("/states/read")
 async def states(request: Request, principal: Principal, service: Service):
     return await _read_request(request, principal, service, states=True)
+
+
+@router.post("/discovery/read")
+async def discovery(request: Request, principal: Principal, service: Service):
+    refs = await _request_refs(request)
+    return await run_in_threadpool(_invoke, lambda: _discovery(service, principal.owner_uid, refs))
