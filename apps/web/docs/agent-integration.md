@@ -133,11 +133,29 @@ center. Historical reports and old public verification records remain available.
 When the capability is disabled, existing installations retain the compatible
 credential flow. This release changes no rollout flags or production records.
 
-Connection display readiness is separate from connection state. Both the verified Owner
-snapshot and provider slots must load for the current unlock generation before the UI can
-show a connection as absent or offer reconnection. Initial reads show an animated loading
-badge; failed reads show an unavailable state with retry. Refreshes retain the last loaded
-snapshot and mark it as updating or stale on failure. These display snapshots never grant
-access. The four independent capability/listing reads use the existing two-transport display
-pool; credential, Root and authorization checks keep their fresh-read requirements. No timer,
-background poll, automatic authorization or additional cloud capacity is introduced.
+Connection display readiness is separate from connection state. A single owner/unlock-scoped
+snapshot pairs provider slots with verified current credentials; neither half can replace the
+other independently. First reads show loading, transport/verification failures stay unavailable,
+and failed refreshes retain the previous pair with retry. Unread historical credentials are
+labelled previous connections rather than disconnected or in need of reauthorization.
+
+Only Task Center and Agent Management activate discovery. Same-scope route revisits reuse the
+snapshot for30seconds, then refresh in the background. No task content, resource policy or native
+plan is fetched merely to show connection state. A known provider slot verifies only its exact
+current connection; ambiguous legacy inventories still verify their candidates, bounded to two
+at a time. Pending local operations are inspected once per eligible connection for recovery.
+The current vault is freshly verified before private inspection, and operations retain fresh
+Root/credential/permission checks. These display snapshots never grant access.
+
+Display refresh uses a separate cancellation lane and never marks a mutation busy. An explicit
+operation cancels the display read; late responses cannot publish over it. Total deadlines settle
+non-cooperative promises as well as signalling cancellation, with no automatic retry of unknown
+writes or deletion of their sealed originals. Lock, owner/vault/unlock-generation changes and
+hidden documents mask private state immediately. Task deletion fences selected-task detail reads.
+
+Legacy task assignment details are read only when that exact task is opened, using its verified
+metadata/version, rather than scanning all tasks. Settings wait for this display read and offer
+retry on failure; saves still reread current authority and content before granting anything.
+Provider reauthorization, legacy restoration and explicit recovery keep their original fresh
+review paths. No background polling, host upgrade, automatic authorization or extra cloud capacity
+is introduced. Local regression and call counts are not production latency acceptance.

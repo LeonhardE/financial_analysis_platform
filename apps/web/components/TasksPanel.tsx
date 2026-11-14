@@ -1013,6 +1013,7 @@ export default function TasksPanel({
       <>
         {linkedTask && model.dirty && <InlineError message={tc("unsavedLink")} />}
         <TaskCenterView
+          active={active}
           workspace={workspace}
           model={model}
           center={center}

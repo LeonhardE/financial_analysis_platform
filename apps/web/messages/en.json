@@ -1488,7 +1488,8 @@
     "refreshing": "Updating connections",
     "statusUnavailable": "Status unavailable",
     "loadFailed": "Could not load connections. Try again.",
-    "refreshFailed": "Could not refresh. The last loaded status is shown."
+    "refreshFailed": "Could not refresh. The last loaded status is shown.",
+    "previousConnection": "Previous connection"
   },
   "taskCenter": {
     "title": "Task center",

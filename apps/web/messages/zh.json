@@ -1488,7 +1488,8 @@
     "refreshing": "正在更新连接",
     "statusUnavailable": "状态暂不可用",
     "loadFailed": "未能读取连接，请重试。",
-    "refreshFailed": "未能刷新，当前显示上次读取的状态。"
+    "refreshFailed": "未能刷新，当前显示上次读取的状态。",
+    "previousConnection": "历史连接"
   },
   "taskCenter": {
     "title": "任务中心",

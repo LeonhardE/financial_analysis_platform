@@ -45,6 +45,8 @@ type State = {
   executionEnabled: boolean;
   views: PersistentConnectionView[];
   tasks: PersistentTask[];
+  providerStates: Record<string, Record<string, any>>;
+  revision: number;
   busy: boolean;
   loading: boolean;
   loaded: boolean;
@@ -53,6 +55,7 @@ type State = {
   waitingForService: boolean;
   error: string;
   scope: string | null;
+  hubOrigin: string | null;
 };
 const initial: State = {
   owner: null,
@@ -60,6 +63,8 @@ const initial: State = {
   executionEnabled: false,
   views: [],
   tasks: [],
+  providerStates: {},
+  revision: 0,
   busy: false,
   loading: false,
   loaded: false,
@@ -68,8 +73,13 @@ const initial: State = {
   waitingForService: false,
   error: "",
   scope: null,
+  hubOrigin: null,
 };
-export function usePersistentWorkspace(workspace: HoldingsWorkspace, hubOrigin: string | null) {
+export function usePersistentWorkspace(
+  workspace: HoldingsWorkspace,
+  hubOrigin: string | null,
+  active = true,
+) {
   const auth = useAuth(),
     owner = auth.status === "authenticated" ? auth.sessionKey : null;
   const [visible, setVisible] = useState(
@@ -80,9 +90,11 @@ export function usePersistentWorkspace(workspace: HoldingsWorkspace, hubOrigin: 
       ? `${owner}:${workspace.vault?.vaultId ?? "unavailable"}:${workspace.vaultGeneration}`
       : null;
   const [state, setState] = useState<State>(initial);
-  const live = useRef({ auth, workspace, owner, scope, visible, hubOrigin });
-  live.current = { auth, workspace, owner, scope, visible, hubOrigin };
+  const live = useRef({ auth, workspace, owner, scope, visible, hubOrigin, active });
+  live.current = { auth, workspace, owner, scope, visible, hubOrigin, active };
   const job = useRef<AbortController | null>(null);
+  const displayJob = useRef<AbortController | null>(null);
+  const fresh = useRef(0);
   const read = useRef<symbol | null>(null);
   const execute = useCallback(
     async <T>(
@@ -92,8 +104,10 @@ export function usePersistentWorkspace(workspace: HoldingsWorkspace, hubOrigin: 
         assert: () => void,
       ) => Promise<T>,
       privateRead = true,
+      display = false,
     ): Promise<T | null> => {
       if (job.current) return null;
+      if (display && (!live.current.active || displayJob.current)) return null;
       const start = live.current;
       if (
         !start.owner ||
@@ -102,18 +116,38 @@ export function usePersistentWorkspace(workspace: HoldingsWorkspace, hubOrigin: 
         (privateRead && !start.scope)
       )
         return null;
+      if (!display) {
+        displayJob.current?.abort();
+        displayJob.current = null;
+        read.current = null;
+      }
       const abort = new AbortController();
-      job.current = abort;
-      const timer = setTimeout(() => abort.abort(), 120000);
+      const lane = display ? displayJob : job;
+      lane.current = abort;
+      let timedOut = false;
+      const timer = setTimeout(
+        () => {
+          timedOut = true;
+          abort.abort();
+        },
+        display ? 14000 : 120000,
+      );
+      let cancel = () => {};
+      const cancelled = new Promise<never>((_, reject) => {
+        cancel = () => reject(new PersistentExperienceError(timedOut ? "timeout" : "cancelled"));
+        abort.signal.addEventListener("abort", cancel, { once: true });
+      });
       const assert = () => {
         const n = live.current;
         if (
           abort.signal.aborted ||
-          job.current !== abort ||
+          lane.current !== abort ||
+          (display && !n.active) ||
           n.owner !== start.owner ||
           !n.visible ||
           !n.auth.agentHubConfigured ||
-          n.scope !== start.scope
+          n.scope !== start.scope ||
+          n.hubOrigin !== start.hubOrigin
         )
           throw new PersistentExperienceError("cancelled");
       };
@@ -131,6 +165,8 @@ export function usePersistentWorkspace(workspace: HoldingsWorkspace, hubOrigin: 
             (["POST", "PUT", "PATCH"].includes(method) &&
               operation !== null &&
               /^[A-Za-z0-9_-]{22,128}$/.test(operation));
+        if (display && method !== "GET")
+          throw new PersistentExperienceError("invalid_display_request");
         const requestHeaders = new Headers(
           service === "user" ? undefined : { "X-FolioView-Contract": PERSISTENT_CONTRACT },
         );
@@ -210,248 +246,273 @@ export function usePersistentWorkspace(workspace: HoldingsWorkspace, hubOrigin: 
           request("agent-hub", "/api/v2/vaults/current"),
         );
       const hub = (path: string, options: any = {}) => api("agent-hub", path, options);
-      setState((s) =>
-        s.owner === start.owner
-          ? { ...s, busy: true, waitingForService: false, error: "" }
-          : { ...initial, owner: start.owner, busy: true },
-      );
+      if (!display)
+        setState((s) =>
+          s.owner === start.owner && s.hubOrigin === start.hubOrigin
+            ? { ...s, busy: true, loading: false, waitingForService: false, error: "", tasks: [] }
+            : { ...initial, owner: start.owner, hubOrigin: start.hubOrigin, busy: true },
+        );
       try {
         assert();
-        if (privateRead) {
-          await refreshVault(abort.signal, false);
-          assert();
-        }
-        const result = await action(
-          new PersistentExperienceController(
-            api,
-            () => ({ ...live.current.workspace, refreshVault }),
-            assert,
-            abort.signal,
-            live.current.hubOrigin ?? "",
-          ),
-          hub,
-          assert,
-        );
+        const result = await Promise.race([
+          (async () => {
+            if (privateRead) {
+              await refreshVault(abort.signal, false);
+              assert();
+            }
+            return action(
+              new PersistentExperienceController(
+                api,
+                () => ({ ...live.current.workspace, refreshVault }),
+                assert,
+                abort.signal,
+                live.current.hubOrigin ?? "",
+              ),
+              hub,
+              assert,
+            );
+          })(),
+          cancelled,
+        ]);
         assert();
         return result;
       } catch (error) {
         if (
-          !abort.signal.aborted &&
+          (!abort.signal.aborted || timedOut) &&
+          lane.current === abort &&
           live.current.owner === start.owner &&
           live.current.scope === start.scope
         ) {
           const code = (error as { code?: string })?.code;
-          setState((s) => ({
-            ...s,
-            error: [
-              "review_changed",
-              "select_task",
-              "select_resource",
-              "replacement_review_required",
-              "resource_not_approved",
-              "persistent_operation_pending",
-              "version_conflict",
-              "source_unavailable",
-            ].includes(code ?? "")
-              ? code!
-              : "request_failed",
-          }));
+          if (!display)
+            setState((s) => ({
+              ...s,
+              error: [
+                "review_changed",
+                "select_task",
+                "select_resource",
+                "replacement_review_required",
+                "resource_not_approved",
+                "persistent_operation_pending",
+                "version_conflict",
+                "source_unavailable",
+              ].includes(code ?? "")
+                ? code!
+                : "request_failed",
+            }));
         }
         return null;
       } finally {
         clearTimeout(timer);
         abort.abort();
-        if (job.current === abort) {
-          job.current = null;
-          setState((s) =>
-            s.owner === live.current.owner
-              ? { ...s, busy: false, waitingForService: false }
-              : initial,
-          );
+        abort.signal.removeEventListener("abort", cancel);
+        if (lane.current === abort) {
+          lane.current = null;
+          if (!display)
+            setState((s) =>
+              s.owner === live.current.owner
+                ? { ...s, busy: false, waitingForService: false }
+                : initial,
+            );
         }
       }
     },
     [],
   );
-  const reload = useCallback(async () => {
-    const start = live.current;
-    if (job.current || !start.owner || !start.auth.agentHubConfigured || !start.visible)
-      return null;
-    const token = Symbol();
-    read.current = token;
-    setState((s) => ({
-      ...(s.owner === start.owner ? s : { ...initial, owner: start.owner }),
-      loading: true,
-      loadError: false,
-      loadScope: start.scope,
-    }));
-    const result = await execute(async (c, api, assert) => {
-      // Independent display reads share the existing two-transport pool.
-      // Authority reads and mutations keep their original fresh-read paths.
-      const [caps, native, credentials, list] = await Promise.all(
-        [
-          "/api/v2/persistent-agents/capabilities",
-          "/api/v2/persistent-account-authorizations/capabilities",
-          "/api/v3/agent-credentials/capabilities",
-          "/api/v2/persistent-connections",
-        ].map((path) => api(path, { coalesceDisplay: true })),
-      );
-      const views: PersistentConnectionView[] = [],
-        tasks =
-          live.current.scope && (native.accountLinkEnabled || list.connections.length)
-            ? await c.tasks()
-            : [];
-      for (const connection of list.connections as PersistentConnection[]) {
-        const view: PersistentConnectionView = {
-          connection,
-          identity: null,
-          credential: null,
-          policy: null,
-          tasks: [],
-          pending: false,
-          error: "",
-        };
-        if (
-          live.current.scope &&
-          connection.status === "active" &&
-          connection.vaultId === live.current.workspace.vault?.vaultId
-        ) {
-          try {
-            const credential = await c.credential(connection);
-            assert();
-            view.credential = {
-              ...credential.verified,
-              reference: credential.state.lease
-                ? {
-                    connectionId: connection.connectionId,
-                    clientId: connection.clientId,
-                    credentialGeneration: credential.state.lease.generation,
-                    credentialFingerprint: credential.state.lease.credentialFingerprint,
-                  }
-                : null,
-            };
-            const context = ["active", "expiring"].includes(credential.verified.status)
-              ? await c.review(connection)
-              : null;
-            assert();
-            view.identity = context?.identity ?? credential.state.identity;
-            view.policy = context?.policy ?? null;
-            for (const task of tasks.filter(
-              (t) =>
-                t.authority.authority?.context.connectionId === connection.connectionId ||
-                t.authority.taskCenter?.assignments?.some(
-                  (r: Record<string, any>) =>
-                    r.assignment.credential.connectionId === connection.connectionId &&
-                    r.plan?.currentAssignment,
-                ),
-            )) {
-              let plan = null;
-              if (context)
-                try {
-                  const raw = await c.plan(connection, task.taskId);
-                  if (raw.state.reported && raw.state.reported.provider !== connection.provider)
-                    throw Error("provider_mismatch");
-                  plan = await live.current.workspace.verifyPersistentPlan({
-                    actor: {
-                      connectionId: connection.connectionId,
-                      clientId: connection.clientId,
-                    },
-                    ...raw,
-                    taskId: task.taskId,
-                    hubOrigin: live.current.hubOrigin,
-                  });
-                } catch {
-                  assert();
-                }
-              assert();
-              view.tasks.push({ ...task, plan });
-            }
-            view.pending = !!(await live.current.workspace.loadPersistentPending({
-              connectionId: connection.connectionId,
-              clientId: connection.clientId,
-            }));
-            assert();
-          } catch {
-            view.error = "review_required";
-          }
-          try {
-            view.pending = !!(await live.current.workspace.loadPersistentPending({
-              connectionId: connection.connectionId,
-              clientId: connection.clientId,
-            }));
-            assert();
-          } catch {
-            assert();
-          }
-        }
-        views.push(view);
-      }
-      assert();
-      setState({
-        owner: live.current.owner,
-        enabled:
-          !!native.accountLinkEnabled && !!credentials.enabled && !!caps.resourceConsentEnabled,
-        executionEnabled: !!caps.executionEnabled,
-        views,
-        tasks,
-        busy: true,
+  const reload = useCallback(
+    async (force = true) => {
+      const start = live.current;
+      if (
+        job.current ||
+        displayJob.current ||
+        !start.scope ||
+        !start.hubOrigin ||
+        !start.active ||
+        !start.auth.agentHubConfigured ||
+        (!force && fresh.current !== 0 && Date.now() - fresh.current < 30000)
+      )
+        return null;
+      const token = Symbol();
+      read.current = token;
+      setState((s) => ({
+        ...(s.owner === start.owner ? s : { ...initial, owner: start.owner }),
         loading: true,
-        loaded: true,
         loadError: false,
-        loadScope: live.current.scope,
-        waitingForService: false,
-        error: "",
-        scope: live.current.scope,
-      });
-      return true;
-    }, false);
-    if (
-      read.current === token &&
-      live.current.owner === start.owner &&
-      live.current.scope === start.scope &&
-      live.current.visible
-    ) {
-      setState((s) => ({ ...s, loading: false, loadError: result !== true }));
-      read.current = null;
-    }
-    return result;
-  }, [execute]);
-  useEffect(() => {
-    job.current?.abort();
-    job.current = null;
-    read.current = null;
-    setState((s) =>
-      s.owner === owner
-        ? {
-            ...s,
-            views: s.views.map((v) => ({
-              ...v,
+        loadScope: start.scope,
+        hubOrigin: start.hubOrigin,
+      }));
+      const result = await execute(
+        async (c, api, assert) => {
+          // One snapshot pairs verified credentials and provider slots. No task,
+          // resource policy or native-plan scan is needed to show a connection.
+          const [caps, native, credentials, list, muse, chatgpt] = await Promise.all(
+            [
+              "/api/v2/persistent-agents/capabilities",
+              "/api/v2/persistent-account-authorizations/capabilities",
+              "/api/v3/agent-credentials/capabilities",
+              "/api/v2/persistent-connections",
+              `/api/v3/provider-connections/${start.workspace.vault!.vaultId}/muse`,
+              `/api/v3/provider-connections/${start.workspace.vault!.vaultId}/chatgpt`,
+            ].map((path) => api(path, { coalesceDisplay: true })),
+          );
+          if (
+            !Array.isArray(list.connections) ||
+            list.connections.length > 128 ||
+            [muse, chatgpt].some((v) => v.profile !== "folioview.provider-connection-slot.v1")
+          )
+            throw new PersistentExperienceError("invalid_response");
+          const views: PersistentConnectionView[] = list.connections.map(
+            (connection: PersistentConnection) => ({
+              connection,
               identity: null,
               credential: null,
               policy: null,
               tasks: [],
               pending: false,
               error: "",
-            })),
+            }),
+          );
+          let cursor = 0;
+          const work = async () => {
+            while (cursor < views.length) {
+              const view = views[cursor++],
+                connection = view.connection;
+              assert();
+              if (
+                connection.status !== "active" ||
+                connection.vaultId !== start.workspace.vault!.vaultId
+              )
+                continue;
+              // Transport or verification failure makes the snapshot unavailable.
+              // Never turn an unread credential into reauthorization/disconnection.
+              const slot = (connection.provider === "muse" ? muse : chatgpt).slot,
+                ref = slot?.currentCredential;
+              // With a provider slot, only its exact current connection needs
+              // remote credential verification. Legacy ambiguous inventories
+              // still verify all candidates instead of inventing a current one.
+              if (
+                !slot ||
+                (ref?.connectionId === connection.connectionId &&
+                  ref.clientId === connection.clientId)
+              ) {
+                const credential = await c.credential(connection);
+                assert();
+                view.credential = {
+                  ...credential.verified,
+                  reference: credential.state.lease
+                    ? {
+                        connectionId: connection.connectionId,
+                        clientId: connection.clientId,
+                        credentialGeneration: credential.state.lease.generation,
+                        credentialFingerprint: credential.state.lease.credentialFingerprint,
+                      }
+                    : null,
+                };
+                view.identity = credential.state.identity;
+              }
+              view.pending = !!(await live.current.workspace.loadPersistentPending({
+                connectionId: connection.connectionId,
+                clientId: connection.clientId,
+              }));
+              assert();
+            }
+          };
+          await Promise.all(Array.from({ length: Math.min(2, views.length) }, work));
+          assert();
+          fresh.current = Date.now();
+          setState((s) => ({
+            ...s,
+            owner: start.owner,
+            enabled:
+              !!native.accountLinkEnabled && !!credentials.enabled && !!caps.resourceConsentEnabled,
+            executionEnabled: !!caps.executionEnabled,
+            views,
+            providerStates: { muse, chatgpt },
             tasks: [],
-            scope: null,
             busy: false,
-            loading: false,
-            loaded: false,
+            loaded: true,
             loadError: false,
-            loadScope: null,
-            waitingForService: false,
-            error: "",
-          }
-        : initial,
-    );
-    if (owner && visible) void reload();
+            loadScope: start.scope,
+            scope: start.scope,
+            hubOrigin: start.hubOrigin,
+            revision: s.revision + 1,
+          }));
+          return true;
+        },
+        true,
+        true,
+      );
+      if (read.current === token && live.current.scope === start.scope && live.current.active) {
+        setState((s) => ({ ...s, loading: false, loadError: result !== true }));
+        read.current = null;
+      }
+      return result;
+    },
+    [execute],
+  );
+  // Only an explicitly viewed legacy task needs its content/authority. Current
+  // task-center records already own their assignments and execution history.
+  const loadTask = useCallback(
+    async (metadata: Record<string, any>) => {
+      if (job.current || !live.current.scope || !live.current.active) return false;
+      displayJob.current?.abort();
+      displayJob.current = null;
+      read.current = null;
+      const result = await execute(
+        async (c, _api, assert) => {
+          const task = await c.task(metadata);
+          assert();
+          setState((s) => ({
+            ...s,
+            loading: false,
+            tasks: [task],
+            views: s.views.map((v) => ({
+              ...v,
+              tasks:
+                task.authority.authority?.context.connectionId === v.connection.connectionId ||
+                task.authority.taskCenter?.assignments?.some(
+                  (r: Record<string, any>) =>
+                    r.assignment.credential.connectionId === v.connection.connectionId &&
+                    r.plan?.currentAssignment,
+                )
+                  ? [task]
+                  : [],
+            })),
+          }));
+          return true;
+        },
+        true,
+        true,
+      );
+      return result === true;
+    },
+    [execute],
+  );
+  useEffect(() => {
+    job.current?.abort();
+    job.current = null;
+    displayJob.current?.abort();
+    displayJob.current = null;
+    read.current = null;
+    fresh.current = 0;
+    setState({ ...initial, owner, hubOrigin });
     return () => {
       job.current?.abort();
       job.current = null;
+      displayJob.current?.abort();
+      displayJob.current = null;
       read.current = null;
     };
-  }, [owner, scope, visible, reload]);
+  }, [owner, scope, hubOrigin]);
+  useEffect(() => {
+    if (active && scope) void reload(false);
+    else {
+      displayJob.current?.abort();
+      displayJob.current = null;
+      read.current = null;
+      setState((s) => ({ ...s, loading: false }));
+    }
+  }, [active, scope, hubOrigin, reload]);
   useEffect(() => {
     const change = () => setVisible(document.visibilityState !== "hidden");
     change();
@@ -466,7 +527,7 @@ export function usePersistentWorkspace(workspace: HoldingsWorkspace, hubOrigin: 
     },
     [execute, reload],
   );
-  const visibleState = state.owner === owner ? state : initial;
+  const visibleState = state.owner === owner && state.hubOrigin === hubOrigin ? state : initial;
   return {
     isBusy: () => job.current !== null,
     ...visibleState,
@@ -474,20 +535,24 @@ export function usePersistentWorkspace(workspace: HoldingsWorkspace, hubOrigin: 
     loading: Boolean(owner && visibleState.loadScope === scope && visibleState.loading),
     loadError: Boolean(owner && visibleState.loadScope === scope && visibleState.loadError),
     tasks: scope !== null && visibleState.scope === scope ? visibleState.tasks : [],
-    views: visibleState.views.map((v) =>
-      scope !== null && visibleState.scope === scope
-        ? v
-        : { ...v, identity: null, credential: null, policy: null, tasks: [], pending: false },
-    ),
+    views: scope !== null && visibleState.scope === scope ? visibleState.views : [],
+    providerStates:
+      scope !== null && visibleState.scope === scope ? visibleState.providerStates : {},
     unlocked: !!scope,
     owner,
     reload,
-    invalidateTask: (taskId: string) =>
+    loadTask,
+    invalidateTask: (taskId: string) => {
+      displayJob.current?.abort();
+      displayJob.current = null;
+      read.current = null;
       setState((s) => ({
         ...s,
+        loading: false,
         tasks: s.tasks.filter((t) => t.taskId !== taskId),
         views: s.views.map((v) => ({ ...v, tasks: v.tasks.filter((t) => t.taskId !== taskId) })),
-      })),
+      }));
+    },
     execute,
     review: (connection: PersistentConnection) => execute((c) => c.review(connection)),
     approve: (
