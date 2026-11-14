@@ -3424,3 +3424,180 @@ test("position drafts reject a changed snapshot/account and cannot be created wh
   assert.equal(h.render().preview, null);
   h.unmount();
 });
+
+test("retrying an unlocked failed holdings read actually contacts Portfolio and retains failure until a successful read", async () => {
+  const h = harness();
+  await unlocked(h);
+  h.failRead(503);
+  await h.render().readStored();
+  assert.equal(h.render().phase, "unlocked");
+  assert.equal(h.render().error, "service_unavailable");
+  const start = h.requests.length;
+  await h.render().readStored();
+  assert.ok(h.requests.slice(start).some((r) => r.service === "portfolio"));
+  assert.equal(h.render().error, "service_unavailable");
+  assert.equal(h.render().sourceMetadata, null);
+  h.failRead(null);
+  const retry = h.requests.length;
+  await h.render().readStored();
+  assert.ok(h.requests.slice(retry).some((r) => r.service === "portfolio"));
+  assert.equal(h.render().error, "");
+  assert.equal(h.render().sourceMetadata.state, "active");
+  assert.equal(h.render().phase, "unlocked");
+  h.unmount();
+});
+
+function sharedResourceView(h) {
+  const { hooks, jsx } = require("./resource-ui-harness.cjs"),
+    ui = hooks();
+  const { compile: component } = require("./resource-library-helpers.cjs");
+  const { default: ResourcesPanel } = component("../components/ResourcesPanel.tsx", {
+    react: ui.react,
+    "react/jsx-runtime": { jsx, jsxs: jsx },
+    "next-intl": { useTranslations: () => (key) => key },
+    "next/dynamic": { __esModule: true, default: () => () => null },
+    "@/components/useHoldingsWorkspace": {},
+    "@/lib/holdings-facts": component("../lib/holdings-facts.ts"),
+    "./HoldingsEditor": { __esModule: true, default: () => null },
+    "./ResourceLibrary": { __esModule: true, default: () => null },
+    "./PasskeyHelp": {},
+    "./HoldingsSourceBar": {},
+    "./useDisplayNames": { useDisplayNames: () => ({ scope: "names" }) },
+    "./ResourcesPanel.module.css": { __esModule: true, default: {} },
+  });
+  return {
+    render: (active = true) =>
+      ui.render(() => {
+        const panel = ResourcesPanel({ workspace: h.render(), active });
+        return panel.type(panel.props);
+      }),
+    close: () => ui.close(),
+  };
+}
+
+test("shared unlock restores missing Portfolio metadata only after visible resource entry, through the real readStored path", async () => {
+  const h = harness({ sharedUnlock: true, sharedResume: true });
+  let model = await ready(h);
+  assert.equal(model.phase, "unlocked");
+  assert.equal(model.sourceMetadata, null, "shared resume alone has not loaded Portfolio");
+  assert.equal(model.content, null);
+  assert.equal(model.error, "");
+  assert.equal(h.requests.filter((r) => r.service === "portfolio").length, 0);
+  const view = sharedResourceView(h);
+  view.render(false);
+  await settle();
+  assert.equal(h.requests.filter((r) => r.service === "portfolio").length, 0);
+  view.render();
+  await settle();
+  view.render();
+  model = h.render();
+  assert.equal(model.sourceMetadata.state, "active");
+  assert.ok(
+    h.requests.some((r) => r.service === "portfolio" && r.route.endsWith("/authority-sync")),
+  );
+  assert.equal(h.counts().passkeyCalls, 0);
+  assert.equal(h.instances.length, 1);
+  const requests = h.requests.length;
+  view.render();
+  view.render(false);
+  view.render();
+  await settle();
+  assert.equal(h.requests.length, requests, "known metadata and same generation do not reread");
+  view.close();
+  h.unmount();
+});
+
+test("failed shared resource recovery stays explicit and read-only shared unlock never starts an automatic Portfolio read", async () => {
+  const h = harness({ sharedUnlock: true, sharedResume: true });
+  await ready(h);
+  h.failRead(503);
+  const view = sharedResourceView(h);
+  view.render();
+  await settle();
+  view.render();
+  assert.equal(h.render().error, "service_unavailable");
+  assert.equal(h.render().sourceMetadata, null);
+  const requests = h.requests.length;
+  view.render(false);
+  view.render();
+  await settle();
+  assert.equal(h.requests.length, requests, "failure cannot turn into an automatic retry loop");
+  h.failRead(null);
+  await h.render().readStored();
+  view.render();
+  assert.equal(h.render().error, "");
+  assert.equal(h.render().sourceMetadata.state, "active");
+  view.close();
+  h.unmount();
+  const readOnly = harness({ sharedUnlock: true, sharedResume: true, resultCanWrite: false });
+  await ready(readOnly);
+  const readonlyView = sharedResourceView(readOnly);
+  readonlyView.render();
+  await settle();
+  assert.equal(readOnly.render().canWriteState, false);
+  assert.equal(readOnly.render().sourceMetadata, null);
+  assert.equal(readOnly.requests.filter((r) => r.service === "portfolio").length, 0);
+  readonlyView.close();
+  readOnly.unmount();
+});
+
+test("display-bound forState=false vault refresh invokes the existing result-vault verifier and parser without another GET", async () => {
+  const h = harness({ sharedUnlock: true, sharedResume: true, resultCanWrite: false });
+  const model = await ready(h),
+    instance = h.instances[0];
+  const original = instance.acceptResultVault.bind(instance),
+    accepted = [];
+  instance.acceptResultVault = async (value) => {
+    accepted.push(value);
+    return original(value);
+  };
+  const requests = h.requests.length;
+  let reads = 0;
+  const result = await model.refreshVault(new AbortController().signal, false, async () => {
+    reads++;
+    return Response.json({ contractVersion: CONTRACT, vault, sources: [source] });
+  });
+  assert.equal(result.vaultId, vault.vaultId);
+  assert.equal(reads, 1);
+  assert.equal(accepted.length, 1);
+  assert.deepEqual(JSON.parse(JSON.stringify(accepted[0])), vault);
+  assert.equal(h.requests.length, requests, "the display aggregate supplies the only GET response");
+  assert.equal(h.instances.length, 1);
+  assert.equal(h.render().canWriteState, false, "result display cannot grant state authority");
+  for (const invalid of [
+    JSON.stringify({ contractVersion: "unknown", vault, sources: [source] }),
+    " ".repeat(1_048_577),
+  ]) {
+    await assert.rejects(
+      model.refreshVault(new AbortController().signal, false, async () => new Response(invalid)),
+      (e) => e.code === "invalid_response",
+    );
+    assert.equal(accepted.length, 1, "invalid aggregate must not reach the result-vault verifier");
+  }
+  assert.equal(h.requests.length, requests);
+  h.unmount();
+});
+
+test("display-bound result-vault refresh rejects an Owner change before verification and state adoption", async () => {
+  const h = harness(),
+    model = await unlocked(h),
+    instance = h.instances[0];
+  const original = instance.acceptResultVault.bind(instance),
+    accepted = [];
+  instance.acceptResultVault = async (value) => {
+    accepted.push(value);
+    return original(value);
+  };
+  const gate = deferred();
+  const refresh = model.refreshVault(new AbortController().signal, false, () => gate.promise);
+  const rejected = assert.rejects(refresh, (e) => e.code === "cancelled");
+  await settle();
+  h.auth({ status: "anonymous", sessionKey: null, profile: null });
+  h.render();
+  gate.resolve(Response.json({ contractVersion: CONTRACT, vault, sources: [source] }));
+  await rejected;
+  assert.equal(accepted.length, 0);
+  assert.equal(h.render().vault, null);
+  assert.equal(h.render().canWriteState, false);
+  h.unmount();
+});

@@ -101,6 +101,22 @@ function harness({ transport, center, timers, clock = Date } = {}) {
     calls.push({ path, options: o });
     const v = await transport?.(path, o, metadata);
     if (v !== undefined) return v;
+    if (path === "/api/v2/persistent-connections")
+      return Response.json({
+        contractVersion: C,
+        profile: "folioview.persistent-account.v1",
+        connections: [
+          {
+            connectionId: "connection_A",
+            clientId: "client_A",
+            vaultId: "vault_A",
+            provider: "muse",
+            status: "revoked",
+            accountState: "revoked",
+            linkedAt: 1,
+          },
+        ],
+      });
     if (path.startsWith("/api/v3/task-center/")) return Response.json({ rules: null });
     if (path.startsWith("/api/v2/tasks/"))
       return Response.json({ metadata: { taskId: path.split("/").at(-1) } });
@@ -162,6 +178,7 @@ function harness({ transport, center, timers, clock = Date } = {}) {
         useAuth: () => ({ status: "authenticated", sessionKey: owner, requestPrivate }),
       },
       "@/lib/workspace-cache": cache,
+      "@/lib/report-provider-attribution": compile("../lib/report-provider-attribution.ts"),
       "@/lib/inbox-link": {
         ...links,
         clearInboxResultLink: () => {
@@ -200,19 +217,17 @@ function harness({ transport, center, timers, clock = Date } = {}) {
       result = module.useTaskResults(
         workspace,
         {
-          views: [
-            { connection: { connectionId: "connection_A", provider: "muse", status: "revoked" } },
-          ],
+          views: [],
         },
         model,
         active,
         observed,
         center,
       );
-      for (const e of effects.splice(0)) {
-        cells[e.n]?.cleanup?.();
-        cells[e.n] = { deps: e.deps, cleanup: e.f() };
-      }
+      const pendingEffects = effects.splice(0);
+      // React runs all previous passive cleanups before the new setups.
+      for (const e of pendingEffects) cells[e.n]?.cleanup?.();
+      for (const e of pendingEffects) cells[e.n] = { deps: e.deps, cleanup: e.f() };
     } while (dirty);
     return result;
   }
@@ -601,5 +616,111 @@ test("a task entering the new result route refreshes despite a fresh legacy disp
   center.records.task_A = { rules: {} };
   await h.ready();
   assert.equal(h.calls.filter((c) => c.path.endsWith("/results/query")).length, 1);
+  h.close();
+});
+
+test("legacy report providers load independently of Agent discovery, retain revoked history and never infer a foreign vault or unknown actor", async () => {
+  const h = harness();
+  let m = await h.ready();
+  const row = m.rows[0];
+  assert.equal(m.providerFor(row), "muse");
+  assert.equal(
+    m.providerFor({
+      ...row,
+      metadata: { ...row.metadata, connectionId: "unknown_chatgpt_client" },
+    }),
+    "agent",
+  );
+  assert.equal(h.calls.filter((c) => c.path === "/api/v2/persistent-connections").length, 1);
+  assert.ok(
+    !h.calls.some((c) => /capabilities|credentials|provider-connections|vaults/.test(c.path)),
+  );
+  assert.equal(
+    m.providerFor({ ...row, metadata: { ...row.metadata, connectionId: "__proto__" } }),
+    "agent",
+  );
+  const oldProvider = m.providerFor;
+  h.workspace.vault = { ...h.workspace.vault, vaultId: "vault_B" };
+  h.workspace.vaultGeneration++;
+  m = await h.ready();
+  assert.equal(m.providerFor(m.rows[0]), "agent");
+  assert.equal(oldProvider(row), "agent");
+  h.close();
+});
+
+test("provider lookup loading/failure cannot become completed results or erase real unread counts", async () => {
+  let resolve,
+    fail = false;
+  const gate = new Promise((r) => (resolve = r));
+  const h = harness({
+    transport: (path) =>
+      path === "/api/v2/persistent-connections"
+        ? fail
+          ? Response.json({}, { status: 503 })
+          : gate
+        : undefined,
+  });
+  let m = await h.ready();
+  assert.equal(m.unreadCounts.task_A, 1);
+  assert.equal(m.loading, true);
+  assert.equal(m.complete, false);
+  assert.equal(m.providerFor(m.rows[0]), "agent");
+  resolve(
+    Response.json({
+      contractVersion: C,
+      profile: "folioview.persistent-account.v1",
+      connections: [],
+    }),
+  );
+  m = await h.ready();
+  assert.equal(m.complete, true);
+  assert.equal(m.providerFor(m.rows[0]), "agent");
+  fail = true;
+  await m.reload();
+  m = h.render();
+  assert.equal(m.error, "request_failed");
+  assert.equal(m.complete, false);
+  assert.equal(m.unreadCounts.task_A, 1);
+  h.close();
+});
+
+test("late provider replies cannot label another Owner or unlock generation and route reentry reuses the scoped map", async () => {
+  let resolve,
+    held = true;
+  const gate = new Promise((r) => (resolve = r));
+  const h = harness({
+    transport: (path) => (path === "/api/v2/persistent-connections" && held ? gate : undefined),
+  });
+  await h.ready();
+  held = false;
+  h.owner("owner_B");
+  let m = await h.ready();
+  assert.equal(m.providerFor(m.rows[0]), "muse");
+  resolve(
+    Response.json({
+      contractVersion: C,
+      profile: "folioview.persistent-account.v1",
+      connections: [
+        {
+          connectionId: "connection_A",
+          clientId: "client_A",
+          vaultId: "vault_A",
+          provider: "chatgpt",
+          status: "active",
+          accountState: "connected",
+          linkedAt: 1,
+        },
+      ],
+    }),
+  );
+  m = await h.ready();
+  assert.equal(m.providerFor(m.rows[0]), "muse");
+  const count = h.calls.filter((c) => c.path === "/api/v2/persistent-connections").length;
+  h.active(false);
+  h.render();
+  h.active(true);
+  m = await h.ready();
+  assert.equal(h.calls.filter((c) => c.path === "/api/v2/persistent-connections").length, count);
+  assert.equal(m.providerFor(m.rows[0]), "muse");
   h.close();
 });

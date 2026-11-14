@@ -3,6 +3,11 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useAuth } from "./AuthProvider";
 import type { HoldingsWorkspace } from "./useHoldingsWorkspace";
 import {
+  connectionSummary,
+  connectionDisplay,
+  type ConnectionDisplay,
+} from "@/lib/connection-summary";
+import {
   PersistentExperienceController,
   PersistentExperienceError,
   PERSISTENT_CONTRACT,
@@ -105,6 +110,10 @@ export function usePersistentWorkspace(
       ) => Promise<T>,
       privateRead = true,
       display = false,
+      prepareDisplay?: (
+        api: (path: string, options?: any) => Promise<any>,
+        assert: () => void,
+      ) => Promise<(() => Promise<Response>) | undefined>,
     ): Promise<T | null> => {
       if (job.current) return null;
       if (display && (!live.current.active || displayJob.current)) return null;
@@ -223,7 +232,10 @@ export function usePersistentWorkspace(
             assert();
             if (p.done) break;
             size += p.value.length;
-            if (size > 4194304) throw new PersistentExperienceError("invalid_response");
+            const maximum = /^\/api\/v3\/provider-connections\/[^/]+\/display$/.test(path)
+              ? 1048576
+              : 4194304;
+            if (size > maximum) throw new PersistentExperienceError("invalid_response");
             chunks.push(p.value);
           }
           const bytes = new Uint8Array(size);
@@ -241,9 +253,15 @@ export function usePersistentWorkspace(
           reader.releaseLock();
         }
       };
-      const refreshVault = (signal: AbortSignal, forState = false) =>
-        live.current.workspace.refreshVault(signal, forState, () =>
-          request("agent-hub", "/api/v2/vaults/current"),
+      const refreshVault = (
+        signal: AbortSignal,
+        forState = false,
+        readCurrent?: () => Promise<Response>,
+      ) =>
+        live.current.workspace.refreshVault(
+          signal,
+          forState,
+          readCurrent ?? (() => request("agent-hub", "/api/v2/vaults/current")),
         );
       const hub = (path: string, options: any = {}) => api("agent-hub", path, options);
       if (!display)
@@ -257,7 +275,10 @@ export function usePersistentWorkspace(
         const result = await Promise.race([
           (async () => {
             if (privateRead) {
-              await refreshVault(abort.signal, false);
+              const readCurrent =
+                display && prepareDisplay ? await prepareDisplay(hub, assert) : undefined;
+              assert();
+              await refreshVault(abort.signal, false, readCurrent);
               assert();
             }
             return action(
@@ -341,27 +362,35 @@ export function usePersistentWorkspace(
         loadScope: start.scope,
         hubOrigin: start.hubOrigin,
       }));
+      let prepared: ConnectionDisplay | null = null;
       const result = await execute(
         async (c, api, assert) => {
           // One snapshot pairs verified credentials and provider slots. No task,
           // resource policy or native-plan scan is needed to show a connection.
-          const [caps, native, credentials, list, muse, chatgpt] = await Promise.all(
-            [
-              "/api/v2/persistent-agents/capabilities",
-              "/api/v2/persistent-account-authorizations/capabilities",
-              "/api/v3/agent-credentials/capabilities",
-              "/api/v2/persistent-connections",
-              `/api/v3/provider-connections/${start.workspace.vault!.vaultId}/muse`,
-              `/api/v3/provider-connections/${start.workspace.vault!.vaultId}/chatgpt`,
-            ].map((path) => api(path, { coalesceDisplay: true })),
-          );
-          if (
-            !Array.isArray(list.connections) ||
-            list.connections.length > 128 ||
-            [muse, chatgpt].some((v) => v.profile !== "folioview.provider-connection-slot.v1")
-          )
+          const vaultId = start.workspace.vault!.vaultId;
+          const [caps, native, credentials, summary] =
+            prepared?.mode === "complete"
+              ? [
+                  prepared.capabilities.agents,
+                  prepared.capabilities.account,
+                  prepared.capabilities.credentials,
+                  prepared.summary,
+                ]
+              : await Promise.all(
+                  [
+                    "/api/v2/persistent-agents/capabilities",
+                    "/api/v2/persistent-account-authorizations/capabilities",
+                    "/api/v3/agent-credentials/capabilities",
+                    `/api/v3/provider-connections/${vaultId}/summary`,
+                  ].map((path) => api(path, { coalesceDisplay: true })),
+                );
+          if (!connectionSummary(summary, vaultId))
             throw new PersistentExperienceError("invalid_response");
-          const views: PersistentConnectionView[] = list.connections.map(
+          const { muse, chatgpt } = summary.providers;
+          const states = new Map(
+            summary.credentials.map((item) => [item.connectionId, item.state]),
+          );
+          const views: PersistentConnectionView[] = summary.connections.map(
             (connection: PersistentConnection) => ({
               connection,
               identity: null,
@@ -388,14 +417,17 @@ export function usePersistentWorkspace(
               const slot = (connection.provider === "muse" ? muse : chatgpt).slot,
                 ref = slot?.currentCredential;
               // With a provider slot, only its exact current connection needs
-              // remote credential verification. Legacy ambiguous inventories
+              // credential verification. Legacy ambiguous inventories
               // still verify all candidates instead of inventing a current one.
               if (
                 !slot ||
                 (ref?.connectionId === connection.connectionId &&
                   ref.clientId === connection.clientId)
               ) {
-                const credential = await c.credential(connection);
+                const credential = await c.inspectCredential(
+                  connection,
+                  states.get(connection.connectionId)!,
+                );
                 assert();
                 view.credential = {
                   ...credential.verified,
@@ -441,6 +473,20 @@ export function usePersistentWorkspace(
         },
         true,
         true,
+        async (api, assert) => {
+          const vaultId = start.workspace.vault!.vaultId;
+          const value = await api(`/api/v3/provider-connections/${vaultId}/display`, {
+            coalesceDisplay: true,
+          });
+          assert();
+          if (!connectionDisplay(value, vaultId))
+            throw new PersistentExperienceError("invalid_response");
+          prepared = value;
+          return value.mode === "complete"
+            ? async () =>
+                Response.json(value.vaultResponse, { headers: { "Cache-Control": "no-store" } })
+            : undefined;
+        },
       );
       if (read.current === token && live.current.scope === start.scope && live.current.active) {
         setState((s) => ({ ...s, loading: false, loadError: result !== true }));
@@ -528,9 +574,23 @@ export function usePersistentWorkspace(
     [execute, reload],
   );
   const visibleState = state.owner === owner && state.hubOrigin === hubOrigin ? state : initial;
+  const displayState: "locked" | "loading" | "error" | "ready" =
+    !scope || !active
+      ? "locked"
+      : visibleState.loadError || visibleState.error
+        ? "error"
+        : visibleState.loading ||
+            visibleState.busy ||
+            visibleState.scope !== scope ||
+            !visibleState.loaded ||
+            !fresh.current ||
+            Date.now() - fresh.current >= 30000
+          ? "loading"
+          : "ready";
   return {
     isBusy: () => job.current !== null,
     ...visibleState,
+    displayState,
     loaded: Boolean(scope && visibleState.scope === scope && visibleState.loaded),
     loading: Boolean(owner && visibleState.loadScope === scope && visibleState.loading),
     loadError: Boolean(owner && visibleState.loadScope === scope && visibleState.loadError),

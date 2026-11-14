@@ -117,6 +117,7 @@ async function stack(options = {}) {
     globals,
   );
   const hub = server("hub-owner", {
+    "../connection-summary": compile("../lib/connection-summary.ts"),
     "./task-center-owner": server("task-center-owner", {
       "../persistent-owner-routes": persistentRoutes,
       "server-only": {},
@@ -165,7 +166,12 @@ async function stack(options = {}) {
         headers: { "Metadata-Flavor": "Google" },
       });
     }
-    assert.ok(url.startsWith(HUB + "/api/v2/") || url.startsWith(PORTFOLIO + "/api/v2/"), url);
+    assert.ok(
+      url.startsWith(HUB + "/api/v2/") ||
+        url.startsWith(HUB + "/api/v3/") ||
+        url.startsWith(PORTFOLIO + "/api/v2/"),
+      url,
+    );
     assert.ok(upstream, "Every producer reply must be explicitly selected by the test");
     return upstream(url, init);
   };

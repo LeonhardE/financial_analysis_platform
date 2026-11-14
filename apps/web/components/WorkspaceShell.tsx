@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import { workspaceHref, workspaceView } from "@/lib/workspace-routes";
 import { useLocale, useTranslations } from "next-intl";
@@ -71,7 +71,28 @@ export default function WorkspaceShell() {
   visited.current.add(activeView);
   const marketsVisited = visited.current.has("markets");
   const encryptedWorkspace = useHoldingsWorkspace();
-  const agentViewsActive = activeView === "tasks" || activeView === "agents";
+  const agentScope = JSON.stringify([
+    encryptedWorkspace.owner,
+    encryptedWorkspace.vault?.vaultId,
+    encryptedWorkspace.vaultGeneration,
+  ]);
+  const liveAgentScope = useRef(agentScope);
+  liveAgentScope.current = agentScope;
+  const [taskAgentDemand, setTaskAgentDemand] = useState({ scope: agentScope, needed: false });
+  const requestTaskAgents = useCallback(
+    (needed: boolean) => {
+      if (liveAgentScope.current === agentScope)
+        setTaskAgentDemand((previous) =>
+          previous.scope === agentScope && previous.needed === needed
+            ? previous
+            : { scope: agentScope, needed },
+        );
+    },
+    [agentScope],
+  );
+  const agentViewsActive =
+    activeView === "agents" ||
+    (activeView === "tasks" && taskAgentDemand.scope === agentScope && taskAgentDemand.needed);
   const persistentConfiguration = useAgentLinkConfiguration(agentViewsActive);
   const persistent = usePersistentWorkspace(
     encryptedWorkspace,
@@ -452,6 +473,7 @@ export default function WorkspaceShell() {
           {visited.current.has("tasks") && (
             <TasksPanel
               persistent={persistent}
+              onAgentConnectionsNeeded={requestTaskAgents}
               onNavigate={navigate}
               workspace={encryptedWorkspace}
               active={activeView === "tasks"}

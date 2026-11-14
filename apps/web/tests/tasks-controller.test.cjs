@@ -128,6 +128,7 @@ const catalogue = (rows = [binding()]) => ({
 
 function harness({
   locked = false,
+  catalogueOnDemand = false,
   transport,
   packetBatch,
   open,
@@ -140,6 +141,7 @@ function harness({
   let owner = "owner_A:1",
     configured = true,
     active = true,
+    catalogueRequested = false,
     visible = true,
     dirty = false,
     index = 0,
@@ -436,7 +438,7 @@ function harness({
       assert.ok(cycles++ < 50, "render loop");
       dirty = false;
       index = 0;
-      result = useTasks(workspace, { active });
+      result = useTasks(workspace, { active, catalogueOnDemand, catalogueRequested });
       if (flush)
         for (const entry of effects.splice(0)) {
           cells[entry.slot]?.cleanup?.();
@@ -485,6 +487,9 @@ function harness({
     },
     active(next) {
       active = next;
+    },
+    requestCatalogue(next) {
+      catalogueRequested = next;
     },
     visibility(next) {
       visible = next;
@@ -1813,4 +1818,80 @@ test("unmounting a pending name batch cannot refill its display queue", async ()
   await settle();
   assert.equal(requests, 1);
   assert.equal(h.opens.length, 0);
+});
+
+test("task-list on-demand mode reads all task metadata/names without an unrelated catalogue, then enables new-task and detail resources", async () => {
+  const h = harness({ catalogueOnDemand: true });
+  let m = await h.drain();
+  assert.equal(m.items.length, 1);
+  assert.equal(h.calls.filter((c) => c.route.endsWith("/catalogue")).length, 0);
+  assert.equal(m.catalogueReady, false);
+  assert.equal(m.catalogueLoading, false);
+  m.startNew();
+  m = await h.drain();
+  assert.equal(h.calls.filter((c) => c.route.endsWith("/catalogue")).length, 1);
+  assert.equal(m.catalogueReady, true);
+  assert.ok(m.catalogue.some((row) => row.selectable));
+  h.unmount();
+  const detail = harness({ catalogueOnDemand: true });
+  m = await detail.drain();
+  await m.openTask(m.items[0].taskId);
+  m = await detail.drain();
+  assert.equal(m.catalogueReady, true);
+  assert.equal(detail.calls.filter((c) => c.route.endsWith("/catalogue")).length, 1);
+  detail.unmount();
+});
+
+test("a resource handoff explicitly requests a catalogue and preserves loading/failure until retry", async () => {
+  let resolve,
+    fail = true;
+  const gate = new Promise((r) => (resolve = r));
+  const h = harness({
+    catalogueOnDemand: true,
+    transport: ({ route }) => (route.endsWith("/catalogue") && fail ? gate : undefined),
+  });
+  await h.ready();
+  h.requestCatalogue(true);
+  let m = h.render();
+  assert.equal(m.catalogueLoading, true);
+  assert.equal(m.catalogueReady, false);
+  resolve(response({}, 503));
+  m = await h.drain();
+  assert.equal(m.catalogueError, "source_unavailable");
+  assert.equal(m.catalogueReady, false);
+  fail = false;
+  await m.reloadCatalogue();
+  m = h.render();
+  assert.equal(m.catalogueReady, true);
+  assert.equal(m.catalogueError, "");
+  h.unmount();
+});
+
+test("listReady requires a current successful metadata read and resets before effects on identity changes", async () => {
+  const gate = deferred();
+  let fail = false;
+  const h = harness({
+    catalogueOnDemand: true,
+    rows: [],
+    transport: ({ route }) =>
+      route.includes("tasks?limit") ? (fail ? response({}, 503) : gate.promise) : undefined,
+  });
+  try {
+    assert.equal(h.render().listReady, false);
+    gate.resolve(response({ contractVersion: CONTRACT, items: [], nextCursor: null }));
+    let model = await h.drain();
+    assert.equal(model.listReady, true);
+    assert.equal(model.items.length, 0);
+    fail = true;
+    const retry = model.reloadTasks();
+    assert.equal(h.render().listReady, false);
+    await retry;
+    model = h.render();
+    assert.equal(model.listReady, false);
+    assert.equal(model.listError, "source_unavailable");
+    h.owner("owner_B:2");
+    assert.equal(h.render({ flush: false }).listReady, false);
+  } finally {
+    h.unmount();
+  }
 });

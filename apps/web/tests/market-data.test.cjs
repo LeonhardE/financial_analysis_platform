@@ -284,6 +284,7 @@ function renderDashboard({
           (next) => updates.push({ index, next }),
         ];
       },
+      useCallback: (callback) => callback,
       useRef: (current) => ({ current }),
     },
     "react/jsx-runtime": jsxRuntime,

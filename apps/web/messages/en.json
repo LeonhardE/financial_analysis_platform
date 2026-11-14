@@ -780,7 +780,8 @@
     "symbolPlaceholder": "AAPL",
     "addStock": "Add stock",
     "removeStock": "Remove {symbol}",
-    "aboutFollows": "About this list"
+    "aboutFollows": "About this list",
+    "cachedData": "Showing previously loaded resources. Their latest state has not been confirmed; actions that need current data are unavailable until refresh succeeds."
   },
   "tasks": {
     "eyebrow": "Personal workspace",

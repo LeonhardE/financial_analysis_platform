@@ -366,6 +366,9 @@ test.before(async () => {
     "./owner-transport": common,
   });
   hubImports = {
+    "../connection-summary": require("./resource-library-helpers.cjs").compile(
+      "../lib/connection-summary.ts",
+    ),
     "../persistent-owner-routes": persistentRoutes,
     "./persistent-owner-contracts": persistentContracts,
     "./upload-cancellation": cancellation,

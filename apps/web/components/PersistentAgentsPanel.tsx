@@ -256,8 +256,31 @@ export function PersistentAgentsPanel({
     setHandoffReady(false);
     setAuthorization(null);
   };
+  const loadState =
+    !workspace.authenticated ||
+    !model.unlocked ||
+    workspace.phase !== "unlocked" ||
+    workspace.owner !== model.owner
+      ? "locked"
+      : readError || linkError || model.error
+        ? "error"
+        : !active ||
+            !origin ||
+            refreshing ||
+            checking ||
+            model.busy ||
+            !ready ||
+            model.displayState !== "ready"
+          ? "loading"
+          : "ready";
   return (
-    <section className={styles.panel} aria-labelledby="agent-access-title">
+    <section
+      className={styles.panel}
+      aria-labelledby="agent-access-title"
+      data-load-scope="agent-connections"
+      data-load-state={loadState}
+      aria-busy={checking || refreshing || model.busy}
+    >
       <header className={styles.heading}>
         <div>
           <h1 id="agent-access-title">{t("title")}</h1>

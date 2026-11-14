@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { LoadingIndicator, InlineError } from "./WorkspaceFeedback";
 import { useHoldingsWorkspace, type HoldingsWorkspace } from "@/components/useHoldingsWorkspace";
@@ -852,7 +852,9 @@ function Workspace({
                 className={styles.secondary}
                 type="button"
                 disabled={busy}
-                onClick={() => void model.reload()}
+                onClick={() =>
+                  void (model.phase === "unlocked" ? model.readStored() : model.reload())
+                }
               >
                 {t("reloadWorkspace")}
               </button>
@@ -877,6 +879,55 @@ function ResourcesView({
 }: ResourcesProps & { model: HoldingsWorkspace }) {
   const t = useTranslations("resources"),
     names = useDisplayNames(model, active);
+  const recoveryScope = JSON.stringify([model.owner, model.vault?.vaultId, model.vaultGeneration]);
+  const recovered = useRef({ scope: recoveryScope, sources: new Set<string>() });
+  if (recovered.current.scope !== recoveryScope)
+    recovered.current = { scope: recoveryScope, sources: new Set<string>() };
+  const selected = model.selectedSourceId
+    ? model.sources.find((source) => source.resourceRef.resourceId === model.selectedSourceId)
+    : model.sources.at(-1);
+  const sourceKey = selected
+    ? JSON.stringify([
+        selected.resourceRef.kind,
+        selected.resourceRef.sourceService,
+        selected.resourceRef.resourceId,
+        selected.resourceRef.incarnation,
+      ])
+    : null;
+  useEffect(() => {
+    if (
+      !active ||
+      !model.authenticated ||
+      !model.owner ||
+      !model.configured ||
+      model.phase !== "unlocked" ||
+      !model.vault ||
+      !model.canWriteState ||
+      model.needsDeviceApproval ||
+      !sourceKey ||
+      model.sourceMetadata ||
+      model.content ||
+      model.preview ||
+      model.importPreview ||
+      model.newSource ||
+      model.sourceReview ||
+      model.sourceMutation ||
+      model.staleSourceMutation ||
+      model.sourceCreationId ||
+      model.hasPending ||
+      model.uploadCancellation ||
+      model.uploadCancellationReview ||
+      model.busy ||
+      model.error ||
+      recovered.current.scope !== recoveryScope ||
+      recovered.current.sources.has(sourceKey)
+    )
+      return;
+    // Shared unlock restores authority, not the selected Portfolio source. Read it once on
+    // visible entry, through the existing fresh-vault/authority path; failures need explicit retry.
+    recovered.current.sources.add(sourceKey);
+    void model.readStored();
+  }, [active, model, recoveryScope, sourceKey]);
   return (
     <section className={styles.panel} aria-labelledby="resources-title">
       <header className={styles.heading}>
@@ -884,6 +935,13 @@ function ResourcesView({
       </header>
       <ResourceLibrary
         holdingsVersion={model.content?.data.snapshotId}
+        workspaceScope={JSON.stringify([
+          model.owner,
+          model.vault?.vaultId,
+          model.vaultGeneration,
+          model.vault?.version,
+          model.sources.map((source) => [source.resourceRef, source.sourceEpoch]),
+        ])}
         active={active}
         watchlist={watchlist}
         onOpenWatchlist={onOpenWatchlist}

@@ -346,6 +346,8 @@ export function HoldingsSourceBar({
               disabled={
                 !editable ||
                 library.catalogue.loading ||
+                library.catalogue.stale ||
+                Boolean(library.catalogue.error) ||
                 !["active", "ready"].includes(sourceItem.state)
               }
               onClick={() => {

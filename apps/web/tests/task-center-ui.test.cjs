@@ -4,7 +4,17 @@ const assert = require("node:assert/strict"),
 const { renderToStaticMarkup } = require("react-dom/server"),
   { createTranslator } = require("next-intl");
 const { compile } = require("./resource-library-helpers.cjs");
-function render({ running = false, name = true, count = 0 } = {}) {
+function render({
+  running = false,
+  name = true,
+  count = 0,
+  home = false,
+  modelPatch = {},
+  resultPatch = {},
+  workspacePatch = {},
+  navigating = false,
+  centerPatch = {},
+} = {}) {
   const messages = require("../messages/en.json"),
     metadata = { taskId: "task_PRIVATE_ID", status: "active", taskVersion: 1 };
   const mod = compile(
@@ -32,18 +42,27 @@ function render({ running = false, name = true, count = 0 } = {}) {
     items: [metadata],
     taskNames: name ? { task_PRIVATE_ID: "Daily <brief>" } : {},
     nameErrors: {},
-    selected: metadata,
-    form: { name: "Daily <brief>", goal: "Summarize my watchlist" },
+    selected: home ? null : metadata,
+    form: home ? null : { name: "Daily <brief>", goal: "Summarize my watchlist" },
+    owner: "owner_A",
+    privateScope: "owner_A:vault_A:1",
+    unlocked: true,
+    listReady: true,
+    loading: false,
+    listError: "",
+    error: "",
     canWrite: true,
     bindings: [],
     drafts: [],
     pendingOperations: [],
     catalogue: [],
     reload() {},
+    ...modelPatch,
   };
   const center = {
     scope: "owner:vault:1",
     enabled: true,
+    capabilityState: "ready",
     records: {},
     manual: running
       ? {
@@ -56,12 +75,31 @@ function render({ running = false, name = true, count = 0 } = {}) {
         }
       : {},
     pending: null,
+    ...centerPatch,
   };
   return renderToStaticMarkup(
     React.createElement(mod.TaskCenterView, {
-      workspace: {},
+      workspace: {
+        authenticated: true,
+        owner: "owner_A",
+        phase: "unlocked",
+        vault: { vaultId: "vault_A" },
+        vaultGeneration: 1,
+        ...workspacePatch,
+      },
       model,
       center,
+      navigating,
+      resultState: {
+        scope: "owner_A:vault_A:1",
+        ready: true,
+        complete: true,
+        loading: false,
+        error: "",
+        partial: false,
+        busy: false,
+        ...resultPatch,
+      },
       unreadCounts: { task_PRIVATE_ID: count },
     }),
   );
@@ -180,4 +218,122 @@ test("legacy task settings wait for the selected assignment and retain it when d
   } finally {
     h.close();
   }
+});
+
+test("resource handoffs wait for a confirmed catalogue and keep read failure retry visible before starting the task", () => {
+  const { hooks, jsx, all } = require("./resource-ui-harness.cjs"),
+    h = hooks();
+  let started = 0,
+    consumed = 0;
+  const model = {
+    items: [],
+    taskNames: {},
+    nameErrors: {},
+    selected: null,
+    form: null,
+    canWrite: true,
+    bindings: [],
+    drafts: [],
+    pendingOperations: [],
+    catalogue: [],
+    catalogueReady: false,
+    catalogueLoading: true,
+    startNew(seed, form) {
+      assert.equal(seed, request.binding);
+      started++;
+      model.form = form;
+    },
+    reloadCatalogue() {},
+  };
+  const request = { owner: "owner_A", nonce: 1, binding: { ref: { kind: "watchlist" } } };
+  const center = {
+    scope: "owner_A:vault_A:1",
+    enabled: true,
+    records: {},
+    manual: {},
+    pending: null,
+  };
+  const LoadingIndicator = () => null,
+    InlineError = () => null;
+  const mod = compile(
+    "../components/TaskCenterPanel.tsx",
+    {
+      react: h.react,
+      "react/jsx-runtime": { jsx, jsxs: jsx },
+      "next-intl": { useLocale: () => "en", useTranslations: () => (v) => v },
+      "@/lib/task-forms": { defaultTask: () => ({ outputSpec: {} }) },
+      "@/lib/task-center-schedule": { nextCenterOccurrence: () => null },
+      "@/lib/task-types": { bindingKey: JSON.stringify },
+      "./ReportDialog": { ReportDialog: () => null },
+      "./WorkspaceFeedback": { LoadingIndicator, InlineError },
+      "./TaskCenterPanel.module.css": { __esModule: true, default: {} },
+    },
+    { Intl, Date },
+  );
+  const draw = () =>
+    h.render(() =>
+      mod.TaskCenterView({
+        workspace: { owner: "owner_A" },
+        model,
+        center,
+        request,
+        onRequestConsumed: () => consumed++,
+      }),
+    );
+  let tree = draw();
+  assert.equal(started, 0);
+  assert.ok(all(tree, (n) => n.type?.name === "LoadingIndicator" && n.props.busy).length);
+  model.catalogueLoading = false;
+  model.catalogueError = "source_unavailable";
+  tree = draw();
+  assert.equal(started, 0);
+  assert.ok(all(tree, (n) => n.type?.name === "InlineError" && n.props.onRetry).length);
+  model.catalogueError = "";
+  model.catalogueReady = true;
+  draw();
+  assert.equal(started, 1);
+  assert.equal(consumed, 1);
+  h.close();
+});
+
+test("only the task-list homepage reports ready after current lists names capabilities and complete report feeds", () => {
+  const state = (options = {}) => {
+    const html = render({ home: true, ...options });
+    return html.slice(0, html.indexOf(">") + 1);
+  };
+  assert.match(state({ count: 2 }), /data-load-scope="task-list" data-load-state="ready"/);
+  for (const options of [
+    { modelPatch: { items: [], listReady: false } },
+    { name: false },
+    { modelPatch: { loading: true } },
+    { resultPatch: { loading: true, complete: false } },
+    { resultPatch: { ready: false, complete: false } },
+    { centerPatch: { capabilityState: "loading", enabled: false } },
+  ]) {
+    assert.match(state(options), /data-load-state="loading"/);
+    assert.doesNotMatch(state(options), /data-load-state="ready"/);
+  }
+  for (const options of [
+    { modelPatch: { listError: "service_unavailable" } },
+    { modelPatch: { nameErrors: { task_PRIVATE_ID: "verification_failed" } } },
+    { resultPatch: { error: "service_unavailable" } },
+    { resultPatch: { partial: true } },
+    { centerPatch: { capabilityState: "error" } },
+  ])
+    assert.match(state(options), /data-load-state="error"/);
+  assert.match(
+    state({ centerPatch: { capabilityState: "ready", enabled: false } }),
+    /data-load-state="ready"/,
+  );
+  assert.match(state({ modelPatch: { items: [], taskNames: {} } }), /data-load-state="ready"/);
+  for (const options of [
+    { workspacePatch: { owner: "owner_B" } },
+    { workspacePatch: { vaultGeneration: 2 } },
+    { workspacePatch: { needsDeviceApproval: true } },
+    { resultPatch: { scope: "owner_B:vault_A:1" } },
+  ])
+    assert.match(state(options), /data-load-state="locked"/);
+  assert.doesNotMatch(render(), /data-load-scope|data-load-state/);
+  assert.doesNotMatch(state({ navigating: true }), /data-load-scope|data-load-state/);
+  assert.doesNotMatch(state(), /PRIVATE|owner_A|vault_A/);
 });

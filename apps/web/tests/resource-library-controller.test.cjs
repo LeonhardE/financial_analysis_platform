@@ -12,6 +12,8 @@ const {
 } = require("./resource-library-helpers.cjs");
 function harness({ transport, active = true, configured = true, externalWatchlist = false } = {}) {
   let owner = "owner_A:1",
+    workspaceScope = "vault_A:1",
+    now = 100000,
     visible = true,
     index = 0,
     dirty = false,
@@ -98,20 +100,29 @@ function harness({ transport, active = true, configured = true, externalWatchlis
       },
       "@/lib/resource-library": contracts,
     },
-    { document, window },
+    {
+      document,
+      window,
+      Date: class extends Date {
+        static now() {
+          return now;
+        }
+      },
+    },
   );
   const render = ({ flush = true } = {}) => {
     let result;
     do {
       index = 0;
       dirty = false;
-      result = useResourceLibrary({ active, externalWatchlist });
+      result = useResourceLibrary({ active, externalWatchlist, workspaceScope });
       if (flush)
         for (const entry of effects.splice(0)) {
           cells[entry.slot]?.cleanup?.();
           cells[entry.slot] = { deps: entry.deps, cleanup: entry.effect() };
         }
     } while (flush && dirty);
+    if (!flush) effects.splice(0);
     return result;
   };
   return {
@@ -119,6 +130,8 @@ function harness({ transport, active = true, configured = true, externalWatchlis
     calls,
     timers,
     owner: (next) => (owner = next),
+    scope: (next) => (workspaceScope = next),
+    advance: (ms) => (now += ms),
     capability: (next) => (configured = next),
     active: (next) => (active = next),
     visibility(next) {
@@ -149,7 +162,7 @@ test("catalogue failure does not erase existing User lists or pretend they are e
   h.unmount();
 });
 
-test("User resource lists work without Portfolio or Hub and refresh when returning from Market", async () => {
+test("User resource lists work without Portfolio or Hub and reuse fresh data when returning from Market", async () => {
   const h = harness({ configured: false });
   const view = await h.ready();
   assert.equal(view.catalogue.data, null);
@@ -160,6 +173,12 @@ test("User resource lists work without Portfolio or Hub and refresh when returni
   h.render();
   await settle();
   assert.equal(h.calls.length, count);
+  h.active(true);
+  await h.ready();
+  assert.equal(h.calls.length, count);
+  h.advance(30_000);
+  h.active(false);
+  h.render();
   h.active(true);
   await h.ready();
   assert.equal(h.calls.length, count + 2);
@@ -300,6 +319,10 @@ test("capability disable immediately masks catalogue and rejects stale task sele
   assert.equal(selected, null);
   await h.ready();
   assert.equal(h.render().watchlist.data.items[0].symbol, "SYNTH");
+  const calls = h.calls.length;
+  h.capability(true);
+  await h.ready();
+  assert.equal(h.calls.length, calls + 1, "reenabling discovery must invalidate its old snapshot");
   h.unmount();
 });
 
@@ -373,5 +396,118 @@ test("shared Market watchlist suppresses a second User list read without disabli
   assert.equal(h.calls.filter((c) => c.route === "/api/v1/watchlist").length, 0);
   assert.ok(model.follows.data);
   assert.ok(model.catalogue.data);
+  h.unmount();
+});
+
+test("expired refresh retains successful resources with explicit stale state and blocks stale actions until recovery", async () => {
+  let fail = false;
+  const h = harness({ transport: () => (fail ? response({}, 503) : undefined) });
+  const before = await h.ready();
+  const item = before.catalogue.data.groups[1].items[0];
+  h.active(false);
+  h.render();
+  h.advance(30_000);
+  fail = true;
+  h.active(true);
+  const refreshing = h.render();
+  assert.equal(refreshing.catalogue.loading, true);
+  assert.equal(refreshing.catalogue.stale, true);
+  assert.equal(refreshing.catalogue.data.groups[1].items[0].ref.resourceId, item.ref.resourceId);
+  let selected = 0;
+  before.useForTask(item, () => selected++);
+  assert.equal(selected, 0);
+  await settle();
+  const failed = h.render();
+  assert.equal(failed.catalogue.error, "unavailable");
+  assert.equal(failed.catalogue.stale, true);
+  assert.equal(failed.watchlist.data.items[0].symbol, "SYNTH");
+  assert.equal(failed.follows.data.items[0].name, "CREATOR_A");
+  assert.equal(await failed.saveFollows([]), false);
+  fail = false;
+  await failed.reload("catalogue");
+  await failed.reload("follows");
+  const recovered = h.render();
+  assert.equal(recovered.catalogue.stale, false);
+  recovered.useForTask(item, () => selected++);
+  assert.equal(selected, 1);
+  assert.equal(await recovered.saveFollows([]), true);
+  h.unmount();
+});
+
+test("vault generation masks resource snapshots and fences old read, write and selection callbacks before effects", async () => {
+  let block = false;
+  const late = deferred();
+  const h = harness({
+    transport: ({ route }) => (block && route.includes("catalogue") ? late.promise : undefined),
+  });
+  const before = await h.ready();
+  block = true;
+  const read = before.reload("catalogue");
+  h.scope("vault_A:2");
+  const masked = h.render({ flush: false });
+  assert.equal(masked.catalogue.data, null);
+  assert.equal(masked.follows.data, null);
+  let selected = 0;
+  before.useForTask(before.catalogue.data.groups[1].items[0], () => selected++);
+  assert.equal(selected, 0);
+  assert.equal(await before.saveFollows([]), false);
+  block = false;
+  h.render();
+  late.resolve(response(catalogue()));
+  await read;
+  await settle();
+  assert.ok(h.render().catalogue.data);
+  assert.equal(h.calls.filter((c) => c.route.endsWith("channel-follows")).length, 2);
+  h.unmount();
+});
+
+test("rapid navigation cancels a refresh, keeps the prior snapshot and rejects its late body", async () => {
+  let block = false;
+  const late = deferred();
+  const h = harness({
+    transport: ({ route }) => (block && route.endsWith("watchlist") ? late.promise : undefined),
+  });
+  const before = await h.ready();
+  block = true;
+  const read = before.reload("watchlist");
+  await settle();
+  const old = h.calls.at(-1);
+  h.active(false);
+  h.render();
+  assert.equal(old.options.signal.aborted, true);
+  assert.equal(h.render().watchlist.data.items[0].symbol, "SYNTH");
+  block = false;
+  h.active(true);
+  await h.ready();
+  late.resolve(response(stocks("LATE")));
+  await read;
+  await settle();
+  assert.equal(h.render().watchlist.data.items[0].symbol, "SYNTH");
+  assert.equal(h.render().watchlist.stale, false);
+  h.unmount();
+});
+
+test("a follows write invalidates cached discovery immediately, and uncertain navigation never repeats the write", async () => {
+  const ack = deferred();
+  const h = harness({
+    transport: ({ options }) => (options.method === "PUT" ? ack.promise : undefined),
+  });
+  const before = await h.ready();
+  const write = before.saveFollows([]);
+  const during = h.render();
+  assert.equal(during.catalogue.stale, true);
+  let selected = 0;
+  during.useForTask(before.catalogue.data.groups[1].items[0], () => selected++);
+  assert.equal(selected, 0);
+  h.active(false);
+  h.render();
+  await write;
+  assert.equal(h.render().follows.stale, true);
+  assert.equal(h.render().writeError, "reload_required");
+  ack.resolve(response(channels("LATE", 2)));
+  h.active(true);
+  await h.ready();
+  assert.equal(h.render().follows.stale, false);
+  assert.equal(h.calls.filter((c) => c.options.method === "PUT").length, 1);
   h.unmount();
 });

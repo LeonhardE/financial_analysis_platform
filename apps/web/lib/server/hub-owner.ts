@@ -1,6 +1,7 @@
 import "server-only";
 import { taskCenterRoute, taskCenterRequest, taskCenterResponse } from "./task-center-owner";
 import { persistentOwnerRoute } from "../persistent-owner-routes";
+import { connectionSummary, connectionDisplay } from "../connection-summary";
 import {
   persistentRequest,
   persistentResponse,
@@ -40,6 +41,45 @@ import {
 } from "./owner-transport";
 
 const PREFIX = "/api/private/agent-hub";
+function summaryResponse(path: string, body: unknown) {
+  return (
+    connectionSummary(body, path.split("/")[4]) &&
+    persistentResponse("/api/v2/persistent-connections", "GET", {
+      contractVersion: CONTRACT,
+      profile: "folioview.persistent-account.v1",
+      connections: body.connections,
+    }) &&
+    Object.entries(body.providers).every(([provider, state]) =>
+      taskCenterResponse(`/api/v3/provider-connections/${body.vaultId}/${provider}`, state),
+    ) &&
+    body.credentials.every((item) =>
+      persistentResponse(
+        `/api/v3/agent-credentials/${body.vaultId}/${item.connectionId}`,
+        "GET",
+        item.state,
+      ),
+    )
+  );
+}
+function displayResponse(path: string, body: unknown) {
+  if (!connectionDisplay(body, path.split("/")[4])) return false;
+  return (
+    persistentResponse("/api/v2/persistent-agents/capabilities", "GET", body.capabilities.agents) &&
+    persistentResponse(
+      "/api/v2/persistent-account-authorizations/capabilities",
+      "GET",
+      body.capabilities.account,
+    ) &&
+    persistentResponse(
+      "/api/v3/agent-credentials/capabilities",
+      "GET",
+      body.capabilities.credentials,
+    ) &&
+    (body.mode === "separate" ||
+      (hubResponse("/api/v2/vaults/current", "GET", body.vaultResponse) &&
+        summaryResponse(`/api/v3/provider-connections/${body.vaultId}/summary`, body.summary)))
+  );
+}
 const ID = "[A-Za-z0-9][A-Za-z0-9_-]{0,127}";
 const identifier = (value: unknown) =>
   typeof value === "string" && new RegExp(`^${ID}$`).test(value);
@@ -529,37 +569,41 @@ export function createHubProxy(options: Options = {}) {
       }
       return timeProxyResponse(
         await forwardResponse(response, signal, (body) =>
-          taskCenterRoute(path, request.method)
-            ? taskCenterResponse(path, body, headers.get("idempotency-key") ?? undefined) &&
-              (!path.startsWith("/api/v3/provider-connections/") ||
-                !record(body) ||
-                !("credentialReceipt" in body) ||
-                body.credentialReceipt === null ||
-                credentialReceipt(
-                  body.credentialReceipt,
-                  headers.get("idempotency-key") ?? path.split("/operations/")[1],
-                ))
-            : rule.cancel
-              ? cancellationResponse(
-                  "task",
-                  body,
-                  rule.cancel.slot,
-                  rule.cancel.id ?? headers.get("idempotency-key") ?? undefined,
-                )
-              : persistentOwnerRoute(path.split("?", 1)[0], request.method)
-                ? persistentResponse(
-                    path,
-                    request.method,
-                    body,
-                    headers.get("idempotency-key") ?? undefined,
-                  )
-                : hubResponse(
-                    path,
-                    request.method,
-                    body,
-                    headers.get("idempotency-key") ?? undefined,
-                    taskIds,
-                  ),
+          /^\/api\/v3\/provider-connections\/[^/]+\/display$/.test(path)
+            ? displayResponse(path, body)
+            : /^\/api\/v3\/provider-connections\/[^/]+\/summary$/.test(path)
+              ? summaryResponse(path, body)
+              : taskCenterRoute(path, request.method)
+                ? taskCenterResponse(path, body, headers.get("idempotency-key") ?? undefined) &&
+                  (!path.startsWith("/api/v3/provider-connections/") ||
+                    !record(body) ||
+                    !("credentialReceipt" in body) ||
+                    body.credentialReceipt === null ||
+                    credentialReceipt(
+                      body.credentialReceipt,
+                      headers.get("idempotency-key") ?? path.split("/operations/")[1],
+                    ))
+                : rule.cancel
+                  ? cancellationResponse(
+                      "task",
+                      body,
+                      rule.cancel.slot,
+                      rule.cancel.id ?? headers.get("idempotency-key") ?? undefined,
+                    )
+                  : persistentOwnerRoute(path.split("?", 1)[0], request.method)
+                    ? persistentResponse(
+                        path,
+                        request.method,
+                        body,
+                        headers.get("idempotency-key") ?? undefined,
+                      )
+                    : hubResponse(
+                        path,
+                        request.method,
+                        body,
+                        headers.get("idempotency-key") ?? undefined,
+                        taskIds,
+                      ),
         ),
         started,
       );
