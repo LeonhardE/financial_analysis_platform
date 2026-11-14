@@ -9,6 +9,19 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.routing import APIRoute
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
+from .timing import ProcessingTimings
+
+
+class _TimedFastAPI(FastAPI):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Service error middleware may be registered after create_app returns.
+        # Enclose the final stack so its success and error responses are timed.
+        self._processing_timings = ProcessingTimings(super().__call__)
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send):
+        await self._processing_timings(scope, receive, send)
+
 
 class PrivateRoute(APIRoute):
     unavailable_message = "This service is temporarily unavailable. Please try again later."
@@ -58,7 +71,7 @@ def create_app(
     description: str = "",
     private_prefixes: Sequence[str] = ("/api/",),
 ) -> FastAPI:
-    app = FastAPI(title=title, version="0.1.0", description=description)
+    app = _TimedFastAPI(title=title, version="0.1.0", description=description)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=[

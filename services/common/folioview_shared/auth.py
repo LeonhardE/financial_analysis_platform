@@ -12,6 +12,8 @@ from google.auth.exceptions import GoogleAuthError
 from pydantic import BaseModel
 from requests.exceptions import RequestException
 
+from .timing import measure_firebase_verification
+
 _APP_NAME = "financial-analysis-api"
 _app_lock = Lock()
 _bearer = HTTPBearer(auto_error=False)
@@ -83,7 +85,8 @@ def require_google_user(
 
     app = _get_firebase_app()
     try:
-        claims = auth.verify_id_token(credentials.credentials, app=app, check_revoked=True)
+        with measure_firebase_verification():
+            claims = auth.verify_id_token(credentials.credentials, app=app, check_revoked=True)
     except (auth.InvalidIdTokenError, auth.UserDisabledError, auth.UserNotFoundError) as error:
         # Expired and revoked tokens are subclasses of InvalidIdTokenError.
         raise _unauthorized() from error
