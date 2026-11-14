@@ -60,7 +60,8 @@ free-source notice where required; do not use Bank branding to imply endorsement
 no subscription, account or access key. This implementation makes no blanket license warranty.
 
 FND-013's stock-quote batch producer is documented below as a separate MKT-001 phase.
-Daily FX does not change existing chart APIs or add a Canadian-security search endpoint.
+Daily FX does not change existing chart APIs. Canonical instrument search is a separate
+additive capability described below.
 Yahoo/yfinance usage remains subject to its provider terms; adding code does not establish a
 public redistribution license. No live upstream acceptance or production price probe was run.
 
@@ -122,3 +123,40 @@ personal/research restrictions still apply; this is not a public redistribution 
 
 The remaining MKT-001 stock-quote producer mentioned earlier is delivered by this phase; native
 coverage and real timing are still unverified until the separate online acceptance window.
+
+## Canonical instrument search for holdings entry
+
+`POST /api/valuation/instruments/search` accepts only `{"query":"SHOP"}` (1KiB body,
+1–50 query characters). The independent endpoint leaves `/api/stocks/search` and its US
+browsing contract unchanged. It receives no accounts, quantities, costs or credentials.
+Responses have the closed `folioview.instrument-search.v1` shape: `profile`, `items`,
+`complete`, `fetchedAt`, `status` and `reason`. Each item contains native `symbol`, explicit
+MIC `market`, provider `currency`, `name` and `assetType` (stock/etf).
+
+Only the same eight US/Canadian markets supported by native quote batches are admitted.
+The returned provider exchange and symbol must agree with that mapping; a suffix alone
+is insufficient. An explicit search currency is reused. When omitted, bounded metadata
+lookups verify the same symbol/exchange and provide the currency; country never implies it.
+Class punctuation is normalized through the quote adapter. Cross-market candidates are
+retained instead of silently choosing a US listing. Consumers may auto-select only one
+candidate in an **available, complete** result; otherwise present the returned candidates for selection.
+
+`?cached=true` performs one cache read without a provider request, lease, wait or write.
+Fresh identities are reused for one day, empty/partial results for five minutes; usable
+stale fallback is limited to seven days and preserves its original collection time.
+`status:missing, complete:false` means unavailable, not a successful empty search. A complete
+empty result is `status:available, complete:true`. Reasons are fixed public codes, without
+raw provider diagnostics. Search results identify securities; they are not current prices.
+
+An explicit refresh uses the existing shared provider lock without waiting and the existing
+distributed lease/daily/minute budget. It reserves nine logical units before work: one search
+plus at most four two-request metadata fallbacks. At most four supported candidates are
+examined, with two fallback workers and a six-second whole-child deadline. The child is
+killed/reaped on timeout; only completed valid lines remain usable and `complete` stays false.
+This is bounded refresh work, **not** a sub-500ms production latency guarantee. A later
+performance acceptance window must measure cached, cold and upstream-dependent paths separately.
+
+Responses/errors use `no-store`; server-side snapshots use the existing cache independently.
+No background poll, new resource, capacity, limit increase, identity SDK or paid feed is added.
+Existing Yahoo source/personal-use restrictions apply. Tests use a synthetic provider module
+and local cache/HTTP boundaries; no live source coverage or production performance was tested.
