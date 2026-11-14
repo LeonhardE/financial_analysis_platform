@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { AuthProvider } from "@/components/AuthProvider";
 import { PreferencesProvider } from "@/components/PreferencesProvider";
+import { CurrencyPreferencesProvider } from "@/components/CurrencyPreferencesProvider";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -11,10 +12,12 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en">
+    <html lang="en" data-theme="light">
       <body>
         <AuthProvider>
-          <PreferencesProvider>{children}</PreferencesProvider>
+          <PreferencesProvider>
+            <CurrencyPreferencesProvider>{children}</CurrencyPreferencesProvider>
+          </PreferencesProvider>
         </AuthProvider>
       </body>
     </html>

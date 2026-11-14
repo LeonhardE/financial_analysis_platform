@@ -8,6 +8,9 @@ const runtime = require("react/jsx-runtime");
 const { renderToStaticMarkup } = require("react-dom/server");
 const { createTranslator } = require("next-intl");
 const { transformSync } = require("next/dist/build/swc");
+const currencyContracts = require("./resource-library-helpers.cjs").compile(
+  "../lib/currency-preferences.ts",
+);
 
 function load(name, imports) {
   const filename = path.join(__dirname, "../components", name + ".tsx");
@@ -134,7 +137,7 @@ function render(f, { locale = "en", component = "panel", mode = "unlock", unlock
     },
     "./VaultManagementPanel.module.css": {
       __esModule: true,
-      default: new Proxy({}, { get: (_target, name) => name }),
+      default: new Proxy({}, { get: (_target, name) => "vault_" + name }),
     },
   };
   const help = load("PasskeyHelp", imports);
@@ -147,15 +150,46 @@ function render(f, { locale = "en", component = "panel", mode = "unlock", unlock
     "./VaultKeyRenewalPanel": renewal,
     "./VaultArchiveDeletionPanel": load("VaultArchiveDeletionPanel", imports),
   });
+  const settingsStyles = {
+    __esModule: true,
+    default: new Proxy({}, { get: (_, name) => "settings_" + name }),
+  };
+  const disclosure = load("Disclosure", {
+    ...imports,
+    "./Disclosure.module.css": {
+      __esModule: true,
+      default: new Proxy({}, { get: (_, name) => "disclosure_" + name }),
+    },
+  });
+  const security = load("SettingsSecurityPanel", {
+    ...imports,
+    "next/dynamic": { __esModule: true, default: () => panel.default },
+    "./Disclosure": disclosure,
+    "./SettingsPanel.module.css": settingsStyles,
+  });
   const settings = load("SettingsPanel", {
     ...imports,
-    "./SettingsPanel.module.css": { __esModule: true, default: {} },
+    "./SettingsPanel.module.css": settingsStyles,
     "./IndependentSetupPanel": { __esModule: true, default: () => null },
-    "./VaultManagementPanel": { __esModule: true, default: panel.default },
+    "./SettingsSecurityPanel": security,
+    "./CurrencyPreferencesProvider": {
+      useCurrencyPreferences: () => ({
+        authenticated: f.workspace.authenticated,
+        loaded: true,
+        loading: false,
+        saving: false,
+        error: null,
+        snapshot: null,
+        selected: f.workspace.previewCurrency ?? "USD",
+        select: noop,
+        retry: noop,
+      }),
+    },
+    "@/lib/currency-preferences": currencyContracts,
     "@/components/PreferencesProvider": {
       usePreferences: () => ({
-        preferences: { theme: "system", language: locale, defaultChartRange: "1m" },
-        authenticated: false,
+        preferences: { theme: "light", language: locale, defaultChartRange: "1m" },
+        authenticated: f.workspace.authenticated,
         loading: false,
         saving: false,
         status: "guest",
@@ -182,16 +216,17 @@ function button(view, label) {
   return found[0];
 }
 
-test("Settings adds localized key management while normal preferences remain available; directory shows public fingerprints only", () => {
+test("Settings keeps routine preferences and a concise security summary; expanded directory contains only public fingerprints", () => {
   for (const locale of ["en", "zh"]) {
     const f = fixture();
     f.workspace.keyManagement.privateKey = "PRIVATE_SECRET_NOT_FOR_DOM";
     const view = render(f, { component: "settings", locale });
     assert.ok(view.html.includes(locale === "en" ? "Appearance" : "外观"));
-    assert.ok(
-      view.html.includes(locale === "en" ? "Library keys and devices" : "资源库密钥与设备"),
-    );
-    assert.ok(view.html.includes("sig_device_A1") && view.html.includes("enc_device_A2"));
+    assert.ok(view.html.includes(locale === "en" ? "Unlock &amp; devices" : "解锁与设备"));
+    assert.ok(!view.html.includes("sig_device_A1") && !view.html.includes("enc_device_A2"));
+    const directory = render(f, { locale });
+    assert.ok(directory.html.includes("sig_device_A1") && directory.html.includes("enc_device_A2"));
+    assert.ok(!directory.html.includes("PRIVATE_SECRET_NOT_FOR_DOM"));
     assert.ok(!view.html.includes("PRIVATE_SECRET_NOT_FOR_DOM"));
     assert.equal(f.calls.length, 0, "Rendering never prompts, fetches, signs or changes access");
   }
@@ -222,19 +257,19 @@ test("locked, logged-out, unavailable and mismatched-vault views mask device/rec
 test("current-device rotation and other-device revocation begin with public review, never a direct write", () => {
   const f = fixture(),
     view = render(f);
-  button(view, "Review replacement of these keys").onClick();
-  button(view, "Review revoking this device").onClick();
+  button(view, "Update access").onClick();
+  button(view, "Remove access").onClick();
   assert.deepEqual(f.calls, [
     ["reviewDeviceChange", "rotate", "device_A1"],
     ["reviewDeviceChange", "revoke", "device_A2"],
   ]);
-  assert.ok(!view.html.includes("Confirm device revocation"));
-  assert.ok(!view.html.includes("Confirm key replacement"));
+  assert.ok(!view.html.includes("Confirm removal"));
+  assert.ok(!view.html.includes("Confirm update"));
   const readonly = fixture();
   readonly.workspace.keyManagement.canManage = false;
   const readOnlyView = render(readonly);
-  assert.equal(button(readOnlyView, "Review revoking this device").disabled, true);
-  button(readOnlyView, "Review write access for this browser").onClick();
+  assert.equal(button(readOnlyView, "Remove access").disabled, true);
+  button(readOnlyView, "Enable changes").onClick();
   assert.deepEqual(JSON.parse(JSON.stringify(readonly.calls)), [
     ["unlock", { forResults: true, enableState: true }],
   ]);
@@ -249,17 +284,18 @@ test("an exact current-directory review explains retained Passkey and agent-gran
     checkpointDigest: "a".repeat(64),
   };
   let view = render(f);
-  assert.ok(view.html.includes("does not revoke the Passkey or root authority"));
-  assert.ok(view.html.includes("may stop future report writes"));
+  assert.ok(view.html.includes("Your passkey stays valid"));
+  assert.ok(view.html.includes("Existing saved data is not erased"));
+  assert.ok(view.html.includes("report deliveries may need approval again"));
   assert.ok(view.html.includes("enc_device_A2"));
-  assert.equal(button(view, "Confirm device revocation").disabled, false);
+  assert.equal(button(view, "Confirm removal").disabled, false);
   button(view, "Cancel review").onClick();
   assert.deepEqual(f.calls, [["discardDeviceChange"]]);
-  button(view, "Confirm device revocation").onClick();
+  button(view, "Confirm removal").onClick();
   assert.deepEqual(f.calls.at(-1), ["confirmDeviceChange"]);
   f.workspace.keyManagement.registrySequence = 4;
   view = render(f);
-  assert.equal(button(view, "Confirm device revocation").disabled, true);
+  assert.equal(button(view, "Confirm removal").disabled, true);
   assert.ok(view.html.includes("directory changed"));
 });
 

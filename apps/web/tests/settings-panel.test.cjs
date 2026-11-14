@@ -6,6 +6,9 @@ const vm = require("node:vm");
 const { transformSync } = require("next/dist/build/swc");
 const jsxRuntime = require("react/jsx-runtime");
 const { createTranslator } = require("next-intl");
+const currencyContracts = require("./resource-library-helpers.cjs").compile(
+  "../lib/currency-preferences.ts",
+);
 
 function mountPanel(overrides = {}, locale = "en") {
   const changes = [];
@@ -25,6 +28,19 @@ function mountPanel(overrides = {}, locale = "en") {
     updatePreferences: (change) => changes.push(change),
     retry: () => retries++,
     ...overrides,
+  };
+  const currencyChanges = [];
+  const currencyState = {
+    authenticated: state.authenticated,
+    loaded: true,
+    loading: false,
+    saving: false,
+    error: null,
+    snapshot: null,
+    selected: "USD",
+    select: (value) => currencyChanges.push(value),
+    retry: () => retries++,
+    ...(overrides.currency ?? {}),
   };
   const { code } = transformSync(
     readFileSync(path.join(__dirname, "../components/SettingsPanel.tsx"), "utf8"),
@@ -64,7 +80,9 @@ function mountPanel(overrides = {}, locale = "en") {
     "@/components/PreferencesProvider": { usePreferences: () => state },
     "./SettingsPanel.module.css": { default: {} },
     "./IndependentSetupPanel": { __esModule: true, default: () => null },
-    "./VaultManagementPanel": { __esModule: true, default: () => null },
+    "./SettingsSecurityPanel": { __esModule: true, default: () => null },
+    "./CurrencyPreferencesProvider": { useCurrencyPreferences: () => currencyState },
+    "@/lib/currency-preferences": currencyContracts,
     "next-intl": {
       useTranslations: (namespace) =>
         createTranslator({
@@ -102,11 +120,13 @@ function mountPanel(overrides = {}, locale = "en") {
       visit(node.props?.children);
     }
     visit(root);
-    return { root, nodes, changes, retries: () => retries };
+    return { root, nodes, changes, currencyChanges, retries: () => retries };
   }
   return {
     render: (next = {}) => {
       Object.assign(state, next);
+      currencyState.authenticated = state.authenticated;
+      if (next.currency) Object.assign(currencyState, next.currency);
       render();
       for (const { slot, effect, dependencies } of effects.splice(0)) {
         cells[slot]?.cleanup?.();
@@ -134,13 +154,14 @@ test("settings retain named preference groups and native labeled controls in bot
   for (const locale of ["en", "zh"]) {
     const view = panel({}, locale);
     const groups = view.nodes.filter((node) => node.type === "fieldset");
-    assert.equal(groups.length, 3);
+    assert.equal(groups.length, 4);
     for (const group of groups) {
       assert.ok(view.nodes.some((node) => node.props?.id === group.props["aria-labelledby"]));
-      assert.ok(view.nodes.some((node) => node.props?.id === group.props["aria-describedby"]));
+      if (group.props["aria-describedby"])
+        assert.ok(view.nodes.some((node) => node.props?.id === group.props["aria-describedby"]));
     }
     const selects = view.nodes.filter((node) => node.type === "select");
-    assert.equal(selects.length, 2);
+    assert.equal(selects.length, 3);
     for (const select of selects) {
       assert.ok(view.nodes.some((node) => node.props?.htmlFor === select.props.id));
     }
@@ -156,7 +177,9 @@ test("guest controls remain usable while account restoration failures disable sa
   ]) {
     assert.ok(
       panel(overrides)
-        .nodes.filter((node) => node.type === "fieldset")
+        .nodes.filter(
+          (node) => node.type === "fieldset" && node.props["aria-labelledby"] !== "currency-title",
+        )
         .every((node) => node.props.disabled),
     );
   }
@@ -167,7 +190,9 @@ test("guest controls remain usable while account restoration failures disable sa
   ]) {
     assert.ok(
       panel(overrides)
-        .nodes.filter((node) => node.type === "fieldset")
+        .nodes.filter(
+          (node) => node.type === "fieldset" && node.props["aria-labelledby"] !== "currency-title",
+        )
         .every((node) => !node.props.disabled),
     );
   }
@@ -193,6 +218,38 @@ test("preference controls dispatch only their field and preserve retry for save 
   assert.equal(view.retries(), 1);
 });
 
+test("currency stays an independent control with an unknown-state placeholder and usable retry", () => {
+  const view = panel({
+    authenticated: true,
+    currency: { authenticated: true, loaded: true, selected: "CNY" },
+  });
+  view.nodes
+    .find((node) => node.props?.id === "preference-currency")
+    .props.onChange({ target: { value: "CAD" } });
+  assert.deepEqual(view.currencyChanges, ["CAD"]);
+  assert.deepEqual(view.changes, []);
+  const pending = panel({
+    authenticated: true,
+    currency: { authenticated: true, loaded: false, loading: true },
+  });
+  assert.equal(
+    pending.nodes.find((node) => node.props?.["aria-labelledby"] === "currency-title").props
+      .disabled,
+    true,
+  );
+  assert.ok(
+    pending.nodes.some((node) => node.props?.["data-loading"] && node.props?.["aria-hidden"]),
+  );
+  const failed = panel({
+    authenticated: true,
+    currency: { authenticated: true, loaded: false, error: "load" },
+  });
+  const retry = failed.nodes.find((node) => node.type === "button");
+  assert.equal(retry.props.disabled, undefined);
+  retry.props.onClick();
+  assert.equal(failed.retries(), 1);
+});
+
 const toast = (view) => view.nodes.find((node) => node.props?.role === "status");
 
 test("only a completed save shows a brief accessible confirmation, without replay on return", () => {
@@ -207,7 +264,7 @@ test("only a completed save shows a brief accessible confirmation, without repla
     assert.equal(confirmation.props["aria-atomic"], "true");
     assert.equal(
       confirmation.props.children[1].props.children,
-      locale === "en" ? "Preferences saved to your account." : "偏好已保存到账户。",
+      locale === "en" ? "Saved" : "已保存",
     );
     assert.equal(app.pendingTimers(), 1);
     app.expire();

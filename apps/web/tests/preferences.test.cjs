@@ -187,12 +187,14 @@ test("guest theme and language update in memory, follow the OS, and reset on a f
   app.render();
   let view = app.render();
   assert.equal(view.resolvedTheme, "light");
+  assert.equal(view.preferences.theme, "light");
   view.updatePreferences({ language: "zh", defaultChartRange: "1y" });
   view = app.render();
   assert.equal(view.intl.locale, "zh");
   assert.equal(view.intl.timeZone, "America/New_York");
   assert.equal(app.document.documentElement.lang, "zh-CN");
   assert.match(app.document.title, /你的投资工作台/);
+  view.updatePreferences({ theme: "system" });
   app.systemTheme(true);
   view = app.render();
   assert.equal(view.resolvedTheme, "dark");
@@ -205,6 +207,7 @@ test("guest theme and language update in memory, follow the OS, and reset on a f
   assert.equal(app.requests.length, 0);
   const fresh = mountPreferences();
   assert.equal(fresh.render().preferences.language, "en");
+  assert.equal(fresh.render().preferences.theme, "light");
   assert.equal(fresh.render().preferences.defaultChartRange, "1m");
 });
 
@@ -258,7 +261,7 @@ test("only an explicitly missing account record adopts guest choices; failed loa
   app.timers(400);
   assert.equal(app.requests.length, 1);
   app.render().updatePreferences({ theme: "dark" });
-  assert.equal(app.render().preferences.theme, "system");
+  assert.equal(app.render().preferences.theme, "light");
   app.render().retry();
   app.requests[1].result.resolve(response(null));
   await settle();

@@ -78,6 +78,7 @@
   grid-template-columns: repeat(3, minmax(0, 1fr));
   min-width: 0;
   padding: 3px;
+  position: relative;
 }
 
 .choice {
@@ -291,14 +292,130 @@
   }
 }
 
-.security {
-  margin-top: 24px;
+.choices[data-loading="true"] > *,
+.select[data-loading="true"] > * {
+  visibility: hidden;
+}
+.choices[data-loading="true"]::after,
+.select[data-loading="true"]::after {
+  animation: settings-shimmer 1.2s ease-in-out infinite;
+  background: linear-gradient(90deg, var(--raised), var(--border), var(--raised));
+  background-size: 200% 100%;
+  border-radius: 6px;
+  content: "";
+  inset: 0;
+  position: absolute;
+}
+.choices[data-error="true"]::after,
+.select[data-error="true"]::after {
+  animation: none;
+}
+.currencyControl {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+.fieldStatus,
+.sectionLoading {
+  align-items: center;
+  color: var(--muted);
+  display: flex;
+  font-size: 12px;
+  gap: 8px;
+}
+.spinner {
+  animation: settings-spin 700ms linear infinite;
+  border: 2px solid var(--border);
+  border-right-color: var(--accent);
+  border-radius: 50%;
+  display: inline-block;
+  flex-shrink: 0;
+  height: 14px;
+  width: 14px;
+}
+.sectionLoading {
+  min-height: 96px;
+}
+.securityCard {
+  background: var(--panel);
   border: 1px solid var(--border);
   border-radius: 10px;
-  padding: 16px 20px;
+  margin-top: 24px;
+  padding: 20px 24px 0;
 }
-.security > summary {
-  font-weight: 600;
-  cursor: pointer;
-  min-height: 32px;
+.securityHeading {
+  align-items: center;
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+}
+.securityHeading h2 {
+  font-size: 16px;
+  margin: 0;
+}
+.accessBadge {
+  background: var(--raised);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 11px;
+  padding: 4px 9px;
+}
+.accessBadge[data-unlocked="true"] {
+  color: var(--positive);
+}
+.accessRow {
+  align-items: center;
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+  padding: 22px 0 16px;
+}
+.accessRow strong {
+  font-size: 13px;
+}
+.accessRow p {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+  margin: 6px 0 0;
+}
+.accessButton {
+  background: var(--raised);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  flex-shrink: 0;
+  font-size: 12px;
+  min-height: 38px;
+  padding: 9px 14px;
+}
+.deviceSummary {
+  color: var(--muted);
+  display: flex;
+  font-size: 12px;
+  gap: 16px;
+  justify-content: space-between;
+  padding: 0 0 20px;
+}
+@keyframes settings-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes settings-shimmer {
+  to {
+    background-position: -200% 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .spinner,
+  .choices::after,
+  .select::after {
+    animation: none !important;
+  }
+}
+@media (max-width: 480px) {
+  .securityCard {
+    padding: 18px 16px 0;
+  }
 }
