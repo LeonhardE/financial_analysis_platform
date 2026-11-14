@@ -161,3 +161,10 @@ requestId}}` contract with no diagnostic message. Raw writes are limited to
 `400 malformed_request`; auth failures use the shared codes. Unknown v2 paths,
 method errors and CORS denials receive the same closed framing and `no-store`.
 Legacy User routes retain their existing success/error shapes.
+
+## Currency follows
+
+[FX follow preferences](docs/fx-follows.md) adds ordered manual currency pairs and persistent
+suppression of the current default pair. It shares the existing store with a distinct Owner key,
+leaves stock/channel lists and resource metadata unchanged, and performs no rate fetch or
+cross-service write. The ordered Web consumer composes the default pair at read time.
