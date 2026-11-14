@@ -144,6 +144,6 @@ production traffic or live upstream is used.
 
 [Valuation producer guide](docs/valuation.md) documents the closed public batch API for daily
 reference FX, cache-only first paint, bounded refresh, exact decimal routing and source attribution.
-It reuses this service's cache/admission and accepts no private portfolio facts. Existing stock
-and chart routes keep their original contracts; the new stock-quote producer remains a separate
-MKT-001 delivery.
+It reuses this service's cache/admission and accepts no private portfolio facts. The guide also
+covers bounded native quote batches with explicit MIC/currency checks and cache-only first paint.
+Existing stock and chart routes keep their original contracts.
