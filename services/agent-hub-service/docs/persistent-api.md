@@ -451,6 +451,8 @@ delegation headers; writes additionally require the original Idempotency-Key.
   blockers and retained restoration selections. Resource/task names remain encrypted.
 - `GET /{vault}/summary`: the closed read-only
   `folioview.provider-connection-summary.v1` display snapshot described below.
+- `GET /{vault}/display`: the compatible full display envelope containing the
+  current vault, summary and original capability projections in one read.
 - `GET /{vault}/{provider}/operations/{operation}`: original immutable receipt.
 - `POST /{vault}/{provider}/commands`: `{contractVersion, command}`; activate uses
   `{approval, review, credential}` and disconnect uses `{approval}`. `approval` is
@@ -527,6 +529,35 @@ vault; the display projection does not grant authority. Existing per-record read
 remain available for older clients and explicit credential operations.
 Deploy this producer before switching a consumer to the summary route, and keep
 a summary-capable Hub revision as that consumer's rollback floor.
+
+### Full connection display envelope
+
+`GET /api/v3/provider-connections/{vault}/display` returns exactly
+`{contractVersion,profile,vaultId,mode,vaultResponse,summary,capabilities}` with
+profile `folioview.provider-connection-display.v1`. `capabilities` contains exactly
+`agents`, `account` and `credentials`, using the unchanged results of the three
+existing Owner capability handlers and their original feature/Owner gates.
+
+In `mode: "complete"`, `vaultResponse` is the original
+`GET /api/v2/vaults/current` projection and `summary` is the unchanged connection
+summary. One Owner request and transaction verify the current registry once.
+Source fences join the connection batch; the ordinary active-archive path still
+uses at most three read phases. Archive-deletion lifecycle checks remain in place.
+The consumer must accept the full vault through its existing pinned Worker path
+before verifying selected credentials and publishing the complete display.
+
+The original combined response budget is unchanged. If the two individually
+bounded DTOs do not fit together, `mode: "separate"` has both `vaultResponse` and
+`summary` set to `null`; it is only an explicit instruction to use the existing
+separate vault/capability/summary reads. It conveys no partial result or authority,
+and the consumer must not treat that hint as a loaded connection. Invalid storage,
+identity records or registry signatures still fail the request instead of producing
+a hint. Signed credential artifacts retain the original consumer verification.
+
+This endpoint uses the same closed, body-free Owner GET transport and `no-store`
+policy, and stays readable when write gates are disabled. Original endpoints and
+their wire shapes remain available. Deploy this producer before its consumer;
+keep a display-capable Hub revision while that consumer is active.
 
 ## Task assignments and task history (additive, default off)
 
