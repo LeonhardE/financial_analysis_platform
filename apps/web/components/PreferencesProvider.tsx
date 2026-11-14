@@ -18,11 +18,15 @@ import {
   readPreferences,
   samePreferences,
   validatePreferences,
+  legacyPreferences,
   type Preferences,
 } from "@/lib/preferences";
 import englishMessages from "@/messages/en.json";
 import chineseMessages from "@/messages/zh.json";
+import traditionalMessages from "@/messages/zh-Hant.json";
 import { readThemeHint, writeThemeHint, type ThemePreference } from "@/lib/theme-bootstrap";
+import { languageTag } from "@/lib/language-preferences";
+import { useAccountLanguage } from "./useAccountLanguage";
 
 type PreferenceStatus = "guest" | "loading" | "ready" | "saving" | "saved" | "error";
 type PreferenceError = "load" | "save" | "loadTimeout" | "saveTimeout" | null;
@@ -35,6 +39,7 @@ type PreferenceState = {
   serverVersion: number | null;
   status: PreferenceStatus;
   error: PreferenceError;
+  adoptLanguage: boolean;
 };
 type PreferencesContextValue = {
   preferences: Preferences;
@@ -58,6 +63,7 @@ const initialState: PreferenceState = {
   serverVersion: null,
   status: "guest",
   error: null,
+  adoptLanguage: false,
 };
 
 export function PreferencesProvider({ children }: { children: ReactNode }) {
@@ -137,6 +143,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
             revision: dirty ? 1 : 0,
             status: preferences === null ? "ready" : "saved",
             error: null,
+            adoptLanguage: dirty && guestRef.current.preferences.language === "zh-Hant",
           });
           return;
         }
@@ -153,7 +160,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
           const response = await requestPrivate("config", "/api/v1/preferences", owner, {
             method: "PUT",
             signal: controller.signal,
-            json: { ...draft, expectedVersion },
+            json: { ...legacyPreferences(draft), expectedVersion },
           });
           if (!ownsRequest()) return;
           if (response.status === 409) {
@@ -237,6 +244,28 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
     return () => window.clearTimeout(timer);
   }, [owner, state, requestPreferences]);
 
+  const visible = owner && state.owner === owner ? state : null;
+  const basePreferences = visible?.preferences ?? guest.preferences;
+  const accountLanguage = useAccountLanguage(
+    owner,
+    requestPrivate,
+    basePreferences.language,
+    Boolean(visible?.adoptLanguage),
+  );
+  const preferences = useMemo(
+    () => ({ ...basePreferences, language: accountLanguage.language ?? basePreferences.language }),
+    [basePreferences, accountLanguage.language],
+  );
+  const baseStatus = visible?.status ?? (owner ? "loading" : "guest");
+  const preferenceError = visible?.error ?? accountLanguage.error;
+  const preferenceStatus: PreferenceStatus = preferenceError
+    ? "error"
+    : accountLanguage.loading
+      ? "loading"
+      : accountLanguage.saving
+        ? "saving"
+        : baseStatus;
+
   const updatePreferences = useCallback(
     (changes: Partial<Preferences>) => {
       if (ownerRef.current !== owner) return;
@@ -251,6 +280,13 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
       const current = stateRef.current;
       // Wait for saved preferences instead of overwriting an unknown account state.
       if (current.owner !== owner || !current.loaded) return;
+      validatePreferences({ ...current.preferences, ...changes });
+      if (changes.language && (changes.language === "zh-Hant" || accountLanguage.usesOverride)) {
+        if (!accountLanguage.loaded) return;
+        accountLanguage.select(changes.language);
+        const { language: _language, ...remaining } = changes;
+        changes = remaining;
+      }
       const preferences = validatePreferences({ ...current.preferences, ...changes });
       if (samePreferences(preferences, current.preferences)) return;
       publish({
@@ -262,19 +298,17 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
         error: null,
       });
     },
-    [owner, publish],
+    [owner, publish, accountLanguage.loaded, accountLanguage.select, accountLanguage.usesOverride],
   );
 
   const retry = useCallback(() => {
+    accountLanguage.retry();
     if (!owner || ownerRef.current !== owner || requestRef.current) return;
     const current = stateRef.current;
     if (current.owner !== owner || !current.error) return;
     void requestPreferences(current.loaded ? "PUT" : "GET");
-  }, [owner, requestPreferences]);
+  }, [owner, requestPreferences, accountLanguage.retry]);
 
-  const visible = owner && state.owner === owner ? state : null;
-  const preferences = visible?.preferences ?? guest.preferences;
-  const preferenceStatus = visible?.status ?? (owner ? "loading" : "guest");
   const preferencesPending = Boolean(
     owner ? !visible?.loaded : ["loading", "verifying", "signing-in"].includes(authStatus),
   );
@@ -306,11 +340,13 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
     // Cache only a confirmed theme; pending/failed saves cannot replace the startup hint.
     if (owner && visible?.loaded && !visible.dirty && !visible.error)
       writeThemeHint(preferences.theme);
-    document.documentElement.lang = preferences.language === "zh" ? "zh-CN" : "en";
+    document.documentElement.lang = languageTag(preferences.language);
     document.title =
-      preferences.language === "zh"
-        ? "FolioView — 你的投资工作台"
-        : "FolioView — Your investing workspace";
+      preferences.language === "zh-Hant"
+        ? "FolioView — 你的投資工作台"
+        : preferences.language === "zh"
+          ? "FolioView — 你的投资工作台"
+          : "FolioView — Your investing workspace";
   }, [owner, preferencesPending, preferences.theme, preferences.language, visible, systemTheme]);
 
   const value = useMemo<PreferencesContextValue>(
@@ -321,18 +357,33 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
       loading: Boolean(owner) && preferenceStatus === "loading",
       saving: preferenceStatus === "saving" || Boolean(visible?.dirty && !visible.error),
       status: preferenceStatus,
-      error: visible?.error ?? null,
+      error: preferenceError,
       updatePreferences,
       retry,
     }),
-    [preferences, resolvedTheme, owner, preferenceStatus, visible, updatePreferences, retry],
+    [
+      preferences,
+      resolvedTheme,
+      owner,
+      preferenceStatus,
+      preferenceError,
+      visible,
+      updatePreferences,
+      retry,
+    ],
   );
 
   return (
     <PreferencesContext.Provider value={value}>
       <NextIntlClientProvider
         locale={preferences.language}
-        messages={preferences.language === "zh" ? chineseMessages : englishMessages}
+        messages={
+          preferences.language === "zh-Hant"
+            ? traditionalMessages
+            : preferences.language === "zh"
+              ? chineseMessages
+              : englishMessages
+        }
         timeZone="America/New_York"
       >
         {children}

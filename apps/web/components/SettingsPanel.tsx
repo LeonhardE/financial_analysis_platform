@@ -102,6 +102,9 @@ export default function SettingsPanel({ workspace }: { workspace?: HoldingsWorks
               <option value="zh" lang="zh-CN">
                 简体中文
               </option>
+              <option value="zh-Hant" lang="zh-Hant">
+                繁體中文
+              </option>
             </select>
             <SelectChevron />
           </div>

@@ -1,8 +1,9 @@
 import type { ChartRange } from "@/lib/market-data";
+import type { UiLanguage } from "./language-preferences";
 
 export type Preferences = {
   theme: "system" | "light" | "dark";
-  language: "en" | "zh";
+  language: UiLanguage;
   defaultChartRange: ChartRange;
 };
 
@@ -20,7 +21,7 @@ export function validatePreferences(value: unknown): Preferences {
   if (
     Object.keys(preferences).length !== 3 ||
     !["system", "light", "dark"].includes(preferences.theme as string) ||
-    !["en", "zh"].includes(preferences.language as string) ||
+    !["en", "zh", "zh-Hant"].includes(preferences.language as string) ||
     !["1d", "1w", "1m", "3m", "1y"].includes(preferences.defaultChartRange as string)
   ) {
     throw new Error("Invalid preferences response");
@@ -46,11 +47,19 @@ export function readPreferences(value: unknown): PreferencesSnapshot {
   ) {
     throw new Error("Invalid preferences response");
   }
+  const preferences = value.preferences === null ? null : validatePreferences(value.preferences);
+  // This reader is exclusively for the frozen v1 endpoint.
+  if (preferences?.language === "zh-Hant") throw new Error("Invalid preferences response");
   return {
-    preferences: value.preferences === null ? null : validatePreferences(value.preferences),
+    preferences,
     version: value.version as number,
   };
 }
+
+export const legacyPreferences = (preferences: Preferences): Preferences => ({
+  ...preferences,
+  language: preferences.language === "zh-Hant" ? "zh" : preferences.language,
+});
 
 export function samePreferences(left: Preferences, right: Preferences): boolean {
   return (

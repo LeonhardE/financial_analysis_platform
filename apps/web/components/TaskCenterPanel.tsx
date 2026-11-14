@@ -212,7 +212,7 @@ export function TaskCenterView({
     content.name = "";
     content.goal = "";
     content.outputSpec.label = t("report");
-    content.outputSpec.language = locale === "zh" ? "zh" : "en";
+    content.outputSpec.language = locale.startsWith("zh") ? "zh" : "en";
     model.startNew(seed, content);
     setProviders([]);
     setScheduled(false);

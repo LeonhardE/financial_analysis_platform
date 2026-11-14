@@ -51,11 +51,21 @@ const response = (preferences, status = 200, version = preferences === null ? 0 
   json: async () => ({ preferences, version }),
 });
 const lib = compile("../lib/preferences.ts", {});
+const languageContract = compile(
+  "../lib/language-preferences.ts",
+  {},
+  { TextEncoder, TextDecoder },
+);
+const languageStore = compile(
+  "../lib/language-preferences-store.ts",
+  { "./language-preferences": languageContract },
+  { AbortController, setTimeout, clearTimeout },
+);
 const themeKey = "folioview.theme.v1";
 
 function mountPreferences(
   initialOwner = null,
-  { hint = null, dark = false, status, storageBlocked = false } = {},
+  { hint = null, dark = false, status, storageBlocked = false, languageRecords = {} } = {},
 ) {
   let auth = {
     status: status ?? (initialOwner ? "authenticated" : "anonymous"),
@@ -64,6 +74,7 @@ function mountPreferences(
   const cells = [];
   const pendingEffects = [];
   const requests = [];
+  const languageRequests = [];
   const timers = new Map();
   const mediaListeners = new Set();
   const mediaQuery = {
@@ -102,6 +113,18 @@ function mountPreferences(
   const changed = (before, after) =>
     !before || after.some((value, position) => value !== before[position]);
   const requestPrivate = (service, url, sessionKey, options) => {
+    if (url === languageContract.LANGUAGE_PREFERENCES_PATH) {
+      languageRequests.push({ service, url, sessionKey, options });
+      const before = languageRecords[sessionKey] ?? { preferences: null, version: 0 };
+      if (options.method === "PUT") {
+        assert.equal(options.json.expectedVersion, before.version);
+        languageRecords[sessionKey] = {
+          preferences: { language: options.json.language },
+          version: before.version + 1,
+        };
+      }
+      return Promise.resolve(Response.json(languageRecords[sessionKey] ?? before));
+    }
     const result = deferred();
     requests.push({ service, url, sessionKey, options, result });
     return result.promise;
@@ -145,6 +168,10 @@ function mountPreferences(
     },
   };
   react.useLayoutEffect = react.useEffect;
+  const languageHook = compile("../components/useAccountLanguage.ts", {
+    react,
+    "@/lib/language-preferences-store": languageStore,
+  });
   const { PreferencesProvider } = compile(
     "../components/PreferencesProvider.tsx",
     {
@@ -153,9 +180,12 @@ function mountPreferences(
       "next-intl": { NextIntlClientProvider: "intl-provider" },
       "@/components/AuthProvider": { useAuth: () => ({ ...auth, requestPrivate }) },
       "@/lib/preferences": lib,
+      "@/lib/language-preferences": languageContract,
+      "./useAccountLanguage": languageHook,
       "@/lib/theme-bootstrap": theme,
       "@/messages/en.json": { settings: { title: "Settings" } },
       "@/messages/zh.json": { settings: { title: "设置" } },
+      "@/messages/zh-Hant.json": { settings: { title: "設定" } },
     },
     {
       AbortController,
@@ -185,6 +215,8 @@ function mountPreferences(
   });
   return {
     requests,
+    languageRequests,
+    languageRecords,
     document,
     storage,
     render: (flush = true) => {
@@ -747,4 +779,75 @@ test("versioned preferences reject unknown or unsafe versions and saves that fai
   await settle();
   assert.equal(app.render().error, "save");
   assert.notEqual(app.render().status, "saved");
+});
+
+test("Traditional Chinese guests use the complete locale in memory and a fresh visit keeps defaults", () => {
+  const app = mountPreferences();
+  app.render().updatePreferences({ language: "zh-Hant" });
+  const view = app.render();
+  assert.equal(view.intl.locale, "zh-Hant");
+  assert.equal(view.intl.messages.settings.title, "設定");
+  assert.equal(app.document.documentElement.lang, "zh-Hant");
+  assert.match(app.document.title, /投資/);
+  assert.equal(app.requests.length, 0);
+  assert.equal(app.languageRequests.length, 0);
+  assert.equal(mountPreferences().render().preferences.language, "en");
+});
+
+test("account Traditional choice restores and switches only its independent language namespace", async () => {
+  const languageRecords = { "a:1": { preferences: { language: "zh-Hant" }, version: 4 } };
+  const app = mountPreferences("a:1", { languageRecords });
+  app.render();
+  app.requests[0].result.resolve(response(prefs({ language: "zh" })));
+  await settle();
+  let view = app.render();
+  assert.equal(view.preferences.language, "zh-Hant");
+  assert.equal(view.intl.locale, "zh-Hant");
+  view.updatePreferences({ language: "en" });
+  await settle();
+  view = app.render();
+  assert.equal(view.preferences.language, "en");
+  assert.equal(app.requests.length, 1);
+  assert.equal(languageRecords["a:1"].preferences.language, "en");
+  view.updatePreferences({ theme: "light" });
+  app.render();
+  app.timers(400);
+  assert.equal(
+    app.requests[1].options.json.language,
+    "zh",
+    "v1 theme save preserves its legacy language",
+  );
+  app.requests[1].result.resolve(response(prefs({ theme: "light", language: "zh" }), 200, 2));
+  await settle();
+  assert.equal(app.render().preferences.language, "en");
+  app.account("b:2");
+  assert.equal(app.render().preferences.language, "en");
+  app.requests[2].result.resolve(response(prefs({ language: "zh" })));
+  await settle();
+  assert.equal(app.render().preferences.language, "zh");
+});
+
+test("a new account adopts an explicit Traditional guest choice only after both namespaces confirm absence", async () => {
+  const app = mountPreferences();
+  app.render().updatePreferences({ language: "zh-Hant" });
+  app.render();
+  app.account("a:1");
+  app.render();
+  await settle();
+  assert.equal(app.languageRequests.filter((r) => r.options.method === "PUT").length, 0);
+  app.requests[0].result.resolve(response(null));
+  await settle();
+  app.render();
+  await settle();
+  app.render();
+  assert.equal(app.languageRecords["a:1"].preferences.language, "zh-Hant");
+  app.timers(400);
+  assert.equal(app.requests[1].options.json.language, "zh");
+  app.requests[1].result.resolve(response(prefs({ language: "zh" })));
+  await settle();
+  assert.equal(app.render().preferences.language, "zh-Hant");
+  assert.throws(
+    () => lib.readPreferences({ preferences: prefs({ language: "zh-Hant" }), version: 1 }),
+    /Invalid/,
+  );
 });

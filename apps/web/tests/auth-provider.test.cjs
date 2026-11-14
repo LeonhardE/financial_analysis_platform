@@ -4,6 +4,9 @@ const cacheContracts = require("./resource-library-helpers.cjs").compile(
 const currencyContracts = require("./resource-library-helpers.cjs").compile(
   "../lib/currency-preferences.ts",
 );
+const languageContracts = require("./resource-library-helpers.cjs").compile(
+  "../lib/language-preferences.ts",
+);
 const fxContracts = require("./resource-library-helpers.cjs").compile("../lib/fx-follows.ts", {
   "./currency-preferences": currencyContracts,
 });
@@ -155,6 +158,7 @@ function mountProvider({
   const module = { exports: {} };
   const imports = {
     "@/lib/currency-preferences": currencyContracts,
+    "@/lib/language-preferences": languageContracts,
     "@/lib/fx-follows": fxContracts,
     react,
     "react/jsx-runtime": { jsx: (type, props) => ({ type, props }) },
@@ -2914,4 +2918,102 @@ test("cancelling a stalled token SDK read settles without invalidating the signe
   assert.equal(h.state().status, "authenticated");
   assert.equal(h.requests.length, before);
   h.unmount();
+});
+
+test("Traditional language store crosses the actual authenticated Config boundary and reloads its saved selection", async () => {
+  const { LanguagePreferenceStore } = require("./resource-library-helpers.cjs").compile(
+    "../lib/language-preferences-store.ts",
+    { "./language-preferences": languageContracts },
+    { setTimeout, clearTimeout },
+  );
+  let remote = { preferences: null, version: 0 };
+  const harness = mountProvider({
+    env: { NEXT_PUBLIC_CONFIG_API_BASE_URL: "https://config.example.test" },
+    fetchProfile: async (url, options) => {
+      if (url.endsWith("/api/v1/me")) return profileResponse("a");
+      assert.equal(url, "https://config.example.test/api/v2/preferences/language");
+      if (options.method === "PUT") {
+        const body = JSON.parse(options.body);
+        assert.equal(body.expectedVersion, remote.version);
+        remote = { preferences: { language: body.language }, version: remote.version + 1 };
+      }
+      return Response.json(remote);
+    },
+  });
+  harness.emitUser(user("a"));
+  await settle();
+  const make = () =>
+    new LanguagePreferenceStore(
+      "a:1",
+      (path, options) => harness.actions.requestPrivate("config", path, "a:1", options),
+      () => {},
+    );
+  const first = make();
+  let restored;
+  try {
+    first.start();
+    await settle();
+    first.select("zh-Hant");
+    await settle();
+    assert.equal(first.state.error, null);
+    assert.equal(first.state.selected, "zh-Hant");
+    restored = make();
+    restored.start();
+    await settle();
+    assert.equal(restored.state.selected, "zh-Hant");
+    assert.deepEqual(
+      harness.requests.slice(1).map(([, o]) => o.method),
+      ["GET", "PUT", "GET"],
+    );
+    for (const [, options] of harness.requests.slice(1)) {
+      assert.equal(options.headers.Authorization, "Bearer test-token-a");
+      assert.equal(options.cache, "no-store");
+      assert.equal(options.credentials, "omit");
+    }
+    harness.emitUser(user("b"));
+    await settle();
+    const count = harness.requests.length;
+    await assert.rejects(
+      harness.actions.requestPrivate("config", "/api/v2/preferences/language", "a:1"),
+      /account session changed/,
+    );
+    assert.equal(harness.requests.length, count);
+  } finally {
+    first.dispose();
+    restored?.dispose();
+    harness.unmount();
+  }
+});
+
+test("language endpoint admits only its exact Config route and closed CAS update before token lookup", async () => {
+  const harness = mountProvider();
+  let tokens = 0;
+  harness.emitUser({ uid: "a", getIdToken: async () => (++tokens, "test-token-a") });
+  await settle();
+  const before = tokens;
+  for (const [service, path] of [
+    ["user", "/api/v2/preferences/language"],
+    ["config", "/api/v2/preferences/language?uid=b"],
+    ["config", "/api/v2/preferences/language/"],
+    ["config", "https://other.test/api/v2/preferences/language"],
+  ])
+    await assert.rejects(harness.actions.requestPrivate(service, path, "a:1"));
+  for (const options of [
+    { method: "DELETE" },
+    { method: "PUT" },
+    { method: "GET", json: {} },
+    { method: "POST", json: {} },
+    { headers: { "X-User-Id": "b" } },
+    ...[
+      { language: "zh-TW", expectedVersion: 0 },
+      { language: "zh-Hant", expectedVersion: -1 },
+      { language: "en", expectedVersion: 0, theme: "dark" },
+    ].map((json) => ({ method: "PUT", json })),
+  ])
+    await assert.rejects(
+      harness.actions.requestPrivate("config", "/api/v2/preferences/language", "a:1", options),
+    );
+  assert.equal(tokens, before);
+  assert.equal(harness.requests.length, 1);
+  harness.unmount();
 });

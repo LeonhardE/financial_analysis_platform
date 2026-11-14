@@ -67,7 +67,7 @@ export function TasksView({
     next.name = t(template === "brief" ? "briefName" : "customName");
     next.goal = template === "brief" ? t("briefGoal") : "";
     next.outputSpec.label = t("reportLabel");
-    next.outputSpec.language = locale === "zh" ? "zh" : "en";
+    next.outputSpec.language = locale.startsWith("zh") ? "zh" : "en";
     next.outputSpec.sections = [
       { sectionId: "overview", title: t("overviewTitle"), instructions: "" },
     ];
