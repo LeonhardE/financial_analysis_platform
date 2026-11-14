@@ -146,4 +146,6 @@ production traffic or live upstream is used.
 reference FX, cache-only first paint, bounded refresh, exact decimal routing and source attribution.
 It reuses this service's cache/admission and accepts no private portfolio facts. The guide also
 covers bounded native quote batches with explicit MIC/currency checks and cache-only first paint.
+Canonical holdings-entry search returns explicit US/Canadian market and currency candidates
+without changing the existing US browsing search.
 Existing stock and chart routes keep their original contracts.

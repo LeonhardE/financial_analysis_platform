@@ -8,6 +8,7 @@ from fastapi import Depends, Query, Response
 from folioview_shared.http import PrivateResponseHeaders, create_app
 
 from .cost_controls import MarketCostRoute
+from .instrument_search import router as instrument_search_router
 from .market_data import MarketService, get_market_service
 from .stock_metrics import router as stock_metrics_router
 from .valuation_fx import router as valuation_fx_router
@@ -23,6 +24,7 @@ app.add_middleware(PrivateResponseHeaders, prefixes=("/api/valuation/",))
 app.include_router(stock_metrics_router)
 app.include_router(valuation_fx_router)
 app.include_router(valuation_quotes_router)
+app.include_router(instrument_search_router)
 
 
 @app.get("/health")
