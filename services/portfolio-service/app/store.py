@@ -1,5 +1,6 @@
 """Bounded, atomic storage for ciphertext and trusted public authority replicas."""
 
+import copy
 import hashlib
 import os
 import sqlite3
@@ -181,17 +182,32 @@ class FirestoreTransaction:
         self.transaction = transaction
         self.store = store
         self.pending = []
+        self._reads = {}
+        self._read_bytes = 0
+
+    def _remember(self, values):
+        for path, value in values.items():
+            if path in self._reads or len(self._reads) >= 128:
+                continue
+            size = len(canonical_json(value))
+            if self._read_bytes + size <= 8 * 1024 * 1024:
+                self._reads[path] = copy.deepcopy(value)
+                self._read_bytes += size
 
     def get(self, path: str) -> dict | None:
+        if path in self._reads:
+            return copy.deepcopy(self._reads[path])
         row = self.store.client.document(path).get(
             transaction=self.transaction, timeout=4, retry=None
         )
-        if not row.exists:
-            return None
-        value = row.to_dict()
-        if type(value) is not dict:
-            raise StoreUnavailable
-        return _read_document(value, path=path)
+        value = None
+        if row.exists:
+            value = row.to_dict()
+            if type(value) is not dict:
+                raise StoreUnavailable
+            value = _read_document(value, path=path)
+        self._remember({path: value})
+        return value
 
     def put(self, path: str, value: dict) -> None:
         data = stored_document(
@@ -201,17 +217,20 @@ class FirestoreTransaction:
 
     def get_many(self, paths: list[str]) -> dict:
         _batch_paths(paths)
-        result = dict.fromkeys(paths)
+        result = {path: copy.deepcopy(self._reads.get(path)) for path in paths}
+        missing = [path for path in paths if path not in self._reads]
+        if not missing:
+            return result
         seen = set()
         rows = self.store.client.get_all(
-            [self.store.client.document(path) for path in paths],
+            [self.store.client.document(path) for path in missing],
             transaction=self.transaction,
             timeout=4,
             retry=None,
         )
         for row in rows:
             path = row.reference.path
-            if path not in result or path in seen:
+            if path not in missing or path in seen:
                 raise StoreUnavailable
             seen.add(path)
             if row.exists:
@@ -219,8 +238,9 @@ class FirestoreTransaction:
                 if type(value) is not dict:
                     raise StoreUnavailable
                 result[path] = _read_document(value, path=path)
-        if len(seen) != len(paths):
+        if len(seen) != len(missing):
             raise StoreUnavailable
+        self._remember({path: result[path] for path in missing})
         return result
 
     def flush(self):

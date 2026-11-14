@@ -160,6 +160,11 @@ and at most three transaction attempts. There is no list scan, worker, response-
 thread, broker refresh, lease renewal or Cloud Tasks job. Refresh remains a newly encrypted client
 snapshot upload with revision CAS; real broker acquisition and refresh leases are not implemented.
 
+## Read performance
+
+[Snapshot/receipt batch reads and transaction-local reuse](docs/read-performance.md)
+explain the current read budgets and freshness boundaries.
+
 ## Internal source metadata producer
 
 The existing bounded reads prefetch authority, head and lifecycle for up to ten sources in one
