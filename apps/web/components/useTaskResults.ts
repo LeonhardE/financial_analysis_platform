@@ -6,6 +6,7 @@ import type { TaskCenterModel } from "./useTaskCenter";
 import type { TaskModel } from "./useTasks";
 import type { PersistentWorkspaceModel } from "./usePersistentWorkspace";
 import { DisplayLru, untilSignal } from "@/lib/workspace-cache";
+import { readReportProviders } from "@/lib/report-provider-attribution";
 import { readInboxResultLink, clearInboxResultLink } from "@/lib/inbox-link";
 import { metadata as foregroundMetadata, metadataPage } from "@/lib/inbox-types";
 import {
@@ -122,6 +123,14 @@ export function useTaskResults(
     titleQueue = useRef<ResultRow[]>([]),
     titlePending = useRef(new Set<string>()),
     titleActive = useRef(0);
+  const reportProviders = useRef({
+    scope,
+    providers: {} as Record<string, "muse" | "chatgpt">,
+    at: 0,
+    ready: false,
+    loading: false,
+    error: "",
+  });
   const selectedSerial = useRef(0),
     pending = useRef<{ scope: string; row: ResultRow; changes: J; packet: J } | null>(null),
     writeBusy = useRef(false),
@@ -250,6 +259,53 @@ export function useTaskResults(
       }
     },
     [],
+  );
+  const loadReportProviders = useCallback(
+    async (force = false) => {
+      const start = live.current,
+        epoch = generation.current,
+        record = reportProviders.current;
+      const age = Date.now() - record.at;
+      if (
+        !start.scope ||
+        !start.active ||
+        record.scope !== start.scope ||
+        record.loading ||
+        (!force && record.ready && !record.error && age >= 0 && age < 30000)
+      )
+        return;
+      const current = () =>
+        live.current.scope === start.scope &&
+        live.current.active &&
+        generation.current === epoch &&
+        reportProviders.current === record;
+      record.loading = true;
+      record.error = "";
+      update({ revision: ++uiRevision.current }, start.scope);
+      try {
+        const data = await api("/api/v2/persistent-connections", {}, start.scope);
+        const providers = readReportProviders(data, start.workspace.vault!.vaultId);
+        if (!current()) return;
+        record.providers = providers;
+        record.at = Date.now();
+        record.ready = true;
+      } catch (error) {
+        if (current())
+          record.error =
+            error instanceof Error &&
+            ["invalid_response", "request_timeout", "request_failed", "session_expired"].includes(
+              error.message,
+            )
+              ? error.message
+              : "request_failed";
+      } finally {
+        if (current()) {
+          record.loading = false;
+          update({ revision: ++uiRevision.current }, start.scope);
+        }
+      }
+    },
+    [api, update],
   );
   const merge = useCallback(
     (incoming: ResultRow[], expected: string) => {
@@ -601,13 +657,24 @@ export function useTaskResults(
           pending: false,
           busy: false,
         };
-  const providers = new Map(
-    (persistent?.views ?? []).map((v) => [v.connection.connectionId, v.connection.provider]),
-  );
-  const providerFor = (row: ResultRow) =>
-    attributions.current.get(resultKey(row))?.provider ??
-    providers.get(row.metadata.connectionId) ??
-    "agent";
+  const sourceProviders =
+    reportProviders.current.scope === scope
+      ? reportProviders.current
+      : {
+          providers: {} as Record<string, "muse" | "chatgpt">,
+          ready: false,
+          loading: false,
+          error: "",
+        };
+  const providerFor = (row: ResultRow) => {
+    if (!scope || live.current.scope !== scope || !live.current.active || !live.current.visible)
+      return "agent";
+    const declared = attributions.current.get(resultKey(row))?.provider;
+    if (declared !== undefined) return ["muse", "chatgpt"].includes(declared) ? declared : "agent";
+    return Object.hasOwn(sourceProviders.providers, row.metadata.connectionId)
+      ? sourceProviders.providers[row.metadata.connectionId]
+      : "agent";
+  };
   const taskRows = current.rows
     .filter((r) => r.metadata.taskId === task)
     .sort(
@@ -678,6 +745,14 @@ export function useTaskResults(
     selectedSerial.current++;
     for (const j of jobs.current) j.abort();
     rows.current.clear();
+    reportProviders.current = {
+      scope,
+      providers: {},
+      at: 0,
+      ready: false,
+      loading: false,
+      error: "",
+    };
     feeds.current = initialFeeds();
     titles.current.clear();
     wanted.current.clear();
@@ -714,8 +789,11 @@ export function useTaskResults(
     });
   }, [scope]);
   useEffect(() => {
-    if (scope && active) void load();
-  }, [scope, active, load]);
+    if (scope && active) {
+      void load();
+      void loadReportProviders();
+    }
+  }, [scope, active, load, loadReportProviders]);
   useEffect(() => {
     if (!scope || !active) return;
     return () => {
@@ -723,6 +801,7 @@ export function useTaskResults(
       selectedSerial.current++;
       loadSerial.current++;
       if (loading.current) fresh.current = 0;
+      if (reportProviders.current.scope === scope) reportProviders.current.loading = false;
       loading.current = false;
       reloadAfter.current = false;
       titleQueue.current = [];
@@ -972,10 +1051,16 @@ export function useTaskResults(
     stopTitle: (row: ResultRow) => wanted.current.delete(resultKey(row)),
     rows: visibleRows,
     allTaskRows: taskRows,
-    loading: current.loading || Boolean(taskPages.current.get(task)?.busy),
-    ready: current.ready,
-    complete: current.complete && (!task || taskPages.current.get(task)?.done === true),
-    error: current.error,
+    loading:
+      current.loading || sourceProviders.loading || Boolean(taskPages.current.get(task)?.busy),
+    ready: current.ready && sourceProviders.ready,
+    complete:
+      current.complete &&
+      sourceProviders.ready &&
+      !sourceProviders.loading &&
+      !sourceProviders.error &&
+      (!task || taskPages.current.get(task)?.done === true),
+    error: current.error || sourceProviders.error,
     busy: current.busy,
     detail: current.detail
       ? {
@@ -1051,7 +1136,8 @@ export function useTaskResults(
       if (filtered.length <= f.limit)
         await Promise.all([load(false, true), loadTaskPage(task, selectedRules, false, true)]);
     },
-    reload: () => Promise.all([load(true), loadTaskPage(task, selectedRules, true)]),
+    reload: () =>
+      Promise.all([load(true), loadTaskPage(task, selectedRules, true), loadReportProviders(true)]),
     open,
     close: () => {
       selectedSerial.current++;

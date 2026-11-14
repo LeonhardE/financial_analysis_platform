@@ -52,6 +52,7 @@ test("workspace navigation keeps one owner session without server transitions af
   let workspaceCalls = 0;
   let pathname = "/";
   const historyCalls = [];
+  const agentReads = [];
   const window = {
     history: {
       pushState: (_state, _title, href) => {
@@ -90,6 +91,9 @@ test("workspace navigation keeps one owner session without server transitions af
           return cells[slot];
         },
         useEffect() {},
+        useCallback(value) {
+          return value;
+        },
       },
       "react/jsx-runtime": { jsx, jsxs: jsx, Fragment: "fragment" },
       "next-intl": { useLocale: () => "en", useTranslations: () => (key) => key },
@@ -97,7 +101,12 @@ test("workspace navigation keeps one owner session without server transitions af
       "./IndependentAgentPanel": { IndependentAgentPanel: () => null },
       "./useIndependentAgent": { useIndependentAgent: () => ({ configuration: null }) },
       "./PersistentInboxPanel": { PersistentInboxPanel: () => null },
-      "./usePersistentWorkspace": { usePersistentWorkspace: () => ({ enabled: false, views: [] }) },
+      "./usePersistentWorkspace": {
+        usePersistentWorkspace: (_workspace, _origin, active) => {
+          agentReads.push(active);
+          return { enabled: false, views: [] };
+        },
+      },
       "./useAgentLinkConfiguration": { useAgentLinkConfiguration: () => ({ data: null }) },
       "@/components/PreferencesProvider": {
         usePreferences: () => ({ preferences: { defaultChartRange: "1m" }, resolvedTheme: "dark" }),
@@ -181,6 +190,17 @@ test("workspace navigation keeps one owner session without server transitions af
   assert.equal(tasks.tree.props.workspace, sharedWorkspace);
   assert.equal(tasks.tree.props.active, true);
   assert.equal(tasks.parent.props.hidden, false);
+  assert.equal(agentReads.at(-1), false, "task list does not discover Agents");
+  tasks.tree.props.onAgentConnectionsNeeded(true);
+  render();
+  assert.equal(agentReads.at(-1), true, "details and creation request executors");
+  const oldDemand = tasks.tree.props.onAgentConnectionsNeeded;
+  sharedWorkspace.vaultGeneration = 2;
+  render();
+  assert.equal(agentReads.at(-1), false, "new vault generation cannot inherit demand");
+  oldDemand(true);
+  render();
+  assert.equal(agentReads.at(-1), false, "old task callback cannot request another generation");
   sidebar = find(tree, (node) => node.type === Sidebar).tree;
   sidebar.props.onNavigate("markets");
   tree = render();

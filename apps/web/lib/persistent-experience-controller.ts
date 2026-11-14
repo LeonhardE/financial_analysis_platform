@@ -241,6 +241,10 @@ export class PersistentExperienceController {
   }
   async credential(connection: PersistentConnection) {
     const state = await this.request(this.credentialBase(connection));
+    return this.inspectCredential(connection, state);
+  }
+  async inspectCredential(connection: PersistentConnection, state: Json) {
+    this.assert();
     const verified = await this.workspace().inspectAgentCredential({
       actor: this.actor(connection),
       state,

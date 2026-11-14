@@ -950,15 +950,33 @@ export default function TasksPanel({
   onRequestConsumed,
   persistent,
   onNavigate,
+  onAgentConnectionsNeeded,
 }: {
   workspace: HoldingsWorkspace;
   active: boolean;
   request?: TaskRequest | null;
   onRequestConsumed?: () => void;
   persistent?: PersistentWorkspaceModel;
+  onAgentConnectionsNeeded?: (needed: boolean) => void;
   onNavigate?: (view: "agents" | "inbox") => void;
 }) {
-  const model = useTasks(workspace, { active });
+  const model = useTasks(workspace, {
+    active,
+    catalogueOnDemand: true,
+    catalogueRequested: Boolean(request && request.owner === workspace.owner),
+  });
+  // A task list and its real unread counts do not need Agent discovery.
+  // Details and every new/edit workflow still enable executor/assignment reads.
+  const needsAgents =
+    active &&
+    model.unlocked &&
+    workspace.owner === model.owner &&
+    workspace.phase === "unlocked" &&
+    Boolean(model.selected || model.form);
+  useEffect(() => {
+    onAgentConnectionsNeeded?.(needsAgents);
+  }, [needsAgents, onAgentConnectionsNeeded]);
+  useEffect(() => () => onAgentConnectionsNeeded?.(false), [onAgentConnectionsNeeded]);
   const center = useTaskCenter(workspace, active, model.selected);
   const observed = Object.values(center.manual)
     .flatMap((rows) =>
@@ -1020,6 +1038,8 @@ export default function TasksPanel({
           persistent={persistent}
           results={<TaskResultsPanel model={results} taskId={model.selected?.taskId ?? ""} />}
           unreadCounts={results.unreadCounts}
+          resultState={results}
+          navigating={Boolean(linkedTask)}
           unreadPartial={results.partial}
           resultsFocusKey={results.detail?.row.metadata.resultId}
           request={request}

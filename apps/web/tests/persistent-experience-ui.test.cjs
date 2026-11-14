@@ -55,6 +55,7 @@ function render(locale, unlocked, plan, credential = null, duration = null, stat
     phase: unlocked ? "unlocked" : "locked",
     canWriteState: unlocked,
     busy: false,
+    ...state.workspace,
     unlock() {
       throw Error("render cannot unlock");
     },
@@ -65,6 +66,7 @@ function render(locale, unlocked, plan, credential = null, duration = null, stat
     busy: false,
     loading: false,
     loaded: true,
+    displayState: "ready",
     loadError: false,
     error: "",
     enabled: true,
@@ -114,7 +116,7 @@ function render(locale, unlocked, plan, credential = null, duration = null, stat
       workspace,
       model,
       origin: "https://agent-hub-api-123456789.northamerica-northeast2.run.app",
-      active: true,
+      active: state.active ?? true,
     }),
   );
 }
@@ -250,4 +252,26 @@ test("background summary refresh preserves actions on the last verified connecti
   const muse = out.match(/<article[^>]*>[\s\S]*?<\/article>/)[0];
   assert.match(muse, /aria-busy="true"/);
   assert.match(muse, /<button>Authorize again/);
+});
+
+test("Agent readiness reflects the complete verified display and never treats retained errors or stale data as ready", () => {
+  const state = (options = {}, unlocked = true) => {
+    const html = render("en", unlocked, null, null, null, options);
+    return html.slice(0, html.indexOf(">") + 1);
+  };
+  assert.match(state(), /data-load-scope="agent-connections" data-load-state="ready"/);
+  for (const model of [
+    { loaded: false, loading: true, displayState: "loading" },
+    { loaded: true, loading: true, displayState: "loading" },
+    { loaded: true, loading: false, displayState: "loading" },
+    { busy: true },
+  ])
+    assert.match(state({ model }), /data-load-state="loading"/);
+  assert.match(
+    state({ model: { loaded: true, loadError: true, displayState: "error" } }),
+    /data-load-state="error"/,
+  );
+  assert.match(state({}, false), /data-load-state="locked"/);
+  assert.match(state({ workspace: { owner: "owner_B" } }), /data-load-state="locked"/);
+  assert.doesNotMatch(state(), /connection_A|owner_A|PRIVATE/);
 });

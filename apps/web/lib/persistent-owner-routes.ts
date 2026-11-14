@@ -87,7 +87,9 @@ export function taskCenterRoute(path: string, method: string) {
   );
   if (
     method === "GET" &&
-    (path === "/api/v3/provider-connections/capabilities" || providerPath.test(path))
+    (path === "/api/v3/provider-connections/capabilities" ||
+      new RegExp(`^/api/v3/provider-connections/${ID}/(?:summary|display)$`).test(path) ||
+      providerPath.test(path))
   )
     return { kind: "read" as const, max: 0, responseStatus: 200 as const };
   if (

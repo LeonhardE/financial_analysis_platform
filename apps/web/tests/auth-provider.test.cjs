@@ -2717,6 +2717,8 @@ test("task-center and provider controls cross the real browser boundary with clo
     [base + "/manual/" + OPERATION],
     [base + "/operations/" + OPERATION],
     ["/api/v3/provider-connections/capabilities"],
+    ["/api/v3/provider-connections/vault_A/summary"],
+    ["/api/v3/provider-connections/vault_A/display"],
     ["/api/v3/provider-connections/vault_A/muse"],
     ["/api/v3/provider-connections/vault_A/chatgpt/operations/" + OPERATION],
     [base + "/commands", { command: root }, true],
@@ -2776,6 +2778,14 @@ test("task-center and provider controls cross the real browser boundary with clo
       },
     ],
     ["/api/v3/provider-connections/vault_A/claude", {}],
+    ["/api/v3/provider-connections/vault_A/summary?owner=other", {}],
+    ["/api/v3/provider-connections/vault_A/display?owner=other", {}],
+    ["/api/v3/provider-connections/vault_A/display", { method: "POST", json: {} }],
+    ["/api/v3/provider-connections/vault_A/summary", { method: "POST", json: {} }],
+    [
+      "/api/v3/provider-connections/vault_A/summary",
+      { headers: { "X-FolioView-Delegation": "forged" } },
+    ],
   ])
     await assert.rejects(
       h.actions.requestPrivate("agent-hub", path, "a:1", options),

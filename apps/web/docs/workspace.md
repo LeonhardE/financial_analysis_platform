@@ -133,6 +133,31 @@ refresh and still check fresh authority. Route changes retain draft sealing in f
 lock/identity/hidden boundaries still cancel it. Manual Run persistence/dispatch remains gated by the
 later task/Run contracts and provider validation; this change creates no local Run or schedule.
 
+Agent display discovery uses one Owner-only
+`GET /api/v3/provider-connections/{vault}/display` for the current vault, three capability DTOs,
+connection inventory, both provider slots and exact candidate credential states. The existing
+bounded vault parser and Worker verify the supplied current vault before two local workers verify
+every candidate's original signed identity and credential. Browser and proxy reject partial,
+duplicate, foreign or contradictory compositions, including the complete four-field current-slot
+reference, with at most 32 connections; the proxy retains the original nested DTO schemas.
+The original one-MiB transport ceiling and 14-second display deadline cover this entire action.
+A legal oversized composition returns only a `separate` transport hint: the client then performs
+the original fresh-vault, three-capability and summary reads and all original verification. A hint
+never publishes a partial snapshot. Explicit operations still read fresh authority independently.
+Legacy ambiguity, expiry, revoked history, pending journals and cancellation retain their existing
+meaning. Publication remains atomic; failed refresh retains the previous verified connection/slot
+pair with an error. Public Agent-origin configuration remains a separate scoped cached request.
+
+The Agent panel exposes `data-load-scope="agent-connections"` with a truthful loading, ready,
+error or locked state. Ready requires the current complete verified snapshot, with no refresh,
+staleness or failure. Task Center exposes the same state only for `data-load-scope="task-list"`
+on its unselected homepage: current list receipt, all visible names, complete real unread/report
+feeds and provider mapping, and the current capability receipt must be ready. Empty lists still
+require the current list receipt. Partial, slow, failed or mismatched-owner reads cannot be ready.
+These state attributes contain no private identifiers and do not change data loading. Task details
+and the resource page do not claim an aggregate ready state; their child reads require independent
+inspection.
+
 ## Resource library
 
 Resources presents holdings, the existing Market watchlist, and a manually maintained YouTube
@@ -494,3 +519,39 @@ Manual requests select one or more current executors, survive navigation and
 reload, and display actual pickup/Run/result stages. Explicit copy-to-Agent
 continuation is offered while waiting; this release does not claim automatic
 native dispatch. No production migration or online acceptance is performed.
+
+Task-list navigation does not discover Agent credentials or load the resource catalogue. Opening a
+task detail or a new/edit workflow explicitly requests executor, assignment and resource-choice
+metadata; Agent Management always requests connection discovery. A resource handoff waits for a
+confirmed catalogue before seeding the task, and source read failures keep a local retry.
+Leaving the route cancels display discovery while preserving the existing operation lane and
+same-session verified state. Task metadata and real report unread feeds still load in full on the
+task list; a deferred connection read is not evidence that all visible data met a latency target.
+Legacy report attribution independently reads the existing bounded Owner connection list, retaining
+revoked actors' historical provider labels only within the current vault. It never grants access,
+sets connection state, populates credential views or guesses a provider from client IDs. Per-report
+v3 attribution takes precedence; absent attribution remains unknown. This map uses the same scoped,
+30-second page-memory reuse with bounded reads/cancellation and explicit retry. Its pending or failed
+read cannot mark the result view complete; real unread totals are still computed from the full feeds.
+
+Resource lists retain successful same-owner, vault, unlock-generation, vault-version and source-epoch
+snapshots across internal navigation, with a 30-second display freshness window. Reentry after that
+window refreshes the data. Refresh failure keeps the previous rows and explicitly marks them stale;
+stale catalogue selections and stale follow-list writes stay unavailable until a successful read.
+No timer prewarms these services. Explicit retry always reads again. Follow writes invalidate the
+catalogue before dispatch, and uncertain writes cannot be repeated by leaving and returning; their
+original state must be read back first. Watchlist and holdings updates still invalidate discovery.
+Account or vault scope changes mask old rows during render and fence delayed callbacks.
+
+An unlocked holdings error retries the selected source through the existing `readStored` path,
+including current vault/authority/metadata checks. It no longer takes the read-only unlock path
+that skips the failed Portfolio read. A failed retry remains a failure; the locked vault lifecycle
+recovery path is unchanged.
+
+A visible writable shared-unlock resume can restore source selection before source metadata or
+content has been read. In that state Resources performs one `readStored` per Owner/vault generation
+and canonical selected source, through the existing fresh-vault and Portfolio authority path. It
+requires complete writable unlock, an existing source, and no content/metadata, preview, new-source
+flow, unfinished mutation, busy state or error. Hidden pages, read-only/device-approval sessions,
+legitimate empty sources and already-restored content do not trigger this recovery. Failure stays
+on the existing explicit retry path; route reentry does not create an automatic retry loop.

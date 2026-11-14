@@ -127,3 +127,22 @@ test("account unavailable UI omits private list rows and escapes manual text in 
   assert.ok(zh.includes("手动维护创作者名单"));
   assert.ok(zh.includes("不受持仓通行密钥加密保护"));
 });
+
+test("cached resource rows remain visible during refresh failure and stale task or list mutations stay disabled", () => {
+  for (const locale of ["en", "zh", "zh-Hant"]) {
+    const stale = (data) => ({ data, loading: false, stale: true, error: "unavailable" });
+    const value = model({
+      catalogue: stale(catalogue()),
+      watchlist: stale(stocks()),
+      follows: stale(channels()),
+    });
+    const follows = render(value, { locale, filter: "channel_follows", onCreateTask() {} });
+    const watchlist = render(value, { locale, filter: "watchlist", onCreateTask() {} });
+    assert.match(follows, /Synthetic Creator/);
+    assert.match(watchlist, /SYNTH/);
+    assert.match(follows, /role="status"/);
+    assert.match(follows, /disabled=""/);
+    assert.match(watchlist, /disabled=""/);
+    assert.doesNotMatch(follows, /No creators yet/);
+  }
+});

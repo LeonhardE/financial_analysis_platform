@@ -23,6 +23,7 @@ import type { WatchlistResponse } from "@/lib/watchlist";
 type Source = "catalogue" | "watchlist" | "follows";
 type State = {
   owner: string | null;
+  scope: string | null;
   catalogue: ResourceLoad<ResourceCatalogue>;
   watchlist: ResourceLoad<WatchlistResponse>;
   follows: ResourceLoad<ChannelFollows>;
@@ -30,8 +31,9 @@ type State = {
   writeError: string;
 };
 const empty = <T>(): ResourceLoad<T> => ({ data: null, loading: false, error: "", stale: false });
-const initial = (owner: string | null): State => ({
+const initial = (owner: string | null, scope: string | null): State => ({
   owner,
+  scope,
   catalogue: empty(),
   watchlist: empty(),
   follows: empty(),
@@ -56,21 +58,32 @@ const selectionKey = (item: ResourceItem) => {
 export function useResourceLibrary({
   active = true,
   externalWatchlist = false,
-}: { active?: boolean; externalWatchlist?: boolean } = {}) {
+  workspaceScope = null,
+}: { active?: boolean; externalWatchlist?: boolean; workspaceScope?: string | null } = {}) {
   const auth = useAuth();
   const owner = auth.status === "authenticated" && auth.profile ? auth.sessionKey : null;
   const configured = auth.agentHubConfigured;
+  const scope = owner ? JSON.stringify([owner, workspaceScope]) : null;
   const [visible, setVisible] = useState(
     () => typeof document === "undefined" || document.visibilityState !== "hidden",
   );
-  const [state, setState] = useState<State>(() => initial(owner));
+  const [state, setState] = useState<State>(() => initial(owner, scope));
   const stateRef = useRef(state);
   stateRef.current = state;
-  const live = useRef({ owner, configured, active, visible });
-  live.current = { owner, configured, active, visible };
+  const live = useRef({ owner, scope, configured, active, visible });
+  live.current = { owner, scope, configured, active, visible };
   const jobs = useRef(new Map<string, AbortController>());
   const serials = useRef({ catalogue: 0, watchlist: 0, follows: 0 });
   const writing = useRef<object | null>(null);
+  const freshness = useRef<{ scope: string | null; at: Partial<Record<Source, number>> }>({
+    scope,
+    at: {},
+  });
+  const isFresh = (source: Source) => {
+    const at = freshness.current.scope === scope ? freshness.current.at[source] : undefined;
+    const age = at === undefined ? Infinity : Date.now() - at;
+    return age >= 0 && age < 30_000;
+  };
 
   const operation = useCallback(
     async <T>(
@@ -82,6 +95,7 @@ export function useResourceLibrary({
       if (
         !owner ||
         start.owner !== owner ||
+        start.scope !== scope ||
         !start.active ||
         !start.visible ||
         (hub && !start.configured)
@@ -101,6 +115,7 @@ export function useResourceLibrary({
         if (
           controller.signal.aborted ||
           now.owner !== owner ||
+          now.scope !== scope ||
           !now.active ||
           !now.visible ||
           (hub && !now.configured)
@@ -124,7 +139,7 @@ export function useResourceLibrary({
         if (jobs.current.get(key) === controller) jobs.current.delete(key);
       }
     },
-    [owner],
+    [owner, scope],
   );
 
   const api = useCallback(
@@ -212,9 +227,13 @@ export function useResourceLibrary({
   );
 
   const reload = useCallback(
-    async (source: Source) => {
+    async (source: Source, force = true) => {
       if (
         !owner ||
+        live.current.scope !== scope ||
+        !live.current.active ||
+        !live.current.visible ||
+        (!force && isFresh(source) && !stateRef.current[source].stale) ||
         (source === "follows" && writing.current) ||
         (source === "catalogue" && !configured)
       )
@@ -222,31 +241,46 @@ export function useResourceLibrary({
       const serial = ++serials.current[source];
       const current = () =>
         live.current.owner === owner &&
+        live.current.scope === scope &&
         serials.current[source] === serial &&
         (source !== "catalogue" || live.current.configured);
       setState((previous) => ({
-        ...(previous.owner === owner ? previous : initial(owner)),
-        [source]: { ...empty(), loading: true },
+        ...(previous.scope === scope ? previous : initial(owner, scope)),
+        [source]: {
+          ...(previous.scope === scope ? previous[source] : empty()),
+          loading: true,
+          error: "",
+          stale: Boolean(previous.scope === scope && previous[source].data),
+        },
       }));
       try {
         const data = await operation(source, source === "catalogue", (signal, assert) =>
           api(source, signal, assert),
         );
-        if (current())
+        if (current()) {
+          freshness.current.at[source] = Date.now();
           setState((previous) => ({
             ...previous,
             [source]: { data, loading: false, error: "", stale: false },
             ...(source === "follows" ? { writeError: "" } : {}),
           }));
+        }
       } catch (error) {
-        if (current() && errorCode(error) !== "cancelled")
+        if (current() && errorCode(error) !== "cancelled") {
+          delete freshness.current.at[source];
           setState((previous) => ({
             ...previous,
-            [source]: { ...empty(), error: errorCode(error) },
+            [source]: {
+              ...previous[source],
+              loading: false,
+              stale: Boolean(previous[source].data),
+              error: errorCode(error),
+            },
           }));
+        }
       }
     },
-    [owner, configured, operation, api],
+    [owner, scope, configured, operation, api],
   );
 
   const saveFollows = useCallback(
@@ -256,6 +290,9 @@ export function useResourceLibrary({
         !owner ||
         live.current.owner !== owner ||
         before.owner !== owner ||
+        before.scope !== scope ||
+        live.current.scope !== scope ||
+        !isFresh("follows") ||
         !before.follows.data ||
         before.follows.stale ||
         before.follows.loading ||
@@ -272,8 +309,20 @@ export function useResourceLibrary({
       const token = {};
       writing.current = token;
       ++serials.current.follows;
+      ++serials.current.catalogue;
+      delete freshness.current.at.catalogue;
       jobs.current.get("follows")?.abort();
-      setState((previous) => ({ ...previous, busy: true, writeError: "" }));
+      jobs.current.get("catalogue")?.abort();
+      setState((previous) => ({
+        ...previous,
+        busy: true,
+        writeError: "",
+        catalogue: {
+          ...previous.catalogue,
+          loading: false,
+          stale: Boolean(previous.catalogue.data),
+        },
+      }));
       try {
         const data = (await operation("write", false, (signal, assert) =>
           api("follows", signal, assert, {
@@ -281,7 +330,13 @@ export function useResourceLibrary({
             items,
           }),
         )) as ChannelFollows;
-        if (live.current.owner !== owner || writing.current !== token) return false;
+        if (
+          live.current.owner !== owner ||
+          live.current.scope !== scope ||
+          writing.current !== token
+        )
+          return false;
+        freshness.current.at.follows = Date.now();
         setState((previous) => ({
           ...previous,
           follows: { data, loading: false, error: "", stale: false },
@@ -291,7 +346,12 @@ export function useResourceLibrary({
         void reload("catalogue");
         return true;
       } catch (error) {
-        if (live.current.owner === owner && writing.current === token)
+        if (freshness.current.scope === scope) delete freshness.current.at.follows;
+        if (
+          live.current.owner === owner &&
+          live.current.scope === scope &&
+          writing.current === token
+        )
           setState((previous) => ({
             ...previous,
             follows: { ...previous.follows, stale: true },
@@ -303,7 +363,7 @@ export function useResourceLibrary({
         if (writing.current === token) writing.current = null;
       }
     },
-    [owner, api, operation, reload],
+    [owner, scope, api, operation, reload],
   );
 
   useEffect(() => {
@@ -314,29 +374,54 @@ export function useResourceLibrary({
   useEffect(() => {
     for (const controller of jobs.current.values()) controller.abort();
     jobs.current.clear();
+    const uncertainWrite = Boolean(writing.current);
     writing.current = null;
+    if (freshness.current.scope !== scope) freshness.current = { scope, at: {} };
+    if (!configured) delete freshness.current.at.catalogue;
+    if (uncertainWrite) {
+      delete freshness.current.at.follows;
+      delete freshness.current.at.catalogue;
+    }
     for (const source of ["catalogue", "watchlist", "follows"] as Source[])
       ++serials.current[source];
     setState((previous) =>
-      previous.owner === owner
+      previous.scope === scope
         ? {
             ...previous,
             busy: false,
-            catalogue: { ...previous.catalogue, loading: false },
+            catalogue: {
+              ...previous.catalogue,
+              loading: false,
+              stale: Boolean(previous.catalogue.data && (previous.catalogue.stale || !configured)),
+            },
             watchlist: { ...previous.watchlist, loading: false },
-            follows: { ...previous.follows, loading: false },
+            follows: {
+              ...previous.follows,
+              loading: false,
+              ...(uncertainWrite ? { stale: true } : {}),
+            },
+            ...(uncertainWrite
+              ? {
+                  writeError: "reload_required",
+                  catalogue: {
+                    ...previous.catalogue,
+                    loading: false,
+                    stale: Boolean(previous.catalogue.data),
+                  },
+                }
+              : {}),
           }
-        : initial(owner),
+        : initial(owner, scope),
     );
     if (owner && active && visible) {
-      if (!externalWatchlist) void reload("watchlist");
-      void reload("follows");
-      if (configured) void reload("catalogue");
+      if (!externalWatchlist) void reload("watchlist", false);
+      void reload("follows", false);
+      if (configured) void reload("catalogue", false);
     }
     return () => {
       for (const controller of jobs.current.values()) controller.abort();
     };
-  }, [owner, active, visible, configured, reload, externalWatchlist]);
+  }, [owner, scope, active, visible, configured, reload, externalWatchlist]);
 
   const useForTask = useCallback(
     (item: ResourceItem, callback?: (selection: ResourceSelection) => void) => {
@@ -349,6 +434,10 @@ export function useResourceLibrary({
         !live.current.visible ||
         !live.current.configured ||
         current.owner !== owner ||
+        current.scope !== scope ||
+        live.current.scope !== scope ||
+        !isFresh("catalogue") ||
+        current.catalogue.stale ||
         current.catalogue.loading ||
         current.catalogue.error ||
         !["ready", "active"].includes(item.state)
@@ -363,15 +452,21 @@ export function useResourceLibrary({
       const selection = fresh && resourceSelection(fresh);
       if (selection) callback(selection);
     },
-    [owner],
+    [owner, scope],
   );
-  const masked = state.owner === owner && owner ? state : initial(owner);
+  const masked = state.scope === scope && owner ? state : initial(owner, scope);
+  const display = <T>(source: Source, value: ResourceLoad<T>): ResourceLoad<T> => ({
+    ...value,
+    stale: Boolean(value.data && (value.stale || !isFresh(source))),
+  });
   return {
     ...masked,
+    watchlist: display("watchlist", masked.watchlist),
+    follows: display("follows", masked.follows),
     owner,
     authenticated: Boolean(owner),
     configured,
-    catalogue: configured ? masked.catalogue : empty<ResourceCatalogue>(),
+    catalogue: configured ? display("catalogue", masked.catalogue) : empty<ResourceCatalogue>(),
     reload,
     saveFollows,
     useForTask,

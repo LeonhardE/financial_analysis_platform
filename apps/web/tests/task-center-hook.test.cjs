@@ -235,3 +235,34 @@ test("task state and manual progress read together but publish only after state 
   assert.ok(m.records.task_A);
   h.close();
 });
+
+test("capability receipt distinguishes loading legitimate disabled failure and a new Owner", async () => {
+  let release,
+    fail = false;
+  const gate = new Promise((resolve) => {
+    release = resolve;
+  });
+  const h = harness({
+    transport: (path) =>
+      path.endsWith("capabilities")
+        ? fail
+          ? Response.json({}, { status: 503 })
+          : gate
+        : undefined,
+  });
+  try {
+    assert.equal(h.render().capabilityState, "loading");
+    release(Response.json({ enabled: false }));
+    let model = await h.ready();
+    assert.equal(model.capabilityState, "ready");
+    assert.equal(model.enabled, false);
+    fail = true;
+    h.owner("owner_B");
+    assert.equal(h.render().capabilityState, "loading");
+    model = await h.ready();
+    assert.equal(model.capabilityState, "error");
+    assert.equal(model.enabled, false);
+  } finally {
+    h.close();
+  }
+});

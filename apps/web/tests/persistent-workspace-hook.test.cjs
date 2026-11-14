@@ -1,3 +1,4 @@
+const { displayBody } = require("./connection-display-fixtures.cjs");
 const assert = require("node:assert/strict"),
   test = require("node:test");
 const { compile, contracts: resources } = require("./resource-library-helpers.cjs");
@@ -94,13 +95,21 @@ function harness(authOverride, ownerRequest, readRequest, otherRequest) {
     )
       return ownerRequest(path, options);
     return Response.json(
-      path.startsWith("/api/v3/provider-connections/")
-        ? { profile: "folioview.provider-connection-slot.v1", slot: null }
-        : path.endsWith("/persistent-connections")
-          ? { connections: [] }
-          : path.includes("persistent-agents")
-            ? { enrollmentEnabled: false, resourceConsentEnabled: false, executionEnabled: false }
-            : { accountLinkEnabled: false },
+      path.endsWith("/display")
+        ? displayBody(summaryBody([]))
+        : path.endsWith("/summary")
+          ? summaryBody([])
+          : path.startsWith("/api/v3/provider-connections/")
+            ? { profile: "folioview.provider-connection-slot.v1", slot: null }
+            : path.endsWith("/persistent-connections")
+              ? { connections: [] }
+              : path.includes("persistent-agents")
+                ? {
+                    enrollmentEnabled: false,
+                    resourceConsentEnabled: false,
+                    executionEnabled: false,
+                  }
+                : { accountLinkEnabled: false },
     );
   };
   const document = {
@@ -139,6 +148,7 @@ function harness(authOverride, ownerRequest, readRequest, otherRequest) {
               },
       },
       "@/lib/persistent-experience-controller": controller,
+      "@/lib/connection-summary": compile("../lib/connection-summary.ts"),
     },
     {
       document,
@@ -559,7 +569,7 @@ test("changing the vault without an owner change masks retained private tasks be
   }
 });
 
-test("initial connection discovery is pending until all independent display reads complete", async () => {
+test("initial display remains pending until the single complete snapshot is verified", async () => {
   const pending = [];
   const h = harness(
     null,
@@ -568,41 +578,30 @@ test("initial connection discovery is pending until all independent display read
   );
   try {
     assert.equal(h.render(false).loaded, false);
-    let model = h.render();
+    assert.equal(h.render(false).displayState, "loading");
+    const model = h.render();
     assert.equal(model.loading, true);
     assert.equal(model.loaded, false);
-    assert.equal(model.loadError, false);
     await tick();
-    assert.equal(pending.length, 6, "capabilities and listing start without a serial waterfall");
-    assert.ok(pending.every((p) => p.options.coalesceDisplay === true));
-    for (const p of pending.slice(0, 3)) p.resolve(Response.json({}));
-    await h.settle();
-    assert.equal(h.render().loaded, false);
-    pending[3].resolve(Response.json({ connections: [] }));
-    for (const p of pending.slice(4))
-      p.resolve(Response.json({ profile: "folioview.provider-connection-slot.v1", slot: null }));
-    model = await h.settle();
-    assert.equal(model.loaded, true, "only a completed empty snapshot can mean no connections");
-    assert.equal(model.loading, false);
-    assert.equal(model.loadError, false);
+    assert.equal(pending.length, 1);
+    assert.ok(pending[0].path.endsWith("/display"));
+    assert.equal(pending[0].options.coalesceDisplay, true);
+    pending[0].resolve(Response.json(displayBody(summaryBody([]))));
+    const complete = await h.settle();
+    assert.equal(complete.loaded, true);
+    assert.equal(complete.loading, false);
+    assert.equal(complete.loadError, false);
+    assert.equal(complete.displayState, "ready");
+    assert.equal(h.calls.length, 1);
   } finally {
     h.close();
   }
 });
-
 test("failed discovery stays unknown and failed refresh retains the prior snapshot", async () => {
   let failed = true;
-  const h = harness(null, null, (path) =>
+  const h = harness(null, null, () =>
     Promise.resolve(
-      failed
-        ? Response.json({}, { status: 503 })
-        : Response.json(
-            path.endsWith("/persistent-connections")
-              ? { connections: [] }
-              : path.startsWith("/api/v3/provider-connections/")
-                ? { profile: "folioview.provider-connection-slot.v1", slot: null }
-                : {},
-          ),
+      failed ? Response.json({}, { status: 503 }) : Response.json(displayBody(summaryBody([]))),
     ),
   );
   try {
@@ -610,7 +609,6 @@ test("failed discovery stays unknown and failed refresh retains the prior snapsh
     let model = await h.settle();
     assert.equal(model.loadError, true);
     assert.equal(model.loaded, false);
-    assert.equal(model.loading, false);
     failed = false;
     await model.reload();
     model = h.render();
@@ -622,50 +620,31 @@ test("failed discovery stays unknown and failed refresh retains the prior snapsh
     failed = true;
     await h.render().reload();
     model = h.render();
-    assert.equal(model.loaded, true);
     assert.equal(model.loadError, true);
-    assert.equal(model.views[0], previous, "a refresh failure does not invent a disconnection");
+    assert.equal(model.loaded, true);
+    assert.equal(model.views[0], previous);
+    assert.equal(model.displayState, "error");
   } finally {
     h.close();
   }
 });
-
-test("old connection discovery cannot mark a new Owner generation as loaded or failed", async () => {
+test("old display discovery cannot publish into a new Owner generation", async () => {
   const pending = [];
   const h = harness(null, null, () => new Promise((resolve) => pending.push(resolve)));
   try {
     h.render();
     await tick();
     h.setOwner("owner_A:login2", false);
-    for (const [i, resolve] of pending.entries())
-      resolve(
-        Response.json(
-          i === 3
-            ? { connections: [] }
-            : i > 3
-              ? { profile: "folioview.provider-connection-slot.v1", slot: null }
-              : {},
-        ),
-      );
+    assert.notEqual(h.render(false).displayState, "ready");
+    pending[0](Response.json(displayBody(summaryBody([]))));
     await tick();
     let model = h.render(false);
     assert.equal(model.loaded, false);
     assert.equal(model.loadError, false);
     h.render();
-    model = h.render();
-    assert.equal(model.loaded, false);
-    assert.equal(model.loading, true);
     await tick();
-    for (const [i, resolve] of pending.slice(6).entries())
-      resolve(
-        Response.json(
-          i === 3
-            ? { connections: [] }
-            : i > 3
-              ? { profile: "folioview.provider-connection-slot.v1", slot: null }
-              : {},
-        ),
-      );
+    assert.equal(pending.length, 2);
+    pending[1](Response.json(displayBody(summaryBody([]))));
     model = await h.settle();
     assert.equal(model.loaded, true);
     assert.equal(model.loadError, false);
@@ -683,30 +662,101 @@ const connection = (n) => ({
   accountState: "connected",
   linkedAt: 1000,
 });
+const C = "folioview.agent-workspace.v2.0";
+const fingerprint = (n) => n.toString(16).padStart(64, "0");
+const signed = { protected: "YQ", payload: "Yg", signature: "Yw" };
+function summaryBody(connections, generation = 1, slotted = true) {
+  const providers = Object.fromEntries(
+    ["muse", "chatgpt"].map((provider) => {
+      const current = connections.find((c) => c.provider === provider);
+      const ref = current
+        ? {
+            connectionId: current.connectionId,
+            clientId: current.clientId,
+            credentialGeneration: generation,
+            credentialFingerprint: fingerprint(generation),
+          }
+        : null;
+      return [
+        provider,
+        {
+          contractVersion: C,
+          profile: "folioview.provider-connection-slot.v1",
+          slot:
+            slotted && current
+              ? {
+                  contractVersion: C,
+                  profile: "folioview.provider-connection-slot.v1",
+                  ownerSubject: "owner_A",
+                  vaultId: "vault_A",
+                  provider,
+                  slotId: "slot_" + provider,
+                  slotVersion: generation,
+                  slotGeneration: generation,
+                  currentCredential: ref,
+                  lastCredential: ref,
+                }
+              : null,
+          retainedSelections: [],
+          retirementCandidates: [],
+          legacyBlockers: [],
+          requiresFreshGrants: true,
+        },
+      ];
+    }),
+  );
+  const credentials = connections
+    .filter(
+      (c) =>
+        c.status === "active" &&
+        c.vaultId === "vault_A" &&
+        (!providers[c.provider].slot ||
+          providers[c.provider].slot.currentCredential.connectionId === c.connectionId),
+    )
+    .map((c) => ({
+      connectionId: c.connectionId,
+      state: {
+        contractVersion: C,
+        profile: "folioview.agent-credential.v1",
+        identity: {
+          ownerSubject: "owner_A",
+          vaultId: c.vaultId,
+          connectionId: c.connectionId,
+          clientId: c.clientId,
+        },
+        binding: signed,
+        lease: {
+          ownerSubject: "owner_A",
+          vaultId: c.vaultId,
+          connectionId: c.connectionId,
+          clientId: c.clientId,
+          generation,
+          credentialFingerprint: fingerprint(generation),
+        },
+        approval: signed,
+        status: "active",
+        defaultValiditySeconds: 7776000,
+        noticeSeconds: 604800,
+      },
+    }));
+  return {
+    contractVersion: C,
+    profile: "folioview.provider-connection-summary.v1",
+    vaultId: "vault_A",
+    connections,
+    providers,
+    credentials,
+  };
+}
 const discovery =
   (connections, generation = 1, slotted = true) =>
-  (path) => {
-    const current = connections.find((v) => path.endsWith("/" + v.provider));
-    return Promise.resolve(
+  (path) =>
+    Promise.resolve(
       Response.json(
-        path.endsWith("/persistent-connections")
-          ? { connections }
-          : path.startsWith("/api/v3/provider-connections/")
-            ? {
-                profile: "folioview.provider-connection-slot.v1",
-                slot: slotted
-                  ? {
-                      currentCredential: current
-                        ? {
-                            connectionId: current.connectionId,
-                            clientId: current.clientId,
-                            credentialGeneration: generation,
-                            credentialFingerprint: `fingerprint_${generation}`,
-                          }
-                        : null,
-                    }
-                  : null,
-              }
+        path.endsWith("/display")
+          ? displayBody(summaryBody(connections, generation, slotted))
+          : path.endsWith("/summary")
+            ? summaryBody(connections, generation, slotted)
             : {
                 accountLinkEnabled: true,
                 enabled: true,
@@ -715,7 +765,6 @@ const discovery =
               },
       ),
     );
-  };
 const credentialResponse = (generation = 1) =>
   Response.json({
     lease: { generation, credentialFingerprint: `fingerprint_${generation}` },
@@ -731,7 +780,7 @@ test("summary verification is bounded to two and never opens task content, polic
     journals = [];
   const h = harness(
     null,
-    (_path, options) => new Promise((resolve) => pending.push({ resolve, options })),
+    null,
     discovery(
       Array.from({ length: 6 }, (_, n) => connection(n + 1)),
       1,
@@ -742,6 +791,8 @@ test("summary verification is bounded to two and never opens task content, polic
     },
   );
   installVerifier(h);
+  h.workspace.inspectAgentCredential = (options) =>
+    new Promise((resolve) => pending.push({ resolve, options }));
   h.workspace.loadPersistentPending = async (actor) => {
     journals.push(actor.connectionId);
     return null;
@@ -753,7 +804,9 @@ test("summary verification is bounded to two and never opens task content, polic
     assert.equal(h.render().busy, false, "display reads do not occupy the mutation lane");
     for (let offset = 0; offset < 6; offset += 2) {
       assert.equal(h.render().loaded, false);
-      pending.slice(offset, offset + 2).forEach((p) => p.resolve(credentialResponse()));
+      pending
+        .slice(offset, offset + 2)
+        .forEach((p) => p.resolve({ status: "active", expiresAt: 2000000000 }));
       await h.settle();
       assert.equal(pending.length, Math.min(offset + 4, 6));
     }
@@ -764,6 +817,10 @@ test("summary verification is bounded to two and never opens task content, polic
     assert.equal(new Set(journals).size, 6, "one pending-journal read per connection");
     assert.equal(m.tasks.length, 0);
     assert.equal(m.providerStates.muse.slot, null);
+    assert.equal(h.calls.filter((c) => c.path.endsWith("/display")).length, 1);
+    assert.ok(
+      !h.calls.some((c) => /persistent-connections|agent-credentials\/vault_A/.test(c.path)),
+    );
   } finally {
     h.close();
   }
@@ -772,11 +829,10 @@ test("summary verification is bounded to two and never opens task content, polic
 test("credential and provider slot refresh publish atomically and transport failure retains their pair", async () => {
   let generation = 1,
     fail = false;
-  const h = harness(
-    null,
-    () =>
-      Promise.resolve(fail ? Response.json({}, { status: 503 }) : credentialResponse(generation)),
-    (path) => discovery([connection(1)], generation)(path),
+  const h = harness(null, null, (path) =>
+    fail && path.endsWith("/display")
+      ? Promise.resolve(Response.json({}, { status: 503 }))
+      : discovery([connection(1)], generation)(path),
   );
   installVerifier(h);
   try {
@@ -1025,15 +1081,12 @@ test("deleting a task fences a non-cooperative selected-task read against resurr
 
 test("a current provider slot verifies only its two exact connections despite thirty historical rows", async () => {
   const credentialReads = [];
-  const h = harness(
-    null,
-    (path) => {
-      credentialReads.push(path);
-      return Promise.resolve(credentialResponse());
-    },
-    discovery(Array.from({ length: 32 }, (_, n) => connection(n + 1))),
-  );
+  const h = harness(null, null, discovery(Array.from({ length: 32 }, (_, n) => connection(n + 1))));
   installVerifier(h);
+  h.workspace.inspectAgentCredential = async ({ actor }) => {
+    credentialReads.push(actor.connectionId);
+    return { status: "active", expiresAt: 2000000000 };
+  };
   try {
     h.render();
     await h.settle();
@@ -1041,8 +1094,8 @@ test("a current provider slot verifies only its two exact connections despite th
     assert.equal(credentialReads.length, 2);
     assert.equal(h.render().views.filter((v) => v.credential).length, 2);
     assert.equal(h.render().views.filter((v) => !v.credential).length, 30);
-    assert.ok(credentialReads.some((p) => p.endsWith("/connection_1")));
-    assert.ok(credentialReads.some((p) => p.endsWith("/connection_2")));
+    assert.ok(credentialReads.includes("connection_1"));
+    assert.ok(credentialReads.includes("connection_2"));
   } finally {
     h.close();
   }
@@ -1060,6 +1113,275 @@ test("the display lane cannot forward a write", async () => {
       null,
     );
     assert.equal(h.calls.filter((c) => c.path === retryProbe).length, 0);
+  } finally {
+    h.close();
+  }
+});
+
+test("a malformed composition never starts crypto or replaces the prior verified pair", async () => {
+  let mutate = () => {},
+    checks = 0;
+  const h = harness(null, null, (path) => {
+    if (!path.endsWith("/display")) return discovery([])(path);
+    const body = summaryBody([connection(1)]);
+    mutate(body);
+    return Promise.resolve(Response.json(displayBody(body)));
+  });
+  installVerifier(h);
+  h.workspace.inspectAgentCredential = async () => {
+    checks++;
+    return { status: "active", expiresAt: 2000000000 };
+  };
+  try {
+    h.render();
+    await h.settle();
+    const previous = h.render();
+    assert.equal(previous.loaded, true);
+    assert.equal(checks, 1);
+    for (const change of [
+      (v) => v.credentials.pop(),
+      (v) => v.credentials.push(structuredClone(v.credentials[0])),
+      (v) => (v.credentials[0].connectionId = "foreign_connection"),
+      (v) => (v.credentials[0].state.identity.vaultId = "foreign_vault"),
+      (v) => (v.providers.muse.slot.currentCredential.credentialGeneration = 2),
+      (v) => (v.providers.muse.slot.currentCredential.credentialFingerprint = fingerprint(2)),
+      (v) =>
+        v.providers.muse.retainedSelections.push({ taskId: "task_A", privateKey: "FORBIDDEN" }),
+      (v) => v.connections.push(connection(1)),
+      (v) => v.connections.push(...Array.from({ length: 32 }, (_, i) => connection(i + 2))),
+    ]) {
+      mutate = change;
+      assert.equal(await h.render().reload(), null);
+      const current = h.render();
+      assert.equal(current.loadError, true);
+      assert.equal(current.views, previous.views);
+      assert.equal(current.providerStates, previous.providerStates);
+      assert.equal(checks, 1);
+    }
+  } finally {
+    h.close();
+  }
+});
+
+test("a failed original credential signature keeps all prior views and slots together", async () => {
+  let failed = false,
+    generation = 1;
+  const h = harness(null, null, (path) =>
+    discovery([connection(1), connection(2)], generation, false)(path),
+  );
+  installVerifier(h);
+  h.workspace.inspectAgentCredential = async ({ actor }) => {
+    if (failed && actor.connectionId === "connection_2") throw new Error("invalid_signature");
+    return { status: "active", expiresAt: 2000000000 };
+  };
+  try {
+    h.render();
+    await h.settle();
+    const previous = h.render();
+    assert.equal(previous.loaded, true);
+    failed = true;
+    generation = 2;
+    assert.equal(await previous.reload(), null);
+    const current = h.render();
+    assert.equal(current.loadError, true);
+    assert.equal(current.views, previous.views);
+    assert.equal(current.providerStates, previous.providerStates);
+    assert.equal(current.views[0].credential.reference.credentialGeneration, 1);
+  } finally {
+    h.close();
+  }
+});
+
+test("slow crypto still obeys the original display deadline and cannot publish late", async () => {
+  const pending = [];
+  const h = harness(null, null, discovery([connection(1), connection(2), connection(3)], 1, false));
+  installVerifier(h);
+  h.workspace.inspectAgentCredential = () => new Promise((resolve) => pending.push(resolve));
+  try {
+    h.render();
+    await h.settle();
+    assert.equal(pending.length, 2);
+    assert.equal(h.render().displayState, "loading");
+    h.releaseTimer(14000);
+    await h.settle();
+    assert.equal(h.render().loadError, true);
+    assert.equal(h.render().displayState, "error");
+    pending.forEach((resolve) => resolve({ status: "active", expiresAt: 2000000000 }));
+    await h.settle();
+    assert.equal(h.render().loaded, false);
+    assert.equal(pending.length, 2);
+  } finally {
+    h.close();
+  }
+});
+
+test("foreign-vault blockers and revoked native history remain visible without credential authority", async () => {
+  const current = connection(1),
+    foreign = { ...connection(2), vaultId: "foreign_vault" },
+    revoked = { ...connection(3), status: "revoked", accountState: "revoked" };
+  const h = harness(null, null, (path) => {
+    if (!path.endsWith("/display")) return discovery([])(path);
+    const body = summaryBody([current, foreign, revoked], 1, false);
+    body.providers.chatgpt.legacyBlockers = [foreign.connectionId];
+    return Promise.resolve(Response.json(displayBody(body)));
+  });
+  installVerifier(h);
+  const checked = [];
+  h.workspace.inspectAgentCredential = async ({ actor }) => {
+    checked.push(actor.connectionId);
+    return { status: "active", expiresAt: 2000000000 };
+  };
+  try {
+    h.render();
+    await h.settle();
+    const model = h.render();
+    assert.equal(model.loaded, true);
+    assert.equal(model.views.length, 3);
+    assert.deepEqual(checked, [current.connectionId]);
+    assert.equal(model.views[1].credential, null);
+    assert.equal(model.views[2].credential, null);
+    assert.equal(model.providerStates.chatgpt.legacyBlockers[0], foreign.connectionId);
+    assert.equal(h.calls.filter((c) => c.path.endsWith("/display")).length, 1);
+  } finally {
+    h.close();
+  }
+});
+
+test("complete display forwards its unchanged vault to the existing refresher before credential verification", async () => {
+  const events = [],
+    h = harness(null, null, discovery([connection(1)]));
+  installVerifier(h);
+  h.workspace.refreshVault = async (signal, forState, read) => {
+    assert.equal(forState, false);
+    assert.equal(signal.aborted, false);
+    assert.equal(typeof read, "function");
+    const r = await read();
+    const body = await r.json();
+    assert.equal(body.vault.vaultId, "vault_A");
+    assert.equal(body.vault.registryHistory.length, 1);
+    events.push("vault-refresher");
+    return h.workspace.vault;
+  };
+  h.workspace.inspectAgentCredential = async () => {
+    assert.equal(events[0], "vault-refresher");
+    events.push("credential-worker");
+    return { status: "active", expiresAt: 2000000000 };
+  };
+  try {
+    h.render();
+    await h.settle();
+    assert.equal(h.render().loaded, true);
+    assert.deepEqual(events, ["vault-refresher", "credential-worker"]);
+    assert.equal(h.calls.length, 1);
+    assert.ok(h.calls[0].path.endsWith("/display"));
+  } finally {
+    h.close();
+  }
+});
+
+test("separate is only a hint and performs the original fresh vault capabilities and summary reads", async () => {
+  const h = harness(
+    null,
+    () => Promise.resolve(Response.json({ vault: { vaultId: "vault_A" } })),
+    (path) =>
+      path.endsWith("/display")
+        ? Promise.resolve(Response.json(displayBody(summaryBody([connection(1)]), "separate")))
+        : discovery([connection(1)])(path),
+  );
+  installVerifier(h);
+  let refreshed = false;
+  h.workspace.refreshVault = async (_signal, _forState, read) => {
+    const r = await read();
+    assert.ok((await r.json()).vault);
+    refreshed = true;
+    return h.workspace.vault;
+  };
+  h.workspace.inspectAgentCredential = async () => {
+    assert.equal(refreshed, true);
+    return { status: "active", expiresAt: 2000000000 };
+  };
+  try {
+    h.render();
+    await h.settle();
+    assert.equal(h.render().loaded, true);
+    assert.equal(h.calls.length, 6);
+    assert.equal(h.calls.filter((c) => c.path.endsWith("/display")).length, 1);
+    assert.equal(h.calls.filter((c) => c.path === "/api/v2/vaults/current").length, 1);
+    assert.equal(h.calls.filter((c) => c.path.endsWith("/capabilities")).length, 3);
+    assert.equal(h.calls.filter((c) => c.path.endsWith("/summary")).length, 1);
+  } finally {
+    h.close();
+  }
+});
+
+test("vault rejection or partial display never verifies credentials or replaces the prior pair", async () => {
+  let fail = false,
+    partial = false;
+  const h = harness(null, null, (path) => {
+    if (!path.endsWith("/display")) return discovery([])(path);
+    const value = displayBody(summaryBody([connection(1)]));
+    if (partial) value.summary = null;
+    return Promise.resolve(Response.json(value));
+  });
+  installVerifier(h);
+  let checks = 0;
+  h.workspace.inspectAgentCredential = async () => {
+    checks++;
+    return { status: "active", expiresAt: 2000000000 };
+  };
+  h.workspace.refreshVault = async () => {
+    if (fail) throw Error("rollback_detected");
+    return h.workspace.vault;
+  };
+  try {
+    h.render();
+    await h.settle();
+    const old = h.render();
+    assert.equal(old.loaded, true);
+    assert.equal(checks, 1);
+    fail = true;
+    assert.equal(await old.reload(), null);
+    assert.equal(h.render().views, old.views);
+    assert.equal(checks, 1);
+    fail = false;
+    partial = true;
+    assert.equal(await h.render().reload(), null);
+    assert.equal(h.render().providerStates, old.providerStates);
+    assert.equal(checks, 1);
+  } finally {
+    h.close();
+  }
+});
+
+test("display streams keep the original one MiB ceiling and cancel before parsing or Worker work", async () => {
+  let cancelled = false,
+    refreshes = 0;
+  const h = harness(null, null, () =>
+    Promise.resolve(
+      new Response(
+        new ReadableStream({
+          start(c) {
+            c.enqueue(new Uint8Array(1048577));
+          },
+          cancel() {
+            cancelled = true;
+          },
+        }),
+        { headers: { "Content-Type": "application/json" } },
+      ),
+    ),
+  );
+  h.workspace.refreshVault = async () => {
+    refreshes++;
+    return h.workspace.vault;
+  };
+  try {
+    h.render();
+    await h.settle();
+    assert.equal(h.render().loaded, false);
+    assert.equal(h.render().loadError, true);
+    assert.equal(cancelled, true);
+    assert.equal(refreshes, 0);
   } finally {
     h.close();
   }

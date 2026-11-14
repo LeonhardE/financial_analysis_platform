@@ -187,6 +187,23 @@ test("actual holdings chooser and drop zone share the importer; multiple files a
     "Named synthetic",
     true,
   ]);
+  model = {
+    ...model,
+    phase: "unlocked",
+    preview: null,
+    error: "service_unavailable",
+    readStored: async () => calls.push(["readStored"]),
+    reload: async () => calls.push(["reload"]),
+  };
+  await button(render(), "reloadWorkspace").props.onClick();
+  assert.deepEqual(
+    calls.at(-1),
+    ["readStored"],
+    "unlocked holdings error retries the actual source read",
+  );
+  model.phase = "locked";
+  await button(render(), "reloadWorkspace").props.onClick();
+  assert.deepEqual(calls.at(-1), ["reload"], "locked recovery keeps its vault lifecycle path");
   h.close();
 });
 
@@ -271,5 +288,133 @@ test("data settings open a smooth dialog, preserve original pending-name recover
     false,
     "preview can be saved as independent data",
   );
+  h.close();
+});
+
+test("visible writable resource recovery reads one missing selected source per Owner/vault generation and never scans blocked views", () => {
+  const h = hooks(),
+    reads = [],
+    source = {
+      resourceRef: {
+        kind: "holdings",
+        sourceService: "portfolio",
+        resourceId: "source_A",
+        incarnation: "inc_A",
+      },
+      sourceEpoch: 1,
+    };
+  let model = {
+    owner: "owner_A",
+    authenticated: true,
+    configured: true,
+    phase: "unlocked",
+    vault: { vaultId: "vault_A", version: 1 },
+    vaultGeneration: 1,
+    canWriteState: true,
+    needsDeviceApproval: false,
+    sources: [source],
+    selectedSourceId: null,
+    sourceMetadata: null,
+    content: null,
+    preview: null,
+    importPreview: null,
+    newSource: false,
+    busy: null,
+    error: "",
+    readStored: async () =>
+      reads.push([model.owner, model.vaultGeneration, model.selectedSourceId]),
+  };
+  const { default: ResourcesPanel } = compile("../components/ResourcesPanel.tsx", {
+    react: h.react,
+    "react/jsx-runtime": runtime,
+    "next-intl": { useTranslations: translations },
+    "next/dynamic": { __esModule: true, default: () => () => null },
+    "@/components/useHoldingsWorkspace": {},
+    "@/lib/holdings-facts": compile("../lib/holdings-facts.ts"),
+    "./HoldingsEditor": { __esModule: true, default: () => null },
+    "./ResourceLibrary": { __esModule: true, default: () => null },
+    "./PasskeyHelp": {},
+    "./HoldingsSourceBar": {},
+    "./useDisplayNames": { useDisplayNames: () => ({ scope: "names" }) },
+    "./ResourcesPanel.module.css": css,
+  });
+  const draw = (active = true) => {
+    model = { ...model }; // The real workspace hook publishes an immutable render snapshot.
+    return h.render(() => {
+      const panel = ResourcesPanel({ workspace: model, active });
+      return panel.type(panel.props);
+    });
+  };
+  draw(false);
+  assert.equal(reads.length, 0);
+  for (const blocked of [
+    { phase: "locked" },
+    { canWriteState: false },
+    { needsDeviceApproval: true },
+    { configured: false },
+    { sourceMetadata: { state: "active" } },
+    { content: { data: { snapshotId: "cached" } } },
+    { preview: {} },
+    { importPreview: {} },
+    { newSource: true },
+    { sourceReview: {} },
+    { sourceMutation: {} },
+    { staleSourceMutation: true },
+    { sourceCreationId: "unfinished" },
+    { hasPending: true },
+    { uploadCancellation: {} },
+    { uploadCancellationReview: {} },
+    { busy: "reading" },
+    { error: "service_unavailable" },
+  ]) {
+    const before = model;
+    model = { ...before, ...blocked };
+    draw();
+    assert.equal(reads.length, 0, JSON.stringify(blocked));
+    model = before;
+  }
+  draw();
+  draw();
+  assert.equal(reads.length, 1);
+  model.error = "service_unavailable";
+  draw();
+  model.error = "";
+  draw(false);
+  draw();
+  assert.equal(
+    reads.length,
+    1,
+    "failed automatic reads never loop after reentry or error clearing",
+  );
+  model.sources = [
+    source,
+    { ...source, resourceRef: { ...source.resourceRef, resourceId: "source_B" } },
+  ];
+  model.selectedSourceId = "source_B";
+  draw();
+  assert.equal(reads.length, 2);
+  model.vaultGeneration++;
+  draw();
+  assert.equal(reads.length, 3);
+  model.owner = "owner_B";
+  model.canWriteState = false;
+  draw();
+  assert.equal(reads.length, 3);
+  model.canWriteState = true;
+  draw();
+  assert.equal(reads.length, 4);
+  model.selectedSourceId = "source_A";
+  model.content = { data: { snapshotId: "cached" } };
+  draw();
+  assert.equal(reads.length, 4);
+  model.content = null;
+  model.sourceMetadata = { state: "active", snapshotId: null };
+  draw();
+  assert.equal(reads.length, 4);
+  model.sourceMetadata = null;
+  model.sources = [];
+  model.selectedSourceId = null;
+  draw();
+  assert.equal(reads.length, 4);
   h.close();
 });

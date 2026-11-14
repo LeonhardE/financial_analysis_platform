@@ -236,6 +236,9 @@ test.before(async () => {
     "./owner-transport": common,
   });
   api = compile("hub-owner", {
+    "../connection-summary": require("./resource-library-helpers.cjs").compile(
+      "../lib/connection-summary.ts",
+    ),
     "../persistent-owner-routes": routes,
     "./persistent-owner-contracts": persistent,
     "./upload-cancellation": cancellation,

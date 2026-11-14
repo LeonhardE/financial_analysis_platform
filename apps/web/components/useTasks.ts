@@ -101,7 +101,14 @@ const initial: State = {
 const clone = <T>(value: T): T => JSON.parse(JSON.stringify(value));
 const newId = () => `task_${globalThis.crypto.randomUUID().replaceAll("-", "")}`;
 
-export function useTasks(workspace: HoldingsWorkspace, { active }: { active: boolean }) {
+export function useTasks(
+  workspace: HoldingsWorkspace,
+  {
+    active,
+    catalogueOnDemand = false,
+    catalogueRequested = false,
+  }: { active: boolean; catalogueOnDemand?: boolean; catalogueRequested?: boolean },
+) {
   const auth = useAuth();
   const owner = auth.status === "authenticated" && auth.profile ? auth.sessionKey : null;
   const configured = auth.agentHubConfigured && workspace.vaultConfigured;
@@ -117,8 +124,14 @@ export function useTasks(workspace: HoldingsWorkspace, { active }: { active: boo
   const [state, setState] = useState<State>(initial);
   const stateRef = useRef(state);
   stateRef.current = state;
-  const live = useRef({ owner, configured, scope, visible, active, workspace });
-  live.current = { owner, configured, scope, visible, active, workspace };
+  const catalogueNeeded =
+    !catalogueOnDemand ||
+    catalogueRequested ||
+    Boolean(
+      state.owner === owner && state.privateScope === scope && (state.form || state.selected),
+    );
+  const live = useRef({ owner, configured, scope, visible, active, workspace, catalogueNeeded });
+  live.current = { owner, configured, scope, visible, active, workspace, catalogueNeeded };
   const hiddenTaskIds = useRef(new Set<string>());
   const names = useRef(workspace.displayCache?.taskNames ?? new DisplayLru<string>(32, 128 * 1024));
   const nameKey = (item: TaskMetadata) =>
@@ -479,7 +492,10 @@ export function useTasks(workspace: HoldingsWorkspace, { active }: { active: boo
       )
         return;
       setState((previous) => ({ ...previous, error: "", notice: "" }));
-      await Promise.all([loadRead("tasks", force), loadRead("catalogue", force)]);
+      await Promise.all([
+        loadRead("tasks", force),
+        ...(live.current.catalogueNeeded ? [loadRead("catalogue", force)] : []),
+      ]);
     },
     [configured, owner, loadRead],
   );
@@ -1501,7 +1517,7 @@ export function useTasks(workspace: HoldingsWorkspace, { active }: { active: boo
   }, [scope, visible, state.privateScope, state.selected, state.form, state.dirty]);
   useEffect(() => {
     if (owner && configured && active && visible) void reload(false);
-  }, [owner, configured, active, visible, scope, reload]);
+  }, [owner, configured, active, visible, scope, catalogueNeeded, reload]);
   useEffect(() => {
     if (state.privateScope === scope && state.form && state.dirty && active && visible)
       void persistDraft().catch(fail);
@@ -1589,8 +1605,20 @@ export function useTasks(workspace: HoldingsWorkspace, { active }: { active: boo
         conflictCurrent: null,
         busy: false,
       };
+  const catalogueReady = freshReads.current.catalogue?.scope === `${owner}:${scope ?? "locked"}`;
   return {
     ...output,
+    listReady: Boolean(
+      privateVisible &&
+      freshReads.current.tasks?.scope === `${owner}:${scope ?? "locked"}` &&
+      Date.now() - freshReads.current.tasks.at < 30000 &&
+      !output.loading &&
+      !output.listError,
+    ),
+    catalogueReady,
+    catalogueLoading:
+      output.catalogueLoading ||
+      Boolean(active && catalogueNeeded && !catalogueReady && !output.catalogueError),
     nameErrors: Object.fromEntries(
       output.items.flatMap((item) => {
         const failure = nameFailures.current.get(nameKey(item));

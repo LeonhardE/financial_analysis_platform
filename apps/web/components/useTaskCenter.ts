@@ -23,6 +23,7 @@ export function useTaskCenter(
   const [state, setState] = useState<{
     scope: string | null;
     enabled: boolean;
+    capabilityState: "loading" | "ready" | "error";
     loading: boolean;
     busy: boolean;
     error: string;
@@ -34,6 +35,7 @@ export function useTaskCenter(
   }>({
     scope: null,
     enabled: false,
+    capabilityState: "loading",
     loading: false,
     busy: false,
     error: "",
@@ -365,6 +367,7 @@ export function useTaskCenter(
     setState({
       scope,
       enabled: false,
+      capabilityState: "loading",
       loading: false,
       busy: false,
       error: "",
@@ -378,9 +381,11 @@ export function useTaskCenter(
     let stopped = false;
     void api("/api/v3/task-center/capabilities")
       .then((v) => {
-        if (!stopped) update({ enabled: v.enabled === true }, scope);
+        if (!stopped) update({ enabled: v.enabled === true, capabilityState: "ready" }, scope);
       })
-      .catch(() => {});
+      .catch(() => {
+        if (!stopped) update({ capabilityState: "error" }, scope);
+      });
     return () => {
       stopped = true;
       for (const c of controllers.current) c.abort();
@@ -419,6 +424,7 @@ export function useTaskCenter(
   return {
     scope,
     enabled: current?.enabled ?? false,
+    capabilityState: current?.capabilityState ?? "loading",
     loading: current?.loading ?? false,
     busy: current?.busy ?? false,
     error: current?.error ?? "",

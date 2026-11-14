@@ -61,165 +61,165 @@ function FollowsEditor({ model }: { model: ResourceLibraryModel }) {
         <summary>{t("aboutFollows")}</summary>
         <p>{t("followsPrivacy")}</p>
       </details>
-      {model.follows.loading ? (
-        <LoadingIndicator busy label={t("loading")} />
-      ) : model.follows.error ? (
+      {model.follows.loading && (
+        <LoadingIndicator busy hasContent={Boolean(data)} label={t("loading")} />
+      )}
+      {model.follows.error && (
         <Failure code={model.follows.error} retry={() => void model.reload("follows")} />
-      ) : (
-        data && (
-          <>
-            {!data.items.length && <p className={styles.empty}>{t("noFollows")}</p>}
-            <ul className={styles.list}>
-              {data.items.map((item) => (
-                <li key={item.followId}>
-                  <div>
-                    <strong>{item.name}</strong>
-                    <small>{item.handleOrUrl}</small>
-                    {item.note && <p>{item.note}</p>}
-                    <small>{t("userProvided")}</small>
-                  </div>
-                  <div className={styles.actions}>
-                    <button
-                      type="button"
-                      disabled={disabled}
-                      onClick={() => {
-                        setEditing(item.followId);
-                        setDraft({
-                          name: item.name,
-                          handleOrUrl: item.handleOrUrl,
-                          note: item.note,
-                        });
-                        setOpened(true);
-                        setRemoving(null);
-                      }}
-                    >
-                      {t("edit")}
-                    </button>
-                    <button
-                      type="button"
-                      disabled={disabled}
-                      onClick={() => {
-                        setRemoving(item.followId);
-                        setOpened(false);
-                      }}
-                    >
-                      {t("remove")}
-                    </button>
-                  </div>
-                </li>
-              ))}
-            </ul>
-            <p className={styles.note}>
-              {t("followCount", { count: data.items.length, limit: data.limit })}
-            </p>
-            {!opened && !removing && (
-              <button
-                type="button"
-                className={styles.primary}
-                disabled={disabled || data.items.length >= data.limit}
-                onClick={() => {
-                  setDraft(blank);
-                  setEditing(null);
-                  setOpened(true);
-                }}
-              >
-                {t("addFollow")}
-              </button>
-            )}
-            {opened && (
-              <form
-                className={styles.form}
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  void save();
-                }}
-              >
-                <h3>{t(editing ? "editFollow" : "addFollow")}</h3>
-                <label>
-                  {t("name")}
-                  <input
-                    required
-                    maxLength={120}
-                    value={draft.name}
-                    disabled={model.busy}
-                    onChange={(event) =>
-                      setDraft((previous) => ({ ...previous, name: event.target.value }))
-                    }
-                  />
-                </label>
-                <label>
-                  {t("locator")}
-                  <input
-                    required
-                    maxLength={256}
-                    value={draft.handleOrUrl}
-                    placeholder="@channel"
-                    disabled={model.busy}
-                    onChange={(event) =>
-                      setDraft((previous) => ({ ...previous, handleOrUrl: event.target.value }))
-                    }
-                  />
-                </label>
-                <p className={styles.note}>{t("locatorHelp")}</p>
-                <label>
-                  {t("note")}
-                  <textarea
-                    maxLength={1000}
-                    rows={3}
-                    value={draft.note}
-                    disabled={model.busy}
-                    onChange={(event) =>
-                      setDraft((previous) => ({ ...previous, note: event.target.value }))
-                    }
-                  />
-                </label>
-                <div className={styles.actions}>
-                  <button type="submit" className={styles.primary} disabled={disabled}>
-                    {t(model.busy ? "saving" : "save")}
-                  </button>
-                  <button type="button" disabled={model.busy} onClick={reset}>
-                    {t("cancel")}
-                  </button>
+      )}
+      {data && (
+        <>
+          {!data.items.length && <p className={styles.empty}>{t("noFollows")}</p>}
+          <ul className={styles.list}>
+            {data.items.map((item) => (
+              <li key={item.followId}>
+                <div>
+                  <strong>{item.name}</strong>
+                  <small>{item.handleOrUrl}</small>
+                  {item.note && <p>{item.note}</p>}
+                  <small>{t("userProvided")}</small>
                 </div>
-              </form>
-            )}
-            {removing && (
-              <div className={styles.warning} role="group" aria-label={t("confirmRemove")}>
-                <p>{t("confirmRemove")}</p>
                 <div className={styles.actions}>
-                  <button type="button" disabled={disabled} onClick={() => void remove()}>
+                  <button
+                    type="button"
+                    disabled={disabled}
+                    onClick={() => {
+                      setEditing(item.followId);
+                      setDraft({
+                        name: item.name,
+                        handleOrUrl: item.handleOrUrl,
+                        note: item.note,
+                      });
+                      setOpened(true);
+                      setRemoving(null);
+                    }}
+                  >
+                    {t("edit")}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={disabled}
+                    onClick={() => {
+                      setRemoving(item.followId);
+                      setOpened(false);
+                    }}
+                  >
                     {t("remove")}
                   </button>
-                  <button type="button" disabled={model.busy} onClick={reset}>
-                    {t("cancel")}
-                  </button>
                 </div>
-              </div>
-            )}
-            {localError && (
-              <p role="alert" className={styles.warning}>
-                {t(`errors.${localError}`)}
-              </p>
-            )}
-            {model.writeError && (
-              <p role="alert" className={styles.warning}>
-                {t(`errors.${model.writeError}`)}
-              </p>
-            )}
-            {model.follows.stale && (
-              <div className={styles.warning}>
-                <p>{t("reloadBeforeWrite")}</p>
-                <button
-                  type="button"
+              </li>
+            ))}
+          </ul>
+          <p className={styles.note}>
+            {t("followCount", { count: data.items.length, limit: data.limit })}
+          </p>
+          {!opened && !removing && (
+            <button
+              type="button"
+              className={styles.primary}
+              disabled={disabled || data.items.length >= data.limit}
+              onClick={() => {
+                setDraft(blank);
+                setEditing(null);
+                setOpened(true);
+              }}
+            >
+              {t("addFollow")}
+            </button>
+          )}
+          {opened && (
+            <form
+              className={styles.form}
+              onSubmit={(event) => {
+                event.preventDefault();
+                void save();
+              }}
+            >
+              <h3>{t(editing ? "editFollow" : "addFollow")}</h3>
+              <label>
+                {t("name")}
+                <input
+                  required
+                  maxLength={120}
+                  value={draft.name}
                   disabled={model.busy}
-                  onClick={() => void model.reload("follows")}
-                >
-                  {t("reloadLatest")}
+                  onChange={(event) =>
+                    setDraft((previous) => ({ ...previous, name: event.target.value }))
+                  }
+                />
+              </label>
+              <label>
+                {t("locator")}
+                <input
+                  required
+                  maxLength={256}
+                  value={draft.handleOrUrl}
+                  placeholder="@channel"
+                  disabled={model.busy}
+                  onChange={(event) =>
+                    setDraft((previous) => ({ ...previous, handleOrUrl: event.target.value }))
+                  }
+                />
+              </label>
+              <p className={styles.note}>{t("locatorHelp")}</p>
+              <label>
+                {t("note")}
+                <textarea
+                  maxLength={1000}
+                  rows={3}
+                  value={draft.note}
+                  disabled={model.busy}
+                  onChange={(event) =>
+                    setDraft((previous) => ({ ...previous, note: event.target.value }))
+                  }
+                />
+              </label>
+              <div className={styles.actions}>
+                <button type="submit" className={styles.primary} disabled={disabled}>
+                  {t(model.busy ? "saving" : "save")}
+                </button>
+                <button type="button" disabled={model.busy} onClick={reset}>
+                  {t("cancel")}
                 </button>
               </div>
-            )}
-          </>
-        )
+            </form>
+          )}
+          {removing && (
+            <div className={styles.warning} role="group" aria-label={t("confirmRemove")}>
+              <p>{t("confirmRemove")}</p>
+              <div className={styles.actions}>
+                <button type="button" disabled={disabled} onClick={() => void remove()}>
+                  {t("remove")}
+                </button>
+                <button type="button" disabled={model.busy} onClick={reset}>
+                  {t("cancel")}
+                </button>
+              </div>
+            </div>
+          )}
+          {localError && (
+            <p role="alert" className={styles.warning}>
+              {t(`errors.${localError}`)}
+            </p>
+          )}
+          {model.writeError && (
+            <p role="alert" className={styles.warning}>
+              {t(`errors.${model.writeError}`)}
+            </p>
+          )}
+          {model.follows.stale && model.writeError && (
+            <div className={styles.warning}>
+              <p>{t("reloadBeforeWrite")}</p>
+              <button
+                type="button"
+                disabled={model.busy}
+                onClick={() => void model.reload("follows")}
+              >
+                {t("reloadLatest")}
+              </button>
+            </div>
+          )}
+        </>
       )}
     </>
   );
@@ -256,7 +256,9 @@ function CatalogueDetail({
         <button
           type="button"
           key={item.ref!.resourceId}
-          disabled={model.catalogue.loading}
+          disabled={
+            model.catalogue.loading || model.catalogue.stale || Boolean(model.catalogue.error)
+          }
           onClick={() => model.useForTask(item, onCreateTask)}
         >
           {t("useInTask")}
@@ -319,6 +321,31 @@ export function ResourceLibraryView({
     model.catalogue.data?.groups.find((item) => item.kind === kind);
   return (
     <div className={styles.library}>
+      {(model.catalogue.stale ||
+        (filter === "channel_follows" && model.follows.stale) ||
+        (filter === "watchlist" && watchlist.stale)) && (
+        <div className={styles.warning} role="status">
+          <p>{t("cachedData")}</p>
+          <button
+            type="button"
+            disabled={model.busy}
+            onClick={() => {
+              if (model.catalogue.stale) void model.reload("catalogue");
+              if (filter === "channel_follows" && model.follows.stale) void model.reload("follows");
+              if (filter === "watchlist" && watchlist.stale) void model.reload("watchlist");
+            }}
+          >
+            {t("retry")}
+          </button>
+        </div>
+      )}
+      {model.catalogue.stale && model.catalogue.error && (
+        <InlineError
+          message={t("taskUnavailable")}
+          retryLabel={t("retry")}
+          onRetry={() => void model.reload("catalogue")}
+        />
+      )}
       <div className={styles.filters} role="group" aria-label={t("filterLabel")}>
         {kinds.map((kind) => (
           <button
@@ -366,40 +393,39 @@ export function ResourceLibraryView({
               </button>
             </form>
           )}
-          {!model.authenticated ? (
-            <p className={styles.empty}>{t("signInLists")}</p>
-          ) : watchlist.loading ? (
-            <LoadingIndicator busy label={t("loading")} />
-          ) : watchlist.error ? (
+          {!model.authenticated && <p className={styles.empty}>{t("signInLists")}</p>}
+          {model.authenticated && watchlist.loading && (
+            <LoadingIndicator busy hasContent={Boolean(watchlist.data)} label={t("loading")} />
+          )}
+          {model.authenticated && watchlist.error && (
             <Failure
               code={sharedWatchlist ? "unavailable" : watchlist.error}
               retry={() => (shared ? void shared.reload() : void model.reload("watchlist"))}
             />
-          ) : (
-            watchlist.data && (
-              <>
-                {!watchlist.data.items.length && <p className={styles.empty}>{t("noWatchlist")}</p>}
-                <ul className={styles.list}>
-                  {watchlist.data.items.map((item) => (
-                    <li key={item.symbol}>
-                      <strong>{item.symbol}</strong>
-                      <span>{item.name}</span>
-                      <small>{t(`instruments.${item.instrumentType}`)}</small>
-                      {shared && (
-                        <button
-                          type="button"
-                          disabled={shared.busy}
-                          aria-label={t("removeStock", { symbol: item.symbol })}
-                          onClick={() => void shared.remove(item.symbol)}
-                        >
-                          {t("remove")}
-                        </button>
-                      )}
-                    </li>
-                  ))}
-                </ul>
-              </>
-            )
+          )}
+          {model.authenticated && watchlist.data && (
+            <>
+              {!watchlist.data.items.length && <p className={styles.empty}>{t("noWatchlist")}</p>}
+              <ul className={styles.list}>
+                {watchlist.data.items.map((item) => (
+                  <li key={item.symbol}>
+                    <strong>{item.symbol}</strong>
+                    <span>{item.name}</span>
+                    <small>{t(`instruments.${item.instrumentType}`)}</small>
+                    {shared && (
+                      <button
+                        type="button"
+                        disabled={shared.busy}
+                        aria-label={t("removeStock", { symbol: item.symbol })}
+                        onClick={() => void shared.remove(item.symbol)}
+                      >
+                        {t("remove")}
+                      </button>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </>
           )}
           <CatalogueDetail group={group("watchlist")} model={model} onCreateTask={onCreateTask} />
         </section>
@@ -431,16 +457,22 @@ export default function ResourceLibrary({
   active = true,
   holdingsVersion = "",
   watchlist,
+  workspaceScope,
   ...props
 }: {
   active?: boolean;
+  workspaceScope?: string | null;
   holdingsVersion?: string;
   watchlist?: WatchlistModel;
   children: ReactNode | ((model: ResourceLibraryModel) => ReactNode);
   onOpenWatchlist?: () => void;
   onCreateTask?: (selection: ResourceSelection) => void;
 }) {
-  const model = useResourceLibrary({ active, externalWatchlist: Boolean(watchlist) });
+  const model = useResourceLibrary({
+    active,
+    workspaceScope,
+    externalWatchlist: Boolean(watchlist),
+  });
   const previousVersion = useRef(holdingsVersion);
   useEffect(() => {
     if (previousVersion.current !== holdingsVersion) {

@@ -35,6 +35,8 @@ export function TaskCenterView({
   unreadCounts = {},
   unreadPartial = false,
   resultsFocusKey,
+  resultState,
+  navigating = false,
   active = true,
 }: {
   workspace: HoldingsWorkspace;
@@ -48,6 +50,16 @@ export function TaskCenterView({
   unreadCounts?: Record<string, number>;
   unreadPartial?: boolean;
   resultsFocusKey?: string;
+  resultState?: {
+    scope: string | null;
+    ready: boolean;
+    complete: boolean;
+    loading: boolean;
+    error: string;
+    partial: boolean;
+    busy: boolean;
+  };
+  navigating?: boolean;
   active?: boolean;
 }) {
   const t = useTranslations("taskCenter"),
@@ -226,13 +238,23 @@ export function TaskCenterView({
       request?.owner === workspace.owner &&
       request &&
       model.canWrite &&
+      model.catalogueReady &&
+      !model.catalogueLoading &&
+      !model.catalogueError &&
       !model.form &&
       !model.busy
     ) {
       start(request.binding);
       onRequestConsumed?.();
     }
-  }, [request?.nonce, model.canWrite, model.busy]);
+  }, [
+    request?.nonce,
+    model.canWrite,
+    model.busy,
+    model.catalogueReady,
+    model.catalogueLoading,
+    model.catalogueError,
+  ]);
   const configure = async () => {
     const snapshot = live.current.scope;
     if (!selected || !snapshot) return;
@@ -428,8 +450,64 @@ export function TaskCenterView({
   const scheduleLabel = scheduled
     ? `${schedule.frequency === "weekly" ? schedule.days.map((d) => t(`days.${d}`)).join("、") : t("daily")} ${schedule.localTime} · ${schedule.timeZone}`
     : t("manual");
+  const home =
+    mode === "browse" &&
+    !selected &&
+    !form &&
+    !navigating &&
+    !resultsFocusKey &&
+    !(request && request.owner === workspace.owner);
+  const expectedScope = `${workspace.owner}:${workspace.vault?.vaultId}:${workspace.vaultGeneration}`;
+  const listState =
+    !workspace.authenticated ||
+    workspace.phase !== "unlocked" ||
+    workspace.needsDeviceApproval ||
+    !model.unlocked ||
+    model.owner !== workspace.owner ||
+    model.privateScope !== expectedScope ||
+    resultState?.scope !== expectedScope
+      ? "locked"
+      : model.listError ||
+          failure ||
+          resultState.error ||
+          center.capabilityState === "error" ||
+          model.items.some((item) => model.nameErrors[item.taskId]) ||
+          (resultState.ready && resultState.partial && !resultState.loading)
+        ? "error"
+        : !active ||
+            busy ||
+            center.capabilityState !== "ready" ||
+            resultState.busy ||
+            model.loading ||
+            !model.listReady ||
+            !resultState.ready ||
+            !resultState.complete ||
+            resultState.loading ||
+            resultState.partial ||
+            model.items.some((item) => !model.taskNames[item.taskId])
+          ? "loading"
+          : "ready";
   return (
-    <section className={styles.panel} aria-labelledby="task-center-title">
+    <section
+      className={styles.panel}
+      aria-labelledby="task-center-title"
+      data-load-scope={home ? "task-list" : undefined}
+      data-load-state={home ? listState : undefined}
+      aria-busy={
+        home
+          ? listState !== "locked" &&
+            Boolean(
+              model.loading ||
+              center.capabilityState === "loading" ||
+              resultState?.loading ||
+              (!model.listReady && !model.listError) ||
+              model.items.some(
+                (item) => !model.taskNames[item.taskId] && !model.nameErrors[item.taskId],
+              ),
+            )
+          : undefined
+      }
+    >
       <header className={styles.heading}>
         <h1 id="task-center-title">{t("title")}</h1>
         <div className={styles.actions}>
@@ -476,6 +554,16 @@ export function TaskCenterView({
           }}
           retryLabel={t("retry")}
         />
+      )}
+      {model.catalogueError && (model.form || model.selected || request) && (
+        <InlineError
+          message={t("errors.request_failed")}
+          retryLabel={t("retry")}
+          onRetry={() => void model.reloadCatalogue()}
+        />
+      )}
+      {request && !model.form && model.catalogueLoading && (
+        <LoadingIndicator busy hasContent={false} label={t("loading")} />
       )}
       {center.pending && (
         <div className={styles.notice} role="status">

@@ -21,6 +21,7 @@ const { code } = transformSync(
   },
 );
 function render(model, locale = "en", managementOnly = false) {
+  model = { sources: [], ...model };
   const messages = require(`../messages/${locale}.json`);
   const imports = {
     "@/lib/holdings-facts": require("./resource-library-helpers.cjs").compile(

@@ -780,7 +780,8 @@
     "symbolPlaceholder": "AAPL",
     "addStock": "新增股票",
     "removeStock": "移除 {symbol}",
-    "aboutFollows": "關於這份名單"
+    "aboutFollows": "關於這份名單",
+    "cachedData": "正在顯示先前讀取的資源，最新狀態尚未確認。需要最新資料的操作將在重新整理成功後恢復。"
   },
   "tasks": {
     "eyebrow": "個人工作區",
