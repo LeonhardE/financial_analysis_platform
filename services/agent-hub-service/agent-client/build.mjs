@@ -13,6 +13,18 @@ const lock = await readFile(shared + "/integrity.json"),
   meta = JSON.parse(lock);
 if (meta.files["dist/core.mjs"] !== sha(await readFile(shared + "/dist/core.mjs")))
   throw Error("Shared integrity mismatch");
+const valuationLock = await readFile(shared + "/valuation/integrity.json"),
+  valuationMeta = JSON.parse(valuationLock);
+if (valuationMeta.frozenCoreSha256 !== meta.files["dist/core.mjs"])
+  throw Error("Valuation core pin mismatch");
+for (const file of ["dist/holdings.mjs", "schemas.json"])
+  if (valuationMeta.files[file] !== sha(await readFile(shared + "/valuation/" + file)))
+    throw Error("Valuation integrity mismatch");
+if (
+  valuationMeta.schemaSha256 !==
+  sha(await readFile(resolve(root, "../../common/folioview_shared/valuation_schemas.json")))
+)
+  throw Error("Valuation schema mismatch");
 // Consume the released foundation schema; do not mutate the frozen shared browser bundle.
 const common = resolve(root, "../../common/folioview_shared/encrypted");
 const center = JSON.parse(await readFile(common + "/task_center.json"));
@@ -71,6 +83,7 @@ await writeFile(
 );
 await mkdir(root + "/dist", { recursive: true });
 await writeFile(root + "/shared-contract.integrity.json", lock);
+await writeFile(root + "/valuation-contract.integrity.json", valuationLock);
 for (const entry of ["index", "cli"]) {
   const result = await build({
     absWorkingDir: root,
@@ -93,6 +106,7 @@ const files = [
   "package-lock.json",
   "build.mjs",
   "shared-contract.integrity.json",
+  "valuation-contract.integrity.json",
   "THIRD_PARTY_NOTICES.md",
   "src/cli.mjs",
   "src/index.mjs",
@@ -116,11 +130,16 @@ await writeFile(
   root + "/integrity.json",
   await prettier.format(
     JSON.stringify({
-      clientVersion: "1.2.0",
+      clientVersion: "1.3.0",
       nodeMinimum: "24.12.0",
       contractVersion: "folioview.agent-workspace.v2.0",
       profile: "folioview.agent-credential.v1",
       sharedLibrary: { integritySha256: sha(lock), bundleSha256: meta.files["dist/core.mjs"] },
+      valuationLibrary: {
+        integritySha256: sha(valuationLock),
+        holdingsSha256: valuationMeta.files["dist/holdings.mjs"],
+        schemaSha256: valuationMeta.schemaSha256,
+      },
       files: hashes,
     }),
     { parser: "json", printWidth: 100 },

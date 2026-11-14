@@ -1,5 +1,5 @@
 {
-  "clientVersion": "1.2.0",
+  "clientVersion": "1.3.0",
   "nodeMinimum": "24.12.0",
   "contractVersion": "folioview.agent-workspace.v2.0",
   "profile": "folioview.agent-credential.v1",
@@ -7,18 +7,24 @@
     "integritySha256": "b288644578f35570030c94a3f0cc6f1f125b0865151ada1aa1c48b79f798e3bd",
     "bundleSha256": "f875c586528a981c469e06557230210f2af5be288c8ed2551fd43224ea0d2548"
   },
+  "valuationLibrary": {
+    "integritySha256": "e166b7fce85cf28e7367e0d7f585286c620fa330f09eda0d9c3271c2e9bca6bb",
+    "holdingsSha256": "17a725508b9698e3ac2d6016054520c9d4be6208c99fa4a479fc5cf1329fdc8e",
+    "schemaSha256": "d7844500991a4ad3362b160bc21d83424531034b202aa5f09a5a97aba4804163"
+  },
   "files": {
-    "package.json": "b0b215c53d3bf4eefafcffe8f425c6ac7342805b07b1a5e9f345766feb1e39cd",
-    "package-lock.json": "72e448f6ebf57e77cb1223be360c1b00f0ae9f8ab1b4ab5082090851c4985d90",
-    "build.mjs": "55b33f7f8a46fb0971ac6f19b0a39ace6db4ee64a9790a8483fad1c8095d1117",
+    "package.json": "d03d05269ca06dd40afd1e87092d04396d248a8df413e8eab15da3914dd19086",
+    "package-lock.json": "426a925175131fa488d8430241b5f585a023fe85c749c039dbb47e07d1d7f125",
+    "build.mjs": "42f732bbb7b83c20800ca17481f3205d5af1dc6e4434a9e3d35261eefc987fee",
     "shared-contract.integrity.json": "b288644578f35570030c94a3f0cc6f1f125b0865151ada1aa1c48b79f798e3bd",
+    "valuation-contract.integrity.json": "e166b7fce85cf28e7367e0d7f585286c620fa330f09eda0d9c3271c2e9bca6bb",
     "THIRD_PARTY_NOTICES.md": "16b1768276d7eed2a7ce1142f5766c211da784615fa004a36853f2658e18dd4d",
-    "src/cli.mjs": "6758b166521ccd189fbddbc005e5da90430106cb1328450f7e7c4ce505bb13a5",
+    "src/cli.mjs": "54609d45173695895c2cf435de48eea9667b64950e69ea5db946de688d26d595",
     "src/index.mjs": "c0462d668038863410f86b1da43fc19fbc17d7619ef0ae0da5c64c29809fc343",
-    "src/client.mjs": "9ee2a47b0aed5626f1118fcb4bd2adeb43d4c759f8b2c6eab139adb3f838e4d2",
+    "src/client.mjs": "c796addcad619d69bab1e72716caee7ea04140c11c07e7f5568b96a113e56656",
     "src/files.mjs": "d1c55e3316c5064a51cedbea73d8f47113e2f38afd227edb057169d0850bdbb7",
     "src/pairing.mjs": "b5fed749e00a1db336eef1aabb11964dcdd37aa07588d304e48f002f5679fefd",
-    "src/crypto.mjs": "5a8c2378f3936ac4eb3f2547075cd6da7ffa348896f73e7099b69e33948f1268",
+    "src/crypto.mjs": "1246203b275b4838071131f93edb353665b890409fa68755d2f5bcfbdf1d9079",
     "src/registry.mjs": "d2a2cdd7337009dea736f72aa500bc1a619696f7e7b062e11de5830637b104ba",
     "src/consents.mjs": "58dcc8cb9561fe3c15cbec16d497b9b8234db394bfdd900482827c87dd7a23ad",
     "src/authority.mjs": "0d7768a62e087497c19aaa358788761cbb5f258f6b64078a207bd26aae074861",
@@ -26,7 +32,7 @@
     "src/policy.mjs": "9425478e061142accddbb32502eb4eb17817bf32843ec87693913a12d8e0ba2b",
     "src/task-center.mjs": "1ad341b987a50e1b3e84964174973d2f5891a967f6af70579ffa2c15d7032a00",
     "src/task-center-validators.cjs": "c10058242abfc3b284df4f9d2184a1dd03e87a928ba06d57cfc703029eb4eb45",
-    "dist/index.mjs": "1ad1c8ad2ad8a76d425c5c42b4ba5ee3672be7ac35fda9aa9517e8fe81b8056b",
-    "dist/cli.mjs": "8d516f977bc994cb728b2d57902ff8b132a9428756ef35db7cbb033b3b0b0471"
+    "dist/index.mjs": "e118812ea3d0863e570da55a3aaaca7dce3049c06385e4e46de03041d6ff4803",
+    "dist/cli.mjs": "20b1ce199a8ac8ac334c91dde120444fdd11397e879dbf98e3de6b586b59c290"
   }
 }

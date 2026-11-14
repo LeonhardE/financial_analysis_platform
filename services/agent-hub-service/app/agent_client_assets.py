@@ -11,7 +11,7 @@ from .agent_credential_routes import agent_owned_enabled
 from .helper_assets import _asset_response
 
 ROOT = Path(__file__).resolve().parents[1] / "agent-client"
-VERSION = "1.2.0"
+VERSION = "1.3.0"
 FILES = {
     "client.mjs": ("dist/cli.mjs", "text/javascript; charset=utf-8", 2097152),
     "integrity.json": ("integrity.json", "application/json", 131072),
@@ -27,7 +27,7 @@ def require_client():
 def _release_root(version):
     if version == VERSION:
         return ROOT
-    if version in {"1.0.0", "1.0.1", "1.1.0"}:
+    if version in {"1.0.0", "1.0.1", "1.1.0", "1.2.0"}:
         return ROOT / "releases" / version
     raise HTTPException(404, "Not found")
 

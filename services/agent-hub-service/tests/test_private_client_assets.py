@@ -20,12 +20,12 @@ class PrivateClientAssetTests(unittest.TestCase):
         app.include_router(assets.router)
         with TestClient(app) as client:
             with patch.object(assets, "agent_owned_enabled", return_value=False):
-                for version in ("1.0.0", "1.0.1", "1.1.0", "1.2.0"):
+                for version in ("1.0.0", "1.0.1", "1.1.0", "1.2.0", "1.3.0"):
                     self.assertEqual(
                         client.get(f"/agent/v3/client/{version}/client.mjs").status_code, 503
                     )
             with patch.object(assets, "agent_owned_enabled", return_value=True):
-                response = client.get("/agent/v3/client/1.2.0/client.mjs")
+                response = client.get("/agent/v3/client/1.3.0/client.mjs")
                 self.assertEqual(response.status_code, 200)
                 self.assertEqual(response.headers["Cache-Control"], "no-store")
                 self.assertEqual(response.headers["Referrer-Policy"], "no-referrer")
@@ -33,7 +33,7 @@ class PrivateClientAssetTests(unittest.TestCase):
                     assets.client_metadata()["sha256"], hashlib.sha256(response.content).hexdigest()
                 )
                 self.assertIn(assets.client_metadata()["sha256"], response.headers["ETag"])
-                for version in ("1.0.0", "1.0.1", "1.1.0", "1.2.0"):
+                for version in ("1.0.0", "1.0.1", "1.1.0", "1.2.0", "1.3.0"):
                     for path in ("src/files.mjs", "index.mjs", "credentials.sqlite", "../../.env"):
                         self.assertEqual(
                             client.get(f"/agent/v3/client/{version}/" + path).status_code, 404
@@ -84,6 +84,35 @@ class PrivateClientAssetTests(unittest.TestCase):
         )
         self.assertEqual(manifest["nodeMinimum"], "24.12.0")
         self.assertIn("src/leases.mjs", pinned["files"])
+        valuation_lock = (assets.ROOT / "valuation-contract.integrity.json").read_bytes()
+        valuation = json.loads(valuation_lock)
+        self.assertEqual(
+            manifest["valuationLibrary"]["integritySha256"],
+            hashlib.sha256(valuation_lock).hexdigest(),
+        )
+        self.assertEqual(
+            manifest["valuationLibrary"]["holdingsSha256"], valuation["files"]["dist/holdings.mjs"]
+        )
+        self.assertEqual(valuation["frozenCoreSha256"], pinned["files"]["dist/core.mjs"])
+        self.assertEqual(manifest["valuationLibrary"]["schemaSha256"], valuation["schemaSha256"])
+        self.assertLessEqual(
+            (assets.ROOT / "dist/cli.mjs").stat().st_size, assets.FILES["client.mjs"][2]
+        )
+
+    def test_previous_task_center_client_keeps_its_exact_versioned_download(self):
+        app = FastAPI()
+        app.include_router(assets.router)
+        with (
+            patch.object(assets, "agent_owned_enabled", return_value=True),
+            TestClient(app) as client,
+        ):
+            response = client.get("/agent/v3/client/1.2.0/client.mjs")
+            self.assertEqual(response.status_code, 200)
+            original = "8d516f977bc994cb728b2d57902ff8b132a9428756ef35db7cbb033b3b0b0471"
+            self.assertEqual(hashlib.sha256(response.content).hexdigest(), original)
+            self.assertEqual(assets.client_metadata("1.2.0")["sha256"], original)
+            self.assertNotEqual(assets.client_metadata()["sha256"], original)
+            self.assertEqual(assets.client_metadata()["version"], "1.3.0")
 
     def test_private_file_loss_corruption_permissions_and_explicit_reauthorization(self):
         node = os.getenv("FOLIOVIEW_NODE_BIN") or shutil.which("node")

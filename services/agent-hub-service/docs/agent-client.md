@@ -113,6 +113,21 @@ only in the authenticated PoP session, avoiding an oversized activation packet.
 
 ## Data operations and host scheduling
 
+Client 1.3.0 adds an explicit `folioview.holdings-facts.v2` input reader after the original
+registry, Root signature, exact frozen publication, consent and run checks. Legacy holdings,
+watchlists, tasks and results retain their prior readers. Missing historical costs stay unknown;
+imported reported prices/values remain observations from that import, not current valuation.
+The client performs no automatic repricing, input replacement or permission change. Hub continues
+to store/forward ciphertext and does not decrypt holdings.
+
+The build independently pins the shared holdings-only adapter and its common schema in
+`valuation-contract.integrity.json`; the complete standalone client remains within the existing
+2MiB asset limit. All 1.0.0–1.2.0 versioned downloads remain byte-identical. Existing hosts require
+an explicitly reviewed 1.3.0 version/pin upgrade before reading new facts; existing private profiles
+can be reused. Publishing this version does not prove that a native host has adopted it and does
+not migrate current connections or frozen inputs. Invalid facts stop the task with a data-review
+message, without asking the user to replace credentials.
+
 The CLI reads one closed JSON request from stdin: `origin`, `provider`, `actor`,
 `operation`, `arguments`. Private keys never appear in command arguments/stdout.
 Operations are `prepare`, `activate`, `status`, `tasks`, `due`, `begin`, `input`,
