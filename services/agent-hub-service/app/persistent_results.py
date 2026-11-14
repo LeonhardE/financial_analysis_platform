@@ -1,5 +1,6 @@
 """Ciphertext-only persistent reports, durable receipts and owner-isolated history."""
 
+import copy
 import re
 
 from folioview_shared.encrypted.authority import verify_control_command
@@ -108,6 +109,18 @@ def stored_result(unit, owner, vault, result):
     except (ContractError, KeyError, TypeError):
         raise StoreUnavailable from None
     return row
+
+
+class _OwnerResultSnapshot:
+    """Only selected rows from this read attempt, detached for the original validators."""
+
+    def __init__(self, unit, paths):
+        self.rows = unit.get_many(paths)
+
+    def get(self, path):
+        if path not in self.rows:
+            raise StoreUnavailable
+        return copy.deepcopy(self.rows[path])
 
 
 class PersistentResultService(PersistentExecutionService):
@@ -445,10 +458,18 @@ class PersistentOwnerResultService:
                     raise ContractError("unsupported_query")
             begin = max(0, before - limit)
             ids = list(reversed(page["resultIds"][begin:before]))
-            from .task_lifecycle import visible_metadata
+            from .task_lifecycle import lifecycle_path, visible_metadata
+
+            snapshot = _OwnerResultSnapshot(
+                unit,
+                [result_path(owner, vault, r) for r in ids] + [lifecycle_path(owner, vault)],
+            )
 
             items = visible_metadata(
-                unit, owner, vault, [stored_result(unit, owner, vault, r)["metadata"] for r in ids]
+                snapshot,
+                owner,
+                vault,
+                [stored_result(snapshot, owner, vault, r)["metadata"] for r in ids],
             )
             cursor = f"{page['pageId']}:{begin}" if begin else None
             if not begin and page["previous"] is not None:
