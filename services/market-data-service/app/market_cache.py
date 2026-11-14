@@ -38,14 +38,16 @@ class MarketCache:
     def get(self, key: str) -> Entry | None:
         raise NotImplementedError
 
-    def claim(self, key: str, now: float, cost: int = 1) -> str | None:
+    def claim(self, key: str, now: float, cost: int = 1, *, provider: str = "yahoo") -> str | None:
         """Return None for an acquired lease, otherwise a public-safe reason."""
         raise NotImplementedError
 
     def put(self, key: str, value: dict[str, Any], now: float) -> None:
         raise NotImplementedError
 
-    def fail(self, key: str, now: float, *, rate_limited: bool = False) -> None:
+    def fail(
+        self, key: str, now: float, *, rate_limited: bool = False, provider: str = "yahoo"
+    ) -> None:
         raise NotImplementedError
 
     def invalidate(self, key: str) -> None:
@@ -59,13 +61,27 @@ def bounded_int(name: str, default: int, lower: int, upper: int) -> int:
         return default
 
 
-def reserve(state: dict[str, Any], now: float, cost: int, limit: int) -> str | None:
+def cooldown_key(provider: str) -> str:
+    # Keep the original Yahoo field and total budget. A separate free FX source
+    # must neither trigger nor inherit Yahoo's availability cooldown.
+    if provider not in {"yahoo", "bank_of_canada"}:
+        raise CacheUnavailable
+    return "cooldown" if provider == "yahoo" else "bank_of_canada_cooldown"
+
+
+def reserve(
+    state: dict[str, Any], now: float, cost: int, limit: int, *, provider: str = "yahoo"
+) -> str | None:
     """Called only inside a database transaction; limits apply across all instances."""
     day = int(now // 86400)
     if state.get("day") != day:
         state.update(day=day, count=0)
-    if state.get("cooldown", 0) > now:
-        return "Yahoo is temporarily unavailable; cached data will be used."
+    if state.get(cooldown_key(provider), 0) > now:
+        return (
+            "Yahoo is temporarily unavailable; cached data will be used."
+            if provider == "yahoo"
+            else "Reference exchange rates are temporarily unavailable; cached data will be used."
+        )
     if state.get("window", 0) <= now - 60:
         state.update(window=now, window_count=0)
     if state.get("count", 0) + cost > limit:
@@ -111,7 +127,7 @@ class SQLiteMarketCache(MarketCache):
             ).fetchone()
         return Entry(json.loads(row["value"]), row["updated"]) if row and row["value"] else None
 
-    def claim(self, key: str, now: float, cost: int = 1) -> str | None:
+    def claim(self, key: str, now: float, cost: int = 1, *, provider: str = "yahoo") -> str | None:
         with self.connection() as db:
             db.execute("BEGIN IMMEDIATE")
             row = db.execute(
@@ -128,7 +144,7 @@ class SQLiteMarketCache(MarketCache):
             state = json.loads(
                 db.execute("SELECT value FROM market_state WHERE id=1").fetchone()[0]
             )
-            reason = reserve(state, now, cost, self.daily_limit)
+            reason = reserve(state, now, cost, self.daily_limit, provider=provider)
             if reason:
                 return reason
             db.execute("UPDATE market_state SET value=? WHERE id=1", (json.dumps(state),))
@@ -150,7 +166,9 @@ class SQLiteMarketCache(MarketCache):
                 (key, encoded, now),
             )
 
-    def fail(self, key: str, now: float, *, rate_limited: bool = False) -> None:
+    def fail(
+        self, key: str, now: float, *, rate_limited: bool = False, provider: str = "yahoo"
+    ) -> None:
         with self.connection() as db:
             db.execute("BEGIN IMMEDIATE")
             db.execute(
@@ -161,7 +179,7 @@ class SQLiteMarketCache(MarketCache):
             state = json.loads(
                 db.execute("SELECT value FROM market_state WHERE id=1").fetchone()[0]
             )
-            state["cooldown"] = now + (900 if rate_limited else 300)
+            state[cooldown_key(provider)] = now + (900 if rate_limited else 300)
             db.execute("UPDATE market_state SET value=? WHERE id=1", (json.dumps(state),))
 
 
@@ -222,7 +240,7 @@ class FirestoreMarketCache(MarketCache):
         with self.read_cache_lock:
             self.read_cache.pop(key, None)
 
-    def claim(self, key: str, now: float, cost: int = 1) -> str | None:
+    def claim(self, key: str, now: float, cost: int = 1, *, provider: str = "yahoo") -> str | None:
         entry_ref = self.document(key)
         state_ref = self.collection.document("shared_upstream_budget")
 
@@ -237,7 +255,7 @@ class FirestoreMarketCache(MarketCache):
                 return "A newer cached snapshot is available. Please try again shortly."
             if row.get("lease", 0) > now or row.get("retry", 0) > now:
                 return "A market refresh is already pending or cooling down."
-            reason = reserve(state, now, cost, self.daily_limit)
+            reason = reserve(state, now, cost, self.daily_limit, provider=provider)
             if reason:
                 return reason
             self.queue_writes(
@@ -281,7 +299,9 @@ class FirestoreMarketCache(MarketCache):
         except Exception as error:
             raise CacheUnavailable from error
 
-    def fail(self, key: str, now: float, *, rate_limited: bool = False) -> None:
+    def fail(
+        self, key: str, now: float, *, rate_limited: bool = False, provider: str = "yahoo"
+    ) -> None:
         try:
             batch = self.client.batch()
             self.queue_writes(
@@ -290,7 +310,7 @@ class FirestoreMarketCache(MarketCache):
                     (self.document(key), {"lease": 0, "retry": now + 300}, True),
                     (
                         self.collection.document("shared_upstream_budget"),
-                        {"cooldown": now + (900 if rate_limited else 300)},
+                        {cooldown_key(provider): now + (900 if rate_limited else 300)},
                         True,
                     ),
                 ],
