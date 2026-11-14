@@ -4,7 +4,7 @@ var Wo = Object.getOwnPropertyDescriptor;
 var Ho = Object.getOwnPropertyNames;
 var zo = Object.getPrototypeOf,
   Uo = Object.prototype.hasOwnProperty;
-var Ut = (e, t) => () => {
+var Zt = (e, t) => () => {
     try {
       return (t || e((t = { exports: {} }).exports, t), t.exports);
     } catch (a) {
@@ -26,7 +26,7 @@ var Bo = (e, t, a) => (
   (a = e != null ? Fo(zo(e)) : {}),
   Zo(t || !e || !e.__esModule ? In(a, "default", { value: e, enumerable: !0 }) : a, e)
 );
-var lo = Ut((Qn) => {
+var lo = Zt((Qn) => {
   "use strict";
   Object.defineProperty(Qn, "__esModule", { value: !0 });
   function co(e) {
@@ -43,13 +43,13 @@ var lo = Ut((Qn) => {
   Qn.default = co;
   co.code = 'require("ajv/dist/runtime/ucs2length").default';
 });
-var uo = Ut((yd, fo) => {
+var uo = Zt((hd, fo) => {
   "use strict";
   fo.exports = function e(t, a) {
     if (t === a) return !0;
     if (t && a && typeof t == "object" && typeof a == "object") {
       if (t.constructor !== a.constructor) return !1;
-      var u, c, l;
+      var u, c, f;
       if (Array.isArray(t)) {
         if (((u = t.length), u != a.length)) return !1;
         for (c = u; c-- !== 0;) if (!e(t[c], a[c])) return !1;
@@ -58,10 +58,10 @@ var uo = Ut((yd, fo) => {
       if (t.constructor === RegExp) return t.source === a.source && t.flags === a.flags;
       if (t.valueOf !== Object.prototype.valueOf) return t.valueOf() === a.valueOf();
       if (t.toString !== Object.prototype.toString) return t.toString() === a.toString();
-      if (((l = Object.keys(t)), (u = l.length), u !== Object.keys(a).length)) return !1;
-      for (c = u; c-- !== 0;) if (!Object.prototype.hasOwnProperty.call(a, l[c])) return !1;
+      if (((f = Object.keys(t)), (u = f.length), u !== Object.keys(a).length)) return !1;
+      for (c = u; c-- !== 0;) if (!Object.prototype.hasOwnProperty.call(a, f[c])) return !1;
       for (c = u; c-- !== 0;) {
-        var i = l[c];
+        var i = f[c];
         if (!e(t[i], a[i])) return !1;
       }
       return !0;
@@ -69,16 +69,16 @@ var uo = Ut((yd, fo) => {
     return t !== t && a !== a;
   };
 });
-var yo = Ut((es) => {
+var yo = Zt((es) => {
   "use strict";
   Object.defineProperty(es, "__esModule", { value: !0 });
   var mo = uo();
   mo.code = 'require("ajv/dist/runtime/equal").default';
   es.default = mo;
 });
-var Ao = Ut((ue) => {
+var Ao = Zt((me) => {
   "use strict";
-  ue.PublicJWK = Vi;
+  me.PublicJWK = Ci;
   var P = lo().default,
     nr = new RegExp("^[A-Za-z0-9_-]{43}$", "u");
   function Ne(
@@ -88,7 +88,7 @@ var Ao = Ut((ue) => {
       parentData: a,
       parentDataProperty: u,
       rootData: c = e,
-      dynamicAnchors: l = {},
+      dynamicAnchors: f = {},
     } = {},
   ) {
     let i = null,
@@ -291,19 +291,19 @@ var Ao = Ut((ue) => {
     return ((Ne.errors = i), r === 0);
   }
   Ne.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
-  function Vi(
+  function Ci(
     e,
     {
       instancePath: t = "",
       parentData: a,
       parentDataProperty: u,
       rootData: c = e,
-      dynamicAnchors: l = {},
+      dynamicAnchors: f = {},
     } = {},
   ) {
     let i = null,
       r = 0,
-      d = Vi.evaluated;
+      d = Ci.evaluated;
     return (
       d.dynamicProps && (d.props = void 0),
       d.dynamicItems && (d.items = void 0),
@@ -312,14 +312,14 @@ var Ao = Ut((ue) => {
         parentData: a,
         parentDataProperty: u,
         rootData: c,
-        dynamicAnchors: l,
+        dynamicAnchors: f,
       }) || ((i = i === null ? Ne.errors : i.concat(Ne.errors)), (r = i.length)),
-      (Vi.errors = i),
+      (Ci.errors = i),
       r === 0
     );
   }
-  Vi.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
-  ue.Identifier = Ci;
+  Ci.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
+  me.Identifier = Ti;
   var Pe = new RegExp("^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$", "u");
   function vr(
     e,
@@ -328,7 +328,7 @@ var Ao = Ut((ue) => {
       parentData: a,
       parentDataProperty: u,
       rootData: c = e,
-      dynamicAnchors: l = {},
+      dynamicAnchors: f = {},
     } = {},
   ) {
     let i = null,
@@ -382,19 +382,19 @@ var Ao = Ut((ue) => {
     return ((vr.errors = i), r === 0);
   }
   vr.evaluated = { dynamicProps: !1, dynamicItems: !1 };
-  function Ci(
+  function Ti(
     e,
     {
       instancePath: t = "",
       parentData: a,
       parentDataProperty: u,
       rootData: c = e,
-      dynamicAnchors: l = {},
+      dynamicAnchors: f = {},
     } = {},
   ) {
     let i = null,
       r = 0,
-      d = Ci.evaluated;
+      d = Ti.evaluated;
     return (
       d.dynamicProps && (d.props = void 0),
       d.dynamicItems && (d.items = void 0),
@@ -403,14 +403,14 @@ var Ao = Ut((ue) => {
         parentData: a,
         parentDataProperty: u,
         rootData: c,
-        dynamicAnchors: l,
+        dynamicAnchors: f,
       }) || ((i = i === null ? vr.errors : i.concat(vr.errors)), (r = i.length)),
-      (Ci.errors = i),
+      (Ti.errors = i),
       r === 0
     );
   }
-  Ci.evaluated = { dynamicProps: !1, dynamicItems: !1 };
-  ue.KeyId = Ti;
+  Ti.evaluated = { dynamicProps: !1, dynamicItems: !1 };
+  me.KeyId = qi;
   function wr(
     e,
     {
@@ -418,7 +418,7 @@ var Ao = Ut((ue) => {
       parentData: a,
       parentDataProperty: u,
       rootData: c = e,
-      dynamicAnchors: l = {},
+      dynamicAnchors: f = {},
     } = {},
   ) {
     let i = null,
@@ -472,19 +472,19 @@ var Ao = Ut((ue) => {
     return ((wr.errors = i), r === 0);
   }
   wr.evaluated = { dynamicProps: !1, dynamicItems: !1 };
-  function Ti(
+  function qi(
     e,
     {
       instancePath: t = "",
       parentData: a,
       parentDataProperty: u,
       rootData: c = e,
-      dynamicAnchors: l = {},
+      dynamicAnchors: f = {},
     } = {},
   ) {
     let i = null,
       r = 0,
-      d = Ti.evaluated;
+      d = qi.evaluated;
     return (
       d.dynamicProps && (d.props = void 0),
       d.dynamicItems && (d.items = void 0),
@@ -493,14 +493,14 @@ var Ao = Ut((ue) => {
         parentData: a,
         parentDataProperty: u,
         rootData: c,
-        dynamicAnchors: l,
+        dynamicAnchors: f,
       }) || ((i = i === null ? wr.errors : i.concat(wr.errors)), (r = i.length)),
-      (Ti.errors = i),
+      (qi.errors = i),
       r === 0
     );
   }
-  Ti.evaluated = { dynamicProps: !1, dynamicItems: !1 };
-  ue.Digest = qi;
+  qi.evaluated = { dynamicProps: !1, dynamicItems: !1 };
+  me.Digest = Ri;
   var Ft = new RegExp("^[a-f0-9]{64}$", "u");
   function Ir(
     e,
@@ -509,7 +509,7 @@ var Ao = Ut((ue) => {
       parentData: a,
       parentDataProperty: u,
       rootData: c = e,
-      dynamicAnchors: l = {},
+      dynamicAnchors: f = {},
     } = {},
   ) {
     let i = null,
@@ -563,19 +563,19 @@ var Ao = Ut((ue) => {
     return ((Ir.errors = i), r === 0);
   }
   Ir.evaluated = { dynamicProps: !1, dynamicItems: !1 };
-  function qi(
+  function Ri(
     e,
     {
       instancePath: t = "",
       parentData: a,
       parentDataProperty: u,
       rootData: c = e,
-      dynamicAnchors: l = {},
+      dynamicAnchors: f = {},
     } = {},
   ) {
     let i = null,
       r = 0,
-      d = qi.evaluated;
+      d = Ri.evaluated;
     return (
       d.dynamicProps && (d.props = void 0),
       d.dynamicItems && (d.items = void 0),
@@ -584,14 +584,14 @@ var Ao = Ut((ue) => {
         parentData: a,
         parentDataProperty: u,
         rootData: c,
-        dynamicAnchors: l,
+        dynamicAnchors: f,
       }) || ((i = i === null ? Ir.errors : i.concat(Ir.errors)), (r = i.length)),
-      (qi.errors = i),
+      (Ri.errors = i),
       r === 0
     );
   }
-  qi.evaluated = { dynamicProps: !1, dynamicItems: !1 };
-  ue.TaskMetadata = Ji;
+  Ri.evaluated = { dynamicProps: !1, dynamicItems: !1 };
+  me.TaskMetadata = Fi;
   var ho = {
       type: "object",
       properties: {
@@ -662,7 +662,7 @@ var Ao = Ut((ue) => {
     Re = Object.prototype.hasOwnProperty,
     Eo = yo().default,
     tt = new RegExp("Z$", "u"),
-    Ri = {
+    Ji = {
       type: "object",
       properties: {
         kind: { type: "string", enum: ["watchlist", "channel_follows", "holdings"] },
@@ -697,7 +697,7 @@ var Ao = Ut((ue) => {
       parentData: a,
       parentDataProperty: u,
       rootData: c = e,
-      dynamicAnchors: l = {},
+      dynamicAnchors: f = {},
     } = {},
   ) {
     let i = null,
@@ -843,14 +843,14 @@ var Ao = Ut((ue) => {
                       instancePath: t + "/kind",
                       schemaPath: "#/properties/kind/enum",
                       keyword: "enum",
-                      params: { allowedValues: Ri.properties.kind.enum },
+                      params: { allowedValues: Ji.properties.kind.enum },
                     },
                   ]),
                   !1
                 );
-              var f = I === r;
-            } else var f = !0;
-            if (f) {
+              var l = I === r;
+            } else var l = !0;
+            if (l) {
               if (e.sourceService !== void 0) {
                 let g = e.sourceService,
                   I = r;
@@ -873,14 +873,14 @@ var Ao = Ut((ue) => {
                         instancePath: t + "/sourceService",
                         schemaPath: "#/properties/sourceService/enum",
                         keyword: "enum",
-                        params: { allowedValues: Ri.properties.sourceService.enum },
+                        params: { allowedValues: Ji.properties.sourceService.enum },
                       },
                     ]),
                     !1
                   );
-                var f = I === r;
-              } else var f = !0;
-              if (f) {
+                var l = I === r;
+              } else var l = !0;
+              if (l) {
                 if (e.resourceId !== void 0) {
                   let g = e.resourceId,
                     I = r;
@@ -934,9 +934,9 @@ var Ao = Ut((ue) => {
                         ]),
                         !1
                       );
-                  var f = I === r;
-                } else var f = !0;
-                if (f)
+                  var l = I === r;
+                } else var l = !0;
+                if (l)
                   if (e.incarnation !== void 0) {
                     let g = e.incarnation,
                       I = r;
@@ -990,8 +990,8 @@ var Ao = Ut((ue) => {
                           ]),
                           !1
                         );
-                    var f = I === r;
-                  } else var f = !0;
+                    var l = I === r;
+                  } else var l = !0;
               }
             }
           }
@@ -1013,7 +1013,7 @@ var Ao = Ut((ue) => {
       parentData: a,
       parentDataProperty: u,
       rootData: c = e,
-      dynamicAnchors: l = {},
+      dynamicAnchors: f = {},
     } = {},
   ) {
     let i = null,
@@ -1059,7 +1059,7 @@ var Ao = Ut((ue) => {
                 parentData: e,
                 parentDataProperty: "ref",
                 rootData: c,
-                dynamicAnchors: l,
+                dynamicAnchors: f,
               }) || ((i = i === null ? T.errors : i.concat(T.errors)), (r = i.length));
               var n = p === r;
             } else var n = !0;
@@ -1127,7 +1127,7 @@ var Ao = Ut((ue) => {
       parentData: a,
       parentDataProperty: u,
       rootData: c = e,
-      dynamicAnchors: l = {},
+      dynamicAnchors: f = {},
     } = {},
   ) {
     let i = null,
@@ -1454,7 +1454,7 @@ var Ao = Ut((ue) => {
                                     parentData: s,
                                     parentDataProperty: v,
                                     rootData: c,
-                                    dynamicAnchors: l,
+                                    dynamicAnchors: f,
                                   }) ||
                                     ((i = i === null ? Ue.errors : i.concat(Ue.errors)),
                                     (r = i.length));
@@ -1850,19 +1850,19 @@ var Ao = Ut((ue) => {
     return ((K.errors = i), r === 0);
   }
   K.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
-  function Ji(
+  function Fi(
     e,
     {
       instancePath: t = "",
       parentData: a,
       parentDataProperty: u,
       rootData: c = e,
-      dynamicAnchors: l = {},
+      dynamicAnchors: f = {},
     } = {},
   ) {
     let i = null,
       r = 0,
-      d = Ji.evaluated;
+      d = Fi.evaluated;
     return (
       d.dynamicProps && (d.props = void 0),
       d.dynamicItems && (d.items = void 0),
@@ -1871,14 +1871,14 @@ var Ao = Ut((ue) => {
         parentData: a,
         parentDataProperty: u,
         rootData: c,
-        dynamicAnchors: l,
+        dynamicAnchors: f,
       }) || ((i = i === null ? K.errors : i.concat(K.errors)), (r = i.length)),
-      (Ji.errors = i),
+      (Fi.errors = i),
       r === 0
     );
   }
-  Ji.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
-  ue.OperationIdentifier = Fi;
+  Fi.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
+  me.OperationIdentifier = Wi;
   var fr = new RegExp("^[A-Za-z0-9_-]+$", "u");
   function kr(
     e,
@@ -1887,7 +1887,7 @@ var Ao = Ut((ue) => {
       parentData: a,
       parentDataProperty: u,
       rootData: c = e,
-      dynamicAnchors: l = {},
+      dynamicAnchors: f = {},
     } = {},
   ) {
     let i = null,
@@ -1941,19 +1941,19 @@ var Ao = Ut((ue) => {
     return ((kr.errors = i), r === 0);
   }
   kr.evaluated = { dynamicProps: !1, dynamicItems: !1 };
-  function Fi(
+  function Wi(
     e,
     {
       instancePath: t = "",
       parentData: a,
       parentDataProperty: u,
       rootData: c = e,
-      dynamicAnchors: l = {},
+      dynamicAnchors: f = {},
     } = {},
   ) {
     let i = null,
       r = 0,
-      d = Fi.evaluated;
+      d = Wi.evaluated;
     return (
       d.dynamicProps && (d.props = void 0),
       d.dynamicItems && (d.items = void 0),
@@ -1962,27 +1962,27 @@ var Ao = Ut((ue) => {
         parentData: a,
         parentDataProperty: u,
         rootData: c,
-        dynamicAnchors: l,
+        dynamicAnchors: f,
       }) || ((i = i === null ? kr.errors : i.concat(kr.errors)), (r = i.length)),
-      (Fi.errors = i),
+      (Wi.errors = i),
       r === 0
     );
   }
-  Fi.evaluated = { dynamicProps: !1, dynamicItems: !1 };
-  ue.RegistryBundle = Wi;
-  function oe(
+  Wi.evaluated = { dynamicProps: !1, dynamicItems: !1 };
+  me.RegistryBundle = Hi;
+  function pe(
     e,
     {
       instancePath: t = "",
       parentData: a,
       parentDataProperty: u,
       rootData: c = e,
-      dynamicAnchors: l = {},
+      dynamicAnchors: f = {},
     } = {},
   ) {
     let i = null,
       r = 0,
-      d = oe.evaluated;
+      d = pe.evaluated;
     if ((d.dynamicProps && (d.props = void 0), d.dynamicItems && (d.items = void 0), r === 0))
       if (e && typeof e == "object" && !Array.isArray(e)) {
         let y;
@@ -1992,7 +1992,7 @@ var Ao = Ut((ue) => {
           (e.signature === void 0 && (y = "signature"))
         )
           return (
-            (oe.errors = [
+            (pe.errors = [
               {
                 instancePath: t,
                 schemaPath: "#/required",
@@ -2007,7 +2007,7 @@ var Ao = Ut((ue) => {
           for (let p in e)
             if (!(p === "protected" || p === "payload" || p === "signature")) {
               return (
-                (oe.errors = [
+                (pe.errors = [
                   {
                     instancePath: t,
                     schemaPath: "#/additionalProperties",
@@ -2027,7 +2027,7 @@ var Ao = Ut((ue) => {
                 if (typeof p == "string") {
                   if (P(p) > 1024)
                     return (
-                      (oe.errors = [
+                      (pe.errors = [
                         {
                           instancePath: t + "/protected",
                           schemaPath: "#/properties/protected/maxLength",
@@ -2039,7 +2039,7 @@ var Ao = Ut((ue) => {
                     );
                   if (P(p) < 1)
                     return (
-                      (oe.errors = [
+                      (pe.errors = [
                         {
                           instancePath: t + "/protected",
                           schemaPath: "#/properties/protected/minLength",
@@ -2051,7 +2051,7 @@ var Ao = Ut((ue) => {
                     );
                   if (!fr.test(p))
                     return (
-                      (oe.errors = [
+                      (pe.errors = [
                         {
                           instancePath: t + "/protected",
                           schemaPath: "#/properties/protected/pattern",
@@ -2063,7 +2063,7 @@ var Ao = Ut((ue) => {
                     );
                 } else
                   return (
-                    (oe.errors = [
+                    (pe.errors = [
                       {
                         instancePath: t + "/protected",
                         schemaPath: "#/properties/protected/type",
@@ -2083,7 +2083,7 @@ var Ao = Ut((ue) => {
                   if (typeof p == "string") {
                     if (P(p) > 699051)
                       return (
-                        (oe.errors = [
+                        (pe.errors = [
                           {
                             instancePath: t + "/payload",
                             schemaPath: "#/properties/payload/maxLength",
@@ -2095,7 +2095,7 @@ var Ao = Ut((ue) => {
                       );
                     if (P(p) < 1)
                       return (
-                        (oe.errors = [
+                        (pe.errors = [
                           {
                             instancePath: t + "/payload",
                             schemaPath: "#/properties/payload/minLength",
@@ -2107,7 +2107,7 @@ var Ao = Ut((ue) => {
                       );
                     if (!fr.test(p))
                       return (
-                        (oe.errors = [
+                        (pe.errors = [
                           {
                             instancePath: t + "/payload",
                             schemaPath: "#/properties/payload/pattern",
@@ -2119,7 +2119,7 @@ var Ao = Ut((ue) => {
                       );
                   } else
                     return (
-                      (oe.errors = [
+                      (pe.errors = [
                         {
                           instancePath: t + "/payload",
                           schemaPath: "#/properties/payload/type",
@@ -2139,7 +2139,7 @@ var Ao = Ut((ue) => {
                     if (typeof p == "string") {
                       if (P(p) > 86)
                         return (
-                          (oe.errors = [
+                          (pe.errors = [
                             {
                               instancePath: t + "/signature",
                               schemaPath: "#/properties/signature/maxLength",
@@ -2151,7 +2151,7 @@ var Ao = Ut((ue) => {
                         );
                       if (P(p) < 86)
                         return (
-                          (oe.errors = [
+                          (pe.errors = [
                             {
                               instancePath: t + "/signature",
                               schemaPath: "#/properties/signature/minLength",
@@ -2163,7 +2163,7 @@ var Ao = Ut((ue) => {
                         );
                       if (!fr.test(p))
                         return (
-                          (oe.errors = [
+                          (pe.errors = [
                             {
                               instancePath: t + "/signature",
                               schemaPath: "#/properties/signature/pattern",
@@ -2175,7 +2175,7 @@ var Ao = Ut((ue) => {
                         );
                     } else
                       return (
-                        (oe.errors = [
+                        (pe.errors = [
                           {
                             instancePath: t + "/signature",
                             schemaPath: "#/properties/signature/type",
@@ -2192,14 +2192,14 @@ var Ao = Ut((ue) => {
         }
       } else
         return (
-          (oe.errors = [
+          (pe.errors = [
             { instancePath: t, schemaPath: "#/type", keyword: "type", params: { type: "object" } },
           ]),
           !1
         );
-    return ((oe.errors = i), r === 0);
+    return ((pe.errors = i), r === 0);
   }
-  oe.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
+  pe.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
   function Pr(
     e,
     {
@@ -2207,7 +2207,7 @@ var Ao = Ut((ue) => {
       parentData: a,
       parentDataProperty: u,
       rootData: c = e,
-      dynamicAnchors: l = {},
+      dynamicAnchors: f = {},
     } = {},
   ) {
     let i = null,
@@ -2251,13 +2251,13 @@ var Ao = Ut((ue) => {
           if (m === r) {
             if (e.certificate !== void 0) {
               let p = r;
-              oe(e.certificate, {
+              pe(e.certificate, {
                 instancePath: t + "/certificate",
                 parentData: e,
                 parentDataProperty: "certificate",
                 rootData: c,
-                dynamicAnchors: l,
-              }) || ((i = i === null ? oe.errors : i.concat(oe.errors)), (r = i.length));
+                dynamicAnchors: f,
+              }) || ((i = i === null ? pe.errors : i.concat(pe.errors)), (r = i.length));
               var n = p === r;
             } else var n = !0;
             if (n)
@@ -2296,7 +2296,7 @@ var Ao = Ut((ue) => {
       parentData: a,
       parentDataProperty: u,
       rootData: c = e,
-      dynamicAnchors: l = {},
+      dynamicAnchors: f = {},
     } = {},
   ) {
     let i = null,
@@ -2358,13 +2358,13 @@ var Ao = Ut((ue) => {
             if (n) {
               if (e.checkpoint !== void 0) {
                 let s = r;
-                oe(e.checkpoint, {
+                pe(e.checkpoint, {
                   instancePath: t + "/checkpoint",
                   parentData: e,
                   parentDataProperty: "checkpoint",
                   rootData: c,
-                  dynamicAnchors: l,
-                }) || ((i = i === null ? oe.errors : i.concat(oe.errors)), (r = i.length));
+                  dynamicAnchors: f,
+                }) || ((i = i === null ? pe.errors : i.concat(pe.errors)), (r = i.length));
                 var n = s === r;
               } else var n = !0;
               if (n)
@@ -2407,7 +2407,7 @@ var Ao = Ut((ue) => {
                             parentData: s,
                             parentDataProperty: v,
                             rootData: c,
-                            dynamicAnchors: l,
+                            dynamicAnchors: f,
                           }) ||
                             ((i = i === null ? Pr.errors : i.concat(Pr.errors)), (r = i.length));
                           var y = g === r;
@@ -2441,19 +2441,19 @@ var Ao = Ut((ue) => {
     return ((Me.errors = i), r === 0);
   }
   Me.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
-  function Wi(
+  function Hi(
     e,
     {
       instancePath: t = "",
       parentData: a,
       parentDataProperty: u,
       rootData: c = e,
-      dynamicAnchors: l = {},
+      dynamicAnchors: f = {},
     } = {},
   ) {
     let i = null,
       r = 0,
-      d = Wi.evaluated;
+      d = Hi.evaluated;
     return (
       d.dynamicProps && (d.props = void 0),
       d.dynamicItems && (d.items = void 0),
@@ -2462,14 +2462,14 @@ var Ao = Ut((ue) => {
         parentData: a,
         parentDataProperty: u,
         rootData: c,
-        dynamicAnchors: l,
+        dynamicAnchors: f,
       }) || ((i = i === null ? Me.errors : i.concat(Me.errors)), (r = i.length)),
-      (Wi.errors = i),
+      (Hi.errors = i),
       r === 0
     );
   }
-  Wi.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
-  ue.RegistryCheckpointPayload = Hi;
+  Hi.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
+  me.RegistryCheckpointPayload = zi;
   var $a = {
     type: "object",
     properties: {
@@ -2530,7 +2530,7 @@ var Ao = Ut((ue) => {
       parentData: a,
       parentDataProperty: u,
       rootData: c = e,
-      dynamicAnchors: l = {},
+      dynamicAnchors: f = {},
     } = {},
   ) {
     let i = null,
@@ -2618,8 +2618,8 @@ var Ao = Ut((ue) => {
               if (n) {
                 if (e.vaultId !== void 0) {
                   let o = e.vaultId,
-                    f = r;
-                  if (r === f)
+                    l = r;
+                  if (r === l)
                     if (typeof o == "string") {
                       if (P(o) > 128)
                         return (
@@ -2669,13 +2669,13 @@ var Ao = Ut((ue) => {
                         ]),
                         !1
                       );
-                  var n = f === r;
+                  var n = l === r;
                 } else var n = !0;
                 if (n) {
                   if (e.ownerSubject !== void 0) {
                     let o = e.ownerSubject,
-                      f = r;
-                    if (r === f)
+                      l = r;
+                    if (r === l)
                       if (typeof o == "string") {
                         if (P(o) > 128)
                           return (
@@ -2725,13 +2725,13 @@ var Ao = Ut((ue) => {
                           ]),
                           !1
                         );
-                    var n = f === r;
+                    var n = l === r;
                   } else var n = !0;
                   if (n) {
                     if (e.rootKeyId !== void 0) {
                       let o = e.rootKeyId,
-                        f = r;
-                      if (r === f)
+                        l = r;
+                      if (r === l)
                         if (typeof o == "string") {
                           if (P(o) > 43)
                             return (
@@ -2781,12 +2781,12 @@ var Ao = Ut((ue) => {
                             ]),
                             !1
                           );
-                      var n = f === r;
+                      var n = l === r;
                     } else var n = !0;
                     if (n) {
                       if (e.rootEpoch !== void 0) {
                         let o = e.rootEpoch,
-                          f = r;
+                          l = r;
                         if (!(typeof o == "number" && !(o % 1) && !isNaN(o)))
                           return (
                             (L.errors = [
@@ -2799,7 +2799,7 @@ var Ao = Ut((ue) => {
                             ]),
                             !1
                           );
-                        if (r === f && typeof o == "number") {
+                        if (r === l && typeof o == "number") {
                           if (o > 9007199254740991 || isNaN(o))
                             return (
                               (L.errors = [
@@ -2825,12 +2825,12 @@ var Ao = Ut((ue) => {
                               !1
                             );
                         }
-                        var n = f === r;
+                        var n = l === r;
                       } else var n = !0;
                       if (n) {
                         if (e.registrySequence !== void 0) {
                           let o = e.registrySequence,
-                            f = r;
+                            l = r;
                           if (!(typeof o == "number" && !(o % 1) && !isNaN(o)))
                             return (
                               (L.errors = [
@@ -2843,7 +2843,7 @@ var Ao = Ut((ue) => {
                               ]),
                               !1
                             );
-                          if (r === f && typeof o == "number") {
+                          if (r === l && typeof o == "number") {
                             if (o > 9007199254740991 || isNaN(o))
                               return (
                                 (L.errors = [
@@ -2869,12 +2869,12 @@ var Ao = Ut((ue) => {
                                 !1
                               );
                           }
-                          var n = f === r;
+                          var n = l === r;
                         } else var n = !0;
                         if (n) {
                           if (e.previousDigest !== void 0) {
                             let o = e.previousDigest,
-                              f = r,
+                              l = r,
                               h = r,
                               v = !1,
                               g = r;
@@ -2938,13 +2938,13 @@ var Ao = Ut((ue) => {
                               };
                               return (i === null ? (i = [b]) : i.push(b), r++, (L.errors = i), !1);
                             }
-                            var n = f === r;
+                            var n = l === r;
                           } else var n = !0;
                           if (n) {
                             if (e.entriesDigest !== void 0) {
                               let o = e.entriesDigest,
-                                f = r;
-                              if (r === f)
+                                l = r;
+                              if (r === l)
                                 if (typeof o == "string") {
                                   if (P(o) > 64)
                                     return (
@@ -2994,12 +2994,12 @@ var Ao = Ut((ue) => {
                                     ]),
                                     !1
                                   );
-                              var n = f === r;
+                              var n = l === r;
                             } else var n = !0;
                             if (n) {
                               if (e.keyEpoch !== void 0) {
                                 let o = e.keyEpoch,
-                                  f = r;
+                                  l = r;
                                 if (!(typeof o == "number" && !(o % 1) && !isNaN(o)))
                                   return (
                                     (L.errors = [
@@ -3012,7 +3012,7 @@ var Ao = Ut((ue) => {
                                     ]),
                                     !1
                                   );
-                                if (r === f && typeof o == "number") {
+                                if (r === l && typeof o == "number") {
                                   if (o > 9007199254740991 || isNaN(o))
                                     return (
                                       (L.errors = [
@@ -3038,13 +3038,13 @@ var Ao = Ut((ue) => {
                                       !1
                                     );
                                 }
-                                var n = f === r;
+                                var n = l === r;
                               } else var n = !0;
                               if (n) {
                                 if (e.revokedKeyIds !== void 0) {
                                   let o = e.revokedKeyIds,
-                                    f = r;
-                                  if (r === f)
+                                    l = r;
+                                  if (r === l)
                                     if (Array.isArray(o)) {
                                       if (o.length > 64)
                                         return (
@@ -3175,12 +3175,12 @@ var Ao = Ut((ue) => {
                                         ]),
                                         !1
                                       );
-                                  var n = f === r;
+                                  var n = l === r;
                                 } else var n = !0;
                                 if (n)
                                   if (e.issuedAt !== void 0) {
                                     let o = e.issuedAt,
-                                      f = r;
+                                      l = r;
                                     if (!(typeof o == "number" && !(o % 1) && !isNaN(o)))
                                       return (
                                         (L.errors = [
@@ -3193,7 +3193,7 @@ var Ao = Ut((ue) => {
                                         ]),
                                         !1
                                       );
-                                    if (r === f && typeof o == "number") {
+                                    if (r === l && typeof o == "number") {
                                       if (o > 9007199254740991 || isNaN(o))
                                         return (
                                           (L.errors = [
@@ -3219,7 +3219,7 @@ var Ao = Ut((ue) => {
                                           !1
                                         );
                                     }
-                                    var n = f === r;
+                                    var n = l === r;
                                   } else var n = !0;
                               }
                             }
@@ -3243,19 +3243,19 @@ var Ao = Ut((ue) => {
     return ((L.errors = i), r === 0);
   }
   L.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
-  function Hi(
+  function zi(
     e,
     {
       instancePath: t = "",
       parentData: a,
       parentDataProperty: u,
       rootData: c = e,
-      dynamicAnchors: l = {},
+      dynamicAnchors: f = {},
     } = {},
   ) {
     let i = null,
       r = 0,
-      d = Hi.evaluated;
+      d = zi.evaluated;
     return (
       d.dynamicProps && (d.props = void 0),
       d.dynamicItems && (d.items = void 0),
@@ -3264,14 +3264,14 @@ var Ao = Ut((ue) => {
         parentData: a,
         parentDataProperty: u,
         rootData: c,
-        dynamicAnchors: l,
+        dynamicAnchors: f,
       }) || ((i = i === null ? L.errors : i.concat(L.errors)), (r = i.length)),
-      (Hi.errors = i),
+      (zi.errors = i),
       r === 0
     );
   }
-  Hi.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
-  ue.KeyCertificatePayload = zi;
+  zi.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
+  me.KeyCertificatePayload = Ui;
   var rs = {
     type: "object",
     properties: {
@@ -3357,7 +3357,7 @@ var Ao = Ut((ue) => {
       parentData: a,
       parentDataProperty: u,
       rootData: c = e,
-      dynamicAnchors: l = {},
+      dynamicAnchors: f = {},
     } = {},
   ) {
     let i = null,
@@ -3567,7 +3567,7 @@ var Ao = Ut((ue) => {
       parentData: a,
       parentDataProperty: u,
       rootData: c = e,
-      dynamicAnchors: l = {},
+      dynamicAnchors: f = {},
     } = {},
   ) {
     let i = null,
@@ -3658,8 +3658,8 @@ var Ao = Ut((ue) => {
               if (n) {
                 if (e.vaultId !== void 0) {
                   let o = e.vaultId,
-                    f = r;
-                  if (r === f)
+                    l = r;
+                  if (r === l)
                     if (typeof o == "string") {
                       if (P(o) > 128)
                         return (
@@ -3709,13 +3709,13 @@ var Ao = Ut((ue) => {
                         ]),
                         !1
                       );
-                  var n = f === r;
+                  var n = l === r;
                 } else var n = !0;
                 if (n) {
                   if (e.ownerSubject !== void 0) {
                     let o = e.ownerSubject,
-                      f = r;
-                    if (r === f)
+                      l = r;
+                    if (r === l)
                       if (typeof o == "string") {
                         if (P(o) > 128)
                           return (
@@ -3765,13 +3765,13 @@ var Ao = Ut((ue) => {
                           ]),
                           !1
                         );
-                    var n = f === r;
+                    var n = l === r;
                   } else var n = !0;
                   if (n) {
                     if (e.certificateId !== void 0) {
                       let o = e.certificateId,
-                        f = r;
-                      if (r === f)
+                        l = r;
+                      if (r === l)
                         if (typeof o == "string") {
                           if (P(o) > 128)
                             return (
@@ -3821,13 +3821,13 @@ var Ao = Ut((ue) => {
                             ]),
                             !1
                           );
-                      var n = f === r;
+                      var n = l === r;
                     } else var n = !0;
                     if (n) {
                       if (e.keyId !== void 0) {
                         let o = e.keyId,
-                          f = r;
-                        if (r === f)
+                          l = r;
+                        if (r === l)
                           if (typeof o == "string") {
                             if (P(o) > 43)
                               return (
@@ -3877,12 +3877,12 @@ var Ao = Ut((ue) => {
                               ]),
                               !1
                             );
-                        var n = f === r;
+                        var n = l === r;
                       } else var n = !0;
                       if (n) {
                         if (e.role !== void 0) {
                           let o = e.role,
-                            f = r;
+                            l = r;
                           if (!(
                             o === "root_sig" ||
                             o === "device_sig" ||
@@ -3902,7 +3902,7 @@ var Ao = Ut((ue) => {
                               ]),
                               !1
                             );
-                          var n = f === r;
+                          var n = l === r;
                         } else var n = !0;
                         if (n) {
                           if (e.publicJwk !== void 0) {
@@ -3912,7 +3912,7 @@ var Ao = Ut((ue) => {
                               parentData: e,
                               parentDataProperty: "publicJwk",
                               rootData: c,
-                              dynamicAnchors: l,
+                              dynamicAnchors: f,
                             }) ||
                               ((i = i === null ? ke.errors : i.concat(ke.errors)), (r = i.length));
                             var n = o === r;
@@ -3920,8 +3920,8 @@ var Ao = Ut((ue) => {
                           if (n) {
                             if (e.principalId !== void 0) {
                               let o = e.principalId,
-                                f = r;
-                              if (r === f)
+                                l = r;
+                              if (r === l)
                                 if (typeof o == "string") {
                                   if (P(o) > 128)
                                     return (
@@ -3971,12 +3971,12 @@ var Ao = Ut((ue) => {
                                     ]),
                                     !1
                                   );
-                              var n = f === r;
+                              var n = l === r;
                             } else var n = !0;
                             if (n) {
                               if (e.connectionId !== void 0) {
                                 let o = e.connectionId,
-                                  f = r,
+                                  l = r,
                                   h = r,
                                   v = !1,
                                   g = r;
@@ -4045,12 +4045,12 @@ var Ao = Ut((ue) => {
                                     !1
                                   );
                                 }
-                                var n = f === r;
+                                var n = l === r;
                               } else var n = !0;
                               if (n) {
                                 if (e.keyEpoch !== void 0) {
                                   let o = e.keyEpoch,
-                                    f = r;
+                                    l = r;
                                   if (!(typeof o == "number" && !(o % 1) && !isNaN(o)))
                                     return (
                                       (j.errors = [
@@ -4063,7 +4063,7 @@ var Ao = Ut((ue) => {
                                       ]),
                                       !1
                                     );
-                                  if (r === f && typeof o == "number") {
+                                  if (r === l && typeof o == "number") {
                                     if (o > 9007199254740991 || isNaN(o))
                                       return (
                                         (j.errors = [
@@ -4089,13 +4089,13 @@ var Ao = Ut((ue) => {
                                         !1
                                       );
                                   }
-                                  var n = f === r;
+                                  var n = l === r;
                                 } else var n = !0;
                                 if (n) {
                                   if (e.issuerKeyId !== void 0) {
                                     let o = e.issuerKeyId,
-                                      f = r;
-                                    if (r === f)
+                                      l = r;
+                                    if (r === l)
                                       if (typeof o == "string") {
                                         if (P(o) > 43)
                                           return (
@@ -4145,12 +4145,12 @@ var Ao = Ut((ue) => {
                                           ]),
                                           !1
                                         );
-                                    var n = f === r;
+                                    var n = l === r;
                                   } else var n = !0;
                                   if (n) {
                                     if (e.notBefore !== void 0) {
                                       let o = e.notBefore,
-                                        f = r;
+                                        l = r;
                                       if (!(typeof o == "number" && !(o % 1) && !isNaN(o)))
                                         return (
                                           (j.errors = [
@@ -4163,7 +4163,7 @@ var Ao = Ut((ue) => {
                                           ]),
                                           !1
                                         );
-                                      if (r === f && typeof o == "number") {
+                                      if (r === l && typeof o == "number") {
                                         if (o > 9007199254740991 || isNaN(o))
                                           return (
                                             (j.errors = [
@@ -4192,12 +4192,12 @@ var Ao = Ut((ue) => {
                                             !1
                                           );
                                       }
-                                      var n = f === r;
+                                      var n = l === r;
                                     } else var n = !0;
                                     if (n) {
                                       if (e.expiresAt !== void 0) {
                                         let o = e.expiresAt,
-                                          f = r;
+                                          l = r;
                                         if (!(typeof o == "number" && !(o % 1) && !isNaN(o)))
                                           return (
                                             (j.errors = [
@@ -4210,7 +4210,7 @@ var Ao = Ut((ue) => {
                                             ]),
                                             !1
                                           );
-                                        if (r === f && typeof o == "number") {
+                                        if (r === l && typeof o == "number") {
                                           if (o > 9007199254740991 || isNaN(o))
                                             return (
                                               (j.errors = [
@@ -4239,13 +4239,13 @@ var Ao = Ut((ue) => {
                                               !1
                                             );
                                         }
-                                        var n = f === r;
+                                        var n = l === r;
                                       } else var n = !0;
                                       if (n)
                                         if (e.capabilities !== void 0) {
                                           let o = e.capabilities,
-                                            f = r;
-                                          if (r === f)
+                                            l = r;
+                                          if (r === l)
                                             if (Array.isArray(o)) {
                                               if (o.length > 5)
                                                 return (
@@ -4340,7 +4340,7 @@ var Ao = Ut((ue) => {
                                                 ]),
                                                 !1
                                               );
-                                          var n = f === r;
+                                          var n = l === r;
                                         } else var n = !0;
                                     }
                                   }
@@ -4367,19 +4367,19 @@ var Ao = Ut((ue) => {
     return ((j.errors = i), r === 0);
   }
   j.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
-  function zi(
+  function Ui(
     e,
     {
       instancePath: t = "",
       parentData: a,
       parentDataProperty: u,
       rootData: c = e,
-      dynamicAnchors: l = {},
+      dynamicAnchors: f = {},
     } = {},
   ) {
     let i = null,
       r = 0,
-      d = zi.evaluated;
+      d = Ui.evaluated;
     return (
       d.dynamicProps && (d.props = void 0),
       d.dynamicItems && (d.items = void 0),
@@ -4388,14 +4388,14 @@ var Ao = Ut((ue) => {
         parentData: a,
         parentDataProperty: u,
         rootData: c,
-        dynamicAnchors: l,
+        dynamicAnchors: f,
       }) || ((i = i === null ? j.errors : i.concat(j.errors)), (r = i.length)),
-      (zi.errors = i),
+      (Ui.errors = i),
       r === 0
     );
   }
-  zi.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
-  ue.AgentCredentialApproval = Ui;
+  Ui.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
+  me.AgentCredentialApproval = Zi;
   var ja = {
     type: "object",
     properties: {
@@ -4459,7 +4459,7 @@ var Ao = Ut((ue) => {
       parentData: a,
       parentDataProperty: u,
       rootData: c = e,
-      dynamicAnchors: l = {},
+      dynamicAnchors: f = {},
     } = {},
   ) {
     let i = null,
@@ -4520,7 +4520,7 @@ var Ao = Ut((ue) => {
       parentData: a,
       parentDataProperty: u,
       rootData: c = e,
-      dynamicAnchors: l = {},
+      dynamicAnchors: f = {},
     } = {},
   ) {
     let i = null,
@@ -4581,7 +4581,7 @@ var Ao = Ut((ue) => {
       parentData: a,
       parentDataProperty: u,
       rootData: c = e,
-      dynamicAnchors: l = {},
+      dynamicAnchors: f = {},
     } = {},
   ) {
     let i = null,
@@ -4642,7 +4642,7 @@ var Ao = Ut((ue) => {
       parentData: a,
       parentDataProperty: u,
       rootData: c = e,
-      dynamicAnchors: l = {},
+      dynamicAnchors: f = {},
     } = {},
   ) {
     let i = null,
@@ -4696,7 +4696,7 @@ var Ao = Ut((ue) => {
     return ((E.errors = i), r === 0);
   }
   E.evaluated = { dynamicProps: !1, dynamicItems: !1 };
-  var cn = /^https:\/\/[^\s\\]+$/;
+  var ln = /^https:\/\/[^\s\\]+$/;
   function z(
     e,
     {
@@ -4704,7 +4704,7 @@ var Ao = Ut((ue) => {
       parentData: a,
       parentDataProperty: u,
       rootData: c = e,
-      dynamicAnchors: l = {},
+      dynamicAnchors: f = {},
     } = {},
   ) {
     let i = null,
@@ -4826,7 +4826,7 @@ var Ao = Ut((ue) => {
                       parentData: e,
                       parentDataProperty: "ownerSubject",
                       rootData: c,
-                      dynamicAnchors: l,
+                      dynamicAnchors: f,
                     }) || ((i = i === null ? w.errors : i.concat(w.errors)), (r = i.length));
                     var n = s === r;
                   } else var n = !0;
@@ -4838,7 +4838,7 @@ var Ao = Ut((ue) => {
                         parentData: e,
                         parentDataProperty: "vaultId",
                         rootData: c,
-                        dynamicAnchors: l,
+                        dynamicAnchors: f,
                       }) || ((i = i === null ? w.errors : i.concat(w.errors)), (r = i.length));
                       var n = s === r;
                     } else var n = !0;
@@ -4850,7 +4850,7 @@ var Ao = Ut((ue) => {
                           parentData: e,
                           parentDataProperty: "connectionId",
                           rootData: c,
-                          dynamicAnchors: l,
+                          dynamicAnchors: f,
                         }) || ((i = i === null ? w.errors : i.concat(w.errors)), (r = i.length));
                         var n = s === r;
                       } else var n = !0;
@@ -4862,7 +4862,7 @@ var Ao = Ut((ue) => {
                             parentData: e,
                             parentDataProperty: "agentId",
                             rootData: c,
-                            dynamicAnchors: l,
+                            dynamicAnchors: f,
                           }) || ((i = i === null ? w.errors : i.concat(w.errors)), (r = i.length));
                           var n = s === r;
                         } else var n = !0;
@@ -4874,7 +4874,7 @@ var Ao = Ut((ue) => {
                               parentData: e,
                               parentDataProperty: "clientId",
                               rootData: c,
-                              dynamicAnchors: l,
+                              dynamicAnchors: f,
                             }) ||
                               ((i = i === null ? w.errors : i.concat(w.errors)), (r = i.length));
                             var n = s === r;
@@ -4887,7 +4887,7 @@ var Ao = Ut((ue) => {
                                 parentData: e,
                                 parentDataProperty: "rootKeyId",
                                 rootData: c,
-                                dynamicAnchors: l,
+                                dynamicAnchors: f,
                               }) ||
                                 ((i = i === null ? x.errors : i.concat(x.errors)), (r = i.length));
                               var n = s === r;
@@ -4900,7 +4900,7 @@ var Ao = Ut((ue) => {
                                   parentData: e,
                                   parentDataProperty: "agentSigningKeyId",
                                   rootData: c,
-                                  dynamicAnchors: l,
+                                  dynamicAnchors: f,
                                 }) ||
                                   ((i = i === null ? x.errors : i.concat(x.errors)),
                                   (r = i.length));
@@ -4914,7 +4914,7 @@ var Ao = Ut((ue) => {
                                     parentData: e,
                                     parentDataProperty: "agentEncryptionKeyId",
                                     rootData: c,
-                                    dynamicAnchors: l,
+                                    dynamicAnchors: f,
                                   }) ||
                                     ((i = i === null ? x.errors : i.concat(x.errors)),
                                     (r = i.length));
@@ -4945,7 +4945,7 @@ var Ao = Ut((ue) => {
                                         parentData: e,
                                         parentDataProperty: "deviceSigningKeyId",
                                         rootData: c,
-                                        dynamicAnchors: l,
+                                        dynamicAnchors: f,
                                       }) ||
                                         ((i = i === null ? x.errors : i.concat(x.errors)),
                                         (r = i.length));
@@ -4959,7 +4959,7 @@ var Ao = Ut((ue) => {
                                           parentData: e,
                                           parentDataProperty: "stableOperationId",
                                           rootData: c,
-                                          dynamicAnchors: l,
+                                          dynamicAnchors: f,
                                         }) ||
                                           ((i = i === null ? $.errors : i.concat($.errors)),
                                           (r = i.length));
@@ -5022,7 +5022,7 @@ var Ao = Ut((ue) => {
                                               parentData: e,
                                               parentDataProperty: "checkpointDigest",
                                               rootData: c,
-                                              dynamicAnchors: l,
+                                              dynamicAnchors: f,
                                             }) ||
                                               ((i = i === null ? E.errors : i.concat(E.errors)),
                                               (r = i.length));
@@ -5186,7 +5186,7 @@ var Ao = Ut((ue) => {
                                                   if (e.previousCredentialFingerprint !== void 0) {
                                                     let s = e.previousCredentialFingerprint,
                                                       o = r,
-                                                      f = r,
+                                                      l = r,
                                                       h = !1,
                                                       v = r;
                                                     E(s, {
@@ -5196,7 +5196,7 @@ var Ao = Ut((ue) => {
                                                       parentDataProperty:
                                                         "previousCredentialFingerprint",
                                                       rootData: c,
-                                                      dynamicAnchors: l,
+                                                      dynamicAnchors: f,
                                                     }) ||
                                                       ((i =
                                                         i === null ? E.errors : i.concat(E.errors)),
@@ -5217,9 +5217,9 @@ var Ao = Ut((ue) => {
                                                     }
                                                     var y = g === r;
                                                     if (((h = h || y), h))
-                                                      ((r = f),
+                                                      ((r = l),
                                                         i !== null &&
-                                                          (f ? (i.length = f) : (i = null)));
+                                                          (l ? (i.length = l) : (i = null)));
                                                     else {
                                                       let k = {
                                                         instancePath:
@@ -5246,7 +5246,7 @@ var Ao = Ut((ue) => {
                                                         parentData: e,
                                                         parentDataProperty: "bindingFingerprint",
                                                         rootData: c,
-                                                        dynamicAnchors: l,
+                                                        dynamicAnchors: f,
                                                       }) ||
                                                         ((i =
                                                           i === null
@@ -5263,7 +5263,7 @@ var Ao = Ut((ue) => {
                                                           parentData: e,
                                                           parentDataProperty: "setupIntentId",
                                                           rootData: c,
-                                                          dynamicAnchors: l,
+                                                          dynamicAnchors: f,
                                                         }) ||
                                                           ((i =
                                                             i === null
@@ -5291,7 +5291,7 @@ var Ao = Ut((ue) => {
                                                                   ]),
                                                                   !1
                                                                 );
-                                                              if (!cn.test(s))
+                                                              if (!ln.test(s))
                                                                 return (
                                                                   (z.errors = [
                                                                     {
@@ -5412,19 +5412,19 @@ var Ao = Ut((ue) => {
     return ((z.errors = i), r === 0);
   }
   z.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
-  function Ui(
+  function Zi(
     e,
     {
       instancePath: t = "",
       parentData: a,
       parentDataProperty: u,
       rootData: c = e,
-      dynamicAnchors: l = {},
+      dynamicAnchors: f = {},
     } = {},
   ) {
     let i = null,
       r = 0,
-      d = Ui.evaluated;
+      d = Zi.evaluated;
     return (
       d.dynamicProps && (d.props = void 0),
       d.dynamicItems && (d.items = void 0),
@@ -5433,14 +5433,14 @@ var Ao = Ut((ue) => {
         parentData: a,
         parentDataProperty: u,
         rootData: c,
-        dynamicAnchors: l,
+        dynamicAnchors: f,
       }) || ((i = i === null ? z.errors : i.concat(z.errors)), (r = i.length)),
-      (Ui.errors = i),
+      (Zi.errors = i),
       r === 0
     );
   }
-  Ui.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
-  ue.AgentCredentialLease = Zi;
+  Zi.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
+  me.AgentCredentialLease = Bi;
   var go = {
     type: "object",
     properties: {
@@ -5489,19 +5489,19 @@ var Ao = Ut((ue) => {
     ],
     additionalProperties: !1,
   };
-  function ce(
+  function le(
     e,
     {
       instancePath: t = "",
       parentData: a,
       parentDataProperty: u,
       rootData: c = e,
-      dynamicAnchors: l = {},
+      dynamicAnchors: f = {},
     } = {},
   ) {
     let i = null,
       r = 0,
-      d = ce.evaluated;
+      d = le.evaluated;
     if ((d.dynamicProps && (d.props = void 0), d.dynamicItems && (d.items = void 0), r === 0))
       if (e && typeof e == "object" && !Array.isArray(e)) {
         let m;
@@ -5528,7 +5528,7 @@ var Ao = Ut((ue) => {
           (e.status === void 0 && (m = "status"))
         )
           return (
-            (ce.errors = [
+            (le.errors = [
               {
                 instancePath: t,
                 schemaPath: "#/required",
@@ -5543,7 +5543,7 @@ var Ao = Ut((ue) => {
           for (let s in e)
             if (!Re.call(go.properties, s)) {
               return (
-                (ce.errors = [
+                (le.errors = [
                   {
                     instancePath: t,
                     schemaPath: "#/additionalProperties",
@@ -5560,7 +5560,7 @@ var Ao = Ut((ue) => {
               let s = r;
               if (e.contractVersion !== "folioview.agent-workspace.v2.0")
                 return (
-                  (ce.errors = [
+                  (le.errors = [
                     {
                       instancePath: t + "/contractVersion",
                       schemaPath: "#/properties/contractVersion/const",
@@ -5577,7 +5577,7 @@ var Ao = Ut((ue) => {
                 let s = r;
                 if (e.profile !== "folioview.agent-credential.v1")
                   return (
-                    (ce.errors = [
+                    (le.errors = [
                       {
                         instancePath: t + "/profile",
                         schemaPath: "#/properties/profile/const",
@@ -5597,7 +5597,7 @@ var Ao = Ut((ue) => {
                     parentData: e,
                     parentDataProperty: "ownerSubject",
                     rootData: c,
-                    dynamicAnchors: l,
+                    dynamicAnchors: f,
                   }) || ((i = i === null ? w.errors : i.concat(w.errors)), (r = i.length));
                   var n = s === r;
                 } else var n = !0;
@@ -5609,7 +5609,7 @@ var Ao = Ut((ue) => {
                       parentData: e,
                       parentDataProperty: "vaultId",
                       rootData: c,
-                      dynamicAnchors: l,
+                      dynamicAnchors: f,
                     }) || ((i = i === null ? w.errors : i.concat(w.errors)), (r = i.length));
                     var n = s === r;
                   } else var n = !0;
@@ -5621,7 +5621,7 @@ var Ao = Ut((ue) => {
                         parentData: e,
                         parentDataProperty: "connectionId",
                         rootData: c,
-                        dynamicAnchors: l,
+                        dynamicAnchors: f,
                       }) || ((i = i === null ? w.errors : i.concat(w.errors)), (r = i.length));
                       var n = s === r;
                     } else var n = !0;
@@ -5633,7 +5633,7 @@ var Ao = Ut((ue) => {
                           parentData: e,
                           parentDataProperty: "agentId",
                           rootData: c,
-                          dynamicAnchors: l,
+                          dynamicAnchors: f,
                         }) || ((i = i === null ? w.errors : i.concat(w.errors)), (r = i.length));
                         var n = s === r;
                       } else var n = !0;
@@ -5645,7 +5645,7 @@ var Ao = Ut((ue) => {
                             parentData: e,
                             parentDataProperty: "clientId",
                             rootData: c,
-                            dynamicAnchors: l,
+                            dynamicAnchors: f,
                           }) || ((i = i === null ? w.errors : i.concat(w.errors)), (r = i.length));
                           var n = s === r;
                         } else var n = !0;
@@ -5657,7 +5657,7 @@ var Ao = Ut((ue) => {
                               parentData: e,
                               parentDataProperty: "rootKeyId",
                               rootData: c,
-                              dynamicAnchors: l,
+                              dynamicAnchors: f,
                             }) ||
                               ((i = i === null ? x.errors : i.concat(x.errors)), (r = i.length));
                             var n = s === r;
@@ -5670,7 +5670,7 @@ var Ao = Ut((ue) => {
                                 parentData: e,
                                 parentDataProperty: "agentSigningKeyId",
                                 rootData: c,
-                                dynamicAnchors: l,
+                                dynamicAnchors: f,
                               }) ||
                                 ((i = i === null ? x.errors : i.concat(x.errors)), (r = i.length));
                               var n = s === r;
@@ -5683,7 +5683,7 @@ var Ao = Ut((ue) => {
                                   parentData: e,
                                   parentDataProperty: "agentEncryptionKeyId",
                                   rootData: c,
-                                  dynamicAnchors: l,
+                                  dynamicAnchors: f,
                                 }) ||
                                   ((i = i === null ? x.errors : i.concat(x.errors)),
                                   (r = i.length));
@@ -5694,7 +5694,7 @@ var Ao = Ut((ue) => {
                                   let s = r;
                                   if (e.identityEpoch !== 1)
                                     return (
-                                      (ce.errors = [
+                                      (le.errors = [
                                         {
                                           instancePath: t + "/identityEpoch",
                                           schemaPath: "#/properties/identityEpoch/const",
@@ -5712,7 +5712,7 @@ var Ao = Ut((ue) => {
                                       o = r;
                                     if (!(typeof s == "number" && !(s % 1) && !isNaN(s)))
                                       return (
-                                        (ce.errors = [
+                                        (le.errors = [
                                           {
                                             instancePath: t + "/issuedAt",
                                             schemaPath: "#/properties/issuedAt/type",
@@ -5725,7 +5725,7 @@ var Ao = Ut((ue) => {
                                     if (r === o && typeof s == "number") {
                                       if (s > 9007199254740991 || isNaN(s))
                                         return (
-                                          (ce.errors = [
+                                          (le.errors = [
                                             {
                                               instancePath: t + "/issuedAt",
                                               schemaPath: "#/properties/issuedAt/maximum",
@@ -5737,7 +5737,7 @@ var Ao = Ut((ue) => {
                                         );
                                       if (s < 0 || isNaN(s))
                                         return (
-                                          (ce.errors = [
+                                          (le.errors = [
                                             {
                                               instancePath: t + "/issuedAt",
                                               schemaPath: "#/properties/issuedAt/minimum",
@@ -5756,7 +5756,7 @@ var Ao = Ut((ue) => {
                                         o = r;
                                       if (!(typeof s == "number" && !(s % 1) && !isNaN(s)))
                                         return (
-                                          (ce.errors = [
+                                          (le.errors = [
                                             {
                                               instancePath: t + "/generation",
                                               schemaPath: "#/properties/generation/type",
@@ -5769,7 +5769,7 @@ var Ao = Ut((ue) => {
                                       if (r === o && typeof s == "number") {
                                         if (s > 9007199254740991 || isNaN(s))
                                           return (
-                                            (ce.errors = [
+                                            (le.errors = [
                                               {
                                                 instancePath: t + "/generation",
                                                 schemaPath: "#/properties/generation/maximum",
@@ -5784,7 +5784,7 @@ var Ao = Ut((ue) => {
                                           );
                                         if (s < 1 || isNaN(s))
                                           return (
-                                            (ce.errors = [
+                                            (le.errors = [
                                               {
                                                 instancePath: t + "/generation",
                                                 schemaPath: "#/properties/generation/minimum",
@@ -5801,7 +5801,7 @@ var Ao = Ut((ue) => {
                                       if (e.previousCredentialFingerprint !== void 0) {
                                         let s = e.previousCredentialFingerprint,
                                           o = r,
-                                          f = r,
+                                          l = r,
                                           h = !1,
                                           v = r;
                                         E(s, {
@@ -5809,7 +5809,7 @@ var Ao = Ut((ue) => {
                                           parentData: e,
                                           parentDataProperty: "previousCredentialFingerprint",
                                           rootData: c,
-                                          dynamicAnchors: l,
+                                          dynamicAnchors: f,
                                         }) ||
                                           ((i = i === null ? E.errors : i.concat(E.errors)),
                                           (r = i.length));
@@ -5828,8 +5828,8 @@ var Ao = Ut((ue) => {
                                         }
                                         var y = g === r;
                                         if (((h = h || y), h))
-                                          ((r = f),
-                                            i !== null && (f ? (i.length = f) : (i = null)));
+                                          ((r = l),
+                                            i !== null && (l ? (i.length = l) : (i = null)));
                                         else {
                                           let k = {
                                             instancePath: t + "/previousCredentialFingerprint",
@@ -5841,7 +5841,7 @@ var Ao = Ut((ue) => {
                                           return (
                                             i === null ? (i = [k]) : i.push(k),
                                             r++,
-                                            (ce.errors = i),
+                                            (le.errors = i),
                                             !1
                                           );
                                         }
@@ -5855,7 +5855,7 @@ var Ao = Ut((ue) => {
                                             parentData: e,
                                             parentDataProperty: "bindingFingerprint",
                                             rootData: c,
-                                            dynamicAnchors: l,
+                                            dynamicAnchors: f,
                                           }) ||
                                             ((i = i === null ? E.errors : i.concat(E.errors)),
                                             (r = i.length));
@@ -5869,7 +5869,7 @@ var Ao = Ut((ue) => {
                                               parentData: e,
                                               parentDataProperty: "setupIntentId",
                                               rootData: c,
-                                              dynamicAnchors: l,
+                                              dynamicAnchors: f,
                                             }) ||
                                               ((i = i === null ? $.errors : i.concat($.errors)),
                                               (r = i.length));
@@ -5883,7 +5883,7 @@ var Ao = Ut((ue) => {
                                                 if (typeof s == "string") {
                                                   if (P(s) > 512)
                                                     return (
-                                                      (ce.errors = [
+                                                      (le.errors = [
                                                         {
                                                           instancePath: t + "/audience",
                                                           schemaPath:
@@ -5894,9 +5894,9 @@ var Ao = Ut((ue) => {
                                                       ]),
                                                       !1
                                                     );
-                                                  if (!cn.test(s))
+                                                  if (!ln.test(s))
                                                     return (
-                                                      (ce.errors = [
+                                                      (le.errors = [
                                                         {
                                                           instancePath: t + "/audience",
                                                           schemaPath:
@@ -5909,7 +5909,7 @@ var Ao = Ut((ue) => {
                                                     );
                                                 } else
                                                   return (
-                                                    (ce.errors = [
+                                                    (le.errors = [
                                                       {
                                                         instancePath: t + "/audience",
                                                         schemaPath: "#/properties/audience/type",
@@ -5931,7 +5931,7 @@ var Ao = Ut((ue) => {
                                                   !isNaN(s)
                                                 ))
                                                   return (
-                                                    (ce.errors = [
+                                                    (le.errors = [
                                                       {
                                                         instancePath: t + "/expiresAt",
                                                         schemaPath: "#/properties/expiresAt/type",
@@ -5944,7 +5944,7 @@ var Ao = Ut((ue) => {
                                                 if (r === o && typeof s == "number") {
                                                   if (s > 9007199254740991 || isNaN(s))
                                                     return (
-                                                      (ce.errors = [
+                                                      (le.errors = [
                                                         {
                                                           instancePath: t + "/expiresAt",
                                                           schemaPath:
@@ -5960,7 +5960,7 @@ var Ao = Ut((ue) => {
                                                     );
                                                   if (s < 1 || isNaN(s))
                                                     return (
-                                                      (ce.errors = [
+                                                      (le.errors = [
                                                         {
                                                           instancePath: t + "/expiresAt",
                                                           schemaPath:
@@ -5982,7 +5982,7 @@ var Ao = Ut((ue) => {
                                                     parentData: e,
                                                     parentDataProperty: "credentialFingerprint",
                                                     rootData: c,
-                                                    dynamicAnchors: l,
+                                                    dynamicAnchors: f,
                                                   }) ||
                                                     ((i =
                                                       i === null ? E.errors : i.concat(E.errors)),
@@ -5995,7 +5995,7 @@ var Ao = Ut((ue) => {
                                                       o = r;
                                                     if (!(s === "active" || s === "revoked"))
                                                       return (
-                                                        (ce.errors = [
+                                                        (le.errors = [
                                                           {
                                                             instancePath: t + "/status",
                                                             schemaPath: "#/properties/status/enum",
@@ -6032,43 +6032,43 @@ var Ao = Ut((ue) => {
         }
       } else
         return (
-          (ce.errors = [
+          (le.errors = [
             { instancePath: t, schemaPath: "#/type", keyword: "type", params: { type: "object" } },
           ]),
           !1
         );
-    return ((ce.errors = i), r === 0);
+    return ((le.errors = i), r === 0);
   }
-  ce.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
-  function Zi(
+  le.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
+  function Bi(
     e,
     {
       instancePath: t = "",
       parentData: a,
       parentDataProperty: u,
       rootData: c = e,
-      dynamicAnchors: l = {},
+      dynamicAnchors: f = {},
     } = {},
   ) {
     let i = null,
       r = 0,
-      d = Zi.evaluated;
+      d = Bi.evaluated;
     return (
       d.dynamicProps && (d.props = void 0),
       d.dynamicItems && (d.items = void 0),
-      ce(e, {
+      le(e, {
         instancePath: t,
         parentData: a,
         parentDataProperty: u,
         rootData: c,
-        dynamicAnchors: l,
-      }) || ((i = i === null ? ce.errors : i.concat(ce.errors)), (r = i.length)),
-      (Zi.errors = i),
+        dynamicAnchors: f,
+      }) || ((i = i === null ? le.errors : i.concat(le.errors)), (r = i.length)),
+      (Bi.errors = i),
       r === 0
     );
   }
-  Zi.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
-  ue.PersistentAgentIdentity = Bi;
+  Bi.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
+  me.PersistentAgentIdentity = Mi;
   var vo = {
     type: "object",
     properties: {
@@ -6116,7 +6116,7 @@ var Ao = Ut((ue) => {
       parentData: a,
       parentDataProperty: u,
       rootData: c = e,
-      dynamicAnchors: l = {},
+      dynamicAnchors: f = {},
     } = {},
   ) {
     let i = null,
@@ -6212,7 +6212,7 @@ var Ao = Ut((ue) => {
                     parentData: e,
                     parentDataProperty: "ownerSubject",
                     rootData: c,
-                    dynamicAnchors: l,
+                    dynamicAnchors: f,
                   }) || ((i = i === null ? w.errors : i.concat(w.errors)), (r = i.length));
                   var n = s === r;
                 } else var n = !0;
@@ -6224,7 +6224,7 @@ var Ao = Ut((ue) => {
                       parentData: e,
                       parentDataProperty: "vaultId",
                       rootData: c,
-                      dynamicAnchors: l,
+                      dynamicAnchors: f,
                     }) || ((i = i === null ? w.errors : i.concat(w.errors)), (r = i.length));
                     var n = s === r;
                   } else var n = !0;
@@ -6236,7 +6236,7 @@ var Ao = Ut((ue) => {
                         parentData: e,
                         parentDataProperty: "connectionId",
                         rootData: c,
-                        dynamicAnchors: l,
+                        dynamicAnchors: f,
                       }) || ((i = i === null ? w.errors : i.concat(w.errors)), (r = i.length));
                       var n = s === r;
                     } else var n = !0;
@@ -6248,7 +6248,7 @@ var Ao = Ut((ue) => {
                           parentData: e,
                           parentDataProperty: "agentId",
                           rootData: c,
-                          dynamicAnchors: l,
+                          dynamicAnchors: f,
                         }) || ((i = i === null ? w.errors : i.concat(w.errors)), (r = i.length));
                         var n = s === r;
                       } else var n = !0;
@@ -6260,7 +6260,7 @@ var Ao = Ut((ue) => {
                             parentData: e,
                             parentDataProperty: "clientId",
                             rootData: c,
-                            dynamicAnchors: l,
+                            dynamicAnchors: f,
                           }) || ((i = i === null ? w.errors : i.concat(w.errors)), (r = i.length));
                           var n = s === r;
                         } else var n = !0;
@@ -6272,7 +6272,7 @@ var Ao = Ut((ue) => {
                               parentData: e,
                               parentDataProperty: "rootKeyId",
                               rootData: c,
-                              dynamicAnchors: l,
+                              dynamicAnchors: f,
                             }) ||
                               ((i = i === null ? x.errors : i.concat(x.errors)), (r = i.length));
                             var n = s === r;
@@ -6285,7 +6285,7 @@ var Ao = Ut((ue) => {
                                 parentData: e,
                                 parentDataProperty: "agentSigningKeyId",
                                 rootData: c,
-                                dynamicAnchors: l,
+                                dynamicAnchors: f,
                               }) ||
                                 ((i = i === null ? x.errors : i.concat(x.errors)), (r = i.length));
                               var n = s === r;
@@ -6298,7 +6298,7 @@ var Ao = Ut((ue) => {
                                   parentData: e,
                                   parentDataProperty: "agentEncryptionKeyId",
                                   rootData: c,
-                                  dynamicAnchors: l,
+                                  dynamicAnchors: f,
                                 }) ||
                                   ((i = i === null ? x.errors : i.concat(x.errors)),
                                   (r = i.length));
@@ -6356,7 +6356,7 @@ var Ao = Ut((ue) => {
                                       parentData: e,
                                       parentDataProperty: "bindingFingerprint",
                                       rootData: c,
-                                      dynamicAnchors: l,
+                                      dynamicAnchors: f,
                                     }) ||
                                       ((i = i === null ? E.errors : i.concat(E.errors)),
                                       (r = i.length));
@@ -6431,7 +6431,7 @@ var Ao = Ut((ue) => {
                                         if (e.revokedAt !== void 0) {
                                           let s = e.revokedAt,
                                             o = r,
-                                            f = r,
+                                            l = r,
                                             h = !1,
                                             v = r;
                                           if (!(typeof s == "number" && !(s % 1) && !isNaN(s))) {
@@ -6481,8 +6481,8 @@ var Ao = Ut((ue) => {
                                           }
                                           var y = g === r;
                                           if (((h = h || y), h))
-                                            ((r = f),
-                                              i !== null && (f ? (i.length = f) : (i = null)));
+                                            ((r = l),
+                                              i !== null && (l ? (i.length = l) : (i = null)));
                                           else {
                                             let k = {
                                               instancePath: t + "/revokedAt",
@@ -6524,19 +6524,19 @@ var Ao = Ut((ue) => {
     return ((De.errors = i), r === 0);
   }
   De.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
-  function Bi(
+  function Mi(
     e,
     {
       instancePath: t = "",
       parentData: a,
       parentDataProperty: u,
       rootData: c = e,
-      dynamicAnchors: l = {},
+      dynamicAnchors: f = {},
     } = {},
   ) {
     let i = null,
       r = 0,
-      d = Bi.evaluated;
+      d = Mi.evaluated;
     return (
       d.dynamicProps && (d.props = void 0),
       d.dynamicItems && (d.items = void 0),
@@ -6545,14 +6545,14 @@ var Ao = Ut((ue) => {
         parentData: a,
         parentDataProperty: u,
         rootData: c,
-        dynamicAnchors: l,
+        dynamicAnchors: f,
       }) || ((i = i === null ? De.errors : i.concat(De.errors)), (r = i.length)),
-      (Bi.errors = i),
+      (Mi.errors = i),
       r === 0
     );
   }
-  Bi.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
-  ue.PersistentAgentBindingPayload = Mi;
+  Mi.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
+  me.PersistentAgentBindingPayload = Gi;
   var La = {
     type: "object",
     properties: {
@@ -6604,7 +6604,7 @@ var Ao = Ut((ue) => {
       parentData: a,
       parentDataProperty: u,
       rootData: c = e,
-      dynamicAnchors: l = {},
+      dynamicAnchors: f = {},
     } = {},
   ) {
     let i = null,
@@ -6720,7 +6720,7 @@ var Ao = Ut((ue) => {
                       parentData: e,
                       parentDataProperty: "ownerSubject",
                       rootData: c,
-                      dynamicAnchors: l,
+                      dynamicAnchors: f,
                     }) || ((i = i === null ? w.errors : i.concat(w.errors)), (r = i.length));
                     var n = p === r;
                   } else var n = !0;
@@ -6732,7 +6732,7 @@ var Ao = Ut((ue) => {
                         parentData: e,
                         parentDataProperty: "vaultId",
                         rootData: c,
-                        dynamicAnchors: l,
+                        dynamicAnchors: f,
                       }) || ((i = i === null ? w.errors : i.concat(w.errors)), (r = i.length));
                       var n = p === r;
                     } else var n = !0;
@@ -6744,7 +6744,7 @@ var Ao = Ut((ue) => {
                           parentData: e,
                           parentDataProperty: "connectionId",
                           rootData: c,
-                          dynamicAnchors: l,
+                          dynamicAnchors: f,
                         }) || ((i = i === null ? w.errors : i.concat(w.errors)), (r = i.length));
                         var n = p === r;
                       } else var n = !0;
@@ -6756,7 +6756,7 @@ var Ao = Ut((ue) => {
                             parentData: e,
                             parentDataProperty: "agentId",
                             rootData: c,
-                            dynamicAnchors: l,
+                            dynamicAnchors: f,
                           }) || ((i = i === null ? w.errors : i.concat(w.errors)), (r = i.length));
                           var n = p === r;
                         } else var n = !0;
@@ -6768,7 +6768,7 @@ var Ao = Ut((ue) => {
                               parentData: e,
                               parentDataProperty: "clientId",
                               rootData: c,
-                              dynamicAnchors: l,
+                              dynamicAnchors: f,
                             }) ||
                               ((i = i === null ? w.errors : i.concat(w.errors)), (r = i.length));
                             var n = p === r;
@@ -6781,7 +6781,7 @@ var Ao = Ut((ue) => {
                                 parentData: e,
                                 parentDataProperty: "rootKeyId",
                                 rootData: c,
-                                dynamicAnchors: l,
+                                dynamicAnchors: f,
                               }) ||
                                 ((i = i === null ? x.errors : i.concat(x.errors)), (r = i.length));
                               var n = p === r;
@@ -6794,7 +6794,7 @@ var Ao = Ut((ue) => {
                                   parentData: e,
                                   parentDataProperty: "agentSigningKeyId",
                                   rootData: c,
-                                  dynamicAnchors: l,
+                                  dynamicAnchors: f,
                                 }) ||
                                   ((i = i === null ? x.errors : i.concat(x.errors)),
                                   (r = i.length));
@@ -6808,7 +6808,7 @@ var Ao = Ut((ue) => {
                                     parentData: e,
                                     parentDataProperty: "agentEncryptionKeyId",
                                     rootData: c,
-                                    dynamicAnchors: l,
+                                    dynamicAnchors: f,
                                   }) ||
                                     ((i = i === null ? x.errors : i.concat(x.errors)),
                                     (r = i.length));
@@ -6839,7 +6839,7 @@ var Ao = Ut((ue) => {
                                         parentData: e,
                                         parentDataProperty: "deviceSigningKeyId",
                                         rootData: c,
-                                        dynamicAnchors: l,
+                                        dynamicAnchors: f,
                                       }) ||
                                         ((i = i === null ? x.errors : i.concat(x.errors)),
                                         (r = i.length));
@@ -6853,7 +6853,7 @@ var Ao = Ut((ue) => {
                                           parentData: e,
                                           parentDataProperty: "stableOperationId",
                                           rootData: c,
-                                          dynamicAnchors: l,
+                                          dynamicAnchors: f,
                                         }) ||
                                           ((i = i === null ? $.errors : i.concat($.errors)),
                                           (r = i.length));
@@ -6916,7 +6916,7 @@ var Ao = Ut((ue) => {
                                               parentData: e,
                                               parentDataProperty: "checkpointDigest",
                                               rootData: c,
-                                              dynamicAnchors: l,
+                                              dynamicAnchors: f,
                                             }) ||
                                               ((i = i === null ? E.errors : i.concat(E.errors)),
                                               (r = i.length));
@@ -7050,19 +7050,19 @@ var Ao = Ut((ue) => {
     return ((we.errors = i), r === 0);
   }
   we.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
-  function Mi(
+  function Gi(
     e,
     {
       instancePath: t = "",
       parentData: a,
       parentDataProperty: u,
       rootData: c = e,
-      dynamicAnchors: l = {},
+      dynamicAnchors: f = {},
     } = {},
   ) {
     let i = null,
       r = 0,
-      d = Mi.evaluated;
+      d = Gi.evaluated;
     return (
       d.dynamicProps && (d.props = void 0),
       d.dynamicItems && (d.items = void 0),
@@ -7071,14 +7071,14 @@ var Ao = Ut((ue) => {
         parentData: a,
         parentDataProperty: u,
         rootData: c,
-        dynamicAnchors: l,
+        dynamicAnchors: f,
       }) || ((i = i === null ? we.errors : i.concat(we.errors)), (r = i.length)),
-      (Mi.errors = i),
+      (Gi.errors = i),
       r === 0
     );
   }
-  Mi.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
-  ue.PersistentContentContext = Gi;
+  Gi.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
+  me.PersistentContentContext = Xi;
   var wo = {
       type: "object",
       properties: {
@@ -7179,7 +7179,7 @@ var Ao = Ut((ue) => {
       parentData: a,
       parentDataProperty: u,
       rootData: c = e,
-      dynamicAnchors: l = {},
+      dynamicAnchors: f = {},
     } = {},
   ) {
     let i = null,
@@ -7225,7 +7225,7 @@ var Ao = Ut((ue) => {
                 parentData: e,
                 parentDataProperty: "keyId",
                 rootData: c,
-                dynamicAnchors: l,
+                dynamicAnchors: f,
               }) || ((i = i === null ? x.errors : i.concat(x.errors)), (r = i.length));
               var n = p === r;
             } else var n = !0;
@@ -7266,7 +7266,7 @@ var Ao = Ut((ue) => {
       parentData: a,
       parentDataProperty: u,
       rootData: c = e,
-      dynamicAnchors: l = {},
+      dynamicAnchors: f = {},
     } = {},
   ) {
     let i = null,
@@ -7323,15 +7323,15 @@ var Ao = Ut((ue) => {
           );
         {
           let o = r;
-          for (let f in e)
-            if (!Re.call(wo.properties, f)) {
+          for (let l in e)
+            if (!Re.call(wo.properties, l)) {
               return (
                 (N.errors = [
                   {
                     instancePath: t,
                     schemaPath: "#/additionalProperties",
                     keyword: "additionalProperties",
-                    params: { additionalProperty: f },
+                    params: { additionalProperty: l },
                   },
                 ]),
                 !1
@@ -7340,7 +7340,7 @@ var Ao = Ut((ue) => {
             }
           if (o === r) {
             if (e.contractVersion !== void 0) {
-              let f = r;
+              let l = r;
               if (e.contractVersion !== "folioview.agent-workspace.v2.0")
                 return (
                   (N.errors = [
@@ -7353,11 +7353,11 @@ var Ao = Ut((ue) => {
                   ]),
                   !1
                 );
-              var n = f === r;
+              var n = l === r;
             } else var n = !0;
             if (n) {
               if (e.profile !== void 0) {
-                let f = r;
+                let l = r;
                 if (e.profile !== "folioview.persistent-content.v1")
                   return (
                     (N.errors = [
@@ -7370,113 +7370,113 @@ var Ao = Ut((ue) => {
                     ]),
                     !1
                   );
-                var n = f === r;
+                var n = l === r;
               } else var n = !0;
               if (n) {
                 if (e.ownerSubject !== void 0) {
-                  let f = r;
+                  let l = r;
                   w(e.ownerSubject, {
                     instancePath: t + "/ownerSubject",
                     parentData: e,
                     parentDataProperty: "ownerSubject",
                     rootData: c,
-                    dynamicAnchors: l,
+                    dynamicAnchors: f,
                   }) || ((i = i === null ? w.errors : i.concat(w.errors)), (r = i.length));
-                  var n = f === r;
+                  var n = l === r;
                 } else var n = !0;
                 if (n) {
                   if (e.vaultId !== void 0) {
-                    let f = r;
+                    let l = r;
                     w(e.vaultId, {
                       instancePath: t + "/vaultId",
                       parentData: e,
                       parentDataProperty: "vaultId",
                       rootData: c,
-                      dynamicAnchors: l,
+                      dynamicAnchors: f,
                     }) || ((i = i === null ? w.errors : i.concat(w.errors)), (r = i.length));
-                    var n = f === r;
+                    var n = l === r;
                   } else var n = !0;
                   if (n) {
                     if (e.connectionId !== void 0) {
-                      let f = r;
+                      let l = r;
                       w(e.connectionId, {
                         instancePath: t + "/connectionId",
                         parentData: e,
                         parentDataProperty: "connectionId",
                         rootData: c,
-                        dynamicAnchors: l,
+                        dynamicAnchors: f,
                       }) || ((i = i === null ? w.errors : i.concat(w.errors)), (r = i.length));
-                      var n = f === r;
+                      var n = l === r;
                     } else var n = !0;
                     if (n) {
                       if (e.agentId !== void 0) {
-                        let f = r;
+                        let l = r;
                         w(e.agentId, {
                           instancePath: t + "/agentId",
                           parentData: e,
                           parentDataProperty: "agentId",
                           rootData: c,
-                          dynamicAnchors: l,
+                          dynamicAnchors: f,
                         }) || ((i = i === null ? w.errors : i.concat(w.errors)), (r = i.length));
-                        var n = f === r;
+                        var n = l === r;
                       } else var n = !0;
                       if (n) {
                         if (e.clientId !== void 0) {
-                          let f = r;
+                          let l = r;
                           w(e.clientId, {
                             instancePath: t + "/clientId",
                             parentData: e,
                             parentDataProperty: "clientId",
                             rootData: c,
-                            dynamicAnchors: l,
+                            dynamicAnchors: f,
                           }) || ((i = i === null ? w.errors : i.concat(w.errors)), (r = i.length));
-                          var n = f === r;
+                          var n = l === r;
                         } else var n = !0;
                         if (n) {
                           if (e.rootKeyId !== void 0) {
-                            let f = r;
+                            let l = r;
                             x(e.rootKeyId, {
                               instancePath: t + "/rootKeyId",
                               parentData: e,
                               parentDataProperty: "rootKeyId",
                               rootData: c,
-                              dynamicAnchors: l,
+                              dynamicAnchors: f,
                             }) ||
                               ((i = i === null ? x.errors : i.concat(x.errors)), (r = i.length));
-                            var n = f === r;
+                            var n = l === r;
                           } else var n = !0;
                           if (n) {
                             if (e.agentSigningKeyId !== void 0) {
-                              let f = r;
+                              let l = r;
                               x(e.agentSigningKeyId, {
                                 instancePath: t + "/agentSigningKeyId",
                                 parentData: e,
                                 parentDataProperty: "agentSigningKeyId",
                                 rootData: c,
-                                dynamicAnchors: l,
+                                dynamicAnchors: f,
                               }) ||
                                 ((i = i === null ? x.errors : i.concat(x.errors)), (r = i.length));
-                              var n = f === r;
+                              var n = l === r;
                             } else var n = !0;
                             if (n) {
                               if (e.agentEncryptionKeyId !== void 0) {
-                                let f = r;
+                                let l = r;
                                 x(e.agentEncryptionKeyId, {
                                   instancePath: t + "/agentEncryptionKeyId",
                                   parentData: e,
                                   parentDataProperty: "agentEncryptionKeyId",
                                   rootData: c,
-                                  dynamicAnchors: l,
+                                  dynamicAnchors: f,
                                 }) ||
                                   ((i = i === null ? x.errors : i.concat(x.errors)),
                                   (r = i.length));
-                                var n = f === r;
+                                var n = l === r;
                               } else var n = !0;
                               if (n) {
                                 if (e.identityEpoch !== void 0) {
-                                  let f = e.identityEpoch,
+                                  let l = e.identityEpoch,
                                     h = r;
-                                  if (!(typeof f == "number" && !(f % 1) && !isNaN(f)))
+                                  if (!(typeof l == "number" && !(l % 1) && !isNaN(l)))
                                     return (
                                       (N.errors = [
                                         {
@@ -7488,8 +7488,8 @@ var Ao = Ut((ue) => {
                                       ]),
                                       !1
                                     );
-                                  if (r === h && typeof f == "number") {
-                                    if (f > 9007199254740991 || isNaN(f))
+                                  if (r === h && typeof l == "number") {
+                                    if (l > 9007199254740991 || isNaN(l))
                                       return (
                                         (N.errors = [
                                           {
@@ -7501,7 +7501,7 @@ var Ao = Ut((ue) => {
                                         ]),
                                         !1
                                       );
-                                    if (f < 1 || isNaN(f))
+                                    if (l < 1 || isNaN(l))
                                       return (
                                         (N.errors = [
                                           {
@@ -7518,23 +7518,23 @@ var Ao = Ut((ue) => {
                                 } else var n = !0;
                                 if (n) {
                                   if (e.bindingFingerprint !== void 0) {
-                                    let f = r;
+                                    let l = r;
                                     E(e.bindingFingerprint, {
                                       instancePath: t + "/bindingFingerprint",
                                       parentData: e,
                                       parentDataProperty: "bindingFingerprint",
                                       rootData: c,
-                                      dynamicAnchors: l,
+                                      dynamicAnchors: f,
                                     }) ||
                                       ((i = i === null ? E.errors : i.concat(E.errors)),
                                       (r = i.length));
-                                    var n = f === r;
+                                    var n = l === r;
                                   } else var n = !0;
                                   if (n) {
                                     if (e.registrySequence !== void 0) {
-                                      let f = e.registrySequence,
+                                      let l = e.registrySequence,
                                         h = r;
-                                      if (!(typeof f == "number" && !(f % 1) && !isNaN(f)))
+                                      if (!(typeof l == "number" && !(l % 1) && !isNaN(l)))
                                         return (
                                           (N.errors = [
                                             {
@@ -7546,8 +7546,8 @@ var Ao = Ut((ue) => {
                                           ]),
                                           !1
                                         );
-                                      if (r === h && typeof f == "number") {
-                                        if (f > 9007199254740991 || isNaN(f))
+                                      if (r === h && typeof l == "number") {
+                                        if (l > 9007199254740991 || isNaN(l))
                                           return (
                                             (N.errors = [
                                               {
@@ -7562,7 +7562,7 @@ var Ao = Ut((ue) => {
                                             ]),
                                             !1
                                           );
-                                        if (f < 1 || isNaN(f))
+                                        if (l < 1 || isNaN(l))
                                           return (
                                             (N.errors = [
                                               {
@@ -7579,23 +7579,23 @@ var Ao = Ut((ue) => {
                                     } else var n = !0;
                                     if (n) {
                                       if (e.checkpointDigest !== void 0) {
-                                        let f = r;
+                                        let l = r;
                                         E(e.checkpointDigest, {
                                           instancePath: t + "/checkpointDigest",
                                           parentData: e,
                                           parentDataProperty: "checkpointDigest",
                                           rootData: c,
-                                          dynamicAnchors: l,
+                                          dynamicAnchors: f,
                                         }) ||
                                           ((i = i === null ? E.errors : i.concat(E.errors)),
                                           (r = i.length));
-                                        var n = f === r;
+                                        var n = l === r;
                                       } else var n = !0;
                                       if (n) {
                                         if (e.keyEpoch !== void 0) {
-                                          let f = e.keyEpoch,
+                                          let l = e.keyEpoch,
                                             h = r;
-                                          if (!(typeof f == "number" && !(f % 1) && !isNaN(f)))
+                                          if (!(typeof l == "number" && !(l % 1) && !isNaN(l)))
                                             return (
                                               (N.errors = [
                                                 {
@@ -7607,8 +7607,8 @@ var Ao = Ut((ue) => {
                                               ]),
                                               !1
                                             );
-                                          if (r === h && typeof f == "number") {
-                                            if (f > 9007199254740991 || isNaN(f))
+                                          if (r === h && typeof l == "number") {
+                                            if (l > 9007199254740991 || isNaN(l))
                                               return (
                                                 (N.errors = [
                                                   {
@@ -7623,7 +7623,7 @@ var Ao = Ut((ue) => {
                                                 ]),
                                                 !1
                                               );
-                                            if (f < 1 || isNaN(f))
+                                            if (l < 1 || isNaN(l))
                                               return (
                                                 (N.errors = [
                                                   {
@@ -7640,23 +7640,23 @@ var Ao = Ut((ue) => {
                                         } else var n = !0;
                                         if (n) {
                                           if (e.stableOperationId !== void 0) {
-                                            let f = r;
+                                            let l = r;
                                             $(e.stableOperationId, {
                                               instancePath: t + "/stableOperationId",
                                               parentData: e,
                                               parentDataProperty: "stableOperationId",
                                               rootData: c,
-                                              dynamicAnchors: l,
+                                              dynamicAnchors: f,
                                             }) ||
                                               ((i = i === null ? $.errors : i.concat($.errors)),
                                               (r = i.length));
-                                            var n = f === r;
+                                            var n = l === r;
                                           } else var n = !0;
                                           if (n) {
                                             if (e.issuedAt !== void 0) {
-                                              let f = e.issuedAt,
+                                              let l = e.issuedAt,
                                                 h = r;
-                                              if (!(typeof f == "number" && !(f % 1) && !isNaN(f)))
+                                              if (!(typeof l == "number" && !(l % 1) && !isNaN(l)))
                                                 return (
                                                   (N.errors = [
                                                     {
@@ -7668,8 +7668,8 @@ var Ao = Ut((ue) => {
                                                   ]),
                                                   !1
                                                 );
-                                              if (r === h && typeof f == "number") {
-                                                if (f > 9007199254740991 || isNaN(f))
+                                              if (r === h && typeof l == "number") {
+                                                if (l > 9007199254740991 || isNaN(l))
                                                   return (
                                                     (N.errors = [
                                                       {
@@ -7684,7 +7684,7 @@ var Ao = Ut((ue) => {
                                                     ]),
                                                     !1
                                                   );
-                                                if (f < 0 || isNaN(f))
+                                                if (l < 0 || isNaN(l))
                                                   return (
                                                     (N.errors = [
                                                       {
@@ -7701,26 +7701,26 @@ var Ao = Ut((ue) => {
                                             } else var n = !0;
                                             if (n) {
                                               if (e.objectId !== void 0) {
-                                                let f = r;
+                                                let l = r;
                                                 w(e.objectId, {
                                                   instancePath: t + "/objectId",
                                                   parentData: e,
                                                   parentDataProperty: "objectId",
                                                   rootData: c,
-                                                  dynamicAnchors: l,
+                                                  dynamicAnchors: f,
                                                 }) ||
                                                   ((i = i === null ? w.errors : i.concat(w.errors)),
                                                   (r = i.length));
-                                                var n = f === r;
+                                                var n = l === r;
                                               } else var n = !0;
                                               if (n) {
                                                 if (e.revision !== void 0) {
-                                                  let f = e.revision,
+                                                  let l = e.revision,
                                                     h = r;
                                                   if (!(
-                                                    typeof f == "number" &&
-                                                    !(f % 1) &&
-                                                    !isNaN(f)
+                                                    typeof l == "number" &&
+                                                    !(l % 1) &&
+                                                    !isNaN(l)
                                                   ))
                                                     return (
                                                       (N.errors = [
@@ -7733,8 +7733,8 @@ var Ao = Ut((ue) => {
                                                       ]),
                                                       !1
                                                     );
-                                                  if (r === h && typeof f == "number") {
-                                                    if (f > 9007199254740991 || isNaN(f))
+                                                  if (r === h && typeof l == "number") {
+                                                    if (l > 9007199254740991 || isNaN(l))
                                                       return (
                                                         (N.errors = [
                                                           {
@@ -7750,7 +7750,7 @@ var Ao = Ut((ue) => {
                                                         ]),
                                                         !1
                                                       );
-                                                    if (f < 1 || isNaN(f))
+                                                    if (l < 1 || isNaN(l))
                                                       return (
                                                         (N.errors = [
                                                           {
@@ -7768,12 +7768,12 @@ var Ao = Ut((ue) => {
                                                 } else var n = !0;
                                                 if (n) {
                                                   if (e.expectedRevision !== void 0) {
-                                                    let f = e.expectedRevision,
+                                                    let l = e.expectedRevision,
                                                       h = r;
                                                     if (!(
-                                                      typeof f == "number" &&
-                                                      !(f % 1) &&
-                                                      !isNaN(f)
+                                                      typeof l == "number" &&
+                                                      !(l % 1) &&
+                                                      !isNaN(l)
                                                     ))
                                                       return (
                                                         (N.errors = [
@@ -7787,8 +7787,8 @@ var Ao = Ut((ue) => {
                                                         ]),
                                                         !1
                                                       );
-                                                    if (r === h && typeof f == "number") {
-                                                      if (f > 9007199254740991 || isNaN(f))
+                                                    if (r === h && typeof l == "number") {
+                                                      if (l > 9007199254740991 || isNaN(l))
                                                         return (
                                                           (N.errors = [
                                                             {
@@ -7804,7 +7804,7 @@ var Ao = Ut((ue) => {
                                                           ]),
                                                           !1
                                                         );
-                                                      if (f < 0 || isNaN(f))
+                                                      if (l < 0 || isNaN(l))
                                                         return (
                                                           (N.errors = [
                                                             {
@@ -7825,11 +7825,11 @@ var Ao = Ut((ue) => {
                                                   } else var n = !0;
                                                   if (n) {
                                                     if (e.recipients !== void 0) {
-                                                      let f = e.recipients,
+                                                      let l = e.recipients,
                                                         h = r;
                                                       if (r === h)
-                                                        if (Array.isArray(f)) {
-                                                          if (f.length > 8)
+                                                        if (Array.isArray(l)) {
+                                                          if (l.length > 8)
                                                             return (
                                                               (N.errors = [
                                                                 {
@@ -7842,7 +7842,7 @@ var Ao = Ut((ue) => {
                                                               ]),
                                                               !1
                                                             );
-                                                          if (f.length < 1)
+                                                          if (l.length < 1)
                                                             return (
                                                               (N.errors = [
                                                                 {
@@ -7857,16 +7857,16 @@ var Ao = Ut((ue) => {
                                                             );
                                                           {
                                                             var y = !0;
-                                                            let g = f.length;
+                                                            let g = l.length;
                                                             for (let I = 0; I < g; I++) {
                                                               let k = r;
-                                                              Fe(f[I], {
+                                                              Fe(l[I], {
                                                                 instancePath:
                                                                   t + "/recipients/" + I,
-                                                                parentData: f,
+                                                                parentData: l,
                                                                 parentDataProperty: I,
                                                                 rootData: c,
-                                                                dynamicAnchors: l,
+                                                                dynamicAnchors: f,
                                                               }) ||
                                                                 ((i =
                                                                   i === null
@@ -7894,7 +7894,7 @@ var Ao = Ut((ue) => {
                                                     } else var n = !0;
                                                     if (n) {
                                                       if (e.objectType !== void 0) {
-                                                        let f = r;
+                                                        let l = r;
                                                         if (e.objectType !== "task")
                                                           return (
                                                             (N.errors = [
@@ -7908,11 +7908,11 @@ var Ao = Ut((ue) => {
                                                             ]),
                                                             !1
                                                           );
-                                                        var n = f === r;
+                                                        var n = l === r;
                                                       } else var n = !0;
                                                       if (n) {
                                                         if (e.purpose !== void 0) {
-                                                          let f = r;
+                                                          let l = r;
                                                           if (e.purpose !== "execute_task")
                                                             return (
                                                               (N.errors = [
@@ -7928,14 +7928,14 @@ var Ao = Ut((ue) => {
                                                               ]),
                                                               !1
                                                             );
-                                                          var n = f === r;
+                                                          var n = l === r;
                                                         } else var n = !0;
                                                         if (n) {
                                                           if (e.resultPolicy !== void 0) {
-                                                            let f = e.resultPolicy,
+                                                            let l = e.resultPolicy,
                                                               h = r;
                                                             if (!(
-                                                              f === "none" || f === "owner_inbox"
+                                                              l === "none" || l === "owner_inbox"
                                                             ))
                                                               return (
                                                                 (N.errors = [
@@ -7958,29 +7958,29 @@ var Ao = Ut((ue) => {
                                                           } else var n = !0;
                                                           if (n) {
                                                             if (e.taskId !== void 0) {
-                                                              let f = r;
+                                                              let l = r;
                                                               w(e.taskId, {
                                                                 instancePath: t + "/taskId",
                                                                 parentData: e,
                                                                 parentDataProperty: "taskId",
                                                                 rootData: c,
-                                                                dynamicAnchors: l,
+                                                                dynamicAnchors: f,
                                                               }) ||
                                                                 ((i =
                                                                   i === null
                                                                     ? w.errors
                                                                     : i.concat(w.errors)),
                                                                 (r = i.length));
-                                                              var n = f === r;
+                                                              var n = l === r;
                                                             } else var n = !0;
                                                             if (n) {
                                                               if (e.taskVersion !== void 0) {
-                                                                let f = e.taskVersion,
+                                                                let l = e.taskVersion,
                                                                   h = r;
                                                                 if (!(
-                                                                  typeof f == "number" &&
-                                                                  !(f % 1) &&
-                                                                  !isNaN(f)
+                                                                  typeof l == "number" &&
+                                                                  !(l % 1) &&
+                                                                  !isNaN(l)
                                                                 ))
                                                                   return (
                                                                     (N.errors = [
@@ -7997,11 +7997,11 @@ var Ao = Ut((ue) => {
                                                                   );
                                                                 if (
                                                                   r === h &&
-                                                                  typeof f == "number"
+                                                                  typeof l == "number"
                                                                 ) {
                                                                   if (
-                                                                    f > 9007199254740991 ||
-                                                                    isNaN(f)
+                                                                    l > 9007199254740991 ||
+                                                                    isNaN(l)
                                                                   )
                                                                     return (
                                                                       (N.errors = [
@@ -8019,7 +8019,7 @@ var Ao = Ut((ue) => {
                                                                       ]),
                                                                       !1
                                                                     );
-                                                                  if (f < 1 || isNaN(f))
+                                                                  if (l < 1 || isNaN(l))
                                                                     return (
                                                                       (N.errors = [
                                                                         {
@@ -8041,12 +8041,12 @@ var Ao = Ut((ue) => {
                                                               } else var n = !0;
                                                               if (n) {
                                                                 if (e.executionEpoch !== void 0) {
-                                                                  let f = e.executionEpoch,
+                                                                  let l = e.executionEpoch,
                                                                     h = r;
                                                                   if (!(
-                                                                    typeof f == "number" &&
-                                                                    !(f % 1) &&
-                                                                    !isNaN(f)
+                                                                    typeof l == "number" &&
+                                                                    !(l % 1) &&
+                                                                    !isNaN(l)
                                                                   ))
                                                                     return (
                                                                       (N.errors = [
@@ -8065,11 +8065,11 @@ var Ao = Ut((ue) => {
                                                                     );
                                                                   if (
                                                                     r === h &&
-                                                                    typeof f == "number"
+                                                                    typeof l == "number"
                                                                   ) {
                                                                     if (
-                                                                      f > 9007199254740991 ||
-                                                                      isNaN(f)
+                                                                      l > 9007199254740991 ||
+                                                                      isNaN(l)
                                                                     )
                                                                       return (
                                                                         (N.errors = [
@@ -8087,7 +8087,7 @@ var Ao = Ut((ue) => {
                                                                         ]),
                                                                         !1
                                                                       );
-                                                                    if (f < 1 || isNaN(f))
+                                                                    if (l < 1 || isNaN(l))
                                                                       return (
                                                                         (N.errors = [
                                                                           {
@@ -8109,7 +8109,7 @@ var Ao = Ut((ue) => {
                                                                 } else var n = !0;
                                                                 if (n) {
                                                                   if (e.authorityId !== void 0) {
-                                                                    let f = r;
+                                                                    let l = r;
                                                                     w(e.authorityId, {
                                                                       instancePath:
                                                                         t + "/authorityId",
@@ -8117,25 +8117,25 @@ var Ao = Ut((ue) => {
                                                                       parentDataProperty:
                                                                         "authorityId",
                                                                       rootData: c,
-                                                                      dynamicAnchors: l,
+                                                                      dynamicAnchors: f,
                                                                     }) ||
                                                                       ((i =
                                                                         i === null
                                                                           ? w.errors
                                                                           : i.concat(w.errors)),
                                                                       (r = i.length));
-                                                                    var n = f === r;
+                                                                    var n = l === r;
                                                                   } else var n = !0;
                                                                   if (n) {
                                                                     if (
                                                                       e.authorityVersion !== void 0
                                                                     ) {
-                                                                      let f = e.authorityVersion,
+                                                                      let l = e.authorityVersion,
                                                                         h = r;
                                                                       if (!(
-                                                                        typeof f == "number" &&
-                                                                        !(f % 1) &&
-                                                                        !isNaN(f)
+                                                                        typeof l == "number" &&
+                                                                        !(l % 1) &&
+                                                                        !isNaN(l)
                                                                       ))
                                                                         return (
                                                                           (N.errors = [
@@ -8155,11 +8155,11 @@ var Ao = Ut((ue) => {
                                                                         );
                                                                       if (
                                                                         r === h &&
-                                                                        typeof f == "number"
+                                                                        typeof l == "number"
                                                                       ) {
                                                                         if (
-                                                                          f > 9007199254740991 ||
-                                                                          isNaN(f)
+                                                                          l > 9007199254740991 ||
+                                                                          isNaN(l)
                                                                         )
                                                                           return (
                                                                             (N.errors = [
@@ -8178,7 +8178,7 @@ var Ao = Ut((ue) => {
                                                                             ]),
                                                                             !1
                                                                           );
-                                                                        if (f < 1 || isNaN(f))
+                                                                        if (l < 1 || isNaN(l))
                                                                           return (
                                                                             (N.errors = [
                                                                               {
@@ -8204,13 +8204,13 @@ var Ao = Ut((ue) => {
                                                                         e.expectedAuthorityVersion !==
                                                                         void 0
                                                                       ) {
-                                                                        let f =
+                                                                        let l =
                                                                             e.expectedAuthorityVersion,
                                                                           h = r;
                                                                         if (!(
-                                                                          typeof f == "number" &&
-                                                                          !(f % 1) &&
-                                                                          !isNaN(f)
+                                                                          typeof l == "number" &&
+                                                                          !(l % 1) &&
+                                                                          !isNaN(l)
                                                                         ))
                                                                           return (
                                                                             (N.errors = [
@@ -8230,11 +8230,11 @@ var Ao = Ut((ue) => {
                                                                           );
                                                                         if (
                                                                           r === h &&
-                                                                          typeof f == "number"
+                                                                          typeof l == "number"
                                                                         ) {
                                                                           if (
-                                                                            f > 9007199254740991 ||
-                                                                            isNaN(f)
+                                                                            l > 9007199254740991 ||
+                                                                            isNaN(l)
                                                                           )
                                                                             return (
                                                                               (N.errors = [
@@ -8255,7 +8255,7 @@ var Ao = Ut((ue) => {
                                                                               ]),
                                                                               !1
                                                                             );
-                                                                          if (f < 0 || isNaN(f))
+                                                                          if (l < 0 || isNaN(l))
                                                                             return (
                                                                               (N.errors = [
                                                                                 {
@@ -8283,13 +8283,13 @@ var Ao = Ut((ue) => {
                                                                           e.expectedAuthorityDigest !==
                                                                           void 0
                                                                         ) {
-                                                                          let f =
+                                                                          let l =
                                                                               e.expectedAuthorityDigest,
                                                                             h = r,
                                                                             v = r,
                                                                             g = !1,
                                                                             I = r;
-                                                                          E(f, {
+                                                                          E(l, {
                                                                             instancePath:
                                                                               t +
                                                                               "/expectedAuthorityDigest",
@@ -8297,7 +8297,7 @@ var Ao = Ut((ue) => {
                                                                             parentDataProperty:
                                                                               "expectedAuthorityDigest",
                                                                             rootData: c,
-                                                                            dynamicAnchors: l,
+                                                                            dynamicAnchors: f,
                                                                           }) ||
                                                                             ((i =
                                                                               i === null
@@ -8309,7 +8309,7 @@ var Ao = Ut((ue) => {
                                                                           var m = I === r;
                                                                           g = g || m;
                                                                           let k = r;
-                                                                          if (f !== null) {
+                                                                          if (l !== null) {
                                                                             let A = {
                                                                               instancePath:
                                                                                 t +
@@ -8359,7 +8359,7 @@ var Ao = Ut((ue) => {
                                                                             e.ownerTaskFingerprint !==
                                                                             void 0
                                                                           ) {
-                                                                            let f = r;
+                                                                            let l = r;
                                                                             E(
                                                                               e.ownerTaskFingerprint,
                                                                               {
@@ -8370,7 +8370,7 @@ var Ao = Ut((ue) => {
                                                                                 parentDataProperty:
                                                                                   "ownerTaskFingerprint",
                                                                                 rootData: c,
-                                                                                dynamicAnchors: l,
+                                                                                dynamicAnchors: f,
                                                                               },
                                                                             ) ||
                                                                               ((i =
@@ -8380,21 +8380,21 @@ var Ao = Ut((ue) => {
                                                                                       E.errors,
                                                                                     )),
                                                                               (r = i.length));
-                                                                            var n = f === r;
+                                                                            var n = l === r;
                                                                           } else var n = !0;
                                                                           if (n)
                                                                             if (
                                                                               e.resourceBindings !==
                                                                               void 0
                                                                             ) {
-                                                                              let f =
+                                                                              let l =
                                                                                   e.resourceBindings,
                                                                                 h = r;
                                                                               if (r === h)
                                                                                 if (
-                                                                                  Array.isArray(f)
+                                                                                  Array.isArray(l)
                                                                                 ) {
-                                                                                  if (f.length > 10)
+                                                                                  if (l.length > 10)
                                                                                     return (
                                                                                       (N.errors = [
                                                                                         {
@@ -8412,7 +8412,7 @@ var Ao = Ut((ue) => {
                                                                                       ]),
                                                                                       !1
                                                                                     );
-                                                                                  if (f.length < 1)
+                                                                                  if (l.length < 1)
                                                                                     return (
                                                                                       (N.errors = [
                                                                                         {
@@ -8433,25 +8433,25 @@ var Ao = Ut((ue) => {
                                                                                   {
                                                                                     var p = !0;
                                                                                     let g =
-                                                                                      f.length;
+                                                                                      l.length;
                                                                                     for (
                                                                                       let I = 0;
                                                                                       I < g;
                                                                                       I++
                                                                                     ) {
                                                                                       let k = r;
-                                                                                      Ue(f[I], {
+                                                                                      Ue(l[I], {
                                                                                         instancePath:
                                                                                           t +
                                                                                           "/resourceBindings/" +
                                                                                           I,
                                                                                         parentData:
-                                                                                          f,
+                                                                                          l,
                                                                                         parentDataProperty:
                                                                                           I,
                                                                                         rootData: c,
                                                                                         dynamicAnchors:
-                                                                                          l,
+                                                                                          f,
                                                                                       }) ||
                                                                                         ((i =
                                                                                           i === null
@@ -8607,7 +8607,7 @@ var Ao = Ut((ue) => {
       parentData: a,
       parentDataProperty: u,
       rootData: c = e,
-      dynamicAnchors: l = {},
+      dynamicAnchors: f = {},
     } = {},
   ) {
     let i = null,
@@ -8717,7 +8717,7 @@ var Ao = Ut((ue) => {
                     parentData: e,
                     parentDataProperty: "ownerSubject",
                     rootData: c,
-                    dynamicAnchors: l,
+                    dynamicAnchors: f,
                   }) || ((i = i === null ? w.errors : i.concat(w.errors)), (r = i.length));
                   var n = s === r;
                 } else var n = !0;
@@ -8729,7 +8729,7 @@ var Ao = Ut((ue) => {
                       parentData: e,
                       parentDataProperty: "vaultId",
                       rootData: c,
-                      dynamicAnchors: l,
+                      dynamicAnchors: f,
                     }) || ((i = i === null ? w.errors : i.concat(w.errors)), (r = i.length));
                     var n = s === r;
                   } else var n = !0;
@@ -8741,7 +8741,7 @@ var Ao = Ut((ue) => {
                         parentData: e,
                         parentDataProperty: "connectionId",
                         rootData: c,
-                        dynamicAnchors: l,
+                        dynamicAnchors: f,
                       }) || ((i = i === null ? w.errors : i.concat(w.errors)), (r = i.length));
                       var n = s === r;
                     } else var n = !0;
@@ -8753,7 +8753,7 @@ var Ao = Ut((ue) => {
                           parentData: e,
                           parentDataProperty: "agentId",
                           rootData: c,
-                          dynamicAnchors: l,
+                          dynamicAnchors: f,
                         }) || ((i = i === null ? w.errors : i.concat(w.errors)), (r = i.length));
                         var n = s === r;
                       } else var n = !0;
@@ -8765,7 +8765,7 @@ var Ao = Ut((ue) => {
                             parentData: e,
                             parentDataProperty: "clientId",
                             rootData: c,
-                            dynamicAnchors: l,
+                            dynamicAnchors: f,
                           }) || ((i = i === null ? w.errors : i.concat(w.errors)), (r = i.length));
                           var n = s === r;
                         } else var n = !0;
@@ -8777,7 +8777,7 @@ var Ao = Ut((ue) => {
                               parentData: e,
                               parentDataProperty: "rootKeyId",
                               rootData: c,
-                              dynamicAnchors: l,
+                              dynamicAnchors: f,
                             }) ||
                               ((i = i === null ? x.errors : i.concat(x.errors)), (r = i.length));
                             var n = s === r;
@@ -8790,7 +8790,7 @@ var Ao = Ut((ue) => {
                                 parentData: e,
                                 parentDataProperty: "agentSigningKeyId",
                                 rootData: c,
-                                dynamicAnchors: l,
+                                dynamicAnchors: f,
                               }) ||
                                 ((i = i === null ? x.errors : i.concat(x.errors)), (r = i.length));
                               var n = s === r;
@@ -8803,7 +8803,7 @@ var Ao = Ut((ue) => {
                                   parentData: e,
                                   parentDataProperty: "agentEncryptionKeyId",
                                   rootData: c,
-                                  dynamicAnchors: l,
+                                  dynamicAnchors: f,
                                 }) ||
                                   ((i = i === null ? x.errors : i.concat(x.errors)),
                                   (r = i.length));
@@ -8861,7 +8861,7 @@ var Ao = Ut((ue) => {
                                       parentData: e,
                                       parentDataProperty: "bindingFingerprint",
                                       rootData: c,
-                                      dynamicAnchors: l,
+                                      dynamicAnchors: f,
                                     }) ||
                                       ((i = i === null ? E.errors : i.concat(E.errors)),
                                       (r = i.length));
@@ -8922,7 +8922,7 @@ var Ao = Ut((ue) => {
                                           parentData: e,
                                           parentDataProperty: "checkpointDigest",
                                           rootData: c,
-                                          dynamicAnchors: l,
+                                          dynamicAnchors: f,
                                         }) ||
                                           ((i = i === null ? E.errors : i.concat(E.errors)),
                                           (r = i.length));
@@ -8983,7 +8983,7 @@ var Ao = Ut((ue) => {
                                               parentData: e,
                                               parentDataProperty: "stableOperationId",
                                               rootData: c,
-                                              dynamicAnchors: l,
+                                              dynamicAnchors: f,
                                             }) ||
                                               ((i = i === null ? $.errors : i.concat($.errors)),
                                               (r = i.length));
@@ -9044,7 +9044,7 @@ var Ao = Ut((ue) => {
                                                   parentData: e,
                                                   parentDataProperty: "objectId",
                                                   rootData: c,
-                                                  dynamicAnchors: l,
+                                                  dynamicAnchors: f,
                                                 }) ||
                                                   ((i = i === null ? w.errors : i.concat(w.errors)),
                                                   (r = i.length));
@@ -9203,7 +9203,7 @@ var Ao = Ut((ue) => {
                                                                 parentData: s,
                                                                 parentDataProperty: v,
                                                                 rootData: c,
-                                                                dynamicAnchors: l,
+                                                                dynamicAnchors: f,
                                                               }) ||
                                                                 ((i =
                                                                   i === null
@@ -9283,7 +9283,7 @@ var Ao = Ut((ue) => {
                                                               parentData: e,
                                                               parentDataProperty: "ref",
                                                               rootData: c,
-                                                              dynamicAnchors: l,
+                                                              dynamicAnchors: f,
                                                             }) ||
                                                               ((i =
                                                                 i === null
@@ -9431,7 +9431,7 @@ var Ao = Ut((ue) => {
                                                                     parentDataProperty:
                                                                       "permissionId",
                                                                     rootData: c,
-                                                                    dynamicAnchors: l,
+                                                                    dynamicAnchors: f,
                                                                   }) ||
                                                                     ((i =
                                                                       i === null
@@ -9529,7 +9529,7 @@ var Ao = Ut((ue) => {
                                                                           parentDataProperty:
                                                                             "ownerEnvelopeFingerprint",
                                                                           rootData: c,
-                                                                          dynamicAnchors: l,
+                                                                          dynamicAnchors: f,
                                                                         },
                                                                       ) ||
                                                                         ((i =
@@ -9658,7 +9658,7 @@ var Ao = Ut((ue) => {
       parentData: a,
       parentDataProperty: u,
       rootData: c = e,
-      dynamicAnchors: l = {},
+      dynamicAnchors: f = {},
     } = {},
   ) {
     let i = null,
@@ -9769,7 +9769,7 @@ var Ao = Ut((ue) => {
                     parentData: e,
                     parentDataProperty: "ownerSubject",
                     rootData: c,
-                    dynamicAnchors: l,
+                    dynamicAnchors: f,
                   }) || ((i = i === null ? w.errors : i.concat(w.errors)), (r = i.length));
                   var n = s === r;
                 } else var n = !0;
@@ -9781,7 +9781,7 @@ var Ao = Ut((ue) => {
                       parentData: e,
                       parentDataProperty: "vaultId",
                       rootData: c,
-                      dynamicAnchors: l,
+                      dynamicAnchors: f,
                     }) || ((i = i === null ? w.errors : i.concat(w.errors)), (r = i.length));
                     var n = s === r;
                   } else var n = !0;
@@ -9793,7 +9793,7 @@ var Ao = Ut((ue) => {
                         parentData: e,
                         parentDataProperty: "connectionId",
                         rootData: c,
-                        dynamicAnchors: l,
+                        dynamicAnchors: f,
                       }) || ((i = i === null ? w.errors : i.concat(w.errors)), (r = i.length));
                       var n = s === r;
                     } else var n = !0;
@@ -9805,7 +9805,7 @@ var Ao = Ut((ue) => {
                           parentData: e,
                           parentDataProperty: "agentId",
                           rootData: c,
-                          dynamicAnchors: l,
+                          dynamicAnchors: f,
                         }) || ((i = i === null ? w.errors : i.concat(w.errors)), (r = i.length));
                         var n = s === r;
                       } else var n = !0;
@@ -9817,7 +9817,7 @@ var Ao = Ut((ue) => {
                             parentData: e,
                             parentDataProperty: "clientId",
                             rootData: c,
-                            dynamicAnchors: l,
+                            dynamicAnchors: f,
                           }) || ((i = i === null ? w.errors : i.concat(w.errors)), (r = i.length));
                           var n = s === r;
                         } else var n = !0;
@@ -9829,7 +9829,7 @@ var Ao = Ut((ue) => {
                               parentData: e,
                               parentDataProperty: "rootKeyId",
                               rootData: c,
-                              dynamicAnchors: l,
+                              dynamicAnchors: f,
                             }) ||
                               ((i = i === null ? x.errors : i.concat(x.errors)), (r = i.length));
                             var n = s === r;
@@ -9842,7 +9842,7 @@ var Ao = Ut((ue) => {
                                 parentData: e,
                                 parentDataProperty: "agentSigningKeyId",
                                 rootData: c,
-                                dynamicAnchors: l,
+                                dynamicAnchors: f,
                               }) ||
                                 ((i = i === null ? x.errors : i.concat(x.errors)), (r = i.length));
                               var n = s === r;
@@ -9855,7 +9855,7 @@ var Ao = Ut((ue) => {
                                   parentData: e,
                                   parentDataProperty: "agentEncryptionKeyId",
                                   rootData: c,
-                                  dynamicAnchors: l,
+                                  dynamicAnchors: f,
                                 }) ||
                                   ((i = i === null ? x.errors : i.concat(x.errors)),
                                   (r = i.length));
@@ -9913,7 +9913,7 @@ var Ao = Ut((ue) => {
                                       parentData: e,
                                       parentDataProperty: "bindingFingerprint",
                                       rootData: c,
-                                      dynamicAnchors: l,
+                                      dynamicAnchors: f,
                                     }) ||
                                       ((i = i === null ? E.errors : i.concat(E.errors)),
                                       (r = i.length));
@@ -9974,7 +9974,7 @@ var Ao = Ut((ue) => {
                                           parentData: e,
                                           parentDataProperty: "checkpointDigest",
                                           rootData: c,
-                                          dynamicAnchors: l,
+                                          dynamicAnchors: f,
                                         }) ||
                                           ((i = i === null ? E.errors : i.concat(E.errors)),
                                           (r = i.length));
@@ -10035,7 +10035,7 @@ var Ao = Ut((ue) => {
                                               parentData: e,
                                               parentDataProperty: "stableOperationId",
                                               rootData: c,
-                                              dynamicAnchors: l,
+                                              dynamicAnchors: f,
                                             }) ||
                                               ((i = i === null ? $.errors : i.concat($.errors)),
                                               (r = i.length));
@@ -10096,7 +10096,7 @@ var Ao = Ut((ue) => {
                                                   parentData: e,
                                                   parentDataProperty: "objectId",
                                                   rootData: c,
-                                                  dynamicAnchors: l,
+                                                  dynamicAnchors: f,
                                                 }) ||
                                                   ((i = i === null ? w.errors : i.concat(w.errors)),
                                                   (r = i.length));
@@ -10255,7 +10255,7 @@ var Ao = Ut((ue) => {
                                                                 parentData: s,
                                                                 parentDataProperty: v,
                                                                 rootData: c,
-                                                                dynamicAnchors: l,
+                                                                dynamicAnchors: f,
                                                               }) ||
                                                                 ((i =
                                                                   i === null
@@ -10329,7 +10329,7 @@ var Ao = Ut((ue) => {
                                                               parentData: e,
                                                               parentDataProperty: "taskId",
                                                               rootData: c,
-                                                              dynamicAnchors: l,
+                                                              dynamicAnchors: f,
                                                             }) ||
                                                               ((i =
                                                                 i === null
@@ -10477,7 +10477,7 @@ var Ao = Ut((ue) => {
                                                                     parentDataProperty:
                                                                       "authorityId",
                                                                     rootData: c,
-                                                                    dynamicAnchors: l,
+                                                                    dynamicAnchors: f,
                                                                   }) ||
                                                                     ((i =
                                                                       i === null
@@ -10567,7 +10567,7 @@ var Ao = Ut((ue) => {
                                                                         parentData: e,
                                                                         parentDataProperty: "runId",
                                                                         rootData: c,
-                                                                        dynamicAnchors: l,
+                                                                        dynamicAnchors: f,
                                                                       }) ||
                                                                         ((i =
                                                                           i === null
@@ -10590,7 +10590,7 @@ var Ao = Ut((ue) => {
                                                                           parentDataProperty:
                                                                             "manifestFingerprint",
                                                                           rootData: c,
-                                                                          dynamicAnchors: l,
+                                                                          dynamicAnchors: f,
                                                                         }) ||
                                                                           ((i =
                                                                             i === null
@@ -10646,7 +10646,7 @@ var Ao = Ut((ue) => {
       parentData: a,
       parentDataProperty: u,
       rootData: c = e,
-      dynamicAnchors: l = {},
+      dynamicAnchors: f = {},
     } = {},
   ) {
     let i = null,
@@ -10662,10 +10662,10 @@ var Ao = Ut((ue) => {
       parentData: a,
       parentDataProperty: u,
       rootData: c,
-      dynamicAnchors: l,
+      dynamicAnchors: f,
     }) || ((i = i === null ? N.errors : i.concat(N.errors)), (r = i.length));
-    var f = p === r;
-    if (f) {
+    var l = p === r;
+    if (l) {
       ((y = !0), (m = 0));
       var s = !0;
     }
@@ -10675,22 +10675,22 @@ var Ao = Ut((ue) => {
       parentData: a,
       parentDataProperty: u,
       rootData: c,
-      dynamicAnchors: l,
+      dynamicAnchors: f,
     }) || ((i = i === null ? O.errors : i.concat(O.errors)), (r = i.length));
-    var f = o === r;
-    if (f && y) ((y = !1), (m = [m, 1]));
+    var l = o === r;
+    if (l && y) ((y = !1), (m = [m, 1]));
     else {
-      f && ((y = !0), (m = 1), s !== !0 && (s = !0));
+      l && ((y = !0), (m = 1), s !== !0 && (s = !0));
       let h = r;
       V(e, {
         instancePath: t,
         parentData: a,
         parentDataProperty: u,
         rootData: c,
-        dynamicAnchors: l,
+        dynamicAnchors: f,
       }) || ((i = i === null ? V.errors : i.concat(V.errors)), (r = i.length));
-      var f = h === r;
-      f && y ? ((y = !1), (m = [m, 2])) : f && ((y = !0), (m = 2), s !== !0 && (s = !0));
+      var l = h === r;
+      l && y ? ((y = !1), (m = [m, 2])) : l && ((y = !0), (m = 2), s !== !0 && (s = !0));
     }
     if (y) ((r = n), i !== null && (n ? (i.length = n) : (i = null)));
     else {
@@ -10705,19 +10705,19 @@ var Ao = Ut((ue) => {
     return ((Wr.errors = i), (d.props = s), r === 0);
   }
   Wr.evaluated = { dynamicProps: !0, dynamicItems: !1 };
-  function Gi(
+  function Xi(
     e,
     {
       instancePath: t = "",
       parentData: a,
       parentDataProperty: u,
       rootData: c = e,
-      dynamicAnchors: l = {},
+      dynamicAnchors: f = {},
     } = {},
   ) {
     let i = null,
       r = 0,
-      d = Gi.evaluated;
+      d = Xi.evaluated;
     if (
       (d.dynamicProps && (d.props = void 0),
       d.dynamicItems && (d.items = void 0),
@@ -10726,15 +10726,15 @@ var Ao = Ut((ue) => {
         parentData: a,
         parentDataProperty: u,
         rootData: c,
-        dynamicAnchors: l,
+        dynamicAnchors: f,
       }))
     )
       ((i = i === null ? Wr.errors : i.concat(Wr.errors)), (r = i.length));
     else var n = Wr.evaluated.props;
-    return ((Gi.errors = i), (d.props = n), r === 0);
+    return ((Xi.errors = i), (d.props = n), r === 0);
   }
-  Gi.evaluated = { dynamicProps: !0, dynamicItems: !1 };
-  ue.ResourceRef = Xi;
+  Xi.evaluated = { dynamicProps: !0, dynamicItems: !1 };
+  me.ResourceRef = Yi;
   function he(
     e,
     {
@@ -10742,7 +10742,7 @@ var Ao = Ut((ue) => {
       parentData: a,
       parentDataProperty: u,
       rootData: c = e,
-      dynamicAnchors: l = {},
+      dynamicAnchors: f = {},
     } = {},
   ) {
     let i = null,
@@ -10888,14 +10888,14 @@ var Ao = Ut((ue) => {
                       instancePath: t + "/kind",
                       schemaPath: "#/properties/kind/enum",
                       keyword: "enum",
-                      params: { allowedValues: Ri.properties.kind.enum },
+                      params: { allowedValues: Ji.properties.kind.enum },
                     },
                   ]),
                   !1
                 );
-              var f = I === r;
-            } else var f = !0;
-            if (f) {
+              var l = I === r;
+            } else var l = !0;
+            if (l) {
               if (e.sourceService !== void 0) {
                 let g = e.sourceService,
                   I = r;
@@ -10918,14 +10918,14 @@ var Ao = Ut((ue) => {
                         instancePath: t + "/sourceService",
                         schemaPath: "#/properties/sourceService/enum",
                         keyword: "enum",
-                        params: { allowedValues: Ri.properties.sourceService.enum },
+                        params: { allowedValues: Ji.properties.sourceService.enum },
                       },
                     ]),
                     !1
                   );
-                var f = I === r;
-              } else var f = !0;
-              if (f) {
+                var l = I === r;
+              } else var l = !0;
+              if (l) {
                 if (e.resourceId !== void 0) {
                   let g = e.resourceId,
                     I = r;
@@ -10979,9 +10979,9 @@ var Ao = Ut((ue) => {
                         ]),
                         !1
                       );
-                  var f = I === r;
-                } else var f = !0;
-                if (f)
+                  var l = I === r;
+                } else var l = !0;
+                if (l)
                   if (e.incarnation !== void 0) {
                     let g = e.incarnation,
                       I = r;
@@ -11035,8 +11035,8 @@ var Ao = Ut((ue) => {
                           ]),
                           !1
                         );
-                    var f = I === r;
-                  } else var f = !0;
+                    var l = I === r;
+                  } else var l = !0;
               }
             }
           }
@@ -11051,19 +11051,19 @@ var Ao = Ut((ue) => {
     return ((he.errors = i), r === 0);
   }
   he.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
-  function Xi(
+  function Yi(
     e,
     {
       instancePath: t = "",
       parentData: a,
       parentDataProperty: u,
       rootData: c = e,
-      dynamicAnchors: l = {},
+      dynamicAnchors: f = {},
     } = {},
   ) {
     let i = null,
       r = 0,
-      d = Xi.evaluated;
+      d = Yi.evaluated;
     return (
       d.dynamicProps && (d.props = void 0),
       d.dynamicItems && (d.items = void 0),
@@ -11072,14 +11072,14 @@ var Ao = Ut((ue) => {
         parentData: a,
         parentDataProperty: u,
         rootData: c,
-        dynamicAnchors: l,
+        dynamicAnchors: f,
       }) || ((i = i === null ? he.errors : i.concat(he.errors)), (r = i.length)),
-      (Xi.errors = i),
+      (Yi.errors = i),
       r === 0
     );
   }
-  Xi.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
-  ue.PersistentPrivatePayload = Yi;
+  Yi.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
+  me.PersistentPrivatePayload = Qi;
   var Ca = {
       type: "object",
       properties: {
@@ -11150,7 +11150,7 @@ var Ao = Ut((ue) => {
       parentData: a,
       parentDataProperty: u,
       rootData: c = e,
-      dynamicAnchors: l = {},
+      dynamicAnchors: f = {},
     } = {},
   ) {
     let i = null,
@@ -11305,7 +11305,7 @@ var Ao = Ut((ue) => {
       parentData: a,
       parentDataProperty: u,
       rootData: c = e,
-      dynamicAnchors: l = {},
+      dynamicAnchors: f = {},
     } = {},
   ) {
     let i = null,
@@ -11511,7 +11511,7 @@ var Ao = Ut((ue) => {
       parentData: a,
       parentDataProperty: u,
       rootData: c = e,
-      dynamicAnchors: l = {},
+      dynamicAnchors: f = {},
     } = {},
   ) {
     let i = null,
@@ -11638,7 +11638,7 @@ var Ao = Ut((ue) => {
                           parentData: s,
                           parentDataProperty: v,
                           rootData: c,
-                          dynamicAnchors: l,
+                          dynamicAnchors: f,
                         }) || ((i = i === null ? Ke.errors : i.concat(Ke.errors)), (r = i.length));
                         var y = g === r;
                         if (!y) break;
@@ -11758,19 +11758,19 @@ var Ao = Ut((ue) => {
     },
     Ra = new RegExp("^([01][0-9]|2[0-3]):[0-5][0-9]$", "u"),
     Ja = /^[A-Za-z0-9_+./-]{1,80}$/;
-  function ee(
+  function te(
     e,
     {
       instancePath: t = "",
       parentData: a,
       parentDataProperty: u,
       rootData: c = e,
-      dynamicAnchors: l = {},
+      dynamicAnchors: f = {},
     } = {},
   ) {
     let i = null,
       r = 0,
-      d = ee.evaluated;
+      d = te.evaluated;
     (d.dynamicProps && (d.props = void 0), d.dynamicItems && (d.items = void 0));
     let n = r,
       y = !0,
@@ -11794,7 +11794,7 @@ var Ao = Ut((ue) => {
         let g;
         if (e.weekday === void 0 && (g = "weekday"))
           return (
-            (ee.errors = [
+            (te.errors = [
               {
                 instancePath: t,
                 schemaPath: "#/allOf/0/then/required",
@@ -11821,7 +11821,7 @@ var Ao = Ut((ue) => {
       var o = g === r;
       if (o)
         return (
-          (ee.errors = [
+          (te.errors = [
             { instancePath: t, schemaPath: "#/allOf/0/else/not", keyword: "not", params: {} },
           ]),
           !1
@@ -11837,7 +11837,7 @@ var Ao = Ut((ue) => {
         keyword: "if",
         params: { failingKeyword: s },
       };
-      return (i === null ? (i = [h]) : i.push(h), r++, (ee.errors = i), !1);
+      return (i === null ? (i = [h]) : i.push(h), r++, (te.errors = i), !1);
     }
     if (r === 0)
       if (e && typeof e == "object" && !Array.isArray(e)) {
@@ -11849,7 +11849,7 @@ var Ao = Ut((ue) => {
           (e.graceMinutes === void 0 && (h = "graceMinutes"))
         )
           return (
-            (ee.errors = [
+            (te.errors = [
               {
                 instancePath: t,
                 schemaPath: "#/required",
@@ -11870,7 +11870,7 @@ var Ao = Ut((ue) => {
               g === "weekday"
             )) {
               return (
-                (ee.errors = [
+                (te.errors = [
                   {
                     instancePath: t,
                     schemaPath: "#/additionalProperties",
@@ -11888,7 +11888,7 @@ var Ao = Ut((ue) => {
                 I = r;
               if (typeof g != "string")
                 return (
-                  (ee.errors = [
+                  (te.errors = [
                     {
                       instancePath: t + "/cadence",
                       schemaPath: "#/properties/cadence/type",
@@ -11900,7 +11900,7 @@ var Ao = Ut((ue) => {
                 );
               if (!(g === "daily" || g === "weekdays" || g === "weekly"))
                 return (
-                  (ee.errors = [
+                  (te.errors = [
                     {
                       instancePath: t + "/cadence",
                       schemaPath: "#/properties/cadence/enum",
@@ -11910,9 +11910,9 @@ var Ao = Ut((ue) => {
                   ]),
                   !1
                 );
-              var f = I === r;
-            } else var f = !0;
-            if (f) {
+              var l = I === r;
+            } else var l = !0;
+            if (l) {
               if (e.localTime !== void 0) {
                 let g = e.localTime,
                   I = r;
@@ -11920,7 +11920,7 @@ var Ao = Ut((ue) => {
                   if (typeof g == "string") {
                     if (P(g) > 5)
                       return (
-                        (ee.errors = [
+                        (te.errors = [
                           {
                             instancePath: t + "/localTime",
                             schemaPath: "#/properties/localTime/maxLength",
@@ -11932,7 +11932,7 @@ var Ao = Ut((ue) => {
                       );
                     if (P(g) < 5)
                       return (
-                        (ee.errors = [
+                        (te.errors = [
                           {
                             instancePath: t + "/localTime",
                             schemaPath: "#/properties/localTime/minLength",
@@ -11944,7 +11944,7 @@ var Ao = Ut((ue) => {
                       );
                     if (!Ra.test(g))
                       return (
-                        (ee.errors = [
+                        (te.errors = [
                           {
                             instancePath: t + "/localTime",
                             schemaPath: "#/properties/localTime/pattern",
@@ -11956,7 +11956,7 @@ var Ao = Ut((ue) => {
                       );
                   } else
                     return (
-                      (ee.errors = [
+                      (te.errors = [
                         {
                           instancePath: t + "/localTime",
                           schemaPath: "#/properties/localTime/type",
@@ -11966,9 +11966,9 @@ var Ao = Ut((ue) => {
                       ]),
                       !1
                     );
-                var f = I === r;
-              } else var f = !0;
-              if (f) {
+                var l = I === r;
+              } else var l = !0;
+              if (l) {
                 if (e.timeZone !== void 0) {
                   let g = e.timeZone,
                     I = r;
@@ -11976,7 +11976,7 @@ var Ao = Ut((ue) => {
                     if (typeof g == "string") {
                       if (P(g) > 80)
                         return (
-                          (ee.errors = [
+                          (te.errors = [
                             {
                               instancePath: t + "/timeZone",
                               schemaPath: "#/properties/timeZone/maxLength",
@@ -11988,7 +11988,7 @@ var Ao = Ut((ue) => {
                         );
                       if (P(g) < 1)
                         return (
-                          (ee.errors = [
+                          (te.errors = [
                             {
                               instancePath: t + "/timeZone",
                               schemaPath: "#/properties/timeZone/minLength",
@@ -12000,7 +12000,7 @@ var Ao = Ut((ue) => {
                         );
                       if (!Ja.test(g))
                         return (
-                          (ee.errors = [
+                          (te.errors = [
                             {
                               instancePath: t + "/timeZone",
                               schemaPath: "#/properties/timeZone/format",
@@ -12012,7 +12012,7 @@ var Ao = Ut((ue) => {
                         );
                     } else
                       return (
-                        (ee.errors = [
+                        (te.errors = [
                           {
                             instancePath: t + "/timeZone",
                             schemaPath: "#/properties/timeZone/type",
@@ -12022,15 +12022,15 @@ var Ao = Ut((ue) => {
                         ]),
                         !1
                       );
-                  var f = I === r;
-                } else var f = !0;
-                if (f) {
+                  var l = I === r;
+                } else var l = !0;
+                if (l) {
                   if (e.graceMinutes !== void 0) {
                     let g = e.graceMinutes,
                       I = r;
                     if (!(typeof g == "number" && !(g % 1) && !isNaN(g)))
                       return (
-                        (ee.errors = [
+                        (te.errors = [
                           {
                             instancePath: t + "/graceMinutes",
                             schemaPath: "#/properties/graceMinutes/type",
@@ -12043,7 +12043,7 @@ var Ao = Ut((ue) => {
                     if (r === I && typeof g == "number") {
                       if (g > 1440 || isNaN(g))
                         return (
-                          (ee.errors = [
+                          (te.errors = [
                             {
                               instancePath: t + "/graceMinutes",
                               schemaPath: "#/properties/graceMinutes/maximum",
@@ -12055,7 +12055,7 @@ var Ao = Ut((ue) => {
                         );
                       if (g < 0 || isNaN(g))
                         return (
-                          (ee.errors = [
+                          (te.errors = [
                             {
                               instancePath: t + "/graceMinutes",
                               schemaPath: "#/properties/graceMinutes/minimum",
@@ -12066,15 +12066,15 @@ var Ao = Ut((ue) => {
                           !1
                         );
                     }
-                    var f = I === r;
-                  } else var f = !0;
-                  if (f)
+                    var l = I === r;
+                  } else var l = !0;
+                  if (l)
                     if (e.weekday !== void 0) {
                       let g = e.weekday,
                         I = r;
                       if (!(typeof g == "number" && !(g % 1) && !isNaN(g)))
                         return (
-                          (ee.errors = [
+                          (te.errors = [
                             {
                               instancePath: t + "/weekday",
                               schemaPath: "#/properties/weekday/type",
@@ -12087,7 +12087,7 @@ var Ao = Ut((ue) => {
                       if (r === I && typeof g == "number") {
                         if (g > 6 || isNaN(g))
                           return (
-                            (ee.errors = [
+                            (te.errors = [
                               {
                                 instancePath: t + "/weekday",
                                 schemaPath: "#/properties/weekday/maximum",
@@ -12099,7 +12099,7 @@ var Ao = Ut((ue) => {
                           );
                         if (g < 0 || isNaN(g))
                           return (
-                            (ee.errors = [
+                            (te.errors = [
                               {
                                 instancePath: t + "/weekday",
                                 schemaPath: "#/properties/weekday/minimum",
@@ -12110,8 +12110,8 @@ var Ao = Ut((ue) => {
                             !1
                           );
                       }
-                      var f = I === r;
-                    } else var f = !0;
+                      var l = I === r;
+                    } else var l = !0;
                 }
               }
             }
@@ -12119,14 +12119,14 @@ var Ao = Ut((ue) => {
         }
       } else
         return (
-          (ee.errors = [
+          (te.errors = [
             { instancePath: t, schemaPath: "#/type", keyword: "type", params: { type: "object" } },
           ]),
           !1
         );
-    return ((ee.errors = i), r === 0);
+    return ((te.errors = i), r === 0);
   }
-  ee.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
+  te.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
   function Ve(
     e,
     {
@@ -12134,7 +12134,7 @@ var Ao = Ut((ue) => {
       parentData: a,
       parentDataProperty: u,
       rootData: c = e,
-      dynamicAnchors: l = {},
+      dynamicAnchors: f = {},
     } = {},
   ) {
     let i = null,
@@ -12312,7 +12312,7 @@ var Ao = Ut((ue) => {
                       parentData: e,
                       parentDataProperty: "inputPolicy",
                       rootData: c,
-                      dynamicAnchors: l,
+                      dynamicAnchors: f,
                     }) || ((i = i === null ? Ze.errors : i.concat(Ze.errors)), (r = i.length));
                     var n = s === r;
                   } else var n = !0;
@@ -12324,7 +12324,7 @@ var Ao = Ut((ue) => {
                         parentData: e,
                         parentDataProperty: "outputSpec",
                         rootData: c,
-                        dynamicAnchors: l,
+                        dynamicAnchors: f,
                       }) || ((i = i === null ? $e.errors : i.concat($e.errors)), (r = i.length));
                       var n = s === r;
                     } else var n = !0;
@@ -12332,16 +12332,16 @@ var Ao = Ut((ue) => {
                       if (e.deliveryExpectation !== void 0) {
                         let s = e.deliveryExpectation,
                           o = r,
-                          f = r,
+                          l = r,
                           h = !1,
                           v = r;
-                        ee(s, {
+                        te(s, {
                           instancePath: t + "/deliveryExpectation",
                           parentData: e,
                           parentDataProperty: "deliveryExpectation",
                           rootData: c,
-                          dynamicAnchors: l,
-                        }) || ((i = i === null ? ee.errors : i.concat(ee.errors)), (r = i.length));
+                          dynamicAnchors: f,
+                        }) || ((i = i === null ? te.errors : i.concat(te.errors)), (r = i.length));
                         var y = v === r;
                         h = h || y;
                         let g = r;
@@ -12356,7 +12356,7 @@ var Ao = Ut((ue) => {
                         }
                         var y = g === r;
                         if (((h = h || y), h))
-                          ((r = f), i !== null && (f ? (i.length = f) : (i = null)));
+                          ((r = l), i !== null && (l ? (i.length = l) : (i = null)));
                         else {
                           let k = {
                             instancePath: t + "/deliveryExpectation",
@@ -12391,7 +12391,7 @@ var Ao = Ut((ue) => {
       parentData: a,
       parentDataProperty: u,
       rootData: c = e,
-      dynamicAnchors: l = {},
+      dynamicAnchors: f = {},
     } = {},
   ) {
     let i = null,
@@ -12545,19 +12545,19 @@ var Ao = Ut((ue) => {
   }
   je.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
   var Fa = new RegExp("^https://", "u");
-  function de(
+  function ue(
     e,
     {
       instancePath: t = "",
       parentData: a,
       parentDataProperty: u,
       rootData: c = e,
-      dynamicAnchors: l = {},
+      dynamicAnchors: f = {},
     } = {},
   ) {
     let i = null,
       r = 0,
-      d = de.evaluated;
+      d = ue.evaluated;
     if ((d.dynamicProps && (d.props = void 0), d.dynamicItems && (d.items = void 0), r === 0))
       if (e && typeof e == "object" && !Array.isArray(e)) {
         let m;
@@ -12569,7 +12569,7 @@ var Ao = Ut((ue) => {
           (e.publishedAt === void 0 && (m = "publishedAt"))
         )
           return (
-            (de.errors = [
+            (ue.errors = [
               {
                 instancePath: t,
                 schemaPath: "#/required",
@@ -12590,7 +12590,7 @@ var Ao = Ut((ue) => {
               s === "publishedAt"
             )) {
               return (
-                (de.errors = [
+                (ue.errors = [
                   {
                     instancePath: t,
                     schemaPath: "#/additionalProperties",
@@ -12610,7 +12610,7 @@ var Ao = Ut((ue) => {
                 if (typeof s == "string") {
                   if (P(s) > 128)
                     return (
-                      (de.errors = [
+                      (ue.errors = [
                         {
                           instancePath: t + "/citationId",
                           schemaPath: "#/properties/citationId/maxLength",
@@ -12622,7 +12622,7 @@ var Ao = Ut((ue) => {
                     );
                   if (P(s) < 1)
                     return (
-                      (de.errors = [
+                      (ue.errors = [
                         {
                           instancePath: t + "/citationId",
                           schemaPath: "#/properties/citationId/minLength",
@@ -12634,7 +12634,7 @@ var Ao = Ut((ue) => {
                     );
                   if (!Pe.test(s))
                     return (
-                      (de.errors = [
+                      (ue.errors = [
                         {
                           instancePath: t + "/citationId",
                           schemaPath: "#/properties/citationId/pattern",
@@ -12646,7 +12646,7 @@ var Ao = Ut((ue) => {
                     );
                 } else
                   return (
-                    (de.errors = [
+                    (ue.errors = [
                       {
                         instancePath: t + "/citationId",
                         schemaPath: "#/properties/citationId/type",
@@ -12666,7 +12666,7 @@ var Ao = Ut((ue) => {
                   if (typeof s == "string") {
                     if (P(s) > 180)
                       return (
-                        (de.errors = [
+                        (ue.errors = [
                           {
                             instancePath: t + "/title",
                             schemaPath: "#/properties/title/maxLength",
@@ -12678,7 +12678,7 @@ var Ao = Ut((ue) => {
                       );
                     if (P(s) < 1)
                       return (
-                        (de.errors = [
+                        (ue.errors = [
                           {
                             instancePath: t + "/title",
                             schemaPath: "#/properties/title/minLength",
@@ -12690,7 +12690,7 @@ var Ao = Ut((ue) => {
                       );
                   } else
                     return (
-                      (de.errors = [
+                      (ue.errors = [
                         {
                           instancePath: t + "/title",
                           schemaPath: "#/properties/title/type",
@@ -12710,7 +12710,7 @@ var Ao = Ut((ue) => {
                     if (typeof s == "string") {
                       if (P(s) > 2048)
                         return (
-                          (de.errors = [
+                          (ue.errors = [
                             {
                               instancePath: t + "/url",
                               schemaPath: "#/properties/url/maxLength",
@@ -12722,7 +12722,7 @@ var Ao = Ut((ue) => {
                         );
                       if (P(s) < 1)
                         return (
-                          (de.errors = [
+                          (ue.errors = [
                             {
                               instancePath: t + "/url",
                               schemaPath: "#/properties/url/minLength",
@@ -12733,9 +12733,9 @@ var Ao = Ut((ue) => {
                           !1
                         );
                       if (Fa.test(s)) {
-                        if (!cn.test(s))
+                        if (!ln.test(s))
                           return (
-                            (de.errors = [
+                            (ue.errors = [
                               {
                                 instancePath: t + "/url",
                                 schemaPath: "#/properties/url/format",
@@ -12747,7 +12747,7 @@ var Ao = Ut((ue) => {
                           );
                       } else
                         return (
-                          (de.errors = [
+                          (ue.errors = [
                             {
                               instancePath: t + "/url",
                               schemaPath: "#/properties/url/pattern",
@@ -12759,7 +12759,7 @@ var Ao = Ut((ue) => {
                         );
                     } else
                       return (
-                        (de.errors = [
+                        (ue.errors = [
                           {
                             instancePath: t + "/url",
                             schemaPath: "#/properties/url/type",
@@ -12776,7 +12776,7 @@ var Ao = Ut((ue) => {
                     let s = r;
                     if (e.provenance !== "agent_provided")
                       return (
-                        (de.errors = [
+                        (ue.errors = [
                           {
                             instancePath: t + "/provenance",
                             schemaPath: "#/properties/provenance/const",
@@ -12792,7 +12792,7 @@ var Ao = Ut((ue) => {
                     if (e.publishedAt !== void 0) {
                       let s = e.publishedAt,
                         o = r,
-                        f = r,
+                        l = r,
                         h = !1,
                         v = r;
                       if (r === v && r === v)
@@ -12839,7 +12839,7 @@ var Ao = Ut((ue) => {
                       }
                       var y = g === r;
                       if (((h = h || y), h))
-                        ((r = f), i !== null && (f ? (i.length = f) : (i = null)));
+                        ((r = l), i !== null && (l ? (i.length = l) : (i = null)));
                       else {
                         let k = {
                           instancePath: t + "/publishedAt",
@@ -12847,7 +12847,7 @@ var Ao = Ut((ue) => {
                           keyword: "anyOf",
                           params: {},
                         };
-                        return (i === null ? (i = [k]) : i.push(k), r++, (de.errors = i), !1);
+                        return (i === null ? (i = [k]) : i.push(k), r++, (ue.errors = i), !1);
                       }
                       var n = o === r;
                     } else var n = !0;
@@ -12858,27 +12858,27 @@ var Ao = Ut((ue) => {
         }
       } else
         return (
-          (de.errors = [
+          (ue.errors = [
             { instancePath: t, schemaPath: "#/type", keyword: "type", params: { type: "object" } },
           ]),
           !1
         );
-    return ((de.errors = i), r === 0);
+    return ((ue.errors = i), r === 0);
   }
-  de.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
-  function ie(
+  ue.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
+  function se(
     e,
     {
       instancePath: t = "",
       parentData: a,
       parentDataProperty: u,
       rootData: c = e,
-      dynamicAnchors: l = {},
+      dynamicAnchors: f = {},
     } = {},
   ) {
     let i = null,
       r = 0,
-      d = ie.evaluated;
+      d = se.evaluated;
     if ((d.dynamicProps && (d.props = void 0), d.dynamicItems && (d.items = void 0), r === 0))
       if (e && typeof e == "object" && !Array.isArray(e)) {
         let s;
@@ -12890,7 +12890,7 @@ var Ao = Ut((ue) => {
           (e.limitations === void 0 && (s = "limitations"))
         )
           return (
-            (ie.errors = [
+            (se.errors = [
               {
                 instancePath: t,
                 schemaPath: "#/required",
@@ -12902,21 +12902,21 @@ var Ao = Ut((ue) => {
           );
         {
           let o = r;
-          for (let f in e)
+          for (let l in e)
             if (!(
-              f === "title" ||
-              f === "summary" ||
-              f === "sections" ||
-              f === "citations" ||
-              f === "limitations"
+              l === "title" ||
+              l === "summary" ||
+              l === "sections" ||
+              l === "citations" ||
+              l === "limitations"
             )) {
               return (
-                (ie.errors = [
+                (se.errors = [
                   {
                     instancePath: t,
                     schemaPath: "#/additionalProperties",
                     keyword: "additionalProperties",
-                    params: { additionalProperty: f },
+                    params: { additionalProperty: l },
                   },
                 ]),
                 !1
@@ -12925,13 +12925,13 @@ var Ao = Ut((ue) => {
             }
           if (o === r) {
             if (e.title !== void 0) {
-              let f = e.title,
+              let l = e.title,
                 h = r;
               if (r === h)
-                if (typeof f == "string") {
-                  if (P(f) > 160)
+                if (typeof l == "string") {
+                  if (P(l) > 160)
                     return (
-                      (ie.errors = [
+                      (se.errors = [
                         {
                           instancePath: t + "/title",
                           schemaPath: "#/properties/title/maxLength",
@@ -12941,9 +12941,9 @@ var Ao = Ut((ue) => {
                       ]),
                       !1
                     );
-                  if (P(f) < 1)
+                  if (P(l) < 1)
                     return (
-                      (ie.errors = [
+                      (se.errors = [
                         {
                           instancePath: t + "/title",
                           schemaPath: "#/properties/title/minLength",
@@ -12955,7 +12955,7 @@ var Ao = Ut((ue) => {
                     );
                 } else
                   return (
-                    (ie.errors = [
+                    (se.errors = [
                       {
                         instancePath: t + "/title",
                         schemaPath: "#/properties/title/type",
@@ -12969,13 +12969,13 @@ var Ao = Ut((ue) => {
             } else var n = !0;
             if (n) {
               if (e.summary !== void 0) {
-                let f = e.summary,
+                let l = e.summary,
                   h = r;
                 if (r === h)
-                  if (typeof f == "string") {
-                    if (P(f) > 600)
+                  if (typeof l == "string") {
+                    if (P(l) > 600)
                       return (
-                        (ie.errors = [
+                        (se.errors = [
                           {
                             instancePath: t + "/summary",
                             schemaPath: "#/properties/summary/maxLength",
@@ -12985,9 +12985,9 @@ var Ao = Ut((ue) => {
                         ]),
                         !1
                       );
-                    if (P(f) < 1)
+                    if (P(l) < 1)
                       return (
-                        (ie.errors = [
+                        (se.errors = [
                           {
                             instancePath: t + "/summary",
                             schemaPath: "#/properties/summary/minLength",
@@ -12999,7 +12999,7 @@ var Ao = Ut((ue) => {
                       );
                   } else
                     return (
-                      (ie.errors = [
+                      (se.errors = [
                         {
                           instancePath: t + "/summary",
                           schemaPath: "#/properties/summary/type",
@@ -13013,13 +13013,13 @@ var Ao = Ut((ue) => {
               } else var n = !0;
               if (n) {
                 if (e.sections !== void 0) {
-                  let f = e.sections,
+                  let l = e.sections,
                     h = r;
                   if (r === h)
-                    if (Array.isArray(f)) {
-                      if (f.length > 8)
+                    if (Array.isArray(l)) {
+                      if (l.length > 8)
                         return (
-                          (ie.errors = [
+                          (se.errors = [
                             {
                               instancePath: t + "/sections",
                               schemaPath: "#/properties/sections/maxItems",
@@ -13029,9 +13029,9 @@ var Ao = Ut((ue) => {
                           ]),
                           !1
                         );
-                      if (f.length < 1)
+                      if (l.length < 1)
                         return (
-                          (ie.errors = [
+                          (se.errors = [
                             {
                               instancePath: t + "/sections",
                               schemaPath: "#/properties/sections/minItems",
@@ -13043,15 +13043,15 @@ var Ao = Ut((ue) => {
                         );
                       {
                         var y = !0;
-                        let g = f.length;
+                        let g = l.length;
                         for (let I = 0; I < g; I++) {
                           let k = r;
-                          je(f[I], {
+                          je(l[I], {
                             instancePath: t + "/sections/" + I,
-                            parentData: f,
+                            parentData: l,
                             parentDataProperty: I,
                             rootData: c,
-                            dynamicAnchors: l,
+                            dynamicAnchors: f,
                           }) ||
                             ((i = i === null ? je.errors : i.concat(je.errors)), (r = i.length));
                           var y = k === r;
@@ -13060,7 +13060,7 @@ var Ao = Ut((ue) => {
                       }
                     } else
                       return (
-                        (ie.errors = [
+                        (se.errors = [
                           {
                             instancePath: t + "/sections",
                             schemaPath: "#/properties/sections/type",
@@ -13074,13 +13074,13 @@ var Ao = Ut((ue) => {
                 } else var n = !0;
                 if (n) {
                   if (e.citations !== void 0) {
-                    let f = e.citations,
+                    let l = e.citations,
                       h = r;
                     if (r === h)
-                      if (Array.isArray(f)) {
-                        if (f.length > 20)
+                      if (Array.isArray(l)) {
+                        if (l.length > 20)
                           return (
-                            (ie.errors = [
+                            (se.errors = [
                               {
                                 instancePath: t + "/citations",
                                 schemaPath: "#/properties/citations/maxItems",
@@ -13090,9 +13090,9 @@ var Ao = Ut((ue) => {
                             ]),
                             !1
                           );
-                        if (f.length < 0)
+                        if (l.length < 0)
                           return (
-                            (ie.errors = [
+                            (se.errors = [
                               {
                                 instancePath: t + "/citations",
                                 schemaPath: "#/properties/citations/minItems",
@@ -13104,24 +13104,24 @@ var Ao = Ut((ue) => {
                           );
                         {
                           var m = !0;
-                          let g = f.length;
+                          let g = l.length;
                           for (let I = 0; I < g; I++) {
                             let k = r;
-                            de(f[I], {
+                            ue(l[I], {
                               instancePath: t + "/citations/" + I,
-                              parentData: f,
+                              parentData: l,
                               parentDataProperty: I,
                               rootData: c,
-                              dynamicAnchors: l,
+                              dynamicAnchors: f,
                             }) ||
-                              ((i = i === null ? de.errors : i.concat(de.errors)), (r = i.length));
+                              ((i = i === null ? ue.errors : i.concat(ue.errors)), (r = i.length));
                             var m = k === r;
                             if (!m) break;
                           }
                         }
                       } else
                         return (
-                          (ie.errors = [
+                          (se.errors = [
                             {
                               instancePath: t + "/citations",
                               schemaPath: "#/properties/citations/type",
@@ -13135,13 +13135,13 @@ var Ao = Ut((ue) => {
                   } else var n = !0;
                   if (n)
                     if (e.limitations !== void 0) {
-                      let f = e.limitations,
+                      let l = e.limitations,
                         h = r;
                       if (r === h)
-                        if (Array.isArray(f)) {
-                          if (f.length > 20)
+                        if (Array.isArray(l)) {
+                          if (l.length > 20)
                             return (
-                              (ie.errors = [
+                              (se.errors = [
                                 {
                                   instancePath: t + "/limitations",
                                   schemaPath: "#/properties/limitations/maxItems",
@@ -13151,9 +13151,9 @@ var Ao = Ut((ue) => {
                               ]),
                               !1
                             );
-                          if (f.length < 0)
+                          if (l.length < 0)
                             return (
-                              (ie.errors = [
+                              (se.errors = [
                                 {
                                   instancePath: t + "/limitations",
                                   schemaPath: "#/properties/limitations/minItems",
@@ -13165,15 +13165,15 @@ var Ao = Ut((ue) => {
                             );
                           {
                             var p = !0;
-                            let g = f.length;
+                            let g = l.length;
                             for (let I = 0; I < g; I++) {
-                              let k = f[I],
+                              let k = l[I],
                                 b = r;
                               if (r === b)
                                 if (typeof k == "string") {
                                   if (P(k) > 500)
                                     return (
-                                      (ie.errors = [
+                                      (se.errors = [
                                         {
                                           instancePath: t + "/limitations/" + I,
                                           schemaPath: "#/properties/limitations/items/maxLength",
@@ -13185,7 +13185,7 @@ var Ao = Ut((ue) => {
                                     );
                                   if (P(k) < 1)
                                     return (
-                                      (ie.errors = [
+                                      (se.errors = [
                                         {
                                           instancePath: t + "/limitations/" + I,
                                           schemaPath: "#/properties/limitations/items/minLength",
@@ -13197,7 +13197,7 @@ var Ao = Ut((ue) => {
                                     );
                                 } else
                                   return (
-                                    (ie.errors = [
+                                    (se.errors = [
                                       {
                                         instancePath: t + "/limitations/" + I,
                                         schemaPath: "#/properties/limitations/items/type",
@@ -13213,7 +13213,7 @@ var Ao = Ut((ue) => {
                           }
                         } else
                           return (
-                            (ie.errors = [
+                            (se.errors = [
                               {
                                 instancePath: t + "/limitations",
                                 schemaPath: "#/properties/limitations/type",
@@ -13232,14 +13232,14 @@ var Ao = Ut((ue) => {
         }
       } else
         return (
-          (ie.errors = [
+          (se.errors = [
             { instancePath: t, schemaPath: "#/type", keyword: "type", params: { type: "object" } },
           ]),
           !1
         );
-    return ((ie.errors = i), r === 0);
+    return ((se.errors = i), r === 0);
   }
-  ie.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
+  se.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
   var Po = {
       type: "object",
       properties: {
@@ -13286,7 +13286,7 @@ var Ao = Ut((ue) => {
       parentData: a,
       parentDataProperty: u,
       rootData: c = e,
-      dynamicAnchors: l = {},
+      dynamicAnchors: f = {},
     } = {},
   ) {
     let i = null,
@@ -13524,7 +13524,7 @@ var Ao = Ut((ue) => {
       parentData: a,
       parentDataProperty: u,
       rootData: c = e,
-      dynamicAnchors: l = {},
+      dynamicAnchors: f = {},
     } = {},
   ) {
     let i = null,
@@ -13569,7 +13569,7 @@ var Ao = Ut((ue) => {
           if (s === r) {
             if (e.currency !== void 0) {
               let o = e.currency,
-                f = r;
+                l = r;
               if (typeof o != "string")
                 return (
                   (Ge.errors = [
@@ -13594,12 +13594,12 @@ var Ao = Ut((ue) => {
                   ]),
                   !1
                 );
-              var n = f === r;
+              var n = l === r;
             } else var n = !0;
             if (n) {
               if (e.cashBalance !== void 0) {
                 let o = e.cashBalance,
-                  f = r,
+                  l = r,
                   h = r,
                   v = !1,
                   g = r;
@@ -13662,12 +13662,12 @@ var Ao = Ut((ue) => {
                   };
                   return (i === null ? (i = [b]) : i.push(b), r++, (Ge.errors = i), !1);
                 }
-                var n = f === r;
+                var n = l === r;
               } else var n = !0;
               if (n)
                 if (e.buyingPower !== void 0) {
                   let o = e.buyingPower,
-                    f = r,
+                    l = r,
                     h = r,
                     v = !1,
                     g = r;
@@ -13730,7 +13730,7 @@ var Ao = Ut((ue) => {
                     };
                     return (i === null ? (i = [b]) : i.push(b), r++, (Ge.errors = i), !1);
                   }
-                  var n = f === r;
+                  var n = l === r;
                 } else var n = !0;
             }
           }
@@ -13803,7 +13803,7 @@ var Ao = Ut((ue) => {
       parentData: a,
       parentDataProperty: u,
       rootData: c = e,
-      dynamicAnchors: l = {},
+      dynamicAnchors: f = {},
     } = {},
   ) {
     let i = null,
@@ -13939,19 +13939,19 @@ var Ao = Ut((ue) => {
     return ((ze.errors = i), r === 0);
   }
   ze.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
-  function X(
+  function Y(
     e,
     {
       instancePath: t = "",
       parentData: a,
       parentDataProperty: u,
       rootData: c = e,
-      dynamicAnchors: l = {},
+      dynamicAnchors: f = {},
     } = {},
   ) {
     let i = null,
       r = 0,
-      d = X.evaluated;
+      d = Y.evaluated;
     if ((d.dynamicProps && (d.props = void 0), d.dynamicItems && (d.items = void 0), r === 0))
       if (e && typeof e == "object" && !Array.isArray(e)) {
         let s;
@@ -13967,7 +13967,7 @@ var Ao = Ut((ue) => {
           (e.marketValue === void 0 && (s = "marketValue"))
         )
           return (
-            (X.errors = [
+            (Y.errors = [
               {
                 instancePath: t,
                 schemaPath: "#/required",
@@ -13979,15 +13979,15 @@ var Ao = Ut((ue) => {
           );
         {
           let o = r;
-          for (let f in e)
-            if (!Re.call(ts.properties, f)) {
+          for (let l in e)
+            if (!Re.call(ts.properties, l)) {
               return (
-                (X.errors = [
+                (Y.errors = [
                   {
                     instancePath: t,
                     schemaPath: "#/additionalProperties",
                     keyword: "additionalProperties",
-                    params: { additionalProperty: f },
+                    params: { additionalProperty: l },
                   },
                 ]),
                 !1
@@ -13996,13 +13996,13 @@ var Ao = Ut((ue) => {
             }
           if (o === r) {
             if (e.assetId !== void 0) {
-              let f = e.assetId,
+              let l = e.assetId,
                 h = r;
               if (r === h)
-                if (typeof f == "string") {
-                  if (P(f) > 128)
+                if (typeof l == "string") {
+                  if (P(l) > 128)
                     return (
-                      (X.errors = [
+                      (Y.errors = [
                         {
                           instancePath: t + "/assetId",
                           schemaPath: "#/properties/assetId/maxLength",
@@ -14012,9 +14012,9 @@ var Ao = Ut((ue) => {
                       ]),
                       !1
                     );
-                  if (P(f) < 1)
+                  if (P(l) < 1)
                     return (
-                      (X.errors = [
+                      (Y.errors = [
                         {
                           instancePath: t + "/assetId",
                           schemaPath: "#/properties/assetId/minLength",
@@ -14024,9 +14024,9 @@ var Ao = Ut((ue) => {
                       ]),
                       !1
                     );
-                  if (!Pe.test(f))
+                  if (!Pe.test(l))
                     return (
-                      (X.errors = [
+                      (Y.errors = [
                         {
                           instancePath: t + "/assetId",
                           schemaPath: "#/properties/assetId/pattern",
@@ -14038,7 +14038,7 @@ var Ao = Ut((ue) => {
                     );
                 } else
                   return (
-                    (X.errors = [
+                    (Y.errors = [
                       {
                         instancePath: t + "/assetId",
                         schemaPath: "#/properties/assetId/type",
@@ -14052,13 +14052,13 @@ var Ao = Ut((ue) => {
             } else var n = !0;
             if (n) {
               if (e.brokerAssetId !== void 0) {
-                let f = e.brokerAssetId,
+                let l = e.brokerAssetId,
                   h = r;
                 if (r === h)
-                  if (typeof f == "string") {
-                    if (P(f) > 180)
+                  if (typeof l == "string") {
+                    if (P(l) > 180)
                       return (
-                        (X.errors = [
+                        (Y.errors = [
                           {
                             instancePath: t + "/brokerAssetId",
                             schemaPath: "#/properties/brokerAssetId/maxLength",
@@ -14068,9 +14068,9 @@ var Ao = Ut((ue) => {
                         ]),
                         !1
                       );
-                    if (P(f) < 1)
+                    if (P(l) < 1)
                       return (
-                        (X.errors = [
+                        (Y.errors = [
                           {
                             instancePath: t + "/brokerAssetId",
                             schemaPath: "#/properties/brokerAssetId/minLength",
@@ -14082,7 +14082,7 @@ var Ao = Ut((ue) => {
                       );
                   } else
                     return (
-                      (X.errors = [
+                      (Y.errors = [
                         {
                           instancePath: t + "/brokerAssetId",
                           schemaPath: "#/properties/brokerAssetId/type",
@@ -14096,14 +14096,14 @@ var Ao = Ut((ue) => {
               } else var n = !0;
               if (n) {
                 if (e.symbol !== void 0) {
-                  let f = e.symbol,
+                  let l = e.symbol,
                     h = r,
                     v = r,
                     g = !1,
                     I = r;
                   if (r === I)
-                    if (typeof f == "string") {
-                      if (P(f) > 32) {
+                    if (typeof l == "string") {
+                      if (P(l) > 32) {
                         let A = {
                           instancePath: t + "/symbol",
                           schemaPath: "#/properties/symbol/anyOf/0/maxLength",
@@ -14111,7 +14111,7 @@ var Ao = Ut((ue) => {
                           params: { limit: 32 },
                         };
                         (i === null ? (i = [A]) : i.push(A), r++);
-                      } else if (P(f) < 1) {
+                      } else if (P(l) < 1) {
                         let A = {
                           instancePath: t + "/symbol",
                           schemaPath: "#/properties/symbol/anyOf/0/minLength",
@@ -14132,7 +14132,7 @@ var Ao = Ut((ue) => {
                   var y = I === r;
                   g = g || y;
                   let k = r;
-                  if (f !== null) {
+                  if (l !== null) {
                     let A = {
                       instancePath: t + "/symbol",
                       schemaPath: "#/properties/symbol/anyOf/1/type",
@@ -14150,20 +14150,20 @@ var Ao = Ut((ue) => {
                       keyword: "anyOf",
                       params: {},
                     };
-                    return (i === null ? (i = [A]) : i.push(A), r++, (X.errors = i), !1);
+                    return (i === null ? (i = [A]) : i.push(A), r++, (Y.errors = i), !1);
                   }
                   var n = h === r;
                 } else var n = !0;
                 if (n) {
                   if (e.exchange !== void 0) {
-                    let f = e.exchange,
+                    let l = e.exchange,
                       h = r,
                       v = r,
                       g = !1,
                       I = r;
                     if (r === I)
-                      if (typeof f == "string") {
-                        if (P(f) > 40) {
+                      if (typeof l == "string") {
+                        if (P(l) > 40) {
                           let A = {
                             instancePath: t + "/exchange",
                             schemaPath: "#/properties/exchange/anyOf/0/maxLength",
@@ -14171,7 +14171,7 @@ var Ao = Ut((ue) => {
                             params: { limit: 40 },
                           };
                           (i === null ? (i = [A]) : i.push(A), r++);
-                        } else if (P(f) < 1) {
+                        } else if (P(l) < 1) {
                           let A = {
                             instancePath: t + "/exchange",
                             schemaPath: "#/properties/exchange/anyOf/0/minLength",
@@ -14192,7 +14192,7 @@ var Ao = Ut((ue) => {
                     var m = I === r;
                     g = g || m;
                     let k = r;
-                    if (f !== null) {
+                    if (l !== null) {
                       let A = {
                         instancePath: t + "/exchange",
                         schemaPath: "#/properties/exchange/anyOf/1/type",
@@ -14211,19 +14211,19 @@ var Ao = Ut((ue) => {
                         keyword: "anyOf",
                         params: {},
                       };
-                      return (i === null ? (i = [A]) : i.push(A), r++, (X.errors = i), !1);
+                      return (i === null ? (i = [A]) : i.push(A), r++, (Y.errors = i), !1);
                     }
                     var n = h === r;
                   } else var n = !0;
                   if (n) {
                     if (e.name !== void 0) {
-                      let f = e.name,
+                      let l = e.name,
                         h = r;
                       if (r === h)
-                        if (typeof f == "string") {
-                          if (P(f) > 180)
+                        if (typeof l == "string") {
+                          if (P(l) > 180)
                             return (
-                              (X.errors = [
+                              (Y.errors = [
                                 {
                                   instancePath: t + "/name",
                                   schemaPath: "#/properties/name/maxLength",
@@ -14233,9 +14233,9 @@ var Ao = Ut((ue) => {
                               ]),
                               !1
                             );
-                          if (P(f) < 1)
+                          if (P(l) < 1)
                             return (
-                              (X.errors = [
+                              (Y.errors = [
                                 {
                                   instancePath: t + "/name",
                                   schemaPath: "#/properties/name/minLength",
@@ -14247,7 +14247,7 @@ var Ao = Ut((ue) => {
                             );
                         } else
                           return (
-                            (X.errors = [
+                            (Y.errors = [
                               {
                                 instancePath: t + "/name",
                                 schemaPath: "#/properties/name/type",
@@ -14261,11 +14261,11 @@ var Ao = Ut((ue) => {
                     } else var n = !0;
                     if (n) {
                       if (e.assetType !== void 0) {
-                        let f = e.assetType,
+                        let l = e.assetType,
                           h = r;
-                        if (typeof f != "string")
+                        if (typeof l != "string")
                           return (
-                            (X.errors = [
+                            (Y.errors = [
                               {
                                 instancePath: t + "/assetType",
                                 schemaPath: "#/properties/assetType/type",
@@ -14275,9 +14275,9 @@ var Ao = Ut((ue) => {
                             ]),
                             !1
                           );
-                        if (!(f === "stock" || f === "etf" || f === "unsupported"))
+                        if (!(l === "stock" || l === "etf" || l === "unsupported"))
                           return (
-                            (X.errors = [
+                            (Y.errors = [
                               {
                                 instancePath: t + "/assetType",
                                 schemaPath: "#/properties/assetType/enum",
@@ -14291,13 +14291,13 @@ var Ao = Ut((ue) => {
                       } else var n = !0;
                       if (n) {
                         if (e.quantity !== void 0) {
-                          let f = e.quantity,
+                          let l = e.quantity,
                             h = r;
                           if (r === h)
-                            if (typeof f == "string") {
-                              if (P(f) > 33)
+                            if (typeof l == "string") {
+                              if (P(l) > 33)
                                 return (
-                                  (X.errors = [
+                                  (Y.errors = [
                                     {
                                       instancePath: t + "/quantity",
                                       schemaPath: "#/properties/quantity/maxLength",
@@ -14307,9 +14307,9 @@ var Ao = Ut((ue) => {
                                   ]),
                                   !1
                                 );
-                              if (P(f) < 1)
+                              if (P(l) < 1)
                                 return (
-                                  (X.errors = [
+                                  (Y.errors = [
                                     {
                                       instancePath: t + "/quantity",
                                       schemaPath: "#/properties/quantity/minLength",
@@ -14319,9 +14319,9 @@ var Ao = Ut((ue) => {
                                   ]),
                                   !1
                                 );
-                              if (!za.test(f))
+                              if (!za.test(l))
                                 return (
-                                  (X.errors = [
+                                  (Y.errors = [
                                     {
                                       instancePath: t + "/quantity",
                                       schemaPath: "#/properties/quantity/pattern",
@@ -14335,7 +14335,7 @@ var Ao = Ut((ue) => {
                                 );
                             } else
                               return (
-                                (X.errors = [
+                                (Y.errors = [
                                   {
                                     instancePath: t + "/quantity",
                                     schemaPath: "#/properties/quantity/type",
@@ -14349,11 +14349,11 @@ var Ao = Ut((ue) => {
                         } else var n = !0;
                         if (n) {
                           if (e.currency !== void 0) {
-                            let f = e.currency,
+                            let l = e.currency,
                               h = r;
-                            if (typeof f != "string")
+                            if (typeof l != "string")
                               return (
-                                (X.errors = [
+                                (Y.errors = [
                                   {
                                     instancePath: t + "/currency",
                                     schemaPath: "#/properties/currency/type",
@@ -14363,9 +14363,9 @@ var Ao = Ut((ue) => {
                                 ]),
                                 !1
                               );
-                            if (!(f === "CAD" || f === "USD"))
+                            if (!(l === "CAD" || l === "USD"))
                               return (
-                                (X.errors = [
+                                (Y.errors = [
                                   {
                                     instancePath: t + "/currency",
                                     schemaPath: "#/properties/currency/enum",
@@ -14379,24 +14379,24 @@ var Ao = Ut((ue) => {
                           } else var n = !0;
                           if (n)
                             if (e.marketValue !== void 0) {
-                              let f = e.marketValue,
+                              let l = e.marketValue,
                                 h = r,
                                 v = r,
                                 g = !1,
                                 I = r;
-                              ze(f, {
+                              ze(l, {
                                 instancePath: t + "/marketValue",
                                 parentData: e,
                                 parentDataProperty: "marketValue",
                                 rootData: c,
-                                dynamicAnchors: l,
+                                dynamicAnchors: f,
                               }) ||
                                 ((i = i === null ? ze.errors : i.concat(ze.errors)),
                                 (r = i.length));
                               var p = I === r;
                               g = g || p;
                               let k = r;
-                              if (f !== null) {
+                              if (l !== null) {
                                 let A = {
                                   instancePath: t + "/marketValue",
                                   schemaPath: "#/properties/marketValue/anyOf/1/type",
@@ -14418,7 +14418,7 @@ var Ao = Ut((ue) => {
                                 return (
                                   i === null ? (i = [A]) : i.push(A),
                                   r++,
-                                  (X.errors = i),
+                                  (Y.errors = i),
                                   !1
                                 );
                               }
@@ -14435,14 +14435,14 @@ var Ao = Ut((ue) => {
         }
       } else
         return (
-          (X.errors = [
+          (Y.errors = [
             { instancePath: t, schemaPath: "#/type", keyword: "type", params: { type: "object" } },
           ]),
           !1
         );
-    return ((X.errors = i), r === 0);
+    return ((Y.errors = i), r === 0);
   }
-  X.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
+  Y.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
   function Ie(
     e,
     {
@@ -14450,7 +14450,7 @@ var Ao = Ut((ue) => {
       parentData: a,
       parentDataProperty: u,
       rootData: c = e,
-      dynamicAnchors: l = {},
+      dynamicAnchors: f = {},
     } = {},
   ) {
     let i = null,
@@ -14501,8 +14501,8 @@ var Ao = Ut((ue) => {
           if (s === r) {
             if (e.accountId !== void 0) {
               let o = e.accountId,
-                f = r;
-              if (r === f)
+                l = r;
+              if (r === l)
                 if (typeof o == "string") {
                   if (P(o) > 128)
                     return (
@@ -14552,13 +14552,13 @@ var Ao = Ut((ue) => {
                     ]),
                     !1
                   );
-              var n = f === r;
+              var n = l === r;
             } else var n = !0;
             if (n) {
               if (e.displayName !== void 0) {
                 let o = e.displayName,
-                  f = r;
-                if (r === f)
+                  l = r;
+                if (r === l)
                   if (typeof o == "string") {
                     if (P(o) > 80)
                       return (
@@ -14596,13 +14596,13 @@ var Ao = Ut((ue) => {
                       ]),
                       !1
                     );
-                var n = f === r;
+                var n = l === r;
               } else var n = !0;
               if (n) {
                 if (e.balances !== void 0) {
                   let o = e.balances,
-                    f = r;
-                  if (r === f)
+                    l = r;
+                  if (r === l)
                     if (Array.isArray(o)) {
                       if (o.length > 2)
                         return (
@@ -14638,7 +14638,7 @@ var Ao = Ut((ue) => {
                             parentData: o,
                             parentDataProperty: g,
                             rootData: c,
-                            dynamicAnchors: l,
+                            dynamicAnchors: f,
                           }) ||
                             ((i = i === null ? Ge.errors : i.concat(Ge.errors)), (r = i.length));
                           var y = I === r;
@@ -14657,13 +14657,13 @@ var Ao = Ut((ue) => {
                         ]),
                         !1
                       );
-                  var n = f === r;
+                  var n = l === r;
                 } else var n = !0;
                 if (n)
                   if (e.positions !== void 0) {
                     let o = e.positions,
-                      f = r;
-                    if (r === f)
+                      l = r;
+                    if (r === l)
                       if (Array.isArray(o)) {
                         if (o.length > 1e3)
                           return (
@@ -14694,14 +14694,14 @@ var Ao = Ut((ue) => {
                           let v = o.length;
                           for (let g = 0; g < v; g++) {
                             let I = r;
-                            X(o[g], {
+                            Y(o[g], {
                               instancePath: t + "/positions/" + g,
                               parentData: o,
                               parentDataProperty: g,
                               rootData: c,
-                              dynamicAnchors: l,
+                              dynamicAnchors: f,
                             }) ||
-                              ((i = i === null ? X.errors : i.concat(X.errors)), (r = i.length));
+                              ((i = i === null ? Y.errors : i.concat(Y.errors)), (r = i.length));
                             var m = I === r;
                             if (!m) break;
                           }
@@ -14718,7 +14718,7 @@ var Ao = Ut((ue) => {
                           ]),
                           !1
                         );
-                    var n = f === r;
+                    var n = l === r;
                   } else var n = !0;
               }
             }
@@ -14734,19 +14734,19 @@ var Ao = Ut((ue) => {
     return ((Ie.errors = i), r === 0);
   }
   Ie.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
-  function Y(
+  function Q(
     e,
     {
       instancePath: t = "",
       parentData: a,
       parentDataProperty: u,
       rootData: c = e,
-      dynamicAnchors: l = {},
+      dynamicAnchors: f = {},
     } = {},
   ) {
     let i = null,
       r = 0,
-      d = Y.evaluated;
+      d = Q.evaluated;
     if ((d.dynamicProps && (d.props = void 0), d.dynamicItems && (d.items = void 0), r === 0))
       if (e && typeof e == "object" && !Array.isArray(e)) {
         let s;
@@ -14757,7 +14757,7 @@ var Ao = Ut((ue) => {
           (e.excludedAssets === void 0 && (s = "excludedAssets"))
         )
           return (
-            (Y.errors = [
+            (Q.errors = [
               {
                 instancePath: t,
                 schemaPath: "#/required",
@@ -14769,20 +14769,20 @@ var Ao = Ut((ue) => {
           );
         {
           let o = r;
-          for (let f in e)
+          for (let l in e)
             if (!(
-              f === "kind" ||
-              f === "snapshotId" ||
-              f === "accounts" ||
-              f === "excludedAssets"
+              l === "kind" ||
+              l === "snapshotId" ||
+              l === "accounts" ||
+              l === "excludedAssets"
             )) {
               return (
-                (Y.errors = [
+                (Q.errors = [
                   {
                     instancePath: t,
                     schemaPath: "#/additionalProperties",
                     keyword: "additionalProperties",
-                    params: { additionalProperty: f },
+                    params: { additionalProperty: l },
                   },
                 ]),
                 !1
@@ -14791,10 +14791,10 @@ var Ao = Ut((ue) => {
             }
           if (o === r) {
             if (e.kind !== void 0) {
-              let f = r;
+              let l = r;
               if (e.kind !== "holdings")
                 return (
-                  (Y.errors = [
+                  (Q.errors = [
                     {
                       instancePath: t + "/kind",
                       schemaPath: "#/properties/kind/const",
@@ -14804,17 +14804,17 @@ var Ao = Ut((ue) => {
                   ]),
                   !1
                 );
-              var n = f === r;
+              var n = l === r;
             } else var n = !0;
             if (n) {
               if (e.snapshotId !== void 0) {
-                let f = e.snapshotId,
+                let l = e.snapshotId,
                   h = r;
                 if (r === h)
-                  if (typeof f == "string") {
-                    if (P(f) > 128)
+                  if (typeof l == "string") {
+                    if (P(l) > 128)
                       return (
-                        (Y.errors = [
+                        (Q.errors = [
                           {
                             instancePath: t + "/snapshotId",
                             schemaPath: "#/properties/snapshotId/maxLength",
@@ -14824,9 +14824,9 @@ var Ao = Ut((ue) => {
                         ]),
                         !1
                       );
-                    if (P(f) < 1)
+                    if (P(l) < 1)
                       return (
-                        (Y.errors = [
+                        (Q.errors = [
                           {
                             instancePath: t + "/snapshotId",
                             schemaPath: "#/properties/snapshotId/minLength",
@@ -14836,9 +14836,9 @@ var Ao = Ut((ue) => {
                         ]),
                         !1
                       );
-                    if (!Pe.test(f))
+                    if (!Pe.test(l))
                       return (
-                        (Y.errors = [
+                        (Q.errors = [
                           {
                             instancePath: t + "/snapshotId",
                             schemaPath: "#/properties/snapshotId/pattern",
@@ -14850,7 +14850,7 @@ var Ao = Ut((ue) => {
                       );
                   } else
                     return (
-                      (Y.errors = [
+                      (Q.errors = [
                         {
                           instancePath: t + "/snapshotId",
                           schemaPath: "#/properties/snapshotId/type",
@@ -14864,13 +14864,13 @@ var Ao = Ut((ue) => {
               } else var n = !0;
               if (n) {
                 if (e.accounts !== void 0) {
-                  let f = e.accounts,
+                  let l = e.accounts,
                     h = r;
                   if (r === h)
-                    if (Array.isArray(f)) {
-                      if (f.length > 10)
+                    if (Array.isArray(l)) {
+                      if (l.length > 10)
                         return (
-                          (Y.errors = [
+                          (Q.errors = [
                             {
                               instancePath: t + "/accounts",
                               schemaPath: "#/properties/accounts/maxItems",
@@ -14880,9 +14880,9 @@ var Ao = Ut((ue) => {
                           ]),
                           !1
                         );
-                      if (f.length < 0)
+                      if (l.length < 0)
                         return (
-                          (Y.errors = [
+                          (Q.errors = [
                             {
                               instancePath: t + "/accounts",
                               schemaPath: "#/properties/accounts/minItems",
@@ -14894,15 +14894,15 @@ var Ao = Ut((ue) => {
                         );
                       {
                         var y = !0;
-                        let g = f.length;
+                        let g = l.length;
                         for (let I = 0; I < g; I++) {
                           let k = r;
-                          Ie(f[I], {
+                          Ie(l[I], {
                             instancePath: t + "/accounts/" + I,
-                            parentData: f,
+                            parentData: l,
                             parentDataProperty: I,
                             rootData: c,
-                            dynamicAnchors: l,
+                            dynamicAnchors: f,
                           }) ||
                             ((i = i === null ? Ie.errors : i.concat(Ie.errors)), (r = i.length));
                           var y = k === r;
@@ -14911,7 +14911,7 @@ var Ao = Ut((ue) => {
                       }
                     } else
                       return (
-                        (Y.errors = [
+                        (Q.errors = [
                           {
                             instancePath: t + "/accounts",
                             schemaPath: "#/properties/accounts/type",
@@ -14925,13 +14925,13 @@ var Ao = Ut((ue) => {
                 } else var n = !0;
                 if (n)
                   if (e.excludedAssets !== void 0) {
-                    let f = e.excludedAssets,
+                    let l = e.excludedAssets,
                       h = r;
                     if (r === h)
-                      if (Array.isArray(f)) {
-                        if (f.length > 100)
+                      if (Array.isArray(l)) {
+                        if (l.length > 100)
                           return (
-                            (Y.errors = [
+                            (Q.errors = [
                               {
                                 instancePath: t + "/excludedAssets",
                                 schemaPath: "#/properties/excludedAssets/maxItems",
@@ -14941,9 +14941,9 @@ var Ao = Ut((ue) => {
                             ]),
                             !1
                           );
-                        if (f.length < 0)
+                        if (l.length < 0)
                           return (
-                            (Y.errors = [
+                            (Q.errors = [
                               {
                                 instancePath: t + "/excludedAssets",
                                 schemaPath: "#/properties/excludedAssets/minItems",
@@ -14955,24 +14955,24 @@ var Ao = Ut((ue) => {
                           );
                         {
                           var m = !0;
-                          let g = f.length;
+                          let g = l.length;
                           for (let I = 0; I < g; I++) {
-                            let k = f[I],
+                            let k = l[I],
                               b = r;
                             if (r === b)
                               if (k && typeof k == "object" && !Array.isArray(k)) {
-                                let me;
+                                let X;
                                 if (
-                                  (k.brokerAssetId === void 0 && (me = "brokerAssetId")) ||
-                                  (k.reason === void 0 && (me = "reason"))
+                                  (k.brokerAssetId === void 0 && (X = "brokerAssetId")) ||
+                                  (k.reason === void 0 && (X = "reason"))
                                 )
                                   return (
-                                    (Y.errors = [
+                                    (Q.errors = [
                                       {
                                         instancePath: t + "/excludedAssets/" + I,
                                         schemaPath: "#/properties/excludedAssets/items/required",
                                         keyword: "required",
-                                        params: { missingProperty: me },
+                                        params: { missingProperty: X },
                                       },
                                     ]),
                                     !1
@@ -14982,7 +14982,7 @@ var Ao = Ut((ue) => {
                                   for (let q in k)
                                     if (!(q === "brokerAssetId" || q === "reason")) {
                                       return (
-                                        (Y.errors = [
+                                        (Q.errors = [
                                           {
                                             instancePath: t + "/excludedAssets/" + I,
                                             schemaPath:
@@ -14998,12 +14998,12 @@ var Ao = Ut((ue) => {
                                   if (J === r) {
                                     if (k.brokerAssetId !== void 0) {
                                       let q = k.brokerAssetId,
-                                        pe = r;
-                                      if (r === pe)
+                                        ce = r;
+                                      if (r === ce)
                                         if (typeof q == "string") {
                                           if (P(q) > 180)
                                             return (
-                                              (Y.errors = [
+                                              (Q.errors = [
                                                 {
                                                   instancePath:
                                                     t + "/excludedAssets/" + I + "/brokerAssetId",
@@ -15017,7 +15017,7 @@ var Ao = Ut((ue) => {
                                             );
                                           if (P(q) < 1)
                                             return (
-                                              (Y.errors = [
+                                              (Q.errors = [
                                                 {
                                                   instancePath:
                                                     t + "/excludedAssets/" + I + "/brokerAssetId",
@@ -15031,7 +15031,7 @@ var Ao = Ut((ue) => {
                                             );
                                         } else
                                           return (
-                                            (Y.errors = [
+                                            (Q.errors = [
                                               {
                                                 instancePath:
                                                   t + "/excludedAssets/" + I + "/brokerAssetId",
@@ -15043,17 +15043,17 @@ var Ao = Ut((ue) => {
                                             ]),
                                             !1
                                           );
-                                      var p = pe === r;
+                                      var p = ce === r;
                                     } else var p = !0;
                                     if (p)
                                       if (k.reason !== void 0) {
                                         let q = k.reason,
-                                          pe = r;
-                                        if (r === pe)
+                                          ce = r;
+                                        if (r === ce)
                                           if (typeof q == "string") {
                                             if (P(q) > 120)
                                               return (
-                                                (Y.errors = [
+                                                (Q.errors = [
                                                   {
                                                     instancePath:
                                                       t + "/excludedAssets/" + I + "/reason",
@@ -15067,7 +15067,7 @@ var Ao = Ut((ue) => {
                                               );
                                             if (P(q) < 1)
                                               return (
-                                                (Y.errors = [
+                                                (Q.errors = [
                                                   {
                                                     instancePath:
                                                       t + "/excludedAssets/" + I + "/reason",
@@ -15081,7 +15081,7 @@ var Ao = Ut((ue) => {
                                               );
                                           } else
                                             return (
-                                              (Y.errors = [
+                                              (Q.errors = [
                                                 {
                                                   instancePath:
                                                     t + "/excludedAssets/" + I + "/reason",
@@ -15093,13 +15093,13 @@ var Ao = Ut((ue) => {
                                               ]),
                                               !1
                                             );
-                                        var p = pe === r;
+                                        var p = ce === r;
                                       } else var p = !0;
                                   }
                                 }
                               } else
                                 return (
-                                  (Y.errors = [
+                                  (Q.errors = [
                                     {
                                       instancePath: t + "/excludedAssets/" + I,
                                       schemaPath: "#/properties/excludedAssets/items/type",
@@ -15115,7 +15115,7 @@ var Ao = Ut((ue) => {
                         }
                       } else
                         return (
-                          (Y.errors = [
+                          (Q.errors = [
                             {
                               instancePath: t + "/excludedAssets",
                               schemaPath: "#/properties/excludedAssets/type",
@@ -15133,14 +15133,14 @@ var Ao = Ut((ue) => {
         }
       } else
         return (
-          (Y.errors = [
+          (Q.errors = [
             { instancePath: t, schemaPath: "#/type", keyword: "type", params: { type: "object" } },
           ]),
           !1
         );
-    return ((Y.errors = i), r === 0);
+    return ((Q.errors = i), r === 0);
   }
-  Y.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
+  Q.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
   var Za = {
     type: "object",
     properties: {
@@ -15160,7 +15160,7 @@ var Ao = Ut((ue) => {
       parentData: a,
       parentDataProperty: u,
       rootData: c = e,
-      dynamicAnchors: l = {},
+      dynamicAnchors: f = {},
     } = {},
   ) {
     let i = null,
@@ -15412,7 +15412,7 @@ var Ao = Ut((ue) => {
       parentData: a,
       parentDataProperty: u,
       rootData: c = e,
-      dynamicAnchors: l = {},
+      dynamicAnchors: f = {},
     } = {},
   ) {
     let i = null,
@@ -15507,7 +15507,7 @@ var Ao = Ut((ue) => {
                           parentData: s,
                           parentDataProperty: v,
                           rootData: c,
-                          dynamicAnchors: l,
+                          dynamicAnchors: f,
                         }) || ((i = i === null ? be.errors : i.concat(be.errors)), (r = i.length));
                         var y = g === r;
                         if (!y) break;
@@ -15539,19 +15539,19 @@ var Ao = Ut((ue) => {
     return ((Xe.errors = i), r === 0);
   }
   Xe.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
-  function le(
+  function fe(
     e,
     {
       instancePath: t = "",
       parentData: a,
       parentDataProperty: u,
       rootData: c = e,
-      dynamicAnchors: l = {},
+      dynamicAnchors: f = {},
     } = {},
   ) {
     let i = null,
       r = 0,
-      d = le.evaluated;
+      d = fe.evaluated;
     if ((d.dynamicProps && (d.props = void 0), d.dynamicItems && (d.items = void 0), r === 0))
       if (e && typeof e == "object" && !Array.isArray(e)) {
         let y;
@@ -15564,7 +15564,7 @@ var Ao = Ut((ue) => {
           (e.addedAt === void 0 && (y = "addedAt"))
         )
           return (
-            (le.errors = [
+            (fe.errors = [
               {
                 instancePath: t,
                 schemaPath: "#/required",
@@ -15586,7 +15586,7 @@ var Ao = Ut((ue) => {
               p === "addedAt"
             )) {
               return (
-                (le.errors = [
+                (fe.errors = [
                   {
                     instancePath: t,
                     schemaPath: "#/additionalProperties",
@@ -15606,7 +15606,7 @@ var Ao = Ut((ue) => {
                 if (typeof p == "string") {
                   if (P(p) > 128)
                     return (
-                      (le.errors = [
+                      (fe.errors = [
                         {
                           instancePath: t + "/followId",
                           schemaPath: "#/properties/followId/maxLength",
@@ -15618,7 +15618,7 @@ var Ao = Ut((ue) => {
                     );
                   if (P(p) < 1)
                     return (
-                      (le.errors = [
+                      (fe.errors = [
                         {
                           instancePath: t + "/followId",
                           schemaPath: "#/properties/followId/minLength",
@@ -15630,7 +15630,7 @@ var Ao = Ut((ue) => {
                     );
                   if (!Pe.test(p))
                     return (
-                      (le.errors = [
+                      (fe.errors = [
                         {
                           instancePath: t + "/followId",
                           schemaPath: "#/properties/followId/pattern",
@@ -15642,7 +15642,7 @@ var Ao = Ut((ue) => {
                     );
                 } else
                   return (
-                    (le.errors = [
+                    (fe.errors = [
                       {
                         instancePath: t + "/followId",
                         schemaPath: "#/properties/followId/type",
@@ -15662,7 +15662,7 @@ var Ao = Ut((ue) => {
                   if (typeof p == "string") {
                     if (P(p) > 120)
                       return (
-                        (le.errors = [
+                        (fe.errors = [
                           {
                             instancePath: t + "/name",
                             schemaPath: "#/properties/name/maxLength",
@@ -15674,7 +15674,7 @@ var Ao = Ut((ue) => {
                       );
                     if (P(p) < 1)
                       return (
-                        (le.errors = [
+                        (fe.errors = [
                           {
                             instancePath: t + "/name",
                             schemaPath: "#/properties/name/minLength",
@@ -15686,7 +15686,7 @@ var Ao = Ut((ue) => {
                       );
                   } else
                     return (
-                      (le.errors = [
+                      (fe.errors = [
                         {
                           instancePath: t + "/name",
                           schemaPath: "#/properties/name/type",
@@ -15706,7 +15706,7 @@ var Ao = Ut((ue) => {
                     if (typeof p == "string") {
                       if (P(p) > 256)
                         return (
-                          (le.errors = [
+                          (fe.errors = [
                             {
                               instancePath: t + "/handleOrUrl",
                               schemaPath: "#/properties/handleOrUrl/maxLength",
@@ -15718,7 +15718,7 @@ var Ao = Ut((ue) => {
                         );
                       if (P(p) < 1)
                         return (
-                          (le.errors = [
+                          (fe.errors = [
                             {
                               instancePath: t + "/handleOrUrl",
                               schemaPath: "#/properties/handleOrUrl/minLength",
@@ -15730,7 +15730,7 @@ var Ao = Ut((ue) => {
                         );
                     } else
                       return (
-                        (le.errors = [
+                        (fe.errors = [
                           {
                             instancePath: t + "/handleOrUrl",
                             schemaPath: "#/properties/handleOrUrl/type",
@@ -15750,7 +15750,7 @@ var Ao = Ut((ue) => {
                       if (typeof p == "string") {
                         if (P(p) > 1e3)
                           return (
-                            (le.errors = [
+                            (fe.errors = [
                               {
                                 instancePath: t + "/note",
                                 schemaPath: "#/properties/note/maxLength",
@@ -15762,7 +15762,7 @@ var Ao = Ut((ue) => {
                           );
                         if (P(p) < 0)
                           return (
-                            (le.errors = [
+                            (fe.errors = [
                               {
                                 instancePath: t + "/note",
                                 schemaPath: "#/properties/note/minLength",
@@ -15774,7 +15774,7 @@ var Ao = Ut((ue) => {
                           );
                       } else
                         return (
-                          (le.errors = [
+                          (fe.errors = [
                             {
                               instancePath: t + "/note",
                               schemaPath: "#/properties/note/type",
@@ -15791,7 +15791,7 @@ var Ao = Ut((ue) => {
                       let p = r;
                       if (e.verification !== "user_provided")
                         return (
-                          (le.errors = [
+                          (fe.errors = [
                             {
                               instancePath: t + "/verification",
                               schemaPath: "#/properties/verification/const",
@@ -15812,7 +15812,7 @@ var Ao = Ut((ue) => {
                             if (tt.test(p)) {
                               if (!it.test(p))
                                 return (
-                                  (le.errors = [
+                                  (fe.errors = [
                                     {
                                       instancePath: t + "/addedAt",
                                       schemaPath: "#/properties/addedAt/format",
@@ -15824,7 +15824,7 @@ var Ao = Ut((ue) => {
                                 );
                             } else
                               return (
-                                (le.errors = [
+                                (fe.errors = [
                                   {
                                     instancePath: t + "/addedAt",
                                     schemaPath: "#/properties/addedAt/pattern",
@@ -15836,7 +15836,7 @@ var Ao = Ut((ue) => {
                               );
                           else
                             return (
-                              (le.errors = [
+                              (fe.errors = [
                                 {
                                   instancePath: t + "/addedAt",
                                   schemaPath: "#/properties/addedAt/type",
@@ -15856,14 +15856,14 @@ var Ao = Ut((ue) => {
         }
       } else
         return (
-          (le.errors = [
+          (fe.errors = [
             { instancePath: t, schemaPath: "#/type", keyword: "type", params: { type: "object" } },
           ]),
           !1
         );
-    return ((le.errors = i), r === 0);
+    return ((fe.errors = i), r === 0);
   }
-  le.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
+  fe.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
   function Be(
     e,
     {
@@ -15871,7 +15871,7 @@ var Ao = Ut((ue) => {
       parentData: a,
       parentDataProperty: u,
       rootData: c = e,
-      dynamicAnchors: l = {},
+      dynamicAnchors: f = {},
     } = {},
   ) {
     let i = null,
@@ -15965,13 +15965,13 @@ var Ao = Ut((ue) => {
                       let h = s.length;
                       for (let v = 0; v < h; v++) {
                         let g = r;
-                        le(s[v], {
+                        fe(s[v], {
                           instancePath: t + "/items/" + v,
                           parentData: s,
                           parentDataProperty: v,
                           rootData: c,
-                          dynamicAnchors: l,
-                        }) || ((i = i === null ? le.errors : i.concat(le.errors)), (r = i.length));
+                          dynamicAnchors: f,
+                        }) || ((i = i === null ? fe.errors : i.concat(fe.errors)), (r = i.length));
                         var y = g === r;
                         if (!y) break;
                       }
@@ -16027,7 +16027,7 @@ var Ao = Ut((ue) => {
       parentData: a,
       parentDataProperty: u,
       rootData: c = e,
-      dynamicAnchors: l = {},
+      dynamicAnchors: f = {},
     } = {},
   ) {
     let i = null,
@@ -16038,15 +16038,15 @@ var Ao = Ut((ue) => {
       y = !1,
       m = null,
       p = r;
-    Y(e, {
+    Q(e, {
       instancePath: t,
       parentData: a,
       parentDataProperty: u,
       rootData: c,
-      dynamicAnchors: l,
-    }) || ((i = i === null ? Y.errors : i.concat(Y.errors)), (r = i.length));
-    var f = p === r;
-    if (f) {
+      dynamicAnchors: f,
+    }) || ((i = i === null ? Q.errors : i.concat(Q.errors)), (r = i.length));
+    var l = p === r;
+    if (l) {
       ((y = !0), (m = 0));
       var s = !0;
     }
@@ -16056,22 +16056,22 @@ var Ao = Ut((ue) => {
       parentData: a,
       parentDataProperty: u,
       rootData: c,
-      dynamicAnchors: l,
+      dynamicAnchors: f,
     }) || ((i = i === null ? Xe.errors : i.concat(Xe.errors)), (r = i.length));
-    var f = o === r;
-    if (f && y) ((y = !1), (m = [m, 1]));
+    var l = o === r;
+    if (l && y) ((y = !1), (m = [m, 1]));
     else {
-      f && ((y = !0), (m = 1), s !== !0 && (s = !0));
+      l && ((y = !0), (m = 1), s !== !0 && (s = !0));
       let h = r;
       Be(e, {
         instancePath: t,
         parentData: a,
         parentDataProperty: u,
         rootData: c,
-        dynamicAnchors: l,
+        dynamicAnchors: f,
       }) || ((i = i === null ? Be.errors : i.concat(Be.errors)), (r = i.length));
-      var f = h === r;
-      f && y ? ((y = !1), (m = [m, 2])) : f && ((y = !0), (m = 2), s !== !0 && (s = !0));
+      var l = h === r;
+      l && y ? ((y = !1), (m = [m, 2])) : l && ((y = !0), (m = 2), s !== !0 && (s = !0));
     }
     if (y) ((r = n), i !== null && (n ? (i.length = n) : (i = null)));
     else {
@@ -16093,7 +16093,7 @@ var Ao = Ut((ue) => {
       parentData: a,
       parentDataProperty: u,
       rootData: c = e,
-      dynamicAnchors: l = {},
+      dynamicAnchors: f = {},
     } = {},
   ) {
     let i = null,
@@ -16171,7 +16171,7 @@ var Ao = Ut((ue) => {
                   parentData: e,
                   parentDataProperty: "coverage",
                   rootData: c,
-                  dynamicAnchors: l,
+                  dynamicAnchors: f,
                 }) || ((i = i === null ? Ce.errors : i.concat(Ce.errors)), (r = i.length));
                 var n = s === r;
               } else var n = !0;
@@ -16179,7 +16179,7 @@ var Ao = Ut((ue) => {
                 if (e.sourceAsOf !== void 0) {
                   let s = e.sourceAsOf,
                     o = r,
-                    f = r,
+                    l = r,
                     h = !1,
                     v = r;
                   if (r === v && r === v)
@@ -16241,7 +16241,7 @@ var Ao = Ut((ue) => {
                     (i === null ? (i = [k]) : i.push(k), r++);
                   }
                   var y = g === r;
-                  if (((h = h || y), h)) ((r = f), i !== null && (f ? (i.length = f) : (i = null)));
+                  if (((h = h || y), h)) ((r = l), i !== null && (l ? (i.length = l) : (i = null)));
                   else {
                     let k = {
                       instancePath: t + "/sourceAsOf",
@@ -16348,7 +16348,7 @@ var Ao = Ut((ue) => {
                           parentData: e,
                           parentDataProperty: "data",
                           rootData: c,
-                          dynamicAnchors: l,
+                          dynamicAnchors: f,
                         }) || ((i = i === null ? et.errors : i.concat(et.errors)), (r = i.length));
                         var n = s === r;
                       } else var n = !0;
@@ -16375,7 +16375,7 @@ var Ao = Ut((ue) => {
       parentData: a,
       parentDataProperty: u,
       rootData: c = e,
-      dynamicAnchors: l = {},
+      dynamicAnchors: f = {},
     } = {},
   ) {
     let i = null,
@@ -16408,7 +16408,7 @@ var Ao = Ut((ue) => {
           parentData: e,
           parentDataProperty: "payload",
           rootData: c,
-          dynamicAnchors: l,
+          dynamicAnchors: f,
         }) ||
           ((i = i === null ? Ve.errors : i.concat(Ve.errors)), (r = i.length)));
       var s = q === r;
@@ -16426,10 +16426,10 @@ var Ao = Ut((ue) => {
       };
       return (i === null ? (i = [q]) : i.push(q), r++, (_e.errors = i), !1);
     }
-    var f = n === r;
-    if (f) {
+    var l = n === r;
+    if (l) {
       let q = r,
-        pe = r,
+        ce = r,
         C = !0,
         ge = r;
       if (
@@ -16443,20 +16443,20 @@ var Ao = Ut((ue) => {
         (i === null ? (i = [xe]) : i.push(xe), r++);
       }
       var h = ge === r;
-      if (((r = pe), i !== null && (pe ? (i.length = pe) : (i = null)), h)) {
+      if (((r = ce), i !== null && (ce ? (i.length = ce) : (i = null)), h)) {
         let xe = r;
         e &&
           typeof e == "object" &&
           !Array.isArray(e) &&
           e.payload !== void 0 &&
-          (ie(e.payload, {
+          (se(e.payload, {
             instancePath: t + "/payload",
             parentData: e,
             parentDataProperty: "payload",
             rootData: c,
-            dynamicAnchors: l,
+            dynamicAnchors: f,
           }) ||
-            ((i = i === null ? ie.errors : i.concat(ie.errors)), (r = i.length)));
+            ((i = i === null ? se.errors : i.concat(se.errors)), (r = i.length)));
         var h = xe === r;
         if (((C = h), C)) {
           var v = {};
@@ -16472,8 +16472,8 @@ var Ao = Ut((ue) => {
         };
         return (i === null ? (i = [xe]) : i.push(xe), r++, (_e.errors = i), !1);
       }
-      var f = q === r;
-      if (f) {
+      var l = q === r;
+      if (l) {
         o !== !0 && v !== void 0 && (v === !0 ? (o = !0) : ((o = o || {}), Object.assign(o, v)));
         let xe = r,
           jr = r,
@@ -16501,7 +16501,7 @@ var Ao = Ut((ue) => {
               parentData: e,
               parentDataProperty: "payload",
               rootData: c,
-              dynamicAnchors: l,
+              dynamicAnchors: f,
             }) ||
               ((i = i === null ? ve.errors : i.concat(ve.errors)), (r = i.length)));
           var g = _r === r;
@@ -16519,8 +16519,8 @@ var Ao = Ut((ue) => {
           };
           return (i === null ? (i = [_r]) : i.push(_r), r++, (_e.errors = i), !1);
         }
-        var f = xe === r;
-        if (f) {
+        var l = xe === r;
+        if (l) {
           o !== !0 && I !== void 0 && (I === !0 ? (o = !0) : ((o = o || {}), Object.assign(o, I)));
           let _r = r,
             hn = r,
@@ -16548,7 +16548,7 @@ var Ao = Ut((ue) => {
                 parentData: e,
                 parentDataProperty: "payload",
                 rootData: c,
-                dynamicAnchors: l,
+                dynamicAnchors: f,
               }) ||
                 ((i = i === null ? ve.errors : i.concat(ve.errors)), (r = i.length)));
             var k = xr === r;
@@ -16566,8 +16566,8 @@ var Ao = Ut((ue) => {
             };
             return (i === null ? (i = [xr]) : i.push(xr), r++, (_e.errors = i), !1);
           }
-          var f = _r === r;
-          if (f) {
+          var l = _r === r;
+          if (l) {
             o !== !0 &&
               b !== void 0 &&
               (b === !0 ? (o = !0) : ((o = o || {}), Object.assign(o, b)));
@@ -16597,13 +16597,13 @@ var Ao = Ut((ue) => {
                   parentData: e,
                   parentDataProperty: "payload",
                   rootData: c,
-                  dynamicAnchors: l,
+                  dynamicAnchors: f,
                 }) ||
                   ((i = i === null ? ve.errors : i.concat(ve.errors)), (r = i.length)));
               var A = zr === r;
               if (((wn = A), wn)) {
-                var me = {};
-                ((me.payload = !0), (me.objectType = !0));
+                var X = {};
+                ((X.payload = !0), (X.objectType = !0));
               }
             }
             if (!wn) {
@@ -16615,11 +16615,11 @@ var Ao = Ut((ue) => {
               };
               return (i === null ? (i = [zr]) : i.push(zr), r++, (_e.errors = i), !1);
             }
-            var f = xr === r;
-            f &&
+            var l = xr === r;
+            l &&
               o !== !0 &&
-              me !== void 0 &&
-              (me === !0 ? (o = !0) : ((o = o || {}), Object.assign(o, me)));
+              X !== void 0 &&
+              (X === !0 ? (o = !0) : ((o = o || {}), Object.assign(o, X)));
           }
         }
       }
@@ -16647,7 +16647,7 @@ var Ao = Ut((ue) => {
             !1
           );
         {
-          let pe = r;
+          let ce = r;
           for (let C in e)
             if (!(
               C === "privateSchemaVersion" ||
@@ -16670,7 +16670,7 @@ var Ao = Ut((ue) => {
               );
               break;
             }
-          if (pe === r) {
+          if (ce === r) {
             if (e.privateSchemaVersion !== void 0) {
               let C = r;
               if (e.privateSchemaVersion !== 1)
@@ -16712,7 +16712,7 @@ var Ao = Ut((ue) => {
                     parentData: e,
                     parentDataProperty: "objectId",
                     rootData: c,
-                    dynamicAnchors: l,
+                    dynamicAnchors: f,
                   }) || ((i = i === null ? w.errors : i.concat(w.errors)), (r = i.length));
                   var J = C === r;
                 } else var J = !0;
@@ -16818,19 +16818,19 @@ var Ao = Ut((ue) => {
     return ((_e.errors = i), r === 0);
   }
   _e.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
-  function Yi(
+  function Qi(
     e,
     {
       instancePath: t = "",
       parentData: a,
       parentDataProperty: u,
       rootData: c = e,
-      dynamicAnchors: l = {},
+      dynamicAnchors: f = {},
     } = {},
   ) {
     let i = null,
       r = 0,
-      d = Yi.evaluated;
+      d = Qi.evaluated;
     return (
       d.dynamicProps && (d.props = void 0),
       d.dynamicItems && (d.items = void 0),
@@ -16839,14 +16839,14 @@ var Ao = Ut((ue) => {
         parentData: a,
         parentDataProperty: u,
         rootData: c,
-        dynamicAnchors: l,
+        dynamicAnchors: f,
       }) || ((i = i === null ? _e.errors : i.concat(_e.errors)), (r = i.length)),
-      (Yi.errors = i),
+      (Qi.errors = i),
       r === 0
     );
   }
-  Yi.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
-  ue.PersistentContentCarrier = Qi;
+  Qi.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
+  me.PersistentContentCarrier = en;
   function Ae(
     e,
     {
@@ -16854,7 +16854,7 @@ var Ao = Ut((ue) => {
       parentData: a,
       parentDataProperty: u,
       rootData: c = e,
-      dynamicAnchors: l = {},
+      dynamicAnchors: f = {},
     } = {},
   ) {
     let i = null,
@@ -16901,15 +16901,15 @@ var Ao = Ut((ue) => {
                 o = r;
               if (r === o)
                 if (s && typeof s == "object" && !Array.isArray(s)) {
-                  let f;
-                  if ((s.kid === void 0 && (f = "kid")) || (s.epk === void 0 && (f = "epk")))
+                  let l;
+                  if ((s.kid === void 0 && (l = "kid")) || (s.epk === void 0 && (l = "epk")))
                     return (
                       (Ae.errors = [
                         {
                           instancePath: t + "/header",
                           schemaPath: "#/properties/header/required",
                           keyword: "required",
-                          params: { missingProperty: f },
+                          params: { missingProperty: l },
                         },
                       ]),
                       !1
@@ -16995,7 +16995,7 @@ var Ao = Ut((ue) => {
                             parentData: s,
                             parentDataProperty: "epk",
                             rootData: c,
-                            dynamicAnchors: l,
+                            dynamicAnchors: f,
                           }) ||
                             ((i = i === null ? ke.errors : i.concat(ke.errors)), (r = i.length));
                           var n = v === r;
@@ -17091,7 +17091,7 @@ var Ao = Ut((ue) => {
       parentData: a,
       parentDataProperty: u,
       rootData: c = e,
-      dynamicAnchors: l = {},
+      dynamicAnchors: f = {},
     } = {},
   ) {
     let i = null,
@@ -17239,7 +17239,7 @@ var Ao = Ut((ue) => {
                           parentData: s,
                           parentDataProperty: v,
                           rootData: c,
-                          dynamicAnchors: l,
+                          dynamicAnchors: f,
                         }) || ((i = i === null ? Ae.errors : i.concat(Ae.errors)), (r = i.length));
                         var y = g === r;
                         if (!y) break;
@@ -17506,7 +17506,7 @@ var Ao = Ut((ue) => {
       parentData: a,
       parentDataProperty: u,
       rootData: c = e,
-      dynamicAnchors: l = {},
+      dynamicAnchors: f = {},
     } = {},
   ) {
     let i = null,
@@ -17586,13 +17586,13 @@ var Ao = Ut((ue) => {
               if (n) {
                 if (e.proof !== void 0) {
                   let p = r;
-                  oe(e.proof, {
+                  pe(e.proof, {
                     instancePath: t + "/proof",
                     parentData: e,
                     parentDataProperty: "proof",
                     rootData: c,
-                    dynamicAnchors: l,
-                  }) || ((i = i === null ? oe.errors : i.concat(oe.errors)), (r = i.length));
+                    dynamicAnchors: f,
+                  }) || ((i = i === null ? pe.errors : i.concat(pe.errors)), (r = i.length));
                   var n = p === r;
                 } else var n = !0;
                 if (n)
@@ -17603,7 +17603,7 @@ var Ao = Ut((ue) => {
                       parentData: e,
                       parentDataProperty: "jwe",
                       rootData: c,
-                      dynamicAnchors: l,
+                      dynamicAnchors: f,
                     }) || ((i = i === null ? U.errors : i.concat(U.errors)), (r = i.length));
                     var n = p === r;
                   } else var n = !0;
@@ -17621,19 +17621,19 @@ var Ao = Ut((ue) => {
     return ((lr.errors = i), r === 0);
   }
   lr.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
-  function Qi(
+  function en(
     e,
     {
       instancePath: t = "",
       parentData: a,
       parentDataProperty: u,
       rootData: c = e,
-      dynamicAnchors: l = {},
+      dynamicAnchors: f = {},
     } = {},
   ) {
     let i = null,
       r = 0,
-      d = Qi.evaluated;
+      d = en.evaluated;
     return (
       d.dynamicProps && (d.props = void 0),
       d.dynamicItems && (d.items = void 0),
@@ -17642,14 +17642,14 @@ var Ao = Ut((ue) => {
         parentData: a,
         parentDataProperty: u,
         rootData: c,
-        dynamicAnchors: l,
+        dynamicAnchors: f,
       }) || ((i = i === null ? lr.errors : i.concat(lr.errors)), (r = i.length)),
-      (Qi.errors = i),
+      (en.errors = i),
       r === 0
     );
   }
-  Qi.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
-  ue.PersistentContentProofPayload = en;
+  en.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
+  me.PersistentContentProofPayload = rn;
   function rt(
     e,
     {
@@ -17657,7 +17657,7 @@ var Ao = Ut((ue) => {
       parentData: a,
       parentDataProperty: u,
       rootData: c = e,
-      dynamicAnchors: l = {},
+      dynamicAnchors: f = {},
     } = {},
   ) {
     let i = null,
@@ -17673,10 +17673,10 @@ var Ao = Ut((ue) => {
       parentData: a,
       parentDataProperty: u,
       rootData: c,
-      dynamicAnchors: l,
+      dynamicAnchors: f,
     }) || ((i = i === null ? N.errors : i.concat(N.errors)), (r = i.length));
-    var f = p === r;
-    if (f) {
+    var l = p === r;
+    if (l) {
       ((y = !0), (m = 0));
       var s = !0;
     }
@@ -17686,22 +17686,22 @@ var Ao = Ut((ue) => {
       parentData: a,
       parentDataProperty: u,
       rootData: c,
-      dynamicAnchors: l,
+      dynamicAnchors: f,
     }) || ((i = i === null ? O.errors : i.concat(O.errors)), (r = i.length));
-    var f = o === r;
-    if (f && y) ((y = !1), (m = [m, 1]));
+    var l = o === r;
+    if (l && y) ((y = !1), (m = [m, 1]));
     else {
-      f && ((y = !0), (m = 1), s !== !0 && (s = !0));
+      l && ((y = !0), (m = 1), s !== !0 && (s = !0));
       let h = r;
       V(e, {
         instancePath: t,
         parentData: a,
         parentDataProperty: u,
         rootData: c,
-        dynamicAnchors: l,
+        dynamicAnchors: f,
       }) || ((i = i === null ? V.errors : i.concat(V.errors)), (r = i.length));
-      var f = h === r;
-      f && y ? ((y = !1), (m = [m, 2])) : f && ((y = !0), (m = 2), s !== !0 && (s = !0));
+      var l = h === r;
+      l && y ? ((y = !1), (m = [m, 2])) : l && ((y = !0), (m = 2), s !== !0 && (s = !0));
     }
     if (y) ((r = n), i !== null && (n ? (i.length = n) : (i = null)));
     else {
@@ -17723,7 +17723,7 @@ var Ao = Ut((ue) => {
       parentData: a,
       parentDataProperty: u,
       rootData: c = e,
-      dynamicAnchors: l = {},
+      dynamicAnchors: f = {},
     } = {},
   ) {
     let i = null,
@@ -17832,7 +17832,7 @@ var Ao = Ut((ue) => {
                       parentData: e,
                       parentDataProperty: "context",
                       rootData: c,
-                      dynamicAnchors: l,
+                      dynamicAnchors: f,
                     }) || ((i = i === null ? rt.errors : i.concat(rt.errors)), (r = i.length));
                     var n = p === r;
                   } else var n = !0;
@@ -17844,7 +17844,7 @@ var Ao = Ut((ue) => {
                         parentData: e,
                         parentDataProperty: "ciphertextDigest",
                         rootData: c,
-                        dynamicAnchors: l,
+                        dynamicAnchors: f,
                       }) || ((i = i === null ? E.errors : i.concat(E.errors)), (r = i.length));
                       var n = p === r;
                     } else var n = !0;
@@ -17863,19 +17863,19 @@ var Ao = Ut((ue) => {
     return ((rr.errors = i), r === 0);
   }
   rr.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
-  function en(
+  function rn(
     e,
     {
       instancePath: t = "",
       parentData: a,
       parentDataProperty: u,
       rootData: c = e,
-      dynamicAnchors: l = {},
+      dynamicAnchors: f = {},
     } = {},
   ) {
     let i = null,
       r = 0,
-      d = en.evaluated;
+      d = rn.evaluated;
     return (
       d.dynamicProps && (d.props = void 0),
       d.dynamicItems && (d.items = void 0),
@@ -17884,27 +17884,27 @@ var Ao = Ut((ue) => {
         parentData: a,
         parentDataProperty: u,
         rootData: c,
-        dynamicAnchors: l,
+        dynamicAnchors: f,
       }) || ((i = i === null ? rr.errors : i.concat(rr.errors)), (r = i.length)),
-      (en.errors = i),
+      (rn.errors = i),
       r === 0
     );
   }
-  en.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
-  ue.ResultContent = rn;
-  function ne(
+  rn.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
+  me.ResultContent = tn;
+  function oe(
     e,
     {
       instancePath: t = "",
       parentData: a,
       parentDataProperty: u,
       rootData: c = e,
-      dynamicAnchors: l = {},
+      dynamicAnchors: f = {},
     } = {},
   ) {
     let i = null,
       r = 0,
-      d = ne.evaluated;
+      d = oe.evaluated;
     if ((d.dynamicProps && (d.props = void 0), d.dynamicItems && (d.items = void 0), r === 0))
       if (e && typeof e == "object" && !Array.isArray(e)) {
         let s;
@@ -17916,7 +17916,7 @@ var Ao = Ut((ue) => {
           (e.limitations === void 0 && (s = "limitations"))
         )
           return (
-            (ne.errors = [
+            (oe.errors = [
               {
                 instancePath: t,
                 schemaPath: "#/required",
@@ -17928,21 +17928,21 @@ var Ao = Ut((ue) => {
           );
         {
           let o = r;
-          for (let f in e)
+          for (let l in e)
             if (!(
-              f === "title" ||
-              f === "summary" ||
-              f === "sections" ||
-              f === "citations" ||
-              f === "limitations"
+              l === "title" ||
+              l === "summary" ||
+              l === "sections" ||
+              l === "citations" ||
+              l === "limitations"
             )) {
               return (
-                (ne.errors = [
+                (oe.errors = [
                   {
                     instancePath: t,
                     schemaPath: "#/additionalProperties",
                     keyword: "additionalProperties",
-                    params: { additionalProperty: f },
+                    params: { additionalProperty: l },
                   },
                 ]),
                 !1
@@ -17951,13 +17951,13 @@ var Ao = Ut((ue) => {
             }
           if (o === r) {
             if (e.title !== void 0) {
-              let f = e.title,
+              let l = e.title,
                 h = r;
               if (r === h)
-                if (typeof f == "string") {
-                  if (P(f) > 160)
+                if (typeof l == "string") {
+                  if (P(l) > 160)
                     return (
-                      (ne.errors = [
+                      (oe.errors = [
                         {
                           instancePath: t + "/title",
                           schemaPath: "#/properties/title/maxLength",
@@ -17967,9 +17967,9 @@ var Ao = Ut((ue) => {
                       ]),
                       !1
                     );
-                  if (P(f) < 1)
+                  if (P(l) < 1)
                     return (
-                      (ne.errors = [
+                      (oe.errors = [
                         {
                           instancePath: t + "/title",
                           schemaPath: "#/properties/title/minLength",
@@ -17981,7 +17981,7 @@ var Ao = Ut((ue) => {
                     );
                 } else
                   return (
-                    (ne.errors = [
+                    (oe.errors = [
                       {
                         instancePath: t + "/title",
                         schemaPath: "#/properties/title/type",
@@ -17995,13 +17995,13 @@ var Ao = Ut((ue) => {
             } else var n = !0;
             if (n) {
               if (e.summary !== void 0) {
-                let f = e.summary,
+                let l = e.summary,
                   h = r;
                 if (r === h)
-                  if (typeof f == "string") {
-                    if (P(f) > 600)
+                  if (typeof l == "string") {
+                    if (P(l) > 600)
                       return (
-                        (ne.errors = [
+                        (oe.errors = [
                           {
                             instancePath: t + "/summary",
                             schemaPath: "#/properties/summary/maxLength",
@@ -18011,9 +18011,9 @@ var Ao = Ut((ue) => {
                         ]),
                         !1
                       );
-                    if (P(f) < 1)
+                    if (P(l) < 1)
                       return (
-                        (ne.errors = [
+                        (oe.errors = [
                           {
                             instancePath: t + "/summary",
                             schemaPath: "#/properties/summary/minLength",
@@ -18025,7 +18025,7 @@ var Ao = Ut((ue) => {
                       );
                   } else
                     return (
-                      (ne.errors = [
+                      (oe.errors = [
                         {
                           instancePath: t + "/summary",
                           schemaPath: "#/properties/summary/type",
@@ -18039,13 +18039,13 @@ var Ao = Ut((ue) => {
               } else var n = !0;
               if (n) {
                 if (e.sections !== void 0) {
-                  let f = e.sections,
+                  let l = e.sections,
                     h = r;
                   if (r === h)
-                    if (Array.isArray(f)) {
-                      if (f.length > 8)
+                    if (Array.isArray(l)) {
+                      if (l.length > 8)
                         return (
-                          (ne.errors = [
+                          (oe.errors = [
                             {
                               instancePath: t + "/sections",
                               schemaPath: "#/properties/sections/maxItems",
@@ -18055,9 +18055,9 @@ var Ao = Ut((ue) => {
                           ]),
                           !1
                         );
-                      if (f.length < 1)
+                      if (l.length < 1)
                         return (
-                          (ne.errors = [
+                          (oe.errors = [
                             {
                               instancePath: t + "/sections",
                               schemaPath: "#/properties/sections/minItems",
@@ -18069,15 +18069,15 @@ var Ao = Ut((ue) => {
                         );
                       {
                         var y = !0;
-                        let g = f.length;
+                        let g = l.length;
                         for (let I = 0; I < g; I++) {
                           let k = r;
-                          je(f[I], {
+                          je(l[I], {
                             instancePath: t + "/sections/" + I,
-                            parentData: f,
+                            parentData: l,
                             parentDataProperty: I,
                             rootData: c,
-                            dynamicAnchors: l,
+                            dynamicAnchors: f,
                           }) ||
                             ((i = i === null ? je.errors : i.concat(je.errors)), (r = i.length));
                           var y = k === r;
@@ -18086,7 +18086,7 @@ var Ao = Ut((ue) => {
                       }
                     } else
                       return (
-                        (ne.errors = [
+                        (oe.errors = [
                           {
                             instancePath: t + "/sections",
                             schemaPath: "#/properties/sections/type",
@@ -18100,13 +18100,13 @@ var Ao = Ut((ue) => {
                 } else var n = !0;
                 if (n) {
                   if (e.citations !== void 0) {
-                    let f = e.citations,
+                    let l = e.citations,
                       h = r;
                     if (r === h)
-                      if (Array.isArray(f)) {
-                        if (f.length > 20)
+                      if (Array.isArray(l)) {
+                        if (l.length > 20)
                           return (
-                            (ne.errors = [
+                            (oe.errors = [
                               {
                                 instancePath: t + "/citations",
                                 schemaPath: "#/properties/citations/maxItems",
@@ -18116,9 +18116,9 @@ var Ao = Ut((ue) => {
                             ]),
                             !1
                           );
-                        if (f.length < 0)
+                        if (l.length < 0)
                           return (
-                            (ne.errors = [
+                            (oe.errors = [
                               {
                                 instancePath: t + "/citations",
                                 schemaPath: "#/properties/citations/minItems",
@@ -18130,24 +18130,24 @@ var Ao = Ut((ue) => {
                           );
                         {
                           var m = !0;
-                          let g = f.length;
+                          let g = l.length;
                           for (let I = 0; I < g; I++) {
                             let k = r;
-                            de(f[I], {
+                            ue(l[I], {
                               instancePath: t + "/citations/" + I,
-                              parentData: f,
+                              parentData: l,
                               parentDataProperty: I,
                               rootData: c,
-                              dynamicAnchors: l,
+                              dynamicAnchors: f,
                             }) ||
-                              ((i = i === null ? de.errors : i.concat(de.errors)), (r = i.length));
+                              ((i = i === null ? ue.errors : i.concat(ue.errors)), (r = i.length));
                             var m = k === r;
                             if (!m) break;
                           }
                         }
                       } else
                         return (
-                          (ne.errors = [
+                          (oe.errors = [
                             {
                               instancePath: t + "/citations",
                               schemaPath: "#/properties/citations/type",
@@ -18161,13 +18161,13 @@ var Ao = Ut((ue) => {
                   } else var n = !0;
                   if (n)
                     if (e.limitations !== void 0) {
-                      let f = e.limitations,
+                      let l = e.limitations,
                         h = r;
                       if (r === h)
-                        if (Array.isArray(f)) {
-                          if (f.length > 20)
+                        if (Array.isArray(l)) {
+                          if (l.length > 20)
                             return (
-                              (ne.errors = [
+                              (oe.errors = [
                                 {
                                   instancePath: t + "/limitations",
                                   schemaPath: "#/properties/limitations/maxItems",
@@ -18177,9 +18177,9 @@ var Ao = Ut((ue) => {
                               ]),
                               !1
                             );
-                          if (f.length < 0)
+                          if (l.length < 0)
                             return (
-                              (ne.errors = [
+                              (oe.errors = [
                                 {
                                   instancePath: t + "/limitations",
                                   schemaPath: "#/properties/limitations/minItems",
@@ -18191,15 +18191,15 @@ var Ao = Ut((ue) => {
                             );
                           {
                             var p = !0;
-                            let g = f.length;
+                            let g = l.length;
                             for (let I = 0; I < g; I++) {
-                              let k = f[I],
+                              let k = l[I],
                                 b = r;
                               if (r === b)
                                 if (typeof k == "string") {
                                   if (P(k) > 500)
                                     return (
-                                      (ne.errors = [
+                                      (oe.errors = [
                                         {
                                           instancePath: t + "/limitations/" + I,
                                           schemaPath: "#/properties/limitations/items/maxLength",
@@ -18211,7 +18211,7 @@ var Ao = Ut((ue) => {
                                     );
                                   if (P(k) < 1)
                                     return (
-                                      (ne.errors = [
+                                      (oe.errors = [
                                         {
                                           instancePath: t + "/limitations/" + I,
                                           schemaPath: "#/properties/limitations/items/minLength",
@@ -18223,7 +18223,7 @@ var Ao = Ut((ue) => {
                                     );
                                 } else
                                   return (
-                                    (ne.errors = [
+                                    (oe.errors = [
                                       {
                                         instancePath: t + "/limitations/" + I,
                                         schemaPath: "#/properties/limitations/items/type",
@@ -18239,7 +18239,7 @@ var Ao = Ut((ue) => {
                           }
                         } else
                           return (
-                            (ne.errors = [
+                            (oe.errors = [
                               {
                                 instancePath: t + "/limitations",
                                 schemaPath: "#/properties/limitations/type",
@@ -18258,43 +18258,43 @@ var Ao = Ut((ue) => {
         }
       } else
         return (
-          (ne.errors = [
+          (oe.errors = [
             { instancePath: t, schemaPath: "#/type", keyword: "type", params: { type: "object" } },
           ]),
           !1
         );
-    return ((ne.errors = i), r === 0);
+    return ((oe.errors = i), r === 0);
   }
-  ne.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
-  function rn(
+  oe.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
+  function tn(
     e,
     {
       instancePath: t = "",
       parentData: a,
       parentDataProperty: u,
       rootData: c = e,
-      dynamicAnchors: l = {},
+      dynamicAnchors: f = {},
     } = {},
   ) {
     let i = null,
       r = 0,
-      d = rn.evaluated;
+      d = tn.evaluated;
     return (
       d.dynamicProps && (d.props = void 0),
       d.dynamicItems && (d.items = void 0),
-      ne(e, {
+      oe(e, {
         instancePath: t,
         parentData: a,
         parentDataProperty: u,
         rootData: c,
-        dynamicAnchors: l,
-      }) || ((i = i === null ? ne.errors : i.concat(ne.errors)), (r = i.length)),
-      (rn.errors = i),
+        dynamicAnchors: f,
+      }) || ((i = i === null ? oe.errors : i.concat(oe.errors)), (r = i.length)),
+      (tn.errors = i),
       r === 0
     );
   }
-  rn.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
-  ue.PersistentResourceConsent = tn;
+  tn.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
+  me.PersistentResourceConsent = nn;
   var Ba = {
       type: "object",
       properties: {
@@ -18395,7 +18395,7 @@ var Ao = Ut((ue) => {
       parentData: a,
       parentDataProperty: u,
       rootData: c = e,
-      dynamicAnchors: l = {},
+      dynamicAnchors: f = {},
     } = {},
   ) {
     let i = null,
@@ -18431,15 +18431,15 @@ var Ao = Ut((ue) => {
           );
         {
           let o = r;
-          for (let f in e)
-            if (!Re.call(bo.properties, f)) {
+          for (let l in e)
+            if (!Re.call(bo.properties, l)) {
               return (
                 (Z.errors = [
                   {
                     instancePath: t,
                     schemaPath: "#/additionalProperties",
                     keyword: "additionalProperties",
-                    params: { additionalProperty: f },
+                    params: { additionalProperty: l },
                   },
                 ]),
                 !1
@@ -18448,33 +18448,33 @@ var Ao = Ut((ue) => {
             }
           if (o === r) {
             if (e.permissionId !== void 0) {
-              let f = r;
+              let l = r;
               w(e.permissionId, {
                 instancePath: t + "/permissionId",
                 parentData: e,
                 parentDataProperty: "permissionId",
                 rootData: c,
-                dynamicAnchors: l,
+                dynamicAnchors: f,
               }) || ((i = i === null ? w.errors : i.concat(w.errors)), (r = i.length));
-              var n = f === r;
+              var n = l === r;
             } else var n = !0;
             if (n) {
               if (e.ref !== void 0) {
-                let f = r;
+                let l = r;
                 T(e.ref, {
                   instancePath: t + "/ref",
                   parentData: e,
                   parentDataProperty: "ref",
                   rootData: c,
-                  dynamicAnchors: l,
+                  dynamicAnchors: f,
                 }) || ((i = i === null ? T.errors : i.concat(T.errors)), (r = i.length));
-                var n = f === r;
+                var n = l === r;
               } else var n = !0;
               if (n) {
                 if (e.sourceEpoch !== void 0) {
-                  let f = e.sourceEpoch,
+                  let l = e.sourceEpoch,
                     h = r;
-                  if (!(typeof f == "number" && !(f % 1) && !isNaN(f)))
+                  if (!(typeof l == "number" && !(l % 1) && !isNaN(l)))
                     return (
                       (Z.errors = [
                         {
@@ -18486,8 +18486,8 @@ var Ao = Ut((ue) => {
                       ]),
                       !1
                     );
-                  if (r === h && typeof f == "number") {
-                    if (f > 9007199254740991 || isNaN(f))
+                  if (r === h && typeof l == "number") {
+                    if (l > 9007199254740991 || isNaN(l))
                       return (
                         (Z.errors = [
                           {
@@ -18499,7 +18499,7 @@ var Ao = Ut((ue) => {
                         ]),
                         !1
                       );
-                    if (f < 1 || isNaN(f))
+                    if (l < 1 || isNaN(l))
                       return (
                         (Z.errors = [
                           {
@@ -18516,9 +18516,9 @@ var Ao = Ut((ue) => {
                 } else var n = !0;
                 if (n) {
                   if (e.fromRevision !== void 0) {
-                    let f = e.fromRevision,
+                    let l = e.fromRevision,
                       h = r;
-                    if (!(typeof f == "number" && !(f % 1) && !isNaN(f)))
+                    if (!(typeof l == "number" && !(l % 1) && !isNaN(l)))
                       return (
                         (Z.errors = [
                           {
@@ -18530,8 +18530,8 @@ var Ao = Ut((ue) => {
                         ]),
                         !1
                       );
-                    if (r === h && typeof f == "number") {
-                      if (f > 9007199254740991 || isNaN(f))
+                    if (r === h && typeof l == "number") {
+                      if (l > 9007199254740991 || isNaN(l))
                         return (
                           (Z.errors = [
                             {
@@ -18543,7 +18543,7 @@ var Ao = Ut((ue) => {
                           ]),
                           !1
                         );
-                      if (f < 1 || isNaN(f))
+                      if (l < 1 || isNaN(l))
                         return (
                           (Z.errors = [
                             {
@@ -18560,7 +18560,7 @@ var Ao = Ut((ue) => {
                   } else var n = !0;
                   if (n) {
                     if (e.versionPolicy !== void 0) {
-                      let f = r;
+                      let l = r;
                       if (e.versionPolicy !== "current_and_future")
                         return (
                           (Z.errors = [
@@ -18573,15 +18573,15 @@ var Ao = Ut((ue) => {
                           ]),
                           !1
                         );
-                      var n = f === r;
+                      var n = l === r;
                     } else var n = !0;
                     if (n) {
                       if (e.selectedHistory !== void 0) {
-                        let f = e.selectedHistory,
+                        let l = e.selectedHistory,
                           h = r;
                         if (r === h)
-                          if (Array.isArray(f)) {
-                            if (f.length > 50)
+                          if (Array.isArray(l)) {
+                            if (l.length > 50)
                               return (
                                 (Z.errors = [
                                   {
@@ -18593,7 +18593,7 @@ var Ao = Ut((ue) => {
                                 ]),
                                 !1
                               );
-                            if (f.length < 0)
+                            if (l.length < 0)
                               return (
                                 (Z.errors = [
                                   {
@@ -18607,9 +18607,9 @@ var Ao = Ut((ue) => {
                               );
                             {
                               var y = !0;
-                              let g = f.length;
+                              let g = l.length;
                               for (let I = 0; I < g; I++) {
-                                let k = f[I],
+                                let k = l[I],
                                   b = r;
                                 if (!(typeof k == "number" && !(k % 1) && !isNaN(k)))
                                   return (
@@ -18653,12 +18653,12 @@ var Ao = Ut((ue) => {
                                 if (!y) break;
                               }
                               if (y) {
-                                let I = f.length,
+                                let I = l.length,
                                   k;
                                 if (I > 1) {
                                   let b = {};
                                   for (; I--;) {
-                                    let A = f[I];
+                                    let A = l[I];
                                     if (typeof A == "number" && !(A % 1) && !isNaN(A)) {
                                       if (typeof b[A] == "number") {
                                         return (
@@ -18698,9 +18698,9 @@ var Ao = Ut((ue) => {
                       } else var n = !0;
                       if (n) {
                         if (e.permissionEpoch !== void 0) {
-                          let f = e.permissionEpoch,
+                          let l = e.permissionEpoch,
                             h = r;
-                          if (!(typeof f == "number" && !(f % 1) && !isNaN(f)))
+                          if (!(typeof l == "number" && !(l % 1) && !isNaN(l)))
                             return (
                               (Z.errors = [
                                 {
@@ -18712,8 +18712,8 @@ var Ao = Ut((ue) => {
                               ]),
                               !1
                             );
-                          if (r === h && typeof f == "number") {
-                            if (f > 9007199254740991 || isNaN(f))
+                          if (r === h && typeof l == "number") {
+                            if (l > 9007199254740991 || isNaN(l))
                               return (
                                 (Z.errors = [
                                   {
@@ -18725,7 +18725,7 @@ var Ao = Ut((ue) => {
                                 ]),
                                 !1
                               );
-                            if (f < 1 || isNaN(f))
+                            if (l < 1 || isNaN(l))
                               return (
                                 (Z.errors = [
                                   {
@@ -18742,9 +18742,9 @@ var Ao = Ut((ue) => {
                         } else var n = !0;
                         if (n) {
                           if (e.status !== void 0) {
-                            let f = e.status,
+                            let l = e.status,
                               h = r;
-                            if (!(f === "active" || f === "revoked"))
+                            if (!(l === "active" || l === "revoked"))
                               return (
                                 (Z.errors = [
                                   {
@@ -18760,9 +18760,9 @@ var Ao = Ut((ue) => {
                           } else var n = !0;
                           if (n) {
                             if (e.approvedAt !== void 0) {
-                              let f = e.approvedAt,
+                              let l = e.approvedAt,
                                 h = r;
-                              if (!(typeof f == "number" && !(f % 1) && !isNaN(f)))
+                              if (!(typeof l == "number" && !(l % 1) && !isNaN(l)))
                                 return (
                                   (Z.errors = [
                                     {
@@ -18774,8 +18774,8 @@ var Ao = Ut((ue) => {
                                   ]),
                                   !1
                                 );
-                              if (r === h && typeof f == "number") {
-                                if (f > 9007199254740991 || isNaN(f))
+                              if (r === h && typeof l == "number") {
+                                if (l > 9007199254740991 || isNaN(l))
                                   return (
                                     (Z.errors = [
                                       {
@@ -18787,7 +18787,7 @@ var Ao = Ut((ue) => {
                                     ]),
                                     !1
                                   );
-                                if (f < 0 || isNaN(f))
+                                if (l < 0 || isNaN(l))
                                   return (
                                     (Z.errors = [
                                       {
@@ -18804,26 +18804,26 @@ var Ao = Ut((ue) => {
                             } else var n = !0;
                             if (n) {
                               if (e.approvalFingerprint !== void 0) {
-                                let f = r;
+                                let l = r;
                                 E(e.approvalFingerprint, {
                                   instancePath: t + "/approvalFingerprint",
                                   parentData: e,
                                   parentDataProperty: "approvalFingerprint",
                                   rootData: c,
-                                  dynamicAnchors: l,
+                                  dynamicAnchors: f,
                                 }) ||
                                   ((i = i === null ? E.errors : i.concat(E.errors)),
                                   (r = i.length));
-                                var n = f === r;
+                                var n = l === r;
                               } else var n = !0;
                               if (n) {
                                 if (e.revokedAt !== void 0) {
-                                  let f = e.revokedAt,
+                                  let l = e.revokedAt,
                                     h = r,
                                     v = r,
                                     g = !1,
                                     I = r;
-                                  if (!(typeof f == "number" && !(f % 1) && !isNaN(f))) {
+                                  if (!(typeof l == "number" && !(l % 1) && !isNaN(l))) {
                                     let A = {
                                       instancePath: t + "/revokedAt",
                                       schemaPath: "#/properties/revokedAt/anyOf/0/type",
@@ -18832,8 +18832,8 @@ var Ao = Ut((ue) => {
                                     };
                                     (i === null ? (i = [A]) : i.push(A), r++);
                                   }
-                                  if (r === I && typeof f == "number") {
-                                    if (f > 9007199254740991 || isNaN(f)) {
+                                  if (r === I && typeof l == "number") {
+                                    if (l > 9007199254740991 || isNaN(l)) {
                                       let A = {
                                         instancePath: t + "/revokedAt",
                                         schemaPath: "#/properties/revokedAt/anyOf/0/maximum",
@@ -18841,7 +18841,7 @@ var Ao = Ut((ue) => {
                                         params: { comparison: "<=", limit: 9007199254740991 },
                                       };
                                       (i === null ? (i = [A]) : i.push(A), r++);
-                                    } else if (f < 0 || isNaN(f)) {
+                                    } else if (l < 0 || isNaN(l)) {
                                       let A = {
                                         instancePath: t + "/revokedAt",
                                         schemaPath: "#/properties/revokedAt/anyOf/0/minimum",
@@ -18854,7 +18854,7 @@ var Ao = Ut((ue) => {
                                   var m = I === r;
                                   g = g || m;
                                   let k = r;
-                                  if (f !== null) {
+                                  if (l !== null) {
                                     let A = {
                                       instancePath: t + "/revokedAt",
                                       schemaPath: "#/properties/revokedAt/anyOf/1/type",
@@ -18884,24 +18884,24 @@ var Ao = Ut((ue) => {
                                 } else var n = !0;
                                 if (n)
                                   if (e.revocationFingerprint !== void 0) {
-                                    let f = e.revocationFingerprint,
+                                    let l = e.revocationFingerprint,
                                       h = r,
                                       v = r,
                                       g = !1,
                                       I = r;
-                                    E(f, {
+                                    E(l, {
                                       instancePath: t + "/revocationFingerprint",
                                       parentData: e,
                                       parentDataProperty: "revocationFingerprint",
                                       rootData: c,
-                                      dynamicAnchors: l,
+                                      dynamicAnchors: f,
                                     }) ||
                                       ((i = i === null ? E.errors : i.concat(E.errors)),
                                       (r = i.length));
                                     var p = I === r;
                                     g = g || p;
                                     let k = r;
-                                    if (f !== null) {
+                                    if (l !== null) {
                                       let A = {
                                         instancePath: t + "/revocationFingerprint",
                                         schemaPath:
@@ -18952,19 +18952,19 @@ var Ao = Ut((ue) => {
     return ((Z.errors = i), r === 0);
   }
   Z.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
-  function se(
+  function ae(
     e,
     {
       instancePath: t = "",
       parentData: a,
       parentDataProperty: u,
       rootData: c = e,
-      dynamicAnchors: l = {},
+      dynamicAnchors: f = {},
     } = {},
   ) {
     let i = null,
       r = 0,
-      d = se.evaluated;
+      d = ae.evaluated;
     if ((d.dynamicProps && (d.props = void 0), d.dynamicItems && (d.items = void 0), r === 0))
       if (e && typeof e == "object" && !Array.isArray(e)) {
         let m;
@@ -18991,7 +18991,7 @@ var Ao = Ut((ue) => {
           (e.permissions === void 0 && (m = "permissions"))
         )
           return (
-            (se.errors = [
+            (ae.errors = [
               {
                 instancePath: t,
                 schemaPath: "#/required",
@@ -19006,7 +19006,7 @@ var Ao = Ut((ue) => {
           for (let s in e)
             if (!Re.call(Ba.properties, s)) {
               return (
-                (se.errors = [
+                (ae.errors = [
                   {
                     instancePath: t,
                     schemaPath: "#/additionalProperties",
@@ -19023,7 +19023,7 @@ var Ao = Ut((ue) => {
               let s = r;
               if (e.contractVersion !== "folioview.agent-workspace.v2.0")
                 return (
-                  (se.errors = [
+                  (ae.errors = [
                     {
                       instancePath: t + "/contractVersion",
                       schemaPath: "#/properties/contractVersion/const",
@@ -19040,7 +19040,7 @@ var Ao = Ut((ue) => {
                 let s = r;
                 if (e.profile !== "folioview.persistent-resource-consent.v1")
                   return (
-                    (se.errors = [
+                    (ae.errors = [
                       {
                         instancePath: t + "/profile",
                         schemaPath: "#/properties/profile/const",
@@ -19060,7 +19060,7 @@ var Ao = Ut((ue) => {
                     parentData: e,
                     parentDataProperty: "ownerSubject",
                     rootData: c,
-                    dynamicAnchors: l,
+                    dynamicAnchors: f,
                   }) || ((i = i === null ? w.errors : i.concat(w.errors)), (r = i.length));
                   var n = s === r;
                 } else var n = !0;
@@ -19072,7 +19072,7 @@ var Ao = Ut((ue) => {
                       parentData: e,
                       parentDataProperty: "vaultId",
                       rootData: c,
-                      dynamicAnchors: l,
+                      dynamicAnchors: f,
                     }) || ((i = i === null ? w.errors : i.concat(w.errors)), (r = i.length));
                     var n = s === r;
                   } else var n = !0;
@@ -19084,7 +19084,7 @@ var Ao = Ut((ue) => {
                         parentData: e,
                         parentDataProperty: "connectionId",
                         rootData: c,
-                        dynamicAnchors: l,
+                        dynamicAnchors: f,
                       }) || ((i = i === null ? w.errors : i.concat(w.errors)), (r = i.length));
                       var n = s === r;
                     } else var n = !0;
@@ -19096,7 +19096,7 @@ var Ao = Ut((ue) => {
                           parentData: e,
                           parentDataProperty: "agentId",
                           rootData: c,
-                          dynamicAnchors: l,
+                          dynamicAnchors: f,
                         }) || ((i = i === null ? w.errors : i.concat(w.errors)), (r = i.length));
                         var n = s === r;
                       } else var n = !0;
@@ -19108,7 +19108,7 @@ var Ao = Ut((ue) => {
                             parentData: e,
                             parentDataProperty: "clientId",
                             rootData: c,
-                            dynamicAnchors: l,
+                            dynamicAnchors: f,
                           }) || ((i = i === null ? w.errors : i.concat(w.errors)), (r = i.length));
                           var n = s === r;
                         } else var n = !0;
@@ -19120,7 +19120,7 @@ var Ao = Ut((ue) => {
                               parentData: e,
                               parentDataProperty: "rootKeyId",
                               rootData: c,
-                              dynamicAnchors: l,
+                              dynamicAnchors: f,
                             }) ||
                               ((i = i === null ? x.errors : i.concat(x.errors)), (r = i.length));
                             var n = s === r;
@@ -19133,7 +19133,7 @@ var Ao = Ut((ue) => {
                                 parentData: e,
                                 parentDataProperty: "agentSigningKeyId",
                                 rootData: c,
-                                dynamicAnchors: l,
+                                dynamicAnchors: f,
                               }) ||
                                 ((i = i === null ? x.errors : i.concat(x.errors)), (r = i.length));
                               var n = s === r;
@@ -19146,7 +19146,7 @@ var Ao = Ut((ue) => {
                                   parentData: e,
                                   parentDataProperty: "agentEncryptionKeyId",
                                   rootData: c,
-                                  dynamicAnchors: l,
+                                  dynamicAnchors: f,
                                 }) ||
                                   ((i = i === null ? x.errors : i.concat(x.errors)),
                                   (r = i.length));
@@ -19158,7 +19158,7 @@ var Ao = Ut((ue) => {
                                     o = r;
                                   if (!(typeof s == "number" && !(s % 1) && !isNaN(s)))
                                     return (
-                                      (se.errors = [
+                                      (ae.errors = [
                                         {
                                           instancePath: t + "/identityEpoch",
                                           schemaPath: "#/properties/identityEpoch/type",
@@ -19171,7 +19171,7 @@ var Ao = Ut((ue) => {
                                   if (r === o && typeof s == "number") {
                                     if (s > 9007199254740991 || isNaN(s))
                                       return (
-                                        (se.errors = [
+                                        (ae.errors = [
                                           {
                                             instancePath: t + "/identityEpoch",
                                             schemaPath: "#/properties/identityEpoch/maximum",
@@ -19183,7 +19183,7 @@ var Ao = Ut((ue) => {
                                       );
                                     if (s < 1 || isNaN(s))
                                       return (
-                                        (se.errors = [
+                                        (ae.errors = [
                                           {
                                             instancePath: t + "/identityEpoch",
                                             schemaPath: "#/properties/identityEpoch/minimum",
@@ -19204,7 +19204,7 @@ var Ao = Ut((ue) => {
                                       parentData: e,
                                       parentDataProperty: "bindingFingerprint",
                                       rootData: c,
-                                      dynamicAnchors: l,
+                                      dynamicAnchors: f,
                                     }) ||
                                       ((i = i === null ? E.errors : i.concat(E.errors)),
                                       (r = i.length));
@@ -19218,7 +19218,7 @@ var Ao = Ut((ue) => {
                                         parentData: e,
                                         parentDataProperty: "consentId",
                                         rootData: c,
-                                        dynamicAnchors: l,
+                                        dynamicAnchors: f,
                                       }) ||
                                         ((i = i === null ? w.errors : i.concat(w.errors)),
                                         (r = i.length));
@@ -19229,7 +19229,7 @@ var Ao = Ut((ue) => {
                                         let s = r;
                                         if (e.purpose !== "analysis")
                                           return (
-                                            (se.errors = [
+                                            (ae.errors = [
                                               {
                                                 instancePath: t + "/purpose",
                                                 schemaPath: "#/properties/purpose/const",
@@ -19247,7 +19247,7 @@ var Ao = Ut((ue) => {
                                             o = r;
                                           if (!(typeof s == "number" && !(s % 1) && !isNaN(s)))
                                             return (
-                                              (se.errors = [
+                                              (ae.errors = [
                                                 {
                                                   instancePath: t + "/version",
                                                   schemaPath: "#/properties/version/type",
@@ -19260,7 +19260,7 @@ var Ao = Ut((ue) => {
                                           if (r === o && typeof s == "number") {
                                             if (s > 9007199254740991 || isNaN(s))
                                               return (
-                                                (se.errors = [
+                                                (ae.errors = [
                                                   {
                                                     instancePath: t + "/version",
                                                     schemaPath: "#/properties/version/maximum",
@@ -19275,7 +19275,7 @@ var Ao = Ut((ue) => {
                                               );
                                             if (s < 1 || isNaN(s))
                                               return (
-                                                (se.errors = [
+                                                (ae.errors = [
                                                   {
                                                     instancePath: t + "/version",
                                                     schemaPath: "#/properties/version/minimum",
@@ -19294,7 +19294,7 @@ var Ao = Ut((ue) => {
                                               o = r;
                                             if (!(typeof s == "number" && !(s % 1) && !isNaN(s)))
                                               return (
-                                                (se.errors = [
+                                                (ae.errors = [
                                                   {
                                                     instancePath: t + "/createdAt",
                                                     schemaPath: "#/properties/createdAt/type",
@@ -19307,7 +19307,7 @@ var Ao = Ut((ue) => {
                                             if (r === o && typeof s == "number") {
                                               if (s > 9007199254740991 || isNaN(s))
                                                 return (
-                                                  (se.errors = [
+                                                  (ae.errors = [
                                                     {
                                                       instancePath: t + "/createdAt",
                                                       schemaPath: "#/properties/createdAt/maximum",
@@ -19322,7 +19322,7 @@ var Ao = Ut((ue) => {
                                                 );
                                               if (s < 0 || isNaN(s))
                                                 return (
-                                                  (se.errors = [
+                                                  (ae.errors = [
                                                     {
                                                       instancePath: t + "/createdAt",
                                                       schemaPath: "#/properties/createdAt/minimum",
@@ -19341,7 +19341,7 @@ var Ao = Ut((ue) => {
                                                 o = r;
                                               if (!(typeof s == "number" && !(s % 1) && !isNaN(s)))
                                                 return (
-                                                  (se.errors = [
+                                                  (ae.errors = [
                                                     {
                                                       instancePath: t + "/updatedAt",
                                                       schemaPath: "#/properties/updatedAt/type",
@@ -19354,7 +19354,7 @@ var Ao = Ut((ue) => {
                                               if (r === o && typeof s == "number") {
                                                 if (s > 9007199254740991 || isNaN(s))
                                                   return (
-                                                    (se.errors = [
+                                                    (ae.errors = [
                                                       {
                                                         instancePath: t + "/updatedAt",
                                                         schemaPath:
@@ -19370,7 +19370,7 @@ var Ao = Ut((ue) => {
                                                   );
                                                 if (s < 0 || isNaN(s))
                                                   return (
-                                                    (se.errors = [
+                                                    (ae.errors = [
                                                       {
                                                         instancePath: t + "/updatedAt",
                                                         schemaPath:
@@ -19392,7 +19392,7 @@ var Ao = Ut((ue) => {
                                                   parentData: e,
                                                   parentDataProperty: "lastOperationId",
                                                   rootData: c,
-                                                  dynamicAnchors: l,
+                                                  dynamicAnchors: f,
                                                 }) ||
                                                   ((i = i === null ? $.errors : i.concat($.errors)),
                                                   (r = i.length));
@@ -19406,7 +19406,7 @@ var Ao = Ut((ue) => {
                                                     parentData: e,
                                                     parentDataProperty: "lastControlFingerprint",
                                                     rootData: c,
-                                                    dynamicAnchors: l,
+                                                    dynamicAnchors: f,
                                                   }) ||
                                                     ((i =
                                                       i === null ? E.errors : i.concat(E.errors)),
@@ -19421,7 +19421,7 @@ var Ao = Ut((ue) => {
                                                       if (Array.isArray(s)) {
                                                         if (s.length > 32)
                                                           return (
-                                                            (se.errors = [
+                                                            (ae.errors = [
                                                               {
                                                                 instancePath: t + "/permissions",
                                                                 schemaPath:
@@ -19434,7 +19434,7 @@ var Ao = Ut((ue) => {
                                                           );
                                                         if (s.length < 1)
                                                           return (
-                                                            (se.errors = [
+                                                            (ae.errors = [
                                                               {
                                                                 instancePath: t + "/permissions",
                                                                 schemaPath:
@@ -19455,7 +19455,7 @@ var Ao = Ut((ue) => {
                                                               parentData: s,
                                                               parentDataProperty: v,
                                                               rootData: c,
-                                                              dynamicAnchors: l,
+                                                              dynamicAnchors: f,
                                                             }) ||
                                                               ((i =
                                                                 i === null
@@ -19468,7 +19468,7 @@ var Ao = Ut((ue) => {
                                                         }
                                                       } else
                                                         return (
-                                                          (se.errors = [
+                                                          (ae.errors = [
                                                             {
                                                               instancePath: t + "/permissions",
                                                               schemaPath:
@@ -19503,43 +19503,43 @@ var Ao = Ut((ue) => {
         }
       } else
         return (
-          (se.errors = [
+          (ae.errors = [
             { instancePath: t, schemaPath: "#/type", keyword: "type", params: { type: "object" } },
           ]),
           !1
         );
-    return ((se.errors = i), r === 0);
+    return ((ae.errors = i), r === 0);
   }
-  se.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
-  function tn(
+  ae.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
+  function nn(
     e,
     {
       instancePath: t = "",
       parentData: a,
       parentDataProperty: u,
       rootData: c = e,
-      dynamicAnchors: l = {},
+      dynamicAnchors: f = {},
     } = {},
   ) {
     let i = null,
       r = 0,
-      d = tn.evaluated;
+      d = nn.evaluated;
     return (
       d.dynamicProps && (d.props = void 0),
       d.dynamicItems && (d.items = void 0),
-      se(e, {
+      ae(e, {
         instancePath: t,
         parentData: a,
         parentDataProperty: u,
         rootData: c,
-        dynamicAnchors: l,
-      }) || ((i = i === null ? se.errors : i.concat(se.errors)), (r = i.length)),
-      (tn.errors = i),
+        dynamicAnchors: f,
+      }) || ((i = i === null ? ae.errors : i.concat(ae.errors)), (r = i.length)),
+      (nn.errors = i),
       r === 0
     );
   }
-  tn.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
-  ue.PersistentResourceApprovalPayload = nn;
+  nn.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
+  me.PersistentResourceApprovalPayload = sn;
   var Ma = {
     type: "object",
     properties: {
@@ -19601,19 +19601,19 @@ var Ao = Ut((ue) => {
     ],
     additionalProperties: !1,
   };
-  function fe(
+  function de(
     e,
     {
       instancePath: t = "",
       parentData: a,
       parentDataProperty: u,
       rootData: c = e,
-      dynamicAnchors: l = {},
+      dynamicAnchors: f = {},
     } = {},
   ) {
     let i = null,
       r = 0,
-      d = fe.evaluated;
+      d = de.evaluated;
     if ((d.dynamicProps && (d.props = void 0), d.dynamicItems && (d.items = void 0), r === 0))
       if (e && typeof e == "object" && !Array.isArray(e)) {
         let m;
@@ -19627,7 +19627,7 @@ var Ao = Ut((ue) => {
           (e.expectedPermissionEpoch === void 0 && (m = "expectedPermissionEpoch"))
         )
           return (
-            (fe.errors = [
+            (de.errors = [
               {
                 instancePath: t,
                 schemaPath: "#/required",
@@ -19650,7 +19650,7 @@ var Ao = Ut((ue) => {
               s === "expectedPermissionEpoch"
             )) {
               return (
-                (fe.errors = [
+                (de.errors = [
                   {
                     instancePath: t,
                     schemaPath: "#/additionalProperties",
@@ -19670,7 +19670,7 @@ var Ao = Ut((ue) => {
                 parentData: e,
                 parentDataProperty: "permissionId",
                 rootData: c,
-                dynamicAnchors: l,
+                dynamicAnchors: f,
               }) || ((i = i === null ? w.errors : i.concat(w.errors)), (r = i.length));
               var n = s === r;
             } else var n = !0;
@@ -19682,7 +19682,7 @@ var Ao = Ut((ue) => {
                   parentData: e,
                   parentDataProperty: "ref",
                   rootData: c,
-                  dynamicAnchors: l,
+                  dynamicAnchors: f,
                 }) || ((i = i === null ? T.errors : i.concat(T.errors)), (r = i.length));
                 var n = s === r;
               } else var n = !0;
@@ -19692,7 +19692,7 @@ var Ao = Ut((ue) => {
                     o = r;
                   if (!(typeof s == "number" && !(s % 1) && !isNaN(s)))
                     return (
-                      (fe.errors = [
+                      (de.errors = [
                         {
                           instancePath: t + "/sourceEpoch",
                           schemaPath: "#/properties/sourceEpoch/type",
@@ -19705,7 +19705,7 @@ var Ao = Ut((ue) => {
                   if (r === o && typeof s == "number") {
                     if (s > 9007199254740991 || isNaN(s))
                       return (
-                        (fe.errors = [
+                        (de.errors = [
                           {
                             instancePath: t + "/sourceEpoch",
                             schemaPath: "#/properties/sourceEpoch/maximum",
@@ -19717,7 +19717,7 @@ var Ao = Ut((ue) => {
                       );
                     if (s < 1 || isNaN(s))
                       return (
-                        (fe.errors = [
+                        (de.errors = [
                           {
                             instancePath: t + "/sourceEpoch",
                             schemaPath: "#/properties/sourceEpoch/minimum",
@@ -19736,7 +19736,7 @@ var Ao = Ut((ue) => {
                       o = r;
                     if (!(typeof s == "number" && !(s % 1) && !isNaN(s)))
                       return (
-                        (fe.errors = [
+                        (de.errors = [
                           {
                             instancePath: t + "/fromRevision",
                             schemaPath: "#/properties/fromRevision/type",
@@ -19749,7 +19749,7 @@ var Ao = Ut((ue) => {
                     if (r === o && typeof s == "number") {
                       if (s > 9007199254740991 || isNaN(s))
                         return (
-                          (fe.errors = [
+                          (de.errors = [
                             {
                               instancePath: t + "/fromRevision",
                               schemaPath: "#/properties/fromRevision/maximum",
@@ -19761,7 +19761,7 @@ var Ao = Ut((ue) => {
                         );
                       if (s < 1 || isNaN(s))
                         return (
-                          (fe.errors = [
+                          (de.errors = [
                             {
                               instancePath: t + "/fromRevision",
                               schemaPath: "#/properties/fromRevision/minimum",
@@ -19779,7 +19779,7 @@ var Ao = Ut((ue) => {
                       let s = r;
                       if (e.versionPolicy !== "current_and_future")
                         return (
-                          (fe.errors = [
+                          (de.errors = [
                             {
                               instancePath: t + "/versionPolicy",
                               schemaPath: "#/properties/versionPolicy/const",
@@ -19799,7 +19799,7 @@ var Ao = Ut((ue) => {
                           if (Array.isArray(s)) {
                             if (s.length > 50)
                               return (
-                                (fe.errors = [
+                                (de.errors = [
                                   {
                                     instancePath: t + "/selectedHistory",
                                     schemaPath: "#/properties/selectedHistory/maxItems",
@@ -19811,7 +19811,7 @@ var Ao = Ut((ue) => {
                               );
                             if (s.length < 0)
                               return (
-                                (fe.errors = [
+                                (de.errors = [
                                   {
                                     instancePath: t + "/selectedHistory",
                                     schemaPath: "#/properties/selectedHistory/minItems",
@@ -19829,7 +19829,7 @@ var Ao = Ut((ue) => {
                                   I = r;
                                 if (!(typeof g == "number" && !(g % 1) && !isNaN(g)))
                                   return (
-                                    (fe.errors = [
+                                    (de.errors = [
                                       {
                                         instancePath: t + "/selectedHistory/" + v,
                                         schemaPath: "#/properties/selectedHistory/items/type",
@@ -19842,7 +19842,7 @@ var Ao = Ut((ue) => {
                                 if (r === I && typeof g == "number") {
                                   if (g > 9007199254740991 || isNaN(g))
                                     return (
-                                      (fe.errors = [
+                                      (de.errors = [
                                         {
                                           instancePath: t + "/selectedHistory/" + v,
                                           schemaPath: "#/properties/selectedHistory/items/maximum",
@@ -19854,7 +19854,7 @@ var Ao = Ut((ue) => {
                                     );
                                   if (g < 1 || isNaN(g))
                                     return (
-                                      (fe.errors = [
+                                      (de.errors = [
                                         {
                                           instancePath: t + "/selectedHistory/" + v,
                                           schemaPath: "#/properties/selectedHistory/items/minimum",
@@ -19879,7 +19879,7 @@ var Ao = Ut((ue) => {
                                       if (typeof I[k] == "number") {
                                         return (
                                           (g = I[k]),
-                                          (fe.errors = [
+                                          (de.errors = [
                                             {
                                               instancePath: t + "/selectedHistory",
                                               schemaPath:
@@ -19900,7 +19900,7 @@ var Ao = Ut((ue) => {
                             }
                           } else
                             return (
-                              (fe.errors = [
+                              (de.errors = [
                                 {
                                   instancePath: t + "/selectedHistory",
                                   schemaPath: "#/properties/selectedHistory/type",
@@ -19918,7 +19918,7 @@ var Ao = Ut((ue) => {
                             o = r;
                           if (!(typeof s == "number" && !(s % 1) && !isNaN(s)))
                             return (
-                              (fe.errors = [
+                              (de.errors = [
                                 {
                                   instancePath: t + "/expectedPermissionEpoch",
                                   schemaPath: "#/properties/expectedPermissionEpoch/type",
@@ -19931,7 +19931,7 @@ var Ao = Ut((ue) => {
                           if (r === o && typeof s == "number") {
                             if (s > 9007199254740991 || isNaN(s))
                               return (
-                                (fe.errors = [
+                                (de.errors = [
                                   {
                                     instancePath: t + "/expectedPermissionEpoch",
                                     schemaPath: "#/properties/expectedPermissionEpoch/maximum",
@@ -19943,7 +19943,7 @@ var Ao = Ut((ue) => {
                               );
                             if (s < 0 || isNaN(s))
                               return (
-                                (fe.errors = [
+                                (de.errors = [
                                   {
                                     instancePath: t + "/expectedPermissionEpoch",
                                     schemaPath: "#/properties/expectedPermissionEpoch/minimum",
@@ -19965,14 +19965,14 @@ var Ao = Ut((ue) => {
         }
       } else
         return (
-          (fe.errors = [
+          (de.errors = [
             { instancePath: t, schemaPath: "#/type", keyword: "type", params: { type: "object" } },
           ]),
           !1
         );
-    return ((fe.errors = i), r === 0);
+    return ((de.errors = i), r === 0);
   }
-  fe.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
+  de.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
   function B(
     e,
     {
@@ -19980,7 +19980,7 @@ var Ao = Ut((ue) => {
       parentData: a,
       parentDataProperty: u,
       rootData: c = e,
-      dynamicAnchors: l = {},
+      dynamicAnchors: f = {},
     } = {},
   ) {
     let i = null,
@@ -20085,7 +20085,7 @@ var Ao = Ut((ue) => {
                     parentData: e,
                     parentDataProperty: "ownerSubject",
                     rootData: c,
-                    dynamicAnchors: l,
+                    dynamicAnchors: f,
                   }) || ((i = i === null ? w.errors : i.concat(w.errors)), (r = i.length));
                   var n = o === r;
                 } else var n = !0;
@@ -20097,7 +20097,7 @@ var Ao = Ut((ue) => {
                       parentData: e,
                       parentDataProperty: "vaultId",
                       rootData: c,
-                      dynamicAnchors: l,
+                      dynamicAnchors: f,
                     }) || ((i = i === null ? w.errors : i.concat(w.errors)), (r = i.length));
                     var n = o === r;
                   } else var n = !0;
@@ -20109,7 +20109,7 @@ var Ao = Ut((ue) => {
                         parentData: e,
                         parentDataProperty: "connectionId",
                         rootData: c,
-                        dynamicAnchors: l,
+                        dynamicAnchors: f,
                       }) || ((i = i === null ? w.errors : i.concat(w.errors)), (r = i.length));
                       var n = o === r;
                     } else var n = !0;
@@ -20121,7 +20121,7 @@ var Ao = Ut((ue) => {
                           parentData: e,
                           parentDataProperty: "agentId",
                           rootData: c,
-                          dynamicAnchors: l,
+                          dynamicAnchors: f,
                         }) || ((i = i === null ? w.errors : i.concat(w.errors)), (r = i.length));
                         var n = o === r;
                       } else var n = !0;
@@ -20133,7 +20133,7 @@ var Ao = Ut((ue) => {
                             parentData: e,
                             parentDataProperty: "clientId",
                             rootData: c,
-                            dynamicAnchors: l,
+                            dynamicAnchors: f,
                           }) || ((i = i === null ? w.errors : i.concat(w.errors)), (r = i.length));
                           var n = o === r;
                         } else var n = !0;
@@ -20145,7 +20145,7 @@ var Ao = Ut((ue) => {
                               parentData: e,
                               parentDataProperty: "rootKeyId",
                               rootData: c,
-                              dynamicAnchors: l,
+                              dynamicAnchors: f,
                             }) ||
                               ((i = i === null ? x.errors : i.concat(x.errors)), (r = i.length));
                             var n = o === r;
@@ -20158,7 +20158,7 @@ var Ao = Ut((ue) => {
                                 parentData: e,
                                 parentDataProperty: "agentSigningKeyId",
                                 rootData: c,
-                                dynamicAnchors: l,
+                                dynamicAnchors: f,
                               }) ||
                                 ((i = i === null ? x.errors : i.concat(x.errors)), (r = i.length));
                               var n = o === r;
@@ -20171,7 +20171,7 @@ var Ao = Ut((ue) => {
                                   parentData: e,
                                   parentDataProperty: "agentEncryptionKeyId",
                                   rootData: c,
-                                  dynamicAnchors: l,
+                                  dynamicAnchors: f,
                                 }) ||
                                   ((i = i === null ? x.errors : i.concat(x.errors)),
                                   (r = i.length));
@@ -20180,7 +20180,7 @@ var Ao = Ut((ue) => {
                               if (n) {
                                 if (e.identityEpoch !== void 0) {
                                   let o = e.identityEpoch,
-                                    f = r;
+                                    l = r;
                                   if (!(typeof o == "number" && !(o % 1) && !isNaN(o)))
                                     return (
                                       (B.errors = [
@@ -20193,7 +20193,7 @@ var Ao = Ut((ue) => {
                                       ]),
                                       !1
                                     );
-                                  if (r === f && typeof o == "number") {
+                                  if (r === l && typeof o == "number") {
                                     if (o > 9007199254740991 || isNaN(o))
                                       return (
                                         (B.errors = [
@@ -20219,7 +20219,7 @@ var Ao = Ut((ue) => {
                                         !1
                                       );
                                   }
-                                  var n = f === r;
+                                  var n = l === r;
                                 } else var n = !0;
                                 if (n) {
                                   if (e.bindingFingerprint !== void 0) {
@@ -20229,7 +20229,7 @@ var Ao = Ut((ue) => {
                                       parentData: e,
                                       parentDataProperty: "bindingFingerprint",
                                       rootData: c,
-                                      dynamicAnchors: l,
+                                      dynamicAnchors: f,
                                     }) ||
                                       ((i = i === null ? E.errors : i.concat(E.errors)),
                                       (r = i.length));
@@ -20243,7 +20243,7 @@ var Ao = Ut((ue) => {
                                         parentData: e,
                                         parentDataProperty: "consentId",
                                         rootData: c,
-                                        dynamicAnchors: l,
+                                        dynamicAnchors: f,
                                       }) ||
                                         ((i = i === null ? w.errors : i.concat(w.errors)),
                                         (r = i.length));
@@ -20274,7 +20274,7 @@ var Ao = Ut((ue) => {
                                             parentData: e,
                                             parentDataProperty: "stableOperationId",
                                             rootData: c,
-                                            dynamicAnchors: l,
+                                            dynamicAnchors: f,
                                           }) ||
                                             ((i = i === null ? $.errors : i.concat($.errors)),
                                             (r = i.length));
@@ -20283,7 +20283,7 @@ var Ao = Ut((ue) => {
                                         if (n) {
                                           if (e.expectedVersion !== void 0) {
                                             let o = e.expectedVersion,
-                                              f = r;
+                                              l = r;
                                             if (!(typeof o == "number" && !(o % 1) && !isNaN(o)))
                                               return (
                                                 (B.errors = [
@@ -20296,7 +20296,7 @@ var Ao = Ut((ue) => {
                                                 ]),
                                                 !1
                                               );
-                                            if (r === f && typeof o == "number") {
+                                            if (r === l && typeof o == "number") {
                                               if (o > 9007199254740991 || isNaN(o))
                                                 return (
                                                   (B.errors = [
@@ -20327,12 +20327,12 @@ var Ao = Ut((ue) => {
                                                   !1
                                                 );
                                             }
-                                            var n = f === r;
+                                            var n = l === r;
                                           } else var n = !0;
                                           if (n) {
                                             if (e.expectedConsentDigest !== void 0) {
                                               let o = e.expectedConsentDigest,
-                                                f = r,
+                                                l = r,
                                                 h = r,
                                                 v = !1,
                                                 g = r;
@@ -20341,7 +20341,7 @@ var Ao = Ut((ue) => {
                                                 parentData: e,
                                                 parentDataProperty: "expectedConsentDigest",
                                                 rootData: c,
-                                                dynamicAnchors: l,
+                                                dynamicAnchors: f,
                                               }) ||
                                                 ((i = i === null ? E.errors : i.concat(E.errors)),
                                                 (r = i.length));
@@ -20377,12 +20377,12 @@ var Ao = Ut((ue) => {
                                                   !1
                                                 );
                                               }
-                                              var n = f === r;
+                                              var n = l === r;
                                             } else var n = !0;
                                             if (n) {
                                               if (e.issuedAt !== void 0) {
                                                 let o = e.issuedAt,
-                                                  f = r;
+                                                  l = r;
                                                 if (!(
                                                   typeof o == "number" &&
                                                   !(o % 1) &&
@@ -20399,7 +20399,7 @@ var Ao = Ut((ue) => {
                                                     ]),
                                                     !1
                                                   );
-                                                if (r === f && typeof o == "number") {
+                                                if (r === l && typeof o == "number") {
                                                   if (o > 9007199254740991 || isNaN(o))
                                                     return (
                                                       (B.errors = [
@@ -20430,12 +20430,12 @@ var Ao = Ut((ue) => {
                                                       !1
                                                     );
                                                 }
-                                                var n = f === r;
+                                                var n = l === r;
                                               } else var n = !0;
                                               if (n) {
                                                 if (e.registrySequence !== void 0) {
                                                   let o = e.registrySequence,
-                                                    f = r;
+                                                    l = r;
                                                   if (!(
                                                     typeof o == "number" &&
                                                     !(o % 1) &&
@@ -20453,7 +20453,7 @@ var Ao = Ut((ue) => {
                                                       ]),
                                                       !1
                                                     );
-                                                  if (r === f && typeof o == "number") {
+                                                  if (r === l && typeof o == "number") {
                                                     if (o > 9007199254740991 || isNaN(o))
                                                       return (
                                                         (B.errors = [
@@ -20484,7 +20484,7 @@ var Ao = Ut((ue) => {
                                                         !1
                                                       );
                                                   }
-                                                  var n = f === r;
+                                                  var n = l === r;
                                                 } else var n = !0;
                                                 if (n) {
                                                   if (e.checkpointDigest !== void 0) {
@@ -20494,7 +20494,7 @@ var Ao = Ut((ue) => {
                                                       parentData: e,
                                                       parentDataProperty: "checkpointDigest",
                                                       rootData: c,
-                                                      dynamicAnchors: l,
+                                                      dynamicAnchors: f,
                                                     }) ||
                                                       ((i =
                                                         i === null ? E.errors : i.concat(E.errors)),
@@ -20504,7 +20504,7 @@ var Ao = Ut((ue) => {
                                                   if (n) {
                                                     if (e.keyEpoch !== void 0) {
                                                       let o = e.keyEpoch,
-                                                        f = r;
+                                                        l = r;
                                                       if (!(
                                                         typeof o == "number" &&
                                                         !(o % 1) &&
@@ -20522,7 +20522,7 @@ var Ao = Ut((ue) => {
                                                           ]),
                                                           !1
                                                         );
-                                                      if (r === f && typeof o == "number") {
+                                                      if (r === l && typeof o == "number") {
                                                         if (o > 9007199254740991 || isNaN(o))
                                                           return (
                                                             (B.errors = [
@@ -20556,7 +20556,7 @@ var Ao = Ut((ue) => {
                                                             !1
                                                           );
                                                       }
-                                                      var n = f === r;
+                                                      var n = l === r;
                                                     } else var n = !0;
                                                     if (n) {
                                                       if (e.artifactType !== void 0) {
@@ -20585,8 +20585,8 @@ var Ao = Ut((ue) => {
                                                       if (n) {
                                                         if (e.resources !== void 0) {
                                                           let o = e.resources,
-                                                            f = r;
-                                                          if (r === f)
+                                                            l = r;
+                                                          if (r === l)
                                                             if (Array.isArray(o)) {
                                                               if (o.length > 10)
                                                                 return (
@@ -20621,18 +20621,18 @@ var Ao = Ut((ue) => {
                                                                 let v = o.length;
                                                                 for (let g = 0; g < v; g++) {
                                                                   let I = r;
-                                                                  fe(o[g], {
+                                                                  de(o[g], {
                                                                     instancePath:
                                                                       t + "/resources/" + g,
                                                                     parentData: o,
                                                                     parentDataProperty: g,
                                                                     rootData: c,
-                                                                    dynamicAnchors: l,
+                                                                    dynamicAnchors: f,
                                                                   }) ||
                                                                     ((i =
                                                                       i === null
-                                                                        ? fe.errors
-                                                                        : i.concat(fe.errors)),
+                                                                        ? de.errors
+                                                                        : i.concat(de.errors)),
                                                                     (r = i.length));
                                                                   var m = I === r;
                                                                   if (!m) break;
@@ -20651,7 +20651,7 @@ var Ao = Ut((ue) => {
                                                                 ]),
                                                                 !1
                                                               );
-                                                          var n = f === r;
+                                                          var n = l === r;
                                                         } else var n = !0;
                                                         if (n)
                                                           if (e.authorKeyId !== void 0) {
@@ -20661,7 +20661,7 @@ var Ao = Ut((ue) => {
                                                               parentData: e,
                                                               parentDataProperty: "authorKeyId",
                                                               rootData: c,
-                                                              dynamicAnchors: l,
+                                                              dynamicAnchors: f,
                                                             }) ||
                                                               ((i =
                                                                 i === null
@@ -20704,19 +20704,19 @@ var Ao = Ut((ue) => {
     return ((B.errors = i), r === 0);
   }
   B.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
-  function nn(
+  function sn(
     e,
     {
       instancePath: t = "",
       parentData: a,
       parentDataProperty: u,
       rootData: c = e,
-      dynamicAnchors: l = {},
+      dynamicAnchors: f = {},
     } = {},
   ) {
     let i = null,
       r = 0,
-      d = nn.evaluated;
+      d = sn.evaluated;
     return (
       d.dynamicProps && (d.props = void 0),
       d.dynamicItems && (d.items = void 0),
@@ -20725,14 +20725,14 @@ var Ao = Ut((ue) => {
         parentData: a,
         parentDataProperty: u,
         rootData: c,
-        dynamicAnchors: l,
+        dynamicAnchors: f,
       }) || ((i = i === null ? B.errors : i.concat(B.errors)), (r = i.length)),
-      (nn.errors = i),
+      (sn.errors = i),
       r === 0
     );
   }
-  nn.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
-  ue.PersistentResourceRevocationPayload = sn;
+  sn.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
+  me.PersistentResourceRevocationPayload = on;
   var Ga = {
     type: "object",
     properties: {
@@ -20801,7 +20801,7 @@ var Ao = Ut((ue) => {
       parentData: a,
       parentDataProperty: u,
       rootData: c = e,
-      dynamicAnchors: l = {},
+      dynamicAnchors: f = {},
     } = {},
   ) {
     let i = null,
@@ -20851,7 +20851,7 @@ var Ao = Ut((ue) => {
                 parentData: e,
                 parentDataProperty: "permissionId",
                 rootData: c,
-                dynamicAnchors: l,
+                dynamicAnchors: f,
               }) || ((i = i === null ? w.errors : i.concat(w.errors)), (r = i.length));
               var n = p === r;
             } else var n = !0;
@@ -20863,7 +20863,7 @@ var Ao = Ut((ue) => {
                   parentData: e,
                   parentDataProperty: "ref",
                   rootData: c,
-                  dynamicAnchors: l,
+                  dynamicAnchors: f,
                 }) || ((i = i === null ? T.errors : i.concat(T.errors)), (r = i.length));
                 var n = p === r;
               } else var n = !0;
@@ -20931,7 +20931,7 @@ var Ao = Ut((ue) => {
       parentData: a,
       parentDataProperty: u,
       rootData: c = e,
-      dynamicAnchors: l = {},
+      dynamicAnchors: f = {},
     } = {},
   ) {
     let i = null,
@@ -21036,7 +21036,7 @@ var Ao = Ut((ue) => {
                     parentData: e,
                     parentDataProperty: "ownerSubject",
                     rootData: c,
-                    dynamicAnchors: l,
+                    dynamicAnchors: f,
                   }) || ((i = i === null ? w.errors : i.concat(w.errors)), (r = i.length));
                   var n = o === r;
                 } else var n = !0;
@@ -21048,7 +21048,7 @@ var Ao = Ut((ue) => {
                       parentData: e,
                       parentDataProperty: "vaultId",
                       rootData: c,
-                      dynamicAnchors: l,
+                      dynamicAnchors: f,
                     }) || ((i = i === null ? w.errors : i.concat(w.errors)), (r = i.length));
                     var n = o === r;
                   } else var n = !0;
@@ -21060,7 +21060,7 @@ var Ao = Ut((ue) => {
                         parentData: e,
                         parentDataProperty: "connectionId",
                         rootData: c,
-                        dynamicAnchors: l,
+                        dynamicAnchors: f,
                       }) || ((i = i === null ? w.errors : i.concat(w.errors)), (r = i.length));
                       var n = o === r;
                     } else var n = !0;
@@ -21072,7 +21072,7 @@ var Ao = Ut((ue) => {
                           parentData: e,
                           parentDataProperty: "agentId",
                           rootData: c,
-                          dynamicAnchors: l,
+                          dynamicAnchors: f,
                         }) || ((i = i === null ? w.errors : i.concat(w.errors)), (r = i.length));
                         var n = o === r;
                       } else var n = !0;
@@ -21084,7 +21084,7 @@ var Ao = Ut((ue) => {
                             parentData: e,
                             parentDataProperty: "clientId",
                             rootData: c,
-                            dynamicAnchors: l,
+                            dynamicAnchors: f,
                           }) || ((i = i === null ? w.errors : i.concat(w.errors)), (r = i.length));
                           var n = o === r;
                         } else var n = !0;
@@ -21096,7 +21096,7 @@ var Ao = Ut((ue) => {
                               parentData: e,
                               parentDataProperty: "rootKeyId",
                               rootData: c,
-                              dynamicAnchors: l,
+                              dynamicAnchors: f,
                             }) ||
                               ((i = i === null ? x.errors : i.concat(x.errors)), (r = i.length));
                             var n = o === r;
@@ -21109,7 +21109,7 @@ var Ao = Ut((ue) => {
                                 parentData: e,
                                 parentDataProperty: "agentSigningKeyId",
                                 rootData: c,
-                                dynamicAnchors: l,
+                                dynamicAnchors: f,
                               }) ||
                                 ((i = i === null ? x.errors : i.concat(x.errors)), (r = i.length));
                               var n = o === r;
@@ -21122,7 +21122,7 @@ var Ao = Ut((ue) => {
                                   parentData: e,
                                   parentDataProperty: "agentEncryptionKeyId",
                                   rootData: c,
-                                  dynamicAnchors: l,
+                                  dynamicAnchors: f,
                                 }) ||
                                   ((i = i === null ? x.errors : i.concat(x.errors)),
                                   (r = i.length));
@@ -21131,7 +21131,7 @@ var Ao = Ut((ue) => {
                               if (n) {
                                 if (e.identityEpoch !== void 0) {
                                   let o = e.identityEpoch,
-                                    f = r;
+                                    l = r;
                                   if (!(typeof o == "number" && !(o % 1) && !isNaN(o)))
                                     return (
                                       (M.errors = [
@@ -21144,7 +21144,7 @@ var Ao = Ut((ue) => {
                                       ]),
                                       !1
                                     );
-                                  if (r === f && typeof o == "number") {
+                                  if (r === l && typeof o == "number") {
                                     if (o > 9007199254740991 || isNaN(o))
                                       return (
                                         (M.errors = [
@@ -21170,7 +21170,7 @@ var Ao = Ut((ue) => {
                                         !1
                                       );
                                   }
-                                  var n = f === r;
+                                  var n = l === r;
                                 } else var n = !0;
                                 if (n) {
                                   if (e.bindingFingerprint !== void 0) {
@@ -21180,7 +21180,7 @@ var Ao = Ut((ue) => {
                                       parentData: e,
                                       parentDataProperty: "bindingFingerprint",
                                       rootData: c,
-                                      dynamicAnchors: l,
+                                      dynamicAnchors: f,
                                     }) ||
                                       ((i = i === null ? E.errors : i.concat(E.errors)),
                                       (r = i.length));
@@ -21194,7 +21194,7 @@ var Ao = Ut((ue) => {
                                         parentData: e,
                                         parentDataProperty: "consentId",
                                         rootData: c,
-                                        dynamicAnchors: l,
+                                        dynamicAnchors: f,
                                       }) ||
                                         ((i = i === null ? w.errors : i.concat(w.errors)),
                                         (r = i.length));
@@ -21225,7 +21225,7 @@ var Ao = Ut((ue) => {
                                             parentData: e,
                                             parentDataProperty: "stableOperationId",
                                             rootData: c,
-                                            dynamicAnchors: l,
+                                            dynamicAnchors: f,
                                           }) ||
                                             ((i = i === null ? $.errors : i.concat($.errors)),
                                             (r = i.length));
@@ -21234,7 +21234,7 @@ var Ao = Ut((ue) => {
                                         if (n) {
                                           if (e.expectedVersion !== void 0) {
                                             let o = e.expectedVersion,
-                                              f = r;
+                                              l = r;
                                             if (!(typeof o == "number" && !(o % 1) && !isNaN(o)))
                                               return (
                                                 (M.errors = [
@@ -21247,7 +21247,7 @@ var Ao = Ut((ue) => {
                                                 ]),
                                                 !1
                                               );
-                                            if (r === f && typeof o == "number") {
+                                            if (r === l && typeof o == "number") {
                                               if (o > 9007199254740991 || isNaN(o))
                                                 return (
                                                   (M.errors = [
@@ -21278,12 +21278,12 @@ var Ao = Ut((ue) => {
                                                   !1
                                                 );
                                             }
-                                            var n = f === r;
+                                            var n = l === r;
                                           } else var n = !0;
                                           if (n) {
                                             if (e.expectedConsentDigest !== void 0) {
                                               let o = e.expectedConsentDigest,
-                                                f = r,
+                                                l = r,
                                                 h = r,
                                                 v = !1,
                                                 g = r;
@@ -21292,7 +21292,7 @@ var Ao = Ut((ue) => {
                                                 parentData: e,
                                                 parentDataProperty: "expectedConsentDigest",
                                                 rootData: c,
-                                                dynamicAnchors: l,
+                                                dynamicAnchors: f,
                                               }) ||
                                                 ((i = i === null ? E.errors : i.concat(E.errors)),
                                                 (r = i.length));
@@ -21328,12 +21328,12 @@ var Ao = Ut((ue) => {
                                                   !1
                                                 );
                                               }
-                                              var n = f === r;
+                                              var n = l === r;
                                             } else var n = !0;
                                             if (n) {
                                               if (e.issuedAt !== void 0) {
                                                 let o = e.issuedAt,
-                                                  f = r;
+                                                  l = r;
                                                 if (!(
                                                   typeof o == "number" &&
                                                   !(o % 1) &&
@@ -21350,7 +21350,7 @@ var Ao = Ut((ue) => {
                                                     ]),
                                                     !1
                                                   );
-                                                if (r === f && typeof o == "number") {
+                                                if (r === l && typeof o == "number") {
                                                   if (o > 9007199254740991 || isNaN(o))
                                                     return (
                                                       (M.errors = [
@@ -21381,12 +21381,12 @@ var Ao = Ut((ue) => {
                                                       !1
                                                     );
                                                 }
-                                                var n = f === r;
+                                                var n = l === r;
                                               } else var n = !0;
                                               if (n) {
                                                 if (e.registrySequence !== void 0) {
                                                   let o = e.registrySequence,
-                                                    f = r;
+                                                    l = r;
                                                   if (!(
                                                     typeof o == "number" &&
                                                     !(o % 1) &&
@@ -21404,7 +21404,7 @@ var Ao = Ut((ue) => {
                                                       ]),
                                                       !1
                                                     );
-                                                  if (r === f && typeof o == "number") {
+                                                  if (r === l && typeof o == "number") {
                                                     if (o > 9007199254740991 || isNaN(o))
                                                       return (
                                                         (M.errors = [
@@ -21435,7 +21435,7 @@ var Ao = Ut((ue) => {
                                                         !1
                                                       );
                                                   }
-                                                  var n = f === r;
+                                                  var n = l === r;
                                                 } else var n = !0;
                                                 if (n) {
                                                   if (e.checkpointDigest !== void 0) {
@@ -21445,7 +21445,7 @@ var Ao = Ut((ue) => {
                                                       parentData: e,
                                                       parentDataProperty: "checkpointDigest",
                                                       rootData: c,
-                                                      dynamicAnchors: l,
+                                                      dynamicAnchors: f,
                                                     }) ||
                                                       ((i =
                                                         i === null ? E.errors : i.concat(E.errors)),
@@ -21455,7 +21455,7 @@ var Ao = Ut((ue) => {
                                                   if (n) {
                                                     if (e.keyEpoch !== void 0) {
                                                       let o = e.keyEpoch,
-                                                        f = r;
+                                                        l = r;
                                                       if (!(
                                                         typeof o == "number" &&
                                                         !(o % 1) &&
@@ -21473,7 +21473,7 @@ var Ao = Ut((ue) => {
                                                           ]),
                                                           !1
                                                         );
-                                                      if (r === f && typeof o == "number") {
+                                                      if (r === l && typeof o == "number") {
                                                         if (o > 9007199254740991 || isNaN(o))
                                                           return (
                                                             (M.errors = [
@@ -21507,7 +21507,7 @@ var Ao = Ut((ue) => {
                                                             !1
                                                           );
                                                       }
-                                                      var n = f === r;
+                                                      var n = l === r;
                                                     } else var n = !0;
                                                     if (n) {
                                                       if (e.artifactType !== void 0) {
@@ -21536,8 +21536,8 @@ var Ao = Ut((ue) => {
                                                       if (n) {
                                                         if (e.targets !== void 0) {
                                                           let o = e.targets,
-                                                            f = r;
-                                                          if (r === f)
+                                                            l = r;
+                                                          if (r === l)
                                                             if (Array.isArray(o)) {
                                                               if (o.length > 10)
                                                                 return (
@@ -21576,7 +21576,7 @@ var Ao = Ut((ue) => {
                                                                     parentData: o,
                                                                     parentDataProperty: g,
                                                                     rootData: c,
-                                                                    dynamicAnchors: l,
+                                                                    dynamicAnchors: f,
                                                                   }) ||
                                                                     ((i =
                                                                       i === null
@@ -21600,7 +21600,7 @@ var Ao = Ut((ue) => {
                                                                 ]),
                                                                 !1
                                                               );
-                                                          var n = f === r;
+                                                          var n = l === r;
                                                         } else var n = !0;
                                                         if (n)
                                                           if (e.authorKeyId !== void 0) {
@@ -21610,7 +21610,7 @@ var Ao = Ut((ue) => {
                                                               parentData: e,
                                                               parentDataProperty: "authorKeyId",
                                                               rootData: c,
-                                                              dynamicAnchors: l,
+                                                              dynamicAnchors: f,
                                                             }) ||
                                                               ((i =
                                                                 i === null
@@ -21653,19 +21653,19 @@ var Ao = Ut((ue) => {
     return ((M.errors = i), r === 0);
   }
   M.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
-  function sn(
+  function on(
     e,
     {
       instancePath: t = "",
       parentData: a,
       parentDataProperty: u,
       rootData: c = e,
-      dynamicAnchors: l = {},
+      dynamicAnchors: f = {},
     } = {},
   ) {
     let i = null,
       r = 0,
-      d = sn.evaluated;
+      d = on.evaluated;
     return (
       d.dynamicProps && (d.props = void 0),
       d.dynamicItems && (d.items = void 0),
@@ -21674,14 +21674,14 @@ var Ao = Ut((ue) => {
         parentData: a,
         parentDataProperty: u,
         rootData: c,
-        dynamicAnchors: l,
+        dynamicAnchors: f,
       }) || ((i = i === null ? M.errors : i.concat(M.errors)), (r = i.length)),
-      (sn.errors = i),
+      (on.errors = i),
       r === 0
     );
   }
-  sn.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
-  ue.ConsentSourceState = on;
+  on.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
+  me.ConsentSourceState = an;
   var Xa = {
     type: "object",
     properties: {
@@ -21706,7 +21706,7 @@ var Ao = Ut((ue) => {
       parentData: a,
       parentDataProperty: u,
       rootData: c = e,
-      dynamicAnchors: l = {},
+      dynamicAnchors: f = {},
     } = {},
   ) {
     let i = null,
@@ -21766,7 +21766,7 @@ var Ao = Ut((ue) => {
                 parentData: e,
                 parentDataProperty: "ownerSubject",
                 rootData: c,
-                dynamicAnchors: l,
+                dynamicAnchors: f,
               }) || ((i = i === null ? w.errors : i.concat(w.errors)), (r = i.length));
               var n = o === r;
             } else var n = !0;
@@ -21778,7 +21778,7 @@ var Ao = Ut((ue) => {
                   parentData: e,
                   parentDataProperty: "vaultId",
                   rootData: c,
-                  dynamicAnchors: l,
+                  dynamicAnchors: f,
                 }) || ((i = i === null ? w.errors : i.concat(w.errors)), (r = i.length));
                 var n = o === r;
               } else var n = !0;
@@ -21790,14 +21790,14 @@ var Ao = Ut((ue) => {
                     parentData: e,
                     parentDataProperty: "ref",
                     rootData: c,
-                    dynamicAnchors: l,
+                    dynamicAnchors: f,
                   }) || ((i = i === null ? T.errors : i.concat(T.errors)), (r = i.length));
                   var n = o === r;
                 } else var n = !0;
                 if (n) {
                   if (e.sourceEpoch !== void 0) {
                     let o = e.sourceEpoch,
-                      f = r,
+                      l = r,
                       h = r,
                       v = !1,
                       g = r;
@@ -21853,12 +21853,12 @@ var Ao = Ut((ue) => {
                       };
                       return (i === null ? (i = [b]) : i.push(b), r++, (ir.errors = i), !1);
                     }
-                    var n = f === r;
+                    var n = l === r;
                   } else var n = !0;
                   if (n) {
                     if (e.currentRevision !== void 0) {
                       let o = e.currentRevision,
-                        f = r,
+                        l = r,
                         h = r,
                         v = !1,
                         g = r;
@@ -21914,12 +21914,12 @@ var Ao = Ut((ue) => {
                         };
                         return (i === null ? (i = [b]) : i.push(b), r++, (ir.errors = i), !1);
                       }
-                      var n = f === r;
+                      var n = l === r;
                     } else var n = !0;
                     if (n)
                       if (e.state !== void 0) {
                         let o = e.state,
-                          f = r;
+                          l = r;
                         if (!(
                           o === "active" ||
                           o === "revoking" ||
@@ -21938,7 +21938,7 @@ var Ao = Ut((ue) => {
                             ]),
                             !1
                           );
-                        var n = f === r;
+                        var n = l === r;
                       } else var n = !0;
                   }
                 }
@@ -21956,19 +21956,19 @@ var Ao = Ut((ue) => {
     return ((ir.errors = i), r === 0);
   }
   ir.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
-  function on(
+  function an(
     e,
     {
       instancePath: t = "",
       parentData: a,
       parentDataProperty: u,
       rootData: c = e,
-      dynamicAnchors: l = {},
+      dynamicAnchors: f = {},
     } = {},
   ) {
     let i = null,
       r = 0,
-      d = on.evaluated;
+      d = an.evaluated;
     return (
       d.dynamicProps && (d.props = void 0),
       d.dynamicItems && (d.items = void 0),
@@ -21977,14 +21977,14 @@ var Ao = Ut((ue) => {
         parentData: a,
         parentDataProperty: u,
         rootData: c,
-        dynamicAnchors: l,
+        dynamicAnchors: f,
       }) || ((i = i === null ? ir.errors : i.concat(ir.errors)), (r = i.length)),
-      (on.errors = i),
+      (an.errors = i),
       r === 0
     );
   }
-  on.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
-  ue.PersistentAgentRequestPayload = an;
+  an.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
+  me.PersistentAgentRequestPayload = pn;
   var _o = {
       type: "object",
       properties: {
@@ -22045,7 +22045,7 @@ var Ao = Ut((ue) => {
       parentData: a,
       parentDataProperty: u,
       rootData: c = e,
-      dynamicAnchors: l = {},
+      dynamicAnchors: f = {},
     } = {},
   ) {
     let i = null,
@@ -22182,7 +22182,7 @@ var Ao = Ut((ue) => {
                         parentData: e,
                         parentDataProperty: "ownerSubject",
                         rootData: c,
-                        dynamicAnchors: l,
+                        dynamicAnchors: f,
                       }) || ((i = i === null ? w.errors : i.concat(w.errors)), (r = i.length));
                       var n = p === r;
                     } else var n = !0;
@@ -22194,7 +22194,7 @@ var Ao = Ut((ue) => {
                           parentData: e,
                           parentDataProperty: "vaultId",
                           rootData: c,
-                          dynamicAnchors: l,
+                          dynamicAnchors: f,
                         }) || ((i = i === null ? w.errors : i.concat(w.errors)), (r = i.length));
                         var n = p === r;
                       } else var n = !0;
@@ -22206,7 +22206,7 @@ var Ao = Ut((ue) => {
                             parentData: e,
                             parentDataProperty: "connectionId",
                             rootData: c,
-                            dynamicAnchors: l,
+                            dynamicAnchors: f,
                           }) || ((i = i === null ? w.errors : i.concat(w.errors)), (r = i.length));
                           var n = p === r;
                         } else var n = !0;
@@ -22218,7 +22218,7 @@ var Ao = Ut((ue) => {
                               parentData: e,
                               parentDataProperty: "agentId",
                               rootData: c,
-                              dynamicAnchors: l,
+                              dynamicAnchors: f,
                             }) ||
                               ((i = i === null ? w.errors : i.concat(w.errors)), (r = i.length));
                             var n = p === r;
@@ -22231,7 +22231,7 @@ var Ao = Ut((ue) => {
                                 parentData: e,
                                 parentDataProperty: "clientId",
                                 rootData: c,
-                                dynamicAnchors: l,
+                                dynamicAnchors: f,
                               }) ||
                                 ((i = i === null ? w.errors : i.concat(w.errors)), (r = i.length));
                               var n = p === r;
@@ -22244,7 +22244,7 @@ var Ao = Ut((ue) => {
                                   parentData: e,
                                   parentDataProperty: "rootKeyId",
                                   rootData: c,
-                                  dynamicAnchors: l,
+                                  dynamicAnchors: f,
                                 }) ||
                                   ((i = i === null ? x.errors : i.concat(x.errors)),
                                   (r = i.length));
@@ -22258,7 +22258,7 @@ var Ao = Ut((ue) => {
                                     parentData: e,
                                     parentDataProperty: "agentSigningKeyId",
                                     rootData: c,
-                                    dynamicAnchors: l,
+                                    dynamicAnchors: f,
                                   }) ||
                                     ((i = i === null ? x.errors : i.concat(x.errors)),
                                     (r = i.length));
@@ -22272,7 +22272,7 @@ var Ao = Ut((ue) => {
                                       parentData: e,
                                       parentDataProperty: "agentEncryptionKeyId",
                                       rootData: c,
-                                      dynamicAnchors: l,
+                                      dynamicAnchors: f,
                                     }) ||
                                       ((i = i === null ? x.errors : i.concat(x.errors)),
                                       (r = i.length));
@@ -22333,7 +22333,7 @@ var Ao = Ut((ue) => {
                                           parentData: e,
                                           parentDataProperty: "bindingFingerprint",
                                           rootData: c,
-                                          dynamicAnchors: l,
+                                          dynamicAnchors: f,
                                         }) ||
                                           ((i = i === null ? E.errors : i.concat(E.errors)),
                                           (r = i.length));
@@ -22357,7 +22357,7 @@ var Ao = Ut((ue) => {
                                                   ]),
                                                   !1
                                                 );
-                                              if (!cn.test(p))
+                                              if (!ln.test(p))
                                                 return (
                                                   (G.errors = [
                                                     {
@@ -22458,7 +22458,7 @@ var Ao = Ut((ue) => {
                                                   parentData: e,
                                                   parentDataProperty: "bodyDigest",
                                                   rootData: c,
-                                                  dynamicAnchors: l,
+                                                  dynamicAnchors: f,
                                                 }) ||
                                                   ((i = i === null ? E.errors : i.concat(E.errors)),
                                                   (r = i.length));
@@ -22472,7 +22472,7 @@ var Ao = Ut((ue) => {
                                                     parentData: e,
                                                     parentDataProperty: "requestId",
                                                     rootData: c,
-                                                    dynamicAnchors: l,
+                                                    dynamicAnchors: f,
                                                   }) ||
                                                     ((i =
                                                       i === null ? $.errors : i.concat($.errors)),
@@ -22673,19 +22673,19 @@ var Ao = Ut((ue) => {
     return ((G.errors = i), r === 0);
   }
   G.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
-  function an(
+  function pn(
     e,
     {
       instancePath: t = "",
       parentData: a,
       parentDataProperty: u,
       rootData: c = e,
-      dynamicAnchors: l = {},
+      dynamicAnchors: f = {},
     } = {},
   ) {
     let i = null,
       r = 0,
-      d = an.evaluated;
+      d = pn.evaluated;
     return (
       d.dynamicProps && (d.props = void 0),
       d.dynamicItems && (d.items = void 0),
@@ -22694,14 +22694,14 @@ var Ao = Ut((ue) => {
         parentData: a,
         parentDataProperty: u,
         rootData: c,
-        dynamicAnchors: l,
+        dynamicAnchors: f,
       }) || ((i = i === null ? G.errors : i.concat(G.errors)), (r = i.length)),
-      (an.errors = i),
+      (pn.errors = i),
       r === 0
     );
   }
-  an.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
-  ue.PersistentRunManifest = pn;
+  pn.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
+  me.PersistentRunManifest = cn;
   var xo = {
     type: "object",
     properties: {
@@ -22776,7 +22776,7 @@ var Ao = Ut((ue) => {
       parentData: a,
       parentDataProperty: u,
       rootData: c = e,
-      dynamicAnchors: l = {},
+      dynamicAnchors: f = {},
     } = {},
   ) {
     let i = null,
@@ -22840,7 +22840,7 @@ var Ao = Ut((ue) => {
                 parentData: e,
                 parentDataProperty: "ref",
                 rootData: c,
-                dynamicAnchors: l,
+                dynamicAnchors: f,
               }) || ((i = i === null ? T.errors : i.concat(T.errors)), (r = i.length));
               var n = p === r;
             } else var n = !0;
@@ -22940,7 +22940,7 @@ var Ao = Ut((ue) => {
                       parentData: e,
                       parentDataProperty: "permissionId",
                       rootData: c,
-                      dynamicAnchors: l,
+                      dynamicAnchors: f,
                     }) || ((i = i === null ? w.errors : i.concat(w.errors)), (r = i.length));
                     var n = p === r;
                   } else var n = !0;
@@ -22996,7 +22996,7 @@ var Ao = Ut((ue) => {
                           parentData: e,
                           parentDataProperty: "publicationId",
                           rootData: c,
-                          dynamicAnchors: l,
+                          dynamicAnchors: f,
                         }) || ((i = i === null ? $.errors : i.concat($.errors)), (r = i.length));
                         var n = p === r;
                       } else var n = !0;
@@ -23008,7 +23008,7 @@ var Ao = Ut((ue) => {
                             parentData: e,
                             parentDataProperty: "publicationFingerprint",
                             rootData: c,
-                            dynamicAnchors: l,
+                            dynamicAnchors: f,
                           }) || ((i = i === null ? E.errors : i.concat(E.errors)), (r = i.length));
                           var n = p === r;
                         } else var n = !0;
@@ -23020,7 +23020,7 @@ var Ao = Ut((ue) => {
                               parentData: e,
                               parentDataProperty: "objectId",
                               rootData: c,
-                              dynamicAnchors: l,
+                              dynamicAnchors: f,
                             }) ||
                               ((i = i === null ? w.errors : i.concat(w.errors)), (r = i.length));
                             var n = p === r;
@@ -23050,7 +23050,7 @@ var Ao = Ut((ue) => {
       parentData: a,
       parentDataProperty: u,
       rootData: c = e,
-      dynamicAnchors: l = {},
+      dynamicAnchors: f = {},
     } = {},
   ) {
     let i = null,
@@ -23193,7 +23193,7 @@ var Ao = Ut((ue) => {
                         parentData: e,
                         parentDataProperty: "ownerSubject",
                         rootData: c,
-                        dynamicAnchors: l,
+                        dynamicAnchors: f,
                       }) || ((i = i === null ? w.errors : i.concat(w.errors)), (r = i.length));
                       var n = s === r;
                     } else var n = !0;
@@ -23205,7 +23205,7 @@ var Ao = Ut((ue) => {
                           parentData: e,
                           parentDataProperty: "vaultId",
                           rootData: c,
-                          dynamicAnchors: l,
+                          dynamicAnchors: f,
                         }) || ((i = i === null ? w.errors : i.concat(w.errors)), (r = i.length));
                         var n = s === r;
                       } else var n = !0;
@@ -23217,7 +23217,7 @@ var Ao = Ut((ue) => {
                             parentData: e,
                             parentDataProperty: "connectionId",
                             rootData: c,
-                            dynamicAnchors: l,
+                            dynamicAnchors: f,
                           }) || ((i = i === null ? w.errors : i.concat(w.errors)), (r = i.length));
                           var n = s === r;
                         } else var n = !0;
@@ -23229,7 +23229,7 @@ var Ao = Ut((ue) => {
                               parentData: e,
                               parentDataProperty: "agentId",
                               rootData: c,
-                              dynamicAnchors: l,
+                              dynamicAnchors: f,
                             }) ||
                               ((i = i === null ? w.errors : i.concat(w.errors)), (r = i.length));
                             var n = s === r;
@@ -23242,7 +23242,7 @@ var Ao = Ut((ue) => {
                                 parentData: e,
                                 parentDataProperty: "clientId",
                                 rootData: c,
-                                dynamicAnchors: l,
+                                dynamicAnchors: f,
                               }) ||
                                 ((i = i === null ? w.errors : i.concat(w.errors)), (r = i.length));
                               var n = s === r;
@@ -23255,7 +23255,7 @@ var Ao = Ut((ue) => {
                                   parentData: e,
                                   parentDataProperty: "rootKeyId",
                                   rootData: c,
-                                  dynamicAnchors: l,
+                                  dynamicAnchors: f,
                                 }) ||
                                   ((i = i === null ? x.errors : i.concat(x.errors)),
                                   (r = i.length));
@@ -23269,7 +23269,7 @@ var Ao = Ut((ue) => {
                                     parentData: e,
                                     parentDataProperty: "agentSigningKeyId",
                                     rootData: c,
-                                    dynamicAnchors: l,
+                                    dynamicAnchors: f,
                                   }) ||
                                     ((i = i === null ? x.errors : i.concat(x.errors)),
                                     (r = i.length));
@@ -23283,7 +23283,7 @@ var Ao = Ut((ue) => {
                                       parentData: e,
                                       parentDataProperty: "agentEncryptionKeyId",
                                       rootData: c,
-                                      dynamicAnchors: l,
+                                      dynamicAnchors: f,
                                     }) ||
                                       ((i = i === null ? x.errors : i.concat(x.errors)),
                                       (r = i.length));
@@ -23344,7 +23344,7 @@ var Ao = Ut((ue) => {
                                           parentData: e,
                                           parentDataProperty: "bindingFingerprint",
                                           rootData: c,
-                                          dynamicAnchors: l,
+                                          dynamicAnchors: f,
                                         }) ||
                                           ((i = i === null ? E.errors : i.concat(E.errors)),
                                           (r = i.length));
@@ -23358,7 +23358,7 @@ var Ao = Ut((ue) => {
                                             parentData: e,
                                             parentDataProperty: "taskId",
                                             rootData: c,
-                                            dynamicAnchors: l,
+                                            dynamicAnchors: f,
                                           }) ||
                                             ((i = i === null ? w.errors : i.concat(w.errors)),
                                             (r = i.length));
@@ -23471,7 +23471,7 @@ var Ao = Ut((ue) => {
                                                   parentData: e,
                                                   parentDataProperty: "authorityId",
                                                   rootData: c,
-                                                  dynamicAnchors: l,
+                                                  dynamicAnchors: f,
                                                 }) ||
                                                   ((i = i === null ? w.errors : i.concat(w.errors)),
                                                   (r = i.length));
@@ -23539,7 +23539,7 @@ var Ao = Ut((ue) => {
                                                       parentData: e,
                                                       parentDataProperty: "runId",
                                                       rootData: c,
-                                                      dynamicAnchors: l,
+                                                      dynamicAnchors: f,
                                                     }) ||
                                                       ((i =
                                                         i === null ? w.errors : i.concat(w.errors)),
@@ -23554,7 +23554,7 @@ var Ao = Ut((ue) => {
                                                         parentData: e,
                                                         parentDataProperty: "stableOperationId",
                                                         rootData: c,
-                                                        dynamicAnchors: l,
+                                                        dynamicAnchors: f,
                                                       }) ||
                                                         ((i =
                                                           i === null
@@ -23571,7 +23571,7 @@ var Ao = Ut((ue) => {
                                                           parentData: e,
                                                           parentDataProperty: "triggerId",
                                                           rootData: c,
-                                                          dynamicAnchors: l,
+                                                          dynamicAnchors: f,
                                                         }) ||
                                                           ((i =
                                                             i === null
@@ -23588,7 +23588,7 @@ var Ao = Ut((ue) => {
                                                             parentData: e,
                                                             parentDataProperty: "taskPublicationId",
                                                             rootData: c,
-                                                            dynamicAnchors: l,
+                                                            dynamicAnchors: f,
                                                           }) ||
                                                             ((i =
                                                               i === null
@@ -23609,7 +23609,7 @@ var Ao = Ut((ue) => {
                                                               parentDataProperty:
                                                                 "taskPublicationFingerprint",
                                                               rootData: c,
-                                                              dynamicAnchors: l,
+                                                              dynamicAnchors: f,
                                                             }) ||
                                                               ((i =
                                                                 i === null
@@ -23796,7 +23796,7 @@ var Ao = Ut((ue) => {
                                                                             parentData: s,
                                                                             parentDataProperty: v,
                                                                             rootData: c,
-                                                                            dynamicAnchors: l,
+                                                                            dynamicAnchors: f,
                                                                           }) ||
                                                                             ((i =
                                                                               i === null
@@ -23864,19 +23864,19 @@ var Ao = Ut((ue) => {
     return ((W.errors = i), r === 0);
   }
   W.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
-  function pn(
+  function cn(
     e,
     {
       instancePath: t = "",
       parentData: a,
       parentDataProperty: u,
       rootData: c = e,
-      dynamicAnchors: l = {},
+      dynamicAnchors: f = {},
     } = {},
   ) {
     let i = null,
       r = 0,
-      d = pn.evaluated;
+      d = cn.evaluated;
     return (
       d.dynamicProps && (d.props = void 0),
       d.dynamicItems && (d.items = void 0),
@@ -23885,26 +23885,26 @@ var Ao = Ut((ue) => {
         parentData: a,
         parentDataProperty: u,
         rootData: c,
-        dynamicAnchors: l,
+        dynamicAnchors: f,
       }) || ((i = i === null ? W.errors : i.concat(W.errors)), (r = i.length)),
-      (pn.errors = i),
+      (cn.errors = i),
       r === 0
     );
   }
-  pn.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
+  cn.evaluated = { props: !0, dynamicProps: !1, dynamicItems: !1 };
 });
 var po = {};
 kn(po, {
-  CompactEncrypt: () => Ei,
-  CompactSign: () => Ni,
+  CompactEncrypt: () => Ai,
+  CompactSign: () => Di,
   EmbeddedJWK: () => Xs,
-  EncryptJWT: () => $i,
-  FlattenedEncrypt: () => Ai,
+  EncryptJWT: () => ji,
+  FlattenedEncrypt: () => Si,
   FlattenedSign: () => Pt,
   GeneralEncrypt: () => yt,
-  GeneralSign: () => Di,
-  SignJWT: () => Ki,
-  UnsecuredJWT: () => Li,
+  GeneralSign: () => Ki,
+  SignJWT: () => $i,
+  UnsecuredJWT: () => Oi,
   base64url: () => Br,
   calculateJwkThumbprint: () => qt,
   calculateJwkThumbprintUri: () => Gs,
@@ -23917,12 +23917,12 @@ kn(po, {
   decodeJwt: () => so,
   decodeProtectedHeader: () => no,
   errors: () => _n,
-  exportJWK: () => ji,
+  exportJWK: () => Li,
   exportPKCS8: () => Ms,
   exportSPKI: () => Bs,
   flattenedDecrypt: () => Ks,
-  flattenedVerify: () => bi,
-  generalDecrypt: () => gi,
+  flattenedVerify: () => _i,
+  generalDecrypt: () => vi,
   generalVerify: () => Ls,
   generateKeyPair: () => oo,
   generateSecret: () => ao,
@@ -23937,25 +23937,25 @@ kn(po, {
 var Er = new TextEncoder(),
   nt = new TextDecoder(),
   st = new TextDecoder("utf-8", { fatal: !0 }),
-  Zt = 2 ** 32;
+  Bt = 2 ** 32;
 function He(...e) {
-  let t = e.reduce((c, { length: l }) => c + l, 0),
+  let t = e.reduce((c, { length: f }) => c + f, 0),
     a = new Uint8Array(t),
     u = 0;
   for (let c of e) (a.set(c, u), (u += c.length));
   return a;
 }
 function Pn(e, t, a) {
-  if (t < 0 || t >= Zt) throw new RangeError(`value must be >= 0 and <= ${Zt - 1}. Received ${t}`);
+  if (t < 0 || t >= Bt) throw new RangeError(`value must be >= 0 and <= ${Bt - 1}. Received ${t}`);
   e.set([t >>> 24, t >>> 16, t >>> 8, t & 255], a);
 }
 function bn(e) {
-  let t = Math.floor(e / Zt),
-    a = e % Zt,
+  let t = Math.floor(e / Bt),
+    a = e % Bt,
     u = new Uint8Array(8);
   return (Pn(u, t, 0), Pn(u, a, 4), u);
 }
-function Bt(e) {
+function Mt(e) {
   let t = new Uint8Array(4);
   return (Pn(t, e), t);
 }
@@ -23973,17 +23973,17 @@ function qe(e) {
   }
   return t;
 }
-function Mt(e, t = !1) {
+function Gt(e, t = !1) {
   if (Uint8Array.prototype.toBase64)
     return e.toBase64({ alphabet: t ? "base64url" : "base64", omitPadding: t });
   let a = 32768,
     u = [];
-  for (let l = 0; l < e.length; l += a)
-    u.push(String.fromCharCode.apply(null, e.subarray(l, l + a)));
+  for (let f = 0; f < e.length; f += a)
+    u.push(String.fromCharCode.apply(null, e.subarray(f, f + a)));
   let c = btoa(u.join(""));
   return t ? c.replace(/=/g, "").replace(/\+/g, "-").replace(/\//g, "_") : c;
 }
-function Gt(e, t = !1) {
+function Xt(e, t = !1) {
   if (Uint8Array.fromBase64)
     return Uint8Array.fromBase64(e, { alphabet: t ? "base64url" : "base64" });
   if (t) {
@@ -23995,7 +23995,7 @@ function Gt(e, t = !1) {
   for (let c = 0; c < a.length; c++) u[c] = a.charCodeAt(c);
   return u;
 }
-async function Xt(e, t) {
+async function Yt(e, t) {
   let a = `SHA-${e.slice(-3)}`;
   return new Uint8Array(await crypto.subtle.digest(a, t));
 }
@@ -24117,17 +24117,17 @@ var Ee = class extends Error {
     }
   };
 var Br = {};
-kn(Br, { decode: () => mr, encode: () => Q });
+kn(Br, { decode: () => mr, encode: () => re });
 var Go = "The input to be decoded is not correctly encoded.";
 function mr(e) {
   try {
-    return Gt(typeof e == "string" ? e : nt.decode(e), !0);
+    return Xt(typeof e == "string" ? e : nt.decode(e), !0);
   } catch (t) {
     throw new TypeError(Go, { cause: t });
   }
 }
-function Q(e) {
-  return Mt(typeof e == "string" ? Er.encode(e) : e, !0);
+function re(e) {
+  return Gt(typeof e == "string" ? Er.encode(e) : e, !0);
 }
 function Se(e, t) {
   if (!(e instanceof Uint8Array)) throw new TypeError(`${t} must be an instance of Uint8Array`);
@@ -24138,7 +24138,7 @@ function R(e) {
   let t = Object.getPrototypeOf(e);
   return t === null || Object.getPrototypeOf(t) === null;
 }
-function Yt(e) {
+function Qt(e) {
   return R(e) && Array.isArray(e.keys) && Array.from(e.keys).every(R);
 }
 function Or(...e) {
@@ -24161,7 +24161,7 @@ function Je(e, t, a) {
     throw new a(`Failed to base64url decode the ${t}`, { cause: u });
   }
 }
-function Qt(e, t, a) {
+function ei(e, t, a) {
   try {
     return qe(e);
   } catch (u) {
@@ -24179,13 +24179,13 @@ function Vr(e, t, a) {
   return u;
 }
 var pt = { __proto__: null, b64: !0 },
-  ei = { __proto__: null };
+  ri = { __proto__: null };
 function St(e, t) {
   if (t !== void 0 && (!Array.isArray(t) || t.some((a) => typeof a != "string")))
     throw new TypeError(`"${e}" option must be an array of strings`);
   return t === void 0 ? void 0 : new Set(t);
 }
-function ri(e, t) {
+function ti(e, t) {
   let { crit: a } = t ?? {};
   if (Array.isArray(a) && new Set(a).size !== a.length)
     throw new e('"crit" (Critical) Header Parameter MUST NOT contain duplicate values');
@@ -24202,12 +24202,12 @@ function yr(e, t, a, u, c) {
     throw new e(
       '"crit" (Critical) Header Parameter MUST be an array of non-empty strings when present',
     );
-  let l = a === void 0 ? t : { __proto__: null, ...a, ...t };
+  let f = a === void 0 ? t : { __proto__: null, ...a, ...t };
   for (let i of u.crit) {
-    if (!(i in l)) throw new F(`Extension Header Parameter "${i}" is not recognized`);
+    if (!(i in f)) throw new F(`Extension Header Parameter "${i}" is not recognized`);
     if (!Object.hasOwn(c, i) || c[i] === void 0)
       throw new e(`Extension Header Parameter "${i}" is missing`);
-    if (l[i] && (!Object.hasOwn(u, i) || u[i] === void 0))
+    if (f[i] && (!Object.hasOwn(u, i) || u[i] === void 0))
       throw new e(`Extension Header Parameter "${i}" MUST be integrity protected`);
   }
   return u.crit;
@@ -24253,7 +24253,7 @@ var Xo = (e) => e[Symbol.toStringTag],
   };
 async function sr(e, t, a) {
   let { alg: u, secret: c } = e,
-    l = a === "decrypt" || a === "sign";
+    f = a === "decrypt" || a === "sign";
   if (c && t instanceof Uint8Array) return t;
   let i, r;
   if (R(t)) {
@@ -24262,14 +24262,14 @@ async function sr(e, t, a) {
       !(c
         ? i.kty === "oct" && typeof i.k == "string"
         : i.kty !== "oct" &&
-          (l
+          (f
             ? (i.kty === "AKP" && typeof i.priv == "string") || typeof i.d == "string"
             : i.d === void 0 && i.priv === void 0))
     )
       throw new TypeError(
         c
           ? 'JSON Web Key for symmetric algorithms must have JWK "kty" (Key Type) equal to "oct" and the JWK "k" (Key Value) present'
-          : `JSON Web Key for this operation must be a ${l ? "private" : "public"} JWK`,
+          : `JSON Web Key for this operation must be a ${f ? "private" : "public"} JWK`,
       );
     if ((Yo(e, i, a), i.kty === "oct")) return mr(i.k);
     if (!Object.isFrozen(t)) {
@@ -24278,7 +24278,7 @@ async function sr(e, t, a) {
     }
   } else {
     if (!En(t)) throw ds(u, t, c);
-    let y = c ? "secret" : l ? "private" : "public";
+    let y = c ? "secret" : f ? "private" : "public";
     if (t.type !== y && (c || ["secret", "public", "private"].includes(t.type)))
       throw new TypeError(`${Xo(t)} instances must be of type "${y}" for the ${u} algorithm`);
     if (hr(t)) return t;
@@ -24298,7 +24298,7 @@ async function sr(e, t, a) {
 }
 var xn,
   Qo = { __proto__: null, prime256v1: "P-256", secp384r1: "P-384", secp521r1: "P-521" };
-function ii(e) {
+function ni(e) {
   if (!hr(e)) throw new Error("CryptoKey instance expected");
 }
 var hr = (e) => {
@@ -24336,7 +24336,7 @@ function ds(e, t, a) {
     new TypeError(us(`Key for the ${e} algorithm must be `, t, ...u))
   );
 }
-var ti = (e, t = "algorithm.name") =>
+var ii = (e, t = "algorithm.name") =>
   new TypeError(`CryptoKey does not support this operation, its ${t} must be ${e}`);
 function An(e, t) {
   if (t && !e.usages.includes(t))
@@ -24349,10 +24349,10 @@ function lt(e, t) {
 }
 function Sn(e, t, a) {
   let u = e.algorithm;
-  if (u.name !== t.name) throw ti(t.name);
-  if (t.hash && u.hash?.name !== t.hash) throw ti(t.hash, "algorithm.hash");
-  if (t.namedCurve && u.namedCurve !== t.namedCurve) throw ti(t.namedCurve, "algorithm.namedCurve");
-  if (t.length !== void 0 && u.length !== t.length) throw ti(t.length, "algorithm.length");
+  if (u.name !== t.name) throw ii(t.name);
+  if (t.hash && u.hash?.name !== t.hash) throw ii(t.hash, "algorithm.hash");
+  if (t.namedCurve && u.namedCurve !== t.namedCurve) throw ii(t.namedCurve, "algorithm.namedCurve");
+  if (t.length !== void 0 && u.length !== t.length) throw ii(t.length, "algorithm.length");
   An(e, a);
 }
 function ft(e) {
@@ -24383,11 +24383,11 @@ async function gr(e, t, a) {
     throw new F('Invalid or unsupported JWK "alg" (Algorithm) Parameter value');
   let u = e.resolve?.({ kty: t.kty, crv: t.crv }) ?? e.subtle,
     c = !!(t.d || t.priv),
-    l = { ...t, ext: a ?? t.ext };
+    f = { ...t, ext: a ?? t.ext };
   return (
-    l.kty !== "AKP" && delete l.alg,
-    delete l.use,
-    crypto.subtle.importKey("jwk", l, u, l.ext ?? !c, t.key_ops ?? e.usages[c ? 1 : 0])
+    f.kty !== "AKP" && delete f.alg,
+    delete f.use,
+    crypto.subtle.importKey("jwk", f, u, f.ext ?? !c, t.key_ops ?? e.usages[c ? 1 : 0])
   );
 }
 async function ar(e, t, a, u = !1) {
@@ -24398,7 +24398,7 @@ async function ar(e, t, a, u = !1) {
   );
 }
 var Gr = (e) => crypto.getRandomValues(new Uint8Array(e.cekBits >> 3));
-function ni(e, t) {
+function si(e, t) {
   let a = e.byteLength << 3;
   if (a !== t)
     throw new S(`Invalid Content Encryption Key length. Expected ${t} bits, got ${a} bits`);
@@ -24411,21 +24411,21 @@ async function ys(e, t, a) {
   if (!(t instanceof Uint8Array)) throw new TypeError(or(t, "Uint8Array"));
   let u = e.cekBits >> 1,
     c = await crypto.subtle.importKey("raw", t.subarray(u >> 3), "AES-CBC", !1, [a]),
-    l = await crypto.subtle.importKey(
+    f = await crypto.subtle.importKey(
       "raw",
       t.subarray(0, u >> 3),
       { hash: `SHA-${u << 1}`, name: "HMAC" },
       !1,
       ["sign"],
     );
-  return [c, l, u];
+  return [c, f, u];
 }
 async function hs(e, t, a) {
   return new Uint8Array((await crypto.subtle.sign("HMAC", e, t)).slice(0, a >> 3));
 }
 async function ra(e, t, a, u, c) {
-  let [l, i, r] = await ys(e, a, "encrypt"),
-    d = new Uint8Array(await crypto.subtle.encrypt({ iv: u, name: "AES-CBC" }, l, t)),
+  let [f, i, r] = await ys(e, a, "encrypt"),
+    d = new Uint8Array(await crypto.subtle.encrypt({ iv: u, name: "AES-CBC" }, f, t)),
     n = bn(c.length * 8),
     y = He(c, u, d, n),
     m = await hs(i, y, r);
@@ -24437,10 +24437,10 @@ async function ta(e, t) {
     c = await crypto.subtle.sign(a, u, e);
   return crypto.subtle.verify(a, u, c, t);
 }
-async function ia(e, t, a, u, c, l) {
+async function ia(e, t, a, u, c, f) {
   let [i, r, d] = await ys(e, t, "decrypt"),
-    n = bn(l.length * 8),
-    y = He(l, u, a, n),
+    n = bn(f.length * 8),
+    y = He(f, u, a, n),
     m = await hs(r, y, d);
   try {
     if (await ta(c, m))
@@ -24448,33 +24448,33 @@ async function ia(e, t, a, u, c, l) {
   } catch {}
   throw new Ar();
 }
-async function si(e, t, a, u, c) {
+async function oi(e, t, a, u, c) {
   if (!hr(a) && !(a instanceof Uint8Array))
     throw new TypeError(or(a, "CryptoKey", "KeyObject", "Uint8Array", "JSON Web Key"));
-  if ((u ? ms(e, u) : (u = ea(e)), a instanceof Uint8Array && ni(a, e.cekBits), e.cbc))
+  if ((u ? ms(e, u) : (u = ea(e)), a instanceof Uint8Array && si(a, e.cekBits), e.cbc))
     return ra(e, t, a, u, c);
-  let l = await ar(a, e.subtle, "encrypt"),
+  let f = await ar(a, e.subtle, "encrypt"),
     i = new Uint8Array(
       await crypto.subtle.encrypt(
         { additionalData: c, iv: u, name: "AES-GCM", tagLength: 128 },
-        l,
+        f,
         t,
       ),
     );
   return { ciphertext: i.subarray(0, -16), tag: i.subarray(-16), iv: u };
 }
-async function oi(e, t, a, u, c, l) {
+async function ai(e, t, a, u, c, f) {
   if (!hr(t) && !(t instanceof Uint8Array))
     throw new TypeError(or(t, "CryptoKey", "KeyObject", "Uint8Array", "JSON Web Key"));
   if (!u) throw new S("JWE Initialization Vector missing");
   if (!c) throw new S("JWE Authentication Tag missing");
   if (!e.cbc && c.length !== 16) throw new S("Invalid Authentication Tag length");
-  if ((ms(e, u), t instanceof Uint8Array && ni(t, e.cekBits), e.cbc)) return ia(e, t, a, u, c, l);
+  if ((ms(e, u), t instanceof Uint8Array && si(t, e.cekBits), e.cbc)) return ia(e, t, a, u, c, f);
   let i = await ar(t, e.subtle, "decrypt");
   try {
     return new Uint8Array(
       await crypto.subtle.decrypt(
-        { additionalData: l, iv: u, name: "AES-GCM", tagLength: 128 },
+        { additionalData: f, iv: u, name: "AES-GCM", tagLength: 128 },
         i,
         He(a, c),
       ),
@@ -24493,8 +24493,8 @@ var na = [
     ["decrypt", "unwrapKey"],
   ],
   sa = [[], ["deriveBits"]],
-  ci = [[], []];
-function ai(e) {
+  li = [[], []];
+function pi(e) {
   return {
     kty: ["RSA"],
     mode: "key-encryption",
@@ -24503,7 +24503,7 @@ function ai(e) {
     ops: ["wrapKey", "unwrapKey"],
   };
 }
-function pi(e) {
+function ci(e) {
   return {
     kty: ["EC", "OKP"],
     mode: e,
@@ -24523,7 +24523,7 @@ function dt(e, t = !1) {
     mode: "key-wrapping",
     secret: !0,
     subtle: { name: t ? "AES-GCM" : "AES-KW", length: e },
-    usages: ci,
+    usages: li,
     ops: t ? ["encrypt", "decrypt"] : ["wrapKey", "unwrapKey"],
   };
 }
@@ -24533,7 +24533,7 @@ function Nn() {
     mode: "key-wrapping",
     secret: !0,
     subtle: { name: "PBKDF2" },
-    usages: ci,
+    usages: li,
     ops: ["deriveBits", "deriveBits"],
   };
 }
@@ -24543,17 +24543,17 @@ var Nr = Kt({
       mode: "direct-encryption",
       secret: !0,
       subtle: { name: "AES-GCM" },
-      usages: ci,
+      usages: li,
       ops: ["encrypt", "decrypt"],
     },
-    "RSA-OAEP": ai(1),
-    "RSA-OAEP-256": ai(256),
-    "RSA-OAEP-384": ai(384),
-    "RSA-OAEP-512": ai(512),
-    "ECDH-ES": pi("direct-key-agreement"),
-    "ECDH-ES+A128KW": pi("key-agreement-with-key-wrapping"),
-    "ECDH-ES+A192KW": pi("key-agreement-with-key-wrapping"),
-    "ECDH-ES+A256KW": pi("key-agreement-with-key-wrapping"),
+    "RSA-OAEP": pi(1),
+    "RSA-OAEP-256": pi(256),
+    "RSA-OAEP-384": pi(384),
+    "RSA-OAEP-512": pi(512),
+    "ECDH-ES": ci("direct-key-agreement"),
+    "ECDH-ES+A128KW": ci("key-agreement-with-key-wrapping"),
+    "ECDH-ES+A192KW": ci("key-agreement-with-key-wrapping"),
+    "ECDH-ES+A256KW": ci("key-agreement-with-key-wrapping"),
     A128KW: dt(128),
     A192KW: dt(192),
     A256KW: dt(256),
@@ -24570,7 +24570,7 @@ function ut(e, t = !1) {
     kty: ["oct"],
     secret: !0,
     subtle: { name: t ? "AES-CBC" : "AES-GCM", length: e },
-    usages: ci,
+    usages: li,
     ops: oa,
     cekBits: e,
     ivBits: t ? 128 : 96,
@@ -24635,28 +24635,28 @@ async function ks(e, t, a, u) {
   if (!Number.isSafeInteger(a) || Math.sign(a) !== 1)
     throw new S("PBES2 Count Input must be a positive integer");
   let c = He(qe(t), Uint8Array.of(0), e),
-    l = parseInt(t.slice(13, 16), 10),
+    f = parseInt(t.slice(13, 16), 10),
     i = { hash: `SHA-${t.slice(8, 11)}`, iterations: a, name: "PBKDF2", salt: c },
     r = await ar(u, pr(t).subtle, "deriveBits");
-  return new Uint8Array(await crypto.subtle.deriveBits(i, r, l));
+  return new Uint8Array(await crypto.subtle.deriveBits(i, r, f));
 }
 function Dn(e) {
-  return He(Bt(e.length), e);
+  return He(Mt(e.length), e);
 }
 async function la(e, t, a) {
   let u = t >> 3,
     c = 32,
-    l = Math.ceil(u / c),
-    i = new Uint8Array(l * c);
-  for (let r = 1; r <= l; r++) {
-    let d = await Xt("sha256", He(Bt(r), e, a));
+    f = Math.ceil(u / c),
+    i = new Uint8Array(f * c);
+  for (let r = 1; r <= f; r++) {
+    let d = await Yt("sha256", He(Mt(r), e, a));
     i.set(d, (r - 1) * c);
   }
   return i.slice(0, u);
 }
-async function Ps(e, t, a, u, c = new Uint8Array(), l = new Uint8Array()) {
+async function Ps(e, t, a, u, c = new Uint8Array(), f = new Uint8Array()) {
   (vs(e), vs(t, "deriveBits"));
-  let i = He(Dn(qe(a)), Dn(c), Dn(l), Bt(u)),
+  let i = He(Dn(qe(a)), Dn(c), Dn(f), Mt(u)),
     r = new Uint8Array(
       await crypto.subtle.deriveBits(
         { name: e.algorithm.name, public: e },
@@ -24669,14 +24669,14 @@ async function Ps(e, t, a, u, c = new Uint8Array(), l = new Uint8Array()) {
   return la(r, u, i);
 }
 function bs(e) {
-  ii(e);
+  ni(e);
   let t = e.algorithm.namedCurve;
   if (t !== "P-256" && t !== "P-384" && t !== "P-521" && e.algorithm.name !== "X25519")
     throw new F(
       "ECDH with the provided key is not allowed or not supported by your javascript runtime",
     );
 }
-function li(e, t) {
+function fi(e, t) {
   let a = e[t];
   if (a !== void 0) {
     if (typeof a != "string")
@@ -24700,7 +24700,7 @@ function da(e) {
   if (e !== void 0 && e !== 1 / 0 && (!Number.isSafeInteger(e) || e < 1))
     throw new TypeError("maxPBES2Count must be a positive safe integer or Infinity");
 }
-async function xs(e, t, a, u, c, l) {
+async function xs(e, t, a, u, c, f) {
   let { alg: i } = e,
     r = e.mode;
   if (r === "direct-encryption") return (ws(u), a);
@@ -24715,8 +24715,8 @@ async function xs(e, t, a, u, c, l) {
         throw new S('JOSE Header "epk" (Ephemeral Public Key) missing or invalid');
       bs(a);
       let y = await gr(e, n),
-        m = li(c, "apu"),
-        p = li(c, "apv");
+        m = fi(c, "apu"),
+        p = fi(c, "apv");
       _s(m, p);
       let s = await Ps(y, a, d ? t.alg : i, d ? t.cekBits : parseInt(i.slice(-5, -2), 10), m, p);
       if (d) return s;
@@ -24725,15 +24725,15 @@ async function xs(e, t, a, u, c, l) {
     }
     case "RSA-OAEP":
       return (
-        ii(a),
+        ni(a),
         Is(i, a, "decrypt"),
         new Uint8Array(await crypto.subtle.decrypt("RSA-OAEP", a, u))
       );
     case "PBKDF2": {
       if (typeof c.p2c != "number")
         throw new S('JOSE Header "p2c" (PBES2 Count) missing or invalid');
-      da(l);
-      let n = l ?? 1e4;
+      da(f);
+      let n = f ?? 1e4;
       if (c.p2c > n) throw new S('JOSE Header "p2c" (PBES2 Count) out is of acceptable bounds');
       if (typeof c.p2s != "string")
         throw new S('JOSE Header "p2s" (PBES2 Salt) missing or invalid');
@@ -24750,12 +24750,12 @@ async function xs(e, t, a, u, c, l) {
         y = Je(c.tag, "tag", S);
       if (n.byteLength !== 12) throw new S("Invalid Initialization Vector length");
       if (y.byteLength !== 16) throw new S("Invalid Authentication Tag length");
-      return oi(Xr(i.slice(0, -2)), a, u, n, y, new Uint8Array());
+      return ai(Xr(i.slice(0, -2)), a, u, n, y, new Uint8Array());
     }
   }
   return ca(i.slice(-6), a, u);
 }
-async function fi(e, t, a, u, c, l = {}) {
+async function di(e, t, a, u, c, f = {}) {
   let { alg: i, mode: r } = e,
     d = cr(e);
   if (c !== void 0 && !d)
@@ -24765,19 +24765,19 @@ async function fi(e, t, a, u, c, l = {}) {
   let n = await sr(r === "direct-encryption" ? t : e, a, "encrypt");
   if (r === "direct-encryption") return [n, void 0, void 0];
   let y = d ? (c ?? Gr(t)) : void 0;
-  y && ni(y, t.cekBits);
+  y && si(y, t.cekBits);
   let m, p;
   switch (e.subtle.name) {
     case "ECDH": {
       bs(n);
-      let { apu: s, apv: o } = l;
+      let { apu: s, apv: o } = f;
       (s !== void 0 && Se(s, '"apu"'), o !== void 0 && Se(o, '"apv"'));
-      let f = s ?? li(u, "apu"),
-        h = o ?? li(u, "apv");
-      _s(f, h);
+      let l = s ?? fi(u, "apu"),
+        h = o ?? fi(u, "apv");
+      _s(l, h);
       let v;
-      l.epk !== void 0
-        ? (v = await sr(e, l.epk, "decrypt"))
+      f.epk !== void 0
+        ? (v = await sr(e, f.epk, "decrypt"))
         : (v = (await crypto.subtle.generateKey(n.algorithm, !0, ["deriveBits"])).privateKey);
       let g = crypto.subtle,
         I = v;
@@ -24786,15 +24786,15 @@ async function fi(e, t, a, u, c, l = {}) {
           throw new TypeError('CryptoKey for "epk" must be extractable');
         I = await g.getPublicKey(v, []);
       }
-      let { x: k, y: b, crv: A, kty: me } = await g.exportKey("jwk", I),
+      let { x: k, y: b, crv: A, kty: X } = await g.exportKey("jwk", I),
         J = r === "direct-key-agreement",
-        q = await Ps(n, v, J ? t.alg : i, J ? t.cekBits : parseInt(i.slice(-5, -2), 10), f, h),
-        pe = { x: k, crv: A, kty: me };
+        q = await Ps(n, v, J ? t.alg : i, J ? t.cekBits : parseInt(i.slice(-5, -2), 10), l, h),
+        ce = { x: k, crv: A, kty: X };
       if (
-        (me === "EC" && (pe.y = b),
-        (p = { epk: pe }),
-        s !== void 0 && (p.apu = Q(s)),
-        o !== void 0 && (p.apv = Q(o)),
+        (X === "EC" && (ce.y = b),
+        (p = { epk: ce }),
+        s !== void 0 && (p.apu = re(s)),
+        o !== void 0 && (p.apv = re(o)),
         J)
       )
         return [q, void 0, p];
@@ -24802,28 +24802,28 @@ async function fi(e, t, a, u, c, l = {}) {
       break;
     }
     case "RSA-OAEP": {
-      (ii(n),
+      (ni(n),
         Is(i, n, "encrypt"),
         (m = new Uint8Array(await crypto.subtle.encrypt("RSA-OAEP", n, y))));
       break;
     }
     case "PBKDF2": {
-      let { p2c: s = 2048, p2s: o = crypto.getRandomValues(new Uint8Array(16)) } = l;
-      ((n = await ks(o, i, s, n)), (p = { p2c: s, p2s: Q(o) }));
+      let { p2c: s = 2048, p2s: o = crypto.getRandomValues(new Uint8Array(16)) } = f;
+      ((n = await ks(o, i, s, n)), (p = { p2c: s, p2s: re(o) }));
       break;
     }
     case "AES-GCM": {
-      let s = l.iv === void 0 ? crypto.getRandomValues(new Uint8Array(12)) : l.iv;
+      let s = f.iv === void 0 ? crypto.getRandomValues(new Uint8Array(12)) : f.iv;
       if (!(s instanceof Uint8Array)) throw new TypeError('"iv" must be an instance of Uint8Array');
-      let o = await si(Xr(i.slice(0, -2)), y, n, s, new Uint8Array());
-      ((m = o.ciphertext), (p = { iv: Q(o.iv), tag: Q(o.tag) }));
+      let o = await oi(Xr(i.slice(0, -2)), y, n, s, new Uint8Array());
+      ((m = o.ciphertext), (p = { iv: re(o.iv), tag: re(o.tag) }));
     }
   }
   if (((m ??= await pa(i.slice(-6), n, y)), !(m instanceof Uint8Array) || !m.byteLength))
     throw new TypeError("JWE key management algorithm did not produce an Encrypted Key");
   return [y, m, p];
 }
-function di(e, t) {
+function ui(e, t) {
   if (e.zip !== void 0 && e.zip !== "DEF")
     throw new F('Unsupported JWE "zip" (Compression Algorithm) Header Parameter value.');
   if (e.zip !== void 0 && !t?.zip)
@@ -24839,12 +24839,12 @@ async function As(e, t, a = 1 / 0) {
   let u = e.writable.getWriter();
   (u.write(t).catch(() => {}), u.close().catch(() => {}));
   let c = [],
-    l = 0,
+    f = 0,
     i = e.readable.getReader();
   for (;;) {
     let { value: r, done: d } = await i.read();
     if (d) break;
-    if ((c.push(r), (l += r.byteLength), a !== 1 / 0 && l > a))
+    if ((c.push(r), (f += r.byteLength), a !== 1 / 0 && f > a))
       throw new S("Decompressed plaintext exceeded the configured limit");
   }
   return He(...c);
@@ -24855,12 +24855,12 @@ async function Ss(e) {
 async function Ns(e, t) {
   return (Es("DecompressionStream"), As(new DecompressionStream("deflate-raw"), e, t));
 }
-function ui(e) {
-  let { aad: t, ciphertext: a, iv: u, protected: c, tag: l, unprotected: i } = e;
+function mi(e) {
+  let { aad: t, ciphertext: a, iv: u, protected: c, tag: f, unprotected: i } = e;
   if (u !== void 0 && (typeof u != "string" || !u))
     throw new S("JWE Initialization Vector incorrect type");
   if (typeof a != "string") throw new S("JWE Ciphertext missing or incorrect type");
-  if (l !== void 0 && (typeof l != "string" || !l))
+  if (f !== void 0 && (typeof f != "string" || !f))
     throw new S("JWE Authentication Tag incorrect type");
   if (c !== void 0 && typeof c != "string") throw new S("JWE Protected Header incorrect type");
   if (t !== void 0 && (typeof t != "string" || !t)) throw new S("JWE AAD incorrect type");
@@ -24870,19 +24870,19 @@ function ui(e) {
     ciphertext: a,
     iv: u,
     protected: c,
-    tag: l,
+    tag: f,
     unprotected: i === void 0 ? void 0 : { ...i },
   };
 }
-function mi(e) {
+function yi(e) {
   let t, a;
   try {
     let { header: u } = e;
     if (R(u)) {
       a = u.alg;
-      let l = Object.keys(u);
-      (l.includes("alg") || (a = void 0),
-        (t = Object.fromEntries(l.map((i) => [i, i === "alg" ? a : u[i]]))));
+      let f = Object.keys(u);
+      (f.includes("alg") || (a = void 0),
+        (t = Object.fromEntries(f.map((i) => [i, i === "alg" ? a : u[i]]))));
     } else t = u;
     let { encrypted_key: c } = e;
     return [{ encrypted_key: c, header: t }, a];
@@ -24890,7 +24890,7 @@ function mi(e) {
     return [void 0, a, u];
   }
 }
-function yi(e) {
+function hi(e) {
   let { encrypted_key: t, header: a } = e;
   if (t !== void 0 && typeof t != "string") throw new S("JWE Encrypted Key incorrect type");
   if (a !== void 0 && !R(a)) throw new S("JWE Per-Recipient Unprotected Header incorrect type");
@@ -24898,7 +24898,7 @@ function yi(e) {
     throw new S("JOSE Header missing");
 }
 function Kn(e) {
-  let { protected: t, ciphertext: a, iv: u, tag: c, aad: l } = e,
+  let { protected: t, ciphertext: a, iv: u, tag: c, aad: f } = e,
     i;
   return (
     t !== void 0 && (i = Vr(t, S, "JWE Protected Header is invalid")),
@@ -24907,7 +24907,7 @@ function Kn(e) {
       Je(a, "ciphertext", S),
       u !== void 0 ? Je(u, "iv", S) : void 0,
       c !== void 0 ? Je(c, "tag", S) : void 0,
-      Qt((t ?? "") + (l !== void 0 ? `.${l}` : ""), "aad", S),
+      ei((t ?? "") + (f !== void 0 ? `.${f}` : ""), "aad", S),
     ]
   );
 }
@@ -24921,7 +24921,7 @@ function Tr(e) {
   ];
 }
 async function $t(e, t, a, u = Kn(e)) {
-  let [c, l, i, r, d] = u,
+  let [c, f, i, r, d] = u,
     { header: n, unprotected: y, aad: m } = e,
     p;
   if (n !== void 0 || y !== void 0) {
@@ -24931,9 +24931,9 @@ async function $t(e, t, a, u = Kn(e)) {
       );
     p = { ...c, ...n, ...y };
   } else p = c ?? {};
-  let [s, o, f, h, v] = t,
+  let [s, o, l, h, v] = t,
     { encrypted_key: g } = e;
-  (yr(S, ei, f, c, p), di(p, c));
+  (yr(S, ri, l, c, p), ui(p, c));
   let { alg: I, enc: k } = p;
   if (typeof I != "string" || !I) throw new S("missing JWE Algorithm (alg) in JWE Header");
   let b = Nr[I];
@@ -24943,7 +24943,7 @@ async function $t(e, t, a, u = Kn(e)) {
     throw new S("missing JWE Encryption Algorithm (enc) in JWE Header");
   if ((s && !s.has(I)) || (!s && I.startsWith("PBES2")))
     throw new Lr('"alg" (Algorithm) Header Parameter value not allowed');
-  let me;
+  let X;
   if (A) {
     if (k !== void 0)
       throw new S(
@@ -24956,7 +24956,7 @@ async function $t(e, t, a, u = Kn(e)) {
   } else {
     if (o && !o.has(k))
       throw new Lr('"enc" (Encryption Algorithm) Header Parameter value not allowed');
-    me = Xr(k);
+    X = Xr(k);
   }
   let J;
   if (g !== void 0)
@@ -24968,22 +24968,22 @@ async function $t(e, t, a, u = Kn(e)) {
     }
   let q = !1;
   typeof a == "function" && ((a = await a(c, e)), (q = !0));
-  let pe = b ?? pr(I);
-  cr(pe) && J === void 0 && (J = new Uint8Array());
-  let C = await sr(pe.mode === "direct-encryption" ? me : pe, a, "decrypt"),
+  let ce = b ?? pr(I);
+  cr(ce) && J === void 0 && (J = new Uint8Array());
+  let C = await sr(ce.mode === "direct-encryption" ? X : ce, a, "decrypt"),
     ge;
-  if (pe.mode === "integrated-encryption") ge = await pe.decrypt(C, J, l, d, c, p);
+  if (ce.mode === "integrated-encryption") ge = await ce.decrypt(C, J, f, d, c, p);
   else {
-    let We = me,
+    let We = X,
       xe;
     try {
-      ((xe = await xs(pe, We, C, J, p, h)),
-        cr(pe) && xe instanceof Uint8Array && xe.byteLength << 3 !== We.cekBits && (xe = Gr(We)));
+      ((xe = await xs(ce, We, C, J, p, h)),
+        cr(ce) && xe instanceof Uint8Array && xe.byteLength << 3 !== We.cekBits && (xe = Gr(We)));
     } catch (jr) {
       if (jr instanceof TypeError || jr instanceof S || jr instanceof F) throw jr;
       xe = Gr(We);
     }
-    ge = await oi(We, xe, l, i, r, d);
+    ge = await ai(We, xe, f, i, r, d);
   }
   if (p.zip === "DEF") {
     let We = v ?? 25e4;
@@ -25004,42 +25004,42 @@ async function $t(e, t, a, u = Kn(e)) {
     ...(q && { key: C }),
   };
 }
-async function hi(e, t, a) {
+async function gi(e, t, a) {
   if ((e instanceof Uint8Array && (e = nt.decode(e)), typeof e != "string"))
     throw new S("Compact JWE must be a string or Uint8Array");
-  let { 0: u, 1: c, 2: l, 3: i, 4: r, length: d } = e.split(".");
+  let { 0: u, 1: c, 2: f, 3: i, 4: r, length: d } = e.split(".");
   if (d !== 5) throw new S("Invalid Compact JWE");
   return $t(
-    { ciphertext: i, iv: l || void 0, protected: u, tag: r || void 0, encrypted_key: c || void 0 },
+    { ciphertext: i, iv: f || void 0, protected: u, tag: r || void 0, encrypted_key: c || void 0 },
     t,
     a,
   );
 }
 async function Ds(e, t, a) {
-  return hi(e, Tr(a), t);
+  return gi(e, Tr(a), t);
 }
 async function Ks(e, t, a) {
   if (!R(e)) throw new S("Flattened JWE must be an object");
-  let u = ui(e),
-    [c, , l] = mi(e);
-  if (!c) throw l;
+  let u = mi(e),
+    [c, , f] = yi(e);
+  if (!c) throw f;
   let i = { ...u, ...c };
-  return (yi(i), $t(i, Tr(a), t));
+  return (hi(i), $t(i, Tr(a), t));
 }
-async function gi(e, t, a) {
+async function vi(e, t, a) {
   if (!R(e)) throw new S("General JWE must be an object");
   let u = e.recipients;
   if (!Array.isArray(u)) throw new S("JWE Recipients missing or incorrect type");
   let c = Array.from(u);
   if (!c.every(R)) throw new S("JWE Recipients missing or incorrect type");
   if (!c.length) throw new S("JWE Recipients has no members");
-  let l, i, r;
+  let f, i, r;
   try {
-    ((l = Tr(a)), (i = ui(e)), (r = Kn(i)));
+    ((f = Tr(a)), (i = mi(e)), (r = Kn(i)));
   } catch {
     throw new Ar();
   }
-  let d = c.map((n) => mi(n));
+  let d = c.map((n) => yi(n));
   if (c.length > 1)
     for (let [, n] of d) {
       let y = r[0]?.alg ?? n ?? i.unprotected?.alg,
@@ -25050,11 +25050,11 @@ async function gi(e, t, a) {
     if (n)
       try {
         let y = { ...i, ...n };
-        return (yi(y), await $t(y, l, t, r));
+        return (hi(y), await $t(y, f, t, r));
       } catch {}
   throw new Ar();
 }
-function vi(e, t, a) {
+function wi(e, t, a) {
   if (!Or(e, t, a))
     throw new S(
       "JWE Protected, JWE Shared Unprotected and JWE Per-Recipient Header Parameter names must be disjoint",
@@ -25066,20 +25066,20 @@ function $n(e, t, a = !1) {
       "either setProtectedHeader, setUnprotectedHeader, or sharedUnprotectedHeader must be called before #encrypt()",
     );
   t !== void 0 && (e[8] = t?.crit);
-  let [, u, c, l, i, r, d, n, y] = e;
+  let [, u, c, f, i, r, d, n, y] = e;
   if (
     (i !== void 0 && Se(i, "JWE Additional Authenticated Data"),
     r !== void 0 && Se(r, "JWE Content Encryption Key"),
     d !== void 0 && Se(d, "JWE Initialization Vector"),
     !a && u !== void 0 && ((u = Mr(S, u)[0]), (e[1] = u)),
     c !== void 0 && ((c = Mr(S, c)[0]), (e[2] = c)),
-    !a && l !== void 0 && ((l = Mr(S, l)[0]), (e[3] = l)),
+    !a && f !== void 0 && ((f = Mr(S, f)[0]), (e[3] = f)),
     n !== void 0 && !R(n))
   )
     throw new TypeError("JWE Key Management Parameters must be an object");
-  vi(u, c, l);
-  let m = { ...u, ...c, ...l };
-  (ri(S, u), yr(S, ei, y, u, m), di(m, u));
+  wi(u, c, f);
+  let m = { ...u, ...c, ...f };
+  (ti(S, u), yr(S, ri, y, u, m), ui(m, u));
   let { alg: p, enc: s } = m;
   if (typeof p != "string" || !p)
     throw new S('JWE "alg" (Algorithm) Header Parameter missing or invalid');
@@ -25104,37 +25104,37 @@ function $n(e, t, a = !1) {
   return [m, Xr(s), o];
 }
 async function jn(e, t, a) {
-  let [u, c, l] = t,
+  let [u, c, f] = t,
     [i, r, d, n, y, m, p, s, , o] = e,
-    f = r,
+    l = r,
     h = d,
-    v = l ?? pr(u.alg),
+    v = f ?? pr(u.alg),
     g,
     I,
     k;
   (v.mode === "integrated-encryption"
     ? (k = await sr(v, a, "encrypt"))
-    : ([k, g, I] = await fi(v, c, a, u, m, s)),
-    I && (o ? (h = h ? { ...h, ...I } : I) : (f = f ? { ...f, ...I } : I), vi(f, h, n)));
-  let b = f ? Q(JSON.stringify(f)) : "",
-    A = y?.byteLength ? Q(y) : void 0,
-    me = qe(A ? `${b}.${A}` : b),
+    : ([k, g, I] = await di(v, c, a, u, m, s)),
+    I && (o ? (h = h ? { ...h, ...I } : I) : (l = l ? { ...l, ...I } : I), wi(l, h, n)));
+  let b = l ? re(JSON.stringify(l)) : "",
+    A = y?.byteLength ? re(y) : void 0,
+    X = qe(A ? `${b}.${A}` : b),
     J = i;
   u.zip === "DEF" &&
     (J = await Ss(J).catch((We) => {
       throw new S("Failed to compress plaintext", { cause: We });
     }));
-  let q, pe, C;
+  let q, ce, C;
   v.mode === "integrated-encryption"
-    ? ([g, q] = await v.encrypt(k, J, me, f, u, s))
-    : ({ ciphertext: q, tag: pe, iv: C } = await si(c, J, k, p, me));
-  let ge = { ciphertext: Q(q) };
+    ? ([g, q] = await v.encrypt(k, J, X, l, u, s))
+    : ({ ciphertext: q, tag: ce, iv: C } = await oi(c, J, k, p, X));
+  let ge = { ciphertext: re(q) };
   return (
-    C && (ge.iv = Q(C)),
-    pe && (ge.tag = Q(pe)),
-    g?.byteLength && (ge.encrypted_key = Q(g)),
+    C && (ge.iv = re(C)),
+    ce && (ge.tag = re(ce)),
+    g?.byteLength && (ge.encrypted_key = re(g)),
     A && (ge.aad = A),
-    f && (ge.protected = b),
+    l && (ge.protected = b),
     n && (ge.unprotected = n),
     h && (ge.header = h),
     ge
@@ -25143,7 +25143,7 @@ async function jn(e, t, a) {
 async function mt(e, t, a) {
   return jn(e, $n(e, a), t);
 }
-function wi(e) {
+function Ii(e) {
   return [e.protected, e.encrypted_key, e.iv, e.ciphertext, e.tag].join(".");
 }
 var Ln = class {
@@ -25197,37 +25197,37 @@ var Ln = class {
         a,
         u = this.#t,
         c = this.#i,
-        l = [];
+        f = [];
       for (let o of this.#r) {
-        let [f, h, v, g] = o.state,
-          I = [this.#e, u, f, c, this.#n, void 0, void 0, h, g, t],
-          k = $n(I, void 0, l.length > 0);
-        (l.length || ((u = I[1]), (c = I[3])), l.push([I, k, v]));
-        let [{ alg: b, enc: A }, , me] = k;
-        if (t && me && !cr(me)) throw new S(`"${b}" alg may only have a single recipient`);
+        let [l, h, v, g] = o.state,
+          I = [this.#e, u, l, c, this.#n, void 0, void 0, h, g, t],
+          k = $n(I, void 0, f.length > 0);
+        (f.length || ((u = I[1]), (c = I[3])), f.push([I, k, v]));
+        let [{ alg: b, enc: A }, , X] = k;
+        if (t && X && !cr(X)) throw new S(`"${b}" alg may only have a single recipient`);
         if (!a) a = A;
         else if (a !== A)
           throw new S(
             'JWE "enc" (Encryption Algorithm) Header Parameter must be the same for all recipients',
           );
       }
-      for (let [, o] of l) o[2] ??= pr(o[0].alg);
-      let [i, r, d] = l[0],
+      for (let [, o] of f) o[2] ??= pr(o[0].alg);
+      let [i, r, d] = f[0],
         n = t ? Gr(r[1]) : void 0;
       i[5] = n;
       let { encrypted_key: y, header: m, ...p } = await jn(i, r, d),
         s = { ...p, recipients: [{}] };
       (y && (s.recipients[0].encrypted_key = y), m && (s.recipients[0].header = m));
-      for (let o = 1; o < l.length; o++) {
-        let [f, [h, v, g], I] = l[o],
-          k = f[2],
-          [, b, A] = await fi(g, v, I, h, n, f[7]),
-          me = { encrypted_key: Q(b) };
+      for (let o = 1; o < f.length; o++) {
+        let [l, [h, v, g], I] = f[o],
+          k = l[2],
+          [, b, A] = await di(g, v, I, h, n, l[7]),
+          X = { encrypted_key: re(b) };
         if (k || A) {
           let J = { ...k, ...A };
-          (A && vi(f[1], J, f[3]), (me.header = J));
+          (A && wi(l[1], J, l[3]), (X.header = J));
         }
-        s.recipients.push(me);
+        s.recipients.push(X);
       }
       return s;
     }
@@ -25288,14 +25288,14 @@ function gt(e) {
   if (!t) throw new F(`alg ${e} is not supported either by JOSE or your javascript runtime`);
   return t;
 }
-function Ii(e, t) {
+function ki(e, t) {
   let a = e.protected,
     u = e.header,
     c = R(u) ? { ...u } : u,
-    l = t ? t[0] : e.payload;
-  !t && l instanceof Uint8Array && (l = new Uint8Array(l));
+    f = t ? t[0] : e.payload;
+  !t && f instanceof Uint8Array && (f = new Uint8Array(f));
   let i = e.signature,
-    r = { payload: l, signature: i };
+    r = { payload: f, signature: i };
   if (
     (a !== void 0 && (r.protected = a),
     u !== void 0 && (r.header = c),
@@ -25303,7 +25303,7 @@ function Ii(e, t) {
   )
     throw new D('Flattened JWS must have either of the "protected" or "header" members');
   if (a !== void 0 && typeof a != "string") throw new D("JWS Protected Header incorrect type");
-  if (l === void 0) throw new D("JWS Payload missing");
+  if (f === void 0) throw new D("JWS Payload missing");
   if (typeof i != "string") throw new D("JWS Signature missing or incorrect type");
   if (c !== void 0 && !R(c)) throw new D("JWS Unprotected Header incorrect type");
   return r;
@@ -25314,7 +25314,7 @@ function qr(e) {
 function Tn(e) {
   return e === void 0 ? {} : Vr(e, D, "JWS Protected Header is invalid");
 }
-function ki(e) {
+function Pi(e) {
   let t = /[\p{Cs}\p{Cn}]/u.exec(e)?.[0];
   if (t !== void 0)
     throw new D(
@@ -25332,8 +25332,8 @@ function ua(e) {
   }
 }
 async function Ot(e, t, a, u, c) {
-  let { protected: l, header: i, payload: r } = e,
-    d = c ?? Tn(l);
+  let { protected: f, header: i, payload: r } = e,
+    d = c ?? Tn(f);
   if (!Or(d, i))
     throw new D("JWS Protected and JWS Unprotected Header Parameter names must be disjoint");
   let n = { ...d, ...i },
@@ -25350,10 +25350,10 @@ async function Ot(e, t, a, u, c) {
     s = !1;
   typeof a == "function" && ((a = await a(d, e)), (s = !0));
   let o = gt(m),
-    f = He(
-      l !== void 0 ? qe(l) : new Uint8Array(),
+    l = He(
+      f !== void 0 ? qe(f) : new Uint8Array(),
       qe("."),
-      typeof p == "string" ? (t[2] ??= Qt(p, "payload", D)) : p,
+      typeof p == "string" ? (t[2] ??= ei(p, "payload", D)) : p,
     ),
     h = Je(e.signature, "signature", D),
     v = await sr(o, a, "verify"),
@@ -25361,44 +25361,44 @@ async function Ot(e, t, a, u, c) {
   o.minRsaBits && lt(o.alg, g);
   let I = !1;
   try {
-    I = await crypto.subtle.verify(o.signing, g, h, f);
+    I = await crypto.subtle.verify(o.signing, g, h, l);
   } catch (b) {
     throw new Sr(void 0, { cause: b });
   }
   if (!I) throw new Sr();
   let k = { payload: typeof p == "string" ? Je(p, "payload", D) : p };
   return (
-    l !== void 0 && (k.protectedHeader = d),
+    f !== void 0 && (k.protectedHeader = d),
     i !== void 0 && (k.unprotectedHeader = i),
     s ? [{ ...k, key: v }, y] : [k, y]
   );
 }
-async function Pi(e, t, a) {
+async function bi(e, t, a) {
   if ((e instanceof Uint8Array && (e = nt.decode(e)), typeof e != "string"))
     throw new D("Compact JWS must be a string or Uint8Array");
-  let { 0: u, 1: c, 2: l, length: i } = e.split(".");
+  let { 0: u, 1: c, 2: f, length: i } = e.split(".");
   if (i !== 3) throw new D("Invalid Compact JWS");
-  return Ot({ payload: c, protected: u, signature: l }, t, a, ua);
+  return Ot({ payload: c, protected: u, signature: f }, t, a, ua);
 }
 async function js(e, t, a) {
-  let [u] = await Pi(e, qr(a), t);
+  let [u] = await bi(e, qr(a), t);
   return u;
 }
-async function bi(e, t, a) {
+async function _i(e, t, a) {
   if (!R(e)) throw new D("Flattened JWS must be an object");
-  let u = Ii(e),
-    [c] = await Ot(u, qr(a), t, ki);
+  let u = ki(e),
+    [c] = await Ot(u, qr(a), t, Pi);
   return c;
 }
 function ma(e, t) {
   try {
-    let a = Ii(e, [t]),
+    let a = ki(e, [t]),
       u = Tn(a.protected),
-      { b64: c, crit: l } = u;
+      { b64: c, crit: f } = u;
     return [
       a,
       u,
-      Array.isArray(l) && l.includes("b64") ? (typeof c == "boolean" ? (c ? 1 : 2) : 0) : 1,
+      Array.isArray(f) && f.includes("b64") ? (typeof c == "boolean" ? (c ? 1 : 2) : 0) : 1,
     ];
   } catch {
     return;
@@ -25408,8 +25408,8 @@ async function Ls(e, t, a) {
   if (!R(e)) throw new D("General JWS must be an object");
   let { signatures: u, payload: c } = e;
   if (!Array.isArray(u)) throw new D("JWS Signatures missing or incorrect type");
-  let l = Array.from(u);
-  if (!l.every(R)) throw new D("JWS Signatures missing or incorrect type");
+  let f = Array.from(u);
+  if (!f.every(R)) throw new D("JWS Signatures missing or incorrect type");
   let i;
   try {
     if (c === void 0) throw new Error();
@@ -25418,13 +25418,13 @@ async function Ls(e, t, a) {
     throw new Sr();
   }
   let r = c instanceof Uint8Array ? new Uint8Array(c) : c,
-    d = l.map((y) => ma(y, r)).filter((y) => y !== void 0),
+    d = f.map((y) => ma(y, r)).filter((y) => y !== void 0),
     n = 0;
   for (let [, , y] of d)
     if (((n |= y), n === 3)) throw new D("inconsistent use of JWS Unencoded Payload (RFC7797)");
   for (let y of d)
     try {
-      let [m] = await Ot(y[0], i, t, ki, y[1]);
+      let [m] = await Ot(y[0], i, t, Pi, y[1]);
       return m;
     } catch {}
   throw new Sr();
@@ -25437,7 +25437,7 @@ var Vt = (e) => Math.floor(e.getTime() / 1e3),
 function qn() {
   throw new TypeError("Invalid time period format");
 }
-function _i(e) {
+function xi(e) {
   typeof e != "string" && qn();
   let t = ha.exec(e);
   (!t || (t[4] && t[1])) && qn();
@@ -25464,7 +25464,7 @@ function Jn(e, t) {
     ? wt(t, e)
     : e instanceof Date
       ? wt(t, Vt(e))
-      : Vt(new Date()) + _i(e);
+      : Vt(new Date()) + xi(e);
 }
 var Os = (e) => {
     let t = e.toLowerCase();
@@ -25493,8 +25493,8 @@ function It(e, t, a = {}) {
   let { typ: c } = a;
   if (c !== void 0 && (typeof e.typ != "string" || Os(e.typ) !== Os(c)))
     throw new er('unexpected "typ" JWT header value', u, "typ", vt);
-  let { requiredClaims: l = [], issuer: i, subject: r, audience: d, maxTokenAge: n } = a,
-    y = [...l];
+  let { requiredClaims: f = [], issuer: i, subject: r, audience: d, maxTokenAge: n } = a,
+    y = [...f];
   (n !== void 0 && y.push("iat"),
     d !== void 0 && y.push("aud"),
     r !== void 0 && y.push("sub"),
@@ -25506,7 +25506,7 @@ function It(e, t, a = {}) {
     d !== void 0 && !va(u.aud, typeof d == "string" ? [d] : d) && Wn(u, "aud"));
   let { clockTolerance: m } = a,
     p = 0;
-  if (typeof m == "string") p = _i(m);
+  if (typeof m == "string") p = xi(m);
   else if (m !== void 0) {
     if (typeof m != "number") throw new TypeError("Invalid clockTolerance option type");
     p = m;
@@ -25514,14 +25514,14 @@ function It(e, t, a = {}) {
   wt("clockTolerance option", p);
   let { currentDate: s } = a,
     o = wt("currentDate option", Vt(s === void 0 ? new Date() : s)),
-    f = Fn(u, "iat", n !== void 0),
+    l = Fn(u, "iat", n !== void 0),
     h = Fn(u, "nbf");
   if (h !== void 0 && h > o + p) throw new er('"nbf" claim timestamp check failed', u, "nbf", vt);
   let v = Fn(u, "exp");
   if (v !== void 0 && v <= o - p) throw new ot('"exp" claim timestamp check failed', u, "exp", vt);
   if (n !== void 0) {
-    let g = o - f,
-      I = wt("maxTokenAge option", typeof n == "number" ? n : _i(n));
+    let g = o - l,
+      I = wt("maxTokenAge option", typeof n == "number" ? n : xi(n));
     if (g - p > I)
       throw new ot('"iat" claim timestamp check failed (too far in the past)', u, "iat", vt);
     if (g < -p)
@@ -25542,7 +25542,7 @@ function kt(e) {
   }
   return Er.encode(JSON.stringify(t));
 }
-function xi(e, t) {
+function Ei(e, t) {
   return Dr(e)[t];
 }
 var Rr = class {
@@ -25574,31 +25574,31 @@ var Rr = class {
       t === void 0
         ? (a.iat = Vt(new Date()))
         : typeof t == "string"
-          ? (a.iat = wt("setIssuedAt", Vt(new Date()) + _i(t)))
+          ? (a.iat = wt("setIssuedAt", Vt(new Date()) + xi(t)))
           : (a.iat = Jn(t, "setIssuedAt")),
       this
     );
   }
 };
 async function Cs(e, t, a) {
-  let [u, c] = await Pi(e, qr(a), t);
+  let [u, c] = await bi(e, qr(a), t);
   if (!c) throw new ye("JWTs MUST NOT use unencoded payload");
-  let l = It(u.protectedHeader, u.payload, a);
-  return { ...u, payload: l };
+  let f = It(u.protectedHeader, u.payload, a);
+  return { ...u, payload: f };
 }
 async function Ts(e, t, a) {
-  let { plaintext: u, ...c } = await hi(e, Tr(a), t),
-    { protectedHeader: l } = c,
-    i = It(l, u, a);
+  let { plaintext: u, ...c } = await gi(e, Tr(a), t),
+    { protectedHeader: f } = c,
+    i = It(f, u, a);
   for (let r of ["iss", "sub", "aud"])
     if (
-      l[r] !== void 0 &&
-      (r === "aud" ? JSON.stringify(l.aud) !== JSON.stringify(i.aud) : l[r] !== i[r])
+      f[r] !== void 0 &&
+      (r === "aud" ? JSON.stringify(f.aud) !== JSON.stringify(i.aud) : f[r] !== i[r])
     )
       throw new er(`replicated "${r}" claim header parameter mismatch`, i, r, "mismatch");
   return { payload: i, ...c };
 }
-var Ei = class {
+var Ai = class {
   #e;
   constructor(t) {
     (Se(t, "plaintext"), (this.#e = [t]));
@@ -25616,10 +25616,10 @@ var Ei = class {
     return (H(this.#e[7], "setKeyManagementParameters"), (this.#e[7] = t), this);
   }
   async encrypt(t, a) {
-    return wi(await mt([...this.#e], t, a));
+    return Ii(await mt([...this.#e], t, a));
   }
 };
-var Ai = class {
+var Si = class {
   #e;
   constructor(t) {
     (Se(t, "plaintext"), (this.#e = [t]));
@@ -25650,18 +25650,18 @@ var Ai = class {
   }
 };
 async function Ct(e, t, a) {
-  let [u, c, l, i] = e,
+  let [u, c, f, i] = e,
     r = "";
   if (c !== void 0) {
     let v = Mr(D, c);
-    ((c = v[0]), (r = Q(v[1])));
+    ((c = v[0]), (r = re(v[1])));
   }
-  if ((l !== void 0 && (l = Mr(D, l)[0]), !c && !l))
+  if ((f !== void 0 && (f = Mr(D, f)[0]), !c && !f))
     throw new D("either setProtectedHeader or setUnprotectedHeader must be called before #sign()");
-  if (!Or(c, l))
+  if (!Or(c, f))
     throw new D("JWS Protected and JWS Unprotected Header Parameter names must be disjoint");
-  let d = { ...c, ...l };
-  ri(D, c);
+  let d = { ...c, ...f };
+  ti(D, c);
   let n = ct(c, yr(D, pt, i, c, d));
   n || a?.();
   let { alg: y } = d;
@@ -25673,19 +25673,19 @@ async function Ct(e, t, a) {
     o;
   if (n) {
     let v = e[4];
-    v ? ((p = v[0] ??= Q(u)), (s = v[1] ??= qe(p))) : ((p = Q(u)), (o = Er.encode(`${r}.${p}`)));
+    v ? ((p = v[0] ??= re(u)), (s = v[1] ??= qe(p))) : ((p = re(u)), (o = Er.encode(`${r}.${p}`)));
   }
   o ??= He(qe(r), qe("."), s);
-  let f = await ar(await sr(m, t, "sign"), m.subtle, "sign");
-  m.minRsaBits && lt(m.alg, f);
-  let h = { signature: Q(new Uint8Array(await crypto.subtle.sign(m.signing, f, o))), payload: p };
-  return (c && (h.protected = r), l && (h.header = l), [h, n]);
+  let l = await ar(await sr(m, t, "sign"), m.subtle, "sign");
+  m.minRsaBits && lt(m.alg, l);
+  let h = { signature: re(new Uint8Array(await crypto.subtle.sign(m.signing, l, o))), payload: p };
+  return (c && (h.protected = r), f && (h.header = f), [h, n]);
 }
-async function Si(e, t, a, u, c) {
-  let [l] = await Ct([e, t, void 0, a], u, c);
-  return `${l.protected}.${l.payload}.${l.signature}`;
+async function Ni(e, t, a, u, c) {
+  let [f] = await Ct([e, t, void 0, a], u, c);
+  return `${f.protected}.${f.payload}.${f.signature}`;
 }
-var Ni = class {
+var Di = class {
   #e;
   #r;
   constructor(t) {
@@ -25695,7 +25695,7 @@ var Ni = class {
     return (H(this.#r, "setProtectedHeader"), (this.#r = t), this);
   }
   async sign(t, a) {
-    return Si(this.#e, this.#r, a?.crit, t, () => {
+    return Ni(this.#e, this.#r, a?.crit, t, () => {
       throw new TypeError("use the flattened module for creating JWS with b64: false");
     });
   }
@@ -25740,7 +25740,7 @@ var Hn = class {
       return this.#e;
     }
   },
-  Di = class {
+  Ki = class {
     #e;
     #r = [];
     constructor(t) {
@@ -25757,8 +25757,8 @@ var Hn = class {
         a = [],
         u;
       for (let c of this.#r) {
-        let [l, i, r, d] = c.state,
-          [{ payload: n, ...y }, m] = await Ct([this.#e, l, i, d, a], r);
+        let [f, i, r, d] = c.state,
+          [{ payload: n, ...y }, m] = await Ct([this.#e, f, i, d, a], r);
         if (u === void 0) ((u = m), (t.payload = n));
         else if (u !== m) throw new D("inconsistent use of JWS Unencoded Payload (RFC7797)");
         t.signatures.push(y);
@@ -25767,19 +25767,19 @@ var Hn = class {
     }
   };
 var wa = Rr,
-  Ki = class extends wa {
+  $i = class extends wa {
     #e;
     setProtectedHeader(t) {
       return (H(this.#e, "setProtectedHeader"), (this.#e = t), this);
     }
     async sign(t, a) {
-      return Si(kt(this), this.#e, a?.crit, t, () => {
+      return Ni(kt(this), this.#e, a?.crit, t, () => {
         throw new ye("JWTs MUST NOT use unencoded payload");
       });
     }
   };
 var Ia = Rr,
-  $i = class extends Ia {
+  ji = class extends Ia {
     #e = [void 0];
     #r;
     #t;
@@ -25811,12 +25811,12 @@ var Ia = Rr,
         (this.#r || this.#t || this.#i) &&
         (this.#e[1] = {
           ...this.#e[1],
-          iss: this.#r ? xi(this, "iss") : void 0,
-          sub: this.#t ? xi(this, "sub") : void 0,
-          aud: this.#i ? xi(this, "aud") : void 0,
+          iss: this.#r ? Ei(this, "iss") : void 0,
+          sub: this.#t ? Ei(this, "sub") : void 0,
+          aud: this.#i ? Ei(this, "aud") : void 0,
         });
       let c = [...this.#e];
-      return ((c[0] = u), wi(await mt(c, t, a)));
+      return ((c[0] = u), Ii(await mt(c, t, a)));
     }
   };
 var Jr = '"alg" (Algorithm)';
@@ -25841,7 +25841,7 @@ ${a}
     if (!hr(a)) throw new TypeError(or(a, "CryptoKey", "KeyObject"));
     if (!a.extractable) throw new TypeError("CryptoKey is not extractable");
     if (a.type !== e) throw new TypeError(`key is not a ${e} key`);
-    return ka(Mt(new Uint8Array(await crypto.subtle.exportKey(t, a))), `${e.toUpperCase()} KEY`);
+    return ka(Gt(new Uint8Array(await crypto.subtle.exportKey(t, a))), `${e.toUpperCase()} KEY`);
   },
   Js = (e) => Rs("public", "spki", e),
   Fs = (e) => Rs("private", "pkcs8", e),
@@ -25908,21 +25908,21 @@ var _a = (e) => {
   },
   Un = async (e, t, a, u) => {
     let c = Cr(u?.extractable),
-      l = Qr(a, Jr);
-    l.secret && Yr(Jr);
+      f = Qr(a, Jr);
+    f.secret && Yr(Jr);
     let i = e === "spki",
       r;
-    if (l.resolve)
+    if (f.resolve)
       try {
         let d = Ws(t);
-        (ba(d, e), (r = l.resolve({ crv: _a(d) })));
+        (ba(d, e), (r = f.resolve({ crv: _a(d) })));
       } catch (d) {
         throw new F("Invalid or unsupported key format", { cause: d });
       }
-    else r = l.subtle;
-    return crypto.subtle.importKey(e, t, r, c ?? i, l.usages[i ? 0 : 1]);
+    else r = f.subtle;
+    return crypto.subtle.importKey(e, t, r, c ?? i, f.usages[i ? 0 : 1]);
   },
-  Zn = (e, t) => Gt(e.replace(t, "")),
+  Zn = (e, t) => Xt(e.replace(t, "")),
   zs = (e, t, a) => {
     let u = Zn(e, /(?:-----(?:BEGIN|END) PRIVATE KEY-----|\s)/g);
     return Un("pkcs8", u, t, a);
@@ -25958,11 +25958,11 @@ function Bs(e) {
 function Ms(e) {
   return Fs(e);
 }
-async function ji(e) {
+async function Li(e) {
   if (Nt(e))
     if (e.type === "secret") e = e.export();
     else return e.export({ format: "jwk" });
-  if (e instanceof Uint8Array) return { kty: "oct", k: Q(e) };
+  if (e instanceof Uint8Array) return { kty: "oct", k: re(e) };
   if (!hr(e)) throw new TypeError(or(e, "CryptoKey", "KeyObject", "Uint8Array"));
   if (!e.extractable) throw new TypeError("non-extractable CryptoKey cannot be exported as a JWK");
   let t = await crypto.subtle.exportKey("jwk", e);
@@ -25978,7 +25978,7 @@ async function qt(e, t) {
   if (R(e)) {
     if (((a = ft(e)), typeof a.kty != "string"))
       throw new TypeError(or(e, "CryptoKey", "KeyObject", "JSON Web Key"));
-  } else if (En(e)) a = ft(await ji(e));
+  } else if (En(e)) a = ft(await Li(e));
   else throw new TypeError(or(e, "CryptoKey", "KeyObject", "JSON Web Key"));
   if (((t ??= "sha256"), t !== "sha256" && t !== "sha384" && t !== "sha512"))
     throw new TypeError('digestAlgorithm must one of "sha256", "sha384", or "sha512"');
@@ -26013,7 +26013,7 @@ async function qt(e, t) {
       throw new F('"kty" (Key Type) Parameter missing or unsupported');
   }
   let c = qe(JSON.stringify(u));
-  return Q(await Xt(t, c));
+  return re(await Yt(t, c));
 }
 async function Gs(e, t) {
   t ??= "sha256";
@@ -26034,19 +26034,19 @@ async function Xs(e, t) {
     throw new D('Invalid Embedded JWK, its "use" must be "sig" when present');
   if (u.alg !== void 0 && u.alg !== c.alg)
     throw new D(`Invalid Embedded JWK, its "alg" must be "${c.alg}" when present`);
-  let l = await gr(c, u, !0);
-  if (l.type !== "public")
+  let f = await gr(c, u, !0);
+  if (f.type !== "public")
     throw new D('"jwk" (JSON Web Key) Header Parameter must be a public key');
-  return l;
+  return f;
 }
 function Ea(e, t, a, u) {
-  let { kty: c, key_ops: l, ext: i, kid: r, alg: d, use: n, crv: y } = e;
+  let { kty: c, key_ops: f, ext: i, kid: r, alg: d, use: n, crv: y } = e;
   return (
     (i === void 0 || typeof i == "boolean") &&
-    (l === void 0 ||
-      (Array.isArray(l) &&
-        l.every((m, p) => typeof m == "string" && l.indexOf(m) === p) &&
-        l.includes("verify"))) &&
+    (f === void 0 ||
+      (Array.isArray(f) &&
+        f.every((m, p) => typeof m == "string" && f.indexOf(m) === p) &&
+        f.includes("verify"))) &&
     t.kty.includes(c) &&
     (u === void 0 || (typeof u == "string" && u === r)) &&
     (d === void 0 ? c !== "AKP" : a === d) &&
@@ -26058,15 +26058,15 @@ async function Ys(e, t, a) {
   let u = e.get(t) || e.set(t, {}).get(t),
     { alg: c } = a;
   if (u[c] === void 0) {
-    let l = gr(a, t, !0)
+    let f = gr(a, t, !0)
       .then((i) => {
         if (i.type !== "public") throw new Ur("JSON Web Key Set members must be public keys");
         return ((u[c] = i), i);
       })
       .catch((i) => {
-        throw (u[c] === l && delete u[c], i);
+        throw (u[c] === f && delete u[c], i);
       });
-    u[c] = l;
+    u[c] = f;
   }
   return u[c];
 }
@@ -26077,15 +26077,15 @@ function Rt(e) {
   } catch (c) {
     throw new Ur("JSON Web Key Set malformed", { cause: c });
   }
-  if (!Yt(t)) throw new Ur("JSON Web Key Set malformed");
+  if (!Qt(t)) throw new Ur("JSON Web Key Set malformed");
   let a = t.keys.map((c) => {
-      let l = ft(c);
-      return (Array.isArray(l.key_ops) && (l.key_ops = [...l.key_ops]), l);
+      let f = ft(c);
+      return (Array.isArray(f.key_ops) && (f.key_ops = [...f.key_ops]), f);
     }),
     u = new WeakMap();
   return Object.defineProperty(
-    async (c, l) => {
-      let { alg: i, kid: r } = { ...c, ...l?.header },
+    async (c, f) => {
+      let { alg: i, kid: r } = { ...c, ...f?.header },
         d = typeof i == "string" ? Lt[i] : void 0;
       if (!d || d.secret) throw new F('Unsupported "alg" value for a JSON Web Key Set');
       let n = t.keys.filter((p, s) => Ea(a[s], d, i, r)),
@@ -26121,14 +26121,14 @@ var Bn;
   (Bn = "jose/v6.2.13");
 var Mn = Symbol();
 async function Sa(e, t, a, u = fetch) {
-  let c = await u(e, { method: "GET", signal: a, redirect: "manual", headers: t }).catch((l) => {
-    throw l.name === "TimeoutError" ? new At(void 0, { cause: l }) : l;
+  let c = await u(e, { method: "GET", signal: a, redirect: "manual", headers: t }).catch((f) => {
+    throw f.name === "TimeoutError" ? new At(void 0, { cause: f }) : f;
   });
   if (c.status !== 200) throw new Ee("Expected 200 OK from the JSON Web Key Set HTTP response");
   try {
     return await c.json();
-  } catch (l) {
-    throw new Ee("Failed to parse the JSON Web Key Set HTTP response as JSON", { cause: l });
+  } catch (f) {
+    throw new Ee("Failed to parse the JSON Web Key Set HTTP response as JSON", { cause: f });
   }
 }
 var Gn = Symbol();
@@ -26146,7 +26146,7 @@ function eo(e, t) {
     c = u.timeoutDuration;
   if (typeof c == "number" && (!Number.isInteger(c) || c < 0))
     throw new TypeError('"timeoutDuration" option must be a non-negative integer');
-  let l = typeof c == "number" ? c : 5e3,
+  let f = typeof c == "number" ? c : 5e3,
     i = Qs(u.cooldownDuration, 3e4, "cooldownDuration"),
     r = Qs(u.cacheMaxAge, 6e5, "cacheMaxAge"),
     d = new Headers(u.headers);
@@ -26158,19 +26158,19 @@ function eo(e, t) {
     p,
     s = 0,
     o = 0,
-    f;
+    l;
   if (y && typeof y == "object") {
     let { uat: v, jwks: g } = y;
-    Jt(v, r) && Yt(g) && ((m = v), (f = Rt(g)));
+    Jt(v, r) && Qt(g) && ((m = v), (l = Rt(g)));
   }
   let h = async () => {
     if ((p && Aa() && (p = void 0), !p)) {
       let v = ++s,
-        g = (p = Sa(a, d, AbortSignal.timeout(l), n)
+        g = (p = Sa(a, d, AbortSignal.timeout(f), n)
           .then((I) => {
             let k = Rt(I);
             if (v <= o) return;
-            f = k;
+            l = k;
             let b = Date.now();
             (y && ((y.uat = b), (y.jwks = I)), (m = b), (o = v));
           })
@@ -26182,11 +26182,11 @@ function eo(e, t) {
   };
   return Object.defineProperties(
     async (v, g) => {
-      (!f || !Jt(m, r)) && (await h());
+      (!l || !Jt(m, r)) && (await h());
       try {
-        return await f(v, g);
+        return await l(v, g);
       } catch (I) {
-        if (I instanceof Zr && !Jt(m, i)) return (await h(), f(v, g));
+        if (I instanceof Zr && !Jt(m, i)) return (await h(), l(v, g));
         throw I;
       }
     },
@@ -26195,21 +26195,21 @@ function eo(e, t) {
       fresh: { get: () => Jt(m, r), enumerable: !0 },
       reload: { value: h, enumerable: !0 },
       reloading: { get: () => !!p, enumerable: !0 },
-      jwks: { value: () => f?.jwks(), enumerable: !0 },
+      jwks: { value: () => l?.jwks(), enumerable: !0 },
     },
   );
 }
 var Na = Rr,
-  Li = class extends Na {
+  Oi = class extends Na {
     encode() {
-      let t = Q(JSON.stringify({ alg: "none" })),
-        a = Q(kt(this));
+      let t = re(JSON.stringify({ alg: "none" })),
+        a = re(kt(this));
       return `${t}.${a}.`;
     }
     static decode(t, a) {
       if (typeof t != "string") throw new ye("Unsecured JWT must be a string");
-      let { 0: u, 1: c, 2: l, length: i } = t.split(".");
-      if (i !== 3 || l !== "") throw new ye("Invalid Unsecured JWT");
+      let { 0: u, 1: c, 2: f, length: i } = t.split(".");
+      if (i !== 3 || f !== "") throw new ye("Invalid Unsecured JWT");
       let r, d;
       try {
         r = Vr(u, D, "JWS Protected Header is invalid");
@@ -26242,17 +26242,17 @@ async function bt(e, t, a) {
   if (!R(e)) throw new TypeError("JWK must be an object");
   let u = Dt(e),
     c = Cr(a?.extractable),
-    { alg: l } = u;
-  if (((t ??= l), u.kty !== "oct" && !t))
+    { alg: f } = u;
+  if (((t ??= f), u.kty !== "oct" && !t))
     throw new TypeError('"alg" argument is required when "jwk.alg" is not present');
   switch (u.kty) {
     case "oct":
       if (typeof u.k != "string") throw new TypeError('missing "k" (Key Value) Parameter value');
       return mr(u.k);
     case "AKP": {
-      if (typeof l != "string" || !l)
+      if (typeof f != "string" || !f)
         throw new TypeError('missing "alg" (Algorithm) Parameter value');
-      if (t !== l) throw new TypeError("JWK alg and alg option value mismatch");
+      if (t !== f) throw new TypeError("JWK alg and alg option value mismatch");
       return gr(Qr(t), u, c);
     }
     case "RSA":
@@ -26285,14 +26285,14 @@ function so(e) {
   let u;
   try {
     u = mr(t);
-  } catch (l) {
-    throw new ye("Failed to base64url decode the payload", { cause: l });
+  } catch (f) {
+    throw new ye("Failed to base64url decode the payload", { cause: f });
   }
   let c;
   try {
     c = JSON.parse(st.decode(u));
-  } catch (l) {
-    throw new ye("Failed to parse the decoded payload as JSON", { cause: l });
+  } catch (f) {
+    throw new ye("Failed to parse the decoded payload as JSON", { cause: f });
   }
   if (!R(c)) throw new ye("Invalid JWT Claims Set");
   return c;
@@ -26311,12 +26311,12 @@ async function oo(e, t) {
   u.secret && Yr(Jr);
   let c;
   if (u.resolve) {
-    let l = t?.crv ?? "P-256";
-    if (!["P-256", "P-384", "P-521", "X25519"].includes(l))
+    let f = t?.crv ?? "P-256";
+    if (!["P-256", "P-384", "P-521", "X25519"].includes(f))
       throw new F(
         "Invalid or unsupported crv option provided, supported values are P-256, P-384, P-521, and X25519",
       );
-    c = u.resolve({ crv: l });
+    c = u.resolve({ crv: f });
   } else {
     if (u.crv !== void 0 && t?.crv !== void 0 && t.crv !== u.crv)
       throw new F(
@@ -26333,14 +26333,14 @@ async function ao(e, t) {
   let a = Cr(t?.extractable),
     u,
     c,
-    l;
+    f;
   switch (e) {
     case "HS256":
     case "HS384":
     case "HS512":
       ((u = +e.slice(-3)),
         (c = { name: "HMAC", hash: `SHA-${u}`, length: u }),
-        (l = ["sign", "verify"]));
+        (f = ["sign", "verify"]));
       break;
     case "A128CBC-HS256":
     case "A192CBC-HS384":
@@ -26349,7 +26349,7 @@ async function ao(e, t) {
     case "A128KW":
     case "A192KW":
     case "A256KW":
-      ((u = +e.slice(1, 4)), (c = { name: "AES-KW", length: u }), (l = ["wrapKey", "unwrapKey"]));
+      ((u = +e.slice(1, 4)), (c = { name: "AES-KW", length: u }), (f = ["wrapKey", "unwrapKey"]));
       break;
     case "A128GCMKW":
     case "A192GCMKW":
@@ -26357,19 +26357,19 @@ async function ao(e, t) {
     case "A128GCM":
     case "A192GCM":
     case "A256GCM":
-      ((u = +e.slice(1, 4)), (c = { name: "AES-GCM", length: u }), (l = ["encrypt", "decrypt"]));
+      ((u = +e.slice(1, 4)), (c = { name: "AES-GCM", length: u }), (f = ["encrypt", "decrypt"]));
       break;
     default:
       Yr(Jr);
   }
-  return crypto.subtle.generateKey(c, a ?? !1, l);
+  return crypto.subtle.generateKey(c, a ?? !1, f);
 }
 var Ka = "WebCryptoAPI";
 function Yn(e) {
   if (!e.isWellFormed()) throw new Error("Lone surrogate is not allowed");
   return JSON.stringify(e);
 }
-function Oi(e) {
+function Vi(e) {
   switch (typeof e) {
     case "number":
       if (isNaN(e)) throw new Error("NaN is not allowed");
@@ -26394,7 +26394,7 @@ function Xn(e, t) {
     e === null || typeof e != "object")
   ) {
     if (a !== null) for (let u of a) t.delete(u);
-    return Oi(e);
+    return Vi(e);
   }
   if (t.has(e)) throw new Error("Circular reference detected");
   return (
@@ -26409,23 +26409,23 @@ function Xn(e, t) {
   );
 }
 function _t(e) {
-  if (e === null || typeof e != "object") return Oi(e);
+  if (e === null || typeof e != "object") return Vi(e);
   let t = new Set(),
     a = Xn(e, t);
   if (typeof a != "object") return a;
   let u = a.keys === null ? "[" : "{",
     c = [a];
   e: for (; c.length > 0;) {
-    let l = c[c.length - 1],
-      i = l.container;
-    if (l.keys === null) {
-      for (; l.index < i.length;) {
-        let r = l.index++;
+    let f = c[c.length - 1],
+      i = f.container;
+    if (f.keys === null) {
+      for (; f.index < i.length;) {
+        let r = f.index++;
         r > 0 && (u += ",");
         let d = i[r],
           n = d === void 0 || typeof d == "symbol" || typeof d == "function" ? null : d;
         if (n === null || typeof n != "object") {
-          u += Oi(n);
+          u += Vi(n);
           continue;
         }
         let y = Xn(n, t);
@@ -26438,18 +26438,18 @@ function _t(e) {
       }
       u += "]";
     } else {
-      let r = l.keys;
-      for (; l.index < r.length;) {
-        let d = r[l.index++],
+      let r = f.keys;
+      for (; f.index < r.length;) {
+        let d = r[f.index++],
           n = i[d];
         if (n === void 0 || typeof n == "symbol" || typeof n == "function") continue;
         if (n === null || typeof n != "object") {
-          (l.first ? (l.first = !1) : (u += ","), (u += Yn(d) + ":" + Oi(n)));
+          (f.first ? (f.first = !1) : (u += ","), (u += Yn(d) + ":" + Vi(n)));
           continue;
         }
         let y = Xn(n, t);
         if (y !== void 0) {
-          if ((l.first ? (l.first = !1) : (u += ","), (u += Yn(d) + ":"), typeof y != "object")) {
+          if ((f.first ? (f.first = !1) : (u += ","), (u += Yn(d) + ":"), typeof y != "object")) {
             u += y;
             continue;
           }
@@ -26459,7 +26459,7 @@ function _t(e) {
       }
       u += "}";
     }
-    if ((t.delete(i), l.wrappers !== null)) for (let r of l.wrappers) t.delete(r);
+    if ((t.delete(i), f.wrappers !== null)) for (let r of f.wrappers) t.delete(r);
     c.pop();
   }
   return u;
@@ -26507,7 +26507,7 @@ function Ko(e) {
 function Ht(e, t) {
   (!Ko(e) || Object.keys(e).sort().join("\0") !== [...t].sort().join("\0")) && _("invalid_fields");
 }
-function re(e) {
+function ee(e) {
   zt(e);
   let t = _t(e);
   return (typeof t != "string" && _("invalid_json"), No.encode(t));
@@ -26531,7 +26531,7 @@ function zt(e, t = 0) {
     for (let [a, u] of Object.entries(e)) (zt(a), zt(u, t + 1));
   }
 }
-function te(e, t) {
+function ne(e, t) {
   return _t(e) === _t(t);
 }
 function Le(e) {
@@ -26546,7 +26546,7 @@ function Ye(e, t = !1) {
     c = () => {
       for (; /[\x20\x09\x0a\x0d]/.test(a[u] || "!");) u += 1;
     },
-    l = () => {
+    f = () => {
       a[u] !== '"' && _("malformed_json");
       let d = u++;
       for (; u < a.length;) {
@@ -26560,7 +26560,7 @@ function Ye(e, t = !1) {
     },
     i = (d) => {
       if ((d > 20 && _("json_too_deep"), c(), a[u] === '"')) {
-        l();
+        f();
         return;
       }
       let n = a[u] === "{";
@@ -26575,7 +26575,7 @@ function Ye(e, t = !1) {
         for (;;) {
           if (n) {
             c();
-            let s = l();
+            let s = f();
             (p.has(s) && _("duplicate_member"),
               p.add(s),
               c(),
@@ -26593,7 +26593,7 @@ function Ye(e, t = !1) {
     };
   (i(0), c(), u !== a.length && _("malformed_json"));
   let r = JSON.parse(a);
-  return (zt(r), t && !os(re(r), e) && _("noncanonical_json"), r);
+  return (zt(r), t && !os(ee(r), e) && _("noncanonical_json"), r);
 }
 function os(e, t) {
   return e.length === t.length && e.every((a, u) => a === t[u]);
@@ -26601,18 +26601,18 @@ function os(e, t) {
 function br(e, t = 0) {
   return ((!Number.isSafeInteger(e) || e < t) && _("invalid_integer"), e);
 }
-function wd(e) {
+function Id(e) {
   return (
     (typeof e != "string" || !/^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/.test(e)) &&
       _("invalid_identifier"),
     e
   );
 }
-function Id(e) {
+function kd(e) {
   return ((typeof e != "string" || !/^[a-f0-9]{64}$/.test(e)) && _("invalid_digest"), e);
 }
 async function Qe(e) {
-  return [...new Uint8Array(await crypto.subtle.digest("SHA-256", re(e)))]
+  return [...new Uint8Array(await crypto.subtle.digest("SHA-256", ee(e)))]
     .map((t) => t.toString(16).padStart(2, "0"))
     .join("");
 }
@@ -26637,35 +26637,35 @@ async function ep(e) {
     e
   );
 }
-async function dn(e) {
+async function Ut(e) {
   return (await ep(e), qt(e, "sha256"));
 }
 function rp(e, t, a) {
   Ht(e, ["protected", "payload", "signature"]);
   let u = Ye(Le(e.protected));
   return (
-    (!te(u, { alg: "ES256", kid: a, typ: t, cty: "application/json" }) ||
+    (!ne(u, { alg: "ES256", kid: a, typ: t, cty: "application/json" }) ||
       Le(e.signature).length !== 64) &&
       _("invalid_signature_profile"),
     u
   );
 }
 async function ur(e, t, a) {
-  let u = await dn(t);
-  (rp(e, a, u), re(e).length > (a === "fv-control+jws" ? 65536 : Do) && _("payload_too_large"));
-  let c = await bi(e, await bt(t, "ES256"), { algorithms: ["ES256"] });
+  let u = await Ut(t);
+  (rp(e, a, u), ee(e).length > (a === "fv-control+jws" ? 65536 : Do) && _("payload_too_large"));
+  let c = await _i(e, await bt(t, "ES256"), { algorithms: ["ES256"] });
   return Ye(c.payload, !0);
 }
 async function as(e, t, a, u) {
-  return new Pt(re(e))
+  return new Pt(ee(e))
     .setProtectedHeader({ alg: "ES256", kid: a, typ: u, cty: "application/json" })
     .sign(t);
 }
-function ae(e, t) {
+function ie(e, t) {
   let a = So.default[e];
   (!a || !a(t)) && _("invalid_schema");
 }
-function ln(e) {
+function fn(e) {
   (typeof e != "string" ||
     !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?Z$/.test(e) ||
     !Number.isFinite(Date.parse(e)) ||
@@ -26701,7 +26701,7 @@ function tp(e) {
     },
     a = e;
   for (let c = 0; c < 4; c++) {
-    let l = a.replace(/&(#x[0-9a-f]+|#\d+|[A-Za-z][A-Za-z0-9]+);?/gi, (i, r) => {
+    let f = a.replace(/&(#x[0-9a-f]+|#\d+|[A-Za-z][A-Za-z0-9]+);?/gi, (i, r) => {
       if (r[0] !== "#") return (Object.hasOwn(t, r) || _("private_schema_invalid"), t[r]);
       let d = /^#x/i.test(r) ? parseInt(r.slice(2), 16) : Number(r.slice(1));
       return (
@@ -26710,8 +26710,8 @@ function tp(e) {
         String.fromCodePoint(d)
       );
     });
-    if (l === a) break;
-    ((a = l),
+    if (f === a) break;
+    ((a = f),
       c === 3 &&
         /&(?:#x[0-9a-f]+|#\d+|[A-Za-z][A-Za-z0-9]+);?/i.test(a) &&
         _("private_schema_invalid"));
@@ -26725,31 +26725,31 @@ function tp(e) {
     ].some((c) => !ps(c.replace(/^<|>$/g, ""))) && _("private_schema_invalid"));
 }
 function ip(e, t) {
-  (ae("ResultContent", e),
+  (ie("ResultContent", e),
     Oe(e.sections.map((a) => a.sectionId)),
     Oe(e.citations.map((a) => a.citationId)),
-    te(
+    ne(
       e.sections.map((a) => a.sectionId),
       t.sections.map((a) => a.sectionId),
     ) || _("private_output_mismatch"));
   for (let a of e.sections) tp(a.markdown);
   for (let a of e.citations)
-    (ps(a.url) || _("private_schema_invalid"), a.publishedAt !== null && ln(a.publishedAt));
+    (ps(a.url) || _("private_schema_invalid"), a.publishedAt !== null && fn(a.publishedAt));
 }
 function cs(e) {
-  (ae("PersistentContentContext", e),
+  (ie("PersistentContentContext", e),
     e.revision !== e.expectedRevision + 1 && _("version_conflict"));
   let t = e.recipients.map((a) => a.keyId);
-  if ((Oe(t), te(t, [...t].sort()) || _("recipient_binding_mismatch"), e.objectType === "task"))
+  if ((Oe(t), ne(t, [...t].sort()) || _("recipient_binding_mismatch"), e.objectType === "task"))
     ((e.objectId !== e.taskId ||
       e.revision !== e.taskVersion ||
       e.authorityVersion !== e.expectedAuthorityVersion + 1 ||
       (e.expectedAuthorityVersion === 0) != (e.expectedAuthorityDigest === null)) &&
       _("recipient_binding_mismatch"),
       Oe(e.resourceBindings.map((a) => _t(a.ref))),
-      e.resourceBindings.forEach((a) => fn(a.ref)));
+      e.resourceBindings.forEach((a) => dn(a.ref)));
   else if (e.objectType !== "result_revision") {
-    fn(e.ref);
+    dn(e.ref);
     let a = {
       holdings_snapshot: "holdings",
       watchlist_evidence: "watchlist",
@@ -26765,7 +26765,7 @@ function cs(e) {
         _("recipient_binding_mismatch")
       : (e.recipients.length !== 2 ||
           e.recipients.filter((a) => a.role === "recovery_enc").length !== 1 ||
-          !te(
+          !ne(
             e.recipients.filter((a) => a.role === "agent_enc"),
             [{ keyId: e.agentEncryptionKeyId, role: "agent_enc" }],
           )) &&
@@ -26773,20 +26773,20 @@ function cs(e) {
     e
   );
 }
-function fn(e) {
+function dn(e) {
   return (
-    ae("ResourceRef", e),
+    ie("ResourceRef", e),
     e.sourceService !== (e.kind === "holdings" ? "portfolio" : "user") &&
       _("recipient_binding_mismatch"),
     e
   );
 }
 function jo(e, t, a = null) {
-  (cs(t), ae("PersistentPrivatePayload", e));
+  (cs(t), ie("PersistentPrivatePayload", e));
   for (let i of ["objectId", "objectType", "revision"])
-    te(e[i], t[i]) || _("private_binding_mismatch");
+    ne(e[i], t[i]) || _("private_binding_mismatch");
   let u = t.objectType === "task" ? 65536 : t.objectType === "result_revision" ? 98304 : 196608;
-  re(e).length > u && _("payload_too_large");
+  ee(e).length > u && _("payload_too_large");
   let c = e.payload;
   if (t.objectType === "result_revision") return (ip(c, a ?? { sections: c.sections }), c);
   if (t.objectType === "task") {
@@ -26803,22 +26803,22 @@ function jo(e, t, a = null) {
     return c;
   }
   (c.data.kind !== t.ref.kind && _("private_schema_invalid"),
-    ln(c.fetchedAt),
-    c.sourceAsOf !== null && ln(c.sourceAsOf));
-  let l = c.data;
+    fn(c.fetchedAt),
+    c.sourceAsOf !== null && fn(c.sourceAsOf));
+  let f = c.data;
   if (t.ref.kind === "holdings") {
-    (l.snapshotId !== t.objectId && _("private_binding_mismatch"),
-      Oe(l.accounts.map((i) => i.accountId)),
-      l.accounts.reduce((i, r) => i + r.positions.length, 0) > 1e3 && _("private_schema_invalid"));
-    for (let i of l.accounts)
+    (f.snapshotId !== t.objectId && _("private_binding_mismatch"),
+      Oe(f.accounts.map((i) => i.accountId)),
+      f.accounts.reduce((i, r) => i + r.positions.length, 0) > 1e3 && _("private_schema_invalid"));
+    for (let i of f.accounts)
       (Oe(i.balances.map((r) => r.currency)),
         Oe(i.positions.map((r) => r.assetId)),
         i.positions.some((r) => r.marketValue !== null && r.marketValue.currency !== r.currency) &&
           _("private_schema_invalid"));
   } else {
-    Oe(l.items.map((i) => (t.ref.kind === "watchlist" ? i.symbol : i.followId)));
-    for (let i of l.items)
-      (ln(i.addedAt),
+    Oe(f.items.map((i) => (t.ref.kind === "watchlist" ? i.symbol : i.followId)));
+    for (let i of f.items)
+      (fn(i.addedAt),
         t.ref.kind === "channel_follows" &&
           !/^@[^\s\x00-\x1f]+$/.test(i.handleOrUrl) &&
           !ps(i.handleOrUrl) &&
@@ -26827,47 +26827,47 @@ function jo(e, t, a = null) {
   return c;
 }
 function un(e) {
-  ae("PersistentContentCarrier", e);
+  ie("PersistentContentCarrier", e);
   let t = Ye(Le(e.proof.payload), !0);
-  ae("PersistentContentProofPayload", t);
+  ie("PersistentContentProofPayload", t);
   let a = cs(t.context),
     u = e.jwe;
-  ((re(e).length > Do ||
-    re(a).length > 16384 ||
+  ((ee(e).length > Do ||
+    ee(a).length > 16384 ||
     Le(u.ciphertext).length >
       (a.objectType === "task" ? 65536 : a.objectType === "result_revision" ? 98304 : 196608)) &&
     _("payload_too_large"),
     Ht(u, ["protected", "aad", "iv", "ciphertext", "tag", "recipients"]),
-    (!te(Ye(Le(u.protected)), ss) ||
-      !os(Le(u.aad), re(a)) ||
+    (!ne(Ye(Le(u.protected)), ss) ||
+      !os(Le(u.aad), ee(a)) ||
       Le(u.iv).length !== 12 ||
       Le(u.tag).length !== 16) &&
       _("recipient_binding_mismatch"),
-    te(
+    ne(
       u.recipients.map((c) => c.header.kid),
       a.recipients.map((c) => c.keyId),
     ) || _("recipient_binding_mismatch"));
   for (let c of u.recipients)
     (Ht(c, ["header", "encrypted_key"]),
       Ht(c.header, ["kid", "epk"]),
-      ae("PublicJWK", c.header.epk),
+      ie("PublicJWK", c.header.epk),
       Le(c.encrypted_key).length !== 40 && _("invalid_envelope"));
   return { carrier: e, context: a, payload: t };
 }
-async function kd(e, t, a) {
+async function Pd(e, t, a) {
   let u = un(e);
-  te(u.context, a) || _("recipient_binding_mismatch");
-  let c = await gi(e.jwe, t, {
+  ne(u.context, a) || _("recipient_binding_mismatch");
+  let c = await vi(e.jwe, t, {
     keyManagementAlgorithms: ["ECDH-ES+A256KW"],
     contentEncryptionAlgorithms: ["A256GCM"],
   });
   return (
-    (!te(c.protectedHeader, ss) || !os(c.additionalAuthenticatedData, re(a))) &&
+    (!ne(c.protectedHeader, ss) || !os(c.additionalAuthenticatedData, ee(a))) &&
       _("recipient_binding_mismatch"),
     jo(Ye(c.plaintext, !0), a)
   );
 }
-async function Pd(e, t, a, u) {
+async function bd(e, t, a, u) {
   cs(t);
   let c = {
     privateSchemaVersion: 1,
@@ -26878,10 +26878,10 @@ async function Pd(e, t, a, u) {
     payload: e,
   };
   jo(c, t);
-  let l = new yt(re(c)).setProtectedHeader(ss).setAdditionalAuthenticatedData(re(t));
+  let f = new yt(ee(c)).setProtectedHeader(ss).setAdditionalAuthenticatedData(ee(t));
   for (let n of t.recipients)
-    l.addRecipient(await bt(a[n.keyId], "ECDH-ES+A256KW")).setUnprotectedHeader({ kid: n.keyId });
-  let i = await l.encrypt(),
+    f.addRecipient(await bt(a[n.keyId], "ECDH-ES+A256KW")).setUnprotectedHeader({ kid: n.keyId });
+  let i = await f.encrypt(),
     r = await as(
       {
         contractVersion: xt,
@@ -26898,26 +26898,35 @@ async function Pd(e, t, a, u) {
   return (un(d), d);
 }
 var np = ["root_sig", "device_sig", "device_enc", "agent_sig", "agent_enc", "recovery_enc"];
-function sp(e, t) {
-  let a = structuredClone(e),
-    u = t,
-    c = "fv-control+jws",
-    l = new Map(),
-    i = new TextDecoder(),
-    r = 0;
-  return async (d) => {
-    let n = structuredClone(d),
-      y = re([a, u, c, n]),
-      m = i.decode(y),
-      p = l.get(m);
-    if (p !== void 0) return structuredClone(p);
-    let s = await ur(n, a, c),
-      o = y.length + re(s).length;
+function sp(e, t, a = !1) {
+  let u = structuredClone(e),
+    c = t,
+    f = "fv-control+jws",
+    i = new Map(),
+    r = new TextDecoder(),
+    d = 0,
+    n = !1;
+  return async (y) => {
+    let m = structuredClone(y),
+      p = ee([u, c, f, m]),
+      s = r.decode(p),
+      o = i.get(s);
+    if (o !== void 0) return structuredClone(o);
+    a && !n && ((await Ut(u)) !== c && _("root_pin_mismatch"), (n = !0));
+    let l = await ur(m, u, f),
+      h = l;
+    a &&
+      (ie("KeyCertificatePayload", l),
+      (h = { payload: l, publicKeyId: await Ut(l.publicJwk), payloadDigest: await Qe(l) }));
+    let v = p.length + ee(h).length;
     return (
-      !l.has(m) && l.size < 128 && r + o <= 1048576 && (l.set(m, structuredClone(s)), (r += o)),
-      s
+      !i.has(s) && i.size < 128 && d + v <= 1048576 && (i.set(s, structuredClone(h)), (d += v)),
+      h
     );
   };
+}
+function op(e, t) {
+  return sp(e, t, !0);
 }
 var mn = class {
   constructor(t) {
@@ -26933,96 +26942,99 @@ var mn = class {
       _("recipient_binding_mismatch");
   }
   async load(t, a) {
-    let u = structuredClone(this.anchor.rootJwk),
-      c = this.anchor.rootKeyId,
-      l = sp(u, c);
-    ((await dn(u)) !== c && _("root_pin_mismatch"), $o(t, 32, 1));
-    for (let i of t) {
-      (ae("RegistryBundle", i), re(i).length > 131072 && _("payload_too_large"));
-      let r = await ur(i.checkpoint, u, "fv-control+jws");
-      (ae("RegistryCheckpointPayload", r),
-        this.checkIdentity(r),
-        (r.rootKeyId !== c ||
-          r.rootEpoch !== this.anchor.rootEpoch ||
-          r.issuedAt > a ||
-          (this.sequence === 0 && (r.rootEpoch !== 1 || r.keyEpoch !== 1))) &&
+    $o(t, 32, 1);
+    let u = [...t],
+      c = structuredClone(this.anchor.rootJwk),
+      f = this.anchor.rootKeyId,
+      i = op(c, f);
+    (await Ut(c)) !== f && _("root_pin_mismatch");
+    for (let r of u) {
+      (ie("RegistryBundle", r), ee(r).length > 131072 && _("payload_too_large"));
+      let d = structuredClone(r);
+      (ie("RegistryBundle", d), ee(d).length > 131072 && _("payload_too_large"));
+      let n = await ur(d.checkpoint, c, "fv-control+jws");
+      (ie("RegistryCheckpointPayload", n),
+        this.checkIdentity(n),
+        (n.rootKeyId !== f ||
+          n.rootEpoch !== this.anchor.rootEpoch ||
+          n.issuedAt > a ||
+          (this.sequence === 0 && (n.rootEpoch !== 1 || n.keyEpoch !== 1))) &&
           _("root_pin_mismatch"));
-      let d = await Qe(r);
-      if (this.history.has(r.registrySequence)) {
-        this.history.get(r.registrySequence) !== d && _("registry_rollback");
+      let y = await Qe(n);
+      if (this.history.has(n.registrySequence)) {
+        this.history.get(n.registrySequence) !== y && _("registry_rollback");
         continue;
       }
-      ((r.registrySequence !== this.sequence + 1 ||
-        r.registrySequence > 32 ||
-        r.previousDigest !== (this.current?.digest ?? null)) &&
+      ((n.registrySequence !== this.sequence + 1 ||
+        n.registrySequence > 32 ||
+        n.previousDigest !== (this.current?.digest ?? null)) &&
         _("registry_chain_mismatch"),
         this.current &&
-          (r.keyEpoch < this.current.keyEpoch ||
-            r.issuedAt < this.current.issuedAt ||
-            [...this.current.revoked].some((s) => !r.revokedKeyIds.includes(s))) &&
+          (n.keyEpoch < this.current.keyEpoch ||
+            n.issuedAt < this.current.issuedAt ||
+            [...this.current.revoked].some((l) => !n.revokedKeyIds.includes(l))) &&
           _("registry_rollback"));
-      let n = new Map(),
-        y = [],
-        m = [],
-        p = new Set();
-      for (let s of i.entries) {
-        let o = await l(s.certificate);
-        (ae("KeyCertificatePayload", o),
-          this.checkIdentity(o),
-          (o.issuerKeyId !== c ||
-            o.keyId !== (await dn(o.publicJwk)) ||
-            n.has(o.keyId) ||
-            o.expiresAt <= o.notBefore ||
-            !np.includes(o.role) ||
-            o.role.startsWith("agent_") !== (o.connectionId !== null) ||
-            s.active === r.revokedKeyIds.includes(o.keyId) ||
-            (o.role === "root_sig") != (o.keyId === c)) &&
+      let m = new Map(),
+        p = [],
+        s = [],
+        o = new Set();
+      for (let l of d.entries) {
+        let { payload: h, publicKeyId: v, payloadDigest: g } = await i(l.certificate);
+        (this.checkIdentity(h),
+          (h.issuerKeyId !== f ||
+            h.keyId !== v ||
+            m.has(h.keyId) ||
+            h.expiresAt <= h.notBefore ||
+            !np.includes(h.role) ||
+            h.role.startsWith("agent_") !== (h.connectionId !== null) ||
+            l.active === n.revokedKeyIds.includes(h.keyId) ||
+            (h.role === "root_sig") != (h.keyId === f)) &&
             _("invalid_certificate"));
-        let f =
-          o.role === "device_sig"
+        let I =
+          h.role === "device_sig"
             ? ["object_write", "task_grant", "control_write"]
-            : o.role === "agent_sig"
+            : h.role === "agent_sig"
               ? ["run_request", "result_write"]
               : [];
-        o.capabilities.some((I) => !f.includes(I)) && _("invalid_certificate");
-        let h = [o.principalId, o.role, o.connectionId].join("/"),
-          v = h + "/" + o.keyEpoch;
-        (p.has(v) && _("key_epoch_conflict"), p.add(v));
-        let g = this.current?.keys.get(o.keyId);
-        (g &&
-          !te(Object.fromEntries(Object.keys(o).map((I) => [I, g[I]])), o) &&
+        h.capabilities.some((X) => !I.includes(X)) && _("invalid_certificate");
+        let k = [h.principalId, h.role, h.connectionId].join("/"),
+          b = k + "/" + h.keyEpoch;
+        (o.has(b) && _("key_epoch_conflict"), o.add(b));
+        let A = this.current?.keys.get(h.keyId);
+        (A &&
+          !ne(Object.fromEntries(Object.keys(h).map((X) => [X, A[X]])), h) &&
           _("registry_conflict"),
-          !g &&
+          !A &&
             this.current &&
-            o.keyEpoch <= (this.localEpochs.get(h) ?? 0) &&
+            h.keyEpoch <= (this.localEpochs.get(k) ?? 0) &&
             _("key_epoch_conflict"),
-          n.set(o.keyId, { ...o, active: s.active }),
-          y.push(o.certificateId),
-          m.push({ certificateId: o.certificateId, payloadDigest: await Qe(o), active: s.active }));
+          m.set(h.keyId, { ...h, active: l.active }),
+          p.push(h.certificateId),
+          s.push({ certificateId: h.certificateId, payloadDigest: g, active: l.active }));
       }
-      (Oe(y),
+      (Oe(p),
         (await Qe(
-          m.sort((s, o) =>
-            s.certificateId < o.certificateId ? -1 : s.certificateId > o.certificateId ? 1 : 0,
+          s.sort((l, h) =>
+            l.certificateId < h.certificateId ? -1 : l.certificateId > h.certificateId ? 1 : 0,
           ),
-        )) !== r.entriesDigest && _("registry_digest_mismatch"),
-        r.registrySequence === this.anchor.registrySequence &&
-          d !== this.anchor.checkpointDigest &&
+        )) !== n.entriesDigest && _("registry_digest_mismatch"),
+        n.registrySequence === this.anchor.registrySequence &&
+          y !== this.anchor.checkpointDigest &&
           _("checkpoint_pin_mismatch"));
-      for (let s of n.values()) {
-        let o = [s.principalId, s.role, s.connectionId].join("/");
-        this.localEpochs.set(o, Math.max(s.keyEpoch, this.localEpochs.get(o) ?? 0));
+      for (let l of m.values()) {
+        let h = [l.principalId, l.role, l.connectionId].join("/");
+        this.localEpochs.set(h, Math.max(l.keyEpoch, this.localEpochs.get(h) ?? 0));
       }
-      ((this.sequence = r.registrySequence),
-        this.history.set(r.registrySequence, d),
+      ((this.sequence = n.registrySequence),
+        this.history.set(n.registrySequence, y),
         (this.current = {
-          keys: n,
-          revoked: new Set(r.revokedKeyIds),
-          digest: d,
-          keyEpoch: r.keyEpoch,
-          issuedAt: r.issuedAt,
+          keys: m,
+          revoked: new Set(n.revokedKeyIds),
+          digest: y,
+          keyEpoch: n.keyEpoch,
+          issuedAt: n.issuedAt,
         }),
-        this.snapshots.set(r.registrySequence, {
+        this.snapshots.set(n.registrySequence, {
           ...this.current,
           localEpochs: new Map(this.localEpochs),
         }));
@@ -27034,8 +27046,8 @@ var mn = class {
       this
     );
   }
-  cert(t, a, u, c, l = this.sequence) {
-    let i = this.snapshots.get(l),
+  cert(t, a, u, c, f = this.sequence) {
+    let i = this.snapshots.get(f),
       r = i?.keys.get(t);
     return (
       (!r ||
@@ -27050,7 +27062,7 @@ var mn = class {
     );
   }
   agent(t, a, u = this.sequence) {
-    (ae("PersistentAgentIdentity", t),
+    (ie("PersistentAgentIdentity", t),
       this.checkIdentity(t),
       (t.status !== "active" ||
         t.identityEpoch !== 1 ||
@@ -27058,14 +27070,14 @@ var mn = class {
         t.registeredAt > a) &&
         _("key_authorization_required"));
     let c = this.cert(t.agentSigningKeyId, "agent_sig", t.connectionId, a, u),
-      l = this.cert(t.agentEncryptionKeyId, "agent_enc", t.connectionId, a, u);
+      f = this.cert(t.agentEncryptionKeyId, "agent_enc", t.connectionId, a, u);
     return (
       (c.principalId !== t.agentId ||
-        l.principalId !== t.agentId ||
-        c.keyEpoch !== l.keyEpoch ||
+        f.principalId !== t.agentId ||
+        c.keyEpoch !== f.keyEpoch ||
         !c.capabilities.includes("run_request")) &&
         _("recipient_binding_mismatch"),
-      { sig: c, enc: l }
+      { sig: c, enc: f }
     );
   }
   pin() {
@@ -27076,36 +27088,36 @@ var mn = class {
     };
   }
   async binding(t, a, u, c) {
-    ae("PersistentAgentIdentity", a);
-    let l = Ye(Le(t.payload), !0);
-    ae("PersistentAgentBindingPayload", l);
-    let i = this.snapshots.get(l.registrySequence);
-    (!i || i.digest !== l.checkpointDigest || i.keyEpoch !== l.keyEpoch) && _("registry_conflict");
-    let r = this.cert(l.deviceSigningKeyId, "device_sig", null, l.issuedAt, l.registrySequence);
+    ie("PersistentAgentIdentity", a);
+    let f = Ye(Le(t.payload), !0);
+    ie("PersistentAgentBindingPayload", f);
+    let i = this.snapshots.get(f.registrySequence);
+    (!i || i.digest !== f.checkpointDigest || i.keyEpoch !== f.keyEpoch) && _("registry_conflict");
+    let r = this.cert(f.deviceSigningKeyId, "device_sig", null, f.issuedAt, f.registrySequence);
     (r.capabilities.includes("control_write") || _("key_authorization_required"),
       await ur(t, r.publicJwk, "fv-control+jws"));
     for (let d of ["ownerSubject", "vaultId", "connectionId", "clientId"])
-      (l[d] !== u[d] || a[d] !== u[d]) && _("recipient_binding_mismatch");
+      (f[d] !== u[d] || a[d] !== u[d]) && _("recipient_binding_mismatch");
     for (let d of dr.filter((n) => n !== "bindingFingerprint"))
-      l[d] !== a[d] && _("recipient_binding_mismatch");
+      f[d] !== a[d] && _("recipient_binding_mismatch");
     return (
       (a.bindingFingerprint !== (await Hr(t)) ||
-        a.registeredAt !== l.issuedAt ||
-        l.issuedAt < i.issuedAt ||
-        l.issuedAt < r.notBefore) &&
+        a.registeredAt !== f.issuedAt ||
+        f.issuedAt < i.issuedAt ||
+        f.issuedAt < r.notBefore) &&
         _("recipient_binding_mismatch"),
       this.agent(a, c),
       a
     );
   }
 };
-var op = "folioview.persistent-resource-consent.v1",
+var ap = "folioview.persistent-resource-consent.v1",
   Lo = (e, t) => {
-    for (let a of dr) te(e[a], t[a]) || _("recipient_binding_mismatch");
+    for (let a of dr) ne(e[a], t[a]) || _("recipient_binding_mismatch");
   };
 function Vo(e) {
   (Oe(e.selectedHistory),
-    (!te(
+    (!ne(
       e.selectedHistory,
       [...e.selectedHistory].sort((t, a) => t - a),
     ) ||
@@ -27113,20 +27125,20 @@ function Vo(e) {
       _("invalid_history"));
 }
 function Oo(e) {
-  (ae("PersistentResourceConsent", e), e.createdAt > e.updatedAt && _("invalid_consent"));
+  (ie("PersistentResourceConsent", e), e.createdAt > e.updatedAt && _("invalid_consent"));
   let t = [];
   (Oe(e.permissions.map((a) => a.permissionId)),
-    te(
+    ne(
       e.permissions.map((a) => a.permissionId),
       e.permissions.map((a) => a.permissionId).sort(),
     ) || _("invalid_consent"));
   for (let a of e.permissions)
-    (fn(a.ref),
+    (dn(a.ref),
       Vo(a),
       (a.approvedAt < e.createdAt || a.approvedAt > e.updatedAt) && _("invalid_consent"),
       a.status === "active"
         ? ((a.revokedAt !== null || a.revocationFingerprint !== null) && _("invalid_consent"),
-          t.push(new TextDecoder().decode(re(a.ref))))
+          t.push(new TextDecoder().decode(ee(a.ref))))
         : (a.permissionEpoch < 2 ||
             a.revokedAt === null ||
             a.revocationFingerprint === null ||
@@ -27135,73 +27147,73 @@ function Oo(e) {
           _("invalid_consent"));
   return (Oe(t), t.length > 10 && _("invalid_consent"), e);
 }
-async function ap(e, t, a, u, c) {
-  let l = Ye(Le(e.payload), !0),
-    i = l.artifactType === "persistent_resource_approval";
-  (ae(i ? "PersistentResourceApprovalPayload" : "PersistentResourceRevocationPayload", l),
-    re(e).length > 65536 && _("payload_too_large"),
-    Lo(l, a));
-  let r = u.snapshots.get(l.registrySequence);
-  (!r || r.digest !== l.checkpointDigest || r.keyEpoch !== l.keyEpoch || l.issuedAt < r.issuedAt) &&
+async function pp(e, t, a, u, c) {
+  let f = Ye(Le(e.payload), !0),
+    i = f.artifactType === "persistent_resource_approval";
+  (ie(i ? "PersistentResourceApprovalPayload" : "PersistentResourceRevocationPayload", f),
+    ee(e).length > 65536 && _("payload_too_large"),
+    Lo(f, a));
+  let r = u.snapshots.get(f.registrySequence);
+  (!r || r.digest !== f.checkpointDigest || r.keyEpoch !== f.keyEpoch || f.issuedAt < r.issuedAt) &&
     _("registry_conflict");
   let d = Ye(Le(e.protected)),
     n = u.anchor.rootJwk;
   if (d.kid !== u.anchor.rootKeyId) {
     i && _("key_authorization_required");
-    let p = u.cert(d.kid, "device_sig", null, l.issuedAt, l.registrySequence);
+    let p = u.cert(d.kid, "device_sig", null, f.issuedAt, f.registrySequence);
     (p.capabilities.includes("control_write") || _("key_authorization_required"),
       (n = p.publicJwk));
   }
   (await ur(e, n, "fv-control+jws"),
-    l.authorKeyId !== d.kid && _("recipient_binding_mismatch"),
-    t && (Oo(t), Lo(t, a), t.consentId !== l.consentId && _("recipient_binding_mismatch")),
-    (l.expectedVersion !== (t?.version ?? 0) ||
-      l.expectedConsentDigest !== (t ? await Qe(t) : null) ||
-      l.issuedAt < (t?.updatedAt ?? a.registeredAt)) &&
+    f.authorKeyId !== d.kid && _("recipient_binding_mismatch"),
+    t && (Oo(t), Lo(t, a), t.consentId !== f.consentId && _("recipient_binding_mismatch")),
+    (f.expectedVersion !== (t?.version ?? 0) ||
+      f.expectedConsentDigest !== (t ? await Qe(t) : null) ||
+      f.issuedAt < (t?.updatedAt ?? a.registeredAt)) &&
       _("version_conflict"));
   let y = new Map((t?.permissions ?? []).map((p) => [p.permissionId, structuredClone(p)])),
     m = await Hr(e);
   if (i) {
-    (u.agent(a, l.issuedAt, l.registrySequence),
-      (!Array.isArray(c) || c.length !== l.resources.length) && _("invalid_sources"));
+    (u.agent(a, f.issuedAt, f.registrySequence),
+      (!Array.isArray(c) || c.length !== f.resources.length) && _("invalid_sources"));
     let p = new Map();
     for (let s of c) {
-      (ae("ConsentSourceState", s),
+      (ie("ConsentSourceState", s),
         (s.ownerSubject !== a.ownerSubject || s.vaultId !== a.vaultId) &&
           _("recipient_binding_mismatch"));
-      let o = new TextDecoder().decode(re(s.ref));
+      let o = new TextDecoder().decode(ee(s.ref));
       (p.has(o) && _("invalid_sources"), p.set(o, s));
     }
-    (Oe(l.resources.map((s) => s.permissionId)),
-      Oe(l.resources.map((s) => new TextDecoder().decode(re(s.ref)))));
-    for (let s of l.resources) {
+    (Oe(f.resources.map((s) => s.permissionId)),
+      Oe(f.resources.map((s) => new TextDecoder().decode(ee(s.ref)))));
+    for (let s of f.resources) {
       Vo(s);
-      let o = p.get(new TextDecoder().decode(re(s.ref)));
+      let o = p.get(new TextDecoder().decode(ee(s.ref)));
       (!o ||
         o.state !== "active" ||
         o.sourceEpoch !== s.sourceEpoch ||
         o.currentRevision === null ||
         s.fromRevision > o.currentRevision) &&
         _("source_unavailable");
-      let f = y.get(s.permissionId);
-      if (f)
-        ((f.status !== "active" ||
-          f.permissionEpoch !== s.expectedPermissionEpoch ||
-          !["ref", "sourceEpoch", "fromRevision"].every((h) => te(f[h], s[h])) ||
-          f.selectedHistory.some((h) => !s.selectedHistory.includes(h))) &&
+      let l = y.get(s.permissionId);
+      if (l)
+        ((l.status !== "active" ||
+          l.permissionEpoch !== s.expectedPermissionEpoch ||
+          !["ref", "sourceEpoch", "fromRevision"].every((h) => ne(l[h], s[h])) ||
+          l.selectedHistory.some((h) => !s.selectedHistory.includes(h))) &&
           _("version_conflict"),
-          te(f.selectedHistory, s.selectedHistory) ||
+          ne(l.selectedHistory, s.selectedHistory) ||
             y.set(s.permissionId, {
-              ...f,
+              ...l,
               selectedHistory: s.selectedHistory,
-              permissionEpoch: br(f.permissionEpoch + 1, 1),
-              approvedAt: l.issuedAt,
+              permissionEpoch: br(l.permissionEpoch + 1, 1),
+              approvedAt: f.issuedAt,
               approvalFingerprint: m,
             }));
       else {
         (s.expectedPermissionEpoch !== 0 ||
           s.fromRevision !== o.currentRevision ||
-          [...y.values()].some((b) => b.status === "active" && te(b.ref, s.ref))) &&
+          [...y.values()].some((b) => b.status === "active" && ne(b.ref, s.ref))) &&
           _("version_conflict");
         let { permissionId: h, ref: v, sourceEpoch: g, fromRevision: I, selectedHistory: k } = s;
         y.set(s.permissionId, {
@@ -27213,7 +27225,7 @@ async function ap(e, t, a, u, c) {
           versionPolicy: "current_and_future",
           permissionEpoch: 1,
           status: "active",
-          approvedAt: l.issuedAt,
+          approvedAt: f.issuedAt,
           approvalFingerprint: m,
           revokedAt: null,
           revocationFingerprint: null,
@@ -27221,55 +27233,55 @@ async function ap(e, t, a, u, c) {
       }
     }
   } else {
-    (t || _("not_found"), Oe(l.targets.map((p) => p.permissionId)));
-    for (let p of l.targets) {
+    (t || _("not_found"), Oe(f.targets.map((p) => p.permissionId)));
+    for (let p of f.targets) {
       let s = y.get(p.permissionId);
       ((!s ||
         s.status !== "active" ||
         s.permissionEpoch !== p.expectedPermissionEpoch ||
-        !te(s.ref, p.ref)) &&
+        !ne(s.ref, p.ref)) &&
         _("version_conflict"),
         y.set(p.permissionId, {
           ...s,
           status: "revoked",
           permissionEpoch: br(s.permissionEpoch + 1, 1),
-          revokedAt: l.issuedAt,
+          revokedAt: f.issuedAt,
           revocationFingerprint: m,
         }));
     }
   }
   return Oo({
     contractVersion: xt,
-    profile: op,
+    profile: ap,
     ...Object.fromEntries(dr.map((p) => [p, a[p]])),
-    consentId: l.consentId,
+    consentId: f.consentId,
     purpose: "analysis",
-    version: br(l.expectedVersion + 1, 1),
-    createdAt: t?.createdAt ?? l.issuedAt,
-    updatedAt: l.issuedAt,
-    lastOperationId: l.stableOperationId,
+    version: br(f.expectedVersion + 1, 1),
+    createdAt: t?.createdAt ?? f.issuedAt,
+    updatedAt: f.issuedAt,
+    lastOperationId: f.stableOperationId,
     lastControlFingerprint: m,
     permissions: [...y.values()].sort((p, s) => (p.permissionId < s.permissionId ? -1 : 1)),
   });
 }
-async function Dd({ consent: e, receipts: t, identity: a, registry: u, pin: c = null }) {
+async function Kd({ consent: e, receipts: t, identity: a, registry: u, pin: c = null }) {
   if (e === null) return ((t.length || c) && _("consent_rollback"), null);
   ((!Array.isArray(t) || t.length !== e.version || t.length > 96) && _("invalid_consent_chain"),
     Oe(t.map((r) => r.operationId)));
-  let l = null,
+  let f = null,
     i = c === null;
   for (let r of t)
-    ((l = await ap(r.command, l, a, u, r.sourceStates)),
-      (r.operationId !== l.lastOperationId ||
-        !te(r.consent, l) ||
+    ((f = await pp(r.command, f, a, u, r.sourceStates)),
+      (r.operationId !== f.lastOperationId ||
+        !ne(r.consent, f) ||
         r.priorDigest !==
-          (l.version === 1 ? null : Ye(Le(r.command.payload), !0).expectedConsentDigest) ||
-        r.fingerprint !== l.lastControlFingerprint) &&
+          (f.version === 1 ? null : Ye(Le(r.command.payload), !0).expectedConsentDigest) ||
+        r.fingerprint !== f.lastControlFingerprint) &&
         _("invalid_consent_receipt"),
       c &&
-        l.version === c.version &&
-        ((await Qe(l)) !== c.digest && _("consent_rollback"), (i = !0)));
-  return ((!i || !te(l, e)) && _("consent_rollback"), l);
+        f.version === c.version &&
+        ((await Qe(f)) !== c.digest && _("consent_rollback"), (i = !0)));
+  return ((!i || !ne(f, e)) && _("consent_rollback"), f);
 }
 function Co(e, t) {
   let a = e?.permissions.find((u) => u.permissionId === t.permissionId);
@@ -27278,7 +27290,7 @@ function Co(e, t) {
       a.status !== "active" ||
       a.permissionEpoch !== t.permissionEpoch ||
       a.sourceEpoch !== t.sourceEpoch ||
-      !te(a.ref, t.ref) ||
+      !ne(a.ref, t.ref) ||
       (t.sourceRevision < a.fromRevision && !a.selectedHistory.includes(t.sourceRevision))) &&
       _("insufficient_scope"),
     a
@@ -27286,10 +27298,10 @@ function Co(e, t) {
 }
 var ls = ["taskId", "taskVersion", "executionEpoch", "authorityId", "authorityVersion"];
 function fs(e, t) {
-  for (let a of dr) te(e[a], t[a]) || _("recipient_binding_mismatch");
+  for (let a of dr) ne(e[a], t[a]) || _("recipient_binding_mismatch");
 }
-async function Vd(e, { registry: t, identity: a, expected: u, now: c, purpose: l = "agent_read" }) {
-  ["agent_read", "new_publication", "owner_history"].includes(l) || _("invalid_purpose");
+async function Cd(e, { registry: t, identity: a, expected: u, now: c, purpose: f = "agent_read" }) {
+  ["agent_read", "new_publication", "owner_history"].includes(f) || _("invalid_purpose");
   let { context: i, payload: r } = un(e);
   (fs(i, a), fs(u, a));
   let d = [
@@ -27317,14 +27329,14 @@ async function Vd(e, { registry: t, identity: a, expected: u, now: c, purpose: l
             "ownerEnvelopeFingerprint",
           ]),
   ];
-  for (let p of d) (!Object.hasOwn(u, p) || !te(i[p], u[p])) && _("recipient_binding_mismatch");
+  for (let p of d) (!Object.hasOwn(u, p) || !ne(i[p], u[p])) && _("recipient_binding_mismatch");
   let n = t.snapshots.get(i.registrySequence);
   ((!n || n.digest !== i.checkpointDigest || n.keyEpoch !== i.keyEpoch) && _("registry_conflict"),
     (i.issuedAt < a.registeredAt || i.issuedAt > c) && _("key_authorization_required"),
-    l === "new_publication" &&
+    f === "new_publication" &&
       (i.registrySequence !== t.sequence || i.issuedAt < Math.max(t.current.issuedAt, c - 300)) &&
       _("registry_conflict"));
-  let y = l === "owner_history" ? i.issuedAt : c,
+  let y = f === "owner_history" ? i.issuedAt : c,
     { sig: m } = t.agent(a, y);
   if (i.objectType === "result_revision") {
     (!m.capabilities.includes("result_write") || i.issuedAt < m.notBefore) &&
@@ -27332,7 +27344,7 @@ async function Vd(e, { registry: t, identity: a, expected: u, now: c, purpose: l
     for (let p of i.recipients) t.cert(p.keyId, p.role, null, y);
     await ur(e.proof, m.publicJwk, "fv-control+jws");
   } else {
-    if (l !== "agent_read")
+    if (f !== "agent_read")
       for (let p of i.recipients) p.role === "recovery_enc" && t.cert(p.keyId, p.role, null, y);
     await ur(e.proof, t.anchor.rootJwk, "fv-control+jws");
   }
@@ -27341,7 +27353,7 @@ async function Vd(e, { registry: t, identity: a, expected: u, now: c, purpose: l
     { context: structuredClone(i), fingerprint: await Hr(e.proof) }
   );
 }
-async function Cd({ identity: e, audience: t, path: a, request: u, now: c, privateKey: l }) {
+async function Td({ identity: e, audience: t, path: a, request: u, now: c, privateKey: f }) {
   let i = new URL(t);
   (i.protocol !== "https:" ||
     i.username ||
@@ -27370,44 +27382,44 @@ async function Cd({ identity: e, audience: t, path: a, request: u, now: c, priva
     expiresAt: br(c + 120, 1),
   };
   return (
-    ae("PersistentAgentRequestPayload", r),
+    ie("PersistentAgentRequestPayload", r),
     (a.includes("//") || a.split("/").some((d) => d === "." || d === "..")) && _("invalid_path"),
-    as(r, l, e.agentSigningKeyId, "fv-control+jws")
+    as(r, f, e.agentSigningKeyId, "fv-control+jws")
   );
 }
-async function Td(e, { identity: t, taskContext: a, taskFingerprint: u, consent: c, now: l }) {
-  (ae("PersistentRunManifest", e),
+async function qd(e, { identity: t, taskContext: a, taskFingerprint: u, consent: c, now: f }) {
+  (ie("PersistentRunManifest", e),
     fs(e, t),
-    (e.createdAt <= l &&
-      l < e.expiresAt &&
+    (e.createdAt <= f &&
+      f < e.expiresAt &&
       e.createdAt < e.expiresAt &&
       e.expiresAt <= e.createdAt + 7200) ||
       _("run_expired"),
     e.runId !== "prun_" + (await Qe([e.ownerSubject, e.vaultId, e.taskId, e.triggerId])) &&
       _("recipient_binding_mismatch"));
-  for (let r of ls) te(e[r], a[r]) || _("version_conflict");
+  for (let r of ls) ne(e[r], a[r]) || _("version_conflict");
   (e.taskPublicationFingerprint !== u || e.resultPolicy !== a.resultPolicy) &&
     _("recipient_binding_mismatch");
   let i = [...e.inputs].sort((r, d) =>
-    new TextDecoder().decode(re(r.ref)) < new TextDecoder().decode(re(d.ref)) ? -1 : 1,
+    new TextDecoder().decode(ee(r.ref)) < new TextDecoder().decode(ee(d.ref)) ? -1 : 1,
   );
-  (!te(i, e.inputs) ||
-    !te(
+  (!ne(i, e.inputs) ||
+    !ne(
       e.inputs.map((r) => ({ ref: r.ref, sourceEpoch: r.sourceEpoch })),
       [...a.resourceBindings].sort((r, d) =>
-        new TextDecoder().decode(re(r.ref)) < new TextDecoder().decode(re(d.ref)) ? -1 : 1,
+        new TextDecoder().decode(ee(r.ref)) < new TextDecoder().decode(ee(d.ref)) ? -1 : 1,
       ),
     )) &&
     _("recipient_binding_mismatch");
   for (let r of e.inputs) Co(c, r);
   return { manifest: structuredClone(e), fingerprint: await Qe(e) };
 }
-var Fd = "folioview.agent-credential.v1",
+var Wd = "folioview.agent-credential.v1",
   To = 2160 * 60 * 60,
-  pp = 10080 * 60;
-function cp(e, t) {
+  cp = 10080 * 60;
+function lp(e, t) {
   return (
-    ae("AgentCredentialLease", e),
+    ie("AgentCredentialLease", e),
     br(t),
     (e.issuedAt < e.expiresAt && e.expiresAt <= e.issuedAt + To) || _("invalid_fields"),
     e.status === "revoked"
@@ -27415,27 +27427,27 @@ function cp(e, t) {
       : t >= e.expiresAt
         ? "expired"
         : (t < e.issuedAt && _("key_authorization_required"),
-          e.expiresAt - t <= pp ? "expiring" : "active")
+          e.expiresAt - t <= cp ? "expiring" : "active")
   );
 }
-function lp(e, { identity: t, audience: a, now: u }) {
-  (ae("PersistentAgentIdentity", t),
-    (!["active", "expiring"].includes(cp(e, u)) || t.status !== "active" || e.audience !== a) &&
+function fp(e, { identity: t, audience: a, now: u }) {
+  (ie("PersistentAgentIdentity", t),
+    (!["active", "expiring"].includes(lp(e, u)) || t.status !== "active" || e.audience !== a) &&
       _("key_authorization_required"));
   for (let c of dr) t[c] !== e[c] && _("recipient_binding_mismatch");
   return e;
 }
-async function Wd(
+async function Hd(
   e,
-  { registry: t, identity: a, currentLease: u = null, setupIntentId: c, audience: l, now: i },
+  { registry: t, identity: a, currentLease: u = null, setupIntentId: c, audience: f, now: i },
 ) {
   (br(i),
-    re(e).length > 16384 && _("payload_too_large"),
+    ee(e).length > 16384 && _("payload_too_large"),
     t instanceof mn || _("key_authorization_required"),
     t.agent(a, i));
   let r;
   try {
-    r = new URL(l);
+    r = new URL(f);
   } catch {
     _("recipient_binding_mismatch");
   }
@@ -27446,10 +27458,10 @@ async function Wd(
     r.search ||
     r.hash ||
     !r.hostname ||
-    /[\s\\]/.test(l)) &&
+    /[\s\\]/.test(f)) &&
     _("recipient_binding_mismatch");
   let d = Ye(Le(e.payload), !0);
-  ae("AgentCredentialApproval", d);
+  ie("AgentCredentialApproval", d);
   let n = t.cert(d.deviceSigningKeyId, "device_sig", null, i);
   (await ur(e, n.publicJwk, "fv-control+jws"),
     (!n.capabilities.includes("control_write") ||
@@ -27461,11 +27473,11 @@ async function Wd(
       d.keyEpoch !== t.current.keyEpoch) &&
       _("registry_conflict"));
   for (let h of dr) a[h] !== d[h] && _("recipient_binding_mismatch");
-  (d.audience !== l || d.setupIntentId !== c) && _("recipient_binding_mismatch");
+  (d.audience !== f || d.setupIntentId !== c) && _("recipient_binding_mismatch");
   let y = 1,
     m = null;
   if (u !== null) {
-    ae("AgentCredentialLease", u);
+    ie("AgentCredentialLease", u);
     for (let h of ["ownerSubject", "vaultId", "rootKeyId", "connectionId", "clientId"])
       u[h] !== a[h] && _("recipient_binding_mismatch");
     for (let h of ["agentId", "agentSigningKeyId", "agentEncryptionKeyId", "bindingFingerprint"])
@@ -27485,62 +27497,63 @@ async function Wd(
       "checkpointDigest",
       "keyEpoch",
     ]),
-    f = {
+    l = {
       ...Object.fromEntries(Object.entries(d).filter(([h]) => !o.has(h))),
       credentialFingerprint: await Hr(e),
       status: "active",
     };
-  return (ae("AgentCredentialLease", f), lp(f, { identity: a, audience: l, now: i }));
+  return (ie("AgentCredentialLease", l), fp(l, { identity: a, audience: f, now: i }));
 }
 export {
-  Fd as AGENT_CREDENTIAL_PROFILE,
+  Wd as AGENT_CREDENTIAL_PROFILE,
   dr as BINDING,
-  op as CONSENT_PROFILE,
+  ap as CONSENT_PROFILE,
   xt as CONTRACT,
-  pp as CREDENTIAL_NOTICE_SECONDS,
+  cp as CREDENTIAL_NOTICE_SECONDS,
   To as DEFAULT_CREDENTIAL_SECONDS,
   ss as JWE_HEADER,
   Wt as PROFILE,
   mn as Registry,
   ns as RuntimeDenied,
-  ap as applyConsent,
-  Wd as approveCredential,
+  pp as applyConsent,
+  Hd as approveCredential,
   $o as array,
   Le as bytes,
-  re as canonical,
+  ee as canonical,
   cs as context,
-  cp as credentialStatus,
+  op as createRegistryCertificateVerifier,
+  lp as credentialStatus,
   _ as deny,
   Qe as digest,
-  Id as digestString,
+  kd as digestString,
   Ht as exact,
   Hr as fingerprint,
-  wd as identifier,
+  Id as identifier,
   un as inspect,
   br as integer,
   po as jose,
-  dn as keyId,
+  Ut as keyId,
   fs as matchBinding,
   Ko as object,
-  kd as open,
+  Pd as open,
   Ye as parsed,
   Co as permissionFor,
   jo as privatePayload,
   ep as publicKey,
-  fn as reference,
-  Cd as requestProof,
-  lp as requireCurrentCredential,
+  dn as reference,
+  Td as requestProof,
+  fp as requireCurrentCredential,
   ip as resultContent,
   ps as safeUrl,
-  te as same,
-  Pd as seal,
+  ne as same,
+  bd as seal,
   Oo as shape,
   as as sign,
   Oe as unique,
-  ln as utc,
-  ae as validate,
+  fn as utc,
+  ie as validate,
   ur as verify,
-  Dd as verifyConsentChain,
-  Vd as verifyEnvelope,
-  Td as verifyManifest,
+  Kd as verifyConsentChain,
+  Cd as verifyEnvelope,
+  qd as verifyManifest,
 };

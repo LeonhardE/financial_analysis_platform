@@ -18,15 +18,16 @@ import {
   validate,
 } from "./crypto.mjs";
 const ROLES = ["root_sig", "device_sig", "device_enc", "agent_sig", "agent_enc", "recovery_enc"];
-// Private to one load. Only complete successful JWS checks are reusable;
-// schemas, registry state and all time/authorization decisions stay outside.
-function certificateVerifier(root, expectedRootKeyId) {
+// The private generic mode exercises the defensive byte bound independently of
+// the certificate schema. Production callers use the fixed-profile factory below.
+function certificateVerifier(root, expectedRootKeyId, staticCertificate = false) {
   const rootJwk = structuredClone(root),
     rootKeyId = expectedRootKeyId,
     typ = "fv-control+jws",
     certificates = new Map(),
     decoder = new TextDecoder();
-  let certificateBytes = 0;
+  let certificateBytes = 0,
+    rootChecked = false;
   return async (input) => {
     // Key and verification use these same private inputs across every await.
     const signed = structuredClone(input),
@@ -34,14 +35,32 @@ function certificateVerifier(root, expectedRootKeyId) {
       key = decoder.decode(keyBytes),
       cached = certificates.get(key);
     if (cached !== undefined) return structuredClone(cached);
-    const payload = await verify(signed, rootJwk, typ),
-      size = keyBytes.length + canonical(payload).length;
+    if (staticCertificate && !rootChecked) {
+      if ((await keyId(rootJwk)) !== rootKeyId) deny("root_pin_mismatch");
+      rootChecked = true;
+    }
+    const payload = await verify(signed, rootJwk, typ);
+    let result = payload;
+    if (staticCertificate) {
+      validate("KeyCertificatePayload", payload);
+      result = {
+        payload,
+        publicKeyId: await keyId(payload.publicJwk),
+        payloadDigest: await digest(payload),
+      };
+    }
+    // Include static metadata in the same bound as the complete input and payload.
+    const size = keyBytes.length + canonical(result).length;
     if (!certificates.has(key) && certificates.size < 128 && certificateBytes + size <= 1_048_576) {
-      certificates.set(key, structuredClone(payload));
+      certificates.set(key, structuredClone(result));
       certificateBytes += size;
     }
-    return payload;
+    return result;
   };
+}
+/** One history attempt only. This proves static certificate integrity, never authority. */
+export function createRegistryCertificateVerifier(root, expectedRootKeyId) {
+  return certificateVerifier(root, expectedRootKeyId, true);
 }
 export class Registry {
   constructor(anchor) {
@@ -59,12 +78,18 @@ export class Registry {
   async load(bundles, now) {
     // Keep the key and verification inputs on the same private snapshot across
     // awaits. Neither callers nor mutable Registry snapshots can seed the memo.
-    const rootJwk = structuredClone(this.anchor.rootJwk),
-      rootKeyId = this.anchor.rootKeyId,
-      verifyCertificate = certificateVerifier(rootJwk, rootKeyId);
-    if ((await keyId(rootJwk)) !== rootKeyId) deny("root_pin_mismatch");
     array(bundles, 32, 1);
-    for (const b of bundles) {
+    const providedBundles = [...bundles],
+      rootJwk = structuredClone(this.anchor.rootJwk),
+      rootKeyId = this.anchor.rootKeyId,
+      verifyCertificate = createRegistryCertificateVerifier(rootJwk, rootKeyId);
+    if ((await keyId(rootJwk)) !== rootKeyId) deny("root_pin_mismatch");
+    for (const provided of providedBundles) {
+      validate("RegistryBundle", provided);
+      if (canonical(provided).length > 131072) deny("payload_too_large");
+      // Bound each JSON bundle before copying; use its private rows throughout
+      // checkpoint and certificate awaits. Later entries cannot change this row.
+      const b = structuredClone(provided);
       validate("RegistryBundle", b);
       if (canonical(b).length > 131072) deny("payload_too_large");
       const cp = await verify(b.checkpoint, rootJwk, "fv-control+jws");
@@ -100,12 +125,11 @@ export class Registry {
         descriptions = [],
         generations = new Set();
       for (const row of b.entries) {
-        const c = await verifyCertificate(row.certificate);
-        validate("KeyCertificatePayload", c);
+        const { payload: c, publicKeyId, payloadDigest } = await verifyCertificate(row.certificate);
         this.checkIdentity(c);
         if (
           c.issuerKeyId !== rootKeyId ||
-          c.keyId !== (await keyId(c.publicJwk)) ||
+          c.keyId !== publicKeyId ||
           keys.has(c.keyId) ||
           c.expiresAt <= c.notBefore ||
           !ROLES.includes(c.role) ||
@@ -134,7 +158,7 @@ export class Registry {
         ids.push(c.certificateId);
         descriptions.push({
           certificateId: c.certificateId,
-          payloadDigest: await digest(c),
+          payloadDigest,
           active: row.active,
         });
       }

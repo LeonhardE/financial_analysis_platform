@@ -37,22 +37,37 @@ nonexportable WebCrypto decryption, original identity/registry signatures, tampe
 and pin denial, strict JSON/schemas, hashes and isolated dependency-free import.
 Existing live Python/Node and service consumer tests remain separate checks.
 
-Each `Registry.load` reuses successful certificate JWS verification only within
-that single load. Its key binds the complete public Root, pinned Root key ID,
-verification profile and complete protected/payload/signature bytes. Private input
-snapshots and result copies prevent mutations across an asynchronous verification
-or a later hit. At 128 entries or 1 MiB of encoded key and payload bytes, new entries
-fall back to ordinary verification. Pending work and failures are never retained.
-Every checkpoint is still verified; all existing schema, identity, chain, digest,
-active/revoked, time and epoch checks remain. The memo retains no Registry instance,
-authorization result or cross-load/Worker/session state, and adds no public API.
+Each `Registry.load` creates one `createRegistryCertificateVerifier(rootJwk,
+expectedRootKeyId)` for that history attempt. Other trusted browser consumers may
+create the same factory once per history load. The returned async function accepts
+only a complete certificate JWS and returns `{payload, publicKeyId, payloadDigest}`.
+It fixes `fv-control+jws` and `KeyCertificatePayload`; callers cannot supply a type,
+validator, previously verified registry or success flag. Successful signature,
+closed schema, complete public P-256 key validation/thumbprint and canonical payload
+digest checks can be reused. The complete public Root, pinned Root key ID, profile
+and protected/payload/signature bytes form the key. Root pin validation precedes
+the first verification, and private input snapshots and isolated result copies
+prevent mutations across an await or a later hit.
 
-`tests/registry-memo.test.mjs` uses real WebCrypto to compare original authority and
-all schema checks, exercise exact signed-input isolation, both capacity bounds and
-mutation during an await. It also loads the source against the checked self-contained
-crypto distribution, so repository checks need no build dependencies or generated
-validator files. A test-only ESM export reaches the private verifier for the defensive
-byte bound; production source and distribution expose no memo interface.
+At 128 entries or 1 MiB of encoded keys, payloads and static metadata, new entries
+fall back to ordinary full verification. Pending work and failures are never
+retained. Each actual private bundle is checked against its original schema and 131 KiB budget
+before verification, as is the supplied JSON before copying. Every checkpoint is
+still verified and hashed; every entry still checks
+identity, issuer/key ID, role/capabilities, active/revoked state, duplicate IDs and
+generations, epochs and prior-certificate equality. Entry-list digests include the
+current active flag and are always recomputed. Selection always checks the current
+time and authority. The memo contains no authorization decision or cross-load,
+Worker or session state; discard the factory after each attempt.
+
+`tests/registry-memo.test.mjs` compares full authority with real WebCrypto over 23
+checkpoints, 47 unique certificates and 575 entries: signatures decrease from 598
+to 70 and certificate schema/thumbprint/payload-digest checks from 575 to 47.
+Malformed/extra/private keys, invalid curve points, complete signed-input isolation,
+capacity fallback, fresh attempts and mutation during an await are exercised.
+A test-only source export reaches the private signature-only mode to exercise the
+1 MiB defensive bound independently of the certificate schema's smaller field
+limits. This generic mode is not exported by the production distribution.
 
 The schema snapshot preserves the four shared documents without definition-name
 collisions. Money/date/URL/private-content semantic checks accompany AJV structure

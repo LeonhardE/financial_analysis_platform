@@ -1,15 +1,21 @@
 """Operation-local certificate verification reuse, using fresh synthetic keys."""
 
 import copy
+import threading
 import unittest
+from concurrent.futures import ThreadPoolExecutor
 from unittest.mock import patch
 
 from test_encrypted_authority import AuthorityFixture
 
 from folioview_shared.encrypted.authority import RegistryCertificateMemo
-from folioview_shared.encrypted.crypto import verify_jws
+from folioview_shared.encrypted.crypto import jwk_thumbprint, verify_jws
 from folioview_shared.encrypted.errors import ContractError
-from folioview_shared.encrypted.jsonutil import b64url_decode, b64url_encode, canonical_json
+from folioview_shared.encrypted.jsonutil import (
+    b64url_decode,
+    b64url_encode,
+    canonical_json,
+)
 from folioview_shared.encrypted.schema import validate_schema
 
 
@@ -46,7 +52,10 @@ class RegistryCertificateMemoTests(unittest.TestCase):
         f.registry = f.verify(f.bundle)
         history = [f.bundle]
         for generation in range(1, 23):
-            principal, connection = f"synthetic_{generation}", f"connection_{generation}"
+            principal, connection = (
+                f"synthetic_{generation}",
+                f"connection_{generation}",
+            )
             for role in ("agent_sig", "agent_enc"):
                 f.add_key(f"{principal}_{role}", role, principal, connection)
             bundle = retain_certificates(f.make_bundle(previous=f.registry), history[-1])
@@ -60,20 +69,32 @@ class RegistryCertificateMemoTests(unittest.TestCase):
                     "folioview_shared.encrypted.authority.verify_jws", wraps=verify_jws
                 ) as signatures,
                 patch(
-                    "folioview_shared.encrypted.authority.validate_schema", wraps=validate_schema
+                    "folioview_shared.encrypted.authority.validate_schema",
+                    wraps=validate_schema,
                 ) as schemas,
+                patch(
+                    "folioview_shared.encrypted.authority.jwk_thumbprint",
+                    wraps=jwk_thumbprint,
+                ) as thumbprints,
             ):
                 for bundle in history:
                     previous = f.verify(bundle, previous=previous, signature_memo=memo)
-            return previous, signatures.call_count, schemas.call_count
+            return (
+                previous,
+                signatures.call_count,
+                schemas.call_count,
+                thumbprints.call_count,
+            )
 
-        baseline, baseline_signatures, baseline_schemas = verify_history(None)
-        reused, reused_signatures, reused_schemas = verify_history(self.memo)
+        baseline, baseline_signatures, baseline_schemas, baseline_thumbs = verify_history(None)
+        reused, reused_signatures, reused_schemas, reused_thumbs = verify_history(self.memo)
         self.assertEqual(baseline, reused)
         self.assertEqual(598, baseline_signatures)
         self.assertEqual(70, reused_signatures)  # 23 checkpoints plus 47 unique certificates.
         self.assertEqual(621, baseline_schemas)
-        self.assertEqual(baseline_schemas, reused_schemas)
+        self.assertEqual(93, reused_schemas)  # 23 bundle/checkpoint pairs plus 47 certificates.
+        self.assertEqual(598, baseline_thumbs)
+        self.assertEqual(70, reused_thumbs)  # Root per bundle plus 47 full certificate keys.
         # A separate operation starts with an empty memo, even for the same history.
         self.assertEqual(70, verify_history(RegistryCertificateMemo())[1])
 
@@ -148,7 +169,10 @@ class RegistryCertificateMemoTests(unittest.TestCase):
     def test_entry_limit_falls_back_to_verification_without_rejecting(self):
         f = self.f
         certificates = [
-            f.sign(f.certificates["device_sig"] | {"certificateId": f"synthetic_{index}"}, "root")
+            f.sign(
+                f.certificates["device_sig"] | {"certificateId": f"synthetic_{index}"},
+                "root",
+            )
             for index in range(129)
         ]
         with patch(
@@ -180,7 +204,11 @@ class RegistryCertificateMemoTests(unittest.TestCase):
     def test_current_identity_time_active_and_history_checks_still_run(self):
         f = self.f
         first = f.verify(f.bundle, signature_memo=self.memo)
-        for changes in ({"now": 499}, {"owner_subject": "other"}, {"vault_id": "other"}):
+        for changes in (
+            {"now": 499},
+            {"owner_subject": "other"},
+            {"vault_id": "other"},
+        ):
             with self.subTest(changes=changes), self.assertRaises(ContractError):
                 f.verify(f.bundle, signature_memo=self.memo, **changes)
         bad_active = copy.deepcopy(f.bundle)
@@ -226,6 +254,291 @@ class RegistryCertificateMemoTests(unittest.TestCase):
         for _ in range(2):
             with self.assertRaises(ContractError):
                 f.verify(invalid_bundle, signature_memo=self.memo)
+
+    def check_certificate(self, signed, **changes):
+        arguments = {"public_jwk": self.f.root_public, "expected_kid": self.f.root_id}
+        arguments.update(changes)
+        return self.memo._certificate(signed, **arguments)
+
+    def test_static_evidence_is_isolated_and_signature_only_hits_require_full_promotion(
+        self,
+    ):
+        f = self.f
+        signed = f.bundle["entries"][0]["certificate"]
+        expected = copy.deepcopy(f.certificates["device_sig"])
+        with (
+            patch(
+                "folioview_shared.encrypted.authority.verify_jws", wraps=verify_jws
+            ) as signatures,
+            patch(
+                "folioview_shared.encrypted.authority.validate_schema",
+                wraps=validate_schema,
+            ) as schemas,
+            patch(
+                "folioview_shared.encrypted.authority.jwk_thumbprint",
+                wraps=jwk_thumbprint,
+            ) as thumbs,
+        ):
+            self.check_signature(signed)
+            first, thumb = self.check_certificate(signed)
+            self.assertEqual(expected["keyId"], thumb)
+            first["publicJwk"]["x"] = "forged"
+            first["capabilities"].append("forged")
+            second, second_thumb = self.check_certificate(signed)
+            self.assertEqual(expected, second)
+            self.assertEqual(thumb, second_thumb)
+            self.assertEqual(
+                (1, 1, 1),
+                (signatures.call_count, schemas.call_count, thumbs.call_count),
+            )
+            self.check_signature(signed)["capabilities"].clear()
+            self.assertEqual(expected, self.check_certificate(signed)[0])
+            self.assertEqual(
+                expected,
+                RegistryCertificateMemo()._certificate(
+                    signed, f.root_public, expected_kid=f.root_id
+                )[0],
+            )
+            self.assertEqual(
+                (2, 2, 2),
+                (signatures.call_count, schemas.call_count, thumbs.call_count),
+            )
+
+    def test_schema_missing_extra_private_and_invalid_curve_never_gain_static_success(
+        self,
+    ):
+        f = self.f
+        original = f.certificates["device_sig"]
+        missing = copy.deepcopy(original)
+        del missing["principalId"]
+        candidates = [
+            missing,
+            original | {"extra": True},
+            original | {"publicJwk": original["publicJwk"] | {"extra": True}},
+            original | {"publicJwk": original["publicJwk"] | {"d": "private"}},
+            original | {"publicJwk": original["publicJwk"] | {"x": "A" * 43, "y": "A" * 43}},
+            original | {"publicJwk": original["publicJwk"] | {"x": "malformed"}},
+        ]
+        for payload in candidates:
+            signed = f.sign(payload, "root")
+            with (
+                self.subTest(payload_fields=tuple(payload)),
+                patch(
+                    "folioview_shared.encrypted.authority.verify_jws", wraps=verify_jws
+                ) as signatures,
+            ):
+                for _ in range(2):
+                    with self.assertRaises(ContractError):
+                        self.check_certificate(signed)
+                self.assertEqual(2, signatures.call_count)
+        # A generic signature-only success still cannot confer certificate evidence.
+        signed = f.sign(original | {"extra": True}, "root")
+        self.check_signature(signed)
+        with patch(
+            "folioview_shared.encrypted.authority.validate_schema",
+            wraps=validate_schema,
+        ) as schemas:
+            for _ in range(2):
+                with self.assertRaises(ContractError):
+                    self.check_certificate(signed)
+            self.assertEqual(2, schemas.call_count)
+
+    def test_private_snapshots_prevent_thread_mutation_from_poisoning_static_or_signature_hits(
+        self,
+    ):
+        f = self.f
+        for static in (False, True):
+            with self.subTest(static=static):
+                memo = RegistryCertificateMemo()
+                a = copy.deepcopy(f.bundle["entries"][0]["certificate"])
+                b = f.sign(f.certificates["device_sig"] | {"keyEpoch": 2}, "root")
+                mutable, root = copy.deepcopy(a), copy.deepcopy(f.root_public)
+                other = AuthorityFixture()
+                entered, release = threading.Event(), threading.Event()
+
+                def paused(signed, public_jwk, *, _entered=entered, _release=release, **options):
+                    _entered.set()
+                    if not _release.wait(5):
+                        raise AssertionError("mutation test barrier timed out")
+                    return verify_jws(signed, public_jwk, **options)
+
+                def check(signed, public_jwk, *, _static=static, _memo=memo):
+                    if _static:
+                        return _memo._certificate(signed, public_jwk, expected_kid=f.root_id)[0]
+                    return _memo._verify(
+                        signed, public_jwk, typ="fv-control+jws", expected_kid=f.root_id
+                    )
+
+                with patch(
+                    "folioview_shared.encrypted.authority.verify_jws",
+                    side_effect=paused,
+                ) as signatures:
+                    with ThreadPoolExecutor(max_workers=1) as pool:
+                        pending = pool.submit(check, mutable, root)
+                        try:
+                            self.assertTrue(entered.wait(5))
+                            mutable.update(b)
+                            root.update(other.root_public)
+                        finally:
+                            release.set()
+                        self.assertEqual(f.certificates["device_sig"], pending.result(timeout=5))
+                    self.assertEqual(f.certificates["device_sig"], check(a, f.root_public))
+                    self.assertEqual(1, signatures.call_count)
+                    self.assertEqual(2, check(b, f.root_public)["keyEpoch"])
+                    self.assertEqual(2, signatures.call_count)
+
+    def test_static_item_overflow_repeats_full_schema_and_key_checks(self):
+        f = self.f
+        signed = [
+            f.sign(f.certificates["device_sig"] | {"certificateId": f"static_{n}"}, "root")
+            for n in range(129)
+        ]
+        with (
+            patch(
+                "folioview_shared.encrypted.authority.verify_jws", wraps=verify_jws
+            ) as signatures,
+            patch(
+                "folioview_shared.encrypted.authority.validate_schema",
+                wraps=validate_schema,
+            ) as schemas,
+            patch(
+                "folioview_shared.encrypted.authority.jwk_thumbprint",
+                wraps=jwk_thumbprint,
+            ) as thumbs,
+        ):
+            for item in signed:
+                self.check_certificate(item)
+            self.check_certificate(signed[0])
+            self.assertEqual(
+                (129, 129, 129),
+                (signatures.call_count, schemas.call_count, thumbs.call_count),
+            )
+            self.check_certificate(signed[-1])
+            self.assertEqual(
+                (130, 130, 130),
+                (signatures.call_count, schemas.call_count, thumbs.call_count),
+            )
+
+    def test_static_metadata_cannot_exceed_shared_byte_budget_on_promotion(self):
+        f = self.f
+        signed = f.bundle["entries"][0]["certificate"]
+
+        # Signature-only entries and promoted static entries share the same budget.
+        def encoded_size(item, payload):
+            return (
+                len(canonical_json(f.root_public))
+                + len(canonical_json(item))
+                + len(b"fv-control+jws")
+                + len(f.root_id.encode())
+                + len(canonical_json(payload))
+            )
+
+        self.check_signature(signed)
+        total = encoded_size(signed, f.certificates["device_sig"])
+        for n in range(18):
+            payload = {"index": n, "padding": "x" * 24000}
+            item = f.sign(payload, "root")
+            total += encoded_size(item, payload)
+            self.check_signature(item)
+        remaining = 1_048_576 - total
+        self.assertGreater(remaining, 0)
+
+        # Land within one static metadata record of the bound using a legal JWS.
+        def padding_size(padding):
+            payload = {"index": 99, "padding": "x" * padding}
+            # Signatures have fixed encoded length, so this sizes actual wire bytes.
+            template = dict(signed, payload=b64url_encode(canonical_json(payload)))
+            return encoded_size(template, payload)
+
+        low, high = 0, 24000
+        while low < high:
+            middle = (low + high) // 2
+            if padding_size(middle) <= remaining:
+                low = middle + 1
+            else:
+                high = middle
+        padding = low - 1
+        self.assertGreaterEqual(padding, 0)
+        self.assertLess(
+            remaining - padding_size(padding),
+            len(canonical_json({"publicKeyId": f.kid("device_sig")})),
+        )
+        self.check_signature(f.sign({"index": 99, "padding": "x" * padding}, "root"))
+        with (
+            patch(
+                "folioview_shared.encrypted.authority.validate_schema",
+                wraps=validate_schema,
+            ) as schemas,
+            patch(
+                "folioview_shared.encrypted.authority.jwk_thumbprint",
+                wraps=jwk_thumbprint,
+            ) as thumbs,
+        ):
+            self.assertEqual(f.kid("device_sig"), self.check_certificate(signed)[1])
+            self.assertEqual(f.kid("device_sig"), self.check_certificate(signed)[1])
+            self.assertEqual(
+                (2, 2),
+                (schemas.call_count, thumbs.call_count),
+                "valid overflow is checked again, not retained",
+            )
+
+    def test_concurrent_same_input_successes_do_not_double_count_bounded_entries(self):
+        f = self.f
+        signed = f.bundle["entries"][0]["certificate"]
+        barrier = threading.Barrier(2)
+
+        def concurrent(signed, public_jwk, **options):
+            barrier.wait(timeout=5)
+            return verify_jws(signed, public_jwk, **options)
+
+        with patch(
+            "folioview_shared.encrypted.authority.verify_jws", side_effect=concurrent
+        ) as signatures:
+            with ThreadPoolExecutor(max_workers=2) as pool:
+                first = pool.submit(self.check_certificate, signed)
+                second = pool.submit(self.check_certificate, signed)
+                self.assertEqual(first.result(timeout=5), second.result(timeout=5))
+            self.assertEqual(2, signatures.call_count, "pending verification is not a cache hit")
+        # Unique signed bytes still have room for all 127 remaining entries.
+        rest = [
+            f.sign(f.certificates["device_sig"] | {"certificateId": f"parallel_{n}"}, "root")
+            for n in range(128)
+        ]
+        with patch(
+            "folioview_shared.encrypted.authority.verify_jws", wraps=verify_jws
+        ) as signatures:
+            for item in rest:
+                self.check_certificate(item)
+            self.check_certificate(rest[-2])
+            self.assertEqual(128, signatures.call_count)
+            self.check_certificate(rest[-1])
+            self.assertEqual(129, signatures.call_count)
+            self.check_certificate(signed)
+            self.assertEqual(129, signatures.call_count)
+
+    def test_static_hits_do_not_replace_each_entry_identity_and_role_checks(self):
+        f = self.f
+        cert = f.certificates["device_sig"]
+        changes = [
+            {"ownerSubject": "other"},
+            {"vaultId": "other"},
+            {"issuerKeyId": f.kid("device_enc")},
+            {"keyId": f.kid("device_enc")},
+            {"expiresAt": cert["notBefore"]},
+            {"connectionId": "other"},
+            {"capabilities": ["result_write"]},
+            {"role": "root_sig", "capabilities": []},
+        ]
+        for change in changes:
+            with self.subTest(change=change):
+                payload = cert | change
+                signed = f.sign(payload, "root")
+                self.check_certificate(signed)  # Static integrity alone is insufficient.
+                bundle = copy.deepcopy(f.bundle)
+                bundle["entries"][0]["certificate"] = signed
+                for _ in range(2):
+                    with self.assertRaises(ContractError):
+                        f.verify(bundle, signature_memo=self.memo)
 
 
 if __name__ == "__main__":
