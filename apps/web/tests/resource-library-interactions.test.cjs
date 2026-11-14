@@ -108,6 +108,8 @@ test("actual holdings chooser and drop zone share the importer; multiple files a
   const imports = {
     "@/lib/holdings-facts": compile("../lib/holdings-facts.ts"),
     "./HoldingsEditor": { __esModule: true, default: () => null },
+    "./HoldingsValuation": { __esModule: true, default: () => null },
+    "next/dynamic": { __esModule: true, default: () => () => null },
     react: h.react,
     "react/jsx-runtime": runtime,
     "next-intl": { useTranslations: translations, useLocale: () => "en" },

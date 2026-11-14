@@ -54,9 +54,11 @@ export class DisplayLru<T> {
 
 export class WorkspaceDisplayCache {
   scope: string | null = null;
+  revision = 0;
   readonly taskNames = new DisplayLru<string>(32, 128 * 1024);
   readonly reports = new DisplayLru<unknown>(10, 16 * 1024 * 1024);
   readonly holdings = new DisplayLru<unknown>(2, 32 * 1024 * 1024);
+  readonly valuations = new DisplayLru<unknown>(2, 4 * 1024 * 1024);
   bind(scope: string | null) {
     if (scope !== this.scope) {
       this.clear();
@@ -64,9 +66,11 @@ export class WorkspaceDisplayCache {
     }
   }
   clear() {
+    this.revision++;
     this.taskNames.clear();
     this.reports.clear();
     this.holdings.clear();
+    this.valuations.clear();
   }
 }
 

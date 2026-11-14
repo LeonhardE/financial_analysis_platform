@@ -1,15 +1,11 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useMemo, useRef, useState } from "react";
-import { useLocale, useTranslations } from "next-intl";
+import { useTranslations } from "next-intl";
 import { LoadingIndicator, InlineError } from "./WorkspaceFeedback";
 import { useHoldingsWorkspace, type HoldingsWorkspace } from "@/components/useHoldingsWorkspace";
-import {
-  asFacts,
-  factsContent,
-  formatHoldingsTime,
-  type SavedHoldings,
-} from "@/lib/holdings-facts";
+import { asFacts, factsContent, type SavedHoldings } from "@/lib/holdings-facts";
 import HoldingsEditor from "./HoldingsEditor";
 import styles from "./ResourcesPanel.module.css";
 import ResourceLibrary from "./ResourceLibrary";
@@ -22,6 +18,13 @@ import type { ResourceLibraryModel } from "./useResourceLibrary";
 
 const GUIDE =
   "https://help.wealthsimple.com/hc/en-ca/articles/35654428540571-Request-a-custom-statement";
+function ValuationLoading() {
+  const t = useTranslations("holdingsValuation");
+  return <LoadingIndicator busy label={t("loadingPrices")} />;
+}
+const HoldingsValuation = dynamic(() => import("./HoldingsValuation"), {
+  loading: ValuationLoading,
+});
 function amount(value: string) {
   const [whole, decimal] = value.split(".");
   return `${whole.replace(/\B(?=(\d{3})+(?!\d))/g, ",")}${decimal ? `.${decimal}` : ""}`;
@@ -291,15 +294,18 @@ function Workspace({
   names,
   library,
   onCreateTask,
+  active = true,
 }: {
   model: HoldingsWorkspace;
   names: DisplayNamesModel;
   library: ResourceLibraryModel;
   onCreateTask?: (selection: ResourceSelection) => void;
+  active?: boolean;
 }) {
   const t = useTranslations("resources");
-  const locale = useLocale();
   const file = useRef<HTMLInputElement>(null);
+  const valuationVisited = useRef(active);
+  if (active) valuationVisited.current = true;
   const [importOpen, setImportOpen] = useState(false),
     [dragging, setDragging] = useState(false),
     [dropError, setDropError] = useState(""),
@@ -792,36 +798,24 @@ function Workspace({
             />
           )}
           {model.content && !hiddenHistory && !preview && (
-            <section className={styles.saved} aria-labelledby="saved-holdings-title">
-              <div className={styles.sectionHeading}>
-                <div>
-                  <span className={styles.eyebrow}>{t("storedBadge")}</span>
-                  <h2 id="saved-holdings-title">{t("savedTitle")}</h2>
-                </div>
-                <span className={styles.status}>{t("manualSnapshot")}</span>
-              </div>
-              <p className={styles.note}>
-                {t(
-                  factsContent(model.content) && model.content.data.editKind !== "import"
-                    ? "editing.updatedAt"
-                    : "importedAt",
-                  { time: formatHoldingsTime(model.content.fetchedAt, locale) },
-                )}
-              </p>
-              <Holdings
-                content={model.content}
-                onEdit={
-                  canImport && !preview
-                    ? (accountId, assetId) =>
-                        setEditing({
-                          accountId,
-                          assetId,
-                          snapshotId: model.content!.data.snapshotId,
-                          scope: model.editScope,
-                        })
-                    : undefined
-                }
-              />
+            <section className={styles.saved} aria-label={t("savedTitle")}>
+              {valuationVisited.current && (
+                <HoldingsValuation
+                  model={model}
+                  active={active}
+                  onEdit={
+                    canImport && !preview
+                      ? (accountId, assetId) =>
+                          setEditing({
+                            accountId,
+                            assetId,
+                            snapshotId: model.content!.data.snapshotId,
+                            scope: model.editScope,
+                          })
+                      : undefined
+                  }
+                />
+              )}
             </section>
           )}
         </>
@@ -902,6 +896,7 @@ function ResourcesView({
               model={model}
               names={names}
               library={library}
+              active={active}
               onCreateTask={onCreateTask}
             />
           </div>
