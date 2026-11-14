@@ -132,3 +132,12 @@ leaving task selections empty and requiring explicit fresh grants in the task
 center. Historical reports and old public verification records remain available.
 When the capability is disabled, existing installations retain the compatible
 credential flow. This release changes no rollout flags or production records.
+
+Connection display readiness is separate from connection state. Both the verified Owner
+snapshot and provider slots must load for the current unlock generation before the UI can
+show a connection as absent or offer reconnection. Initial reads show an animated loading
+badge; failed reads show an unavailable state with retry. Refreshes retain the last loaded
+snapshot and mark it as updating or stale on failure. These display snapshots never grant
+access. The four independent capability/listing reads use the existing two-transport display
+pool; credential, Root and authorization checks keep their fresh-read requirements. No timer,
+background poll, automatic authorization or additional cloud capacity is introduced.

@@ -15,7 +15,7 @@ async function waitUntil(check, label) {
     await new Promise((resolve) => setTimeout(resolve, 5));
   }
 }
-function harness(authOverride, ownerRequest) {
+function harness(authOverride, ownerRequest, readRequest) {
   let owner = authOverride?.sessionKey ?? "owner_A:login1",
     visible = true,
     index = 0,
@@ -52,7 +52,11 @@ function harness(authOverride, ownerRequest) {
     },
     useEffect(f, deps) {
       const n = index++;
-      if (!cells[n] || changed(cells[n].deps, deps)) effects.push({ n, f, deps });
+      if (!cells[n] || changed(cells[n].deps, deps)) {
+        const queued = effects.findIndex((e) => e.n === n);
+        if (queued >= 0) effects[queued] = { n, f, deps };
+        else effects.push({ n, f, deps });
+      }
     },
   };
   const calls = [];
@@ -70,6 +74,8 @@ function harness(authOverride, ownerRequest) {
   };
   const requestPrivate = async (_service, path, _key, options) => {
     calls.push({ path, options });
+    if (readRequest && (path.endsWith("/capabilities") || path.endsWith("/persistent-connections")))
+      return readRequest(path, options);
     if (
       ownerRequest &&
       (path.includes("/operations/") ||
@@ -529,6 +535,94 @@ test("changing the vault without an owner change masks retained private tasks be
     assert.match(JSON.stringify(h.render(false).tasks), /PRIVATE_CANARY/);
     h.workspace.vault = { vaultId: "vault_B" };
     assert.doesNotMatch(JSON.stringify(h.render(false).tasks), /PRIVATE_CANARY/);
+  } finally {
+    h.close();
+  }
+});
+
+test("initial connection discovery is pending until all independent display reads complete", async () => {
+  const pending = [];
+  const h = harness(
+    null,
+    null,
+    (path, options) => new Promise((resolve) => pending.push({ path, options, resolve })),
+  );
+  try {
+    assert.equal(h.render(false).loaded, false);
+    let model = h.render();
+    assert.equal(model.loading, true);
+    assert.equal(model.loaded, false);
+    assert.equal(model.loadError, false);
+    assert.equal(pending.length, 4, "capabilities and listing start without a serial waterfall");
+    assert.ok(pending.every((p) => p.options.coalesceDisplay === true));
+    for (const p of pending.slice(0, 3)) p.resolve(Response.json({}));
+    await h.settle();
+    assert.equal(h.render().loaded, false);
+    pending[3].resolve(Response.json({ connections: [] }));
+    model = await h.settle();
+    assert.equal(model.loaded, true, "only a completed empty snapshot can mean no connections");
+    assert.equal(model.loading, false);
+    assert.equal(model.loadError, false);
+  } finally {
+    h.close();
+  }
+});
+
+test("failed discovery stays unknown and failed refresh retains the prior snapshot", async () => {
+  let failed = true;
+  const h = harness(null, null, (path) =>
+    Promise.resolve(
+      failed
+        ? Response.json({}, { status: 503 })
+        : Response.json(path.endsWith("/persistent-connections") ? { connections: [] } : {}),
+    ),
+  );
+  try {
+    h.render();
+    let model = await h.settle();
+    assert.equal(model.loadError, true);
+    assert.equal(model.loaded, false);
+    assert.equal(model.loading, false);
+    failed = false;
+    await model.reload();
+    model = h.render();
+    assert.equal(model.loaded, true);
+    assert.equal(model.loadError, false);
+    const state = h.cells.find((c) => c?.value && Array.isArray(c.value.views));
+    const previous = { connection: { connectionId: "previous" }, tasks: [] };
+    state.value = { ...state.value, views: [previous] };
+    failed = true;
+    await h.render().reload();
+    model = h.render();
+    assert.equal(model.loaded, true);
+    assert.equal(model.loadError, true);
+    assert.equal(model.views[0], previous, "a refresh failure does not invent a disconnection");
+  } finally {
+    h.close();
+  }
+});
+
+test("old connection discovery cannot mark a new Owner generation as loaded or failed", async () => {
+  const pending = [];
+  const h = harness(null, null, () => new Promise((resolve) => pending.push(resolve)));
+  try {
+    h.render();
+    h.setOwner("owner_A:login2", false);
+    for (const [i, resolve] of pending.entries())
+      resolve(Response.json(i === 3 ? { connections: [] } : {}));
+    await tick();
+    let model = h.render(false);
+    assert.equal(model.loaded, false);
+    assert.equal(model.loadError, false);
+    h.render();
+    model = h.render();
+    assert.equal(model.loaded, false);
+    assert.equal(model.loading, true);
+    for (const [i, resolve] of pending.slice(4).entries())
+      resolve(Response.json(i === 3 ? { connections: [] } : {}));
+    model = await h.settle();
+    assert.equal(model.loaded, true);
+    assert.equal(model.loadError, false);
   } finally {
     h.close();
   }
