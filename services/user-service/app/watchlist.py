@@ -26,6 +26,13 @@ from folioview_shared.instruments import (
     canonical_symbol,
     iso_time,
 )
+from folioview_shared.valuation import (
+    FX_PREFERENCES_PROFILE,
+    VALUATION_CONTRACT,
+    ValuationError,
+    fx_preferences_snapshot,
+    next_fx_preferences_snapshot,
+)
 
 from .market_client import MarketResolver, get_market_resolver
 from .resource_versions import new_version, validate_version, version_key
@@ -109,7 +116,49 @@ def update_items(items: list[dict], symbol: str, item: dict | None) -> tuple[lis
     return [row for row in items if row["symbol"] != symbol], existing
 
 
+class FxPreferencesConflict(Exception):
+    """A newer Owner FX preference save already completed."""
+
+
+def fx_owner(uid: str) -> str:
+    return "fx.v1:" + owner_key(uid)
+
+
+def empty_fx() -> dict:
+    return {
+        "contractVersion": VALUATION_CONTRACT,
+        "profile": FX_PREFERENCES_PROFILE,
+        "preferences": None,
+        "version": 0,
+    }
+
+
+def checked_fx_record(value) -> dict:
+    try:
+        result = fx_preferences_snapshot(value)
+        if result["preferences"] is None:
+            raise ValuationError
+        return result
+    except ValuationError:
+        raise WatchlistUnavailable from None
+
+
+def next_fx(current, update):
+    try:
+        return next_fx_preferences_snapshot(current, update)
+    except ValuationError as error:
+        if error.code == "version_conflict":
+            raise FxPreferencesConflict from None
+        raise WatchlistUnavailable from None
+
+
 class WatchlistStore:
+    def get_fx(self, uid: str) -> dict:
+        raise NotImplementedError
+
+    def save_fx(self, uid: str, update: dict) -> dict:
+        raise NotImplementedError
+
     def get(self, uid: str) -> list[dict]:
         raise NotImplementedError
 
@@ -194,6 +243,27 @@ class SQLiteWatchlistStore(WatchlistStore):
                 )
             return items
 
+    @staticmethod
+    def read_fx(db, owner: str) -> dict:
+        row = db.execute("SELECT value FROM user_watchlists WHERE owner=?", (owner,)).fetchone()
+        return checked_fx_record(strict_json_loads(row[0])) if row else empty_fx()
+
+    def get_fx(self, uid: str) -> dict:
+        with self.connection() as db:
+            return self.read_fx(db, fx_owner(uid))
+
+    def save_fx(self, uid: str, update: dict) -> dict:
+        owner = fx_owner(uid)
+        with self.connection() as db:
+            db.execute("BEGIN IMMEDIATE")
+            result = next_fx(self.read_fx(db, owner), update)
+            db.execute(
+                "INSERT INTO user_watchlists(owner,value) VALUES (?,?) "
+                "ON CONFLICT(owner) DO UPDATE SET value=excluded.value",
+                (owner, json.dumps(result, allow_nan=False)),
+            )
+            return result
+
 
 class FirestoreWatchlistStore(WatchlistStore):
     """One user document, one bounded read, and atomic capped modifications."""
@@ -243,6 +313,31 @@ class FirestoreWatchlistStore(WatchlistStore):
         try:
             return change_transaction(BoundedTransaction(self.client, max_attempts=2))
         except WatchlistFull:
+            raise
+        except Exception as error:
+            raise WatchlistUnavailable from error
+
+    def get_fx(self, uid: str) -> dict:
+        try:
+            value = self.collection.document(fx_owner(uid)).get(timeout=4, retry=None).to_dict()
+            return checked_fx_record(value) if value is not None else empty_fx()
+        except Exception as error:
+            raise WatchlistUnavailable from error
+
+    def save_fx(self, uid: str, update: dict) -> dict:
+        reference = self.collection.document(fx_owner(uid))
+
+        @firestore.transactional
+        def save_transaction(transaction):
+            value = reference.get(transaction=transaction, timeout=4, retry=None).to_dict()
+            current = checked_fx_record(value) if value is not None else empty_fx()
+            result = next_fx(current, update)
+            transaction.set(reference, result)
+            return result
+
+        try:
+            return save_transaction(BoundedTransaction(self.client, max_attempts=2))
+        except FxPreferencesConflict:
             raise
         except Exception as error:
             raise WatchlistUnavailable from error
